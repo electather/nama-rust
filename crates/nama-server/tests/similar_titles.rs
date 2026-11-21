@@ -227,10 +227,10 @@ fn titles(hits: &[MovieHit]) -> Vec<String> {
 #[tokio::test]
 async fn two_sources_merge_by_weight_each_title_once_at_its_heaviest_ties_to_the_lower_plugin_id() {
     // TMDB answers Aliens, in no Library, at 1.0 and Heat at 0.5. The test Plugin answers Dune at
-    // 0.5, Heat by its IMDb id at 0.2, Alien itself by its IMDb id at -3, which clamps to 0.0, and
-    // a Movie in no Library at 1.0.
+    // 0.5, Heat by its IMDb id at 0.2, Alien itself by its IMDb id at 0.3, and a Movie in no
+    // Library at 1.0. Heat keeping TMDB's 0.5 puts it ahead of Alien.
     let answer = format!(
-        "tmdb-{DUNE}@0.5,{HEAT_IMDB}@0.2,{ALIEN_IMDB}@-3,tmdb-{UNLISTED}@1.0",
+        "tmdb-{DUNE}@0.5,{HEAT_IMDB}@0.2,{ALIEN_IMDB}@0.3,tmdb-{UNLISTED}@1.0",
         DUNE = server::tmdb::DUNE,
         UNLISTED = server::tmdb::UNLISTED,
     );

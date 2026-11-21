@@ -339,9 +339,9 @@ async fn every_plugin_is_listed_with_its_extension_points_enabled_or_not() {
 
 #[tokio::test]
 async fn a_plugins_extension_points_come_with_it() {
+    use ExtensionPoint::{EXTENSION_POINT_SIMILAR_SOURCE, EXTENSION_POINT_TITLE_SOURCE};
     let tmdb = get_plugin_with(BTreeMap::new(), "tmdb").await;
 
-    use ExtensionPoint::{EXTENSION_POINT_SIMILAR_SOURCE, EXTENSION_POINT_TITLE_SOURCE};
     let points = [EXTENSION_POINT_TITLE_SOURCE, EXTENSION_POINT_SIMILAR_SOURCE];
     assert_eq!(tmdb.summary.extension_points, points);
 }

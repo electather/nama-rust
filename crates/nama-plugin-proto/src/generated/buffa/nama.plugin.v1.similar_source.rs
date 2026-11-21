@@ -180,7 +180,7 @@ pub const __SIMILAR_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buf
 #[serde(default)]
 pub struct SimilarTitles {
     /// Titles of the kind asked about, by External ID only, never by name or image (ADR 0058). The
-    /// Kernel keeps the first 20 and drops a malformed one.
+    /// Kernel keeps the 100 heaviest and drops a malformed one.
     ///
     /// Field 1: `titles`
     #[serde(

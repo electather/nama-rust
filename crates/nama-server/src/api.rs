@@ -137,6 +137,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(browse::BrowseServiceHandler {
             browse: Browse::new(Arc::clone(&db)),
+            similar: SimilarSources::new(plugins.clone()),
             home_rows: home_rows.clone(),
             settings: settings.clone(),
             images: images.clone(),

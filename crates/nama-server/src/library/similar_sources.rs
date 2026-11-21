@@ -14,9 +14,12 @@ use nama_plugin_api::{
 use super::title_source::{TitleKind, title_id, title_kind};
 use crate::plugins::ExtensionPoints;
 
-/// The most titles the Kernel keeps of one answer, and shows of a merged list: about a row of
-/// posters.
+/// The most titles a merged list shows: about a row of posters.
 pub(crate) const MAX_SIMILAR: usize = 20;
+
+/// The most titles the Kernel keeps of one answer, the heaviest: enough that a source's titles in
+/// a Library survive its others, while one answer's row stays small.
+const MAX_KEPT: usize = 100;
 
 /// What one Similar source answered about a title: the titles like it, in its order, each with
 /// how alike, from 0.0 to 1.0.
@@ -64,6 +67,14 @@ impl SimilarSources {
         });
         join_all(answers).await.into_iter().flatten().collect()
     }
+
+    /// Those of `answers` from a Plugin that is an enabled Similar source now, so a disabled
+    /// one's titles drop at once, whoever disabled it (ADR 0084).
+    pub(crate) fn of_enabled(&self, mut answers: Vec<Answer>) -> Vec<Answer> {
+        let enabled = self.plugins.providers::<dyn SimilarSource>();
+        answers.retain(|answer| enabled.contains(&answer.plugin));
+        answers
+    }
 }
 
 /// Every title of `answers`, heaviest first, a tie going to the lower Plugin id, then to the
@@ -81,11 +92,11 @@ pub(crate) fn merged(answers: &[Answer]) -> Vec<ExternalId> {
     weighed.into_iter().map(|(id, ..)| id.clone()).collect()
 }
 
-/// What the Kernel keeps of an answer: its first [`MAX_SIMILAR`] titles with a well-formed id and
-/// a weight, each weight clamped to between 0.0 and 1.0. A malformed one is dropped rather than
-/// failing the answer.
+/// What the Kernel keeps of an answer: its [`MAX_KEPT`] heaviest titles with a well-formed id and
+/// a weight, each weight clamped to between 0.0 and 1.0, ties in the source's order. A malformed
+/// one is dropped rather than failing the answer.
 fn kept(answer: SimilarTitles) -> Vec<(ExternalId, f32)> {
-    (answer.titles.into_iter())
+    let mut kept: Vec<(ExternalId, f32)> = (answer.titles.into_iter())
         .filter(|title| !title.weight.is_nan())
         .filter_map(|title| {
             let id = title.id.as_option()?;
@@ -93,8 +104,10 @@ fn kept(answer: SimilarTitles) -> Vec<(ExternalId, f32)> {
             // `abs`, as -0.0 clamps to itself and would sort below 0.0 by `total_cmp`.
             Some((id, title.weight.clamp(0.0, 1.0).abs()))
         })
-        .take(MAX_SIMILAR)
-        .collect()
+        .collect();
+    kept.sort_by(|a, b| b.1.total_cmp(&a.1));
+    kept.truncate(MAX_KEPT);
+    kept
 }
 
 #[cfg(test)]

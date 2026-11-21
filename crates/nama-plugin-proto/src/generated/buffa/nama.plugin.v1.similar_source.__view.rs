@@ -315,7 +315,7 @@ impl ::serde::Serialize for SimilarAskedOwnedView {
 #[derive(Clone, Debug, Default)]
 pub struct SimilarTitlesView<'a> {
     /// Titles of the kind asked about, by External ID only, never by name or image (ADR 0058). The
-    /// Kernel keeps the first 20 and drops a malformed one.
+    /// Kernel keeps the 100 heaviest and drops a malformed one.
     ///
     /// Field 1: `titles`
     pub titles: ::buffa::RepeatedView<
@@ -555,7 +555,7 @@ impl SimilarTitlesOwnedView {
         self.0.into_bytes()
     }
     /// Titles of the kind asked about, by External ID only, never by name or image (ADR 0058). The
-    /// Kernel keeps the first 20 and drops a malformed one.
+    /// Kernel keeps the 100 heaviest and drops a malformed one.
     ///
     /// Field 1: `titles`
     #[must_use]

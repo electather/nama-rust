@@ -190,10 +190,12 @@ impl PluginService for PluginServiceHandler {
     ) -> ServiceResult<DisablePluginResponse> {
         let plugin = PluginId::from(request.id.to_owned());
         (self.plugin_settings.disable(&plugin).await).map_err(change_refused)?;
-        // Its Similar titles go now, and come back only as its titles refresh (ADR 0084).
+        // Its Similar titles go, and come back only as its titles refresh (ADR 0084). Pages
+        // already leave out a disabled Plugin's, so a failure here only leaves them stored.
         let contents = Contents::new(Arc::clone(&self.db));
-        let forgotten = contents.forget_similar_from(&plugin).await;
-        forgotten.map_err(database_failed)?;
+        if let Err(err) = contents.forget_similar_from(&plugin).await {
+            tracing::error!(%plugin, %err, "couldn't delete a disabled Plugin's Similar titles");
+        }
         Response::ok(DisablePluginResponse::default())
     }
 

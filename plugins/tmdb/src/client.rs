@@ -280,7 +280,7 @@ impl SimilarSource for Client {
                 Some(TitleKind::TITLE_KIND_SHOW) => "tv",
                 _ => return Ok(SimilarTitles::default()),
             };
-            // shortcut: asks only by a TMDB id, which every title TMDB Matched has; look the
+            // ponytail: asks only by a TMDB id, which every title TMDB Matched has; look the
             // others up with `find` once another title source's titles should get TMDB's.
             let tmdb = asked
                 .ids

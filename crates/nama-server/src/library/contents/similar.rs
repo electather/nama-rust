@@ -14,7 +14,7 @@ use crate::library::{SimilarAnswer, TitleKind};
 
 /// One title of a stored answer, as the `similar` column's JSON holds it.
 #[derive(Serialize, Deserialize)]
-struct Stored {
+struct StoredTitle {
     id: String,
     weight: f32,
 }
@@ -36,8 +36,8 @@ pub(super) async fn store(
     let (namespace, value) = (id.namespace(), id.value());
     for answer in &matched.similar {
         let plugin = answer.plugin.as_str();
-        let titles: Vec<Stored> = (answer.titles.iter())
-            .map(|(similar, weight)| Stored {
+        let titles: Vec<StoredTitle> = (answer.titles.iter())
+            .map(|(similar, weight)| StoredTitle {
                 id: similar.to_string(),
                 weight: *weight,
             })
@@ -83,7 +83,7 @@ impl Contents {
         .await?;
         rows.into_iter()
             .map(|row| {
-                let stored: Vec<Stored> = serde_json::from_str(&row.similar)
+                let stored: Vec<StoredTitle> = serde_json::from_str(&row.similar)
                     .map_err(|err| sqlx::Error::Decode(err.into()))?;
                 let titles = (stored.into_iter())
                     .filter_map(|title| Some((title.id.parse().ok()?, title.weight)))

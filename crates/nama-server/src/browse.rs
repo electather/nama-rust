@@ -15,8 +15,8 @@ use crate::{
     library::{
         Contents, Found, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
         LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listing, MAX_SIMILAR, NotFound,
-        OnServer, Roles, SimilarAnswer, Stored, TitleKind, TitleTarget as Target, Titles,
-        Unmatched, WatchState, WatchStateKind, WatchStates, merged_similar,
+        OnServer, Roles, SimilarAnswer, SimilarSources, Stored, TitleKind, TitleTarget as Target,
+        Titles, Unmatched, WatchState, WatchStateKind, WatchStates, merged_similar,
     },
     page::{self, Page},
     playback::{Probe, StoredTracks, Track},
@@ -342,14 +342,15 @@ impl Browse {
         self.tracks.of(&files).await
     }
 
-    /// The Similar titles of the title of `kind` known by `ids`, merged from what each Similar
-    /// source last answered about it, as [`Self::similar_in_libraries`] finds them.
+    /// The Similar titles of the title of `kind` known by `ids`, merged from what each of
+    /// `sources` last answered about it, as [`Self::similar_in_libraries`] finds them.
     pub(crate) async fn similar(
         &self,
         kind: TitleKind,
         ids: &ExternalIds,
+        sources: &SimilarSources,
     ) -> Result<Vec<OnServer>, Error> {
-        let answers = self.contents.similar(kind, ids).await?;
+        let answers = sources.of_enabled(self.contents.similar(kind, ids).await?);
         self.similar_in_libraries(kind, &answers).await
     }
 
