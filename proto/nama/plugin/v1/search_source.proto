@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package nama.plugin.v1;
+
+import "nama/plugin/v1/request.proto";
+import "nama/plugin/v1/title_source.proto";
+
+// The Extension Point for a Search source, which answers a User's search with titles, such as by
+// what they are about rather than their name (ADR 0083). An Installed Plugin serves it through the
+// WASM export each rpc names, taking and returning its messages encoded as protobuf.
+//
+// The Kernel asks every enabled Search source for every search that isn't blank, and never says
+// who is searching: enabling the Plugin is the Admin's consent for queries leaving the Server
+// (ADR 0049). It gives each source about 5 seconds; one that fails or runs past them is named to
+// the User as failed and adds nothing. It shows the titles after those the Libraries and the title
+// source found, by the Admin's precedence of Plugins.
+service SearchSourceService {
+  // The `search_titles` export: the titles that best answer a query, best first.
+  rpc Search(SearchSourceQuery) returns (SearchSourceResults);
+}
+
+// What the `search_titles` export is asked.
+message SearchSourceQuery {
+  // The words the User typed.
+  string query = 1;
+  // Movies or Shows, or unset for both.
+  TitleKind kind = 2;
+  // How many titles the Kernel shows at most. It drops some, such as those already found, and
+  // doesn't ask again to make up for them.
+  uint32 limit = 3;
+}
+
+// What the `search_titles` export returns.
+message SearchSourceResults {
+  // The titles found, best first. Empty if none fit.
+  repeated SearchSourceTitle titles = 1;
+}
+
+// A title a Search source found. The Kernel shows it only if a Library has it, the User can see a
+// Request for it, or an enabled title source keeps one of its ids' namespaces and the User may
+// request it; it drops the rest, and looks nothing up.
+message SearchSourceTitle {
+  // Movie or Show; the Kernel drops one of neither kind.
+  TitleKind kind = 1;
+  // Every id the source knows the title by, at most one per namespace: any one finds it.
+  repeated TitleId ids = 2;
+  // The title, shown only when no Library has it.
+  string title = 3;
+  // The year a Movie was released or a Show first aired, shown as `title` is.
+  optional int32 year = 4;
+  // The poster's path, shown as `title` is, for the Plugin's own `title_image` export of
+  // `TitleSourceService`, through which the Kernel fetches it.
+  optional string poster = 5;
+}

@@ -19,8 +19,15 @@ service SearchService {
   // `PERMISSION_REQUEST_TV` the Shows: for each kind, the first title source in the Admin's
   // precedence to find any is asked for the query, as it is typed.
   //
+  // Each enabled Search source is asked too, with the query, the kind and the limit, never the
+  // caller (ADR 0083). Its titles count only by an id this Server knows: one a Library has is
+  // Available, one with an open Request the caller can see or a Followed Show is Requested, and
+  // one of a kind the caller may request is Not on this Server if an enabled title source keeps
+  // one of its ids' namespaces. The rest are dropped.
+  //
   // Streams the batch the Libraries found at once, then, for a caller who may request, the
-  // title source's for each kind it answered, Movies first, then `Done`. Fails with
+  // title source's for each kind it answered, Movies first, then a batch for each Search source
+  // that answered, in the Admin's precedence of Plugins, then `Done`. Fails with
   // `invalid_argument` if the query is blank (`REFUSAL_REASON_FIELD_REQUIRED`).
   rpc Search(SearchRequest) returns (stream SearchResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -53,7 +60,8 @@ message SearchResponse {
 // query, then one holding each of its words whole (in both, the year it ends with aside), then
 // one of that year, then the better fit, then the shorter title. The title source's batch holds
 // none the Libraries' sent: by `status`, then by those same bands, then in the source's order.
-// A client lists every batch's results stably sorted by `status`.
+// A Search source's batch holds none an earlier batch sent: by `status`, then in the source's
+// order. A client lists every batch's results stably sorted by `status`.
 message Hits {
   repeated Hit hits = 1;
 }
@@ -79,7 +87,8 @@ enum TitleStatus {
   // No Library has it, and the caller can see an open Request for it or one of the Show's
   // Seasons, in `request`, or the Show's open Followed Show, which alone leaves `request` unset.
   TITLE_STATUS_REQUESTED = 2;
-  // Only the title source has it, and the caller may request it.
+  // Only the title source has it, or a Search source found it under an id an enabled title
+  // source keeps, and the caller may request it.
   TITLE_STATUS_NOT_ON_THIS_SERVER = 3;
 }
 
@@ -112,4 +121,7 @@ message Done {
   // Whether the title source was to be asked and couldn't be: none is enabled, or each failed,
   // for Movies or for Shows. The results of that kind are then only those the Libraries have.
   bool title_source_unavailable = 1;
+  // The Plugin ids of the enabled Search sources that failed or took too long, which added no
+  // batch, in the Admin's precedence of Plugins.
+  repeated string failed_search_sources = 2;
 }

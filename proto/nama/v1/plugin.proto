@@ -405,6 +405,9 @@ enum ExtensionPoint {
   // Says where a Version's Intro, Recap and Credits are, which a Library lists to ask it
   // (ADR 0075).
   EXTENSION_POINT_SEGMENT_SOURCE = 14;
+  // Adds titles to every User's search, such as by what they are about, after the Libraries'
+  // and the title source's (ADR 0083).
+  EXTENSION_POINT_SEARCH_SOURCE = 15;
 }
 
 // What kind of value a setting takes.

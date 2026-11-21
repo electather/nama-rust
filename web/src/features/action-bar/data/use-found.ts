@@ -21,7 +21,7 @@ export function useFound(words: string, kind: TitleKind) {
   const found = asked && query.data ? foundIn(query.data) : undefined;
   return {
     found,
-    titleSourceUnavailable: found?.titleSourceUnavailable === true,
+    note: found?.note,
     // A search that isn't asked for neither fetches nor fails.
     searching: query.isFetching,
     failed: query.isError,

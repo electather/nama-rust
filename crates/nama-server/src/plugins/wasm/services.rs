@@ -15,6 +15,7 @@ use nama_plugin_api::{
     notifier::Notifier,
     points::Events,
     recogniser::Recogniser,
+    search_source::SearchSource,
     segment_source::SegmentSource,
     subtitle_source::SubtitleSource,
 };
@@ -171,6 +172,8 @@ pub(super) const SUBTITLE_DOWNLOAD: Method =
     required(services::SUBTITLE_SOURCE, "Download", "subtitle_download");
 pub(super) const SEGMENT_SEARCH: Method =
     required(services::SEGMENT_SOURCE, "Search", "segment_search");
+pub(super) const SEARCH_TITLES: Method =
+    required(services::SEARCH_SOURCE, "Search", "search_titles");
 
 /// The Extension Points an Installed Plugin can serve, one per service of the Plugin contract.
 pub(super) const POINTS: &[Point] = &[
@@ -292,6 +295,15 @@ pub(super) const POINTS: &[Point] = &[
         key: PointKey::provide::<dyn JobRunner>,
         register: |registrar, running| {
             registrar.provide::<dyn JobRunner>(Priority::DEFAULT, Arc::new(running));
+        },
+    },
+    Point {
+        service: services::SEARCH_SOURCE,
+        crash_group: services::SEARCH_SOURCE,
+        methods: &[SEARCH_TITLES],
+        key: PointKey::provide::<dyn SearchSource>,
+        register: |registrar, running| {
+            registrar.provide::<dyn SearchSource>(Priority::DEFAULT, Arc::new(running));
         },
     },
 ];
