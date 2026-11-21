@@ -13,12 +13,15 @@ export function PlayRow({ play }: { play: KnownPlay }) {
   const { playback } = play;
   const viewer = useViewerWords(playback);
   const title = play.title === "" ? "A deleted Version" : play.title;
+  const position = positionWords(play);
   return (
     <AdminRow end={<StopPlay planId={playback.planId} title={title} viewer={viewer} />}>
       <p className="truncate font-medium">{title}</p>
       <span className="text-sm">{viewer}</span>
       <span className="text-sm">{howItPlays(play)}</span>
-      <span className="text-sm text-muted-foreground tabular-nums">{positionWords(play)}</span>
+      {position !== "" && (
+        <span className="text-sm text-muted-foreground tabular-nums">{position}</span>
+      )}
       {playback.reasons.length > 0 && (
         <ul className="mt-1 text-sm text-pretty text-muted-foreground">
           {playback.reasons.map(reasonText).map((text) => (

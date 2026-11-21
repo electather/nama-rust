@@ -9,7 +9,7 @@ import { methodName } from "@/shared/lib/playback-wording";
 export type KnownPlay = Play & { playback: Playback };
 
 /** Whether `play` carries its Playback, so the page can show it. */
-export function isKnown(play: Play): play is KnownPlay {
+export function hasPlayback(play: Play): play is KnownPlay {
   return play.playback !== undefined;
 }
 
