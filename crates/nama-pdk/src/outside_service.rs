@@ -47,6 +47,12 @@ impl OutsideService {
         }
     }
 
+    /// The service's name, for a Plugin's own wordings about it.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        self.name
+    }
+
     /// Sends `request` with `body` through [`crate::http_request`].
     ///
     /// # Errors

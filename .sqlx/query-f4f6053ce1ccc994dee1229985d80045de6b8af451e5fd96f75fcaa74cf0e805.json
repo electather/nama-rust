@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO tracks (version_id, position, kind, codec, language, title, is_default,\n                             forced, sdh, width, height, frame_rate, bit_depth, hdr,\n                             dolby_vision_profile, dolby_vision_base_layer, channels,\n                             atmos, audio_description, image, header)\n         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 21
+    },
+    "nullable": []
+  },
+  "hash": "f4f6053ce1ccc994dee1229985d80045de6b8af451e5fd96f75fcaa74cf0e805"
+}

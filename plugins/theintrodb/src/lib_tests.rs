@@ -149,17 +149,21 @@ fn a_title_theintrodb_doesnt_know_has_no_segments() {
 }
 
 #[test]
-fn a_rate_limited_request_fails_so_the_kernel_asks_again() {
-    let mut kernel = answering(429, include_bytes!("../fixtures/rate_limited.json"));
+fn a_refused_401_names_the_api_key() {
+    let mut kernel = answering(401, b"{}").setting("api_key", "revoked");
 
     let failed = search(&mut kernel, fight_club()).unwrap_err();
 
-    assert!(
-        failed
-            .to_string()
-            .contains("limiting this Server's requests"),
-        "{failed}"
-    );
+    assert_eq!(failed.to_string(), "TheIntroDB refused the API key");
+}
+
+#[test]
+fn an_id_theintrodb_cant_place_has_no_segments() {
+    let mut kernel = answering(422, b"{}");
+
+    let results = search(&mut kernel, fight_club()).unwrap();
+
+    assert_eq!(found(&results), []);
 }
 
 #[test]

@@ -25,7 +25,11 @@ export function useRecents() {
     const next = [title, ...recents.filter(({ id }) => id !== title.id)].slice(0, kept);
     setRecents(next);
     try {
-      localStorage.setItem(storageKey, JSON.stringify(next));
+      // A thumbhash only stands in while its image loads, and its bytes don't survive JSON.
+      const stored = JSON.stringify(next, (_, value: unknown) =>
+        value instanceof Uint8Array ? undefined : value,
+      );
+      localStorage.setItem(storageKey, stored);
     } catch {
       // Blocked or full storage only costs Recent.
     }

@@ -10,6 +10,13 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-21, #1466
+
+- `RPC_NO_DELETE`, `nama/v1/request.proto`: `RequestService.SearchMovies` and `RequestService.SearchShows`.
+- `MESSAGE_NO_DELETE`, `nama/v1/request.proto`: `SearchMoviesRequest`, `SearchMoviesResponse`, `SearchShowsRequest` and `SearchShowsResponse`.
+- `SearchService.Search` finds the Movies and Shows to request in their place (ADR 0080), each with its `status`, beside those the Libraries have. `LookUpMovie` and `LookUpShow` stay.
+- A client built before is refused with `unimplemented` when it searches the title source; it must regenerate and call `Search`. The web app is the only client.
+
 ## 2026-11-21, #1465
 
 - None that `buf breaking` reports: in `nama/v1/request.proto`, `ShowHit` gains `request` (13).

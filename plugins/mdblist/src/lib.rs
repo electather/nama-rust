@@ -4,15 +4,17 @@
 use std::time::Duration;
 
 use nama_pdk::{
-    HomeRow, HomeRowSource, HomeRowTitle, HomeRows, Manifest, TitleId, TitleKind,
+    HomeRow, HomeRowSource, HomeRowTitle, HomeRows, Manifest, OutsideService, SettingField,
+    SettingKind, TitleId, TitleKind,
     extism_pdk::{Error, HttpRequest, json},
-    nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind},
-    services,
+    services, setting_field,
 };
 use serde::Deserialize;
 use url::Url;
 
 const API_KEY: &str = "api_key";
+
+const MDBLIST: OutsideService = OutsideService::new("MDBList").credential("API key");
 
 /// The settings each naming one list, in the order home shows their rows.
 const LISTS: [&str; 3] = ["list_1", "list_2", "list_3"];
@@ -41,23 +43,23 @@ const SETUP: &str = "\
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
     let list = |(number, key): (usize, &str)| SettingField {
-        key: key.to_owned(),
-        label: format!("List {}", number + 1),
-        description: "A public MDBList list's address, such as \
-                      https://mdblist.com/lists/garycrawfordgc/latest-tv-shows, or its id."
-            .to_owned(),
-        kind: SettingKind::SETTING_KIND_TEXT.into(),
         required: number == 0,
-        ..SettingField::default()
+        ..setting_field(
+            key,
+            &format!("List {}", number + 1),
+            "A public MDBList list's address, such as \
+             https://mdblist.com/lists/garycrawfordgc/latest-tv-shows, or its id.",
+            SettingKind::SETTING_KIND_TEXT,
+        )
     };
     let api_key = SettingField {
-        key: API_KEY.to_owned(),
-        label: "API key".to_owned(),
-        description: "Your MDBList API key, from the Preferences page of your MDBList account."
-            .to_owned(),
-        kind: SettingKind::SETTING_KIND_SECRET.into(),
         required: true,
-        ..SettingField::default()
+        ..setting_field(
+            API_KEY,
+            "API key",
+            "Your MDBList API key, from the Preferences page of your MDBList account.",
+            SettingKind::SETTING_KIND_SECRET,
+        )
     };
     Manifest {
         name: "MDBList".to_owned(),
@@ -213,21 +215,12 @@ impl Api {
         url.query_pairs_mut()
             .append_pair("apikey", &self.key)
             .extend_pairs(query);
-        let response = nama_pdk::http_request(
-            &HttpRequest::new(url.as_str()),
-            None::<String>,
-            "MDBList didn't answer",
-        )?;
-        match response.status_code() {
-            200..300 => json::from_slice(response.body()).map_err(|err| {
-                Error::msg(format!("MDBList answered with something unexpected: {err}"))
-            }),
-            401 => Err(Error::msg("MDBList refused the API key")),
-            403 | 404 => Err(gone(setting)),
-            status => Err(Error::msg(format!(
-                "MDBList refused the request for the list {setting} with HTTP status {status}"
-            ))),
+        let response = MDBLIST.send(&HttpRequest::new(url.as_str()), None::<String>)?;
+        if matches!(response.status_code(), 403 | 404) {
+            return Err(gone(setting));
         }
+        json::from_slice(MDBLIST.accepted(response)?.body())
+            .map_err(|err| Error::msg(format!("MDBList answered with something unexpected: {err}")))
     }
 }
 

@@ -1,18 +1,22 @@
 //! Searching every Library's Matched titles.
 
-use std::cmp::Ordering;
+use std::cmp::{Ordering, Reverse};
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use super::{
-    Contents, ImageRef, ItemKind, ids_from_json, ids_sql, matched_items, parse_hint, show_poster,
-    sort_titles::folded,
+    Contents, ImageRef, ItemKind, edit_distance::edit_distance, ids_from_json, ids_sql,
+    matched_items, parse_hint, show_poster, sort_titles::folded,
 };
 use crate::library::TitleKind;
 
 /// How many of the best fits by FTS5's rank [`Contents::search`] orders by [`Fit`].
 // ponytail: a better fit ranked below these by bm25 is missed; raise it if one ever is.
 const CANDIDATES: i64 = 500;
+
+/// With fewer rows than this found by [`Contents::search_rows`], [`Contents::search`] corrects
+/// the query's typos and searches again, as Silo's search does (#1459).
+const FEW_FOUND: usize = 5;
 
 /// A Movie, Show or Episode [`Contents::search`] found, once per Library that has it.
 #[derive(Debug)]
@@ -28,7 +32,7 @@ pub(crate) enum Found {
 #[derive(Debug, Clone)]
 pub(crate) struct FoundMovie {
     pub(crate) library: i64,
-    /// As browsing identifies it: see [`primary_id`](super::primary_id).
+    /// Its preferred id, its `own_id` in `matched_items`.
     pub(crate) id: ExternalId,
     /// Every id its Match gives it.
     pub(crate) ids: ExternalIds,
@@ -41,7 +45,7 @@ pub(crate) struct FoundMovie {
 #[derive(Debug, Clone)]
 pub(crate) struct FoundShow {
     pub(crate) library: i64,
-    /// As browsing identifies it: see [`primary_id`](super::primary_id).
+    /// Its preferred id, its `listed_id` in `matched_items`.
     pub(crate) id: ExternalId,
     /// Every id the Match of its first Episode found gives it.
     pub(crate) ids: ExternalIds,
@@ -55,15 +59,20 @@ pub(crate) struct FoundShow {
 #[derive(Debug)]
 pub(crate) struct FoundEpisode {
     pub(crate) library: i64,
-    /// As browsing identifies it: see [`primary_id`](super::primary_id).
+    /// Its preferred id, its `own_id` in `matched_items`.
     pub(crate) id: ExternalId,
-    /// Its Show's id, as browsing identifies it.
+    /// Its Show's preferred id, its `listed_id` in `matched_items`.
     pub(crate) show: ExternalId,
+    /// Every id its Match gives its Show.
+    pub(crate) show_ids: ExternalIds,
     pub(crate) show_title: String,
+    /// As [`show_poster`] picks it, from the Match and the Episode's Season.
+    pub(crate) show_poster: Option<ImageRef>,
     pub(crate) season: i64,
     /// The episode number within its Season.
     pub(crate) number: i64,
     pub(crate) title: String,
+    pub(crate) still: Option<ImageRef>,
 }
 
 impl Contents {
@@ -72,7 +81,8 @@ impl Contents {
     /// `kind` only if it's set, a Show's with its Episodes. A year after other words keeps only
     /// those of that year, or with it in their title. Ordered as ADR 0080 says: Movies and Shows
     /// before Episodes, then by [`Fit`], then the year asked for, FTS5's rank, and the shorter
-    /// title.
+    /// title. With fewer than [`FEW_FOUND`] found, the titles a search with its typos corrected
+    /// finds come after all those.
     pub(crate) async fn search(
         &self,
         query: &str,
@@ -83,17 +93,33 @@ impl Contents {
             return Ok(Vec::new());
         };
         let rows = self.search_rows(&words, kind).await?;
-        let mut ranked: Vec<(Rank, Found)> = (rows.into_iter())
-            .filter_map(|row| {
-                let rank = Rank::of(&row, &words);
-                Some((rank, found(row)?))
-            })
-            .collect();
-        ranked.sort_by(|(a, _), (b, _)| a.order(b));
-        Ok((ranked.into_iter())
-            .take(limit)
-            .map(|(_, found)| found)
-            .collect())
+        let few_found = rows.len() < FEW_FOUND;
+        let mut found = ranked(rows, &words);
+        // Only a word no indexed word starts with is corrected, and it finds nothing, so a
+        // corrected search adds to an empty batch: nothing it finds is already in it.
+        if few_found && words.correctable() {
+            let vocab = self.indexed_words().await?;
+            if let Some(corrected) = words.corrected(&vocab) {
+                let corrected_rows = self.search_rows(&corrected, kind).await?;
+                found.extend(ranked(corrected_rows, &corrected));
+            }
+        }
+        found.truncate(limit);
+        Ok(found)
+    }
+
+    /// Every word `title_search` holds, from `title_search_vocab`.
+    async fn indexed_words(&self) -> Result<Vec<IndexedWord>, sqlx::Error> {
+        // ponytail: reads every word the Libraries' titles hold; read only those of a length
+        // within reach if a big Library's searches get slow.
+        // The casts keep sqlx's compile-time check from crashing on an `fts5vocab` column.
+        sqlx::query_as!(
+            IndexedWord,
+            r#"SELECT CAST(term AS TEXT) AS "word!: String", CAST(doc AS INTEGER) AS "titles!: i64"
+               FROM title_search_vocab"#
+        )
+        .fetch_all(self.db.reader())
+        .await
     }
 
     /// The best [`CANDIDATES`] titles whose `title_search` rows fit `words`, of `kind` only if
@@ -111,8 +137,7 @@ impl Contents {
         // A hit is grouped by the id browsing knows its title by, which `matched_items` picks,
         // so each title is read once.
         // ponytail: every search groups every hit, since a title's Items can be anywhere in
-        // FTS5's order; the `LIMIT` caps what is read back. Store a title row to search if that's
-        // slow.
+        // FTS5's order; the `LIMIT` caps what is read back.
         macro_rules! select {
             ($ids:literal, ($($matched:tt)+)) => {
                 sqlx::query_as!(
@@ -158,7 +183,7 @@ impl Contents {
                         + r#"'title') AS "ids?: String", "#
                         + $ids
                         + r#"'show') AS "show_ids?: String", item_matches.title AS "title!",
-                              item_matches.show_title, item_matches.release_date,
+                              item_matches.show_title, item_matches.release_date, plugin, still,
                               item_matches.poster, item_matches.poster_plugin,
                               item_matches.show_poster, item_matches.show_poster_plugin,
                               item_matches.metadata_version,
@@ -190,6 +215,53 @@ impl Contents {
     }
 }
 
+/// The titles `rows` found, ordered as [`Contents::search`] says, but those browsing couldn't
+/// open.
+fn ranked(rows: Vec<SearchRow>, words: &SearchWords<'_>) -> Vec<Found> {
+    let mut ranked: Vec<(Rank, Found)> = (rows.into_iter())
+        .filter_map(|row| {
+            let rank = Rank::of(&row, words);
+            Some((rank, found(row)?))
+        })
+        .collect();
+    ranked.sort_by(|(a, _), (b, _)| a.order(b));
+    ranked.into_iter().map(|(_, found)| found).collect()
+}
+
+/// A word `title_search` holds, as `title_search_vocab` lists it.
+struct IndexedWord {
+    /// Lowercase and without accents.
+    word: String,
+    /// How many of `title_search`'s rows hold it.
+    titles: i64,
+}
+
+/// How many edits [`SearchWords::corrected`] may make to `word`, by how many letters it has.
+fn edits_allowed(word: &str) -> usize {
+    match word.chars().filter(|c| c.is_alphabetic()).count() {
+        0..=3 => 0,
+        4..=7 => 1,
+        _ => 2,
+    }
+}
+
+/// The word in `vocab` nearest `word`, as [`SearchWords::corrected`] picks it, unless one starts
+/// with `word` or none is within [`edits_allowed`].
+fn nearest<'v>(word: &str, vocab: &'v [IndexedWord]) -> Option<&'v str> {
+    let allowed = edits_allowed(word);
+    if allowed == 0 || vocab.iter().any(|indexed| indexed.word.starts_with(word)) {
+        return None;
+    }
+    (vocab.iter())
+        .map(|indexed| {
+            let distance = edit_distance(word, &indexed.word);
+            (distance, Reverse(indexed.titles), indexed.word.as_str())
+        })
+        .filter(|&(distance, ..)| distance <= allowed)
+        .min()
+        .map(|(.., word)| word)
+}
+
 /// A title a search found, as [`Contents::search_rows`] reads it from its best-fitting Item.
 struct SearchRow {
     library: i64,
@@ -212,6 +284,9 @@ struct SearchRow {
     title: String,
     show_title: Option<String>,
     release_date: Option<String>,
+    /// The Plugin whose title source made the Match, which the Still's path is for.
+    plugin: Option<String>,
+    still: Option<String>,
     poster: Option<String>,
     poster_plugin: Option<String>,
     show_poster: Option<String>,
@@ -259,20 +334,9 @@ fn found(row: SearchRow) -> Option<Found> {
         return found_show(row).map(Found::Show);
     }
     let id = row.primary_id()?;
-    match (row.kind, row.season, row.episode, row.show_primary_id()) {
-        (ItemKind::Episode, Some(season), Some(number), Some(show)) => {
-            Some(Found::Episode(FoundEpisode {
-                library: row.library,
-                id,
-                show,
-                show_title: row.show_title.unwrap_or_default(),
-                season,
-                number,
-                title: row.title,
-            }))
-        }
-        (ItemKind::Episode, ..) => None,
-        (ItemKind::Movie, ..) => Some(Found::Movie(FoundMovie {
+    match row.kind {
+        ItemKind::Episode => found_episode(row, id).map(Found::Episode),
+        ItemKind::Movie => Some(Found::Movie(FoundMovie {
             library: row.library,
             id,
             ids: row.ids(),
@@ -281,6 +345,28 @@ fn found(row: SearchRow) -> Option<Found> {
             poster: ImageRef::stored(row.poster, row.poster_plugin),
         })),
     }
+}
+
+/// The Episode `id` that `row` found by its own title, unless browsing couldn't open it.
+fn found_episode(row: SearchRow, id: ExternalId) -> Option<FoundEpisode> {
+    let (season, number, show) = (row.season?, row.episode?, row.show_primary_id()?);
+    let show_ids = row.show_ids();
+    // ponytail: a Match stored before Matches had a Show's own Poster stands for it with this
+    // Episode's Season's, where the Show's grid takes its first Season's.
+    let season_poster = ImageRef::stored(row.poster, row.poster_plugin);
+    let own = ImageRef::stored(row.show_poster, row.show_poster_plugin);
+    Some(FoundEpisode {
+        library: row.library,
+        id,
+        show,
+        show_ids,
+        show_title: row.show_title.unwrap_or_default(),
+        show_poster: show_poster(own, row.metadata_version, [(season, season_poster)]),
+        season,
+        number,
+        title: row.title,
+        still: ImageRef::stored(row.still, row.plugin),
+    })
 }
 
 /// The Show that `row`, found by the Show's title, is an Episode of.
@@ -331,12 +417,42 @@ impl<'a> SearchWords<'a> {
             }
             _ => None,
         };
+        (!words.is_empty()).then(|| Self::new(words, year))
+    }
+
+    fn new(words: Vec<&'a str>, year: Option<&'a str>) -> Self {
         let compared = words.iter().chain(&year).map(|word| folded(word)).collect();
-        (!words.is_empty()).then_some(Self {
+        Self {
             words,
             year,
             compared,
-        })
+        }
+    }
+
+    /// The words, lowercase and without accents, without the year.
+    fn compared_words(&self) -> &[String] {
+        self.compared.get(..self.words.len()).unwrap_or_default()
+    }
+
+    /// Whether some word is long enough for [`Self::corrected`] to correct.
+    fn correctable(&self) -> bool {
+        (self.compared_words().iter()).any(|word| edits_allowed(word) > 0)
+    }
+
+    /// These words with each of 4 or more letters that no word in `vocab` starts with replaced
+    /// by the nearest one, by [`edit_distance`] within [`edits_allowed`], then by the most
+    /// titles holding it, then alphabetically; `None` if no word is replaced.
+    fn corrected<'s>(&'s self, vocab: &'s [IndexedWord]) -> Option<SearchWords<'s>> {
+        let words = self.compared_words();
+        let corrections: Vec<Option<&str>> =
+            words.iter().map(|word| nearest(word, vocab)).collect();
+        if corrections.iter().all(Option::is_none) {
+            return None;
+        }
+        let corrected = (words.iter().zip(corrections))
+            .map(|(word, correction)| correction.unwrap_or(word))
+            .collect();
+        Some(SearchWords::new(corrected, self.year))
     }
 
     /// How `title`, of `year`, fits these words, and whether the year they end with isn't its.
@@ -421,7 +537,7 @@ impl Fit {
     fn of(words: &SearchWords<'_>, title: &str, year: Option<&str>) -> Self {
         let query = &words.compared;
         // The year is the year band's to rank, past an exact title.
-        let without_year = query.get(..words.words.len()).unwrap_or_default();
+        let without_year = words.compared_words();
         let fit = |variant: &str| {
             let variant = title_words(variant);
             let with_year = year.map(|year| [&variant[..], &[year.to_owned()]].concat());

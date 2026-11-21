@@ -1445,6 +1445,23 @@ pub struct EpisodeHitView<'a> {
     pub episode_number: u32,
     /// Field 7: `title`
     pub title: &'a str,
+    /// As `Episode.still_url`.
+    ///
+    /// Field 8: `still_url`
+    pub still_url: ::core::option::Option<&'a str>,
+    /// As `Episode.still_thumbhash`.
+    ///
+    /// Field 9: `still_thumbhash`
+    pub still_thumbhash: ::core::option::Option<&'a [u8]>,
+    /// Its Show's Poster's URL on this Server, as `ShowHit.poster_url`, to show in place of a
+    /// missing Still.
+    ///
+    /// Field 10: `show_poster_url`
+    pub show_poster_url: ::core::option::Option<&'a str>,
+    /// As `ShowHit.poster_thumbhash`.
+    ///
+    /// Field 11: `show_poster_thumbhash`
+    pub show_poster_thumbhash: ::core::option::Option<&'a [u8]>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for EpisodeHitView<'a> {
@@ -1554,6 +1571,36 @@ impl<'a> ::buffa::MessageView<'a> for EpisodeHitView<'a> {
                 )?;
                 view.title = ::buffa::types::borrow_str(&mut cur)?;
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.still_url = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.still_thumbhash = Some(::buffa::types::borrow_bytes(&mut cur)?);
+            }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.show_poster_url = Some(::buffa::types::borrow_str(&mut cur)?);
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.show_poster_thumbhash = Some(
+                    ::buffa::types::borrow_bytes(&mut cur)?,
+                );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -1599,6 +1646,10 @@ impl<'a> ::buffa::MessageView<'a> for EpisodeHitView<'a> {
             season_number: self.season_number,
             episode_number: self.episode_number,
             title: self.title.to_string(),
+            still_url: self.still_url.map(|s| s.to_string()),
+            still_thumbhash: self.still_thumbhash.map(|b| (b).to_vec()),
+            show_poster_url: self.show_poster_url.map(|s| s.to_string()),
+            show_poster_thumbhash: self.show_poster_thumbhash.map(|b| (b).to_vec()),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -1642,6 +1693,18 @@ impl<'a> ::buffa::ViewEncode<'a> for EpisodeHitView<'a> {
         if !self.title.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
         }
+        if let Some(ref v) = self.still_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.still_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.show_poster_url {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.show_poster_thumbhash {
+            size += 1u64 + ::buffa::types::bytes_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1683,6 +1746,18 @@ impl<'a> ::buffa::ViewEncode<'a> for EpisodeHitView<'a> {
         }
         if !self.title.is_empty() {
             ::buffa::types::put_string_field(7u32, &self.title, buf);
+        }
+        if let Some(ref v) = self.still_url {
+            ::buffa::types::put_string_field(8u32, v, buf);
+        }
+        if let Some(ref v) = self.still_thumbhash {
+            ::buffa::types::put_shared_bytes_field(9u32, v, buf);
+        }
+        if let Some(ref v) = self.show_poster_url {
+            ::buffa::types::put_string_field(10u32, v, buf);
+        }
+        if let Some(ref v) = self.show_poster_thumbhash {
+            ::buffa::types::put_shared_bytes_field(11u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1741,6 +1816,26 @@ impl<'__a> ::serde::Serialize for EpisodeHitView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.title) {
             __map.serialize_entry("title", self.title)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.still_url {
+            __map.serialize_entry("stillUrl", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.still_thumbhash {
+            __map
+                .serialize_entry(
+                    "stillThumbhash",
+                    &::buffa::json_helpers::BytesJson(__v),
+                )?;
+        }
+        if let ::core::option::Option::Some(__v) = self.show_poster_url {
+            __map.serialize_entry("showPosterUrl", __v)?;
+        }
+        if let ::core::option::Option::Some(__v) = self.show_poster_thumbhash {
+            __map
+                .serialize_entry(
+                    "showPosterThumbhash",
+                    &::buffa::json_helpers::BytesJson(__v),
+                )?;
         }
         __map.end()
     }
@@ -1877,6 +1972,35 @@ impl EpisodeHitOwnedView {
     #[must_use]
     pub fn title(&self) -> &'_ str {
         self.0.reborrow().title
+    }
+    /// As `Episode.still_url`.
+    ///
+    /// Field 8: `still_url`
+    #[must_use]
+    pub fn still_url(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().still_url
+    }
+    /// As `Episode.still_thumbhash`.
+    ///
+    /// Field 9: `still_thumbhash`
+    #[must_use]
+    pub fn still_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
+        self.0.reborrow().still_thumbhash
+    }
+    /// Its Show's Poster's URL on this Server, as `ShowHit.poster_url`, to show in place of a
+    /// missing Still.
+    ///
+    /// Field 10: `show_poster_url`
+    #[must_use]
+    pub fn show_poster_url(&self) -> ::core::option::Option<&'_ str> {
+        self.0.reborrow().show_poster_url
+    }
+    /// As `ShowHit.poster_thumbhash`.
+    ///
+    /// Field 11: `show_poster_thumbhash`
+    #[must_use]
+    pub fn show_poster_thumbhash(&self) -> ::core::option::Option<&'_ [u8]> {
+        self.0.reborrow().show_poster_thumbhash
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<EpisodeHitView<'static>>>

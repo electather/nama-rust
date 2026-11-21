@@ -6,8 +6,8 @@ import { formText, onSubmitted } from "@/shared/lib/forms";
 import { Button } from "@/shared/ui/button";
 
 /**
- * Searches the title source for the titles `kinds` names to Request, through the Requests
- * page's `?title=`.
+ * Searches this Server and the title source for the titles `kinds` names to Request, through the
+ * Requests page's `?title=`.
  */
 export function FindATitle({ title, kinds }: { title: string | undefined; kinds: Searchable }) {
   const navigate = useNavigate();

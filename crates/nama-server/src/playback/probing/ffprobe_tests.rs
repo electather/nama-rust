@@ -67,7 +67,11 @@ fn ffprobe_output_reads_as_tracks_without_cover_art_and_its_attachment_as_a_font
                         "truehd",
                         Some("eng"),
                         true,
-                        TrackKind::Audio { channels: Some(8) },
+                        TrackKind::Audio {
+                            channels: Some(8),
+                            atmos: false,
+                            audio_description: false
+                        },
                     )
                 },
                 Track {
@@ -456,4 +460,43 @@ async fn a_whole_file_listing_past_its_timeout_times_out() {
         "{listed:?}"
     );
     assert!(started.elapsed() >= WHOLE_FILE_TIMEOUT);
+}
+
+#[test]
+fn audio_is_atmos_when_its_profile_names_it_and_audio_description_when_flagged_so() {
+    // ffprobe 7.0's profile names, from libavcodec's `profiles.c`.
+    let json = r#"{
+            "streams": [
+                {"codec_name": "truehd", "codec_type": "audio", "channels": 8,
+                 "profile": "Dolby TrueHD + Dolby Atmos"},
+                {"codec_name": "eac3", "codec_type": "audio", "channels": 6,
+                 "profile": "Dolby Digital Plus + Dolby Atmos"},
+                {"codec_name": "eac3", "codec_type": "audio", "channels": 6},
+                {"codec_name": "eac3", "codec_type": "audio", "channels": 2,
+                 "disposition": {"visual_impaired": 1}}
+            ],
+            "format": {"format_name": "matroska,webm"}
+        }"#;
+
+    let (probe, _) = parse_probe(json.as_bytes()).unwrap();
+
+    let audio: Vec<_> = (probe.tracks.iter())
+        .map(|track| match track.kind {
+            TrackKind::Audio {
+                atmos,
+                audio_description,
+                ..
+            } => (track.codec.as_str(), atmos, audio_description),
+            TrackKind::Video { .. } | TrackKind::Subtitle { .. } => panic!("not audio: {track:?}"),
+        })
+        .collect();
+    assert_eq!(
+        audio,
+        [
+            ("truehd", true, false),
+            ("eac3", true, false),
+            ("eac3", false, false),
+            ("eac3", false, true),
+        ]
+    );
 }
