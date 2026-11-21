@@ -30,7 +30,7 @@ const SIGNED_FOR: Duration = Duration::from_mins(15);
 /// The most keys a page of `list` holds: the contract's limit, and S3's own.
 const PAGE_KEYS: usize = 1000;
 
-/// S3 words its refusals in XML, which [`refused`] reads, so only its name is needed here.
+/// Only S3's name: [`refused`] words its refusals, which name the action and S3's XML code.
 const S3_SERVICE: OutsideService = OutsideService::new("S3");
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
