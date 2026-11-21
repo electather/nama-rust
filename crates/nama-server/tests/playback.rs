@@ -1069,6 +1069,7 @@ async fn played_streams(
     // The segment first, so ffmpeg starts there and the init segment is that run's.
     let segment = fx.fetch_ok(&beside(url, segment)).await;
     let mut mp4 = fx.fetch_ok(&beside(url, "init.mp4")).await;
+    let (init_len, segment_len) = (mp4.len(), segment.len());
     mp4.extend(segment);
     let file = tempfile::NamedTempFile::new().unwrap();
     fs::write(file.path(), mp4).unwrap();
@@ -1083,6 +1084,13 @@ async fn played_streams(
         .arg(file.path())
         .output()
         .unwrap();
+    // Empty output with success is ffprobe finding no such stream, which no caller expects.
+    assert!(
+        output.status.success() && !output.stdout.trim_ascii().is_empty(),
+        "ffprobe {} on a {init_len}-byte init and {segment_len}-byte segment: {}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr),
+    );
     String::from_utf8(output.stdout).unwrap().trim().to_owned()
 }
 
