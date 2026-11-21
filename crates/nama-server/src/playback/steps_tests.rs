@@ -356,7 +356,7 @@ fn a_busy_server_remuxes_what_the_device_can_play_remuxed_and_says_so_as_context
 
 #[test]
 fn a_remux_of_hevc_video_is_flagged_hevc_and_of_h264_isnt() {
-    let remux_of = |codec| remux(&in_container(MKV, Some(vec![video(codec)])), None);
+    let remux_of = |codec| remux(&in_container(MKV, Some(vec![video(codec)])), None).0;
 
     assert!(remux_of("hevc").hevc);
     assert!(!remux_of("h264").hevc);

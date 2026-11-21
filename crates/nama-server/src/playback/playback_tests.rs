@@ -334,6 +334,23 @@ fn a_failed_remux_recipe_remuxes_another_way_and_says_why() {
 }
 
 #[test]
+fn a_failed_recipe_the_plan_wouldnt_send_anyway_gives_no_reason() {
+    let mut facts = in_container(MKV, Some(vec![video("h264"), audio("aac", true)]));
+    facts.device.audio_codecs.push(AudioCodec::AUDIO_CODEC_EAC3);
+    facts.failed_recipes =
+        BTreeSet::from(["remux/fmp4/eac3".to_owned(), "remux/fmp4/xyz".to_owned()]);
+
+    let plan = build(&mut facts);
+
+    assert_eq!(plan.playing, Some(remuxing(0, None)));
+    assert!(
+        !kinds(&plan).contains(&Kind::PLAYBACK_REASON_KIND_RECIPE_FAILED_ON_DEVICE),
+        "{:?}",
+        kinds(&plan)
+    );
+}
+
+#[test]
 fn a_method_whose_every_recipe_failed_is_ruled_out_as_failed_on_the_device() {
     let plan = build(&mut eac3_remux_after(&[
         "remux/fmp4/eac3",

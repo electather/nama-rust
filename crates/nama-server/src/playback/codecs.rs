@@ -154,15 +154,37 @@ pub(super) fn played_by(playing: Option<&Playing>, tracks: Vec<Track>) -> Vec<Tr
     }
 }
 
-/// `facts.device` without the audio codecs whose Recipe by `method`, as [`recipe`] names it, just
-/// failed on it, so `method` sends another if it can.
-pub(super) fn untried_by(method: Method, facts: &Facts) -> DeviceDecoding {
+/// `facts.device` without each audio codec `method` would send `audio` as whose Recipe by it just
+/// failed on the Device, so it sends another if it can; and those codecs, as ffprobe names them.
+pub(super) fn untried_by(
+    method: Method,
+    facts: &Facts,
+    audio: &Track,
+) -> (DeviceDecoding, Vec<String>) {
     let mut device = facts.device.clone();
-    device.audio_codecs.retain(|codec| {
-        let named = AUDIO_CODECS.iter().find(|(_, known, _)| known == codec);
-        named.is_none_or(|(name, ..)| !facts.failed_recipes.contains(&recipe(method, Some(name))))
-    });
-    device
+    let mut passed_over = vec![];
+    loop {
+        let sent = match method {
+            Method::Remux => remux_audio_conversion(&device, audio),
+            Method::DirectPlay | Method::Transcode => Some(audio_conversion(&device, audio)),
+        }
+        .map_or(audio.codec.as_str(), |conversion| {
+            conversion.encoder.ffmpeg_name()
+        });
+        // Stereo is sent as AAC whatever the Device decodes, so passing over a codec it no longer
+        // lists would never end.
+        let failed = (AUDIO_CODECS.iter())
+            .find(|(name, ..)| *name == sent)
+            .map(|&(_, codec, _)| codec)
+            .filter(|codec| device.audio_codecs.contains(codec))
+            .filter(|_| facts.failed_recipes.contains(&recipe(method, Some(sent))));
+        let Some(failed) = failed else {
+            passed_over.retain(|codec| codec != sent);
+            return (device, passed_over);
+        };
+        device.audio_codecs.retain(|&codec| codec != failed);
+        passed_over.push(sent.to_owned());
+    }
 }
 
 /// What a Remux converts the audio Track `audio` to, if `device` can't decode it, as

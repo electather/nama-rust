@@ -170,7 +170,7 @@ impl Plan {
     /// fails, as [`recipe`] says; empty when it can't be played.
     pub(crate) fn recipe(&self) -> String {
         self.method()
-            .map_or_default(|method| recipe(method, sent_audio(&self.tracks)))
+            .map_or_default(|method| recipe(method, sent_audio_codec(&self.tracks)))
     }
 }
 
@@ -445,6 +445,11 @@ struct Candidates {
     audio: Option<usize>,
     remux: Remux,
     transcode: Transcode,
+    /// The audio codecs, as ffprobe names them, a Remux passes over because its Recipe sending
+    /// them just failed on the Device.
+    remux_passed_over: Vec<String>,
+    /// The same for a Transcode.
+    transcode_passed_over: Vec<String>,
 }
 
 /// The [`Candidates`] for `facts`. `None` for a Version that isn't probed, which neither a Remux
@@ -454,10 +459,14 @@ fn candidates(facts: &Facts) -> Option<Candidates> {
     let audio = played_audio_place(facts);
     let played =
         audio.and_then(|place| Some((probe.ffmpeg_index(place)?, probe.tracks.get(place)?)));
+    let (remux, remux_passed_over) = remux(facts, played);
+    let (transcode, transcode_passed_over) = transcode(facts, played);
     Some(Candidates {
         audio,
-        remux: remux(facts, played),
-        transcode: transcode(facts, played),
+        remux,
+        transcode,
+        remux_passed_over,
+        transcode_passed_over,
     })
 }
 
@@ -615,7 +624,7 @@ fn recipe(method: Method, audio: Option<&str>) -> String {
 }
 
 /// The codec of the audio Track among `tracks`, if any.
-fn sent_audio(tracks: &[Track]) -> Option<&str> {
+fn sent_audio_codec(tracks: &[Track]) -> Option<&str> {
     tracks
         .iter()
         .find(|track| is_audio(track))
