@@ -275,3 +275,14 @@ async fn a_pick_in_no_version_is_no_such_version() {
 
     assert!(matches!(picked, Err(PickError::NoSuchVersion)));
 }
+
+#[tokio::test]
+async fn a_subtitle_offset_at_a_place_holding_audio_is_track_not_found() {
+    let alien = Alien::new().await;
+
+    let kept = (alien.plans)
+        .keep_offset(alien.user(), alien.version, AUDIO, 500)
+        .await;
+
+    assert!(matches!(kept, Err(PickError::TrackNotFound)));
+}

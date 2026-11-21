@@ -81,7 +81,7 @@ impl PlaybackService for PlaybackServiceHandler {
             failed: (request.failed_methods.iter())
                 .filter_map(|method| method_from_proto(*method))
                 .collect(),
-            // As for subtitles, a place past `usize::MAX` is in no file.
+            // A place past `usize::MAX` is in no file, so the Server chooses.
             audio: (request.audio_track).and_then(|place| usize::try_from(place).ok()),
             subtitle,
             limit: picked_limit(request.playback_limit),
@@ -383,9 +383,9 @@ fn subtitles_failed(err: DownloadError, language_field: &str) -> ConnectError {
 fn pick_failed(err: PickError) -> ConnectError {
     match err {
         PickError::NoSuchVersion => version_not_found(),
-        PickError::TrackNotFound => refuse(
+        err @ PickError::TrackNotFound => refuse(
             RefusalReason::REFUSAL_REASON_TRACK_NOT_FOUND,
-            "the Version has no Track of the kind picked at that place",
+            err.to_string(),
         )
         .field("track")
         .into(),

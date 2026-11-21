@@ -151,11 +151,12 @@ pub(crate) struct Plan {
     pub(crate) offers: Offers,
     /// The Version's Chapters, or none when it has fewer than two, which the player has no use for.
     pub(crate) chapters: Vec<Chapter>,
-    /// The Version's Segments, earliest first, which [`Plans`] reads.
+    /// The Version's Segments, earliest first. This and the next two are set only on the plan
+    /// [`Plans::plan`] answers, not on the one [`RunningPlans`] keeps.
     pub(crate) segments: Vec<Segment>,
-    /// The Version's Preview frames, if made of its file as it is now, which [`Plans`] reads.
+    /// The Version's Preview frames, if made of its file as it is now.
     pub(crate) preview_frames: Option<proto::PreviewFrames>,
-    /// The User's Subtitle Offsets for the Version's Tracks, which [`Plans`] reads.
+    /// The User's Subtitle Offsets for the Version's Tracks.
     pub(crate) subtitle_offsets: SubtitleOffsets,
 }
 
