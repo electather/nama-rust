@@ -1,6 +1,6 @@
 use nama_pdk::{
     Permission, Response, SegmentKind, SegmentResults, SegmentSearch, SegmentSource, TitleId,
-    TitleKind,
+    TitleKind, TryAgainIn,
     extism_pdk::Error,
     nama_plugin_proto::nama::plugin::v1::SettingKind,
     services,
@@ -155,6 +155,20 @@ fn a_refused_401_names_the_api_key() {
     let failed = search(&mut kernel, fight_club()).unwrap_err();
 
     assert_eq!(failed.to_string(), "TheIntroDB refused the API key");
+    assert_eq!(TryAgainIn::seconds_in(&failed), None);
+}
+
+#[test]
+fn a_429_says_try_again_after_its_retry_after_or_else_the_10_second_window() {
+    let mut told = Kernel::new()
+        .http(|_request, _body| Ok(Response::new(429, b"{}").with_header("Retry-After", "7")));
+    let mut untold = answering(429, b"{}");
+
+    let told = search(&mut told, fight_club()).unwrap_err();
+    let untold = search(&mut untold, fight_club()).unwrap_err();
+
+    assert_eq!(TryAgainIn::seconds_in(&told), Some(7));
+    assert_eq!(TryAgainIn::seconds_in(&untold), Some(10));
 }
 
 #[test]
@@ -233,14 +247,20 @@ fn a_title_with_no_id_theintrodb_takes_or_an_episode_without_numbers_is_not_aske
 }
 
 #[test]
-fn without_an_api_key_a_granted_store_refuses_a_31st_request_within_10_seconds() {
-    let mut kernel = answering(404, b"{}").store();
+fn past_the_limit_a_granted_store_says_try_again_when_the_oldest_request_leaves_the_window() {
+    for (api_key, limit) in [(None, 30), (Some("secret"), 120)] {
+        let mut kernel = answering(404, b"{}").store();
+        if let Some(api_key) = api_key {
+            kernel = kernel.setting("api_key", api_key);
+        }
 
-    let answered: Vec<_> = (0..31)
-        .map(|_| search(&mut kernel, fight_club()).is_ok())
-        .collect();
+        for _ in 0..limit {
+            search(&mut kernel, fight_club()).unwrap();
+        }
+        let refused = search(&mut kernel, fight_club()).unwrap_err();
 
-    assert_eq!(kernel.sent().len(), 30);
-    assert!(answered[..30].iter().all(|&ok| ok));
-    assert!(!answered[30]);
+        assert_eq!(kernel.sent().len(), limit);
+        // The first request went out well under a second ago, so it leaves in 10 s, rounded up.
+        assert_eq!(TryAgainIn::seconds_in(&refused), Some(10));
+    }
 }
