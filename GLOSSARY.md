@@ -204,7 +204,7 @@ _Avoid_: plugin output, plugin console
 An Automation that deletes a Requested title once each of its Requesters has watched it and a set number of days have passed, or hasn't watched it within a longer set number of days. A title nobody Requested is kept.
 
 **Upkeep**:
-The Built-in Plugin whose Jobs delete what the Server keeps that nobody will read again: Home rows of Users who stopped opening home, expired sign-ins and Invites, and what a removed Plugin left behind. Each threshold is one of its settings.
+The Built-in Plugin whose Jobs delete what the Server keeps that nobody will read again: Home rows of Users who stopped opening home, expired sign-ins and Invites, and what a removed Plugin left behind. Each threshold is one of its settings. Another Job fetches every Matched title's metadata again each week, so it doesn't go stale.
 _Avoid_: maintenance, housekeeping, garbage collection
 
 ## Media

@@ -48,4 +48,9 @@ export const pluginPermissions: Partial<
     about:
       "It deletes the settings, Plugin Store entries, Personal settings and Plugin Connections of Plugins the Server stopped having a while ago. A disabled Plugin is kept.",
   },
+  [PluginPermission.REFRESH_METADATA]: {
+    label: "Refresh metadata",
+    about:
+      "It fetches every Matched title again from its title source, by the ids its Match has, so Scores, Roles, Trailers, Similar titles and new Episodes stay current. It never changes which title an Item is Matched to.",
+  },
 };

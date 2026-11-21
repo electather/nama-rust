@@ -358,6 +358,8 @@ pub enum PluginPermission {
     PLUGIN_PERMISSION_FORGET_GONE_PLUGINS = 9i32,
     /// Delete the Devices and Invites that have expired, which no longer work.
     PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS = 10i32,
+    /// Fetch every Matched title's metadata again from its title source.
+    PLUGIN_PERMISSION_REFRESH_METADATA = 11i32,
 }
 impl PluginPermission {
     ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -393,6 +395,9 @@ impl PluginPermission {
     ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const DeleteExpiredSignIns: Self = Self::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS;
+    ///Idiomatic alias for [`Self::PLUGIN_PERMISSION_REFRESH_METADATA`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RefreshMetadata: Self = Self::PLUGIN_PERMISSION_REFRESH_METADATA;
 }
 impl ::core::default::Default for PluginPermission {
     fn default() -> Self {
@@ -511,6 +516,9 @@ impl ::buffa::Enumeration for PluginPermission {
                     Self::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS,
                 )
             }
+            11i32 => {
+                ::core::option::Option::Some(Self::PLUGIN_PERMISSION_REFRESH_METADATA)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -539,6 +547,9 @@ impl ::buffa::Enumeration for PluginPermission {
             }
             Self::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS => {
                 "PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS"
+            }
+            Self::PLUGIN_PERMISSION_REFRESH_METADATA => {
+                "PLUGIN_PERMISSION_REFRESH_METADATA"
             }
         }
     }
@@ -579,6 +590,9 @@ impl ::buffa::Enumeration for PluginPermission {
                     Self::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS,
                 )
             }
+            "PLUGIN_PERMISSION_REFRESH_METADATA" => {
+                ::core::option::Option::Some(Self::PLUGIN_PERMISSION_REFRESH_METADATA)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -595,6 +609,7 @@ impl ::buffa::Enumeration for PluginPermission {
             Self::PLUGIN_PERMISSION_FORGET_HOME_ROWS,
             Self::PLUGIN_PERMISSION_FORGET_GONE_PLUGINS,
             Self::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS,
+            Self::PLUGIN_PERMISSION_REFRESH_METADATA,
         ]
     }
 }

@@ -18,11 +18,11 @@ use nama_plugin_api::{
     automation::{
         DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted,
         ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten,
-        Kernel, KernelRefused, Libraries, LibrariesAsked, Library, LibraryKind, Permission,
-        Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef,
-        TitleRefKind, TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users,
-        UsersAsked, WatchState, WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked,
-        WatchlistTitle,
+        Kernel, KernelRefused, Libraries, LibrariesAsked, Library, LibraryKind, MetadataRefreshed,
+        Permission, RefreshMetadataAsked, Requesters, RequestersAsked, StoreEntry, StoreKey,
+        StoreValue, Stored, Title, TitleRef, TitleRefKind, TitleRequesters, TitleWatchStates,
+        Titles, TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates, WatchStatesAsked,
+        Watchlist, WatchlistAsked, WatchlistTitle,
     },
     contract,
     fulfiller::TitleId,
@@ -173,6 +173,11 @@ const FUNCTIONS: &[Function] = &[
         needs: Permission::PERMISSION_FORGET_GONE_PLUGINS,
         answer: |caller, request| typed(caller, request, Caller::forget_gone_plugins),
     },
+    Function {
+        name: "refresh_metadata",
+        needs: Permission::PERMISSION_REFRESH_METADATA,
+        answer: |caller, request| typed(caller, request, Caller::refresh_metadata),
+    },
 ];
 
 /// Decodes `request`, has `handler` answer it for `caller`, and encodes its response.
@@ -208,6 +213,7 @@ const fn permission_name(permission: Permission) -> &'static str {
         Permission::PERMISSION_FORGET_HOME_ROWS => "Forget Home rows",
         Permission::PERMISSION_DELETE_EXPIRED_SIGN_INS => "Delete expired sign-ins",
         Permission::PERMISSION_FORGET_GONE_PLUGINS => "Forget removed Plugins",
+        Permission::PERMISSION_REFRESH_METADATA => "Refresh metadata",
     }
 }
 
@@ -657,6 +663,28 @@ impl Caller {
             ..GonePluginsForgotten::default()
         })
     }
+
+    /// Fetches every Matched title again by the ids its Match has. Answers only once done, which
+    /// may take minutes: the time the Kernel spends answering doesn't count toward a call's limit.
+    async fn refresh_metadata(
+        self,
+        _asked: RefreshMetadataAsked,
+    ) -> Result<MetadataRefreshed, KernelRefused> {
+        let refreshed = match self.automation.scanner.refresh_metadata().await {
+            Ok(refreshed) => refreshed,
+            Err(scanner::Error::Cancelled) => {
+                return Err(KernelRefused("the Server is stopping".to_owned()));
+            }
+            Err(err) => return Err(self.database_refused("refreshing metadata", &err)),
+        };
+        Ok(MetadataRefreshed {
+            titles: refreshed.titles,
+            unavailable_plugin_ids: (refreshed.unavailable.iter())
+                .map(ToString::to_string)
+                .collect(),
+            ..MetadataRefreshed::default()
+        })
+    }
 }
 
 /// Deletes, in `conn`'s write, what each Plugin the Server hasn't had for `gone_for` left behind,
@@ -740,3 +768,7 @@ fn watch_state_to_proto(user: i64, state: library::WatchState) -> WatchState {
 #[cfg(test)]
 #[path = "automation/automation_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "automation/housekeeping_tests.rs"]
+mod housekeeping_tests;

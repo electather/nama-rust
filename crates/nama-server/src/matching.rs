@@ -56,10 +56,12 @@
 mod confidence;
 mod metadata;
 mod recognisers;
+mod refresh;
 mod sources;
 #[cfg(test)]
 mod testing;
 
+pub(crate) use refresh::Refreshed;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
@@ -77,9 +79,9 @@ use crate::{
     db::{Database, detached},
     events::{EventBus, event},
     library::{
-        Artwork, Contents, Decided, Decisions, Item, Libraries, LibraryError, Metadata, Name,
-        Named, Picked, Pin, Recognisers, ScanLock, ScanLocks, SimilarSources, Source,
-        SourceEpisode, SourceSeason, SourceShow, TitleKind, TitleSources, Unanswered,
+        Artwork, Contents, Decided, Decisions, Item, Libraries, LibraryError, METADATA_VERSION,
+        Metadata, Name, Named, Picked, Pin, Recognisers, ScanLock, ScanLocks, SimilarSources,
+        Source, SourceEpisode, SourceSeason, SourceShow, TitleKind, TitleSources, Unanswered,
         UnmatchedReason,
     },
     plugins::ExtensionPoints,
@@ -101,6 +103,9 @@ pub(crate) struct Summary {
 pub(crate) enum Error {
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
+    /// The Libraries couldn't be read.
+    #[error(transparent)]
+    Library(#[from] LibraryError),
     /// The Server is shutting down.
     #[error("matching was cancelled")]
     Cancelled,
@@ -157,16 +162,6 @@ struct Pending {
     shows: BTreeMap<TitleKey, Vec<PendingEpisode>>,
     /// The paths of each title's item files, relative to the Library's folder, for the Recognisers.
     paths: BTreeMap<TitleKey, BTreeSet<String>>,
-}
-
-/// The Matches stored at an older [`METADATA_VERSION`], by the Plugin that Matched them and the id
-/// of their title: a Movie, or the Show an Episode is in.
-///
-/// [`METADATA_VERSION`]: crate::library::METADATA_VERSION
-#[derive(Debug, Default)]
-struct Outdated {
-    movies: BTreeMap<(PluginId, ExternalId), Vec<i64>>,
-    shows: BTreeMap<(PluginId, ExternalId), Vec<PendingEpisode>>,
 }
 
 /// What looking items up found for each, with the Seasons fetched with their Show, by the Plugin
@@ -402,7 +397,8 @@ impl Matcher {
             self.store(library, decided, &mut summary).await?;
         }
         if available {
-            available = self.refresh(library, &this.metadata, cancel).await?;
+            let refreshed = self.refresh(library, &this.metadata, METADATA_VERSION, cancel);
+            available = refreshed.await?.unavailable.is_empty();
         }
         if summary != Summary::default() {
             tracing::info!(library, ?summary, "matched a Library");
@@ -437,79 +433,6 @@ impl Matcher {
         Ok(pending)
     }
 
-    /// Fetches the titles of the Library `library`'s Matches stored at an older
-    /// [`METADATA_VERSION`] again and stores what it gets, until `cancel` is cancelled. Returns
-    /// whether every title source asked could answer. Each title's artwork is picked again from
-    /// `ordered`, the Library's sources in its order, while the title comes only from its Plugin.
-    ///
-    /// [`METADATA_VERSION`]: crate::library::METADATA_VERSION
-    async fn refresh(
-        &self,
-        library: i64,
-        ordered: &TitleSources,
-        cancel: &CancellationToken,
-    ) -> Result<bool, Error> {
-        let Outdated { movies, shows } = self.outdated(library).await?;
-        // Once a Plugin fails (or is disabled or gone), asking it about its other titles would
-        // only fail too, but another Plugin's Matches can still be fetched.
-        let mut unavailable = BTreeSet::new();
-        for ((plugin, id), items) in movies {
-            if cancel.is_cancelled() {
-                return Err(Error::Cancelled);
-            }
-            if unavailable.contains(&plugin) {
-                continue;
-            }
-            let movie = match self.only(plugin.clone()).metadata.movie(&id).await {
-                Ok(movie) => self.picked_for(ordered, movie).await,
-                Err(Unanswered::NotFound) => continue,
-                Err(Unanswered::Unavailable) => {
-                    unavailable.insert(plugin);
-                    continue;
-                }
-            };
-            let found = items.into_iter().map(|item| (item, Ok(movie.clone())));
-            self.store_refreshed(found.collect()).await?;
-        }
-        for ((plugin, id), episodes) in shows {
-            if cancel.is_cancelled() {
-                return Err(Error::Cancelled);
-            }
-            if unavailable.contains(&plugin) {
-                continue;
-            }
-            let only = self.only(plugin.clone());
-            let show = match sources::fetch_show(&only.metadata, &id, ExternalIds::default()).await
-            {
-                Ok(show) => show,
-                Err(Unanswered::NotFound) => continue,
-                Err(Unanswered::Unavailable) => {
-                    unavailable.insert(plugin);
-                    continue;
-                }
-            };
-            let picked = self.pick_show(ordered, &show).await;
-            let found = only.match_in_show(&show, &picked, &episodes).await;
-            if found.any_undecided() {
-                unavailable.insert(plugin);
-            }
-            self.store_refreshed(found).await?;
-        }
-        Ok(unavailable.is_empty())
-    }
-
-    async fn outdated(&self, library: i64) -> Result<Outdated, sqlx::Error> {
-        let mut outdated = Outdated::default();
-        for (id, item, plugin, title) in self.contents.outdated(library).await? {
-            let key = (plugin, title);
-            match PendingEpisode::of(id, &item) {
-                Some(episode) => outdated.shows.entry(key).or_default().push(episode),
-                None => outdated.movies.entry(key).or_default().push(id),
-            }
-        }
-        Ok(outdated)
-    }
-
     /// This Matcher, asking only the title sources whose namespace is in `order`, and the enabled
     /// Recognisers whose Plugin id is in `recognisers`, each in its order.
     fn in_order(&self, order: Vec<String>, recognisers: &[String]) -> Self {
@@ -541,21 +464,6 @@ impl Matcher {
             metadata: self.metadata.only(plugin),
             ..self.clone()
         }
-    }
-
-    /// Stores the Matches found again in `found`. An item missed keeps the Match it has, since a
-    /// refresh never changes which title an item Matches.
-    async fn store_refreshed(&self, found: Outcomes) -> Result<(), sqlx::Error> {
-        let found = self.with_similar(found).await;
-        let items = (found.items.into_iter())
-            .filter_map(|(item, outcome)| Some((item, Decided::Matched(Box::new(outcome.ok()?)))))
-            .collect();
-        let decided = Decisions {
-            items,
-            seasons: found.seasons,
-        };
-        self.events.publish(self.contents.record(decided).await?);
-        Ok(())
     }
 
     /// Takes the scan lock of the Library the item `item` is in, then reads every item named
@@ -742,10 +650,6 @@ fn matched_events(library: i64, decided: &[(i64, Decided)]) -> Vec<Event> {
 #[cfg(test)]
 #[path = "matching/matching_tests.rs"]
 mod tests;
-
-#[cfg(test)]
-#[path = "matching/refresh_tests.rs"]
-mod refresh_tests;
 
 #[cfg(test)]
 #[path = "matching/manual_tests.rs"]

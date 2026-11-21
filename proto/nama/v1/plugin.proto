@@ -368,6 +368,8 @@ enum PluginPermission {
   PLUGIN_PERMISSION_FORGET_GONE_PLUGINS = 9;
   // Delete the Devices and Invites that have expired, which no longer work.
   PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS = 10;
+  // Fetch every Matched title's metadata again from its title source.
+  PLUGIN_PERMISSION_REFRESH_METADATA = 11;
 }
 
 // A place in the Server a Plugin takes part at, as an admin is shown it. An Installed Plugin

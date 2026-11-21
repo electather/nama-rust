@@ -1,5 +1,5 @@
-//! A Built-in Plugin whose Jobs delete what the Server keeps that nobody will read again, each
-//! through one Kernel function (ADR 0079).
+//! A Built-in Plugin whose Jobs delete what the Server keeps that nobody will read again, and
+//! fetch Matched titles' metadata again, each through one Kernel function (ADR 0079).
 
 use std::sync::Arc;
 
@@ -8,7 +8,8 @@ use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     automation::{
         ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetGonePluginsAsked, ForgetHomeRowsAsked,
-        GonePluginsForgotten, HomeRowsForgotten, Kernel, Permission,
+        GonePluginsForgotten, HomeRowsForgotten, Kernel, MetadataRefreshed, Permission,
+        RefreshMetadataAsked,
     },
     job::{Job, JobRunner, RunJob},
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
@@ -27,6 +28,8 @@ const FORGET_GONE_PLUGINS: &str = "forget-gone-plugins";
 /// The setting holding how many days what a removed Plugin left behind is kept.
 const GONE_PLUGINS_DAYS: &str = "gone_plugins_days";
 const DEFAULT_GONE_PLUGINS_DAYS: u32 = 30;
+/// The Job fetching every Matched title's metadata again.
+const REFRESH_METADATA: &str = "refresh-metadata";
 
 /// The Plugin.
 #[derive(Debug, Default)]
@@ -41,7 +44,9 @@ impl Plugin for Upkeep {
     fn manifest(&self) -> Manifest {
         Manifest {
             name: "Upkeep".to_owned(),
-            description: "Deletes what the Server keeps that nobody will read again.".to_owned(),
+            description: "Deletes what the Server keeps that nobody will read again, and keeps \
+                          Matched titles' metadata current."
+                .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             settings: SettingsSchema {
                 fields: vec![
@@ -68,6 +73,7 @@ impl Plugin for Upkeep {
                 Permission::PERMISSION_FORGET_HOME_ROWS,
                 Permission::PERMISSION_FORGET_GONE_PLUGINS,
                 Permission::PERMISSION_DELETE_EXPIRED_SIGN_INS,
+                Permission::PERMISSION_REFRESH_METADATA,
             ],
             jobs: vec![
                 Job {
@@ -96,6 +102,16 @@ impl Plugin for Upkeep {
                         .to_owned(),
                     // After the daily Jobs, so they don't all run at once.
                     schedule: Some("20 4 * * 0".to_owned()),
+                },
+                Job {
+                    id: REFRESH_METADATA.to_owned(),
+                    name: "Refresh metadata".to_owned(),
+                    description: "Fetches every Matched title again from its title source, so \
+                                  Scores, Roles, Trailers, Similar titles and new Episodes stay \
+                                  current. It never changes which title an Item is Matched to, \
+                                  and a title it can't fetch keeps what it had until the next run."
+                        .to_owned(),
+                    schedule: Some("30 4 * * 0".to_owned()),
                 },
             ],
             ..Manifest::new(Self::ID)
@@ -153,6 +169,7 @@ impl JobRunner for Jobs {
                 FORGET_HOME_ROWS => self.forget_home_rows().await,
                 DELETE_EXPIRED_SIGN_INS => self.delete_expired_sign_ins().await,
                 FORGET_GONE_PLUGINS => self.forget_gone_plugins().await,
+                REFRESH_METADATA => self.refresh_metadata().await,
                 other => Err(format!("Upkeep has no Job {other}").into()),
             }
         })
@@ -200,6 +217,18 @@ impl Jobs {
         info!(
             plugins = ?forgotten.plugin_ids,
             "forgot what Plugins the Server no longer has left behind"
+        );
+        Ok(())
+    }
+
+    async fn refresh_metadata(&self) -> Result<(), PluginError> {
+        let asked = RefreshMetadataAsked::default().encode_to_vec();
+        let answer = self.kernel.call("refresh_metadata", asked).await?;
+        let refreshed = MetadataRefreshed::decode_from_slice(&answer)?;
+        info!(
+            titles = refreshed.titles,
+            unavailable = ?refreshed.unavailable_plugin_ids,
+            "refreshed the metadata of Matched titles"
         );
         Ok(())
     }

@@ -592,6 +592,7 @@ fn permission_to_proto(permission: Permission) -> proto::PluginPermission {
             Public::PLUGIN_PERMISSION_DELETE_EXPIRED_SIGN_INS
         }
         Permission::PERMISSION_FORGET_GONE_PLUGINS => Public::PLUGIN_PERMISSION_FORGET_GONE_PLUGINS,
+        Permission::PERMISSION_REFRESH_METADATA => Public::PLUGIN_PERMISSION_REFRESH_METADATA,
     }
 }
 
@@ -620,6 +621,9 @@ fn permission_from_proto(
         }
         Some(Public::PLUGIN_PERMISSION_FORGET_GONE_PLUGINS) => {
             Ok(Permission::PERMISSION_FORGET_GONE_PLUGINS)
+        }
+        Some(Public::PLUGIN_PERMISSION_REFRESH_METADATA) => {
+            Ok(Permission::PERMISSION_REFRESH_METADATA)
         }
         Some(Public::PLUGIN_PERMISSION_UNSPECIFIED) | None => Err(super::unknown_enum_value(
             GRANTED_PERMISSIONS,
