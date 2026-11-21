@@ -23,6 +23,7 @@ import "nama/plugin/v1/title_source.proto";
 //   list_watchlist:    WatchlistAsked   -> Watchlist      PERMISSION_READ_WATCHLISTS
 //   delete_media:      DeleteAsked      -> DeleteStarted  PERMISSION_DELETE_MEDIA
 //   forget_home_rows:  ForgetHomeRowsAsked -> HomeRowsForgotten  PERMISSION_FORGET_HOME_ROWS
+//   forget_gone_plugins: ForgetGonePluginsAsked -> GonePluginsForgotten  PERMISSION_FORGET_GONE_PLUGINS
 //
 // The functions are documented here rather than declared as a service: they are not an Extension
 // Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`.
@@ -58,6 +59,8 @@ enum Permission {
   // Deleting the Home rows and Featured suggestions of Users who stopped opening home:
   // `forget_home_rows`.
   PERMISSION_FORGET_HOME_ROWS = 8;
+  // Deleting what Plugins the Server no longer has left behind: `forget_gone_plugins`.
+  PERMISSION_FORGET_GONE_PLUGINS = 9;
 }
 
 // An entry in the Plugin's Store, for `store_get` and `store_delete`.
@@ -276,4 +279,18 @@ message ForgetHomeRowsAsked {
 message HomeRowsForgotten {
   // How many Users had rows it deleted.
   uint32 users = 1;
+}
+
+// What `forget_gone_plugins` takes.
+message ForgetGonePluginsAsked {
+  // Forgets each Plugin the Server hasn't had for at least this many days. At least 1.
+  uint32 days = 1;
+}
+
+// What `forget_gone_plugins` answers once it deleted each such Plugin's Store entries, settings,
+// Personal settings and Plugin Connections. A Plugin the Server still has, enabled or not, is never
+// one of them.
+message GonePluginsForgotten {
+  // The id of each Plugin whose rows it deleted.
+  repeated string plugin_ids = 1;
 }

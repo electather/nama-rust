@@ -25,6 +25,8 @@ pub enum Permission {
     /// Deleting the Home rows and Featured suggestions of Users who stopped opening home:
     /// `forget_home_rows`.
     PERMISSION_FORGET_HOME_ROWS = 8i32,
+    /// Deleting what Plugins the Server no longer has left behind: `forget_gone_plugins`.
+    PERMISSION_FORGET_GONE_PLUGINS = 9i32,
 }
 impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -54,6 +56,9 @@ impl Permission {
     ///Idiomatic alias for [`Self::PERMISSION_FORGET_HOME_ROWS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ForgetHomeRows: Self = Self::PERMISSION_FORGET_HOME_ROWS;
+    ///Idiomatic alias for [`Self::PERMISSION_FORGET_GONE_PLUGINS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ForgetGonePlugins: Self = Self::PERMISSION_FORGET_GONE_PLUGINS;
 }
 impl ::core::default::Default for Permission {
     fn default() -> Self {
@@ -158,6 +163,7 @@ impl ::buffa::Enumeration for Permission {
             6i32 => ::core::option::Option::Some(Self::PERMISSION_READ_REQUESTS),
             7i32 => ::core::option::Option::Some(Self::PERMISSION_READ_WATCHLISTS),
             8i32 => ::core::option::Option::Some(Self::PERMISSION_FORGET_HOME_ROWS),
+            9i32 => ::core::option::Option::Some(Self::PERMISSION_FORGET_GONE_PLUGINS),
             _ => ::core::option::Option::None,
         }
     }
@@ -175,6 +181,7 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_READ_REQUESTS => "PERMISSION_READ_REQUESTS",
             Self::PERMISSION_READ_WATCHLISTS => "PERMISSION_READ_WATCHLISTS",
             Self::PERMISSION_FORGET_HOME_ROWS => "PERMISSION_FORGET_HOME_ROWS",
+            Self::PERMISSION_FORGET_GONE_PLUGINS => "PERMISSION_FORGET_GONE_PLUGINS",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -204,6 +211,9 @@ impl ::buffa::Enumeration for Permission {
             "PERMISSION_FORGET_HOME_ROWS" => {
                 ::core::option::Option::Some(Self::PERMISSION_FORGET_HOME_ROWS)
             }
+            "PERMISSION_FORGET_GONE_PLUGINS" => {
+                ::core::option::Option::Some(Self::PERMISSION_FORGET_GONE_PLUGINS)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -218,6 +228,7 @@ impl ::buffa::Enumeration for Permission {
             Self::PERMISSION_READ_REQUESTS,
             Self::PERMISSION_READ_WATCHLISTS,
             Self::PERMISSION_FORGET_HOME_ROWS,
+            Self::PERMISSION_FORGET_GONE_PLUGINS,
         ]
     }
 }
@@ -543,6 +554,7 @@ impl ::buffa::Enumeration for TitleRefKind {
 ///   list_watchlist:    WatchlistAsked   -\> Watchlist      PERMISSION_READ_WATCHLISTS
 ///   delete_media:      DeleteAsked      -\> DeleteStarted  PERMISSION_DELETE_MEDIA
 ///   forget_home_rows:  ForgetHomeRowsAsked -\> HomeRowsForgotten  PERMISSION_FORGET_HOME_ROWS
+///   forget_gone_plugins: ForgetGonePluginsAsked -\> GonePluginsForgotten  PERMISSION_FORGET_GONE_PLUGINS
 ///
 /// The functions are documented here rather than declared as a service: they are not an Extension
 /// Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`.
@@ -5410,5 +5422,268 @@ pub const __HOME_ROWS_FORGOTTEN_JSON_ANY: ::buffa::type_registry::JsonAnyEntry =
     type_url: "type.googleapis.com/nama.plugin.v1.HomeRowsForgotten",
     to_json: ::buffa::type_registry::any_to_json::<HomeRowsForgotten>,
     from_json: ::buffa::type_registry::any_from_json::<HomeRowsForgotten>,
+    is_wkt: false,
+};
+/// What `forget_gone_plugins` takes.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct ForgetGonePluginsAsked {
+    /// Forgets each Plugin the Server hasn't had for at least this many days. At least 1.
+    ///
+    /// Field 1: `days`
+    #[serde(
+        rename = "days",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub days: u32,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for ForgetGonePluginsAsked {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("ForgetGonePluginsAsked").field("days", &self.days).finish()
+    }
+}
+impl ForgetGonePluginsAsked {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.ForgetGonePluginsAsked";
+}
+::buffa::impl_default_instance!(ForgetGonePluginsAsked);
+impl ::buffa::MessageName for ForgetGonePluginsAsked {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "ForgetGonePluginsAsked";
+    const FULL_NAME: &'static str = "nama.plugin.v1.ForgetGonePluginsAsked";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.ForgetGonePluginsAsked";
+}
+impl ::buffa::Message for ForgetGonePluginsAsked {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.days != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.days) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.days != 0u32 {
+            ::buffa::types::put_uint32_field(1u32, self.days, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.days = ::buffa::types::decode_uint32(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.days = 0u32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for ForgetGonePluginsAsked {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.ForgetGonePluginsAsked";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for ForgetGonePluginsAsked {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __FORGET_GONE_PLUGINS_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.ForgetGonePluginsAsked",
+    to_json: ::buffa::type_registry::any_to_json::<ForgetGonePluginsAsked>,
+    from_json: ::buffa::type_registry::any_from_json::<ForgetGonePluginsAsked>,
+    is_wkt: false,
+};
+/// What `forget_gone_plugins` answers once it deleted each such Plugin's Store entries, settings,
+/// Personal settings and Plugin Connections. A Plugin the Server still has, enabled or not, is never
+/// one of them.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct GonePluginsForgotten {
+    /// The id of each Plugin whose rows it deleted.
+    ///
+    /// Field 1: `plugin_ids`
+    #[serde(
+        rename = "pluginIds",
+        alias = "plugin_ids",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub plugin_ids: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for GonePluginsForgotten {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("GonePluginsForgotten")
+            .field("plugin_ids", &self.plugin_ids)
+            .finish()
+    }
+}
+impl GonePluginsForgotten {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.GonePluginsForgotten";
+}
+::buffa::impl_default_instance!(GonePluginsForgotten);
+impl ::buffa::MessageName for GonePluginsForgotten {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "GonePluginsForgotten";
+    const FULL_NAME: &'static str = "nama.plugin.v1.GonePluginsForgotten";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.GonePluginsForgotten";
+}
+impl ::buffa::Message for GonePluginsForgotten {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.plugin_ids {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.plugin_ids {
+            ::buffa::types::put_string_field(1u32, v, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.plugin_ids.push(__elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.plugin_ids.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for GonePluginsForgotten {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.GonePluginsForgotten";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for GonePluginsForgotten {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __GONE_PLUGINS_FORGOTTEN_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.GonePluginsForgotten",
+    to_json: ::buffa::type_registry::any_to_json::<GonePluginsForgotten>,
+    from_json: ::buffa::type_registry::any_from_json::<GonePluginsForgotten>,
     is_wkt: false,
 };

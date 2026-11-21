@@ -35,6 +35,7 @@ use crate::{
 };
 
 mod crashed;
+mod had;
 mod library_ids;
 mod personal;
 mod put_back;
@@ -265,6 +266,7 @@ impl PluginSettings {
         save_first_grants(&plugins.db, &first_grants)
             .await
             .map_err(StartError::Grant)?;
+        plugins.note_had().await;
         let crashed = plugins.registry.crashed();
         let saving_crashed = task::spawn(plugins.clone().save_crashed(crashed));
         *lock_ignoring_poison(&plugins.saving_crashed) = Some(saving_crashed);
@@ -304,6 +306,7 @@ impl PluginSettings {
             return;
         };
         self.stop_saving_crashed.cancel();
+        self.note_had().await;
         // The task is never aborted, so it only fails if it panicked.
         if let Err(err) = saving_crashed.await {
             error!("saving the Plugins disabled for crashing panicked: {err}");
@@ -385,10 +388,13 @@ impl PluginSettings {
         let data_dir = self.data_dir.clone();
         // Compiled before taking `changing`, so a slow Plugin doesn't hold up Plugin changes.
         let found = task::spawn_blocking(move || read_installed(&data_dir)).await?;
+        // Before as well as after, so a Plugin this listing drops was had until now.
+        self.note_had().await;
         // Under `changing`, so a Plugin being enabled can't lose its listing halfway.
         let changing = self.lock().await;
         self.registry.list_installed(found);
         drop(changing);
+        self.note_had().await;
         let mut stored = self.stored().await?;
         Ok(self
             .registry
