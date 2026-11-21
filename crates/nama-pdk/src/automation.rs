@@ -15,11 +15,11 @@ pub mod kernel {
     use buffa::Message;
     use extism_pdk::Error;
     use nama_plugin_proto::nama::plugin::v1::{
-        DeleteAsked, DeleteStarted, ForgetHomeRowsAsked, HomeRowsForgotten, KernelAnswer,
-        Libraries, LibrariesAsked, Library, Requesters, RequestersAsked, StoreEntry, StoreKey,
-        StoreValue, Stored, Title, TitleRef, TitleRequesters, TitleWatchStates, Titles,
-        TitlesAsked, User, Users, UsersAsked, WatchStates, WatchStatesAsked, Watchlist,
-        WatchlistAsked, WatchlistTitle, kernel_answer,
+        DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted,
+        ForgetHomeRowsAsked, HomeRowsForgotten, KernelAnswer, Libraries, LibrariesAsked, Library,
+        Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef,
+        TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked,
+        WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle, kernel_answer,
     };
 
     /// The value the Plugin's Store keeps under `key`, for `user` or, with `None`, for the Plugin
@@ -210,6 +210,20 @@ pub mod kernel {
         Ok(call::<HomeRowsForgotten>("forget_home_rows", &asked)?.users)
     }
 
+    /// Deletes every Device whose session expired and every Invite past its expiry, and answers
+    /// how many of each, as `(devices, invites)`. Needs `PERMISSION_DELETE_EXPIRED_SIGN_INS`.
+    ///
+    /// # Errors
+    ///
+    /// When the Kernel refused or couldn't be called.
+    pub fn delete_expired_sign_ins() -> Result<(u32, u32), Error> {
+        let deleted = call::<ExpiredSignInsDeleted>(
+            "delete_expired_sign_ins",
+            &ExpiredSignInsAsked::default(),
+        )?;
+        Ok((deleted.devices, deleted.invites))
+    }
+
     /// Calls the Kernel function `name` with `request` and decodes its answer.
     fn call<T: Message>(name: &str, request: &impl Message) -> Result<T, Error> {
         answer(name, &raw(name, &request.try_encode_to_vec()?)?)
@@ -247,6 +261,7 @@ pub mod kernel {
             safe fn list_watchlist(request: u64) -> u64;
             safe fn delete_media(request: u64) -> u64;
             safe fn forget_home_rows(request: u64) -> u64;
+            safe fn delete_expired_sign_ins(request: u64) -> u64;
         }
 
         let import: extern "C" fn(u64) -> u64 = match name {
@@ -261,6 +276,7 @@ pub mod kernel {
             "list_watchlist" => list_watchlist,
             "delete_media" => delete_media,
             "forget_home_rows" => forget_home_rows,
+            "delete_expired_sign_ins" => delete_expired_sign_ins,
             _ => return Err(Error::msg(format!("the Kernel has no function {name}"))),
         };
         // Freed when dropped, once the Kernel has read it.
