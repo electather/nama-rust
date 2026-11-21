@@ -67,7 +67,12 @@ export function ShowPage({
         onPick={pick}
       />
       <CastAndCrew cast={data.show.cast} crew={data.show.crew} />
-      <ShowDetails libraryId={libraryId} show={data.show} episodes={episodes} />
+      <ShowDetails
+        libraryId={libraryId}
+        show={data.show}
+        episodes={episodes}
+        aired={data.airedEpisodeCount}
+      />
     </TitlePage>
   );
 }

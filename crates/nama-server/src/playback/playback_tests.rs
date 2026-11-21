@@ -62,7 +62,15 @@ pub(super) fn audio(codec: &str, default: bool) -> Track {
 }
 
 pub(super) fn audio_with(codec: &str, default: bool, channels: Option<i64>) -> Track {
-    track(codec, default, TrackKind::Audio { channels })
+    track(
+        codec,
+        default,
+        TrackKind::Audio {
+            channels,
+            atmos: false,
+            audio_description: false,
+        },
+    )
 }
 
 pub(super) const MP4: &str = "mov,mp4,m4a,3gp,3g2,mj2";

@@ -1,9 +1,6 @@
 //! What Matching decided about each Item, and storing it.
 
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet},
-};
+use std::{borrow::Cow, collections::HashMap};
 
 use nama_plugin_api::{
     PluginId,
@@ -13,8 +10,8 @@ use nama_proto::nama::v1::{Event, PageResponse, SortDirection, UnmatchedItemSort
 use sqlx::SqliteConnection;
 
 use super::{
-    Contents, Item, ItemKind, ItemRow, Pin, ids_from_json, ids_sql, parse_hint, primary_id_in,
-    roles, scores, sort_titles::sort_title,
+    Contents, Item, ItemKind, ItemRow, Pin, air_dates, ids_from_json, ids_sql, parse_hint,
+    primary_id_in, roles, scores, sort_titles::sort_title,
 };
 use crate::{
     db::now,
@@ -175,9 +172,10 @@ impl From<Candidate> for TiedTitle {
 pub(crate) struct Decisions {
     /// Each Item, with what was decided about it.
     pub(crate) items: Vec<(i64, Decided)>,
-    /// The Seasons fetched to decide about Episodes, as the title source gave them, with every
-    /// id of their Show. Their Requests follow how much of them a Library has.
-    pub(crate) seasons: Vec<(ExternalIds, Season)>,
+    /// The Seasons fetched with their Show, as the Plugin's title source gave them, with every
+    /// id of their Show. Their Requests follow how much of them a Library has, and their
+    /// Episodes' air dates are stored.
+    pub(crate) seasons: Vec<(PluginId, ExternalIds, Season)>,
 }
 
 impl From<Vec<(i64, Decided)>> for Decisions {
@@ -218,10 +216,9 @@ pub(crate) struct Metadata {
     pub(crate) show_overview: Option<String>,
     pub(crate) show_first_air_date: Option<String>,
     /// The title's Score, stored once per title apart from the Match; for an Episode, its Show's,
-    /// as is `original_language`.
+    /// as are `original_language` and `roles`.
     pub(crate) score: Option<f64>,
     pub(crate) original_language: Option<String>,
-    /// The title's Roles, stored once per title as `score` is; for an Episode, its Show's.
     pub(crate) roles: Roles,
 }
 
@@ -531,8 +528,7 @@ pub(super) async fn insert_decisions(
     decided: Decisions,
     now: i64,
 ) -> Result<Vec<Event>, sqlx::Error> {
-    let mut movies = Vec::new();
-    let mut roles_stored = HashSet::new();
+    let (mut movies, mut roles_stored) = (Vec::new(), roles::Stored::new());
     for (item, decision) in decided.items {
         if let Decided::Matched(metadata) = &decision {
             movies.push(metadata.ids.clone());
@@ -590,15 +586,20 @@ pub(super) async fn insert_decisions(
             scores::store(&mut *conn, metadata).await?;
             roles::store_once(&mut *conn, metadata, &mut roles_stored).await?;
         }
-        store_ids(&mut *conn, item, &row).await?;
+        insert_match_ids(&mut *conn, item, &row).await?;
+    }
+    let mut seasons = Vec::with_capacity(decided.seasons.len());
+    for (plugin, show, season) in decided.seasons {
+        air_dates::store(&mut *conn, &plugin, &show, &season).await?;
+        seasons.push((show, season));
     }
     let mut happened = make_available(conn, movies).await?;
-    happened.extend(make_seasons_available(conn, decided.seasons).await?);
+    happened.extend(make_seasons_available(conn, seasons).await?);
     Ok(happened)
 }
 
-/// Stores the ids `row` gives the Item `item`, in place of those it had.
-async fn store_ids(
+/// Stores the ids of `row`'s title and its Show as the Item `item`'s, in place of those it had.
+async fn insert_match_ids(
     conn: &mut SqliteConnection,
     item: i64,
     row: &MatchRow<'_>,

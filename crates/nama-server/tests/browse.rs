@@ -10,6 +10,8 @@ mod http;
 mod next_episode;
 #[path = "support/refused.rs"]
 mod refused;
+#[path = "browse/roles.rs"]
+mod roles;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
@@ -26,7 +28,7 @@ use nama_proto::nama::v1::{
     AudioTrack, BrowseServiceClient, ClearMatchRequest, ContinueWatchingEntry, Episode, ExternalId,
     GetMovieRequest, GetShowRequest, GetShowResponse, HdrFormat, LibraryKind,
     ListContinueWatchingRequest, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, Movie,
-    ProbingFinished, RefusalReason, ReportProgressRequest, Role, Season, SetMatchRequest,
+    ProbingFinished, RefusalReason, ReportProgressRequest, Season, SetMatchRequest,
     SetPlayedRequest, ShowHit, ShowSeason, ShowSummary, TitleKind, Track, Version, VideoTrack,
     WatchState, WatchStateServiceClient, continue_watching_entry, event, hit, search_response,
     set_played_request::Target,
@@ -654,56 +656,6 @@ async fn a_movie_has_its_title_logo_genres_content_rating_score_and_original_lan
     }
 }
 
-/// Each of `roles` as its name and part.
-fn parts(roles: &[Role]) -> Vec<(&str, &str)> {
-    (roles.iter())
-        .map(|role| (role.name.as_str(), role.part.as_str()))
-        .collect()
-}
-
-#[tokio::test]
-async fn a_movie_has_its_cast_and_crew_and_its_casts_headshots_are_served() {
-    let fx = Fixture::alien().await;
-
-    let alien = fx.get_movie(fx.library, ALIEN).await.unwrap();
-    let headshot = alien.cast[1].headshot_url.clone().unwrap();
-    let reply = fetch(&fx.server, &headshot, Some(&fx.server.admin_token)).await;
-
-    let cast = [
-        ("Tom Skerritt", "Dallas"),
-        ("Sigourney Weaver", "Ellen Ripley"),
-    ];
-    assert_eq!(parts(&alien.cast), cast);
-    let crew = [("Ridley Scott", "Director"), ("Dan O'Bannon", "Screenplay")];
-    assert_eq!(parts(&alien.crew), crew);
-    assert_eq!(alien.crew[0].headshot_url, None);
-    assert_eq!(reply.status, 200);
-}
-
-#[tokio::test]
-async fn a_show_has_its_cast_and_crew_with_its_creators_first() {
-    let fx = Fixture::shows().await;
-
-    let dark = fx.get_show(fx.library, DARK).await.unwrap();
-    let dark = dark.show.into_option().unwrap();
-
-    let cast = [
-        ("Louis Hofmann", "Jonas Kahnwald"),
-        ("Lisa Vicari", "Martha Nielsen"),
-    ];
-    assert_eq!(parts(&dark.cast), cast);
-    let crew = [
-        ("Baran bo Odar", "Creator"),
-        ("Jantje Friese", "Creator"),
-        ("Baran bo Odar", "Director"),
-    ];
-    assert_eq!(parts(&dark.crew), crew);
-    assert_eq!(
-        dark.cast[0].headshot_url.as_deref(),
-        Some("/media/artwork/tmdb/%2Fhofmann.jpg")
-    );
-}
-
 /// Heat has no Title Logo in TMDB's artwork list, and TMDB rates it only in Germany.
 #[tokio::test]
 async fn a_movie_with_no_title_logo_or_rating_in_the_settings_country_has_neither() {
@@ -739,6 +691,16 @@ async fn a_show_has_its_own_overview_first_air_date_title_logo_genres_content_ra
     assert_eq!(show.content_rating.as_deref(), Some("TV-MA"));
     let language = show.original_language.as_deref();
     assert_eq!((show.score, language), (Some(8.4), Some("de")));
+}
+
+#[tokio::test]
+async fn a_show_counts_its_aired_episodes_without_its_specials_or_those_yet_to_air() {
+    let fx = Fixture::shows().await;
+
+    let got = fx.get_show(fx.library, DARK).await.unwrap();
+
+    // Season 1's three, Season 2's one and the first of Season 3's two.
+    assert_eq!(got.aired_episode_count, 5);
 }
 
 #[tokio::test]

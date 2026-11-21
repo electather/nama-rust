@@ -643,6 +643,12 @@ message FoundMovie {
   optional double score = 13;
   // As `nama.v1.Movie.original_language`.
   optional string original_language = 14;
+  // As `nama.v1.Movie.genres`, from the title source it was looked up in.
+  repeated string genres = 15;
+  // As `nama.v1.Movie.content_rating`, from the title source it was looked up in.
+  optional string content_rating = 16;
+  // As `nama.v1.Movie.on_watchlist`, under the id it was looked up by or another its Matches give.
+  bool on_watchlist = 17;
   // As `nama.v1.Movie.cast`, from the title source it was looked up in.
   repeated Role cast = 18;
   // As `nama.v1.Movie.crew`, from the title source it was looked up in.
@@ -720,6 +726,12 @@ message FoundShow {
   repeated Role cast = 18;
   // As `nama.v1.Show.crew`, from the title source it was looked up in.
   repeated Role crew = 19;
+  // As `FoundMovie.genres`.
+  repeated string genres = 15;
+  // As `FoundMovie.content_rating`, such as `TV-MA`.
+  optional string content_rating = 16;
+  // As `FoundMovie.on_watchlist`.
+  bool on_watchlist = 17;
 }
 
 // A Person's part in a Movie or Show: a character they play (Cast) or a job they did (Crew). A

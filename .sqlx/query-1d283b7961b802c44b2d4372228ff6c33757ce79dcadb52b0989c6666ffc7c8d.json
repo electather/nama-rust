@@ -1,0 +1,28 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT CAST(term AS TEXT) AS \"word!: String\", CAST(doc AS INTEGER) AS \"titles!: i64\"\n               FROM title_search_vocab",
+  "describe": {
+    "columns": [
+      {
+        "name": "word!: String",
+        "ordinal": 0,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "titles!: i64",
+        "ordinal": 1,
+        "type_info": "Null",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "1d283b7961b802c44b2d4372228ff6c33757ce79dcadb52b0989c6666ffc7c8d"
+}

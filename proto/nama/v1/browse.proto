@@ -251,6 +251,10 @@ enum BaseLayer {
 message AudioTrack {
   // How many, such as 6 for 5.1. 0 when the file doesn't say.
   uint32 channels = 1;
+  // Whether its profile says it carries Dolby Atmos, as TrueHD and E-AC-3 (JOC) can.
+  bool atmos = 2;
+  // Whether the file marks it as Audio Description, for the visually impaired.
+  bool audio_description = 3;
 }
 
 // A subtitle Track's own facts.
@@ -505,6 +509,9 @@ message GetShowResponse {
   Show show = 1;
   // The Seasons the Library has Episodes of, by number.
   repeated Season seasons = 2;
+  // How many of the Show's Episodes, Specials aside, have aired by today, by the air dates its
+  // title source gave when the Show was last fetched. 0 if it gave none.
+  uint32 aired_episode_count = 3;
 }
 
 message ListEpisodesRequest {

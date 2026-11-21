@@ -317,6 +317,30 @@ async fn a_scan_matches_episodes_through_their_show_and_season() {
 }
 
 #[tokio::test]
+async fn a_shows_aired_episodes_count_seasons_the_library_has_none_of() {
+    let media = Fixture::new().await;
+    let shows = &media.shows;
+    shows
+        .write(
+            "Dark (2017)/Season 01/Dark (2017) - S01E01.mkv",
+            &[episode("Dark", 2017, 1, 1)],
+        )
+        .await;
+
+    media.scan(shows).await;
+
+    // Season 1's three, Season 2's one and the first of Season 3's two; Season 3's second airs in
+    // 2099, and the Specials don't count.
+    let dark = media
+        .contents
+        .shows(shows.id, None)
+        .await
+        .unwrap()
+        .remove(0);
+    assert_eq!(media.contents.aired_episodes(&dark).await.unwrap(), 5);
+}
+
+#[tokio::test]
 async fn a_country_tag_on_a_show_is_searched_without_and_keeps_shows_from_that_country() {
     let media = Fixture::new().await;
     let shows = &media.shows;

@@ -238,6 +238,8 @@ impl BrowseService for BrowseServiceHandler {
         let on_watchlist = (self.on_watchlist(user, TitleKind::Show, &show.ids)).await?;
         let roles = self.browse.show_roles(&show).await;
         let roles = roles.map_err(refused(Fields::LIBRARY))?;
+        let aired = self.browse.aired_episodes(&show).await;
+        let aired_episode_count = aired.map_err(database_failed)?;
         let images = self.images.shown().await.map_err(database_failed)?;
         // Without a Plugin it has no Episodes, so no Roles to show headshots of.
         let plugin = show.plugin().unwrap_or_default();
@@ -265,6 +267,7 @@ impl BrowseService for BrowseServiceHandler {
             }
             .into(),
             seasons,
+            aired_episode_count,
             ..Default::default()
         })
     }

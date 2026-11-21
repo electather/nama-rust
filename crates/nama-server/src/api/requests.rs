@@ -1,6 +1,6 @@
 //! Users asking for Movies and Seasons of Shows: `nama.v1.RequestService`.
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc};
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_plugin_api::{
@@ -23,14 +23,16 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
+    db::Database,
     library::{
         Candidate, Downloaded, ImageRef, ImageSources, Metadata, Role, Roles, ShownImages,
-        TitleImage,
+        TitleImage, TitleKind,
     },
     requests::{
         self, Asked, Found, FoundShow, Hit, Listed, QUALITY_ASKED_FIELD, QUALITY_CHANGED_FIELD,
         QualityRefused, Requests, year_of,
     },
+    watchlist,
 };
 
 use super::{
@@ -46,6 +48,8 @@ pub(super) struct RequestServiceHandler {
     pub(super) requests: Requests,
     /// The images found, or those the Server shows in their place, with their thumbhashes.
     pub(super) images: ImageSources,
+    /// Holds the Watchlists that say whether a looked-up title is on the caller's.
+    pub(super) db: Arc<Database>,
 }
 
 #[expect(
@@ -237,9 +241,13 @@ impl RequestService for RequestServiceHandler {
                 err.into()
             }
         })?;
+        // By the id it was looked up by, which its page's Watchlist button removes it under, not
+        // the title source's other ids: `RemoveFromWatchlist` clears only the Matches' (#1292).
+        let on_watchlist = watchlist::has_matched(&self.db, viewer.id, TitleKind::Movie, &id);
+        let on_watchlist = on_watchlist.await.map_err(database_failed)?;
         let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(LookUpMovieResponse {
-            movie: looked_up_to_proto(found, &images).into(),
+            movie: looked_up_to_proto(found, on_watchlist, &images).into(),
             ..Default::default()
         })
     }
@@ -264,9 +272,12 @@ impl RequestService for RequestServiceHandler {
                 err.into()
             }
         })?;
+        // As `look_up_movie`'s.
+        let on_watchlist = watchlist::has_matched(&self.db, viewer.id, TitleKind::Show, &id);
+        let on_watchlist = on_watchlist.await.map_err(database_failed)?;
         let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(LookUpShowResponse {
-            show: looked_up_show_to_proto(found, &images).into(),
+            show: looked_up_show_to_proto(found, on_watchlist, &images).into(),
             ..Default::default()
         })
     }
@@ -449,9 +460,13 @@ pub(super) fn searched_to_proto(found: Found<Candidate>, images: &ShownImages) -
     }
 }
 
-/// A Movie looked up, as clients see it, with its images offered to them, each under the Plugin
-/// whose artwork list had it.
-fn looked_up_to_proto(found: Found<Metadata>, images: &ShownImages) -> proto::FoundMovie {
+/// A Movie looked up, as clients see it, `on_watchlist` or not, with its images offered to them,
+/// each under the Plugin whose artwork list had it.
+fn looked_up_to_proto(
+    found: Found<Metadata>,
+    on_watchlist: bool,
+    images: &ShownImages,
+) -> proto::FoundMovie {
     let Found {
         id,
         movie,
@@ -476,6 +491,9 @@ fn looked_up_to_proto(found: Found<Metadata>, images: &ShownImages) -> proto::Fo
         original_language: movie.original_language,
         cast,
         crew,
+        genres: movie.genres,
+        content_rating: movie.content_rating,
+        on_watchlist,
         poster_url: poster.url,
         poster_thumbhash: poster.thumbhash,
         backdrop_url: backdrop.url,
@@ -509,8 +527,12 @@ pub(super) fn searched_show_to_proto(hit: Hit, images: &ShownImages) -> proto::S
     }
 }
 
-/// A Show looked up, as clients see it, with its images offered to them.
-fn looked_up_show_to_proto(found: FoundShow, images: &ShownImages) -> proto::FoundShow {
+/// A Show looked up, as clients see it, `on_watchlist` or not, with its images offered to them.
+fn looked_up_show_to_proto(
+    found: FoundShow,
+    on_watchlist: bool,
+    images: &ShownImages,
+) -> proto::FoundShow {
     let FoundShow {
         id,
         plugin,
@@ -538,6 +560,9 @@ fn looked_up_show_to_proto(found: FoundShow, images: &ShownImages) -> proto::Fou
         original_language: show.original_language,
         cast,
         crew,
+        genres: show.genres,
+        content_rating: show.content_rating,
+        on_watchlist,
         poster_url: poster.url,
         poster_thumbhash: poster.thumbhash,
         backdrop_url: backdrop.url,

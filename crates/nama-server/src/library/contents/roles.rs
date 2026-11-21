@@ -9,8 +9,8 @@ use sqlx::SqliteConnection;
 use super::{Contents, Metadata, Movie, Show, scores::title_key};
 use crate::library::title_source::{Role, Roles};
 
-/// A title as `title_key` keys it, owned.
-type TitleKey = (String, &'static str, ExternalId);
+/// The titles a write of Matches has stored Roles for, each as `title_key` keys it, owned.
+pub(super) type Stored = HashSet<(String, &'static str, ExternalId)>;
 
 /// Stores the Roles that `matched` gives its title, a Movie or an Episode's Show, in place of what
 /// the same title source gave it before, unless `stored` holds the title already. Every Episode
@@ -18,7 +18,7 @@ type TitleKey = (String, &'static str, ExternalId);
 pub(super) async fn store_once(
     conn: &mut SqliteConnection,
     matched: &Metadata,
-    stored: &mut HashSet<TitleKey>,
+    stored: &mut Stored,
 ) -> Result<(), sqlx::Error> {
     let Some((plugin, kind, id)) = title_key(matched) else {
         return Ok(());

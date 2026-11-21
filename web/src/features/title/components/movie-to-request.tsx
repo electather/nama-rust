@@ -19,7 +19,7 @@ export function MovieToRequest({ movieId, you }: { movieId: ExternalId; you: big
     throw notFound();
   }
   return (
-    <TitlePage hero={<MovieRequestHero movie={movie} you={you} />}>
+    <TitlePage hero={<MovieRequestHero movieId={movieId} movie={movie} you={you} />}>
       <CastAndCrew cast={movie.cast} crew={movie.crew} />
       <TitleDetails
         groups={[

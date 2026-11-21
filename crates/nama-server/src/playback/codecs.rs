@@ -198,7 +198,7 @@ pub(super) fn audio_codec_name(ffprobe_name: &str) -> &str {
 /// How many channels the audio Track `audio` has, if the file says.
 pub(super) const fn channels_of(audio: &Track) -> Option<i64> {
     match audio.kind {
-        TrackKind::Audio { channels } => channels,
+        TrackKind::Audio { channels, .. } => channels,
         TrackKind::Video { .. } | TrackKind::Subtitle { .. } => None,
     }
 }
@@ -206,12 +206,17 @@ pub(super) const fn channels_of(audio: &Track) -> Option<i64> {
 /// `tracks` with their audio converted as `conversion` says.
 fn converted_audio(mut tracks: Vec<Track>, conversion: AudioConversion) -> Vec<Track> {
     for track in &mut tracks {
-        if let TrackKind::Audio { channels } = &mut track.kind {
+        if let TrackKind::Audio {
+            channels, atmos, ..
+        } = &mut track.kind
+        {
             conversion
                 .encoder
                 .ffmpeg_name()
                 .clone_into(&mut track.codec);
             *channels = Some(conversion.channels);
+            // ffmpeg's encoders write no Atmos objects.
+            *atmos = false;
         }
     }
     tracks
