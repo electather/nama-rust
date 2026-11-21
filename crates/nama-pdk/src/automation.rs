@@ -210,10 +210,9 @@ pub mod kernel {
         Ok(call::<HomeRowsForgotten>("forget_home_rows", &asked)?.users)
     }
 
-    /// Deletes each Plugin's Store entries, settings, Personal settings and Plugin Connections,
-    /// for each Plugin the Server hasn't had for at least `days` days, and answers their ids. A
-    /// Plugin the Server still has, enabled or not, is never one of them. Needs
-    /// `PERMISSION_FORGET_GONE_PLUGINS`.
+    /// Deletes what each Plugin the Server hasn't had for at least `days` days left behind, such
+    /// as its Store entries and settings, and answers their ids. A Plugin the Server still has,
+    /// enabled or not, is never one of them. Needs `PERMISSION_FORGET_GONE_PLUGINS`.
     ///
     /// # Errors
     ///
