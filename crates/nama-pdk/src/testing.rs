@@ -9,11 +9,12 @@ use std::{cell::RefCell, collections::HashMap, fmt};
 use ::extism_pdk::{Error, HttpRequest};
 use buffa::{Message, MessageField};
 use nama_plugin_proto::nama::plugin::v1::{
-    DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetHomeRowsAsked,
-    HomeRowsForgotten, KernelAnswer, Libraries, LibrariesAsked, Library, Requesters,
-    RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef, TitleRequesters,
-    TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates,
-    WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle, kernel_answer,
+    DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetGonePluginsAsked,
+    ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten, KernelAnswer, Libraries,
+    LibrariesAsked, Library, Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored,
+    Title, TitleRef, TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users,
+    UsersAsked, WatchState, WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked,
+    WatchlistTitle, kernel_answer,
 };
 
 use crate::{Response, kernel::MAX_PAGE_SIZE};
@@ -30,6 +31,10 @@ type ForgetHomeRowsHandler = Box<dyn FnMut(u32) -> Result<u32, String>>;
 
 /// Answers a Plugin's `delete_expired_sign_ins` with how many Devices and Invites it deleted.
 type DeleteExpiredSignInsHandler = Box<dyn FnMut() -> Result<(u32, u32), String>>;
+
+/// Answers a Plugin's `forget_gone_plugins` of the days it asked with the ids of the Plugins it
+/// forgot.
+type ForgetGonePluginsHandler = Box<dyn FnMut(u32) -> Result<Vec<String>, String>>;
 
 /// What the Kernel gives a Plugin during a test: its settings, answers to its HTTP requests, and
 /// the Kernel functions the test granted.
@@ -49,6 +54,7 @@ pub struct Kernel {
     delete_media: Option<DeleteHandler>,
     forget_home_rows: Option<ForgetHomeRowsHandler>,
     delete_expired_sign_ins: Option<DeleteExpiredSignInsHandler>,
+    forget_gone_plugins: Option<ForgetGonePluginsHandler>,
     /// Each Library's titles, by its id, answered once `libraries` is granted.
     titles: HashMap<i64, Vec<Title>>,
     deletes: Vec<Delete>,
@@ -212,6 +218,19 @@ impl Kernel {
         self
     }
 
+    /// The Kernel, the Admin having granted the Plugin Forget removed Plugins, answering each
+    /// `kernel::forget_gone_plugins` with `handler`, which is given the days asked. It answers the
+    /// ids of the Plugins forgotten, or an `Err` holding the Kernel's words refusing it, which
+    /// reach the Plugin as the Kernel's.
+    #[must_use]
+    pub fn forget_gone_plugins(
+        mut self,
+        handler: impl FnMut(u32) -> Result<Vec<String>, String> + 'static,
+    ) -> Self {
+        self.forget_gone_plugins = Some(Box::new(handler));
+        self
+    }
+
     /// The HTTP requests the Plugin sent, in order.
     #[must_use]
     pub fn sent(&self) -> &[Sent] {
@@ -328,6 +347,9 @@ impl Kernel {
             "delete_expired_sign_ins" => typed(request, |_: ExpiredSignInsAsked| {
                 self.answer_delete_expired_sign_ins()
             }),
+            "forget_gone_plugins" => {
+                typed(request, |asked| self.answer_forget_gone_plugins(&asked))
+            }
             _ => Err(Error::msg(format!("the Kernel has no function {name}"))),
         }
     }
@@ -479,6 +501,17 @@ impl Kernel {
             devices,
             invites,
             ..ExpiredSignInsDeleted::default()
+        })
+    }
+
+    fn answer_forget_gone_plugins(
+        &mut self,
+        asked: &ForgetGonePluginsAsked,
+    ) -> Result<GonePluginsForgotten, String> {
+        let handler = granted(self.forget_gone_plugins.as_mut(), "Forget removed Plugins")?;
+        Ok(GonePluginsForgotten {
+            plugin_ids: handler(asked.days)?,
+            ..GonePluginsForgotten::default()
         })
     }
 }
@@ -902,6 +935,27 @@ mod tests {
     }
 
     #[test]
+    fn granted_forget_gone_plugins_answers_the_handlers_ids_for_the_days_asked() {
+        let mut kernel = Kernel::new().forget_gone_plugins(|days| Ok(vec![format!("gone-{days}")]));
+
+        let forgotten = with(&mut kernel, || crate::kernel::forget_gone_plugins(30)).unwrap();
+
+        assert_eq!(forgotten, ["gone-30"]);
+    }
+
+    #[test]
+    fn a_refused_forget_gone_plugins_reaches_the_plugin_in_the_handlers_words() {
+        let mut kernel =
+            Kernel::new().forget_gone_plugins(|_days| Err("days must be at least 1".to_owned()));
+
+        let refused = with(&mut kernel, || {
+            crate::kernel::forget_gone_plugins(0).unwrap_err()
+        });
+
+        assert_eq!(refused.to_string(), "days must be at least 1");
+    }
+
+    #[test]
     fn each_function_not_granted_is_refused_naming_its_permission() {
         let refused = with(&mut Kernel::new(), || {
             [
@@ -914,6 +968,7 @@ mod tests {
                 crate::kernel::delete_media(movie(1, "1"), &[]).map(drop),
                 crate::kernel::forget_home_rows(30).map(drop),
                 crate::kernel::delete_expired_sign_ins().map(drop),
+                crate::kernel::forget_gone_plugins(30).map(drop),
             ]
             .map(|answered| answered.unwrap_err().to_string())
         });
@@ -932,6 +987,7 @@ mod tests {
                 "Delete media",
                 "Forget Home rows",
                 "Delete expired sign-ins",
+                "Forget removed Plugins",
             ]
             .map(not_granted)
         );

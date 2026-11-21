@@ -51,6 +51,7 @@ mod recogniser;
 mod search_source;
 mod segment_source;
 mod services;
+mod similar_source;
 mod subtitle_source;
 mod title_source;
 

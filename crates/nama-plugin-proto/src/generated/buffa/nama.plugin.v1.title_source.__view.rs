@@ -4960,11 +4960,6 @@ pub struct MovieView<'a> {
     ///
     /// Field 12: `original_language`
     pub original_language: ::core::option::Option<&'a str>,
-    /// Its Similar titles: the Movies this source says are like it, most alike first, each by one
-    /// id. The Kernel keeps the first 20 and drops a malformed one.
-    ///
-    /// Field 16: `similar`
-    pub similar: ::buffa::RepeatedView<'a, super::super::__buffa::view::TitleIdView<'a>>,
     /// Its Trailers, in the order to show them. The Kernel keeps the first 5 it can link to.
     ///
     /// Field 13: `trailers`
@@ -5111,24 +5106,6 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
                 )?;
                 view.genres.push(__elem);
             }
-            16u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                let __sub_ctx = ctx.descend()?;
-                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
-                ctx.register_element_memory(
-                    ::core::mem::size_of::<super::super::__buffa::view::TitleIdView>(),
-                )?;
-                view.similar
-                    .push(
-                        <super::super::__buffa::view::TitleIdView as ::buffa::MessageView>::decode_view_ctx(
-                            sub,
-                            __sub_ctx,
-                        )?,
-                    );
-            }
             13u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -5221,11 +5198,6 @@ impl<'a> ::buffa::MessageView<'a> for MovieView<'a> {
             content_rating: self.content_rating.map(|s| s.to_string()),
             score: self.score,
             original_language: self.original_language.map(|s| s.to_string()),
-            similar: self
-                .similar
-                .iter()
-                .map(|v| v.to_owned_from_source(__buffa_src))
-                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             trailers: self
                 .trailers
                 .iter()
@@ -5317,14 +5289,6 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
-        for v in &self.similar {
-            let __slot = __cache.reserve();
-            let inner_size = v.compute_size(__cache);
-            __cache.set(__slot, inner_size);
-            size
-                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
-                    + inner_size as u64;
-        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5401,14 +5365,6 @@ impl<'a> ::buffa::ViewEncode<'a> for MovieView<'a> {
             );
             v.write_to(__cache, buf);
         }
-        for v in &self.similar {
-            ::buffa::types::put_len_delimited_header(
-                16u32,
-                u64::from(__cache.consume_next()),
-                buf,
-            );
-            v.write_to(__cache, buf);
-        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -5469,9 +5425,6 @@ impl<'__a> ::serde::Serialize for MovieView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.original_language {
             __map.serialize_entry("originalLanguage", __v)?;
-        }
-        if !self.similar.is_empty() {
-            __map.serialize_entry("similar", &*self.similar)?;
         }
         if !self.trailers.is_empty() {
             __map.serialize_entry("trailers", &*self.trailers)?;
@@ -5657,16 +5610,6 @@ impl MovieOwnedView {
     pub fn original_language(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().original_language
     }
-    /// Its Similar titles: the Movies this source says are like it, most alike first, each by one
-    /// id. The Kernel keeps the first 20 and drops a malformed one.
-    ///
-    /// Field 16: `similar`
-    #[must_use]
-    pub fn similar(
-        &self,
-    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleIdView<'_>> {
-        &self.0.reborrow().similar
-    }
     /// Its Trailers, in the order to show them. The Kernel keeps the first 5 it can link to.
     ///
     /// Field 13: `trailers`
@@ -5773,10 +5716,6 @@ pub struct ShowView<'a> {
     ///
     /// Field 12: `original_language`
     pub original_language: ::core::option::Option<&'a str>,
-    /// As `Movie.similar`, the Shows this source says are like it.
-    ///
-    /// Field 16: `similar`
-    pub similar: ::buffa::RepeatedView<'a, super::super::__buffa::view::TitleIdView<'a>>,
     /// As `Movie.trailers`.
     ///
     /// Field 13: `trailers`
@@ -5935,24 +5874,6 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
                 )?;
                 view.genres.push(__elem);
             }
-            16u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                let __sub_ctx = ctx.descend()?;
-                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
-                ctx.register_element_memory(
-                    ::core::mem::size_of::<super::super::__buffa::view::TitleIdView>(),
-                )?;
-                view.similar
-                    .push(
-                        <super::super::__buffa::view::TitleIdView as ::buffa::MessageView>::decode_view_ctx(
-                            sub,
-                            __sub_ctx,
-                        )?,
-                    );
-            }
             13u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -6045,11 +5966,6 @@ impl<'a> ::buffa::MessageView<'a> for ShowView<'a> {
             content_rating: self.content_rating.map(|s| s.to_string()),
             score: self.score,
             original_language: self.original_language.map(|s| s.to_string()),
-            similar: self
-                .similar
-                .iter()
-                .map(|v| v.to_owned_from_source(__buffa_src))
-                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             trailers: self
                 .trailers
                 .iter()
@@ -6146,14 +6062,6 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
-        for v in &self.similar {
-            let __slot = __cache.reserve();
-            let inner_size = v.compute_size(__cache);
-            __cache.set(__slot, inner_size);
-            size
-                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
-                    + inner_size as u64;
-        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -6238,14 +6146,6 @@ impl<'a> ::buffa::ViewEncode<'a> for ShowView<'a> {
             );
             v.write_to(__cache, buf);
         }
-        for v in &self.similar {
-            ::buffa::types::put_len_delimited_header(
-                16u32,
-                u64::from(__cache.consume_next()),
-                buf,
-            );
-            v.write_to(__cache, buf);
-        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -6306,9 +6206,6 @@ impl<'__a> ::serde::Serialize for ShowView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.original_language {
             __map.serialize_entry("originalLanguage", __v)?;
-        }
-        if !self.similar.is_empty() {
-            __map.serialize_entry("similar", &*self.similar)?;
         }
         if !self.trailers.is_empty() {
             __map.serialize_entry("trailers", &*self.trailers)?;
@@ -6491,15 +6388,6 @@ impl ShowOwnedView {
     #[must_use]
     pub fn original_language(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().original_language
-    }
-    /// As `Movie.similar`, the Shows this source says are like it.
-    ///
-    /// Field 16: `similar`
-    #[must_use]
-    pub fn similar(
-        &self,
-    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleIdView<'_>> {
-        &self.0.reborrow().similar
     }
     /// As `Movie.trailers`.
     ///

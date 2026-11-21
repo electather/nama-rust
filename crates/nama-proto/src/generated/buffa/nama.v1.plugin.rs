@@ -641,6 +641,8 @@ pub enum ExtensionPoint {
     /// Adds titles to every User's search, such as by what they are about, after the Libraries'
     /// and the title source's (ADR 0083).
     EXTENSION_POINT_SEARCH_SOURCE = 15i32,
+    /// Says which titles are like a title, for its Similar titles (ADR 0084).
+    EXTENSION_POINT_SIMILAR_SOURCE = 16i32,
 }
 impl ExtensionPoint {
     ///Idiomatic alias for [`Self::EXTENSION_POINT_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -691,6 +693,9 @@ impl ExtensionPoint {
     ///Idiomatic alias for [`Self::EXTENSION_POINT_SEARCH_SOURCE`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const SearchSource: Self = Self::EXTENSION_POINT_SEARCH_SOURCE;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_SIMILAR_SOURCE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SimilarSource: Self = Self::EXTENSION_POINT_SIMILAR_SOURCE;
 }
 impl ::core::default::Default for ExtensionPoint {
     fn default() -> Self {
@@ -808,6 +813,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             13i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_HOME_ROW),
             14i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_SEGMENT_SOURCE),
             15i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_SEARCH_SOURCE),
+            16i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_SIMILAR_SOURCE),
             _ => ::core::option::Option::None,
         }
     }
@@ -834,6 +840,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_HOME_ROW => "EXTENSION_POINT_HOME_ROW",
             Self::EXTENSION_POINT_SEGMENT_SOURCE => "EXTENSION_POINT_SEGMENT_SOURCE",
             Self::EXTENSION_POINT_SEARCH_SOURCE => "EXTENSION_POINT_SEARCH_SOURCE",
+            Self::EXTENSION_POINT_SIMILAR_SOURCE => "EXTENSION_POINT_SIMILAR_SOURCE",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -888,6 +895,9 @@ impl ::buffa::Enumeration for ExtensionPoint {
             "EXTENSION_POINT_SEARCH_SOURCE" => {
                 ::core::option::Option::Some(Self::EXTENSION_POINT_SEARCH_SOURCE)
             }
+            "EXTENSION_POINT_SIMILAR_SOURCE" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_SIMILAR_SOURCE)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -909,6 +919,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_HOME_ROW,
             Self::EXTENSION_POINT_SEGMENT_SOURCE,
             Self::EXTENSION_POINT_SEARCH_SOURCE,
+            Self::EXTENSION_POINT_SIMILAR_SOURCE,
         ]
     }
 }

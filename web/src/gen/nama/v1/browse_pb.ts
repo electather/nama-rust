@@ -678,8 +678,9 @@ export type GetMovieResponse = Message<"nama.v1.GetMovieResponse"> & {
   readOnlyFolder?: string | undefined;
 
   /**
-   * Its Similar titles that are in a Library, most alike first, each with `library_id` set to
-   * the oldest Library it is in. Its title source names them, and one in no Library is left out.
+   * Its Similar titles that are in a Library, most alike first, at most 20, each with `library_id`
+   * set to the oldest Library it is in. The Similar sources name them (ADR 0084), and one in no
+   * Library is left out.
    *
    * @generated from field: repeated nama.v1.MovieHit similar = 3;
    */

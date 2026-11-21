@@ -49,14 +49,5 @@
       {"iso_639_1": "en", "iso_3166_1": "US", "name": "Chestburster", "key": "chestbust1", "site": "YouTube", "type": "Clip", "official": true},
       {"iso_639_1": "en", "iso_3166_1": "US", "name": "Teaser", "key": "teaser0001", "site": "YouTube", "type": "Teaser", "official": true}
     ]
-  },
-  "recommendations": {
-    "page": 1,
-    "results": [
-      {"id": 679, "title": "Aliens"},
-      {"id": 949, "title": "Heat"}
-    ],
-    "total_pages": 1,
-    "total_results": 2
   }
 }

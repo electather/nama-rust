@@ -1,0 +1,9 @@
+{
+  "page": 1,
+  "results": [
+    {"id": 66732, "name": "Stranger Things"},
+    {"id": 2316, "name": "The Office"}
+  ],
+  "total_pages": 1,
+  "total_results": 2
+}

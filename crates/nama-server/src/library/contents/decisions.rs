@@ -219,7 +219,7 @@ pub(crate) struct Metadata {
     pub(crate) score: Option<f64>,
     pub(crate) original_language: Option<String>,
     pub(crate) trailers: Vec<Trailer>,
-    pub(crate) similar: Vec<ExternalId>,
+    pub(crate) similar: Vec<crate::library::SimilarAnswer>,
     pub(crate) roles: Roles,
 }
 

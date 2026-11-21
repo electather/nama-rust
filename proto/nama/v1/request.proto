@@ -649,7 +649,7 @@ message FoundMovie {
   optional string content_rating = 16;
   // As `nama.v1.Movie.on_watchlist`, under the id it was looked up by or another its Matches give.
   bool on_watchlist = 17;
-  // As `nama.v1.GetMovieResponse.similar`, as the title source it was looked up in names them.
+  // As `nama.v1.GetMovieResponse.similar`, as the enabled Similar sources answer them now.
   repeated MovieHit similar = 21;
   // As `nama.v1.Movie.trailers`, from the title source it was looked up in.
   repeated Trailer trailers = 18;

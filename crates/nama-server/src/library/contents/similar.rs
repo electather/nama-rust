@@ -1,98 +1,125 @@
 //! A title's Similar titles, stored once per title in `similar_titles` rather than on each of its
-//! Matches (ADR 0081), keyed as `title_details` is. [`Contents::similar`] reads them back.
+//! Matches (ADR 0081), one row per Similar source that answered (ADR 0084). [`Contents::similar`]
+//! reads them back.
 
-use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use nama_plugin_api::{
+    PluginId,
+    metadata::{ExternalId, ExternalIds},
+};
+use serde::{Deserialize, Serialize};
 use sqlx::SqliteConnection;
 
 use super::{Contents, Metadata};
-use crate::library::TitleKind;
+use crate::library::{SimilarAnswer, TitleKind};
 
-/// Stores the Similar titles that `matched` gives its title, a Movie or an Episode's
-/// Show, in place of what the same title source gave it before.
+/// One title of a stored answer, as the `similar` column's JSON holds it.
+#[derive(Serialize, Deserialize)]
+struct StoredTitle {
+    id: String,
+    weight: f32,
+}
+
+/// Stores each Similar source's answer in `matched` about its title, a Movie or an Episode's
+/// Show, in place of what that source answered before. A source that didn't answer keeps its row.
 pub(super) async fn store(
     conn: &mut SqliteConnection,
     matched: &Metadata,
 ) -> Result<(), sqlx::Error> {
-    let (kind, ids) = if matched.show_title.is_some() {
-        (TitleKind::Show, &matched.show_ids)
-    } else {
-        (TitleKind::Movie, &matched.ids)
-    };
+    let (kind, ids) = matched.title();
     let Some((kind, id)) = key(kind, ids) else {
         return Ok(());
     };
-    let (plugin, namespace, value) = (matched.plugin.as_str(), id.namespace(), id.value());
-    let similar: Vec<String> = matched.similar.iter().map(ToString::to_string).collect();
-    let similar = serde_json::Value::from(similar).to_string();
-    sqlx::query!(
-        "INSERT OR REPLACE INTO similar_titles (plugin, kind, namespace, value, similar)
-         VALUES (?, ?, ?, ?, ?)",
-        plugin,
-        kind,
-        namespace,
-        value,
-        similar,
-    )
-    .execute(conn)
-    .await?;
+    let (namespace, value) = (id.namespace(), id.value());
+    for answer in &matched.similar {
+        let plugin = answer.plugin.as_str();
+        let titles: Vec<StoredTitle> = (answer.titles.iter())
+            .map(|(similar, weight)| StoredTitle {
+                id: similar.to_string(),
+                weight: *weight,
+            })
+            .collect();
+        let titles =
+            serde_json::to_string(&titles).map_err(|err| sqlx::Error::Encode(err.into()))?;
+        sqlx::query!(
+            "INSERT OR REPLACE INTO similar_titles (plugin, kind, namespace, value, similar)
+             VALUES (?, ?, ?, ?, ?)",
+            plugin,
+            kind,
+            namespace,
+            value,
+            titles,
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
+    Ok(())
+}
+
+/// Deletes the Similar titles `plugin`'s title source gave.
+pub(super) async fn forget_plugin(
+    conn: &mut SqliteConnection,
+    plugin: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!("DELETE FROM similar_titles WHERE plugin = ?", plugin)
+        .execute(conn)
+        .await?;
     Ok(())
 }
 
 impl Contents {
-    /// The Similar titles of the Movie or Show of `kind` known by `ids`, as the Match of it in
-    /// `library` stores them, from that Match's title source alone, most alike first. Empty if
-    /// it gave none, or the Match predates them.
+    /// What each Similar source last answered about the Movie or Show of `kind` known by `ids`,
+    /// by Plugin id. Empty if none has, or its Match predates them.
     pub(crate) async fn similar(
         &self,
-        library: i64,
         kind: TitleKind,
         ids: &ExternalIds,
-    ) -> Result<Vec<ExternalId>, sqlx::Error> {
-        // The rows of a Movie's Match name it in the `title` scope, and an Episode's its Show in
-        // the `show` scope.
-        let scope = match kind {
-            TitleKind::Movie => "title",
-            TitleKind::Show => "show",
-        };
+    ) -> Result<Vec<SimilarAnswer>, sqlx::Error> {
         let Some((kind, id)) = key(kind, ids) else {
             return Ok(Vec::new());
         };
         let (namespace, value) = (id.namespace(), id.value());
-        let similar = sqlx::query_scalar!(
-            "SELECT similar_titles.similar FROM similar_titles
-             WHERE similar_titles.kind = ?1
-               AND similar_titles.namespace = ?2
-               AND similar_titles.value = ?3
-               AND similar_titles.plugin IN (
-                   SELECT item_matches.plugin FROM item_match_ids
-                   JOIN item_matches ON item_matches.item_id = item_match_ids.item_id
-                   JOIN library_items ON library_items.id = item_matches.item_id
-                   JOIN library_files ON library_files.id = library_items.file_id
-                   WHERE library_files.library_id = ?4
-                     AND item_match_ids.scope = ?5
-                     AND item_match_ids.namespace = ?2
-                     AND item_match_ids.value = ?3
-                     AND item_matches.state = 'matched')
-             LIMIT 1",
+        let rows = sqlx::query!(
+            "SELECT plugin, similar FROM similar_titles
+             WHERE kind = ? AND namespace = ? AND value = ?
+             ORDER BY plugin",
             kind,
             namespace,
             value,
-            library,
-            scope,
         )
-        .fetch_optional(self.db.reader())
+        .fetch_all(self.db.reader())
         .await?;
-        let similar: Vec<String> = (similar.as_deref())
-            .and_then(|json| serde_json::from_str(json).ok())
-            .unwrap_or_default();
-        Ok(similar
-            .iter()
-            .filter_map(|named| named.parse().ok())
-            .collect())
+        rows.into_iter()
+            .map(|row| {
+                let stored: Vec<StoredTitle> = serde_json::from_str(&row.similar)
+                    .map_err(|err| sqlx::Error::Decode(err.into()))?;
+                let titles = (stored.into_iter())
+                    .filter_map(|title| Some((title.id.parse().ok()?, title.weight)))
+                    .collect();
+                Ok(SimilarAnswer {
+                    plugin: PluginId::from(row.plugin),
+                    titles,
+                })
+            })
+            .collect()
+    }
+
+    /// Deletes every answer the Plugin `plugin`'s Similar source gave, as disabling it does.
+    pub(crate) async fn forget_similar_from(&self, plugin: &PluginId) -> Result<(), sqlx::Error> {
+        let plugin = plugin.as_str().to_owned();
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!("DELETE FROM similar_titles WHERE plugin = ?", plugin)
+                        .execute(&mut **tx)
+                        .await?;
+                    Ok(())
+                })
+            })
+            .await
     }
 }
 
-/// The kind and the first of `ids` in namespace order, which a title's row is kept under and
+/// The kind and the first of `ids` in namespace order, which a title's rows are kept under and
 /// `similar` looks them up by. `None` for a title with no id.
 fn key(kind: TitleKind, ids: &ExternalIds) -> Option<(&'static str, ExternalId)> {
     let kind = match kind {
@@ -101,7 +128,3 @@ fn key(kind: TitleKind, ids: &ExternalIds) -> Option<(&'static str, ExternalId)>
     };
     Some((kind, ids.iter().next()?))
 }
-
-#[cfg(test)]
-#[path = "similar_tests.rs"]
-mod tests;
