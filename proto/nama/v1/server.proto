@@ -400,7 +400,9 @@ message SetDefaultHomeLayoutResponse {
 // The order of the Home rows, and which of them and whether Featured are shown. Featured is
 // always at the top.
 message HomeLayout {
-  bool featured_hidden = 1;
+  // Always set in a response. Unset in `UserService.SetHomeLayout` leaves the caller's Featured as
+  // it is; unset in `SetDefaultHomeLayout` shows it.
+  optional bool featured_hidden = 1;
   // In the order Home shows them.
   repeated HomeLayoutRow rows = 2;
 }

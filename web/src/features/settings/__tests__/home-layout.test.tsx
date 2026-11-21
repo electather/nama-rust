@@ -10,6 +10,7 @@ import { fakeServer, newUser, openApp } from "@/test-app";
 /** The Server's default as this User sees it: Continue Watching, then a Plugin's row. */
 function defaultLayout() {
   return create(HomeLayoutSchema, {
+    featuredHidden: false,
     rows: [
       { row: { case: "kernel", value: KernelHomeRow.CONTINUE_WATCHING } },
       {
@@ -25,7 +26,8 @@ function defaultLayout() {
 /**
  * Opens Settings on a fake Server keeping this User's Home layout, and returns what it's asked to
  * save, and each order it's asked to reorder the rows in, which it answers once `reordered`
- * settles. Like the Server, it keeps the flags of the rows a request leaves out.
+ * settles. Like the Server, it keeps the flags of the rows a request leaves out, and Featured's
+ * when a request leaves it unset.
  */
 function openSettings(reordered = Promise.resolve()) {
   let layout = defaultLayout();
@@ -43,7 +45,7 @@ function openSettings(reordered = Promise.resolve()) {
           saves.push(asked);
           const named = new Map(asked.rows.map((row) => [rowKey(row), row]));
           layout = create(HomeLayoutSchema, {
-            featuredHidden: asked.featuredHidden,
+            featuredHidden: asked.featuredHidden ?? layout.featuredHidden,
             rows: layout.rows.map((row) => named.get(rowKey(row)) ?? row),
           });
           return { layout };
@@ -96,19 +98,21 @@ test("a User hides a Home row and Featured on Settings, then resets to the defau
   expect(shownSwitch(home, "Featured").getAttribute("aria-checked")).toBe("true");
 });
 
-test("flipping a switch saves that row alone, so the rows left alone follow the default", async () => {
+test("flipping a switch saves that row or Featured alone, so the rest follow the default", async () => {
   const { saves } = openSettings();
   const home = await screen.findByRole("region", { name: "Home" });
 
   fireEvent.click(shownSwitch(home, "Top picks"));
   await expect.poll(() => saves.length).toBe(1);
   expect(saves[0]?.rows.map(rowKey)).toStrictEqual(["plugin/top-picks/picks"]);
+  expect(saves[0]?.featuredHidden).toBeUndefined();
   await expect
     .poll(() => shownSwitch(home, "Top picks").getAttribute("aria-checked"))
     .toBe("false");
   fireEvent.click(shownSwitch(home, "Featured"));
   await expect.poll(() => saves.length).toBe(2);
   expect(saves[1]?.rows).toStrictEqual([]);
+  expect(saves[1]?.featuredHidden).toBe(true);
 });
 
 test("moving a row saves the User's order of their Home rows and says where it went", async () => {

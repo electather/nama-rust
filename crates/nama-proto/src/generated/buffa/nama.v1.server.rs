@@ -6007,14 +6007,16 @@ pub const __SET_DEFAULT_HOME_LAYOUT_RESPONSE_JSON_ANY: ::buffa::type_registry::J
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct HomeLayout {
+    /// Always set in a response. Unset in `UserService.SetHomeLayout` leaves the caller's Featured as
+    /// it is; unset in `SetDefaultHomeLayout` shows it.
+    ///
     /// Field 1: `featured_hidden`
     #[serde(
         rename = "featuredHidden",
         alias = "featured_hidden",
-        with = "::buffa::json_helpers::proto_bool",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+        skip_serializing_if = "::core::option::Option::is_none"
     )]
-    pub featured_hidden: bool,
+    pub featured_hidden: ::core::option::Option<bool>,
     /// In the order Home shows them.
     ///
     /// Field 2: `rows`
@@ -6043,6 +6045,15 @@ impl HomeLayout {
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.HomeLayout";
 }
+impl HomeLayout {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::featured_hidden`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_featured_hidden(mut self, value: bool) -> Self {
+        self.featured_hidden = Some(value);
+        self
+    }
+}
 ::buffa::impl_default_instance!(HomeLayout);
 impl ::buffa::MessageName for HomeLayout {
     const PACKAGE: &'static str = "nama.v1";
@@ -6063,7 +6074,7 @@ impl ::buffa::Message for HomeLayout {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if self.featured_hidden {
+        if self.featured_hidden.is_some() {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         for v in &self.rows {
@@ -6084,8 +6095,8 @@ impl ::buffa::Message for HomeLayout {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if self.featured_hidden {
-            ::buffa::types::put_bool_field(1u32, self.featured_hidden, buf);
+        if let Some(v) = self.featured_hidden {
+            ::buffa::types::put_bool_field(1u32, v, buf);
         }
         for v in &self.rows {
             ::buffa::types::put_len_delimited_header(
@@ -6113,7 +6124,9 @@ impl ::buffa::Message for HomeLayout {
                     tag,
                     ::buffa::encoding::WireType::Varint,
                 )?;
-                self.featured_hidden = ::buffa::types::decode_bool(buf)?;
+                self.featured_hidden = ::core::option::Option::Some(
+                    ::buffa::types::decode_bool(buf)?,
+                );
             }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -6135,7 +6148,7 @@ impl ::buffa::Message for HomeLayout {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
-        self.featured_hidden = false;
+        self.featured_hidden = ::core::option::Option::None;
         self.rows.clear();
         self.__buffa_unknown_fields.clear();
     }

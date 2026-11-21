@@ -16,7 +16,7 @@ export function HomeLayoutForm() {
   const saved = useDefaultHomeLayout();
   const names = usePluginNames();
   const save = useSetDefaultHomeLayout();
-  const [featuredHidden, setFeaturedHidden] = useState(saved.featuredHidden);
+  const [featuredHidden, setFeaturedHidden] = useState(saved.featuredHidden === true);
   const { rows, move, setShown, announced } = useLayoutRows(saved.rows, names);
   const list = useRef<HTMLUListElement>(null);
   const rowDrag = useRowDrag(list, rows.length, move);

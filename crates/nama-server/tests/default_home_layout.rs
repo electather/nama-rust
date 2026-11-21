@@ -22,8 +22,8 @@ mod test_plugin;
 
 use connectrpc::ErrorCode;
 use home_layouts::{
-    continue_watching, featured, get_default, get_own, layout, reorder, rows, serving_rows,
-    set_default, set_own, settings, shared, users, users_rows, wait_for_rows,
+    continue_watching, featured, get_default, get_own, layout, reorder, rows, rows_only,
+    serving_rows, set_default, set_own, settings, shared, users, users_rows, wait_for_rows,
 };
 use home_row_plugin::{disable, enable, set_handle};
 use nama_proto::nama::v1::{
@@ -87,6 +87,17 @@ async fn every_users_home_follows_the_default_order_and_leaves_out_what_it_hides
 }
 
 #[tokio::test]
+async fn a_default_saved_without_featured_shows_it() {
+    let server = serving_rows().await;
+    set_default(&server, layout(true, Vec::new())).await;
+
+    let saved = set_default(&server, rows_only(Vec::new())).await;
+
+    assert_eq!(saved.featured_hidden, Some(false));
+    assert_eq!(featured(server.client_config()).await, 1);
+}
+
+#[tokio::test]
 async fn a_hidden_featured_lists_no_titles() {
     let server = serving_rows().await;
     assert_eq!(
@@ -97,7 +108,7 @@ async fn a_hidden_featured_lists_no_titles() {
 
     let saved = set_default(&server, layout(true, Vec::new())).await;
 
-    assert!(saved.featured_hidden);
+    assert_eq!(saved.featured_hidden, Some(true));
     assert_eq!(featured(server.client_config()).await, 0);
 }
 
@@ -306,9 +317,39 @@ async fn a_user_hiding_featured_lists_no_titles_to_them_alone() {
 
     let saved = set_own(&ada, layout(true, Vec::new())).await;
 
-    assert!(saved.featured_hidden);
+    assert_eq!(saved.featured_hidden, Some(true));
     assert_eq!(featured(ada.client_config()).await, 0);
     assert_eq!(featured(server.client_config()).await, 1);
+}
+
+#[tokio::test]
+async fn a_user_showing_featured_the_default_hides_sees_it_alone() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+    set_default(&server, layout(true, Vec::new())).await;
+
+    let saved = set_own(&ada, layout(false, Vec::new())).await;
+
+    assert_eq!(saved.featured_hidden, Some(false));
+    assert_eq!(featured(ada.client_config()).await, 1);
+    assert_eq!(featured(server.client_config()).await, 0);
+}
+
+#[tokio::test]
+async fn a_user_saving_a_row_without_featured_keeps_following_the_defaults_featured() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+    set_default(&server, layout(true, Vec::new())).await;
+
+    let saved = set_own(&ada, rows_only(vec![shared("picks", "", true)])).await;
+    set_default(&server, layout(false, Vec::new())).await;
+
+    assert_eq!(saved.featured_hidden, Some(true));
+    assert_eq!(
+        featured(ada.client_config()).await,
+        1,
+        "no Featured flag was stored, so Ada follows the default showing it again"
+    );
 }
 
 #[tokio::test]
@@ -379,7 +420,7 @@ async fn resetting_a_users_home_layout_drops_their_flags() {
         .unwrap();
 
     let own = get_own(&ada).await;
-    assert!(!own.featured_hidden);
+    assert_eq!(own.featured_hidden, Some(false));
     assert!(own.rows.iter().all(|row| !row.hidden), "{own:?}");
     assert_eq!(featured(ada.client_config()).await, 1);
 }

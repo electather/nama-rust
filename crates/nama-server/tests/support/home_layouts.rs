@@ -111,7 +111,15 @@ pub(crate) fn users_rows(hidden: bool) -> HomeLayoutRow {
 
 pub(crate) fn layout(featured_hidden: bool, rows: Vec<HomeLayoutRow>) -> HomeLayout {
     HomeLayout {
-        featured_hidden,
+        featured_hidden: Some(featured_hidden),
+        rows,
+        ..Default::default()
+    }
+}
+
+/// A layout of `rows` that leaves Featured unset.
+pub(crate) fn rows_only(rows: Vec<HomeLayoutRow>) -> HomeLayout {
+    HomeLayout {
         rows,
         ..Default::default()
     }

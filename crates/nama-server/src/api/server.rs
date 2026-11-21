@@ -364,7 +364,7 @@ impl ServerServiceHandler {
         let layout = self.settings.now().default_home_layout;
         let rows = layout.arrange(rows);
         Ok(proto::HomeLayout {
-            featured_hidden: !layout.featured_shown,
+            featured_hidden: Some(!layout.featured_shown),
             rows: (rows.into_iter())
                 .map(|((id, heading), shown)| layout_row_to_proto(id, heading, shown))
                 .collect(),
@@ -407,8 +407,8 @@ fn layout_row_to_proto(id: HomeRowId, heading: String, shown: bool) -> HomeLayou
     }
 }
 
-/// The Home layout a save asks for in `layout`: refused when it's missing, or a row names none or
-/// a Kernel row the Server doesn't know.
+/// The Home layout a save asks for in `layout`, Featured shown when it's unset: refused when
+/// `layout` is missing, or a row names none or a Kernel row the Server doesn't know.
 pub(super) fn home_layout_from_proto(
     layout: Option<proto::HomeLayout>,
 ) -> Result<HomeLayout, ConnectError> {
@@ -426,7 +426,7 @@ pub(super) fn home_layout_from_proto(
         })
     };
     Ok(HomeLayout {
-        featured_shown: !layout.featured_hidden,
+        featured_shown: !layout.featured_hidden.unwrap_or_default(),
         rows: layout.rows.iter().map(place).collect::<Result<_, _>>()?,
     })
 }

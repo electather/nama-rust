@@ -10807,8 +10807,11 @@ impl ::serde::Serialize for SetDefaultHomeLayoutResponseOwnedView {
 /// always at the top.
 #[derive(Clone, Debug, Default)]
 pub struct HomeLayoutView<'a> {
+    /// Always set in a response. Unset in `UserService.SetHomeLayout` leaves the caller's Featured as
+    /// it is; unset in `SetDefaultHomeLayout` shows it.
+    ///
     /// Field 1: `featured_hidden`
-    pub featured_hidden: bool,
+    pub featured_hidden: ::core::option::Option<bool>,
     /// In the order Home shows them.
     ///
     /// Field 2: `rows`
@@ -10853,7 +10856,7 @@ impl<'a> ::buffa::MessageView<'a> for HomeLayoutView<'a> {
                     tag,
                     ::buffa::encoding::WireType::Varint,
                 )?;
-                view.featured_hidden = ::buffa::types::decode_bool(&mut cur)?;
+                view.featured_hidden = Some(::buffa::types::decode_bool(&mut cur)?);
             }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -10914,7 +10917,7 @@ impl<'a> ::buffa::ViewEncode<'a> for HomeLayoutView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
-        if self.featured_hidden {
+        if self.featured_hidden.is_some() {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         for v in &self.rows {
@@ -10936,8 +10939,8 @@ impl<'a> ::buffa::ViewEncode<'a> for HomeLayoutView<'a> {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
-        if self.featured_hidden {
-            ::buffa::types::put_bool_field(1u32, self.featured_hidden, buf);
+        if let Some(v) = self.featured_hidden {
+            ::buffa::types::put_bool_field(1u32, v, buf);
         }
         for v in &self.rows {
             ::buffa::types::put_len_delimited_header(
@@ -10968,8 +10971,8 @@ impl<'__a> ::serde::Serialize for HomeLayoutView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
-        if self.featured_hidden {
-            __map.serialize_entry("featuredHidden", &self.featured_hidden)?;
+        if let ::core::option::Option::Some(__v) = self.featured_hidden {
+            __map.serialize_entry("featuredHidden", &__v)?;
         }
         if !self.rows.is_empty() {
             __map.serialize_entry("rows", &*self.rows)?;
@@ -11065,9 +11068,12 @@ impl HomeLayoutOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
+    /// Always set in a response. Unset in `UserService.SetHomeLayout` leaves the caller's Featured as
+    /// it is; unset in `SetDefaultHomeLayout` shows it.
+    ///
     /// Field 1: `featured_hidden`
     #[must_use]
-    pub fn featured_hidden(&self) -> bool {
+    pub fn featured_hidden(&self) -> ::core::option::Option<bool> {
         self.0.reborrow().featured_hidden
     }
     /// In the order Home shows them.

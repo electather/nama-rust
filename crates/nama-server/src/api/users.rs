@@ -36,8 +36,8 @@ use crate::{
     plugin_settings::{Personal, PluginSettings},
     server_settings::{ServerUrl, Settings},
     users::{
-        self, Caller, Permissions, User, UserHomeLayout, Users, notification_preferences_of,
-        set_notification_preference,
+        self, AskedHomeLayout, Caller, Permissions, User, UserHomeLayout, Users,
+        notification_preferences_of, set_notification_preference,
     },
 };
 
@@ -478,11 +478,16 @@ impl UserService for UserServiceHandler {
         request: ServiceRequest<'_, SetHomeLayoutRequest>,
     ) -> ServiceResult<SetHomeLayoutResponse> {
         let reader = &caller(&ctx)?.user;
-        let asked = home_layout_from_proto(request.to_owned_message().layout.into_option())?;
+        let layout = request.to_owned_message().layout.into_option();
+        let featured_hidden = layout.as_ref().and_then(|layout| layout.featured_hidden);
+        let asked = AskedHomeLayout {
+            featured_shown: featured_hidden.map(|hidden| !hidden),
+            rows: home_layout_from_proto(layout)?.rows,
+        };
         let seen = home_rows_of(&self.home_rows, reader).await?;
         let seen = seen.into_iter().map(|(row, _)| row).collect();
         let default = self.settings.now().default_home_layout;
-        (UserHomeLayout::save(&self.db, reader.id, &asked, seen, default).await)
+        (UserHomeLayout::save(&self.db, reader.id, asked, seen, default).await)
             .map_err(database_failed)?;
         Response::ok(SetHomeLayoutResponse {
             layout: self.home_layout(reader).await?.into(),
@@ -528,7 +533,7 @@ impl UserServiceHandler {
         let own = own.map_err(database_failed)?;
         let default = self.settings.now().default_home_layout;
         Ok(proto::HomeLayout {
-            featured_hidden: !own.shows_featured(&default),
+            featured_hidden: Some(!own.shows_featured(&default)),
             rows: (own.arrange(&default, rows).into_iter())
                 .map(|((_, row), shown)| seen_row_to_proto(row, shown))
                 .collect(),
