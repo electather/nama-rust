@@ -8,13 +8,14 @@ import { TitleGenres } from "@/features/title/components/title-genres";
 import { TitleHero } from "@/features/title/components/title-hero";
 import { TitleName } from "@/features/title/components/title-name";
 import { TitlePage } from "@/features/title/components/title-page";
+import { TitleTrailers } from "@/features/title/components/title-trailers";
 import { useFoundShow } from "@/features/title/data/use-found-show";
 import { originalAudio } from "@/features/title/lib/original-audio";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 
 /**
  * A Show from the title source, for the signed-in User `you` to pick its Seasons to Request: its
- * top, then its Seasons where a Show on the Server has its Episodes.
+ * top, its Seasons where a Show on the Server has its Episodes, its Trailers, then its Details.
  */
 export function ShowToRequest({ showId, you }: { showId: ExternalId; you: bigint | undefined }) {
   const show = useFoundShow({ showId });
@@ -33,6 +34,7 @@ export function ShowToRequest({ showId, you }: { showId: ExternalId; you: bigint
       }
     >
       <SeasonPicker show={show} you={you} />
+      <TitleTrailers trailers={show.trailers} />
       <TitleDetails
         groups={[{ heading: "Languages", facts: [originalAudio(show.originalLanguage)] }]}
       />

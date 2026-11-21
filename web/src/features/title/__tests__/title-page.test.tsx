@@ -73,6 +73,36 @@ test("a title nobody has voted on shows no Score, not 0", async () => {
   expect(screen.queryByText("Score")).toBeNull();
 });
 
+test("a Movie's page links each Trailer out to a new tab, and loads nothing from its host", async () => {
+  const youtube = "https://www.youtube.com/watch?v=isOGD_7hNIY";
+  const vimeo = "https://vimeo.com/123456789";
+  openMovie({
+    trailers: [
+      { name: "Official Trailer", url: youtube },
+      { name: "Teaser", url: vimeo },
+    ],
+  });
+
+  const row = await screen.findByRole("region", { name: "Trailers" });
+  const links = within(row).getAllByRole("link");
+  expect(links.map((link) => link.getAttribute("href"))).toStrictEqual([youtube, vimeo]);
+  expect(
+    links.map((link) => [link.getAttribute("target"), link.getAttribute("rel")]),
+  ).toStrictEqual([
+    ["_blank", "noopener noreferrer"],
+    ["_blank", "noopener noreferrer"],
+  ]);
+  expect(within(row).getByRole("link", { name: /^Official Trailer/u })).toBe(links[0]);
+  expect(document.querySelector("iframe, video, [src*='youtube'], [src*='vimeo']")).toBeNull();
+});
+
+test("a title without Trailers has no Trailers row", async () => {
+  openMovie({});
+
+  await expect(screen.findByRole("heading", { level: 1, name: "Parasite" })).resolves.toBeDefined();
+  expect(screen.queryByRole("region", { name: "Trailers" })).toBeNull();
+});
+
 test("a title without a Title Logo shows its title as text", async () => {
   openMovie({});
 
@@ -154,6 +184,7 @@ function openDark(...entries: MessageInitShape<typeof ContinueWatchingEntrySchem
     genres: ["Drama"],
     score: 8.4,
     originalLanguage: "de",
+    trailers: [{ name: "Final Trailer", url: "https://www.youtube.com/watch?v=darkFinal01" }],
   };
   const transport = server({
     getShow: () => ({ show, seasons: [{ number: 1 }] }),
@@ -179,7 +210,7 @@ function episodeEntry(
   } as const;
 }
 
-test("a Show's page shows its own overview, first air year, Score and Original audio, and no Play without Episodes", async () => {
+test("a Show's page shows its own overview, first air year, Score, Original audio and Trailers, and no Play without Episodes", async () => {
   openDark();
 
   await expect(
@@ -190,6 +221,9 @@ test("a Show's page shows its own overview, first air year, Score and Original a
   expect(screen.getAllByText("2017")).toHaveLength(2);
   expect(screen.getByText("Score").parentElement?.textContent).toBe("Score8.4");
   expect(detail("Original audio")).toBe("German");
+  expect(screen.getByRole("link", { name: /^Final Trailer/u }).getAttribute("href")).toBe(
+    "https://www.youtube.com/watch?v=darkFinal01",
+  );
   expect(screen.queryByRole("link", { name: /^(?:Resume|Play)/u })).toBeNull();
 });
 

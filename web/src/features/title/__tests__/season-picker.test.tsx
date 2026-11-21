@@ -301,12 +301,16 @@ test("a Show someone else follows shows its state, and Requesting the Whole Show
   expect(followed).toStrictEqual(["tmdb-70523"]);
 });
 
-test("a Show to Request shows its Score among its facts, and its Original audio in Details", async () => {
-  const { transport } = showServer({ ...dark, score: 8.4, originalLanguage: "de" });
+test("a Show to Request shows its Score among its facts, its Original audio in Details, and its Trailers", async () => {
+  const trailers = [{ name: "Final Trailer", url: "https://www.youtube.com/watch?v=darkFinal01" }];
+  const { transport } = showServer({ ...dark, score: 8.4, originalLanguage: "de", trailers });
   openApp("/shows/tmdb-70523", transport);
 
   const score = await screen.findByText("Score");
   expect(score.closest("p")?.textContent).toBe("Score8.42017");
   const audio = screen.getByText("Original audio", { selector: "dt" });
   expect(audio.nextElementSibling?.textContent).toBe("German");
+  expect(screen.getByRole("link", { name: /^Final Trailer/u }).getAttribute("href")).toBe(
+    trailers[0]?.url,
+  );
 });

@@ -33,6 +33,7 @@ function server(request: Request, permissions: Permission[] = newUser, retried: 
     year: 2021,
     score: 7.8,
     originalLanguage: "en",
+    trailers: [{ name: "Official Trailer", url: "https://www.youtube.com/watch?v=n9xhJrPXop4" }],
     request,
   });
   return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
@@ -178,11 +179,14 @@ test("a Request manager retries a Failed Season from its row", async () => {
   expect(screen.getByRole("checkbox", { description: "Failed" })).toBe(season2);
 });
 
-test("a Movie to Request shows its Score among its facts, and its Original audio in Details", async () => {
+test("a Movie to Request shows its Score among its facts, its Original audio in Details, and its Trailers", async () => {
   openApp("/movies/tmdb-438631", server({}));
 
   const score = await screen.findByText("Score");
   expect(score.closest("p")?.textContent).toBe("Score7.82021");
   const audio = screen.getByText("Original audio", { selector: "dt" });
   expect(audio.nextElementSibling?.textContent).toBe("English");
+  expect(screen.getByRole("link", { name: /^Official Trailer/u }).getAttribute("href")).toBe(
+    "https://www.youtube.com/watch?v=n9xhJrPXop4",
+  );
 });
