@@ -2,7 +2,7 @@ import { create } from "@bufbuild/protobuf";
 
 import { ShownRow } from "@/features/settings/components/shown-row";
 import { useSetHomeLayout } from "@/features/settings/data/use-set-home-layout";
-import { type HomeLayout, HomeLayoutSchema } from "@/gen/nama/v1/server_pb";
+import { type HomeLayout, type HomeLayoutRow, HomeLayoutSchema } from "@/gen/nama/v1/server_pb";
 import { refusal } from "@/shared/lib/forms";
 import { rowKey, rowName } from "@/shared/lib/home-layout";
 
@@ -10,7 +10,16 @@ import { rowKey, rowName } from "@/shared/lib/home-layout";
 export function HomeLayoutRows({ saved }: { saved: HomeLayout }) {
   const save = useSetHomeLayout();
   // Shows the choice being saved until the layout comes back with it.
-  const layout = save.isPending ? create(HomeLayoutSchema, save.variables.layout) : saved;
+  const layout = save.isPending
+    ? saving(saved, create(HomeLayoutSchema, save.variables.layout))
+    : saved;
+  // Names only the flipped row: a row the User leaves alone then keeps following the default,
+  // even one the default changed since this list was loaded (`UserService.SetHomeLayout`).
+  const flip = (row: HomeLayoutRow, shown: boolean) => {
+    save.mutate({
+      layout: { featuredHidden: layout.featuredHidden, rows: [{ ...row, hidden: !shown }] },
+    });
+  };
   return (
     <>
       <ul className="mt-4 flex flex-col">
@@ -18,19 +27,16 @@ export function HomeLayoutRows({ saved }: { saved: HomeLayout }) {
           name={{ label: "Featured", from: "Always at the top" }}
           shown={!layout.featuredHidden}
           onShownChange={(shown) => {
-            save.mutate({ layout: { ...layout, featuredHidden: !shown } });
+            save.mutate({ layout: { featuredHidden: !shown } });
           }}
         />
-        {layout.rows.map((row, index) => (
+        {layout.rows.map((row) => (
           <ShownRow
             key={rowKey(row)}
             name={rowName(row)}
             shown={!row.hidden}
             onShownChange={(shown) => {
-              const rows = layout.rows.map((each, at) =>
-                at === index ? { ...each, hidden: !shown } : each,
-              );
-              save.mutate({ layout: { ...layout, rows } });
+              flip(row, shown);
             }}
           />
         ))}
@@ -42,4 +48,14 @@ export function HomeLayoutRows({ saved }: { saved: HomeLayout }) {
       )}
     </>
   );
+}
+
+/** `saved` with what `asked` changes in it. */
+function saving(saved: HomeLayout, asked: HomeLayout): HomeLayout {
+  const named = new Map(asked.rows.map((row) => [rowKey(row), row]));
+  return {
+    ...saved,
+    featuredHidden: asked.featuredHidden,
+    rows: saved.rows.map((row) => named.get(rowKey(row)) ?? row),
+  };
 }
