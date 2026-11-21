@@ -61,6 +61,10 @@ impl Adapter for Suggestions {
         &[HomeRowMethod::Featured]
     }
 
+    fn scopes(&self, reader: i64) -> Vec<(HomeRowMethod, Option<i64>)> {
+        vec![(HomeRowMethod::Featured, Some(reader))]
+    }
+
     async fn ask(&self, scope: &Scope) -> Option<(Vec<Suggestion>, Duration)> {
         let user = scope.user?;
         let ask = |source: Arc<dyn HomeRowSource>, settings: Vec<(String, String)>| async move {

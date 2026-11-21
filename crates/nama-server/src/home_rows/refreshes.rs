@@ -46,6 +46,9 @@ pub(super) trait Adapter: Clone + Send + Sync + 'static {
     /// The methods giving its answers.
     fn methods(&self) -> &'static [HomeRowMethod];
 
+    /// The scopes of a Plugin's answers the User `reader` sees, each as its method and User.
+    fn scopes(&self, reader: i64) -> Vec<(HomeRowMethod, Option<i64>)>;
+
     /// Asks the Plugin for `scope`'s answer, and returns what of it is kept with how long it
     /// stays fresh, which [`Refreshes`] clamps. `None`, having logged why, for nothing to store.
     fn ask(&self, scope: &Scope) -> impl Future<Output = Option<(Self::Kept, Duration)>> + Send;
@@ -102,8 +105,7 @@ impl Refreshes {
         reader: i64,
     ) -> Result<(), sqlx::Error> {
         let serving = self.points.providers::<dyn HomeRowSource>();
-        for &method in adapter.methods() {
-            let user = (method != HomeRowMethod::Shared).then_some(reader);
+        for (method, user) in adapter.scopes(reader) {
             let fresh = self.fresh(method, user).await?;
             for plugin in serving.iter().filter(|plugin| !fresh.contains(*plugin)) {
                 let scope = Scope {

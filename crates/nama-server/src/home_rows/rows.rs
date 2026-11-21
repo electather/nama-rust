@@ -39,6 +39,13 @@ impl Adapter for Rows {
         &[HomeRowMethod::Shared, HomeRowMethod::User]
     }
 
+    fn scopes(&self, reader: i64) -> Vec<(HomeRowMethod, Option<i64>)> {
+        vec![
+            (HomeRowMethod::Shared, None),
+            (HomeRowMethod::User, Some(reader)),
+        ]
+    }
+
     async fn ask(&self, scope: &Scope) -> Option<(Kept, Duration)> {
         let answer = match scope.user {
             None => self.ask_shared(&scope.plugin).await,

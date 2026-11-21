@@ -23,6 +23,7 @@ use crate::{
         HomeRows,
         tests::{Calls, SHARED, handle, insert_user, recorded, set_handle, started},
     },
+    library::{MovieOrEpisode, WatchStates},
 };
 
 const ALL: &[HomeRowMethod] = &[
@@ -48,6 +49,11 @@ impl Adapter for Probe {
 
     fn methods(&self) -> &'static [HomeRowMethod] {
         ALL
+    }
+
+    fn scopes(&self, reader: i64) -> Vec<(HomeRowMethod, Option<i64>)> {
+        let scope = |&method| (method, scope(method, reader).user);
+        ALL.iter().map(scope).collect()
     }
 
     async fn ask(&self, scope: &Scope) -> Option<(u32, Duration)> {
@@ -222,6 +228,30 @@ async fn put_offs(db: &Database, method: HomeRowMethod) -> i64 {
         .unwrap()
 }
 
+/// Grants the Recorded source Read Watch States, which the triggers on `watch_states` read.
+async fn grant_reading_watch_states(db: &Database) {
+    db.write(|tx| {
+        Box::pin(async move {
+            sqlx::query(
+                "INSERT INTO plugin_settings (plugin_id, enabled, settings, granted_permissions)
+                 VALUES ('rows', 1, '{}', '[\"PERMISSION_READ_WATCH_STATES\"]')",
+            )
+            .execute(&mut **tx)
+            .await
+            .map(drop)
+        })
+    })
+    .await
+    .unwrap();
+}
+
+async fn start_a_title(db: &Arc<Database>, user: i64) {
+    let alien = MovieOrEpisode::movie(&"tmdb-348".parse().expect("a well-formed id"));
+    (WatchStates::new(Arc::clone(db)).mark(user, vec![alien], true))
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
 async fn a_never_refreshed_scope_is_refreshed_in_the_background_without_waiting_on_the_plugin() {
     let (_dir, db, refreshes, probe, calls) = probed(ALL).await;
@@ -324,6 +354,28 @@ async fn an_answer_asked_before_the_user_changed_their_personal_settings_is_drop
     assert_eq!(calls.asked().last(), Some(&Some(handle("ada-2"))));
     let featured_asked = calls.featured_asked.lock().unwrap().clone();
     assert_eq!(featured_asked.last(), Some(&handle("ada-2")));
+    assert!(probe.answer(HomeRowMethod::User, ada).is_some());
+    assert!(probe.answer(HomeRowMethod::Featured, ada).is_some());
+}
+
+#[tokio::test]
+async fn an_answer_asked_before_the_user_started_a_title_is_dropped_for_a_plugin_reading_watch_states()
+ {
+    let (_dir, db, refreshes, probe, calls) = probed(ALL).await;
+    let ada = insert_user(&db, "ada").await;
+    grant_reading_watch_states(&db).await;
+    let held = calls.held.lock().await;
+    refreshes.refresh_stale(&probe, ada).await.unwrap();
+    asked_by_each(&calls, 1).await;
+
+    start_a_title(&db, ada).await;
+    drop(held);
+    refreshes.settled().await;
+
+    assert!(probe.answer(HomeRowMethod::Shared, ada).is_some());
+    assert_eq!(probe.answer(HomeRowMethod::User, ada), None, "dropped");
+    assert_eq!(probe.answer(HomeRowMethod::Featured, ada), None, "dropped");
+    visit(&refreshes, &probe, ada).await;
     assert!(probe.answer(HomeRowMethod::User, ada).is_some());
     assert!(probe.answer(HomeRowMethod::Featured, ada).is_some());
 }
