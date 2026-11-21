@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use super::{super::*, ExpiredDeleted};
 use crate::plugins::ExtensionPoints;
@@ -51,8 +51,11 @@ async fn stored_ids(users: &Users, select: &'static str) -> Vec<i64> {
         .unwrap()
 }
 
+/// How long the test waits for the expired Device's sign-out to be heard before failing.
+const WAIT: Duration = Duration::from_secs(10);
+
 #[tokio::test]
-async fn deleting_expired_ones_deletes_expired_devices_and_invites_and_keeps_the_rest() {
+async fn deleting_expired_ones_deletes_them_signs_devices_out_and_keeps_the_rest() {
     let data_dir = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
     let admin = db
@@ -80,6 +83,10 @@ async fn deleting_expired_ones_deletes_expired_devices_and_invites_and_keeps_the
         expired_invite,
     )
     .await;
+    let mut signed_out = std::pin::pin!(users.signed_out(expired_device));
+    // Polled first, so it is past looking the Device up and only a sign-out can end it.
+    let before = tokio::time::timeout(Duration::from_millis(200), &mut signed_out).await;
+    assert!(before.is_err(), "the wait ended before the delete");
 
     let deleted = users.delete_expired().await.unwrap();
 
@@ -98,4 +105,6 @@ async fn deleting_expired_ones_deletes_expired_devices_and_invites_and_keeps_the
         stored_ids(&users, "SELECT id FROM invites").await,
         [kept_invite]
     );
+    let heard = tokio::time::timeout(WAIT, signed_out).await;
+    assert!(heard.is_ok(), "the expired Device's waiter wasn't told");
 }
