@@ -316,6 +316,19 @@ message Plugin {
   string source_url = 17;
   // Its licence as an SPDX expression, such as `MIT`, or empty if it gives none.
   string license = 18;
+  // The Jobs its Manifest declares, in that order, whether or not it is enabled, so an Admin sees
+  // what it will run. `JobService` gives an enabled Plugin's Jobs with their Runs.
+  repeated PluginJob jobs = 19;
+}
+
+// A Job a Plugin's Manifest declares.
+message PluginJob {
+  // Unique within its Plugin, such as `forget-home-rows`: `JobService` knows it by this id.
+  string id = 1;
+  string name = 2;
+  // Its standard 5-field cron schedule, such as `0 4 * * *`, read in the Server's time zone, or
+  // empty for a Job that runs only when an Admin starts it.
+  string schedule = 3;
 }
 
 // An Extension Point of a Plugin whose last call failed. The Server keeps it in memory only: a call
