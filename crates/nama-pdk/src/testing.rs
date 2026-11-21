@@ -11,10 +11,10 @@ use buffa::{Message, MessageField};
 use nama_plugin_proto::nama::plugin::v1::{
     DeleteAsked, DeleteStarted, ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetGonePluginsAsked,
     ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten, KernelAnswer, Libraries,
-    LibrariesAsked, Library, Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue, Stored,
-    Title, TitleRef, TitleRequesters, TitleWatchStates, Titles, TitlesAsked, User, Users,
-    UsersAsked, WatchState, WatchStates, WatchStatesAsked, Watchlist, WatchlistAsked,
-    WatchlistTitle, kernel_answer,
+    LibrariesAsked, Library, MetadataRefreshed, RefreshMetadataAsked, Requesters, RequestersAsked,
+    StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef, TitleRequesters, TitleWatchStates,
+    Titles, TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates, WatchStatesAsked,
+    Watchlist, WatchlistAsked, WatchlistTitle, kernel_answer,
 };
 
 use crate::{Response, kernel::MAX_PAGE_SIZE};
@@ -36,6 +36,10 @@ type DeleteExpiredSignInsHandler = Box<dyn FnMut() -> Result<(u32, u32), String>
 /// forgot.
 type ForgetGonePluginsHandler = Box<dyn FnMut(u32) -> Result<Vec<String>, String>>;
 
+/// Answers a Plugin's `refresh_metadata` with how many titles it stored and the ids of the Plugins
+/// that couldn't answer.
+type RefreshMetadataHandler = Box<dyn FnMut() -> Result<(u64, Vec<String>), String>>;
+
 /// What the Kernel gives a Plugin during a test: its settings, answers to its HTTP requests, and
 /// the Kernel functions the test granted.
 #[derive(Default)]
@@ -55,6 +59,7 @@ pub struct Kernel {
     forget_home_rows: Option<ForgetHomeRowsHandler>,
     delete_expired_sign_ins: Option<DeleteExpiredSignInsHandler>,
     forget_gone_plugins: Option<ForgetGonePluginsHandler>,
+    refresh_metadata: Option<RefreshMetadataHandler>,
     /// Each Library's titles, by its id, answered once `libraries` is granted.
     titles: HashMap<i64, Vec<Title>>,
     deletes: Vec<Delete>,
@@ -231,6 +236,19 @@ impl Kernel {
         self
     }
 
+    /// The Kernel, the Admin having granted the Plugin Refresh metadata, answering each
+    /// `kernel::refresh_metadata` with `handler`. It answers how many titles were stored and the
+    /// ids of the Plugins that couldn't answer, or an `Err` holding the Kernel's words refusing
+    /// it, which reach the Plugin as the Kernel's.
+    #[must_use]
+    pub fn refresh_metadata(
+        mut self,
+        handler: impl FnMut() -> Result<(u64, Vec<String>), String> + 'static,
+    ) -> Self {
+        self.refresh_metadata = Some(Box::new(handler));
+        self
+    }
+
     /// The HTTP requests the Plugin sent, in order.
     #[must_use]
     pub fn sent(&self) -> &[Sent] {
@@ -350,6 +368,9 @@ impl Kernel {
             "forget_gone_plugins" => {
                 typed(request, |asked| self.answer_forget_gone_plugins(&asked))
             }
+            "refresh_metadata" => typed(request, |_: RefreshMetadataAsked| {
+                self.answer_refresh_metadata()
+            }),
             _ => Err(Error::msg(format!("the Kernel has no function {name}"))),
         }
     }
@@ -512,6 +533,16 @@ impl Kernel {
         Ok(GonePluginsForgotten {
             plugin_ids: handler(asked.days)?,
             ..GonePluginsForgotten::default()
+        })
+    }
+
+    fn answer_refresh_metadata(&mut self) -> Result<MetadataRefreshed, String> {
+        let handler = granted(self.refresh_metadata.as_mut(), "Refresh metadata")?;
+        let (titles, unavailable_plugin_ids) = handler()?;
+        Ok(MetadataRefreshed {
+            titles,
+            unavailable_plugin_ids,
+            ..MetadataRefreshed::default()
         })
     }
 }
@@ -956,6 +987,26 @@ mod tests {
     }
 
     #[test]
+    fn granted_refresh_metadata_answers_the_handlers_titles_and_unavailable_plugins() {
+        let mut kernel = Kernel::new().refresh_metadata(|| Ok((12, vec!["tmdb".to_owned()])));
+
+        let refreshed = with(&mut kernel, crate::kernel::refresh_metadata).unwrap();
+
+        assert_eq!(refreshed, (12, vec!["tmdb".to_owned()]));
+    }
+
+    #[test]
+    fn a_refused_refresh_metadata_reaches_the_plugin_in_the_handlers_words() {
+        let mut kernel = Kernel::new().refresh_metadata(|| Err("the database is busy".to_owned()));
+
+        let refused = with(&mut kernel, || {
+            crate::kernel::refresh_metadata().unwrap_err()
+        });
+
+        assert_eq!(refused.to_string(), "the database is busy");
+    }
+
+    #[test]
     fn each_function_not_granted_is_refused_naming_its_permission() {
         let refused = with(&mut Kernel::new(), || {
             [
@@ -969,6 +1020,7 @@ mod tests {
                 crate::kernel::forget_home_rows(30).map(drop),
                 crate::kernel::delete_expired_sign_ins().map(drop),
                 crate::kernel::forget_gone_plugins(30).map(drop),
+                crate::kernel::refresh_metadata().map(drop),
             ]
             .map(|answered| answered.unwrap_err().to_string())
         });
@@ -988,6 +1040,7 @@ mod tests {
                 "Forget Home rows",
                 "Delete expired sign-ins",
                 "Forget removed Plugins",
+                "Refresh metadata",
             ]
             .map(not_granted)
         );
