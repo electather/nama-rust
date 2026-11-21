@@ -1,7 +1,7 @@
 //! TMDB's v3 JSON, as far as the Plugin reads it, and how it maps onto the contract's messages.
 
 use nama_plugin_api::{
-    contract::{Artwork, ArtworkKind, Candidate, Episode, Movie, Season, Show, TitleId},
+    contract::{Artwork, ArtworkKind, Candidate, Episode, Movie, Season, Show, TitleId, Trailer},
     metadata::{ExternalId, IMDB},
 };
 use serde::Deserialize;
@@ -105,7 +105,7 @@ impl WireIds {
     }
 }
 
-/// `/movie/{id}?append_to_response=external_ids,release_dates`.
+/// `/movie/{id}?append_to_response=external_ids,release_dates,videos`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct MovieDetails {
     id: i64,
@@ -126,6 +126,8 @@ pub(crate) struct MovieDetails {
     genres: Vec<Genre>,
     #[serde(default)]
     release_dates: ReleaseDates,
+    #[serde(default)]
+    videos: Videos,
 }
 
 impl MovieDetails {
@@ -150,12 +152,13 @@ impl MovieDetails {
             }),
             score: self.votes.score(),
             original_language: original_language(self.original_language),
+            trailers: self.videos.trailers(),
             ..Default::default()
         }
     }
 }
 
-/// `/tv/{id}?append_to_response=external_ids,content_ratings`.
+/// `/tv/{id}?append_to_response=external_ids,content_ratings,videos`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct ShowDetails {
     id: i64,
@@ -176,6 +179,8 @@ pub(crate) struct ShowDetails {
     original_language: Option<String>,
     #[serde(flatten)]
     votes: Votes,
+    #[serde(default)]
+    videos: Videos,
 }
 
 #[derive(Debug, Deserialize)]
@@ -200,6 +205,7 @@ impl ShowDetails {
             content_rating: rated.and_then(|rated| present(rated.rating)),
             score: self.votes.score(),
             original_language: original_language(self.original_language),
+            trailers: self.videos.trailers(),
             ..Default::default()
         }
     }
@@ -222,6 +228,47 @@ impl Votes {
     /// The Score, which TMDB gives as 0.0 when nobody has voted.
     fn score(&self) -> Option<f64> {
         self.vote_average.filter(|_| self.vote_count > 0)
+    }
+}
+
+/// `videos`, appended to a title's details.
+#[derive(Debug, Default, Deserialize)]
+struct Videos {
+    #[serde(default)]
+    results: Vec<Video>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Video {
+    site: String,
+    key: String,
+    name: String,
+    #[serde(rename = "type")]
+    kind: String,
+    #[serde(default)]
+    official: bool,
+}
+
+/// How many Trailers a title keeps: more is a wall of near-identical links.
+const MAX_TRAILERS: usize = 5;
+
+impl Videos {
+    /// The Trailers among the videos, official first, else in TMDB's order, which drops
+    /// Featurettes, Clips, Teasers and the like.
+    fn trailers(self) -> Vec<Trailer> {
+        let mut trailers: Vec<Video> = (self.results.into_iter())
+            .filter(|video| video.kind == "Trailer")
+            .collect();
+        trailers.sort_by_key(|video| !video.official);
+        (trailers.into_iter().take(MAX_TRAILERS))
+            .map(|video| Trailer {
+                site: video.site,
+                key: video.key,
+                name: video.name,
+                official: video.official,
+                ..Default::default()
+            })
+            .collect()
     }
 }
 

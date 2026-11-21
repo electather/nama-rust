@@ -164,6 +164,8 @@ message Movie {
   optional double score = 21;
   // The ISO 639-1 code of the language it was made in, such as `ja`, as its title source has it.
   optional string original_language = 22;
+  // Its Trailers, as the title source it is Matched to gives them, at most 5.
+  repeated Trailer trailers = 23;
 }
 
 // One file a Movie or Episode is available in.
@@ -381,6 +383,8 @@ message Show {
   optional double score = 18;
   // As `Movie.original_language`.
   optional string original_language = 19;
+  // As `Movie.trailers`.
+  repeated Trailer trailers = 20;
 }
 
 // A Season of a Show that some items of a Library are Matched to Episodes of.

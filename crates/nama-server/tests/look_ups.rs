@@ -175,3 +175,23 @@ async fn a_looked_up_movie_and_show_have_their_score_and_original_language() {
     let dark_language = dark.original_language.as_deref();
     assert_eq!((dark.score, dark_language), (Some(8.4), Some("de")));
 }
+
+#[tokio::test]
+async fn a_looked_up_movie_and_show_have_their_trailers() {
+    let fixture = Fixture::start().await;
+    let grace = fixture.server.user("Grace", &NEW_USER).await;
+    let as_grace = fixture.server.requests(&grace);
+
+    let alien = as_grace.try_look_up_movie(tmdb_id(ALIEN)).await.unwrap();
+    let dark = as_grace.try_look_up_show(tmdb_id(DARK)).await.unwrap();
+
+    let official = &alien.trailers[0];
+    assert_eq!(
+        (official.name.as_str(), official.url.as_str()),
+        (
+            "Official Trailer",
+            "https://www.youtube.com/watch?v=LjLamj-b0I8"
+        )
+    );
+    assert_eq!((alien.trailers.len(), dark.trailers.len()), (2, 5));
+}

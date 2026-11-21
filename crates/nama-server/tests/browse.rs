@@ -27,9 +27,9 @@ use nama_proto::nama::v1::{
     GetMovieRequest, GetShowRequest, GetShowResponse, HdrFormat, LibraryKind,
     ListContinueWatchingRequest, ListEpisodesRequest, ListMoviesRequest, ListShowsRequest, Movie,
     ProbingFinished, RefusalReason, ReportProgressRequest, Season, SetMatchRequest,
-    SetPlayedRequest, ShowHit, ShowSeason, ShowSummary, TitleKind, Track, Version, VideoTrack,
-    WatchState, WatchStateServiceClient, continue_watching_entry, event, hit, search_response,
-    set_played_request::Target,
+    SetPlayedRequest, ShowHit, ShowSeason, ShowSummary, TitleKind, Track, Trailer, Version,
+    VideoTrack, WatchState, WatchStateServiceClient, continue_watching_entry, event, hit,
+    search_response, set_played_request::Target,
 };
 use nama_server::{
     config::Config,
@@ -689,6 +689,38 @@ async fn a_show_has_its_own_overview_first_air_date_title_logo_genres_content_ra
     assert_eq!(show.content_rating.as_deref(), Some("TV-MA"));
     let language = show.original_language.as_deref();
     assert_eq!((show.score, language), (Some(8.4), Some("de")));
+}
+
+#[tokio::test]
+async fn a_movie_and_a_show_have_only_their_trailers_as_links_out() {
+    let movies = Fixture::alien().await;
+    let shows = Fixture::shows().await;
+    let urls = |trailers: &[Trailer]| -> Vec<String> {
+        trailers.iter().map(|trailer| trailer.url.clone()).collect()
+    };
+
+    let alien = movies.get_movie(movies.library, ALIEN).await.unwrap();
+    let dark = shows.get_show(shows.library, DARK).await.unwrap();
+    let dark = dark.show.into_option().unwrap();
+
+    assert_eq!(
+        urls(&alien.trailers),
+        [
+            "https://www.youtube.com/watch?v=LjLamj-b0I8",
+            "https://www.youtube.com/watch?v=fanTrail01"
+        ]
+    );
+    assert_eq!(alien.trailers[0].name, "Official Trailer");
+    assert_eq!(
+        urls(&dark.trailers),
+        [
+            "https://www.youtube.com/watch?v=darkS1trail",
+            "https://www.youtube.com/watch?v=darkS2trail",
+            "https://www.youtube.com/watch?v=darkS3trail",
+            "https://www.youtube.com/watch?v=darkFinal01",
+            "https://vimeo.com/123456789"
+        ]
+    );
 }
 
 #[tokio::test]

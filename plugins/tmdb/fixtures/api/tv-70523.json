@@ -32,5 +32,16 @@
       {"descriptors": [], "iso_3166_1": "DE", "rating": "16"},
       {"descriptors": [], "iso_3166_1": "US", "rating": "TV-MA"}
     ]
+  },
+  "videos": {
+    "results": [
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Season 1 Trailer", "key": "darkS1trail", "site": "YouTube", "type": "Trailer", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Season 2 Trailer", "key": "darkS2trail", "site": "YouTube", "type": "Trailer", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Season 3 Trailer", "key": "darkS3trail", "site": "YouTube", "type": "Trailer", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Dark Recap", "key": "darkRecap01", "site": "YouTube", "type": "Clip", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Dark Fan Cut", "key": "darkFan001", "site": "YouTube", "type": "Trailer", "official": false},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Final Trailer", "key": "darkFinal01", "site": "YouTube", "type": "Trailer", "official": true},
+      {"iso_639_1": "en", "iso_3166_1": "US", "name": "Netflix Trailer", "key": "123456789", "site": "Vimeo", "type": "Trailer", "official": true}
+    ]
   }
 }

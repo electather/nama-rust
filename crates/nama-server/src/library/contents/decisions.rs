@@ -10,12 +10,12 @@ use nama_proto::nama::v1::{Event, PageResponse, SortDirection, UnmatchedItemSort
 use sqlx::SqliteConnection;
 
 use super::{
-    Contents, Item, ItemKind, ItemRow, Pin, ids_from_json, ids_sql, parse_hint, primary_id_in,
-    scores, sort_titles::sort_title,
+    Contents, Item, ItemKind, ItemRow, Pin, details, ids_from_json, ids_sql, parse_hint,
+    primary_id_in, sort_titles::sort_title,
 };
 use crate::{
     db::now,
-    library::title_source::{Candidate, Season},
+    library::title_source::{Candidate, Season, Trailer},
     library::versions::METADATA_VERSION,
     page::Page,
     requests::{make_available, make_seasons_available},
@@ -215,9 +215,11 @@ pub(crate) struct Metadata {
     pub(crate) show_overview: Option<String>,
     pub(crate) show_first_air_date: Option<String>,
     /// The title's Score, stored once per title apart from the Match; for an Episode, its Show's,
-    /// as is `original_language`.
+    /// as are `original_language` and `trailers`.
     pub(crate) score: Option<f64>,
     pub(crate) original_language: Option<String>,
+    /// The title's Trailers, stored once per title beside its Score.
+    pub(crate) trailers: Vec<Trailer>,
 }
 
 /// An image a Match stores: a path the title source of `plugin` serves.
@@ -581,7 +583,7 @@ pub(super) async fn insert_decisions(
             continue;
         }
         if let Decided::Matched(metadata) = &decision {
-            scores::store(&mut *conn, metadata).await?;
+            details::store(&mut *conn, metadata).await?;
         }
         // Deleted explicitly rather than trusting SQLite to cascade the delete REPLACE makes.
         sqlx::query!("DELETE FROM item_match_ids WHERE item_id = ?", item)

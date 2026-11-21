@@ -1,14 +1,14 @@
 //! What the Items of a Library are Matched to, as browsing, playback, Requests and artwork read it.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
-use sqlx::SqliteConnection;
 
 use super::{
-    Contents, ImageRef, ItemKind, Stored, ids_from_json, ids_sql, library_titles, parse_hint,
-    primary_id_in,
+    Contents, ImageRef, ItemKind, Stored, any_library::library_with_movie, details, ids_from_json,
+    ids_sql, library_titles, parse_hint, primary_id_in,
 };
+use crate::library::title_source::Trailer;
 
 /// A Movie as `library_titles` groups it, with the metadata the Match of its first Version
 /// stores. Browse hands it out with Versions of its own, which have Tracks.
@@ -33,9 +33,11 @@ pub(crate) struct Movie<V = Version> {
     pub(crate) logo: Option<ImageRef>,
     pub(crate) genres: Vec<String>,
     pub(crate) content_rating: Option<String>,
-    /// Its Score from the title source that made the Match, kept once per title.
+    /// Its Score from the title source that made the Match, kept once per title, as are its
+    /// Trailers.
     pub(crate) score: Option<f64>,
     pub(crate) original_language: Option<String>,
+    pub(crate) trailers: Vec<Trailer>,
     /// Its `added_at` in `library_titles`, in seconds since the Unix epoch.
     pub(crate) added_at: i64,
     /// The files Matched to it, by path.
@@ -62,6 +64,7 @@ impl<V> Movie<V> {
             content_rating: self.content_rating,
             score: self.score,
             original_language: self.original_language,
+            trailers: self.trailers,
             added_at: self.added_at,
             versions: self.versions.into_iter().map(version).collect(),
         }
@@ -130,6 +133,8 @@ pub(crate) struct Show<V = Version> {
     /// As [`Movie::score`].
     pub(crate) score: Option<f64>,
     pub(crate) original_language: Option<String>,
+    /// As [`Movie::trailers`].
+    pub(crate) trailers: Vec<Trailer>,
     /// Its `added_at` in `library_titles`, in seconds since the Unix epoch.
     pub(crate) added_at: i64,
     /// The Seasons the Library has Episodes of, by number.
@@ -410,16 +415,18 @@ impl Contents {
                               item_matches.titled_backdrop, item_matches.titled_backdrop_plugin,
                               item_matches.logo, item_matches.logo_plugin, item_matches.genres,
                               item_matches.content_rating, item_matches.original_language,
-                              title_scores.score AS "score?", titles.added_at AS "added_at!: i64"
+                              title_details.score AS "score?",
+                              title_details.trailers AS "trailers?",
+                              titles.added_at AS "added_at!: i64"
                        FROM titles
                        JOIN item_matches ON item_matches.item_id = titles.item_id
                        JOIN library_items ON library_items.id = titles.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
-                       -- Keyed as `scores::store` keys it.
-                       LEFT JOIN title_scores
-                           ON title_scores.plugin = item_matches.plugin
-                          AND title_scores.kind = 'movie'
-                          AND (title_scores.namespace, title_scores.value) =
+                       -- Keyed as `details::store` keys it.
+                       LEFT JOIN title_details
+                           ON title_details.plugin = item_matches.plugin
+                          AND title_details.kind = 'movie'
+                          AND (title_details.namespace, title_details.value) =
                               (SELECT keyed.namespace, keyed.value FROM item_match_ids AS keyed
                                WHERE keyed.item_id = item_matches.item_id
                                  AND keyed.scope = 'title'
@@ -475,6 +482,7 @@ impl Contents {
                     content_rating: row.content_rating,
                     score: row.score,
                     original_language: row.original_language,
+                    trailers: details::trailers(row.trailers.as_deref())?,
                     added_at: row.added_at,
                     versions: vec![version],
                 }),
@@ -523,16 +531,18 @@ impl Contents {
                               logo, logo_plugin, still, genres,
                               content_rating, show_poster, show_poster_plugin, show_overview,
                               show_first_air_date, metadata_version, item_matches.original_language,
-                              title_scores.score AS "score?", titles.added_at AS "added_at!: i64"
+                              title_details.score AS "score?",
+                              title_details.trailers AS "trailers?",
+                              titles.added_at AS "added_at!: i64"
                        FROM titles
                        JOIN item_matches ON item_matches.item_id = titles.item_id
                        JOIN library_items ON library_items.id = titles.item_id
                        JOIN library_files ON library_files.id = library_items.file_id
-                       -- Keyed as `scores::store` keys it.
-                       LEFT JOIN title_scores
-                           ON title_scores.plugin = item_matches.plugin
-                          AND title_scores.kind = 'show'
-                          AND (title_scores.namespace, title_scores.value) =
+                       -- Keyed as `details::store` keys it.
+                       LEFT JOIN title_details
+                           ON title_details.plugin = item_matches.plugin
+                          AND title_details.kind = 'show'
+                          AND (title_details.namespace, title_details.value) =
                               (SELECT keyed.namespace, keyed.value FROM item_match_ids AS keyed
                                WHERE keyed.item_id = item_matches.item_id
                                  AND keyed.scope = 'show'
@@ -580,6 +590,7 @@ impl Contents {
                     content_rating: row.content_rating,
                     score: row.score,
                     original_language: row.original_language,
+                    trailers: details::trailers(row.trailers.as_deref())?,
                     added_at: row.added_at,
                     seasons: BTreeMap::new(),
                 });
@@ -689,84 +700,6 @@ impl Contents {
             .map(|(named, found)| found.unwrap_or_else(|| ExternalIds::from_iter([named.clone()])))
             .collect())
     }
-}
-
-/// The oldest Library with an Item Matched to the Movie `id`, by any of its ids, if any, read
-/// on `conn` so a write can act on the answer before a scan changes it.
-pub(crate) async fn library_with_movie(
-    conn: &mut SqliteConnection,
-    id: &ExternalId,
-) -> Result<Option<i64>, sqlx::Error> {
-    let (namespace, value) = (id.namespace(), id.value());
-    sqlx::query_scalar!(
-        r#"SELECT MIN(library_files.library_id) AS "library: i64"
-           FROM item_match_ids
-           JOIN item_matches ON item_matches.item_id = item_match_ids.item_id
-           JOIN library_items ON library_items.id = item_matches.item_id
-           JOIN library_files ON library_files.id = library_items.file_id
-           WHERE item_match_ids.scope = 'title'
-             AND item_match_ids.namespace = ?
-             AND item_match_ids.value = ?
-             AND item_matches.state = 'matched'
-             AND library_items.kind = 'movie'"#,
-        namespace,
-        value
-    )
-    .fetch_one(&mut *conn)
-    .await
-}
-
-/// The oldest Library with an Episode Matched to the Show `id`, by any of its ids, if any.
-pub(crate) async fn library_with_show(
-    conn: &mut SqliteConnection,
-    id: &ExternalId,
-) -> Result<Option<i64>, sqlx::Error> {
-    let (namespace, value) = (id.namespace(), id.value());
-    sqlx::query_scalar!(
-        r#"SELECT MIN(library_files.library_id) AS "library: i64"
-           FROM item_match_ids
-           JOIN item_matches ON item_matches.item_id = item_match_ids.item_id
-           JOIN library_items ON library_items.id = item_matches.item_id
-           JOIN library_files ON library_files.id = library_items.file_id
-           WHERE item_match_ids.scope = 'show'
-             AND item_match_ids.namespace = ?
-             AND item_match_ids.value = ?
-             AND item_matches.state = 'matched'
-             AND library_items.kind = 'episode'"#,
-        namespace,
-        value
-    )
-    .fetch_one(&mut *conn)
-    .await
-}
-
-/// The numbers of the Episodes of Season `season` of the Show `show`, by any of its ids,
-/// Matched in any Library.
-pub(crate) async fn matched_episodes(
-    conn: &mut SqliteConnection,
-    show: &ExternalId,
-    season: i64,
-) -> Result<HashSet<i64>, sqlx::Error> {
-    let (namespace, value) = (show.namespace(), show.value());
-    // Matching finds an Episode by the numbers its file's name gives, so they are the Episode's.
-    let numbers = sqlx::query_scalar!(
-        r#"SELECT library_items.episode AS "episode!"
-           FROM item_match_ids
-           JOIN item_matches ON item_matches.item_id = item_match_ids.item_id
-           JOIN library_items ON library_items.id = item_matches.item_id
-           WHERE item_match_ids.scope = 'show'
-             AND item_match_ids.namespace = ?
-             AND item_match_ids.value = ?
-             AND item_matches.state = 'matched'
-             AND library_items.kind = 'episode'
-             AND library_items.season = ?"#,
-        namespace,
-        value,
-        season
-    )
-    .fetch_all(&mut *conn)
-    .await?;
-    Ok(numbers.into_iter().collect())
 }
 
 /// `ids` as a JSON array of their text forms, as [`Contents::movies`] and [`Contents::shows`]

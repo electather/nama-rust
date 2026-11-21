@@ -643,6 +643,17 @@ message FoundMovie {
   optional double score = 13;
   // As `nama.v1.Movie.original_language`.
   optional string original_language = 14;
+  // As `nama.v1.Movie.trailers`, from the title source it was looked up in.
+  repeated Trailer trailers = 15;
+}
+
+// A video advertising a Movie or Show, as a link to where it is hosted. A client only links to
+// it, so showing a title tells the host nothing until a User opens one.
+message Trailer {
+  // What it is called, such as `Official Trailer`.
+  string name = 1;
+  // Where it is hosted: a `https` URL on YouTube or Vimeo.
+  string url = 2;
 }
 
 message LookUpMovieRequest {
@@ -712,6 +723,8 @@ message FoundShow {
   optional double score = 13;
   // As `nama.v1.Movie.original_language`.
   optional string original_language = 14;
+  // As `nama.v1.Movie.trailers`, from the title source it was looked up in.
+  repeated Trailer trailers = 15;
 }
 
 // A Season of a Show in the title source, and how close it is to being on the Server: in a

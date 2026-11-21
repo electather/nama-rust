@@ -6,10 +6,11 @@ use nama_plugin_api::{
 use super::{
     super::{
         Change, Decided, ImageRef, Item, ItemKind,
+        any_library::{library_with_movie, library_with_show, matched_episodes},
         fixture::{MatchedMovie, tmdb_movie},
         testing::{ALIEN, Fixture, movie},
     },
-    TitlesIn, library_with_movie, library_with_show, matched_episodes, show_poster,
+    TitlesIn, show_poster,
 };
 use crate::library::versions::METADATA_VERSION;
 
