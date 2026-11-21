@@ -133,7 +133,8 @@ async fn changing_personal_settings_lists_the_old_suggestions_until_the_plugin_a
     set_handle(&db, ada, "2").await;
 
     assert_eq!(home.featured(ada).await.unwrap(), movies(&[(1, 0.5)]));
-    // A listing the refresh ends during reads the old suggestions, then starts a second refresh.
+    // Not `refreshed`: listing again while that listing's refresh is ending reads the old
+    // suggestions and asks the Plugin a second time (#1506).
     home.refreshes.settled().await;
     assert_eq!(home.featured(ada).await.unwrap(), movies(&[(2, 0.5)]));
     assert_eq!(
