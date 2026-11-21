@@ -3,16 +3,19 @@
 //! doesn't bundle it; CI builds it for wasm32 so it keeps up with `nama-pdk`.
 
 use nama_pdk::{
-    Manifest, Notification, Recipient,
+    Manifest, Notification, OutsideService, Recipient, SettingField, SettingKind,
     extism_pdk::{Error, HttpRequest, Json, json::json},
-    nama_plugin_proto::nama::plugin::v1::{
-        Request, SettingField, SettingKind, event::Event, request::MovieOrSeason,
-    },
-    services,
+    nama_plugin_proto::nama::plugin::v1::{Request, event::Event, request::MovieOrSeason},
+    services, setting_field,
 };
 
 /// The setting holding the URL to post to.
 const WEBHOOK_URL: &str = "webhook_url";
+
+/// The service the Plugin posts to, named as the subject of its errors, such as "the webhook
+/// didn't answer". Name yours; add `.credential("API key")` if it takes one, so a 401 names it,
+/// and `.reader(...)` to quote the error message its refusals carry.
+const WEBHOOK: OutsideService = OutsideService::new("the webhook");
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
@@ -39,14 +42,17 @@ fn manifest() -> Manifest {
         // Change this to the point your Plugin serves, one of `nama_pdk::services`, and export
         // it with its macro, as `nama_pdk::notifier!` does below.
         points: vec![nama_pdk::point(services::NOTIFIER)],
+        // Set `required`, a `default_value` from `nama_pdk::setting_default`, or an Integer's
+        // bounds with struct update syntax on `setting_field`.
         settings: vec![SettingField {
-            key: WEBHOOK_URL.to_owned(),
-            label: "Webhook URL".to_owned(),
-            description: "Where each Request event is posted as JSON.".to_owned(),
-            // A URL setting's host is one the Plugin may reach, so `allowed_hosts` stays empty.
-            kind: SettingKind::SETTING_KIND_URL.into(),
             required: true,
-            ..SettingField::default()
+            // A URL setting's host is one the Plugin may reach, so `allowed_hosts` stays empty.
+            ..setting_field(
+                WEBHOOK_URL,
+                "Webhook URL",
+                "Where each Request event is posted as JSON.",
+                SettingKind::SETTING_KIND_URL,
+            )
         }],
         // Change the id, which the Server keeps the Plugin's settings under.
         ..nama_pdk::manifest("template", env!("CARGO_PKG_VERSION"))
@@ -65,21 +71,17 @@ impl nama_pdk::Notifier for Template {
         let Some((event, title)) = what_happened(&notification) else {
             return Ok(());
         };
-        let url = nama_pdk::setting(WEBHOOK_URL)?
-            .ok_or_else(|| Error::msg("the setting webhook_url isn't set"))?;
+        // Read a setting the Plugin can't work without this way, so a blank one fails naming
+        // its key before anything is sent; read an optional one with `nama_pdk::setting`.
+        let url = nama_pdk::required_setting(WEBHOOK_URL)?;
         let request = HttpRequest::new(url)
             .with_method("POST")
             .with_header("Content-Type", "application/json");
         let body = Json(json!({ "event": event, "title": title }));
-        let response = nama_pdk::http_request(&request, Some(body), "the webhook didn't answer")?;
-        let status = response.status_code();
-        if (200..300).contains(&status) {
-            Ok(())
-        } else {
-            Err(Error::msg(format!(
-                "the webhook refused the event with HTTP status {status}"
-            )))
-        }
+        // Match the statuses that mean something to your Plugin on the response first, and hand
+        // the rest to `accepted`, which words every refusal the way the other Plugins do.
+        WEBHOOK.accepted(WEBHOOK.send(&request, Some(body))?)?;
+        Ok(())
     }
 }
 

@@ -93,7 +93,7 @@ fn a_webhook_discord_no_longer_knows_means_the_recipient_is_gone() {
 }
 
 #[test]
-fn another_refusal_fails_with_its_status_and_discords_words() {
+fn another_refusal_quotes_discords_own_message() {
     let mut kernel = discord(
         401,
         &json!({"message": "Invalid Webhook Token", "code": 50027}),
@@ -108,10 +108,7 @@ fn another_refusal_fails_with_its_status_and_discords_words() {
     .unwrap_err();
 
     assert!(!error.is::<RecipientGone>());
-    assert_eq!(
-        error.to_string(),
-        "Discord failed with HTTP status 401: Invalid Webhook Token"
-    );
+    assert_eq!(error.to_string(), "Discord said: Invalid Webhook Token");
 }
 
 #[test]

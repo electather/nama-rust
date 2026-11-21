@@ -3,11 +3,9 @@
 //! Admin names. The Server builds it for wasm32 and bundles it in its binary.
 
 use nama_pdk::{
-    Manifest,
-    nama_plugin_proto::nama::plugin::v1::{
-        PersonalSettingsCheck, SettingField, SettingKind, SettingValue, setting_value,
-    },
-    services,
+    Manifest, SettingField, SettingKind,
+    nama_plugin_proto::nama::plugin::v1::PersonalSettingsCheck, services, setting_default,
+    setting_field, setting_value,
 };
 
 const SERVER_URL: &str = "server_url";
@@ -22,7 +20,7 @@ const ACCESS_TOKEN: &str = "access_token";
 )]
 mod exports {
     use nama_pdk::{
-        Buffa, FnResult, Manifest, Notification, Notifier, Recipient, Response,
+        Buffa, FnResult, Manifest, Notification, Notifier, OutsideService, Recipient, Response,
         extism_pdk::{self, Error, HttpRequest},
         nama_plugin_proto::nama::plugin::v1::{
             PersonalSettingsCheck, PersonalSettingsChecked, UserRecipient,
@@ -32,6 +30,10 @@ mod exports {
     use serde::Deserialize;
 
     use super::{ACCESS_TOKEN, SERVER_URL, TOPIC};
+
+    const NTFY: OutsideService = OutsideService::new("ntfy")
+        .credential("access token")
+        .reader(ntfys_words);
 
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
@@ -73,8 +75,7 @@ mod exports {
             return Ok(());
         };
         let topic = super::topic(personal.get(TOPIC).map(String::as_str))?;
-        let server_url = nama_pdk::setting(SERVER_URL)?
-            .ok_or_else(|| Error::msg(format!("the setting {SERVER_URL} isn't set")))?;
+        let server_url = nama_pdk::required_setting(SERVER_URL)?;
         let mut request = HttpRequest::new(format!("{}/{topic}", server_url.trim_end_matches('/')))
             .with_method("POST")
             .with_header("Title", "Nama");
@@ -84,23 +85,13 @@ mod exports {
         if let Some(token) = personal.get(ACCESS_TOKEN).filter(|token| !token.is_empty()) {
             request = request.with_header("Authorization", format!("Bearer {token}"));
         }
-        let response = nama_pdk::http_request(&request, Some(text), "ntfy didn't answer")?;
-        if (200..300).contains(&response.status_code()) {
-            Ok(())
-        } else {
-            Err(refused(&response))
-        }
+        NTFY.accepted(NTFY.send(&request, Some(text))?)?;
+        Ok(())
     }
 
-    /// Why ntfy refused a message: its status, and its own words if it gave any.
-    fn refused(response: &Response) -> Error {
-        let status = response.status_code();
-        match response.json::<Refusal>() {
-            Ok(Refusal { error: Some(error) }) => {
-                Error::msg(format!("ntfy failed with HTTP status {status}: {error}"))
-            }
-            _ => Error::msg(format!("ntfy failed with HTTP status {status}")),
-        }
+    /// ntfy's own words in a refusal: the `error` of its error body.
+    fn ntfys_words(response: &Response) -> Option<String> {
+        response.json::<Refusal>().ok()?.error
     }
 
     /// The body of an ntfy error, such as `{"code":40101,"http":401,"error":"unauthorized"}`.
@@ -112,26 +103,15 @@ mod exports {
 
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
-    let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
-        key: key.to_owned(),
-        label: label.to_owned(),
-        description: description.to_owned(),
-        kind: kind.into(),
-        ..SettingField::default()
-    };
     Manifest {
         logo_svg: include_str!("../logo.svg").to_owned(),
         // No `allowed_hosts`: the Server allows the host of the ntfy server setting.
         points: vec![nama_pdk::point(services::NOTIFIER)],
         settings: vec![SettingField {
-            default_value: SettingValue {
-                value: Some(setting_value::Value::TextValue(
-                    "https://ntfy.sh".to_owned(),
-                )),
-                ..SettingValue::default()
-            }
-            .into(),
-            ..setting(
+            default_value: setting_default(setting_value::Value::TextValue(
+                "https://ntfy.sh".to_owned(),
+            )),
+            ..setting_field(
                 SERVER_URL,
                 "ntfy server",
                 "The ntfy server every User's topic is on. Change it only for an ntfy server \
@@ -143,7 +123,7 @@ fn manifest() -> Manifest {
         personal_settings: vec![
             SettingField {
                 required: true,
-                ..setting(
+                ..setting_field(
                     TOPIC,
                     "Topic",
                     "The ntfy topic you subscribe to, 1 to 64 letters, digits, _ or -. \
@@ -151,7 +131,7 @@ fn manifest() -> Manifest {
                     SettingKind::SETTING_KIND_TEXT,
                 )
             },
-            setting(
+            setting_field(
                 ACCESS_TOKEN,
                 "Access token",
                 "An ntfy access token, for a protected topic. Leave it empty for an open one.",
