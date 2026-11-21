@@ -70,6 +70,8 @@ use load::{
     extism_config,
 };
 use plugin_log::PluginLog;
+#[cfg(test)]
+pub(crate) use services::installed_points;
 use services::{
     CHECK_PERSONAL_SETTINGS, CHECK_SETTINGS, DELIVER, OBSERVE_EVENTS, POINTS, POLL_CONNECTION,
     Point, RUN_JOB, START_CONNECTION,
