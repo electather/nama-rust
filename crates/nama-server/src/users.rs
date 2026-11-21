@@ -48,9 +48,9 @@ pub(crate) use notification_preferences::{
 use passwords::{Credential, set_password};
 pub(crate) use permissions::Permissions;
 pub(crate) use personal_settings::{
-    delete as delete_personal_settings, get as personal_settings_of,
-    recipients as personal_settings_recipients, replace as replace_personal_settings,
-    text as personal_text, value as personal_value,
+    delete as delete_personal_settings, delete_plugin as delete_plugins_personal_settings,
+    get as personal_settings_of, recipients as personal_settings_recipients,
+    replace as replace_personal_settings, text as personal_text, value as personal_value,
 };
 pub(crate) use rate_limits::Blocked;
 pub(crate) use seeing::{is_requester, may_see};

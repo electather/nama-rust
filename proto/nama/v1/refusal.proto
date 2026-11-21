@@ -305,4 +305,8 @@ enum RefusalReason {
   // `EXTENSION_POINT_SEGMENT_SOURCE`, or name one twice. `field` is `segment_source_ids` or
   // `segment_source_order`. Params: `pluginId`.
   REFUSAL_REASON_SEGMENT_SOURCES_INVALID = 92;
+  // `failed_precondition`: the Job has a Run going, so another can't start until it ends.
+  REFUSAL_REASON_JOB_RUNNING = 93;
+  // `not_found`: no enabled Plugin with the ID declares a Job with the ID. `field` is `job_id`.
+  REFUSAL_REASON_JOB_NOT_FOUND = 94;
 }

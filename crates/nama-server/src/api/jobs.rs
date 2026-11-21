@@ -6,21 +6,22 @@ use connectrpc::{RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::{
     self as proto, JobService, ListJobRunsRequest, ListJobRunsResponse, ListJobsRequest,
-    ListJobsResponse,
+    ListJobsResponse, RefusalReason, RunJobRequest, RunJobResponse,
 };
 
 use crate::{
     db::Database,
     diagnostics::{PluginLine, plugin_lines},
     plugin_settings::PluginSettings,
-    plugins::{JobRun, JobRunOutcome, ListedJob, job_runs},
+    plugins::{ExtensionPoints, JobRun, JobRunOutcome, ListedJob, RunRefused, job_runs, run_now},
 };
 
-use super::{database_failed, plugins::plugin_line_to_proto};
+use super::{caller, database_failed, plugins::plugin_line_to_proto, refuse};
 
 /// `nama.v1.JobService`: the Jobs of the enabled Plugins and their Runs, for Admins.
 pub(super) struct JobServiceHandler {
     pub(super) plugin_settings: PluginSettings,
+    pub(super) plugins: ExtensionPoints,
     pub(super) db: Arc<Database>,
 }
 
@@ -58,6 +59,28 @@ impl JobService for JobServiceHandler {
                 .collect(),
             ..Default::default()
         })
+    }
+
+    async fn run_job(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, RunJobRequest>,
+    ) -> ServiceResult<RunJobResponse> {
+        let admin = caller(&ctx)?.user.name.clone();
+        let plugin = PluginId::from(request.plugin_id.to_owned());
+        let started = run_now(&self.plugins, &plugin, request.job_id, admin).await;
+        started.map_err(|refused| match refused {
+            RunRefused::NotDeclared => refuse(
+                RefusalReason::REFUSAL_REASON_JOB_NOT_FOUND,
+                "no enabled Plugin with that id declares that Job",
+            )
+            .field("job_id"),
+            RunRefused::Running => refuse(
+                RefusalReason::REFUSAL_REASON_JOB_RUNNING,
+                "it is running already; run it again once that Run ends",
+            ),
+        })?;
+        Response::ok(RunJobResponse::default())
     }
 }
 
@@ -107,6 +130,7 @@ fn run_to_proto(run: JobRun) -> proto::JobRun {
         started_at_ms: run.started_ms,
         ended_at_ms: run.ended_ms,
         error,
+        started_by: run.started_by.unwrap_or_default(),
         ..Default::default()
     }
 }

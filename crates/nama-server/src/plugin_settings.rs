@@ -15,7 +15,7 @@ use nama_plugin_api::{
     automation::Permission,
     settings::{Choices, SettingKind, SettingValue, Settings, SettingsError},
 };
-use nama_proto::nama::v1::{PluginKind, Quality};
+use nama_proto::nama::v1::PluginKind;
 use thiserror::Error;
 use tokio::{
     sync::{Mutex, MutexGuard, mpsc},
@@ -31,12 +31,14 @@ use crate::{
         CheckError, EnableError, ExtensionPoints, LastProvider, Listed, ListedJob, Registry,
         list_jobs, log_not_enabled, read_installed,
     },
-    requests::{QualitiesInvalid, check_qualities, list_qualities, replace_qualities},
 };
 
+mod crashed;
+mod had;
 mod library_ids;
 mod personal;
 mod put_back;
+mod qualities;
 mod running;
 mod sent;
 mod stored;
@@ -264,6 +266,7 @@ impl PluginSettings {
         save_first_grants(&plugins.db, &first_grants)
             .await
             .map_err(StartError::Grant)?;
+        plugins.note_had().await;
         let crashed = plugins.registry.crashed();
         let saving_crashed = task::spawn(plugins.clone().save_crashed(crashed));
         *lock_ignoring_poison(&plugins.saving_crashed) = Some(saving_crashed);
@@ -303,43 +306,12 @@ impl PluginSettings {
             return;
         };
         self.stop_saving_crashed.cancel();
+        self.note_had().await;
         // The task is never aborted, so it only fails if it panicked.
         if let Err(err) = saving_crashed.await {
             error!("saving the Plugins disabled for crashing panicked: {err}");
         }
         self.registry.shutdown().await;
-    }
-
-    /// Saves each Plugin the registry disables for crashing as disabled, as an admin's disable is,
-    /// so it stays disabled across a restart until an admin enables it again. Runs until
-    /// [`PluginSettings::shutdown`] and the crashes queued are saved, or until the registry hands a
-    /// later caller of [`Registry::crashed`] the crashes instead.
-    async fn save_crashed(self, mut crashed: mpsc::UnboundedReceiver<PluginId>) {
-        loop {
-            tokio::select! {
-                // Stopping first, so a stop always saves the queue through the one drain below.
-                biased;
-                () = self.stop_saving_crashed.cancelled() => break,
-                id = crashed.recv() => match id {
-                    Some(id) => self.save_crashed_plugin(&id).await,
-                    None => return,
-                },
-            }
-        }
-        while let Ok(id) = crashed.try_recv() {
-            self.save_crashed_plugin(&id).await;
-        }
-    }
-
-    async fn save_crashed_plugin(&self, id: &PluginId) {
-        let _changing = self.lock().await;
-        // An admin may have enabled it again since.
-        if self.registry.enabled().contains(id) {
-            return;
-        }
-        if let Err(err) = set_enabled(&self.db, id.as_str(), false).await {
-            error!(plugin = %id, "could not save that the crashed plugin is disabled: {err}");
-        }
     }
 
     /// Enables each Plugin the registry knows that `settings` store as enabled, or that starts
@@ -416,10 +388,13 @@ impl PluginSettings {
         let data_dir = self.data_dir.clone();
         // Compiled before taking `changing`, so a slow Plugin doesn't hold up Plugin changes.
         let found = task::spawn_blocking(move || read_installed(&data_dir)).await?;
+        // Before as well as after, so a Plugin this listing drops was had until now.
+        self.note_had().await;
         // Under `changing`, so a Plugin being enabled can't lose its listing halfway.
         let changing = self.lock().await;
         self.registry.list_installed(found);
         drop(changing);
+        self.note_had().await;
         let mut stored = self.stored().await?;
         Ok(self
             .registry
@@ -657,41 +632,6 @@ impl PluginSettings {
         let (manifest, StoredPlugin { stored, .. }) = self.listed(id).await?;
         let settings = with_stored_secrets(&manifest.settings, sent, &stored.settings);
         self.run_check(id, settings, None).await
-    }
-
-    /// Runs the Plugin `id`'s settings check on its stored settings, and returns the choices it
-    /// offers.
-    async fn check_stored(&self, id: &PluginId) -> Result<Choices, ChangeError> {
-        let (_, StoredPlugin { stored, .. }) = self.listed(id).await?;
-        self.run_check(id, stored.settings, None).await
-    }
-
-    /// The Plugin `id`'s Qualities, in the order the admin listed them.
-    pub(crate) async fn qualities(&self, id: &PluginId) -> Result<Vec<Quality>, ChangeError> {
-        self.listed(id).await?;
-        let mut conn = self.db.reader().acquire().await?;
-        Ok(list_qualities(&mut conn, id).await?)
-    }
-
-    /// Replaces the Plugin `id`'s Qualities with `listed` and returns them as saved, or why
-    /// [`check_qualities`] refused them against the profiles its stored settings' check offers.
-    pub(crate) async fn replace_qualities(
-        &self,
-        id: &PluginId,
-        listed: Vec<Quality>,
-    ) -> Result<Result<Vec<Quality>, QualitiesInvalid>, ChangeError> {
-        // Only a list with Qualities asks the settings check, so a Fulfiller that's down can still
-        // have its list cleared.
-        let offered = if listed.is_empty() {
-            self.listed(id).await?;
-            Choices::new()
-        } else {
-            self.check_stored(id).await?
-        };
-        if let Err(invalid) = check_qualities(&listed, &offered) {
-            return Ok(Err(invalid));
-        }
-        Ok(Ok(replace_qualities(&self.db, id.clone(), listed).await?))
     }
 
     /// Runs the Plugin `id`'s settings check on `settings`, naming the choice `setting` a failed

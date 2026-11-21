@@ -13,6 +13,7 @@ use nama_plugin_api::{
     PluginId,
     settings::{SettingKind, SettingValue},
 };
+use sqlx::SqliteConnection;
 
 use crate::{
     db::Database,
@@ -80,6 +81,17 @@ pub(crate) async fn replace(
 /// Deletes all of `user`'s Personal settings for `plugin`.
 pub(crate) async fn delete(db: &Database, user: i64, plugin: &PluginId) -> Result<(), sqlx::Error> {
     replace(db, user, plugin, Vec::new()).await
+}
+
+/// Deletes every User's Personal settings for `plugin`.
+pub(crate) async fn delete_plugin(
+    conn: &mut SqliteConnection,
+    plugin: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!("DELETE FROM personal_settings WHERE plugin_id = ?", plugin)
+        .execute(conn)
+        .await?;
+    Ok(())
 }
 
 /// Each User with any Personal setting for `plugin`, with their values by key and, apart, the

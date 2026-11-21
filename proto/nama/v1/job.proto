@@ -18,6 +18,11 @@ service JobService {
   rpc ListJobRuns(ListJobRunsRequest) returns (ListJobRunsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Starts a Run of a Job now, scheduled or not, recorded as started by the caller, and returns
+  // once its Run is listed, without waiting for it to end. Fails with `failed_precondition` and
+  // `REFUSAL_REASON_JOB_RUNNING` while the Job has a Run going, and `not_found` and
+  // `REFUSAL_REASON_JOB_NOT_FOUND` if no enabled Plugin declares it.
+  rpc RunJob(RunJobRequest) returns (RunJobResponse);
 }
 
 message ListJobsRequest {}
@@ -59,6 +64,15 @@ message ListJobRunsResponse {
   repeated JobRun runs = 1;
 }
 
+message RunJobRequest {
+  // The id of the Plugin declaring the Job, such as `upkeep`.
+  string plugin_id = 1;
+  // The Job's id, such as `forget-home-rows`.
+  string job_id = 2;
+}
+
+message RunJobResponse {}
+
 // One time the Server ran a Job.
 message JobRun {
   // Unique among the Server's Job Runs; a later Run of a Job has a higher one.
@@ -71,10 +85,13 @@ message JobRun {
   optional int64 ended_at_ms = 4;
   // Why it failed, in the Plugin's words or saying it crashed, for `JOB_RUN_OUTCOME_FAILED`.
   string error = 5;
+  // The name of the Admin who started it with `RunJob`, as it was then, or empty for a Run its
+  // schedule started.
+  string started_by = 6;
   // The Plugin Log lines its Plugin wrote during it, oldest first, of those the Server keeps: the
   // Plugin's last 100, forgotten when it's disabled or the Server restarts. Empty in
   // `Job.last_run`.
-  repeated PluginLogLine log_lines = 6;
+  repeated PluginLogLine log_lines = 7;
 }
 
 // How a Job Run ended, or that it hasn't.
