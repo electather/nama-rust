@@ -5,10 +5,10 @@ use std::time::{Duration, SystemTime};
 
 use instant_xml::FromXml;
 use nama_pdk::{
-    BLOB_MAX_BYTES, BlobPage, BlobStore, Manifest, Response,
+    BLOB_MAX_BYTES, BlobPage, BlobStore, Manifest, OutsideService, Response, SettingField,
+    SettingKind,
     extism_pdk::{Error, HttpRequest},
-    nama_plugin_proto::nama::plugin::v1::{SettingField, SettingKind, SettingValue, setting_value},
-    services,
+    services, setting_default, setting_field, setting_value,
 };
 use rusty_s3::{Bucket, BucketError, Credentials, S3Action, UrlStyle, actions::ListObjectsV2};
 use url::Url;
@@ -29,6 +29,9 @@ const SIGNED_FOR: Duration = Duration::from_mins(15);
 
 /// The most keys a page of `list` holds: the contract's limit, and S3's own.
 const PAGE_KEYS: usize = 1000;
+
+/// Only S3's name: [`refused`] words its refusals, which name the action and S3's XML code.
+const S3_SERVICE: OutsideService = OutsideService::new("S3");
 
 /// The Plugin's exports. `plugin_fn` drops their doc comments and attributes, so lints about the
 /// code it generates are expected here.
@@ -53,17 +56,6 @@ mod exports {
 
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
-    let setting = |key: &str, label: &str, description: &str, kind: SettingKind| SettingField {
-        key: key.to_owned(),
-        label: label.to_owned(),
-        description: description.to_owned(),
-        kind: kind.into(),
-        ..SettingField::default()
-    };
-    let default = |value| SettingValue {
-        value: Some(value),
-        ..SettingValue::default()
-    };
     Manifest {
         name: "S3".to_owned(),
         description: "Keeps the Server's stored files, such as its images, in an S3 or \
@@ -77,7 +69,7 @@ fn manifest() -> Manifest {
         settings: vec![
             SettingField {
                 required: true,
-                ..setting(
+                ..setting_field(
                     ENDPOINT,
                     "Endpoint",
                     "Where the store's S3 API is, such as https://s3.eu-west-1.amazonaws.com or \
@@ -86,9 +78,10 @@ fn manifest() -> Manifest {
                 )
             },
             SettingField {
-                default_value: default(setting_value::Value::TextValue(DEFAULT_REGION.to_owned()))
-                    .into(),
-                ..setting(
+                default_value: setting_default(setting_value::Value::TextValue(
+                    DEFAULT_REGION.to_owned(),
+                )),
+                ..setting_field(
                     REGION,
                     "Region",
                     "The bucket's region, such as eu-west-1.",
@@ -97,34 +90,34 @@ fn manifest() -> Manifest {
             },
             SettingField {
                 required: true,
-                ..setting(
+                ..setting_field(
                     BUCKET,
                     "Bucket",
                     "The bucket the files go in.",
                     SettingKind::SETTING_KIND_TEXT,
                 )
             },
-            setting(
+            setting_field(
                 PREFIX,
                 "Prefix",
                 "Put before every key, such as nama/ to keep the files in a folder of the bucket.",
                 SettingKind::SETTING_KIND_TEXT,
             ),
-            setting(
+            setting_field(
                 ACCESS_KEY_ID,
                 "Access key ID",
                 "The ID of an access key that may read, write, delete and list the bucket.",
                 SettingKind::SETTING_KIND_TEXT,
             ),
-            setting(
+            setting_field(
                 SECRET_ACCESS_KEY,
                 "Secret access key",
                 "The secret of that access key.",
                 SettingKind::SETTING_KIND_SECRET,
             ),
             SettingField {
-                default_value: default(setting_value::Value::BoolValue(false)).into(),
-                ..setting(
+                default_value: setting_default(setting_value::Value::BoolValue(false)),
+                ..setting_field(
                     PATH_STYLE,
                     "Path-style addressing",
                     "Reach the bucket at the endpoint's own host, as most S3-compatible stores, \
@@ -190,12 +183,11 @@ impl Store {
     /// only one of the access key's ID and secret is set.
     fn new(now: SystemTime) -> Result<Self, Error> {
         let text = |key| -> Result<Option<String>, Error> {
-            Ok(nama_pdk::setting(key)?
-                .map(|value| value.trim().to_owned())
-                .filter(|value| !value.is_empty()))
+            Ok(nama_pdk::setting(key)?.map(|value| value.trim().to_owned()))
         };
-        let required =
-            |key| text(key)?.ok_or_else(|| Error::msg(format!("the setting {key} isn't set")));
+        let required = |key| -> Result<String, Error> {
+            Ok(nama_pdk::required_setting(key)?.trim().to_owned())
+        };
         let endpoint = required(ENDPOINT)?;
         let endpoint = Url::parse(&endpoint)
             .map_err(|err| Error::msg(format!("the endpoint {endpoint} isn't a URL: {err}")))?;
@@ -336,12 +328,8 @@ impl Store {
         body: Option<Vec<u8>>,
     ) -> Result<Response, Error> {
         let url = action.sign_with_time(SIGNED_FOR, &self.now);
-        let unreachable = format!(
-            "S3 at {} didn't answer",
-            url.host_str().unwrap_or("the endpoint")
-        );
         let request = HttpRequest::new(url.as_str()).with_method(A::METHOD.to_str());
-        nama_pdk::http_request(&request, body, &unreachable)
+        S3_SERVICE.send(&request, body)
     }
 }
 
