@@ -11,6 +11,7 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 | `wontfix`                  | `wontfix`            | Will not be actioned                     |
 | —                          | `agent-working`      | The sandcastle factory is triaging or building it (set and cleared by `.sandcastle/main.ts`) |
 | —                          | `main-red`           | Main's CI failed twice; the factory filed it and builds it in its own lane (`.sandcastle/main.ts`, `mainLoop`) |
+| —                          | `needs-macos`        | Needs Xcode on a macOS host (the Apple apps). Factory sandboxes are Linux containers on every machine, so the factory lists it as waiting and never builds it |
 | —                          | `needs-decision`     | Triaged, but only the maintainer can settle it: the triage comment holds the options, a pick and the question |
 
 The factory triages `needs-triage` issues itself (`.sandcastle/triage-prompt.md`): it closes, specifies, splits or asks. It applies `needs-decision` where the skills would ask the maintainer, and never `wontfix`.
