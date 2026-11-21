@@ -120,7 +120,7 @@ impl PlaybackService for PlaybackServiceHandler {
             (self.preview_frames.of(request.version_id).await).map_err(database_failed)?;
         let offsets = (subtitle_offsets_of(&self.db, user, request.version_id).await)
             .map_err(database_failed)?;
-        let mut response = planned_to_proto(plan, segments, &offsets);
+        let mut response = planned_to_proto(plan, segments, &offsets, self.downloads.has_source());
         if let Some(shown) = response.plan.as_option_mut() {
             shown.preview_frames = preview_frames.into();
         }
@@ -674,6 +674,7 @@ fn planned_to_proto(
     planned: Planned,
     segments: Vec<Segment>,
     offsets: &SubtitleOffsets,
+    can_search_subtitles: bool,
 ) -> PlanPlaybackResponse {
     let (id, url, plan, playable_versions) = match planned {
         Planned::Started(StartedPlan { id, url, plan }) => (id, url, plan, vec![]),
@@ -721,6 +722,7 @@ fn planned_to_proto(
             })
             .collect(),
         segments: segments.into_iter().map(segment_to_proto).collect(),
+        can_search_subtitles,
         ..Default::default()
     };
     PlanPlaybackResponse {

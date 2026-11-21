@@ -1,4 +1,7 @@
 import { Link } from "@tanstack/react-router";
+import { cn } from "cn";
+
+import { textLink } from "@/shared/lib/text-link-classes";
 
 /**
  * The link to the Plugin `pluginId`, whose settings fix why its Fulfiller didn't take a Request,
@@ -14,11 +17,7 @@ export function FulfillerLink({
   return (
     pluginId !== undefined &&
     mayFix && (
-      <Link
-        to="/admin/plugins/$pluginId"
-        params={{ pluginId }}
-        className="rounded-sm text-sm underline decoration-muted-foreground underline-offset-4 outline-none hover:decoration-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
+      <Link to="/admin/plugins/$pluginId" params={{ pluginId }} className={cn(textLink, "text-sm")}>
         Fix it in the Plugin’s settings
       </Link>
     )

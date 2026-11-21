@@ -113,6 +113,31 @@ pub(super) async fn open_requests(
     open_request_sql!(find).fetch_all(&mut *conn).await
 }
 
+/// The open Requests for any Season of the Show with any of `ids`, earliest Season first, found
+/// as [`open_requests`] finds them.
+pub(super) async fn open_season_requests(
+    conn: &mut SqliteConnection,
+    ids: &ExternalIds,
+) -> Result<Vec<i64>, sqlx::Error> {
+    let ids = ids_json(ids);
+    macro_rules! find {
+        ($open:literal) => {
+            sqlx::query_scalar!(
+                r#"SELECT id AS "id!" FROM requests
+                 WHERE season IS NOT NULL
+                   AND id IN (SELECT title.request_id FROM request_title_ids AS title
+                              JOIN json_each(?) AS wanted
+                                  ON title.namespace = wanted.key AND title.value = wanted.value)
+                   AND "#
+                    + $open
+                    + " ORDER BY season",
+                ids
+            )
+        };
+    }
+    open_request_sql!(find).fetch_all(&mut *conn).await
+}
+
 /// `ids` as a JSON object of namespace to value, which SQLite's `json_each` reads.
 pub(super) fn ids_json(ids: &ExternalIds) -> String {
     let pairs: serde_json::Map<_, _> = ids

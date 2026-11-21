@@ -8,6 +8,7 @@ import {
 } from "@/features/action-bar/lib/rows";
 import { shortcutGroups } from "@/features/action-bar/lib/shortcuts";
 import type { Found, FoundTitle } from "@/features/action-bar/lib/titles";
+import { TitleStatus } from "@/gen/nama/v1/search_pb";
 import { modKey } from "@/shared/lib/mod-key";
 
 /** What the action bar lists from. */
@@ -37,12 +38,18 @@ function kindBadge(title: FoundTitle): Pick<Row, "badge" | "request"> {
   return { badge: badges[title.kind] };
 }
 
-/** What a search result says beside its label: nothing when Available, else its Request. */
-function statusBadge({ libraryId, request }: FoundTitle): Pick<Row, "badge" | "request"> {
+/**
+ * What a search result says beside its label: nothing when Available, else its Request, or for a
+ * Followed Show with no open Season Request, that it's Requested.
+ */
+function statusBadge({ libraryId, request, status }: FoundTitle): Pick<Row, "badge" | "request"> {
   if (libraryId !== undefined) {
     return {};
   }
-  return request === undefined ? { badge: "Request" } : { request };
+  if (request !== undefined) {
+    return { request };
+  }
+  return { badge: status === TitleStatus.REQUESTED ? "Requested" : "Request" };
 }
 
 function titleRows(

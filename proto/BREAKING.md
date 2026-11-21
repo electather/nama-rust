@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-21, #1465
+
+- None that `buf breaking` reports: in `nama/v1/request.proto`, `ShowHit` gains `request` (13).
+- For a caller with `PERMISSION_REQUEST_TV`, `Search` now streams the title source's Shows as a batch of their own, after its Movies, before `Done`. A Show no Library has an Episode of comes without `library_id`; one Requested carries its earliest visible open Season Request in `request`, unless only its Followed Show is open. `Done.title_source_unavailable` is set when either kind's search failed.
+- A client built before lists those Shows as if a Library had them; it must regenerate, sort its rows by `status`, and open a Show without `library_id` on its request page. The web app is the only client.
+
 ## 2026-11-21, #1464
 
 - None that `buf breaking` reports: in `nama/v1/search.proto`, `TitleStatus` gains `TITLE_STATUS_REQUESTED` (2) and `TITLE_STATUS_NOT_ON_THIS_SERVER` (3), and `Done` gains `title_source_unavailable` (1).

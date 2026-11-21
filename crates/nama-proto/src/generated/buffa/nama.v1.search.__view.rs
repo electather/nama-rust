@@ -2036,8 +2036,8 @@ impl ::serde::Serialize for EpisodeHitOwnedView {
 /// Marks the end of what `Search` streams.
 #[derive(Clone, Debug, Default)]
 pub struct DoneView<'a> {
-    /// Whether the title source was to be asked and couldn't be: none is enabled, or each failed.
-    /// The results are then only those the Libraries have.
+    /// Whether the title source was to be asked and couldn't be: none is enabled, or each failed,
+    /// for Movies or for Shows. The results of that kind are then only those the Libraries have.
     ///
     /// Field 1: `title_source_unavailable`
     pub title_source_unavailable: bool,
@@ -2246,8 +2246,8 @@ impl DoneOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// Whether the title source was to be asked and couldn't be: none is enabled, or each failed.
-    /// The results are then only those the Libraries have.
+    /// Whether the title source was to be asked and couldn't be: none is enabled, or each failed,
+    /// for Movies or for Shows. The results of that kind are then only those the Libraries have.
     ///
     /// Field 1: `title_source_unavailable`
     #[must_use]
