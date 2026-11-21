@@ -138,11 +138,15 @@ const atmosAndAudioDescription: MessageInitShape<typeof VersionSchema> = {
   ],
 };
 
+/** How Languages lists `atmosAndAudioDescription`'s audio. */
+const atmosAndAudioDescriptionReads =
+  "English (7.1, Dolby Atmos), English (Stereo, Audio Description)";
+
 test("a Movie with Atmos audio shows Atmos, and marks Dolby Atmos and Audio Description under Languages", async () => {
   openMovie({ versions: [atmosAndAudioDescription] });
 
   await expect(screen.findByText("Atmos")).resolves.toBeDefined();
-  expect(detail("Audio")).toBe("English (7.1, Dolby Atmos), English (Stereo, Audio Description)");
+  expect(detail("Audio")).toBe(atmosAndAudioDescriptionReads);
 });
 
 test("a started Movie shows Resume with its progress and time left", async () => {
@@ -220,7 +224,7 @@ test("a Show whose Episode has Atmos audio shows Atmos, and marks both Tracks un
   openApp("/libraries/2/shows/tmdb-70523", transport);
 
   await expect(screen.findByText("Atmos")).resolves.toBeDefined();
-  expect(detail("Audio")).toBe("English (7.1, Dolby Atmos), English (Stereo, Audio Description)");
+  expect(detail("Audio")).toBe(atmosAndAudioDescriptionReads);
 });
 
 test("a Show's page resumes its most recently started Episode in Continue Watching", async () => {

@@ -48,12 +48,12 @@ function audioName({ kind, language }: Track): string[] {
   if (kind.case !== "audio" || name === undefined) {
     return [];
   }
-  const marks = audioMarks(kind.value);
-  return [marks === undefined ? name : `${name} (${marks})`];
+  const facts = audioFacts(kind.value);
+  return [facts === undefined ? name : `${name} (${facts})`];
 }
 
 /** An audio Track's sound and whether it's Dolby Atmos or Audio Description, such as "7.1, Dolby Atmos". */
-function audioMarks({ channels, atmos, audioDescription }: AudioTrack) {
+function audioFacts({ channels, atmos, audioDescription }: AudioTrack) {
   return listed([
     channels > 0 ? channelsName(channels) : undefined,
     atmos ? "Dolby Atmos" : undefined,
