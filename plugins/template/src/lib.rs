@@ -71,6 +71,8 @@ impl nama_pdk::Notifier for Template {
         let Some((event, title)) = what_happened(&notification) else {
             return Ok(());
         };
+        // Read a setting the Plugin can't work without this way, so a blank one fails naming
+        // its key before anything is sent; read an optional one with `nama_pdk::setting`.
         let url = nama_pdk::required_setting(WEBHOOK_URL)?;
         let request = HttpRequest::new(url)
             .with_method("POST")

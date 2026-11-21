@@ -57,13 +57,7 @@ mod exports {
                     .map_or(Ok(()), |chat| send_message(chat.trim(), &text)),
                 // Telegram refuses a User's own chat with a 403 once they block the bot.
                 Recipient::Connection(chat_id) => match send_message(&chat_id, &text) {
-                    Err(error)
-                        if error
-                            .downcast_ref::<Refusal>()
-                            .is_some_and(|refusal| refusal.status() == 403) =>
-                    {
-                        Err(RecipientGone.into())
-                    }
+                    Err(error) if blocked(&error) => Err(RecipientGone.into()),
                     sent => sent,
                 },
                 // Telegram declares no Personal settings, so a User sent this way has nothing to
@@ -73,6 +67,14 @@ mod exports {
                 )),
             }
         }
+    }
+
+    /// Whether `error` is Telegram's 403: the bot may not post in that chat, as when its User
+    /// blocked the bot or a channel didn't make it an admin.
+    fn blocked(error: &Error) -> bool {
+        error
+            .downcast_ref::<Refusal>()
+            .is_some_and(|refusal| refusal.status() == 403)
     }
 
     nama_pdk::notifier!(Telegram);
