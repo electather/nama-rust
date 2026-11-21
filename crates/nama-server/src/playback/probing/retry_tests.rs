@@ -1,53 +1,69 @@
-use std::{fs, time::Duration};
+use std::{fs, io, sync::Arc, time::Duration};
 
-use super::tests::Fixture;
-#[cfg(unix)]
-use super::tests::{
-    chapters_read, counting_ffprobe, fake_ffprobe, ffprobe_reading_chapters, probe_runs,
+use super::{
+    ProbeError,
+    testing::{FakeReader, by_size, one_audio_track},
+    tests::{Fixture, chapters_read},
 };
-#[cfg(unix)]
-use crate::playback::tracks::Probe;
-use crate::playback::tracks::{PROBE_ATTEMPTS, PROBE_VERSION, PassingReason, ProbeFailure};
+use crate::{
+    ffmpeg::{Program, RunError},
+    playback::tracks::{PROBE_ATTEMPTS, PROBE_VERSION, PassingReason, Probe, ProbeFailure},
+};
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
+/// What ffprobe failing on a file answers.
+fn failed() -> ProbeError {
+    ProbeError::Run(RunError::Failed(Program::Ffprobe, String::new()))
+}
+
+/// What ffprobe that couldn't be started answers, as when it's gone during a package upgrade.
+fn couldnt_run() -> ProbeError {
+    ProbeError::Run(RunError::Run(
+        Program::Ffprobe,
+        io::ErrorKind::NotFound.into(),
+    ))
+}
+
+/// The file at `path` as [`by_size`] reads it if it's 10 bytes or fewer, else ffprobe failing.
+fn failing_over_10_bytes(path: &str) -> Result<Probe, ProbeError> {
+    if fs::metadata(path).unwrap().len() <= 10 {
+        Ok(by_size(path))
+    } else {
+        Err(failed())
+    }
+}
+
 #[tokio::test]
 async fn an_unchanged_file_is_probed_again_only_once_the_probe_version_is_bumped() {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(counting_ffprobe(bin.path())).await;
+    let reader = FakeReader::by_size();
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write(alien, 10).await;
     media.probe_changed().await;
     media.probe_changed().await;
-    assert_eq!(
-        probe_runs(bin.path()),
-        1,
-        "an unchanged file was probed again"
-    );
+    assert_eq!(reader.probes(), 1, "an unchanged file was probed again");
 
     let version = media.file_id(alien).await;
     media.tracks.read_by_older_probe(version).await;
     media.probe_changed().await;
 
-    assert_eq!(probe_runs(bin.path()), 2);
+    assert_eq!(reader.probes(), 2);
     assert_eq!(
         media.tracks.probe_version_of(version).await,
         Some(PROBE_VERSION)
     );
     media.probe_changed().await;
-    assert_eq!(
-        probe_runs(bin.path()),
-        2,
-        "probed again at the current version"
-    );
+    assert_eq!(reader.probes(), 2, "probed again at the current version");
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_version_read_by_the_probe_before_chapters_gets_them_when_probed_again() {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(ffprobe_reading_chapters(bin.path())).await;
+    let reader = FakeReader::answering(|_| {
+        Ok(Probe {
+            chapters: chapters_read(),
+            ..one_audio_track(2)
+        })
+    });
+    let media = Fixture::with_reader(reader).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write(alien, 10).await;
     let file = media.stored(alien).await;
@@ -68,12 +84,10 @@ async fn a_version_read_by_the_probe_before_chapters_gets_them_when_probed_again
     assert_eq!(stored, Some(chapters_read()));
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_file_replaced_by_another_is_probed_again_and_its_tracks_replaced() {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(counting_ffprobe(bin.path())).await;
+    let reader = FakeReader::by_size();
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write(alien, 10).await;
     media.probe_changed().await;
@@ -82,16 +96,14 @@ async fn a_file_replaced_by_another_is_probed_again_and_its_tracks_replaced() {
     media.write(alien, 20).await;
     media.probe_changed().await;
 
-    assert_eq!(probe_runs(bin.path()), 2);
+    assert_eq!(reader.probes(), 2);
     assert_eq!(media.channels(alien).await, Some(20));
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_file_touched_without_changing_size_is_probed_again() {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(counting_ffprobe(bin.path())).await;
+    let reader = FakeReader::by_size();
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write(alien, 10).await;
     media.probe_changed().await;
@@ -106,27 +118,17 @@ async fn a_file_touched_without_changing_size_is_probed_again() {
     media.store(alien).await;
     media.probe_changed().await;
 
-    assert_eq!(probe_runs(bin.path()), 2);
+    assert_eq!(reader.probes(), 2);
     assert_eq!(media.channels(alien).await, Some(10));
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_file_replaced_by_one_that_cant_be_probed_loses_its_old_tracks() {
-    let bin = tempfile::tempdir().unwrap();
-    // Reads a file of up to 10 bytes as one audio Track, and fails on a bigger one.
-    let ffmpeg = fake_ffprobe(
-        bin.path(),
-        r#"for file; do :; done
-[ "$(wc -c < "$file")" -le 10 ] || exit 1
-echo '{"format": {"format_name": "matroska,webm", "duration": "1.000000"}, "streams": [{"codec_type": "audio", "codec_name": "ac3", "channels": 2}]}'"#,
-    );
-    let media = Fixture::with_ffmpeg(ffmpeg).await;
+    let media = Fixture::with_reader(FakeReader::answering(failing_over_10_bytes)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write(alien, 10).await;
     media.probe_changed().await;
-    assert_eq!(media.channels(alien).await, Some(2));
+    assert_eq!(media.channels(alien).await, Some(10));
 
     media.write(alien, 20).await;
     media.probe_changed().await;
@@ -135,53 +137,27 @@ echo '{"format": {"format_name": "matroska,webm", "duration": "1.000000"}, "stre
     assert_eq!(media.tracks.probe_version_of(version).await, None);
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_file_that_cant_be_probed_is_probed_again_only_once_it_changes() {
-    let bin = tempfile::tempdir().unwrap();
-    let runs = bin.path().join("runs");
-    // Logs each run, and reads a file of up to 10 bytes as one audio Track, failing on a
-    // bigger one.
-    let ffmpeg = fake_ffprobe(
-        bin.path(),
-        &format!(
-            r#"echo run >> '{}'
-for file; do :; done
-[ "$(wc -c < "$file")" -le 10 ] || exit 1
-echo '{{"format": {{"format_name": "matroska,webm", "duration": "1.000000"}}, "streams": [{{"codec_type": "audio", "codec_name": "ac3", "channels": 2}}]}}'"#,
-            runs.display()
-        ),
-    );
-    let media = Fixture::with_ffmpeg(ffmpeg).await;
+    let reader = FakeReader::answering(failing_over_10_bytes);
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write(alien, 20).await;
     media.probe_changed().await;
     media.probe_changed().await;
-    assert_eq!(
-        probe_runs(bin.path()),
-        1,
-        "an unreadable file was probed again"
-    );
+    assert_eq!(reader.probes(), 1, "an unreadable file was probed again");
 
     media.write(alien, 10).await;
     media.probe_changed().await;
 
-    assert_eq!(probe_runs(bin.path()), 2);
-    assert_eq!(media.channels(alien).await, Some(2));
+    assert_eq!(reader.probes(), 2);
+    assert_eq!(media.channels(alien).await, Some(10));
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_file_that_couldnt_be_probed_is_probed_again_once_the_probe_version_is_bumped() {
-    let bin = tempfile::tempdir().unwrap();
-    let runs = bin.path().join("runs");
-    let ffmpeg = fake_ffprobe(
-        bin.path(),
-        &format!("echo run >> '{}'\nexit 1", runs.display()),
-    );
-    let media = Fixture::with_ffmpeg(ffmpeg).await;
+    let reader = FakeReader::answering(|_| Err(failed()));
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write(alien, 10).await;
     media.probe_changed().await;
@@ -192,20 +168,13 @@ async fn a_file_that_couldnt_be_probed_is_probed_again_once_the_probe_version_is
         .await;
     media.probe_changed().await;
 
-    assert_eq!(probe_runs(bin.path()), 2);
+    assert_eq!(reader.probes(), 2);
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_file_that_couldnt_be_probed_is_probed_again_once_the_failure_version_is_bumped() {
-    let bin = tempfile::tempdir().unwrap();
-    let runs = bin.path().join("runs");
-    let ffmpeg = fake_ffprobe(
-        bin.path(),
-        &format!("echo run >> '{}'\nexit 1", runs.display()),
-    );
-    let media = Fixture::with_ffmpeg(ffmpeg).await;
+    let reader = FakeReader::answering(|_| Err(failed()));
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write(alien, 10).await;
     media.probe_changed().await;
@@ -218,42 +187,36 @@ async fn a_file_that_couldnt_be_probed_is_probed_again_once_the_failure_version_
     media.tracks.failed_by_older_failure_version(version).await;
     media.probe_changed().await;
 
-    assert_eq!(probe_runs(bin.path()), 2);
+    assert_eq!(reader.probes(), 2);
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_file_ffprobe_couldnt_be_run_on_is_probed_again_next_pass() {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(counting_ffprobe(bin.path())).await;
+    let reader = FakeReader::answering(|_| Err(couldnt_run()));
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write(alien, 10).await;
-    fs::remove_file(bin.path().join("ffprobe")).unwrap();
     media.probe_changed().await;
     let version = media.file_id(alien).await;
     assert_eq!(media.tracks.failure_reason_of(version).await, None);
 
-    counting_ffprobe(bin.path());
+    reader.answer(|path| Ok(by_size(path)));
     media.probe_changed().await;
 
     assert_eq!(media.channels(alien).await, Some(10));
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_file_is_probed_once_ffprobe_runs_again_however_many_passes_it_couldnt() {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(counting_ffprobe(bin.path())).await;
+    let reader = FakeReader::answering(|_| Err(couldnt_run()));
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write(alien, 10).await;
-    fs::remove_file(bin.path().join("ffprobe")).unwrap();
     for _ in 0..=PROBE_ATTEMPTS {
         media.probe_changed().await;
     }
 
-    counting_ffprobe(bin.path());
+    reader.answer(|path| Ok(by_size(path)));
     media.probe_changed().await;
 
     assert_eq!(media.channels(alien).await, Some(10));
@@ -261,12 +224,9 @@ async fn a_file_is_probed_once_ffprobe_runs_again_however_many_passes_it_couldnt
 
 const TIMED_OUT: ProbeFailure = ProbeFailure::Passing(PassingReason::TimedOut);
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_file_that_timed_out_is_probed_again_next_pass() {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(counting_ffprobe(bin.path())).await;
+    let media = Fixture::with_reader(FakeReader::by_size()).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write(alien, 10).await;
     let file = media.stored(alien).await;
@@ -279,12 +239,10 @@ async fn a_file_that_timed_out_is_probed_again_next_pass() {
     assert_eq!(media.channels(alien).await, Some(10));
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_file_that_keeps_timing_out_is_given_up_on() {
-    let bin = tempfile::tempdir().unwrap();
-    let media = Fixture::with_ffmpeg(counting_ffprobe(bin.path())).await;
+    let reader = FakeReader::by_size();
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write(alien, 10).await;
     let file = media.stored(alien).await;
@@ -293,36 +251,28 @@ async fn a_file_that_keeps_timing_out_is_given_up_on() {
     }
 
     media.probe_changed().await;
-    assert_eq!(probe_runs(bin.path()), 0, "probed after too many attempts");
+    assert_eq!(reader.probes(), 0, "probed after too many attempts");
 
     media.tracks.failed_by_older_failure_version(file.id).await;
     media.probe_changed().await;
     assert_eq!(media.channels(alien).await, Some(10));
 }
 
-// The fake ffprobe is a shell script.
-#[cfg(unix)]
 #[tokio::test]
 async fn a_file_gone_by_the_time_its_probed_is_probed_again_once_back() {
-    let bin = tempfile::tempdir().unwrap();
-    let gone = bin.path().join("gone");
-    // The first time, moves the file away as a dropped share would, and fails on it.
-    let ffmpeg = fake_ffprobe(
-        bin.path(),
-        &format!(
-            r#"for file; do :; done
-if [ ! -e '{gone}' ]; then touch '{gone}'; mv "$file" "$file.away"; exit 1; fi
-echo "{{\"format\": {{\"format_name\": \"matroska,webm\", \"duration\": \"1.000000\"}}, \"streams\": [{{\"codec_type\": \"audio\", \"codec_name\": \"ac3\", \"channels\": $(wc -c < "$file")}}]}}""#,
-            gone = gone.display()
-        ),
-    );
-    let media = Fixture::with_ffmpeg(ffmpeg).await;
+    // Moves the file away as a dropped share would, and fails on it.
+    let reader = FakeReader::answering(|path| {
+        fs::rename(path, format!("{path}.away")).unwrap();
+        Err(failed())
+    });
+    let media = Fixture::with_reader(Arc::clone(&reader)).await;
     let alien = "Alien (1979)/Alien (1979).mkv";
     media.write(alien, 10).await;
     media.probe_changed().await;
     let version = media.file_id(alien).await;
     assert_eq!(media.tracks.failure_reason_of(version).await, None);
 
+    reader.answer(|path| Ok(by_size(path)));
     // A rename keeps its size and modified time, as a share coming back would.
     let path = media.path(alien);
     fs::rename(path.with_extension("mkv.away"), &path).unwrap();

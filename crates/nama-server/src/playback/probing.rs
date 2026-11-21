@@ -14,6 +14,8 @@
 mod cues;
 mod ffprobe;
 mod mp4;
+#[cfg(test)]
+mod testing;
 
 use std::{
     collections::{HashMap, HashSet, hash_map::Entry},
@@ -31,6 +33,7 @@ use tokio::sync::{Notify, watch};
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tracing::Instrument as _;
 
+use self::ffprobe::{Ffprobe, Reader};
 use super::{
     StoredTracks,
     read_failures::{Read, ReadFailure},
@@ -135,7 +138,7 @@ struct Inner {
     contents: Contents,
     tracks: Tracks,
     stored_tracks: StoredTracks,
-    ffmpeg: Arc<Ffmpeg>,
+    reader: Arc<dyn Reader>,
     subtitles: subtitles::Cache,
     /// Where downloaded subtitles and Preview frames are kept, from which it deletes those of
     /// Versions gone.
@@ -171,12 +174,22 @@ impl Probing {
         subtitles: subtitles::Cache,
         images: ImageStore,
     ) -> Self {
+        Self::with_reader(db, Arc::new(Ffprobe(ffmpeg)), subtitles, images)
+    }
+
+    /// As [`Self::new`], reading files with `reader` rather than ffprobe.
+    fn with_reader(
+        db: Arc<Database>,
+        reader: Arc<dyn Reader>,
+        subtitles: subtitles::Cache,
+        images: ImageStore,
+    ) -> Self {
         Self {
             inner: Arc::new(Inner {
                 tracks: Tracks::new(Arc::clone(&db)),
                 stored_tracks: StoredTracks::new(Arc::clone(&db)),
                 contents: Contents::new(db),
-                ffmpeg,
+                reader,
                 subtitles,
                 images,
                 tasks: TaskTracker::new(),
@@ -302,7 +315,7 @@ impl Probing {
         if self.inner.cancel.is_cancelled() {
             return;
         }
-        if !self.inner.ffmpeg.can_probe() {
+        if !self.inner.reader.can_read() {
             finished(ProbingFinished {
                 library_id: library,
                 ..Default::default()
@@ -517,7 +530,7 @@ impl Probing {
         {
             return Ok(probe);
         }
-        match ffprobe::probe(&self.inner.ffmpeg, path).await {
+        match self.inner.reader.probe(path.to_owned()).await {
             Ok((probe, starts)) => {
                 let indexed = match probe.container.as_str() {
                     "matroska,webm" => cues::listed(path, starts.file_ms, probe.duration_ms).await,
@@ -598,7 +611,7 @@ impl Probing {
     /// the file changes or the probe failure version is bumped. Unlike a probe, a timeout isn't
     /// tried again: each try reads the whole file for up to `WHOLE_FILE_TIMEOUT` (#850).
     async fn list_claimed(&self, path: &str, claim: Claim<Listed>) -> Result<(), sqlx::Error> {
-        let listed = ffprobe::keyframes(&self.inner.ffmpeg, path)
+        let listed = (self.inner.reader.keyframes(path.to_owned()))
             .await
             .map_err(Arc::new);
         let kept = match &listed {
