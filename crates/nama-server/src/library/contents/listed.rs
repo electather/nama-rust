@@ -47,28 +47,29 @@ impl Contents {
         // SQLite reads a negative LIMIT as none.
         let limit = limit.map_or(-1, |limit| i64::try_from(limit).unwrap_or(i64::MAX));
         // ponytail: whole-Library read. Each Movie or Episode is its rows of `matched_items`
-        // sharing an own id, which splits at its first `-` as `ExternalId` reads it.
+        // sharing an own id, which splits at its first `-` as `ExternalId` reads it. `items` is
+        // MATERIALIZED, or SQLite would run `own_id`'s subquery again at each use.
         macro_rules! select {
             (($($matched:tt)+)) => {
                 sqlx::query!(
-                    r#"WITH listed AS (
-                           SELECT substr(matched_items.own_id, 1,
-                                         instr(matched_items.own_id, '-') - 1) AS namespace,
-                                  substr(matched_items.own_id,
-                                         instr(matched_items.own_id, '-') + 1) AS value,
-                                  matched_items.listed_id, matched_items.season,
-                                  matched_items.episode, item_matches.title,
+                    r#"WITH items AS MATERIALIZED (
+                           SELECT matched_items.own_id, matched_items.listed_id,
+                                  matched_items.path, matched_items.season, matched_items.episode,
+                                  matched_items.added_at, item_matches.title,
                                   item_matches.show_title, item_matches.genres,
-                                  item_matches.content_rating,
-                                  ROW_NUMBER() OVER (PARTITION BY matched_items.own_id
-                                                     ORDER BY matched_items.path) AS version,
-                                  MAX(matched_items.added_at)
-                                      OVER (PARTITION BY matched_items.own_id) AS newest_added_at
+                                  item_matches.content_rating
                            FROM "#
                         + $($matched)+
                         + r#" AS matched_items
                            JOIN item_matches ON item_matches.item_id = matched_items.item_id
-                           WHERE matched_items.library_id = ?1 AND matched_items.kind = ?2)
+                           WHERE matched_items.library_id = ?1 AND matched_items.kind = ?2),
+                       listed AS (
+                           SELECT *, substr(own_id, 1, instr(own_id, '-') - 1) AS namespace,
+                                  substr(own_id, instr(own_id, '-') + 1) AS value,
+                                  ROW_NUMBER() OVER (PARTITION BY own_id ORDER BY path)
+                                      AS version,
+                                  MAX(added_at) OVER (PARTITION BY own_id) AS newest_added_at
+                           FROM items)
                        SELECT namespace AS "namespace!: String", value AS "value!: String",
                               title AS "title!", show_title, season, episode,
                               newest_added_at AS "newest_added_at!: i64",
