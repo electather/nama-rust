@@ -1,8 +1,8 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { fireEvent, screen, within } from "@testing-library/react";
-import { describe, expect, test } from "vite-plus/test";
+import { describe, expect, test, vi } from "vite-plus/test";
 
-import { JobRunOutcome, JobService } from "@/gen/nama/v1/job_pb";
+import { type ConfigureJobRequest, JobRunOutcome, JobService } from "@/gen/nama/v1/job_pb";
 import { PluginLogLevel } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { admin, fakeServer, openApp } from "@/test-app";
@@ -38,6 +38,8 @@ const forgetHomeRows = {
   name: "Forget Home rows",
   description: "Forgets the Home rows of Users who stopped visiting.",
   schedule: "0 4 * * *",
+  defaultSchedule: "0 4 * * *",
+  enabled: true,
   nextRunsAtMs: [START + DAY, START + 2n * DAY, START + 3n * DAY],
   lastRun: runs[0],
 };
@@ -48,6 +50,7 @@ const deleteExpired = {
   id: "delete-expired",
   name: "Delete expired sign-ins",
   schedule: "10 4 * * *",
+  defaultSchedule: "10 4 * * *",
   nextRunsAtMs: [START + DAY],
 };
 
@@ -57,12 +60,13 @@ const cleanUp = {
   id: "clean",
   name: "Clean up",
   schedule: "",
+  enabled: true,
 };
 
 /** The Run "Run now" starts of "Delete expired sign-ins". */
 const ranNow = { id: 4n, outcome: JobRunOutcome.RUNNING, startedAtMs: START, startedBy: "Ada" };
 
-function openJobs() {
+function openJobs(configured: Partial<ConfigureJobRequest>[] = []) {
   let ran: typeof ranNow | undefined;
   openApp(
     "/admin/jobs",
@@ -79,6 +83,19 @@ function openJobs() {
             return { runs: ran ? [ran] : [] };
           }
           return { runs: jobId === "forget-home-rows" ? runs : [] };
+        },
+        configureJob: ({ pluginId, jobId, enabled, schedule }) => {
+          configured.push({ pluginId, jobId, enabled, schedule });
+          return {};
+        },
+        previewJobSchedule: ({ schedule }) => {
+          if (schedule.split(" ").length !== 5) {
+            throw refused(Code.InvalidArgument, `the schedule "${schedule}" has 4 fields`, {
+              reason: RefusalReason.SCHEDULE_INVALID,
+              field: "schedule",
+            });
+          }
+          return { nextRunsAtMs: [START, START + HOUR, START + 2n * HOUR] };
         },
         runJob: ({ jobId }) => {
           if (jobId === "forget-home-rows") {
@@ -106,6 +123,7 @@ describe("the Jobs page", () => {
     expect(screen.getByText("Only when an Admin runs it")).toBeDefined();
     expect(screen.getByText(/^Next run .* · Last run /u)).toBeDefined();
     expect(screen.getByText(/^Next run .* · Never run$/u)).toBeDefined();
+    expect(screen.getAllByText("Off")).toHaveLength(1);
     expect(screen.getByText("Failed")).toBeDefined();
     expect(screen.queryByRole("searchbox")).toBeNull();
   });
@@ -182,5 +200,76 @@ describe("the Jobs page", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toBe("It’s running now. Run it again once that Run ends.");
+  });
+});
+
+/** Opens the Configure dialog of the Job named `name`. */
+async function configure(name: string) {
+  fireEvent.click(await screen.findByRole("button", { name: `Configure ${name}` }));
+  return within(await screen.findByRole("alertdialog", { name: `Configure ${name}` }));
+}
+
+describe("configuring a Job", () => {
+  test("turns it off and gives it a schedule of its own, previewing its next times", async () => {
+    const configured: Partial<ConfigureJobRequest>[] = [];
+    openJobs(configured);
+
+    const dialog = await configure("Forget Home rows");
+    const on = dialog.getByRole("switch", { name: "Enabled" });
+    expect(on.getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(on);
+    const schedule = dialog.getByLabelText("Schedule");
+    expect(schedule.getAttribute("placeholder")).toBe("0 4 * * *");
+    fireEvent.change(schedule, { target: { value: "0 * * * *" } });
+    const next = await dialog.findByRole("list", { name: "Next runs" });
+    expect(within(next).getAllByRole("listitem")).toHaveLength(3);
+    fireEvent.click(dialog.getByRole("button", { name: "Save" }));
+
+    await vi.waitFor(() => {
+      expect(configured).toStrictEqual([
+        { pluginId: "upkeep", jobId: "forget-home-rows", enabled: false, schedule: "0 * * * *" },
+      ]);
+    });
+  });
+
+  test("says why a schedule doesn't parse as it's typed", async () => {
+    openJobs();
+
+    const dialog = await configure("Forget Home rows");
+    fireEvent.change(dialog.getByLabelText("Schedule"), { target: { value: "0 4 * *" } });
+
+    await expect(dialog.findByText('The schedule "0 4 * *" has 4 fields.')).resolves.toBeDefined();
+    expect(dialog.getByLabelText("Schedule").getAttribute("aria-invalid")).toBe("true");
+  });
+
+  test("reset to default saves it on, on its Plugin's schedule", async () => {
+    const configured: Partial<ConfigureJobRequest>[] = [];
+    openJobs(configured);
+
+    const dialog = await configure("Delete expired sign-ins");
+    expect(dialog.getByRole("switch", { name: "Enabled" }).getAttribute("aria-checked")).toBe(
+      "false",
+    );
+    fireEvent.click(dialog.getByRole("button", { name: "Reset to default" }));
+    expect(dialog.getByRole("switch", { name: "Enabled" }).getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    fireEvent.click(dialog.getByRole("button", { name: "Save" }));
+
+    await vi.waitFor(() => {
+      expect(configured).toStrictEqual([
+        { pluginId: "upkeep", jobId: "delete-expired", enabled: true, schedule: "" },
+      ]);
+    });
+  });
+
+  test("a Job without a schedule can't be given one", async () => {
+    openJobs();
+
+    const dialog = await configure("Clean up");
+
+    expect(dialog.getByRole("switch", { name: "Enabled" })).toBeDefined();
+    expect(dialog.queryByLabelText("Schedule")).toBeNull();
+    expect(dialog.getByText("It runs only when an Admin runs it.")).toBeDefined();
   });
 });

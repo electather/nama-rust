@@ -18,6 +18,20 @@ service JobService {
   rpc ListJobRuns(ListJobRunsRequest) returns (ListJobRunsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Turns a Job on or off and sets the schedule it runs on in place of its Manifest's, taking
+  // effect at once. A Job on and on its Manifest's schedule has nothing stored, so a Plugin
+  // update's new schedule reaches it: that is how a Job is reset to its default. Fails with
+  // `REFUSAL_REASON_JOB_NOT_FOUND` if no Plugin the Server has declares it, and
+  // `REFUSAL_REASON_SCHEDULE_INVALID` if `schedule` doesn't parse or is set for a Job without one
+  // of its own.
+  rpc ConfigureJob(ConfigureJobRequest) returns (ConfigureJobResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Returns when `schedule` next fires, for showing before it is saved. Fails with
+  // `REFUSAL_REASON_SCHEDULE_INVALID` if it doesn't parse.
+  rpc PreviewJobSchedule(PreviewJobScheduleRequest) returns (PreviewJobScheduleResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
   // Starts a Run of a Job now, scheduled or not, recorded as started by the caller, and returns
   // once its Run is listed, without waiting for it to end. Fails with `failed_precondition` and
   // `REFUSAL_REASON_JOB_RUNNING` while the Job has a Run going, and `not_found` and
@@ -42,14 +56,42 @@ message Job {
   string name = 4;
   // What it does.
   string description = 5;
-  // Its standard 5-field cron schedule, such as `0 4 * * *`, read in the Server's time zone, or
-  // empty for a Job that runs only when an Admin starts it.
+  // The standard 5-field cron schedule it runs on, such as `0 4 * * *`, read in the Server's
+  // time zone: an Admin's in place of `default_schedule`, or that. Empty for a Job that runs only
+  // when an Admin starts it.
   string schedule = 6;
   // When its schedule next fires, soonest first, in milliseconds since the Unix epoch: up to 3,
-  // and none without a schedule.
+  // and none without a schedule or while it is off.
   repeated int64 next_runs_at_ms = 7;
   // Its newest Run, which may still be running. Unset if it never ran.
   JobRun last_run = 8;
+  // The schedule its Plugin's Manifest declares, or empty for none.
+  string default_schedule = 9;
+  // Whether it runs on its schedule. An Admin turns it off with `ConfigureJob`.
+  bool enabled = 10;
+}
+
+message ConfigureJobRequest {
+  // The id of the Plugin declaring the Job, such as `upkeep`.
+  string plugin_id = 1;
+  // The Job's id, such as `forget-home-rows`.
+  string job_id = 2;
+  // Whether it runs on its schedule.
+  bool enabled = 3;
+  // A standard 5-field cron schedule to run it on in place of its Manifest's, or empty for that.
+  string schedule = 4;
+}
+
+message ConfigureJobResponse {}
+
+message PreviewJobScheduleRequest {
+  // A standard 5-field cron schedule, such as `*/15 * * * *`.
+  string schedule = 1;
+}
+
+message PreviewJobScheduleResponse {
+  // When it next fires, soonest first, in milliseconds since the Unix epoch: up to 3.
+  repeated int64 next_runs_at_ms = 1;
 }
 
 message ListJobRunsRequest {

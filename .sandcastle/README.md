@@ -110,6 +110,6 @@ Failures:
 - **Babysat PR closed, or its issue closed or without `ready-for-agent`:** the babysitter lets go within a minute and leaves the PR as it is.
 - **GitHub API rate limit** (5000 calls an hour, shared by both machines' factories and your own `gh`): not a crash. Work that hits it is dropped and taken again, and nothing new starts until the limit resets.
 - **Agent silent for 30 minutes, or a prompt's `!` command over 30 seconds** (sandcastle's timeouts): that issue crashes and the rest of the run carries on. The next run takes it again.
-- **No CI run starts within 15 minutes** (GitHub delays them during incidents): an infra error, below.
+- **No CI run starts within 15 minutes** (GitHub delays them during incidents): an infra error, below. After 5 minutes without one the factory adds an empty commit once, through the API: GitHub sometimes drops a single push's event.
 - **PR merged by hand:** the factory notices within a minute, at any stage, stops that issue and records it as merged ("merged by hand"), closing finished parents as usual.
 - **Infra error (Docker, auth, Claude usage limit):** nothing is relabelled. The run starts no new builds or triages but keeps babysitting PRs, each at most once more, then exits with code 1. Rerun once the problem is fixed: an issue without a PR is built again, one with a PR is only babysat.

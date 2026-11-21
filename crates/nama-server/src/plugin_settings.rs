@@ -30,7 +30,7 @@ use crate::{
     library::Contents,
     plugins::{
         CheckError, EnableError, ExtensionPoints, LastProvider, Listed, ListedJob, Registry,
-        list_jobs, log_not_enabled, read_installed,
+        forget_undeclared_jobs, list_jobs, log_not_enabled, read_installed,
     },
 };
 
@@ -255,6 +255,7 @@ impl PluginSettings {
         })
         .await
         .map_err(StartError::Panicked)?;
+        forget_undeclared_jobs(&plugins.db, &plugins.registry.plugins()).await;
         if plugins.registry.providers::<dyn Authenticator>().is_empty() {
             return Err(StartError::NoAuthenticator);
         }
@@ -398,9 +399,9 @@ impl PluginSettings {
         drop(changing);
         self.note_had().await;
         let mut stored = self.stored().await?;
-        Ok(self
-            .registry
-            .plugins()
+        let plugins = self.registry.plugins();
+        forget_undeclared_jobs(&self.db, &plugins).await;
+        Ok(plugins
             .into_iter()
             .map(|plugin| with_stored(plugin, &mut stored))
             .collect())
