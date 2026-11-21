@@ -391,6 +391,10 @@ _Avoid_: hardsub, hardcoded subtitles, overlay
 How the Server will play one Version on one Device: which Version, when the client didn't name one; by Direct Play, Remux or Transcode; with which Tracks; and the Playback Reasons for it. A new one is made whenever what it was based on changes.
 _Avoid_: decision, profile, stream info
 
+**Recipe**:
+What sets a Playback Plan apart from another by the same method: the container it serves and the audio codec it sends, such as a Remux in fragmented MP4 sending E-AC-3. A Device that fails to play a plan names its Recipe, so the next plan rules out only that Recipe and plays the method another way if it can.
+_Avoid_: attempt key, variant
+
 **Playback Reason**:
 One fact that shaped a Playback Plan, such as a codec the Device can't decode or a Playback Limit the picture is larger than. It either decided the plan, by standing in the way of a method the plan would rather have used, changing what plays or dropping one of the User's choices, or is context.
 _Avoid_: explanation, note

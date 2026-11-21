@@ -47,11 +47,11 @@ const planning = (
     {},
     (router) => {
       router.service(PlaybackService, {
-        planPlayback: ({ failedMethods }) => {
+        planPlayback: ({ failedRecipes }) => {
           stoppedWhenAsked.push([...stopped]);
           const id = BigInt(stoppedWhenAsked.length);
           const played =
-            failedMethods.length === 0
+            failedRecipes.length === 0
               ? { method, url }
               : { method: PlaybackMethod.REMUX, url: PLAYLIST };
           return { plan: { id, ...played, playbackLimits: [PlaybackLimit.PLAYBACK_LIMIT_720P] } };

@@ -115,6 +115,7 @@ impl Alien {
             version: self.version,
             decoding: DeviceDecoding::default(),
             failed: BTreeSet::new(),
+            failed_recipes: BTreeSet::new(),
             audio: None,
             subtitle,
             limit: PickedLimit::Unpicked,

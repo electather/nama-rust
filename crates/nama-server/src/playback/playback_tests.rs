@@ -126,6 +126,7 @@ pub(super) fn in_container(container: &str, tracks: Option<Vec<Track>>) -> Facts
         },
         failed: BTreeSet::new(),
         failed_on_server: BTreeSet::new(),
+        failed_recipes: BTreeSet::new(),
         keyframes_unlisted: false,
         audio: None,
         running_transcodes: RunningTranscodes::default(),
@@ -296,6 +297,74 @@ fn a_remux_whose_keyframes_couldnt_be_listed_transcodes_and_says_why() {
 
     assert_eq!(plan.method(), Some(Method::Transcode));
     assert!(reason_of(&plan, Kind::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED).decided);
+}
+
+/// An E-AC-3 Matroska Version, on Firefox that says it decodes E-AC-3, which a Remux copies, after
+/// the Recipes `failed` failed on it.
+fn eac3_remux_after(failed: &[&str]) -> Facts {
+    let mut facts = in_container(MKV, Some(vec![video("h264"), audio("eac3", true)]));
+    facts.device.audio_codecs.push(AudioCodec::AUDIO_CODEC_EAC3);
+    facts.failed_recipes = failed.iter().map(|&recipe| recipe.to_owned()).collect();
+    facts
+}
+
+#[test]
+fn a_remux_names_its_container_and_the_audio_codec_it_sends_as_its_recipe() {
+    let plan = build(&mut eac3_remux_after(&[]));
+
+    assert_eq!(plan.playing, Some(remuxing(0, None)));
+    assert_eq!(plan.recipe(), "remux/fmp4/eac3");
+}
+
+#[test]
+fn a_failed_remux_recipe_remuxes_another_way_and_says_why() {
+    let plan = build(&mut eac3_remux_after(&["remux/fmp4/eac3"]));
+
+    assert_eq!(
+        plan.playing,
+        Some(remuxing(0, Some((AudioEncoder::Aac, 2))))
+    );
+    assert_eq!(plan.recipe(), "remux/fmp4/aac");
+    let failed = reason_of(&plan, Kind::PLAYBACK_REASON_KIND_RECIPE_FAILED_ON_DEVICE);
+    assert_eq!(
+        kind_and_params(failed).1,
+        [("method", "PLAYBACK_METHOD_REMUX"), ("codec", "eac3")]
+    );
+    assert!(failed.decided);
+}
+
+#[test]
+fn a_method_whose_every_recipe_failed_is_ruled_out_as_failed_on_the_device() {
+    let plan = build(&mut eac3_remux_after(&[
+        "remux/fmp4/eac3",
+        "remux/fmp4/aac",
+    ]));
+
+    assert_eq!(plan.method(), Some(Method::Transcode));
+    let failed = reason_of(&plan, Kind::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE);
+    assert_eq!(
+        kind_and_params(failed).1,
+        [("method", "PLAYBACK_METHOD_REMUX")]
+    );
+    assert!(failed.decided);
+}
+
+#[test]
+fn a_failed_direct_play_recipe_rules_out_direct_play() {
+    let mut facts = facts(Some(vec![video("h264"), audio("aac", true)]));
+    let recipe = build(&mut facts.clone()).recipe();
+    facts.failed_recipes = BTreeSet::from([recipe]);
+
+    let plan = build(&mut facts);
+
+    assert_eq!(plan.method(), Some(Method::Remux));
+    assert_eq!(
+        given(&plan),
+        [(
+            Kind::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE,
+            vec![("method", "PLAYBACK_METHOD_DIRECT_PLAY")]
+        )]
+    );
 }
 
 fn rules_out_direct_play(_: &Facts, _: Option<&Candidates>) -> Vec<Reason> {

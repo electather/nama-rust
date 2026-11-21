@@ -5,7 +5,7 @@ use nama_proto::nama::v1 as proto;
 use proto::PlaybackReasonKind as Kind;
 
 use super::{
-    Choice, DeviceDecoding, Facts, Method, Playing, Reason,
+    Choice, DeviceDecoding, Facts, Method, Playing, Reason, recipe,
     steps::hdr_reason,
     tracks::{Hdr, Probe, Track, TrackKind},
 };
@@ -152,6 +152,17 @@ pub(super) fn played_by(playing: Option<&Playing>, tracks: Vec<Track>) -> Vec<Tr
         }
         None | Some(Playing::DirectPlay | Playing::Remux { .. }) => tracks,
     }
+}
+
+/// `facts.device` without the audio codecs whose Recipe ([`recipe`]) by `method` just failed on it, so
+/// `method` sends another if it can.
+pub(super) fn untried_by(method: Method, facts: &Facts) -> DeviceDecoding {
+    let mut device = facts.device.clone();
+    device.audio_codecs.retain(|codec| {
+        let named = AUDIO_CODECS.iter().find(|(_, known, _)| known == codec);
+        named.is_none_or(|(name, ..)| !facts.failed_recipes.contains(&recipe(method, Some(name))))
+    });
+    device
 }
 
 /// What a Remux converts the audio Track `audio` to, if `device` can't decode it, as

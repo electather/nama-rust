@@ -7932,13 +7932,20 @@ pub struct PlanPlaybackRequestView<'a> {
     pub device_decoding: ::buffa::MessageFieldView<
         super::super::__buffa::view::DeviceDecodingView<'a>,
     >,
-    /// The methods that just failed to play this Version on this Device.
+    /// The methods that just failed to play this Version on this Device, each ruled out whole. A
+    /// client that sends `failed_recipes` leaves this empty.
     ///
     /// Field 7: `failed_methods`
     pub failed_methods: ::buffa::RepeatedView<
         'a,
         ::buffa::EnumValue<super::super::PlaybackMethod>,
     >,
+    /// The `PlaybackPlan.recipe` of each plan that just failed to play this Version on this Device,
+    /// as the plan gave it. Each rules out only that Recipe: the plan plays by the same method
+    /// another way if it can, and rules the method out only once every way it has failed.
+    ///
+    /// Field 9: `failed_recipes`
+    pub failed_recipes: ::buffa::RepeatedView<'a, &'a str>,
     /// Set, with `subtitle_track` unset, for none burned in and none chosen, as when the player
     /// shows no subtitle or a text one from `PlaybackPlan.subtitles` itself.
     ///
@@ -8071,6 +8078,17 @@ impl<'a> ::buffa::MessageView<'a> for PlanPlaybackRequestView<'a> {
                     );
                 }
             }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.failed_recipes.push(__elem);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -8114,6 +8132,7 @@ impl<'a> ::buffa::MessageView<'a> for PlanPlaybackRequestView<'a> {
                 None => ::buffa::MessageField::none(),
             },
             failed_methods: self.failed_methods.to_vec(),
+            failed_recipes: self.failed_recipes.iter().map(|s| s.to_string()).collect(),
             no_subtitles: self.no_subtitles,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
@@ -8165,6 +8184,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlanPlaybackRequestView<'a> {
         if self.no_subtitles {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        for v in &self.failed_recipes {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -8215,6 +8237,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlanPlaybackRequestView<'a> {
         }
         if self.no_subtitles {
             ::buffa::types::put_bool_field(8u32, self.no_subtitles, buf);
+        }
+        for v in &self.failed_recipes {
+            ::buffa::types::put_string_field(9u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -8276,6 +8301,9 @@ impl<'__a> ::serde::Serialize for PlanPlaybackRequestView<'__a> {
                     "failedMethods",
                     &::buffa::json_helpers::EnumSeqJson(&self.failed_methods),
                 )?;
+        }
+        if !self.failed_recipes.is_empty() {
+            __map.serialize_entry("failedRecipes", &*self.failed_recipes)?;
         }
         if self.no_subtitles {
             __map.serialize_entry("noSubtitles", &self.no_subtitles)?;
@@ -8431,7 +8459,8 @@ impl PlanPlaybackRequestOwnedView {
     > {
         &self.0.reborrow().device_decoding
     }
-    /// The methods that just failed to play this Version on this Device.
+    /// The methods that just failed to play this Version on this Device, each ruled out whole. A
+    /// client that sends `failed_recipes` leaves this empty.
     ///
     /// Field 7: `failed_methods`
     #[must_use]
@@ -8439,6 +8468,15 @@ impl PlanPlaybackRequestOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::PlaybackMethod>> {
         &self.0.reborrow().failed_methods
+    }
+    /// The `PlaybackPlan.recipe` of each plan that just failed to play this Version on this Device,
+    /// as the plan gave it. Each rules out only that Recipe: the plan plays by the same method
+    /// another way if it can, and rules the method out only once every way it has failed.
+    ///
+    /// Field 9: `failed_recipes`
+    #[must_use]
+    pub fn failed_recipes(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().failed_recipes
     }
     /// Set, with `subtitle_track` unset, for none burned in and none chosen, as when the player
     /// shows no subtitle or a text one from `PlaybackPlan.subtitles` itself.
@@ -8532,6 +8570,10 @@ pub struct DeviceDecodingView<'a> {
         'a,
         ::buffa::EnumValue<super::super::SubtitleFormat>,
     >,
+    /// How sure it is of what it says it decodes.
+    ///
+    /// Field 11: `evidence`
+    pub evidence: ::buffa::EnumValue<super::super::DecodingEvidence>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
@@ -8598,6 +8640,15 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.audio_channels = ::buffa::types::decode_uint32(&mut cur)?;
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.evidence = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
             }
             6u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
@@ -8747,6 +8798,7 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
             mse: self.mse,
             audio_channels: self.audio_channels,
             subtitle_formats: self.subtitle_formats.to_vec(),
+            evidence: self.evidence,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -8805,6 +8857,12 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
         }
         if self.h264_10bit {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        {
+            let val = self.evidence.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -8876,6 +8934,12 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
         if self.h264_10bit {
             ::buffa::types::put_bool_field(10u32, self.h264_10bit, buf);
         }
+        {
+            let val = self.evidence.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(11u32, val, buf);
+            }
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -8943,6 +9007,9 @@ impl<'__a> ::serde::Serialize for DeviceDecodingView<'__a> {
                     "subtitleFormats",
                     &::buffa::json_helpers::EnumSeqJson(&self.subtitle_formats),
                 )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.evidence) {
+            __map.serialize_entry("evidence", &self.evidence)?;
         }
         __map.end()
     }
@@ -9109,6 +9176,13 @@ impl DeviceDecodingOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::SubtitleFormat>> {
         &self.0.reborrow().subtitle_formats
+    }
+    /// How sure it is of what it says it decodes.
+    ///
+    /// Field 11: `evidence`
+    #[must_use]
+    pub fn evidence(&self) -> ::buffa::EnumValue<super::super::DecodingEvidence> {
+        self.0.reborrow().evidence
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<DeviceDecodingView<'static>>>
@@ -9613,6 +9687,13 @@ pub struct PlaybackPlanView<'a> {
     ///
     /// Field 18: `can_search_subtitles`
     pub can_search_subtitles: bool,
+    /// Its Recipe, what sets it apart from another plan by the same method: the method, the
+    /// container it serves and the audio codec it sends, such as `remux/fmp4/eac3`. A client that
+    /// fails to play it sends it back as it is in `PlanPlaybackRequest.failed_recipes`; its form
+    /// isn't API contract. Empty when it can't be played.
+    ///
+    /// Field 19: `recipe`
+    pub recipe: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
@@ -9725,6 +9806,13 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.can_search_subtitles = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            19u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.recipe = ::buffa::types::borrow_str(&mut cur)?;
             }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -9955,6 +10043,7 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             can_search_subtitles: self.can_search_subtitles,
+            recipe: self.recipe.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -10067,6 +10156,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
         }
         if self.can_search_subtitles {
             size += 2u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if !self.recipe.is_empty() {
+            size += 2u64 + ::buffa::types::string_encoded_len(&self.recipe) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -10190,6 +10282,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
         if self.can_search_subtitles {
             ::buffa::types::put_bool_field(18u32, self.can_search_subtitles, buf);
         }
+        if !self.recipe.is_empty() {
+            ::buffa::types::put_string_field(19u32, &self.recipe, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -10284,6 +10379,9 @@ impl<'__a> ::serde::Serialize for PlaybackPlanView<'__a> {
         }
         if self.can_search_subtitles {
             __map.serialize_entry("canSearchSubtitles", &self.can_search_subtitles)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.recipe) {
+            __map.serialize_entry("recipe", self.recipe)?;
         }
         __map.end()
     }
@@ -10542,6 +10640,16 @@ impl PlaybackPlanOwnedView {
     #[must_use]
     pub fn can_search_subtitles(&self) -> bool {
         self.0.reborrow().can_search_subtitles
+    }
+    /// Its Recipe, what sets it apart from another plan by the same method: the method, the
+    /// container it serves and the audio codec it sends, such as `remux/fmp4/eac3`. A client that
+    /// fails to play it sends it back as it is in `PlanPlaybackRequest.failed_recipes`; its form
+    /// isn't API contract. Empty when it can't be played.
+    ///
+    /// Field 19: `recipe`
+    #[must_use]
+    pub fn recipe(&self) -> &'_ str {
+        self.0.reborrow().recipe
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PlaybackPlanView<'static>>>

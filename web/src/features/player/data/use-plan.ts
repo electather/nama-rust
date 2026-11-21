@@ -17,14 +17,14 @@ import { PlaybackPlanSchema, PlaybackService } from "@/gen/nama/v1/playback_pb";
 export function usePlan(versionId: bigint, asking: Asking) {
   const transport = useTransport();
   const tellStopped = useStopPlan();
-  const { failedMethods, startPositionMs, audioTrack, playbackLimit, subtitleTrack, noSubtitles } =
+  const { failedRecipes, startPositionMs, audioTrack, playbackLimit, subtitleTrack, noSubtitles } =
     asking;
   const { replacing } = asking;
   return useSuspenseQuery({
     queryKey: [
       "planPlayback",
       String(versionId),
-      failedMethods,
+      failedRecipes,
       String(startPositionMs),
       audioTrack,
       playbackLimit,
@@ -40,7 +40,7 @@ export function usePlan(versionId: bigint, asking: Asking) {
       const input = {
         versionId,
         deviceDecoding,
-        failedMethods,
+        failedRecipes,
         startPositionMs,
         audioTrack,
         playbackLimit,

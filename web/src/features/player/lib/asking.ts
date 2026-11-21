@@ -1,10 +1,11 @@
 import { toMs } from "@/features/player/lib/to-ms";
-import { PlaybackLimit, type PlaybackMethod, type PlaybackPlan } from "@/gen/nama/v1/playback_pb";
+import { PlaybackLimit, type PlaybackPlan } from "@/gen/nama/v1/playback_pb";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 
 /** What the player asks a plan for, beside the Version. */
 export interface Asking {
-  failedMethods: PlaybackMethod[];
+  /** The Recipes of the plans that failed, so the Server plays their methods another way if it can. */
+  failedRecipes: string[];
   startPositionMs: bigint;
   /**
    * The chosen audio Track's place in the Version's Tracks; until the player has a plan,
@@ -51,7 +52,7 @@ export interface Choice {
 /** The first ask, which starts where `watchState` stopped. */
 export function firstAsking(watchState: WatchState | undefined): Asking {
   return {
-    failedMethods: [],
+    failedRecipes: [],
     startPositionMs: watchState && !watchState.played ? watchState.positionMs : 0n,
     audioTrack: undefined,
     playbackLimit: PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED,

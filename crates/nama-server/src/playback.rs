@@ -76,7 +76,7 @@ use crate::{
 };
 
 use choices::{audio_asked, chosen_audio, chosen_subtitle, preferred_subtitles, shown_subtitles};
-use codecs::{played_audio_place, played_by, played_tracks};
+use codecs::{is_audio, played_audio_place, played_by, played_tracks};
 use direct_play::direct_play_url;
 use lasting::{offers, playable_versions};
 use limits::{limit_in_effect, network, on_local_network, playback_limit};
@@ -164,6 +164,13 @@ impl Plan {
     /// How it plays the Version, `None` when it can't be played.
     pub(crate) fn method(&self) -> Option<Method> {
         self.playing.as_ref().map(Playing::method)
+    }
+
+    /// What sets it apart from another plan by the same method, which a Device names when it
+    /// fails, as [`recipe`] says; empty when it can't be played.
+    pub(crate) fn recipe(&self) -> String {
+        self.method()
+            .map_or_default(|method| recipe(method, sent_audio(&self.tracks)))
     }
 }
 
@@ -398,6 +405,9 @@ struct Facts {
     failed: BTreeSet<Method>,
     /// The methods whose ffmpeg stopped before writing anything while it was planned just now.
     failed_on_server: BTreeSet<Method>,
+    /// The [`recipe`]s, the Recipes, of the plans that just failed to play it on the Device. The Server never
+    /// stores them.
+    failed_recipes: BTreeSet<String>,
     /// Whether listing the Version's keyframes failed or timed out, now or for its file as it is
     /// (#850), or isn't done yet (#866), which a Remux needs.
     keyframes_unlisted: bool,
@@ -589,6 +599,38 @@ fn playing_by(method: Method, facts: &Facts, candidates: Option<&Candidates>) ->
             fallback: None,
         }),
     }
+}
+
+/// A plan's Recipe: its method, the container it serves and the audio codec it sends, as ffprobe
+/// names it, which a Device reports when the plan fails so a new plan can play the method another
+/// way (#1416). Direct Play has one, the file as it is.
+fn recipe(method: Method, audio: Option<&str>) -> String {
+    let audio = audio.unwrap_or("none");
+    match method {
+        Method::DirectPlay => "direct-play".to_owned(),
+        // Every Remux and Transcode serves HLS in fragmented MP4.
+        Method::Remux => format!("remux/fmp4/{audio}"),
+        Method::Transcode => format!("transcode/fmp4/{audio}"),
+    }
+}
+
+/// The codec of the audio Track among `tracks`, if any.
+fn sent_audio(tracks: &[Track]) -> Option<&str> {
+    tracks
+        .iter()
+        .find(|track| is_audio(track))
+        .map(|track| track.codec.as_str())
+}
+
+/// The Tracks the plan for `facts` sends by `method`, as the Device gets them, if it can play by
+/// it; as [`build`] works them out for the method it plays.
+fn sent_by(method: Method, facts: &Facts, candidates: Option<&Candidates>) -> Option<Vec<Track>> {
+    let playing = playing_by(method, facts, candidates)?;
+    let audio = candidates.and_then(|candidates| candidates.audio);
+    Some(
+        (facts.probe.as_ref())
+            .map_or_default(|probe| played_by(Some(&playing), played_tracks(probe, audio))),
+    )
 }
 
 /// What `allowed` leaves once each of `steps` narrows it, adding their reasons to `reasons`.

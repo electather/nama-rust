@@ -101,6 +101,8 @@ const wordings: Record<PlaybackReasonKind, Wording | undefined> = {
     "The subtitles chosen carry no palette to draw them with, so a Transcode burns them into the picture.",
   [PlaybackReasonKind.KEYFRAMES_UNLISTED]: () =>
     "The Server couldn’t list where its keyframes fall, which a Remux needs, so it can’t Remux it.",
+  [PlaybackReasonKind.RECIPE_FAILED_ON_DEVICE]: (param) =>
+    `${param.method()} sending ${param.codec()} audio failed on this Device, so it sends another.`,
   [PlaybackReasonKind.METHOD_FAILED_ON_SERVER]: (param) =>
     `${param.method()} failed on the Server: its ffmpeg stopped before writing anything.`,
   [PlaybackReasonKind.DEVICE_PLAYS_FEWER_CHANNELS]: (param) =>

@@ -7,13 +7,15 @@ use nama_proto::nama::v1::PlaybackReasonKind as Kind;
 
 use super::{
     Candidates, Facts, Fallback, Method, Playing, Reason, RunningTranscodes, accel_to_proto, build,
+    candidates as candidates_of,
     choices::burn_in,
     codecs::{
         audio_codec_name, audio_conversion, channels_of, hdr_name, played_hdr, played_tracks,
         played_video, remux_audio_conversion, transcoded_hdr, undecodable, undecodable_container,
+        untried_by,
     },
     limits::video_limit,
-    method_to_proto,
+    method_to_proto, recipe, sent_audio, sent_by,
     tracks::{Hdr, Track, hdr_to_proto},
 };
 use crate::{
@@ -196,9 +198,10 @@ pub(super) fn converting(
         ),
         None | Some(Playing::DirectPlay) => return vec![],
     };
-    let mut reasons: Vec<Reason> = conversion
-        .and_then(|conversion| fewer_channels(facts, candidates, conversion, method))
-        .into_iter()
+    let mut reasons: Vec<Reason> = (recipe_failed(facts, candidates, method).into_iter())
+        .chain(
+            conversion.and_then(|conversion| fewer_channels(facts, candidates, conversion, method)),
+        )
         .collect();
     if let Some(Playing::Transcode { transcode, .. }) = playing {
         reasons.extend(tone_mapping(facts, transcode.video.tone_map));
@@ -396,7 +399,7 @@ fn video_conversion(facts: &Facts) -> VideoConversion {
 pub(super) fn remux(facts: &Facts, audio: Option<(usize, &Track)>) -> Remux {
     let audio = audio.map(|(track, played)| RemuxAudio {
         track,
-        conversion: remux_audio_conversion(&facts.device, played),
+        conversion: remux_audio_conversion(&untried_by(Method::Remux, facts), played),
     });
     let video = facts.probe.as_ref().and_then(played_video);
     Remux {
@@ -409,7 +412,7 @@ pub(super) fn remux(facts: &Facts, audio: Option<(usize, &Track)>) -> Remux {
 pub(super) fn transcode(facts: &Facts, audio: Option<(usize, &Track)>) -> Transcode {
     let audio = audio.map(|(track, played)| TranscodeAudio {
         track,
-        conversion: audio_conversion(&facts.device, played),
+        conversion: audio_conversion(&untried_by(Method::Transcode, facts), played),
     });
     Transcode {
         audio,
@@ -456,13 +459,56 @@ pub(super) fn too_busy_to_play(facts: Facts) -> Option<u32> {
     transcodes_full(&not_busy, Some(&transcode.video))
 }
 
-/// The step for what just failed to play on the Device: it rules out each method that did, so
-/// the player can ask again without looping.
-pub(super) fn failed_on_device(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
+/// The step for what just failed to play on the Device: it rules out each method that did, or
+/// whose every Recipe did, so the player can ask again without looping.
+pub(super) fn failed_on_device(facts: &Facts, candidates: Option<&Candidates>) -> Vec<Reason> {
+    // A candidate sends another codec than one whose Recipe failed if it can, so its own Recipe
+    // failed only once every one it could send has.
+    let every_recipe_failed = Method::ALL.into_iter().filter(|&method| {
+        sent_by(method, facts, candidates).is_some_and(|tracks| {
+            (facts.failed_recipes).contains(&recipe(method, sent_audio(&tracks)))
+        })
+    });
     failures(
-        &facts.failed,
+        &facts
+            .failed
+            .iter()
+            .copied()
+            .chain(every_recipe_failed)
+            .collect(),
         Kind::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE,
         "on this Device",
+    )
+}
+
+/// Why the Remux or Transcode `method` sends its audio in another codec than it would have, if
+/// that's because a Recipe sending that one just failed on the Device.
+fn recipe_failed(facts: &Facts, candidates: Option<&Candidates>, method: Method) -> Option<Reason> {
+    if facts.failed_recipes.is_empty() {
+        return None;
+    }
+    let untried = Facts {
+        failed_recipes: BTreeSet::new(),
+        ..facts.clone()
+    };
+    let wanted = sent_by(method, &untried, candidates_of(&untried).as_ref())?;
+    let wanted = sent_audio(&wanted)?;
+    let sent = sent_by(method, facts, candidates)?;
+    let sent = sent_audio(&sent)?;
+    if wanted == sent {
+        return None;
+    }
+    let text = format!(
+        "A {} sending {} audio just failed on this Device, so it sends {}",
+        method.name(),
+        audio_codec_name(wanted),
+        audio_codec_name(sent)
+    );
+    Some(
+        Reason::new(Kind::PLAYBACK_REASON_KIND_RECIPE_FAILED_ON_DEVICE, text)
+            .with("method", &method_to_proto(Some(method)).proto_name())
+            .with("codec", &wanted)
+            .deciding(),
     )
 }
 
