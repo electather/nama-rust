@@ -67,7 +67,7 @@ impl Fixture {
     }
 
     /// The Episode of Dark just before `before`, as the Admin's player asks for it.
-    async fn previous_to(&self, before: Numbered) -> Option<Episode> {
+    async fn previous_to(&self, before: Numbered) -> Result<Option<Episode>, ConnectError> {
         let (season_number, episode_number) = before;
         let request = GetPreviousEpisodeRequest {
             library_id: self.library,
@@ -76,13 +76,13 @@ impl Fixture {
             episode_number,
             ..Default::default()
         };
-        let response = self.browse.get_previous_episode(request).await.unwrap();
-        response.into_owned().previous.into_option()
+        let response = self.browse.get_previous_episode(request).await?;
+        Ok(response.into_owned().previous.into_option())
     }
 
     /// The numbers of the Episode just before `before`.
     async fn numbers_before(&self, before: Numbered) -> Option<Numbered> {
-        let previous = self.previous_to(before).await;
+        let previous = self.previous_to(before).await.unwrap();
         previous.map(|episode| (episode.season_number, episode.episode_number))
     }
 
@@ -166,18 +166,23 @@ async fn an_episode_the_library_lacks_is_never_next() {
 async fn an_unknown_season_or_episode_is_not_found() {
     let fx = Fixture::dark_episodes(&[(1, 1), (1, 3)]).await;
 
-    let season = assert_refused(
-        fx.next_after((3, 1)).await,
-        ErrorCode::NotFound,
-        RefusalReason::REFUSAL_REASON_SEASON_NOT_FOUND,
-    );
-    let episode = assert_refused(
-        fx.next_after((1, 2)).await,
-        ErrorCode::NotFound,
-        RefusalReason::REFUSAL_REASON_EPISODE_NOT_FOUND,
-    );
-    assert_eq!(season.field, "season_number");
-    assert_eq!(episode.field, "episode_number");
+    for (season, episode) in [
+        (fx.next_after((3, 1)).await, fx.next_after((1, 2)).await),
+        (fx.previous_to((3, 1)).await, fx.previous_to((1, 2)).await),
+    ] {
+        let season = assert_refused(
+            season,
+            ErrorCode::NotFound,
+            RefusalReason::REFUSAL_REASON_SEASON_NOT_FOUND,
+        );
+        let episode = assert_refused(
+            episode,
+            ErrorCode::NotFound,
+            RefusalReason::REFUSAL_REASON_EPISODE_NOT_FOUND,
+        );
+        assert_eq!(season.field, "season_number");
+        assert_eq!(episode.field, "episode_number");
+    }
 }
 
 #[tokio::test]
@@ -185,7 +190,7 @@ async fn before_a_seasons_first_episode_comes_the_last_of_the_season_before_play
     let fx = Fixture::dark_episodes(&[(1, 2), (1, 3), (2, 1)]).await;
     fx.play(&[(1, 3)]).await;
 
-    let previous = fx.previous_to((2, 1)).await.unwrap();
+    let previous = fx.previous_to((2, 1)).await.unwrap().unwrap();
 
     assert_eq!((previous.season_number, previous.episode_number), (1, 3));
     assert_eq!(

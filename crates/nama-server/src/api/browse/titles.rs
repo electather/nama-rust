@@ -5,14 +5,12 @@ use connectrpc::ConnectError;
 use nama_proto::nama::v1 as proto;
 
 use crate::{
+    api::{ImageSources, database_failed},
     browse::{self, Episode, Featured, Started},
     library::{Roles, ShownImages, Trailer, WatchState},
 };
 
-use super::{
-    super::{ImageSources, database_failed},
-    Fields, episode_to_proto, movie_to_proto, refused, show_to_proto,
-};
+use super::{Fields, episode_to_proto, movie_to_proto, refused, show_to_proto};
 
 /// The Episode `GetNextEpisode` or `GetPreviousEpisode` `found` beside the one asked about, with
 /// its images as `images` shows them, or the Refusal for the request.
