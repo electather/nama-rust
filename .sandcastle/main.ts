@@ -595,13 +595,26 @@ async function boxFor(job: Job): Promise<Box> {
 }
 const push = (job: Job) => git("push", "--force-with-lease", "origin", `${branchOf(job.issue)}:${branchOf(job.issue)}`);
 
+// GitHub sometimes drops a push's pull_request event: no run and no Actions check suite for that commit, while other
+// PRs' runs start fine (#1581 waited twice, and each wait stopped a whole run). A new commit with the same tree sends
+// a fresh event. Through the API, so the host's branch and worktree stay as they are; the next sandbox starts from
+// origin anyway (boxFor).
+function resendPush(branch: string, sha: string) {
+  const tree = gh("api", `repos/{owner}/{repo}/git/commits/${sha}`, "--jq", ".tree.sha");
+  const commit = gh("api", "repos/{owner}/{repo}/git/commits", "-f", `message=Re-send CI: GitHub started none for ${sha.slice(0, 7)}`,
+    "-f", `tree=${tree}`, "-f", `parents[]=${sha}`, "--jq", ".sha");
+  gh("api", "-X", "PATCH", `repos/{owner}/{repo}/git/refs/heads/${branch}`, "-f", `sha=${commit}`);
+  log(`no CI run for ${sha.slice(0, 7)} after 5 minutes: re-sent it as ${commit.slice(0, 7)}`);
+  return commit;
+}
+
 // Waits for the whole CI workflow run on the PR's head. `gh pr checks --watch` isn't enough: a job behind
 // `needs` (every job after `changes`) has no check until it starts, so it can pass early.
 // "stale": another PR merged and this one now conflicts with main, so it can't merge.
 async function waitForChecks(job: Job): Promise<"pass" | "fail" | "stale"> {
   const { issue } = job;
   const head = `origin/${branchOf(issue)}`;
-  const sha = git("rev-parse", head);
+  let sha = git("rev-parse", head);
   const stale = () => {
     ok("git", "fetch", "origin"); // a failed fetch (another worker's fetch holds the lock) just checks the old ref
     return conflicts(head);
@@ -613,6 +626,7 @@ async function waitForChecks(job: Job): Promise<"pass" | "fail" | "stale"> {
     if (i > 0) await sleep(10_000);
     signal?.throwIfAborted();
     if (stale()) return "stale"; // a conflicting PR gets no run at all
+    if (i === 30) sha = resendPush(branchOf(issue), sha);
     run = gh("run", "list", "--workflow", "CI", "--commit", sha, "--event", "pull_request",
       "--json", "databaseId", "--jq", ".[0].databaseId // empty");
   }
