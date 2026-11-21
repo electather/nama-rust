@@ -1780,8 +1780,8 @@ async fn a_vobsub_track_is_read_out_as_mks_once_and_thrown_away_with_its_version
 /// A Server whose ffmpeg and ffprobe are shell scripts in `bin`: ffprobe reads every file as an
 /// H.264 and AAC MKV a minute long with an ASS subtitle, a cover picture and a font, and ffmpeg,
 /// which writes the arguments of each run to `log`, lists libx264, writes `ASS` wherever it's told
-/// to write ASS and `FONT` wherever it's told to dump an attachment, takes 30 s to start burning
-/// the subtitle in from the file, as a big one's would, and writes nothing else.
+/// to write ASS and `FONT` wherever it's told to dump an attachment, and burns a subtitle in for
+/// 30 s, writing nothing, so the plan plays on.
 #[cfg(unix)]
 fn ffmpeg_reading_ass_and_a_font(bin: &Path, log: &Path) -> Ffmpeg {
     let ffprobe = r#"#!/bin/sh
@@ -1796,7 +1796,7 @@ EOF
 "#;
     let ffmpeg = format!(
         "#!/bin/sh\necho \"$*\" >> '{}'\ncase \"$*\" in *-encoders*) echo ' V....D libx264  H.264'; exit 0 ;; \
-         *':si='*) exec sleep 30 ;; esac\n\
+         *subtitles=*) exec sleep 30 ;; esac\n\
          for arg; do [ -n \"$out\" ] && printf $out > \"$arg\"; \
          out=; case \"$prev,$arg\" in -f,ass) out=ASS ;; *,-dump_attachment*) out=FONT ;; esac; \
          prev=$arg; done\n",

@@ -56,7 +56,7 @@ pub(crate) use subtitle_appearance::{
     set_size as set_subtitle_size,
 };
 pub(crate) use subtitle_offsets::SubtitleOffsets;
-pub(crate) use subtitles::Cache as SubtitleCache;
+pub(crate) use subtitles::{Cache as SubtitleCache, TextPasses};
 pub(crate) use track_preferences::{
     Description, Error as TrackPreferenceError, Preferred, SubtitlePreference, TrackPreferences,
     is_language,

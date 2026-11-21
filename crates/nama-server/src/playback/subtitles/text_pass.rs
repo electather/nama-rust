@@ -1,8 +1,10 @@
 //! The text pass: one run of ffmpeg that reads every text subtitle Track and font out of a
 //! Version's file into the [`Cache`](super::Cache), so the file is read once for all of them
-//! rather than once for each (#829). The first fetch of any of them starts it in the background
-//! and waits for it, so a fetch given up on, as by a reverse proxy, doesn't stop it. Image
-//! subtitles stay read one at a time, when fetched, as caching them all could fill the disk.
+//! rather than once for each (#829). [`TextPasses`] runs it for each Version after Probing, one at
+//! a time and only while nothing plays, so subtitles are cached before anyone turns them on
+//! (#1649). A fetch of one not cached yet starts a pass in the background and waits for it, so a
+//! fetch given up on, as by a reverse proxy, doesn't stop it. Image subtitles stay read one at a
+//! time, when fetched, as caching them all could fill the disk.
 
 use std::{
     io,
@@ -10,13 +12,17 @@ use std::{
     sync::Arc,
 };
 
-use super::{ASS, Error, Subtitles, WEBVTT, ass, cached, cached_name, font_name};
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
+
+use super::{ASS, Error, Subtitles, WEBVTT, ass, cached, cached_name, font_name, probed};
 use crate::{
+    db::Database,
     diagnostics,
     ffmpeg::Ffmpeg,
     images::write_atomically,
     library::Stored,
     playback::{
+        Probing, RunningPlans,
         read_failures::{Read, ReadFailure},
         tracks::Probe,
     },
@@ -40,13 +46,32 @@ impl Subtitles {
         probed: &(String, Stored, Probe),
     ) -> Result<Vec<u8>, Error> {
         let cached_at = self.cache.dir.join(key);
-        if let Some(read) = cached(&cached_at).await? {
-            return Ok(read);
+        let folder = self.cache.folder(probed.1);
+        let mut ran_own = false;
+        loop {
+            if let Some(read) = cached(&cached_at).await? {
+                return Ok(read);
+            }
+            failed_before(&folder).await?;
+            if ran_own {
+                return Err(Error::NotReadOut);
+            }
+            // A pass someone else started may have been stopped, as the background one is when
+            // playback starts, so this one runs its own; playback doesn't stop that.
+            ran_own = self.text_pass(probed, CancellationToken::new()).await;
         }
-        let (_, file, _) = probed;
-        let pass = TextPass::of(probed, self.cache.folder(*file), Arc::clone(&self.ffmpeg));
+    }
+
+    /// Runs a text pass over the Version `probed` is of in the background until `stop`, and
+    /// waits for it, or else waits for the one running already. Returns whether it ran its own.
+    async fn text_pass(
+        &self,
+        (path, file, probe): &(String, Stored, Probe),
+        stop: CancellationToken,
+    ) -> bool {
+        let pass = TextPass::of(probe, self.cache.folder(*file), Arc::clone(&self.ffmpeg));
         let folder = pass.folder.clone();
-        failed_before(&folder).await?;
+        let path = path.clone();
         let span = diagnostics::following_current(tracing::info_span!(
             parent: None,
             "subtitle pass",
@@ -54,17 +79,136 @@ impl Subtitles {
         ));
         let start = |running| {
             let pass = async move {
-                pass.run().await;
+                stop.run_until_cancelled(pass.run(&path)).await;
                 drop(running);
             };
             self.probing.read_whole_file_in_background(span, pass);
         };
-        self.cache.after_making_all(&folder, start).await;
-        if let Some(read) = cached(&cached_at).await? {
-            return Ok(read);
+        self.cache.after_making_all(&folder, start).await
+    }
+}
+
+/// Runs the text pass of each Version that needs one in the background, after each probe pass.
+#[derive(Debug, Clone)]
+pub(crate) struct TextPasses {
+    subtitles: Subtitles,
+    /// Whether anything plays, which the background work waits out.
+    running: RunningPlans,
+    /// The background loop, so shutting down can wait for it.
+    tasks: TaskTracker,
+    cancel: CancellationToken,
+}
+
+impl TextPasses {
+    /// Finds Versions in `db` and reads them with `ffmpeg`, on `probing`, after each of its
+    /// passes, waiting while `running` plays anything.
+    pub(crate) fn new(
+        db: &Arc<Database>,
+        ffmpeg: Arc<Ffmpeg>,
+        running: RunningPlans,
+        probing: Probing,
+    ) -> Self {
+        Self {
+            subtitles: Subtitles::new(db, ffmpeg, probing),
+            running,
+            tasks: TaskTracker::new(),
+            cancel: CancellationToken::new(),
         }
-        failed_before(&folder).await?;
-        Err(Error::NotReadOut)
+    }
+
+    /// Runs the passes needed in the background, now and after each probe pass, until
+    /// [`Self::shutdown`]. Does nothing on a Server without ffmpeg.
+    pub(crate) fn start(&self) {
+        if self.subtitles.ffmpeg.ffmpeg.is_err() {
+            return;
+        }
+        let passes = self.clone();
+        self.tasks.spawn(async move {
+            let cancel = passes.cancel.clone();
+            cancel.run_until_cancelled(passes.keep_reading()).await;
+        });
+    }
+
+    /// Stops the background work, ffmpeg included, and waits for the loop; ffmpeg runs on
+    /// [`Probing`], whose shutdown waits for it.
+    pub(crate) async fn shutdown(&self) {
+        self.cancel.cancel();
+        self.tasks.close();
+        self.tasks.wait().await;
+    }
+
+    #[expect(
+        clippy::infinite_loop,
+        reason = "it reads for as long as the Server serves, which cancels it"
+    )]
+    async fn keep_reading(&self) {
+        loop {
+            if let Err(err) = self.read_needed().await {
+                tracing::error!("could not read which Versions need a text pass: {err}");
+            }
+            self.subtitles.probing.pass_finished_for_text_passes().await;
+        }
+    }
+
+    /// Runs the pass of each Version that needs one, one at a time.
+    async fn read_needed(&self) -> Result<(), Error> {
+        for version in self.needed().await? {
+            if let Err(err) = self.pass_while_nothing_plays(version).await {
+                tracing::error!(version, "could not run a Version's text pass: {err}");
+            }
+        }
+        Ok(())
+    }
+
+    /// The Versions with a text subtitle Track in their file, whose file as it is now has neither
+    /// had a pass finish nor fail in a way it would again.
+    // ponytail: whole-Library read of every file and probe after each probe pass; ask only the
+    // Library probed once Libraries get big.
+    async fn needed(&self) -> Result<Vec<i64>, Error> {
+        let Subtitles {
+            contents,
+            tracks,
+            ffmpeg,
+            cache,
+            ..
+        } = &self.subtitles;
+        let files = contents.every_stored().await?;
+        let probes = tracks.of(&files).await?;
+        let mut needed = Vec::new();
+        for file in files {
+            let Some(probe) = probes.get(&file.id) else {
+                continue;
+            };
+            if TextPass::of(probe, cache.folder(file), Arc::clone(ffmpeg))
+                .is_needed()
+                .await?
+            {
+                needed.push(file.id);
+            }
+        }
+        Ok(needed)
+    }
+
+    /// Runs the Version `version`'s pass while nothing plays: playback starting stops it, and it
+    /// runs again once nothing plays. A finished or failed pass makes it do nothing.
+    async fn pass_while_nothing_plays(&self, version: i64) -> Result<(), Error> {
+        loop {
+            self.running.until_playing(false).await;
+            let Some(probed) = probed(&self.subtitles, version).await? else {
+                return Ok(());
+            };
+            let stop = CancellationToken::new();
+            // Also stops it when shutting down drops this.
+            let _stopping = stop.clone().drop_guard();
+            let ran_own = tokio::select! {
+                ran_own = self.subtitles.text_pass(&probed, stop) => ran_own,
+                () = self.running.until_playing(true) => false,
+            };
+            // Having waited for someone else's, it can't tell whether that one finished.
+            if ran_own {
+                return Ok(());
+            }
+        }
     }
 }
 
@@ -80,7 +224,6 @@ async fn failed_before(folder: &Path) -> Result<(), Error> {
 }
 
 struct TextPass {
-    path: String,
     /// Where what it reads out is cached.
     folder: PathBuf,
     ffmpeg: Arc<Ffmpeg>,
@@ -119,13 +262,8 @@ impl TextTrack {
 }
 
 impl TextPass {
-    /// The pass over the Version at `path`, stored as `file`, which probing read as `probe`,
-    /// caching into `folder`.
-    fn of(
-        (path, _, probe): &(String, Stored, Probe),
-        folder: PathBuf,
-        ffmpeg: Arc<Ffmpeg>,
-    ) -> Self {
+    /// The pass over a Version which probing read as `probe`, caching into `folder`.
+    fn of(probe: &Probe, folder: PathBuf, ffmpeg: Arc<Ffmpeg>) -> Self {
         let tracks = (probe.tracks.iter().enumerate())
             .filter(|(_, found)| found.is_text_subtitle())
             .filter_map(|(track, found)| {
@@ -138,7 +276,6 @@ impl TextPass {
             })
             .collect();
         Self {
-            path: path.clone(),
             folder,
             ffmpeg,
             tracks,
@@ -146,16 +283,27 @@ impl TextPass {
         }
     }
 
-    /// Reads out what isn't cached yet, unless it failed before, and logs why it couldn't.
-    async fn run(self) {
-        if let Err(err) = self.read_out_uncached().await {
+    /// Reads out of the file at `path` what isn't cached yet, unless it failed before, and logs
+    /// why it couldn't.
+    async fn run(self, path: &str) {
+        if let Err(err) = self.read_out_uncached(path).await {
             // Whoever started it may have stopped waiting, and so won't log it.
-            tracing::warn!("could not read the subtitles out of {}: {err}", self.path);
+            tracing::warn!("could not read the subtitles out of {path}: {err}");
         }
     }
 
-    async fn read_out_uncached(&self) -> Result<(), Error> {
-        failed_before(&self.folder).await?;
+    /// Whether it has text subtitle Tracks to read out that aren't cached, and hasn't failed in a
+    /// way it would again.
+    async fn is_needed(&self) -> io::Result<bool> {
+        if self.tracks.is_empty() || tokio::fs::try_exists(self.folder.join(FAILED)).await? {
+            return Ok(false);
+        }
+        let (tracks, fonts) = self.uncached().await?;
+        Ok(!tracks.is_empty() || !fonts.is_empty())
+    }
+
+    /// The Tracks and fonts not all cached yet.
+    async fn uncached(&self) -> io::Result<(Vec<&TextTrack>, Vec<(usize, usize)>)> {
         let mut tracks = vec![];
         for track in &self.tracks {
             if !self.all_cached(track.cached_names()).await? {
@@ -168,6 +316,12 @@ impl TextPass {
                 fonts.push(font);
             }
         }
+        Ok((tracks, fonts))
+    }
+
+    async fn read_out_uncached(&self, path: &str) -> Result<(), Error> {
+        failed_before(&self.folder).await?;
+        let (tracks, fonts) = self.uncached().await?;
         if tracks.is_empty() && fonts.is_empty() {
             return Ok(());
         }
@@ -180,7 +334,7 @@ impl TextPass {
             tokio::fs::create_dir_all(partial.join("fonts")).await?;
             tokio::fs::create_dir_all(self.folder.join("fonts")).await?;
         }
-        let read = self.read_out(&partial, &tracks, &fonts).await;
+        let read = self.read_out(path, &partial, &tracks, &fonts).await;
         if let Err(err) = remove_dir_if_there(&partial).await {
             tracing::warn!("could not throw away what ffmpeg wrote to {partial:?}: {err}");
         }
@@ -196,10 +350,11 @@ impl TextPass {
         Ok(true)
     }
 
-    /// Reads `tracks` and `fonts` out with ffmpeg into `partial`, and caches them once they're
-    /// all whole. If ffmpeg fails in a way it would again, remembers why.
+    /// Reads `tracks` and `fonts` out of the file at `path` with ffmpeg into `partial`, and caches
+    /// them once they're all whole. If ffmpeg fails in a way it would again, remembers why.
     async fn read_out(
         &self,
+        path: &str,
         partial: &Path,
         tracks: &[&TextTrack],
         fonts: &[(usize, usize)],
@@ -213,12 +368,8 @@ impl TextPass {
         let attachments: Vec<_> = (fonts.iter())
             .map(|&(font, attachment)| (attachment, partial.join(font_name(font))))
             .collect();
-        if let Err(err) = self
-            .ffmpeg
-            .extract(&self.path, &subtitles, &attachments)
-            .await
-        {
-            if ReadFailure::of(&err, Read::WholeFile, &self.path).await == ReadFailure::Lasting {
+        if let Err(err) = self.ffmpeg.extract(path, &subtitles, &attachments).await {
+            if ReadFailure::of(&err, Read::WholeFile, path).await == ReadFailure::Lasting {
                 write_atomically(&self.folder.join(FAILED), err.to_string().as_bytes()).await?;
             }
             return Err(err.into());

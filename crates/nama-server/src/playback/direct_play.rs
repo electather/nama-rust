@@ -16,7 +16,7 @@ use axum::{
 use futures_util::StreamExt as _;
 use tower_http::services::ServeFile;
 
-use super::{Probing, StoredTracks, running::RunningPlans, subtitles};
+use super::{Probing, running::RunningPlans, subtitles};
 use crate::{db::Database, ffmpeg::Ffmpeg, library::Contents, users::Caller};
 
 pub(super) fn direct_play_url(version: i64) -> String {
@@ -35,13 +35,7 @@ pub(crate) fn router(
     ffmpeg: Arc<Ffmpeg>,
     probing: Probing,
 ) -> Router {
-    let subtitles = subtitles::router(subtitles::Subtitles {
-        contents: contents.clone(),
-        tracks: StoredTracks::new(Arc::clone(db)),
-        ffmpeg,
-        cache: probing.subtitle_cache(),
-        probing,
-    });
+    let subtitles = subtitles::router(subtitles::Subtitles::new(db, ffmpeg, probing));
     Router::new()
         .route("/media/versions/{id}", get(serve))
         .with_state((contents, running))

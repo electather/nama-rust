@@ -39,11 +39,14 @@ use proto::SubtitleFormat::{
 mod ass;
 mod text_pass;
 
+pub(crate) use text_pass::TextPasses;
+
 use super::{
     Probing, StoredTracks,
     tracks::{PROBE_VERSION, Probe, Track, TrackKind},
 };
 use crate::{
+    db::Database,
     ffmpeg::{Ffmpeg, RunError, TextSubtitle},
     images::write_atomically,
     library::{Contents, Stored},
@@ -103,6 +106,20 @@ pub(super) struct Subtitles {
     pub(super) cache: Cache,
     /// Runs text passes, which read whole files, in the background.
     pub(super) probing: Probing,
+}
+
+impl Subtitles {
+    /// Finds sources in `db`, reads them with `ffmpeg`, and caches them in `probing`'s subtitle
+    /// cache.
+    pub(super) fn new(db: &Arc<Database>, ffmpeg: Arc<Ffmpeg>, probing: Probing) -> Self {
+        Self {
+            contents: Contents::new(Arc::clone(db)),
+            tracks: StoredTracks::new(Arc::clone(db)),
+            ffmpeg,
+            cache: probing.subtitle_cache(),
+            probing,
+        }
+    }
 }
 
 /// Serves `GET` [`url`]s, 404 unless the Track is a subtitle of a Version served in that format,
@@ -216,6 +233,8 @@ enum Error {
     Io(#[from] io::Error),
     #[error(transparent)]
     Read(#[from] RunError),
+    #[error("database error: {0}")]
+    Database(#[from] sqlx::Error),
     /// Kept from an earlier text pass, which isn't tried again until the file changes.
     #[error("reading the subtitles out failed before, and the file hasn't changed since: {0}")]
     FailedBefore(String),
@@ -366,8 +385,9 @@ fn cache_folder(file: Stored) -> String {
 
 /// Subtitles on disk, each made by its source the first time it's asked for, and a Version's text
 /// ones and fonts all at once. It has no size limit.
-// ponytail: a Version's text subtitles and fonts are all cached once any is asked for, wanted or
-// not; throw away the least recently served if that fills disks.
+// ponytail: every Version's text subtitles and fonts are cached ahead of time, wanted or not, and
+// ASS fonts, 10–50 MB a Version, aren't shared between Versions; if that fills disks, share fonts
+// by their content's hash, then throw away the least recently served.
 #[derive(Debug, Clone)]
 pub(crate) struct Cache {
     dir: PathBuf,
@@ -422,20 +442,23 @@ impl Cache {
 
     /// Waits for the one making, at a time, of what's cached in `folder`: one `start` starts and
     /// hands the lock it holds until it's done, unless one is running already. Whoever waits
-    /// doesn't own it, so it goes on when they give up.
+    /// doesn't own it, so it goes on when they give up. Returns whether `start` started it.
     async fn after_making_all(
         &self,
         folder: &Path,
         start: impl FnOnce(tokio::sync::OwnedMutexGuard<()>),
-    ) {
+    ) -> bool {
         let making_lock = Arc::clone(self.making_locks().entry(folder.to_owned()).or_default());
-        if let Ok(making) = Arc::clone(&making_lock).try_lock_owned() {
+        let making = Arc::clone(&making_lock).try_lock_owned();
+        let started = making.is_ok();
+        if let Ok(making) = making {
             start(making);
         }
         drop(making_lock.lock().await);
         drop(making_lock);
         self.making_locks()
             .retain(|_, lock| Arc::strong_count(lock) > 1);
+        started
     }
 
     /// `subtitle`, a Track of the Version stored as `file`, as a burn-in reads it from here, if
