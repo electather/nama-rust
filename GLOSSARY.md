@@ -129,7 +129,7 @@ A Provider that finds and fetches Movies and Shows by a Namespace of External ID
 _Avoid_: metadata provider, metadata agent, scraper
 
 **Search source**:
-A Provider that answers what a User types into search with titles by External ID, in its own order, such as by meaning rather than by words. The Server decides whether each is on it, Requested or not on it; it doesn't fetch titles, as a title source does.
+A Provider that answers what a User types into search with titles by External ID, in its own order, such as by meaning rather than by words. The Server decides whether each is on it, Requested or not on it; it doesn't fetch titles, as a title source does. A title it finds that no Library has counts only if a title source keeps that title's Namespace. Otherwise it is left out, and nothing looks it up in another Namespace.
 _Avoid_: search provider, search engine, search plugin
 
 **Recogniser**:
