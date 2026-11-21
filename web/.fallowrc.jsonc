@@ -25,7 +25,7 @@
         "reason": "The app's tokens and global CSS, plus one import for each feature's own tokens file (`home.css`, `title.css`).",
       },
       {
-        "files": ["src/features/player/lib/playback-wording.ts"],
+        "files": ["src/shared/lib/playback-wording.ts"],
         "maxFileLines": 220,
         "reason": "A sentence for each Playback Reason kind, a table that grows with the schema's `PlaybackReasonKind`.",
       },
