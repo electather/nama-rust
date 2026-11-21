@@ -6,6 +6,7 @@ use nama_plugin_api::{
     job::{Job, JobRunner, RunJob},
 };
 use tempfile::TempDir;
+use tokio::sync::Notify;
 
 use super::{
     JobRun, JobRunOutcome, Recording, Run, RunLog, RunRefused, job_runs, log_zone, run_now,
@@ -96,12 +97,17 @@ impl JobRunner for Ending {
     }
 }
 
-/// A Job runner whose Runs never end.
-struct Endless;
+/// A Job runner whose Runs never end, notifying `started` as each starts.
+struct Endless {
+    started: Arc<Notify>,
+}
 
 impl JobRunner for Endless {
     fn run<'a>(&'a self, _: &'a RunJob) -> BoxFuture<'a, Result<(), PluginError>> {
-        Box::pin(pending())
+        Box::pin(async {
+            self.started.notify_one();
+            pending().await
+        })
     }
 }
 
@@ -125,6 +131,22 @@ async fn run_tidy(points: &ExtensionPoints) {
 
 async fn runs(db: &Database) -> Vec<JobRun> {
     job_runs(db, &ID, "tidy").await.unwrap()
+}
+
+/// A Registry recording Job Runs, returned once a Run of Job `tidy` that never ends has started in its Plugin's scope.
+async fn running_tidy_forever() -> (Registry, Arc<Database>, TempDir) {
+    let started = Arc::new(Notify::new());
+    let (registry, db, dir) = recording(Arc::new(Endless {
+        started: Arc::clone(&started),
+    }))
+    .await;
+    let points = registry.extension_points();
+    assert!(registry.spawn_in(&ID, async move {
+        run_tidy(&points).await;
+    }));
+    // The Run, not its row: a cancel between the row's write and its `Recording` leaves it running.
+    started.notified().await;
+    (registry, db, dir)
 }
 
 async fn outcome_of_running(ends: fn() -> Result<(), PluginError>) -> JobRunOutcome {
@@ -166,14 +188,7 @@ async fn a_run_whose_plugin_panics_is_recorded_as_failed() {
 
 #[tokio::test]
 async fn a_run_its_plugin_is_disabled_during_is_recorded_as_interrupted() {
-    let (registry, db, _dir) = recording(Arc::new(Endless)).await;
-    let points = registry.extension_points();
-    assert!(registry.spawn_in(&ID, async move {
-        run_tidy(&points).await;
-    }));
-    while runs(&db).await.is_empty() {
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
+    let (registry, db, _dir) = running_tidy_forever().await;
 
     registry.disable(&ID).await;
 
@@ -185,14 +200,7 @@ async fn a_run_its_plugin_is_disabled_during_is_recorded_as_interrupted() {
 
 #[tokio::test]
 async fn a_run_the_server_stops_during_is_recorded_as_interrupted_before_shutdown_returns() {
-    let (registry, db, _dir) = recording(Arc::new(Endless)).await;
-    let points = registry.extension_points();
-    assert!(registry.spawn_in(&ID, async move {
-        run_tidy(&points).await;
-    }));
-    while runs(&db).await.is_empty() {
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
+    let (registry, db, _dir) = running_tidy_forever().await;
 
     registry.shutdown().await;
 
