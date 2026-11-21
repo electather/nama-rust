@@ -1561,7 +1561,7 @@ export type FoundMovie = Message<"nama.v1.FoundMovie"> & {
   onWatchlist: boolean;
 
   /**
-   * As `nama.v1.GetMovieResponse.similar`, as the title source it was looked up in names them.
+   * As `nama.v1.GetMovieResponse.similar`, as the enabled Similar sources answer them now.
    *
    * @generated from field: repeated nama.v1.MovieHit similar = 21;
    */

@@ -1,6 +1,6 @@
 //! Signing Devices in, and saying who is signed in: `nama.v1.SignInService`.
 
-use std::{future, time::Instant};
+use std::{future, net::IpAddr, time::Instant};
 
 use axum::http::{
     HeaderMap, HeaderValue,
@@ -19,13 +19,14 @@ use nama_proto::nama::v1::{
     StartSignInCodeResponse, WhoAmIRequest, WhoAmIResponse, reauthenticate_request::Proof,
 };
 
+use crate::forwarded::RequestSource;
 use crate::users::{
     self, Blocked, Caller, Delivery, NewDevice, Polled, SignIn, SignInCodeError, SignInError,
     SignedIn, session_cookie,
 };
 
 use super::{
-    caller, client_ip, database_failed, refuse, signed_out, unknown_enum_value,
+    caller, database_failed, refuse, signed_out, unknown_enum_value,
     users::{device_to_proto, user_to_proto},
 };
 
@@ -402,4 +403,13 @@ impl From<SignInError> for ConnectError {
             .into(),
         }
     }
+}
+
+/// The client IP address `ctx` came from, which rate limits count by.
+pub(super) fn client_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
+    let source = ctx.extensions().get::<RequestSource>();
+    source.map(|source| source.client_ip).ok_or_else(|| {
+        tracing::error!("a request came without its peer's address");
+        ConnectError::internal("the Server failed")
+    })
 }

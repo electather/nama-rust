@@ -47,7 +47,8 @@ mod exports {
     // and requests the Store and Library Permissions, with `jobs` it runs a Job daily at 04:00 and
     // one with no schedule, with `recogniser` it recognises files, with
     // `home-rows` it gives Home rows and requests the Store and Read Watch States Permissions, with
-    // `subtitle-source` it is a subtitle source that finds nothing, and with `panic` it panics
+    // `subtitle-source` it is a subtitle source that finds nothing, with `similar-source` a
+    // Similar source answering what its `similar` setting says, and with `panic` it panics
     // instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
@@ -158,6 +159,23 @@ mod exports {
             points: [
                 manifest.points,
                 vec![nama_pdk::point(services::SUBTITLE_SOURCE)],
+            ]
+            .concat(),
+            ..manifest
+        };
+        #[cfg(feature = "similar-source")]
+        let manifest = Manifest {
+            points: [
+                manifest.points,
+                vec![nama_pdk::point(services::SIMILAR_SOURCE)],
+            ]
+            .concat(),
+            settings: [
+                manifest.settings,
+                vec![setting(
+                    crate::similar_source::SIMILAR,
+                    SettingKind::SETTING_KIND_TEXT,
+                )],
             ]
             .concat(),
             ..manifest
@@ -642,4 +660,51 @@ mod subtitle_source {
     }
 
     nama_pdk::subtitle_source!(NoSubtitles);
+}
+
+#[cfg(feature = "similar-source")]
+mod similar_source {
+    use nama_pdk::{
+        SimilarAsked, SimilarSource, SimilarTitle, SimilarTitles, TitleId, extism_pdk::Error,
+    };
+
+    /// The setting saying what it answers about every title: `<namespace>-<value>@<weight>`,
+    /// comma-separated, none when empty, or `fail` to fail and `loop` to loop until the Server
+    /// interrupts it.
+    pub(super) const SIMILAR: &str = "similar";
+
+    /// A Similar source answering the same titles, those its [`SIMILAR`] setting names, whatever
+    /// it is asked about.
+    struct Configured;
+
+    impl SimilarSource for Configured {
+        fn similar(_asked: SimilarAsked) -> Result<SimilarTitles, Error> {
+            let answer = nama_pdk::setting(SIMILAR)?.unwrap_or_default();
+            match answer.as_str() {
+                "fail" => return Err(Error::msg("test-plugin was set to fail")),
+                "loop" => super::exports::loop_forever(),
+                _ => {}
+            }
+            let title = |named: &str| -> Option<SimilarTitle> {
+                let (id, weight) = named.split_once('@')?;
+                let (namespace, value) = id.split_once('-')?;
+                Some(SimilarTitle {
+                    id: TitleId {
+                        namespace: namespace.to_owned(),
+                        value: value.to_owned(),
+                        ..TitleId::default()
+                    }
+                    .into(),
+                    weight: weight.parse().ok()?,
+                    ..SimilarTitle::default()
+                })
+            };
+            Ok(SimilarTitles {
+                titles: answer.split(',').filter_map(title).collect(),
+                ..SimilarTitles::default()
+            })
+        }
+    }
+
+    nama_pdk::similar_source!(Configured);
 }

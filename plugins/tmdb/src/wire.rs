@@ -2,7 +2,8 @@
 
 use nama_plugin_api::{
     contract::{
-        Artwork, ArtworkKind, Candidate, Episode, Movie, Role, Season, Show, TitleId, Trailer,
+        Artwork, ArtworkKind, Candidate, Episode, Movie, Role, Season, Show, SimilarTitle,
+        SimilarTitles, TitleId, Trailer,
     },
     metadata::{ExternalId, IMDB},
 };
@@ -107,7 +108,7 @@ impl WireIds {
     }
 }
 
-/// `/movie/{id}?append_to_response=external_ids,release_dates,credits,videos,recommendations`.
+/// `/movie/{id}?append_to_response=external_ids,release_dates,credits,videos`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct MovieDetails {
     id: i64,
@@ -132,8 +133,6 @@ pub(crate) struct MovieDetails {
     credits: Credits,
     #[serde(default)]
     videos: Videos,
-    #[serde(default)]
-    recommendations: Recommendations,
 }
 
 impl MovieDetails {
@@ -159,7 +158,6 @@ impl MovieDetails {
             score: self.votes.score(),
             original_language: original_language(self.original_language),
             trailers: self.videos.trailers(),
-            similar: self.recommendations.ids(),
             cast: self.credits.cast.into_iter().map(Role::from).collect(),
             crew: (self.credits.crew.into_iter())
                 .filter(|person| CREW_JOBS.contains(&person.job.as_str()))
@@ -174,7 +172,7 @@ impl MovieDetails {
 /// first, as `Creator`.
 const CREW_JOBS: [&str; 3] = ["Director", "Screenplay", "Writer"];
 
-/// `/tv/{id}?append_to_response=external_ids,content_ratings,aggregate_credits,videos,recommendations`.
+/// `/tv/{id}?append_to_response=external_ids,content_ratings,aggregate_credits,videos`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct ShowDetails {
     id: i64,
@@ -201,8 +199,6 @@ pub(crate) struct ShowDetails {
     aggregate_credits: AggregateCredits,
     #[serde(default)]
     videos: Videos,
-    #[serde(default)]
-    recommendations: Recommendations,
 }
 
 #[derive(Debug, Deserialize)]
@@ -228,7 +224,6 @@ impl ShowDetails {
             score: self.votes.score(),
             original_language: original_language(self.original_language),
             trailers: self.videos.trailers(),
-            similar: self.recommendations.ids(),
             cast: (self.aggregate_credits.cast.into_iter())
                 .map(Role::from)
                 .collect(),
@@ -356,19 +351,32 @@ impl From<ShowCastMember> for Role {
     }
 }
 
-/// `recommendations`, appended to a Movie's or Show's details: the first page of the titles of its
-/// kind TMDB recommends with it, most alike first.
+/// `/movie/{id}/recommendations` or `/tv/{id}/recommendations`: the first page of the titles of its
+/// kind TMDB recommends with a title, most alike first.
 #[derive(Debug, Default, Deserialize)]
-struct Recommendations {
+pub(crate) struct Recommendations {
     #[serde(default)]
     results: Vec<FoundTitle>,
 }
 
 impl Recommendations {
-    fn ids(self) -> Vec<TitleId> {
-        (self.results.iter())
-            .map(|title| title_id(&ExternalId::tmdb(title.id)))
-            .collect()
+    /// The recommended titles in TMDB's order, weighed by rank: 1.0 for the first, less for each
+    /// after.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "a page holds 20 titles, far inside what an f32 counts exactly"
+    )]
+    pub(crate) fn similar(self) -> SimilarTitles {
+        let count = self.results.len() as f32;
+        let similar = |(rank, title): (usize, &FoundTitle)| SimilarTitle {
+            id: title_id(&ExternalId::tmdb(title.id)).into(),
+            weight: 1.0 - rank as f32 / count,
+            ..SimilarTitle::default()
+        };
+        SimilarTitles {
+            titles: self.results.iter().enumerate().map(similar).collect(),
+            ..SimilarTitles::default()
+        }
     }
 }
 

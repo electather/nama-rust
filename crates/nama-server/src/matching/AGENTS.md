@@ -11,5 +11,5 @@ Linking the Items a scan finds to titles from the Library's title sources, stori
 
 ### Neighbours
 
-- Uses: `db`, `events`, `library` (`Contents`, `Libraries`, `TitleSources`, `Recognisers`, `Artwork`, `ScanLocks`, `country_tag`) and `plugins` (`ExtensionPoints`).
+- Uses: `db`, `events`, `library` (`Contents`, `Libraries`, `TitleSources`, `Recognisers`, `SimilarSources`, `Artwork`, `ScanLocks`, `country_tag`) and `plugins` (`ExtensionPoints`).
 - Used by: `scanner` (`Matcher`, `Summary`, `Refreshed`, `Error`, `count`) and the `api` part for matches (`Matcher`, `ManualError`). The Name parser version rule, which covers how Matching decides, lives in `scanner`'s `AGENTS.md`.

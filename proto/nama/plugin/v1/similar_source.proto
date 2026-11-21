@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package nama.plugin.v1;
+
+import "nama/plugin/v1/request.proto";
+import "nama/plugin/v1/title_source.proto";
+
+// The Extension Point for a Similar source, which answers which titles are like a given title,
+// the same for every User (ADR 0084). An Installed Plugin serves it through the WASM export its
+// rpc names, taking and returning its messages encoded as protobuf.
+//
+// The Kernel asks every enabled Similar source when it refreshes a title's Matches and stores each
+// answer, so a title page never waits on it. It asks live only for a title not on the Server, with
+// the time limit of any call. It never says who the User is. A failed call keeps the source's last
+// stored answer.
+service SimilarSourceService {
+  // The `similar_titles` export: the titles like one title.
+  rpc Similar(SimilarAsked) returns (SimilarTitles);
+}
+
+// What the `similar_titles` export asks about: a Movie or a Show.
+message SimilarAsked {
+  TitleKind kind = 1;
+  // Its External IDs, at most one per namespace.
+  repeated TitleId ids = 2;
+}
+
+// What the `similar_titles` export returns. Empty means the source knows none, which isn't a
+// failure.
+message SimilarTitles {
+  // Titles of the kind asked about, by External ID only, never by name or image (ADR 0058). The
+  // Kernel keeps the 100 heaviest and drops a malformed one.
+  repeated SimilarTitle titles = 1;
+}
+
+// A title like the one asked about.
+message SimilarTitle {
+  TitleId id = 1;
+  // How alike, from 0.0 to 1.0, which the Kernel clamps it to. A title two sources answer, by any
+  // id they share, keeps its heaviest weight; a tie goes to the lower Plugin id.
+  float weight = 2;
+}

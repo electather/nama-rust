@@ -337,7 +337,6 @@ fn episode_artwork(season_poster: Option<&str>, picked: Option<&str>) -> super::
         content_rating: None,
         score: None,
         original_language: None,
-        similar: Vec::new(),
         trailers: Vec::new(),
         roles: Roles::default(),
     };

@@ -5314,8 +5314,9 @@ pub struct GetMovieResponseView<'a> {
     ///
     /// Field 2: `read_only_folder`
     pub read_only_folder: ::core::option::Option<&'a str>,
-    /// Its Similar titles that are in a Library, most alike first, each with `library_id` set to
-    /// the oldest Library it is in. Its title source names them, and one in no Library is left out.
+    /// Its Similar titles that are in a Library, most alike first, at most 20, each with `library_id`
+    /// set to the oldest Library it is in. The Similar sources name them (ADR 0084), and one in no
+    /// Library is left out.
     ///
     /// Field 3: `similar`
     pub similar: ::buffa::RepeatedView<
@@ -5638,8 +5639,9 @@ impl GetMovieResponseOwnedView {
     pub fn read_only_folder(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().read_only_folder
     }
-    /// Its Similar titles that are in a Library, most alike first, each with `library_id` set to
-    /// the oldest Library it is in. Its title source names them, and one in no Library is left out.
+    /// Its Similar titles that are in a Library, most alike first, at most 20, each with `library_id`
+    /// set to the oldest Library it is in. The Similar sources name them (ADR 0084), and one in no
+    /// Library is left out.
     ///
     /// Field 3: `similar`
     #[must_use]

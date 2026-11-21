@@ -16345,7 +16345,7 @@ pub struct FoundMovieView<'a> {
     ///
     /// Field 17: `on_watchlist`
     pub on_watchlist: bool,
-    /// As `nama.v1.GetMovieResponse.similar`, as the title source it was looked up in names them.
+    /// As `nama.v1.GetMovieResponse.similar`, as the enabled Similar sources answer them now.
     ///
     /// Field 21: `similar`
     pub similar: ::buffa::RepeatedView<
@@ -17194,7 +17194,7 @@ impl FoundMovieOwnedView {
     pub fn on_watchlist(&self) -> bool {
         self.0.reborrow().on_watchlist
     }
-    /// As `nama.v1.GetMovieResponse.similar`, as the title source it was looked up in names them.
+    /// As `nama.v1.GetMovieResponse.similar`, as the enabled Similar sources answer them now.
     ///
     /// Field 21: `similar`
     #[must_use]

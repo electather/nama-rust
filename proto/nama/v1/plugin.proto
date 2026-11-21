@@ -412,6 +412,8 @@ enum ExtensionPoint {
   // Adds titles to every User's search, such as by what they are about, after the Libraries'
   // and the title source's (ADR 0083).
   EXTENSION_POINT_SEARCH_SOURCE = 15;
+  // Says which titles are like a title, for its Similar titles (ADR 0084).
+  EXTENSION_POINT_SIMILAR_SOURCE = 16;
 }
 
 // What kind of value a setting takes.

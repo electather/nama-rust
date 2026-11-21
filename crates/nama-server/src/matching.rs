@@ -54,6 +54,7 @@
 //! [`METADATA_VERSION`]: crate::library::METADATA_VERSION
 
 mod confidence;
+mod metadata;
 mod recognisers;
 mod refresh;
 mod sources;
@@ -78,8 +79,8 @@ use crate::{
     db::{Database, detached},
     events::{EventBus, event},
     library::{
-        Artwork, Contents, Decided, Decisions, ImageRef, Item, Libraries, LibraryError,
-        METADATA_VERSION, Metadata, Name, Named, Picked, Pin, Recognisers, ScanLock, ScanLocks,
+        Artwork, Contents, Decided, Decisions, Item, Libraries, LibraryError, METADATA_VERSION,
+        Metadata, Name, Named, Picked, Pin, Recognisers, ScanLock, ScanLocks, SimilarSources,
         Source, SourceEpisode, SourceSeason, SourceShow, TitleKind, TitleSources, Unanswered,
         UnmatchedReason,
     },
@@ -132,6 +133,8 @@ pub(crate) struct Matcher {
     libraries: Libraries,
     metadata: TitleSources,
     recognisers: Recognisers,
+    /// Asks which titles are like each one Matched.
+    similar: SimilarSources,
     /// Picks a Match's artwork, and downloads the images of the Matches set by hand.
     artwork: Artwork,
     events: EventBus,
@@ -247,59 +250,6 @@ impl ManualError {
     }
 }
 
-impl Metadata {
-    /// This title with the artwork `picked`, keeping its own poster or backdrop where none was.
-    fn with_picked(self, picked: &Picked) -> Self {
-        let picked = picked.clone();
-        Self {
-            poster: picked.poster.or(self.poster),
-            backdrop: picked.backdrop.or(self.backdrop),
-            titled_backdrop: picked.titled_backdrop,
-            logo: picked.logo.or(self.logo),
-            ..self
-        }
-    }
-
-    /// An Episode of `show`, with its Season's own poster, else the Show's `picked` artwork.
-    fn episode(
-        plugin: &PluginId,
-        (show, picked): (&SourceShow, &Picked),
-        season: &SourceSeason,
-        episode: &SourceEpisode,
-    ) -> Self {
-        let poster = ImageRef::of(plugin, season.poster.as_ref());
-        Self {
-            plugin: plugin.clone(),
-            ids: episode.ids.clone(),
-            show_ids: show.ids.clone(),
-            title: episode.title.clone(),
-            original_title: None,
-            show_title: Some(show.title.clone()),
-            overview: episode.overview.clone(),
-            release_date: episode.air_date.clone(),
-            runtime_minutes: episode.runtime_minutes,
-            poster: (poster.or_else(|| picked.poster.clone()))
-                .or_else(|| ImageRef::of(plugin, show.poster.as_ref())),
-            backdrop: (picked.backdrop.clone())
-                .or_else(|| ImageRef::of(plugin, show.backdrop.as_ref())),
-            titled_backdrop: picked.titled_backdrop.clone(),
-            logo: picked.logo.clone(),
-            still: episode.still.clone(),
-            genres: show.genres.clone(),
-            content_rating: show.content_rating.clone(),
-            show_poster: (picked.poster.clone())
-                .or_else(|| ImageRef::of(plugin, show.poster.as_ref())),
-            show_overview: show.overview.clone(),
-            show_first_air_date: show.first_air_date.clone(),
-            score: show.score,
-            original_language: show.original_language.clone(),
-            similar: show.similar.clone(),
-            trailers: show.trailers.clone(),
-            roles: show.roles.clone(),
-        }
-    }
-}
-
 impl Matcher {
     /// Shares `locks` with the Scanner, so a Match fixed by hand waits for a scan of its Library.
     pub(crate) fn new(
@@ -313,6 +263,7 @@ impl Matcher {
             libraries: Libraries::new(Arc::clone(&db)),
             recognisers: Recognisers::new(plugins.clone(), RecogniserMethod::Title),
             contents: Contents::new(db),
+            similar: SimilarSources::new(plugins.clone()),
             metadata: TitleSources::new(plugins),
             artwork,
             events,
@@ -603,7 +554,7 @@ impl Matcher {
         outcomes: Outcomes,
         summary: &mut Summary,
     ) -> Result<(), sqlx::Error> {
-        let decided = tally(outcomes, summary);
+        let decided = tally(self.with_similar(outcomes).await, summary);
         if decided.items.is_empty() {
             return Ok(());
         }
@@ -622,7 +573,7 @@ impl Matcher {
         outcomes: Outcomes,
     ) -> Result<Summary, ManualError> {
         let mut summary = Summary::default();
-        let decided = tally(outcomes, &mut summary);
+        let decided = tally(self.with_similar(outcomes).await, &mut summary);
         tracing::info!(
             library = named.library,
             title = %named.name.title,

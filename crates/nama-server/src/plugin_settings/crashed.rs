@@ -37,5 +37,6 @@ impl PluginSettings {
         if let Err(err) = set_enabled(&self.db, id.as_str(), false).await {
             error!(plugin = %id, "could not save that the crashed plugin is disabled: {err}");
         }
+        self.forget_similar(id).await;
     }
 }

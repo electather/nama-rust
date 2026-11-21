@@ -64,6 +64,9 @@ pub mod services {
     pub const SUBTITLE_SOURCE: &str = "nama.plugin.v1.SubtitleSourceService";
     /// A Segment source, which says where a Version's Intro, Recap and Credits are (ADR 0075).
     pub const SEGMENT_SOURCE: &str = "nama.plugin.v1.SegmentSourceService";
+    /// A Similar source, which says which titles are like a title, the same for every User
+    /// (ADR 0084).
+    pub const SIMILAR_SOURCE: &str = "nama.plugin.v1.SimilarSourceService";
     /// A runner of the Jobs its Plugin's Manifest declares, which the Kernel runs on their
     /// schedules (ADR 0079).
     pub const JOB: &str = "nama.plugin.v1.JobService";
@@ -80,12 +83,13 @@ pub const SERVICES: &[(&str, &str)] = &[
     (services::NOTIFIER, "1.2.0"),
     (services::CONNECTOR, "1.0.0"),
     (services::EVENT_OBSERVER, "1.0.0"),
-    (services::TITLE_SOURCE, "1.7.0"),
+    (services::TITLE_SOURCE, "1.8.0"),
     (services::RECOGNISER, "1.0.0"),
     (services::BLOB_STORE, "1.0.0"),
     (services::HOME_ROW, "1.4.0"),
     (services::SUBTITLE_SOURCE, "1.0.0"),
     (services::SEGMENT_SOURCE, "1.0.0"),
+    (services::SIMILAR_SOURCE, "1.0.0"),
     (services::JOB, "1.0.0"),
     (services::SEARCH_SOURCE, "1.0.0"),
 ];

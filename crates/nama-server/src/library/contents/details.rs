@@ -2,11 +2,22 @@
 //! its Matches (ADR 0081). [`Contents::movies`](super::Contents::movies) and
 //! [`Contents::shows`](super::Contents::shows) read them back by the same key.
 
-use nama_plugin_api::metadata::ExternalId;
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use sqlx::SqliteConnection;
 
 use super::{Metadata, similar};
-use crate::library::title_source::Trailer;
+use crate::library::title_source::{TitleKind, Trailer};
+
+impl Metadata {
+    /// The title the per-title stores keep this Match's under: a Movie, or an Episode's Show.
+    pub(crate) fn title(&self) -> (TitleKind, &ExternalIds) {
+        if self.show_title.is_some() {
+            (TitleKind::Show, &self.show_ids)
+        } else {
+            (TitleKind::Movie, &self.ids)
+        }
+    }
+}
 
 /// Stores the Score and Trailers that `matched` gives its title, a Movie or an Episode's Show, in
 /// place of what the same title source gave it before, and its Similar titles with them.

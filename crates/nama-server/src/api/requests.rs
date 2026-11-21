@@ -26,8 +26,8 @@ use crate::{
     browse::Browse,
     db::Database,
     library::{
-        Candidate, Downloaded, ImageRef, ImageSources, Metadata, Role, ShownImages, TitleImage,
-        TitleKind,
+        Candidate, Downloaded, ImageRef, ImageSources, Metadata, Role, ShownImages, SimilarSources,
+        TitleImage, TitleKind,
     },
     requests::{
         self, Asked, Found, FoundShow, Hit, Listed, QUALITY_ASKED_FIELD, QUALITY_CHANGED_FIELD,
@@ -52,6 +52,8 @@ pub(super) struct RequestServiceHandler {
     pub(super) requests: Requests,
     /// Finds which of a looked-up title's Similar titles are in a Library.
     pub(super) browse: Browse,
+    /// Asks which titles are like a looked-up title, since it has no stored answers.
+    pub(super) similar: SimilarSources,
     /// The images found, or those the Server shows in their place, with their thumbhashes.
     pub(super) images: ImageSources,
     /// Holds the Watchlists that say whether a looked-up title is on the caller's.
@@ -251,10 +253,10 @@ impl RequestService for RequestServiceHandler {
         // the title source's other ids: `RemoveFromWatchlist` clears only the Matches' (#1292).
         let on_watchlist = watchlist::has_matched(&self.db, viewer.id, TitleKind::Movie, &id);
         let on_watchlist = on_watchlist.await.map_err(database_failed)?;
-        let similar = (self
-            .browse
-            .in_libraries(TitleKind::Movie, &found.movie.similar))
-        .await;
+        let answers = self.similar.ask(TitleKind::Movie, &found.movie.ids).await;
+        let similar = (self.browse)
+            .similar_in_libraries(TitleKind::Movie, &answers)
+            .await;
         let similar = similar.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(LookUpMovieResponse {
@@ -290,10 +292,10 @@ impl RequestService for RequestServiceHandler {
         // As `look_up_movie`'s.
         let on_watchlist = watchlist::has_matched(&self.db, viewer.id, TitleKind::Show, &id);
         let on_watchlist = on_watchlist.await.map_err(database_failed)?;
-        let similar = (self
-            .browse
-            .in_libraries(TitleKind::Show, &found.show.similar))
-        .await;
+        let answers = self.similar.ask(TitleKind::Show, &found.show.ids).await;
+        let similar = (self.browse)
+            .similar_in_libraries(TitleKind::Show, &answers)
+            .await;
         let similar = similar.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(LookUpShowResponse {
