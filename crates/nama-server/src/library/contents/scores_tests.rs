@@ -30,7 +30,7 @@ fn dark_episode(episode: i64) -> Metadata {
 
 #[tokio::test]
 async fn a_shows_score_is_stored_once_not_on_each_episode() {
-    let fx = Fixture::new().await;
+    let fx = Fixture::shows().await;
     for episode in 1..=2 {
         let path = format!("/media/Dark/Season 01/Dark - S01E0{episode}.mkv");
         let item = Item::Episode {
