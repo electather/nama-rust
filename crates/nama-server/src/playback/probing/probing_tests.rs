@@ -132,7 +132,7 @@ impl Fixture {
         match probe.tracks.as_slice() {
             [
                 Track {
-                    kind: TrackKind::Audio { channels },
+                    kind: TrackKind::Audio { channels, .. },
                     ..
                 },
             ] => *channels,
@@ -231,7 +231,11 @@ async fn a_4k_hdr10_file_with_5_1_audio_is_probed_and_its_tracks_stored() {
                 default: false,
                 forced: false,
                 sdh: false,
-                kind: TrackKind::Audio { channels: Some(6) },
+                kind: TrackKind::Audio {
+                    channels: Some(6),
+                    atmos: false,
+                    audio_description: false,
+                },
             },
         ]
     );
@@ -349,6 +353,31 @@ async fn a_dolby_vision_files_profile_and_whether_its_base_layer_is_hdr10_are_st
 
     let kind = probe.tracks.first().map(|track| track.kind.clone());
     assert_eq!(kind, Some(dolby_vision));
+    assert_eq!(media.probe(alien).await, Some(probe));
+}
+
+#[tokio::test]
+async fn an_atmos_track_and_an_audio_description_track_are_stored_as_such() {
+    let audio = |atmos, audio_description| Track {
+        kind: TrackKind::Audio {
+            channels: Some(8),
+            atmos,
+            audio_description,
+        },
+        ..one_audio_track(8).tracks.remove(0)
+    };
+    let read = Probe {
+        tracks: vec![audio(true, false), audio(false, true)],
+        ..one_audio_track(8)
+    };
+    let media = Fixture::with_reader(FakeReader::answering(move |_| Ok(read.clone()))).await;
+    let alien = "Alien (1979)/Alien (1979).mkv";
+    media.write(alien, 10).await;
+    media.match_to_alien(alien).await;
+
+    let probe = media.current(alien).await.unwrap();
+
+    assert_eq!(probe.tracks, [audio(true, false), audio(false, true)]);
     assert_eq!(media.probe(alien).await, Some(probe));
 }
 

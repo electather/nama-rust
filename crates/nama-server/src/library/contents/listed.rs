@@ -7,12 +7,11 @@ use super::{
     Contents, ItemKind, ids_from_json, ids_sql, matched::genres, matched_items, parse_hint,
 };
 
-/// A Matched Movie or Episode on a page [`Contents::titles_page`] reads, with what the Match of
-/// its first Version, by path, stores.
+/// A Movie or Episode of `matched_items` on a page [`Contents::titles_page`] reads, with what the
+/// Match of its first Version, by path, stores.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Listed {
-    /// Its preferred id in its Library's title source order: see [`primary_id`](super::primary_id).
-    /// It is also the page's order.
+    /// Its preferred id, its `own_id` in `matched_items`, which is also the page's order.
     pub(crate) id: ExternalId,
     pub(crate) title: String,
     /// The title of an Episode's Show; `None` for a Movie.
@@ -27,7 +26,7 @@ pub(crate) struct Listed {
     pub(crate) genres: Vec<String>,
     /// A Movie's Content Rating, or an Episode's Show's.
     pub(crate) content_rating: Option<String>,
-    /// An Episode's Show's preferred id, picked as `id` is; `None` for a Movie.
+    /// An Episode's Show's preferred id, its `listed_id` in `matched_items`; `None` for a Movie.
     pub(crate) show_id: Option<ExternalId>,
 }
 

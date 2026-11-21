@@ -12,6 +12,7 @@ use crate::db::Database;
 mod air_dates;
 mod backdrops;
 mod decisions;
+mod edit_distance;
 mod files;
 #[cfg(test)]
 pub(crate) mod fixture;
