@@ -195,8 +195,8 @@ pub mod kernel {
         Ok(call::<DeleteStarted>("delete_media", &asked)?.taken_along)
     }
 
-    /// Deletes the own Home rows and Featured suggestions of each User who hasn't opened home in
-    /// at least `days` days, and answers how many Users had some. Needs
+    /// Deletes each User's own Home rows and Featured suggestions, for each User who hasn't opened
+    /// home in at least `days` days, and answers how many Users had some. Needs
     /// `PERMISSION_FORGET_HOME_ROWS`.
     ///
     /// # Errors

@@ -307,7 +307,7 @@ impl Kernel {
             "list_requesters" => typed(request, |asked| self.list_requesters(asked)),
             "list_watchlist" => typed(request, |asked| self.list_watchlist(&asked)),
             "delete_media" => typed(request, |asked| self.start_delete(asked)),
-            "forget_home_rows" => typed(request, |asked| self.forget_home_rows_of(&asked)),
+            "forget_home_rows" => typed(request, |asked| self.answer_forget_home_rows(&asked)),
             _ => Err(Error::msg(format!("the Kernel has no function {name}"))),
         }
     }
@@ -438,7 +438,7 @@ impl Kernel {
         })
     }
 
-    fn forget_home_rows_of(
+    fn answer_forget_home_rows(
         &mut self,
         asked: &ForgetHomeRowsAsked,
     ) -> Result<HomeRowsForgotten, String> {
