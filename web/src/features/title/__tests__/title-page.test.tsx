@@ -117,7 +117,7 @@ test("a title nobody has voted on shows no Score, not 0", async () => {
   expect(screen.queryByText("Score")).toBeNull();
 });
 
-test("a Movie's page links each Trailer out to a new tab, and loads nothing from its host", async () => {
+test("a Movie's Trailers load nothing from their host until one is played in a pop-up", async () => {
   const youtube = "https://www.youtube.com/watch?v=isOGD_7hNIY";
   const vimeo = "https://vimeo.com/123456789";
   openMovie({
@@ -130,14 +130,25 @@ test("a Movie's page links each Trailer out to a new tab, and loads nothing from
   const row = await screen.findByRole("region", { name: "Trailers" });
   const links = within(row).getAllByRole("link");
   expect(links.map((link) => link.getAttribute("href"))).toStrictEqual([youtube, vimeo]);
-  expect(
-    links.map((link) => [link.getAttribute("target"), link.getAttribute("rel")]),
-  ).toStrictEqual([
-    ["_blank", "noopener noreferrer"],
-    ["_blank", "noopener noreferrer"],
-  ]);
-  expect(within(row).getByRole("link", { name: /^Official Trailer/u })).toBe(links[0]);
   expect(document.querySelector("iframe, video, [src*='youtube'], [src*='vimeo']")).toBeNull();
+
+  fireEvent.click(within(row).getByRole("link", { name: "Official Trailer" }));
+
+  const player = within(screen.getByRole("dialog", { name: "Official Trailer" })).getByTitle(
+    "Official Trailer",
+  );
+  expect(player.getAttribute("src")).toBe(
+    "https://www.youtube-nocookie.com/embed/isOGD_7hNIY?autoplay=1",
+  );
+});
+
+test("right-clicking a Trailer opens the same menu as its …", async () => {
+  openMovie({ trailers: [{ name: "Teaser", url: "https://vimeo.com/123456789" }] });
+
+  const row = await screen.findByRole("region", { name: "Trailers" });
+  fireEvent.contextMenu(within(row).getByRole("link", { name: "Teaser" }));
+
+  await expect(screen.findByRole("menuitem", { name: "Share" })).resolves.toBeDefined();
 });
 
 test("a title without Trailers has no Trailers row", async () => {
@@ -290,7 +301,7 @@ test("a Show's page shows its own overview, first air year, Score, Original audi
   expect(screen.getAllByText("2017")).toHaveLength(2);
   expect(screen.getByText("Score").parentElement?.textContent).toBe("Score8.4");
   expect(detail("Original audio")).toBe("German");
-  expect(screen.getByRole("link", { name: /^Final Trailer/u }).getAttribute("href")).toBe(
+  expect(screen.getByRole("link", { name: "Final Trailer" }).getAttribute("href")).toBe(
     "https://www.youtube.com/watch?v=darkFinal01",
   );
   expect(screen.queryByRole("link", { name: /^(?:Resume|Play)/u })).toBeNull();

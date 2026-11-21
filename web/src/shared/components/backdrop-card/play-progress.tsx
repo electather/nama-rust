@@ -20,8 +20,8 @@ export function PlayProgress({
   // A sliver even just started, so the bar reads as a bar, as the artboard draws it.
   const played = `${Math.max(8, watchedPercent(state))}%`;
   return (
-    <span aria-hidden className="flex items-center gap-2 text-sm">
-      {(started || !quiet) && <Play className="size-3.5 fill-current" />}
+    <span aria-hidden className="flex items-center gap-2 text-xs">
+      {(started || !quiet) && <Play className="size-3 fill-current" />}
       {started && (
         <span
           className="h-1 w-11 flex-none overflow-hidden rounded-full bg-foreground/25 before:block before:h-full before:w-(--played) before:rounded-full before:bg-foreground"
