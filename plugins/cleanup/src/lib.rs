@@ -1,7 +1,7 @@
 //! The Cleanup Installed Plugin: its hourly Job deletes from the Libraries the Admin chooses the
 //! Requested Movies and Episodes each of whose Requesters is done with them, through the Kernel's
-//! `delete_media` only (ADR 0048, ADR 0079). A title nobody Requested is kept. The Server builds it for
-//! wasm32 and bundles it in its binary.
+//! `delete_media` only (ADR 0048, ADR 0079). A title nobody Requested is kept. The Server builds
+//! it for wasm32 and bundles it in its binary.
 
 use std::collections::HashSet;
 

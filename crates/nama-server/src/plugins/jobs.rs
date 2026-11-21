@@ -54,8 +54,8 @@ pub(super) fn refusal(manifest: &Manifest) -> Option<String> {
 
 /// Starts in `scope` a loop firing each of `manifest`'s scheduled Jobs, if `registrations` provide
 /// a [`JobRunner`]. The Registry calls it under its lock, so the loops are in the enablement's
-/// scope before a disable can find it. Starts nothing outside a Tokio
-/// runtime, where no task can run.
+/// scope before a disable can find it. Starts nothing outside a Tokio runtime, where no task can
+/// run.
 pub(super) fn schedule(
     scope: &Scope,
     points: &ExtensionPoints,

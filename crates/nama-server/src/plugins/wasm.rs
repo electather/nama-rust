@@ -380,7 +380,8 @@ impl Plugin for Installed {
         // A call ended so fails as `calls::Collateral`, not as a crash; a compile per call would
         // avoid it, but compiling costs too much. So a point whose calls may run long gets a
         // compile of its own: a Job's Run ended at its limit doesn't end a delivery running beside
-        // it, nor a delivery's timeout the Run. The other points share one, as their calls are short.
+        // it, nor a delivery's timeout the Run. The other points share one, as their calls are
+        // short.
         let mut shared = None;
         for point in POINTS
             .iter()

@@ -263,7 +263,7 @@ async fn disabling_a_plugin_while_its_job_runs_ends_the_wasm_call_promptly() {
     let registry = Registry::new();
     registry.enable(Arc::new(plugin)).unwrap();
     // Outside the Plugin's scope, so only the stop, not the scope's cancel, can end it.
-    let running = tokio::spawn({
+    let running_job = tokio::spawn({
         let (points, id) = (registry.extension_points(), id.clone());
         async move { jobs::run(&points, &id, "kernel").await }
     });
@@ -272,7 +272,7 @@ async fn disabling_a_plugin_while_its_job_runs_ends_the_wasm_call_promptly() {
     let disabled = tokio::time::timeout(CALL_TIMEOUT, registry.disable(&id)).await;
 
     assert_eq!(disabled.ok(), Some(true));
-    let ran = tokio::time::timeout(CALL_TIMEOUT, running)
+    let ran = tokio::time::timeout(CALL_TIMEOUT, running_job)
         .await
         .expect("the Run ran on past the disable")
         .unwrap();

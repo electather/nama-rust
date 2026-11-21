@@ -55,7 +55,8 @@ pub(super) struct State {
     /// Where [`Registry::crashed`] sends the Installed Plugins it disables for crashing.
     pub(super) crashed: Option<mpsc::UnboundedSender<PluginId>>,
     /// What makes the Kernel's functions for a Plugin and the Permissions granted it, once startup
-    /// sets it with [`ExtensionPoints::serve_kernel`]. A watch, so a Job's firing loop can wait for it.
+    /// sets it with [`ExtensionPoints::serve_kernel`]. A watch, so a Job's firing loop can wait for
+    /// it.
     pub(super) kernel: Arc<watch::Sender<Option<MakeKernel>>>,
     /// What makes each in-process Plugin [`Registry::list_as_installed`] lists as Installed.
     #[cfg(feature = "testing")]
