@@ -36,6 +36,7 @@ fn field(key: &str, kind: SettingKind, required: bool) -> SettingField {
         default: None,
         min: None,
         max: None,
+        choices: Vec::new(),
     }
 }
 

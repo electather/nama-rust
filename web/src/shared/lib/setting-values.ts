@@ -42,6 +42,9 @@ export function valueText(setting: SettingValue | undefined) {
   if (setting.value.case === "libraryIds") {
     return setting.value.value.ids.join(",");
   }
+  if (setting.value.case === "texts") {
+    return setting.value.value.values.join(", ");
+  }
   return String(setting.value.value);
 }
 

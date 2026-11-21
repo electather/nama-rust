@@ -664,6 +664,7 @@ pub(super) fn setting_to_proto(
         secret_set: secret && stored.is_some(),
         min_value: field.min,
         max_value: field.max,
+        choices: field.choices.iter().cloned().map(choice_to_proto).collect(),
         ..Default::default()
     }
 }
@@ -679,14 +680,15 @@ pub(super) fn settings_from_proto<'a>(
 
 fn setting_choices_to_proto(choices: Vec<settings::Choice>) -> proto::SettingChoices {
     proto::SettingChoices {
-        choices: choices
-            .into_iter()
-            .map(|choice| proto::Choice {
-                value: choice.value,
-                label: choice.label,
-                ..Default::default()
-            })
-            .collect(),
+        choices: choices.into_iter().map(choice_to_proto).collect(),
+        ..Default::default()
+    }
+}
+
+fn choice_to_proto(choice: settings::Choice) -> proto::Choice {
+    proto::Choice {
+        value: choice.value,
+        label: choice.label,
         ..Default::default()
     }
 }
@@ -701,6 +703,7 @@ fn setting_value_from_proto(value: &proto::SettingValue) -> Option<settings::Set
         Value::BoolValue(on) => settings::SettingValue::Bool(*on),
         Value::IntegerValue(number) => settings::SettingValue::Integer(*number),
         Value::LibraryIds(libraries) => settings::SettingValue::Libraries(libraries.ids.clone()),
+        Value::Texts(texts) => settings::SettingValue::Texts(texts.values.clone()),
     };
     Some(value)
 }
@@ -713,6 +716,10 @@ fn setting_value_to_proto(value: &settings::SettingValue) -> proto::SettingValue
         settings::SettingValue::Integer(number) => Value::IntegerValue(*number),
         settings::SettingValue::Libraries(ids) => Value::LibraryIds(Box::new(proto::LibraryIds {
             ids: ids.clone(),
+            ..Default::default()
+        })),
+        settings::SettingValue::Texts(values) => Value::Texts(Box::new(proto::Texts {
+            values: values.clone(),
             ..Default::default()
         })),
     };
@@ -732,6 +739,7 @@ fn setting_kind_to_proto(kind: settings::SettingKind) -> proto::SettingKind {
         K::Choice => proto::SettingKind::SETTING_KIND_CHOICE,
         K::Url => proto::SettingKind::SETTING_KIND_URL,
         K::Libraries => proto::SettingKind::SETTING_KIND_LIBRARIES,
+        K::Choices => proto::SettingKind::SETTING_KIND_CHOICES,
     }
 }
 

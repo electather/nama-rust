@@ -75,7 +75,10 @@ fn unknown_library(
             .iter()
             .find(|id| !known.contains(id))
             .map(|&id| (key.to_owned(), id)),
-        SettingValue::Bool(_) | SettingValue::Integer(_) | SettingValue::Text(_) => None,
+        SettingValue::Bool(_)
+        | SettingValue::Integer(_)
+        | SettingValue::Text(_)
+        | SettingValue::Texts(_) => None,
     })
 }
 

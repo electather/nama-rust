@@ -21,7 +21,7 @@ use nama_plugin_api::{
     job::{JobRunner, RunJob},
     notifier::{Notification, Notifier, Recipient, RecipientGone},
     points::{Events, ObservedEvents},
-    settings::{Choice, Choices, PersonalSettingsCheck, SettingKind, Settings, SettingsCheck},
+    settings::{Choices, PersonalSettingsCheck, SettingKind, Settings, SettingsCheck},
 };
 use nama_plugin_proto::{
     CONTRACT_VERSION, SERVICES,
@@ -115,6 +115,17 @@ pub(super) enum Refused {
     BoundsCrossed { key: String, min: i64, max: i64 },
     #[error("its setting {key}'s default is outside its bounds")]
     DefaultOutOfBounds { key: String },
+    #[error("its setting {key} has choices, which only a Choices setting may")]
+    ChoicesOnAnotherKind { key: String },
+    #[error("its setting {key} lists the choice {value:?} twice")]
+    ChoiceRepeated { key: String, value: String },
+    #[error("its setting {key}'s default holds a value that isn't among its choices")]
+    DefaultNotAChoice { key: String },
+    #[error(
+        "its setting {key} is Choices with no choices, and it has no {CHECK_SETTINGS} export to \
+         offer some"
+    )]
+    NoChoices { key: String },
     #[error("its allowed host {0} has a port, and allowed hosts are matched without one")]
     HostWithPort(String),
     #[error("its id {0} is another Plugin's")]
@@ -707,10 +718,7 @@ fn choices(checked: CheckedSettings) -> Choices {
         .choices
         .into_iter()
         .map(|(key, offered)| {
-            let offered = offered.choices.into_iter().map(|choice| Choice {
-                value: choice.value,
-                label: choice.label,
-            });
+            let offered = offered.choices.into_iter().map(contract::choice);
             (key, offered.collect())
         })
         .collect()

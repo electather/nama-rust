@@ -198,8 +198,9 @@ pub trait Plugin: Send + Sync + 'static {
     fn manifest(&self) -> Manifest;
 
     /// The Plugin's check of its settings, if it has one, which offers the choices for its
-    /// [`SettingKind::Choice`](settings::SettingKind::Choice) settings. The Kernel runs it on a
-    /// fresh instance that isn't enabled.
+    /// [`SettingKind::Choice`](settings::SettingKind::Choice) settings, and for its
+    /// [`SettingKind::Choices`](settings::SettingKind::Choices) settings in place of their own.
+    /// The Kernel runs it on a fresh instance that isn't enabled.
     fn settings_check(&self) -> Option<&dyn SettingsCheck> {
         None
     }

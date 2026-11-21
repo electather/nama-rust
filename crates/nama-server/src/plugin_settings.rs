@@ -439,16 +439,17 @@ impl PluginSettings {
 
     /// Saves `sent` as the Plugin `id`'s settings, then applies them if it is stored as enabled, so
     /// a restart retries settings that fail to enable it (ADR 0028). A secret left out keeps its
-    /// stored value unless `forgotten` names it, and a repeated Library id is kept once. One that
-    /// fails to enable with them is put back as it ran, as [`PluginSettings::enable_granting`]
-    /// does. Returns the Plugin as it is now, enabled only if running, with what is stored for it.
+    /// stored value unless `forgotten` names it, a repeated Library id is kept once, and a Choices
+    /// setting's values once each, in the order its choices are listed. One that fails to enable
+    /// with them is put back as it ran, as [`PluginSettings::enable_granting`] does. Returns the
+    /// Plugin as it is now, enabled only if running, with what is stored for it.
     ///
     /// # Errors
     ///
     /// If no Plugin has the id or the Server refused it, the settings don't fit its schema (even
     /// an integer's bounds, and a required setting only if it is stored as enabled) or name a
-    /// Library that doesn't exist, its settings check fails or doesn't offer a choice's value, or
-    /// the database fails. A refused change saves nothing.
+    /// Library that doesn't exist, its settings check fails, a choice's value or a Choices
+    /// setting's isn't offered, or the database fails. A refused change saves nothing.
     pub async fn update(
         &self,
         id: &PluginId,
@@ -475,7 +476,8 @@ impl PluginSettings {
                 .await?;
             // ponytail: checked under `changing`, so a slow outside service holds up other Plugin
             // changes for up to SETTINGS_CHECK_TIMEOUT; check before locking if that bites.
-            this.check_choices(&manifest, &settings).await?;
+            this.check_choices(&manifest, plugin.checks_settings, &mut settings)
+                .await?;
             save(&this.db, id.as_str(), stored.enabled, &settings).await?;
             let stored_enabled = if stored.enabled {
                 let ran = this.ran_with(&id);

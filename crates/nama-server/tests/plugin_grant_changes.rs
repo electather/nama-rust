@@ -79,6 +79,7 @@ impl Plugin for Grantee {
             default: None,
             min: None,
             max: None,
+            choices: Vec::new(),
         };
         Manifest {
             version: "0.0.0".to_owned(),

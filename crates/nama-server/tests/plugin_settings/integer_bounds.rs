@@ -55,7 +55,7 @@ async fn days_setting(server: &TestServer) -> Setting {
 fn stored_days(setting: &Setting) -> Option<i64> {
     match setting.value.as_option()?.value.as_ref()? {
         Value::IntegerValue(days) => Some(*days),
-        Value::TextValue(_) | Value::BoolValue(_) | Value::LibraryIds(_) => None,
+        Value::TextValue(_) | Value::BoolValue(_) | Value::LibraryIds(_) | Value::Texts(_) => None,
     }
 }
 
