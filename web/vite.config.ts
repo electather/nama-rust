@@ -42,6 +42,10 @@ export default defineConfig({
     include: ["src/**/__tests__/**/*.test.{ts,tsx}"],
     environment: "happy-dom",
     retry: ci ? 2 : 0,
+    // Under a full run's load the app can take over the default 1 s to send its first RPC (`src/test-app.tsx` raises Testing Library's wait to match).
+    expect: { poll: { timeout: 5000 } },
+    // Over the 5 s waits, so one that runs out names what it missed; a cold run's first imports take seconds.
+    testTimeout: 15_000,
     // JSON, not JUnit: vitest's JUnit report doesn't show which tests passed only on a retry.
     reporters: ci ? ["default", "json"] : ["default"],
     outputFile: { json: "test-results/vitest.json" },
