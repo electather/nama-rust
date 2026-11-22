@@ -10,10 +10,10 @@ use axum::{
 
 include!(concat!(env!("OUT_DIR"), "/web_assets.rs"));
 
-/// Answers a `GET` for any path but an RPC's or the key set's with the app's file at that path, or else with
-/// `index.html`, so a reloaded deep link still loads the app, which then routes to the page. Every
-/// other request goes on to `next`, so an unknown RPC still gets a 404. `vp dev` proxies the same
-/// paths to a Hub (`web/hub/vite.config.ts`).
+/// Answers a `GET` for any path but an RPC's or the key set's with the app's file at that path, or
+/// else with `index.html`, so a reloaded deep link still loads the app, which then routes to the
+/// page. Every other request goes on to `next`, so an unknown RPC still gets a 404. `vp dev`
+/// proxies the same paths to a Hub (`web/hub/vite.config.ts`).
 pub(crate) async fn serve(request: Request, next: Next) -> Response {
     let path = request.uri().path();
     let passed_on = path.starts_with("/nama.") || path.starts_with("/.well-known/");
