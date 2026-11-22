@@ -1,5 +1,6 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
-//! keeps in the Plugin's Store once someone entered it. Its Users' Links are in `users.rs`.
+//! keeps in the Plugin's Store once someone entered it, and the Server Addresses it tells the Hub.
+//! Its Users' Links are in `users.rs`.
 
 mod users;
 
@@ -17,7 +18,7 @@ use nama_plugin_api::{
         functions::{StoreDelete, StoreGet, StorePut},
     },
     contract::{StoreEntry, StoreKey},
-    server_link::{Link, ServerLinker},
+    server_link::{Link, ServerAddresses, ServerLinker},
 };
 use ring::digest;
 use serde::{Deserialize, Serialize};
@@ -71,6 +72,9 @@ pub(crate) struct Linker {
     waiting: Mutex<Option<Waiting>>,
     /// What the Plugin knows of each User's Link but what it keeps in the Store.
     users: std::sync::Mutex<HashMap<i64, users::UserState>>,
+    /// The Server Addresses the Hub has, with the [`Kept::id`] of the Link it got them through.
+    /// Held across telling the Hub, so a report never overtakes another.
+    reported: Mutex<Option<(String, ServerAddresses)>>,
 }
 
 impl Linker {
@@ -80,6 +84,7 @@ impl Linker {
             kernel,
             waiting: Mutex::default(),
             users: std::sync::Mutex::default(),
+            reported: Mutex::default(),
         }
     }
 
@@ -171,6 +176,22 @@ impl Linker {
         Ok(())
     }
 
+    /// Tells the Hub `addresses`, unless the Server isn't Linked or the Hub has them already from
+    /// this Link. Forgotten on a restart, so the Hub hears them once more then.
+    async fn report(&self, addresses: ServerAddresses) -> Result<(), PluginError> {
+        let Some(kept) = self.kept().await? else {
+            return Ok(());
+        };
+        let mut reported = self.reported.lock().await;
+        let report = (kept.id(), addresses);
+        if reported.as_ref() == Some(&report) {
+            return Ok(());
+        }
+        self.hub.set_addresses(&kept.credential, &report.1).await?;
+        *reported = Some(report);
+        Ok(())
+    }
+
     fn showing(&self, code: &Waiting) -> Link {
         self.waiting_on(code.code.clone())
     }
@@ -258,6 +279,10 @@ impl ServerLinker for Linker {
 
     fn unlink_user(&self, user_id: i64) -> BoxFuture<'_, Result<(), PluginError>> {
         Box::pin(self.forget_user_link(user_id))
+    }
+
+    fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
+        Box::pin(self.report(addresses))
     }
 }
 

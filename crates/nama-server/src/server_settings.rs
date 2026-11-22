@@ -672,6 +672,11 @@ pub(super) fn read(values: &RwLock<Values>) -> std::sync::RwLockReadGuard<'_, Va
 pub(crate) struct ServerUrl(Arc<RwLock<Values>>);
 
 impl ServerUrl {
+    /// The Server URL, or empty with none set.
+    pub(crate) fn url(&self) -> String {
+        read(&self.0).url.clone()
+    }
+
     /// Where the Request `id` is in the web app, or `None` with no URL set.
     pub(crate) fn request_link(&self, id: i64) -> Option<String> {
         self.link(&format!("requests/{id}"))

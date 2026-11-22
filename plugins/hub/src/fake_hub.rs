@@ -1,5 +1,5 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
-//! one Server's device flow, Unlinking, its Users' Links, and a key set of one Ed25519 key it signs
+//! one Server's device flow, Unlinking, its Users' Links, its Server Addresses, and a key set of one Ed25519 key it signs
 //! with, as the Hub's API (`proto/nama/hub/v1/link.proto`) says the Hub does.
 
 use std::{
@@ -14,7 +14,8 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_hub_proto::nama::hub::v1::{
     GetUserLinkRequest, GetUserLinkResponse, LinkedServerService, PollServerLinkRequest,
-    PollServerLinkResponse, ServerLinkService, StartServerLinkRequest, StartServerLinkResponse,
+    PollServerLinkResponse, ServerLinkService, SetServerAddressesRequest,
+    SetServerAddressesResponse, StartServerLinkRequest, StartServerLinkResponse,
     StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest, UnlinkServerResponse,
     UnlinkUserRequest, UnlinkUserResponse,
 };
@@ -54,6 +55,8 @@ struct State {
     user_accounts: HashMap<i64, String>,
     /// How often a User's Link was asked about.
     user_link_asks: usize,
+    /// Each Server URL and LAN addresses the Server reported, in order.
+    reported_addresses: Vec<(String, Vec<String>)>,
 }
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
@@ -144,6 +147,11 @@ impl FakeHub {
     /// How often the Server asked about a User's Link.
     pub(super) fn user_link_asks(&self) -> usize {
         lock(&self.state).user_link_asks
+    }
+
+    /// Each Server URL and LAN addresses the Server reported, in order.
+    pub(super) fn reported_addresses(&self) -> Vec<(String, Vec<String>)> {
+        lock(&self.state).reported_addresses.clone()
     }
 
     /// Has the key set fail, as if the Hub went down right after handing out a credential.
@@ -313,6 +321,22 @@ impl LinkedServerService for Linked {
         state.user_codes.remove(&request.user_id);
         state.user_accounts.remove(&request.user_id);
         Response::ok(UnlinkUserResponse::default())
+    }
+
+    async fn set_server_addresses(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetServerAddressesRequest>,
+    ) -> ServiceResult<SetServerAddressesResponse> {
+        let mut state = self.caller(&ctx)?;
+        let lan = request
+            .lan_addresses
+            .iter()
+            .map(|&address| address.to_owned());
+        state
+            .reported_addresses
+            .push((request.url.to_owned(), lan.collect()));
+        Response::ok(SetServerAddressesResponse::default())
     }
 }
 

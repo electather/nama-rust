@@ -27,6 +27,15 @@ pub enum Link {
     },
 }
 
+/// How clients might reach the Server: its Server Addresses (GLOSSARY.md).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ServerAddresses {
+    /// The Server URL its Admin set, such as `https://nama.example.com`, or empty for none.
+    pub url: String,
+    /// Its LAN addresses, such as `http://192.168.1.10:7980`.
+    pub lan: Vec<String>,
+}
+
 /// A Provider that Links the Server, and its Users, to an outside service.
 pub trait ServerLinker: Send + Sync + 'static {
     /// Where Linking stands. While a code waits, this is also when the Plugin asks the service
@@ -80,4 +89,13 @@ pub trait ServerLinker: Send + Sync + 'static {
     ///
     /// When the service couldn't be told: the User stays Linked.
     fn unlink_user(&self, user_id: i64) -> BoxFuture<'_, Result<(), PluginError>>;
+
+    /// Tells the Plugin the Server's `addresses`, for the service to hand its clients. The Kernel
+    /// tells it every minute whether or not they changed, so the Plugin passes on only a change,
+    /// and only while the Server is Linked.
+    ///
+    /// # Errors
+    ///
+    /// When the service couldn't be told: the Kernel tells the Plugin again a minute later.
+    fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>>;
 }

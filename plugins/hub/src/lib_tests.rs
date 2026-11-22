@@ -12,7 +12,7 @@ use nama_plugin_api::{
         functions::{StoreDelete, StoreGet, StorePut},
     },
     contract::{StoreEntry, StoreKey, StoreValue, Stored},
-    server_link::{Link, ServerLinker},
+    server_link::{Link, ServerAddresses, ServerLinker},
 };
 use serde_json::json;
 
@@ -352,4 +352,67 @@ async fn a_server_linked_again_doesnt_show_its_users_old_links() {
 
     assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
     assert_eq!(linker.user_link(8).await.unwrap(), Some(Link::NotLinked));
+}
+
+fn addresses(url: &str, lan: &[&str]) -> ServerAddresses {
+    ServerAddresses {
+        url: url.to_owned(),
+        lan: lan.iter().map(|&address| address.to_owned()).collect(),
+    }
+}
+
+#[tokio::test]
+async fn the_server_reports_its_addresses_once_linked_and_then_only_when_they_change() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
+    linker.set_addresses(lan_only.clone()).await.unwrap();
+    assert_eq!(hub.reported_addresses(), []);
+    link(&hub, linker.as_ref()).await;
+
+    linker.set_addresses(lan_only.clone()).await.unwrap();
+    linker.set_addresses(lan_only.clone()).await.unwrap();
+    linker
+        .set_addresses(addresses(
+            "https://nama.example.com",
+            &["http://192.168.1.10:7980"],
+        ))
+        .await
+        .unwrap();
+
+    let lan = vec!["http://192.168.1.10:7980".to_owned()];
+    assert_eq!(
+        hub.reported_addresses(),
+        [
+            (String::new(), lan.clone()),
+            ("https://nama.example.com".to_owned(), lan),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_server_linked_again_reports_its_addresses_again() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
+    link(&hub, linker.as_ref()).await;
+    linker.set_addresses(lan_only.clone()).await.unwrap();
+    linker.unlink().await.unwrap();
+    link(&hub, linker.as_ref()).await;
+
+    linker.set_addresses(lan_only).await.unwrap();
+
+    assert_eq!(hub.reported_addresses().len(), 2);
+}
+
+#[tokio::test]
+async fn addresses_the_hub_couldnt_take_are_reported_again() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+    hub.stop();
+
+    let reported = linker.set_addresses(addresses("", &[])).await;
+
+    assert!(reported.is_err());
 }

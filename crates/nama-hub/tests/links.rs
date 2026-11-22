@@ -1,5 +1,6 @@
-//! Registering a Server through the device flow, listing an Account's Servers and Unlinking one,
-//! and Linking a Linked Server's Users to Accounts, against a real PostgreSQL.
+//! Registering a Server through the device flow, listing an Account's Servers with their Server
+//! Addresses and Unlinking one, and Linking a Linked Server's Users to Accounts, against a real
+//! PostgreSQL.
 
 #[path = "support/hub.rs"]
 mod hub;
@@ -24,9 +25,9 @@ use nama_hub_proto::nama::hub::v1::{
     AccountServiceClient, ApproveServerLinkRequest, ApproveUserLinkRequest, CreateAccountRequest,
     GetUserLinkRequest, LinkServiceClient, LinkedServerServiceClient, ListLinkedServersRequest,
     ListLinkedUsersRequest, PollServerLinkRequest, PollServerLinkResponse, RefusalReason,
-    SendSignInLinkRequest, ServerLinkServiceClient, SignInWithLinkRequest, StartServerLinkRequest,
-    StartServerLinkResponse, StartUserLinkRequest, UnlinkLinkedUserRequest, UnlinkServerRequest,
-    UnlinkUserRequest,
+    SendSignInLinkRequest, ServerLinkServiceClient, SetServerAddressesRequest,
+    SignInWithLinkRequest, StartServerLinkRequest, StartServerLinkResponse, StartUserLinkRequest,
+    UnlinkLinkedUserRequest, UnlinkServerRequest, UnlinkUserRequest,
 };
 use refused::assert_refused;
 use ring::signature::{ED25519, UnparsedPublicKey};
@@ -604,5 +605,154 @@ async fn linking_a_user_needs_a_proven_email_and_a_linked_server(db: PgPool) {
         start_user(&hub, "no such credential", 7).await,
         ErrorCode::Unauthenticated,
         RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+    );
+}
+
+/// Reports `url` and `lan_addresses` as the Server Addresses of the Server presenting `credential`.
+async fn set_addresses(
+    hub: &TestHub,
+    credential: &str,
+    url: &str,
+    lan_addresses: &[&str],
+) -> Result<(), connectrpc::ConnectError> {
+    linked_server(hub, credential)
+        .set_server_addresses(SetServerAddressesRequest {
+            url: url.to_owned(),
+            lan_addresses: lan_addresses
+                .iter()
+                .map(|&address| address.to_owned())
+                .collect(),
+            ..Default::default()
+        })
+        .await?;
+    Ok(())
+}
+
+/// Each Server the Account signed in as `token` lists: its name, its Server URL and its Server
+/// Addresses.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn server_addresses(hub: &TestHub, token: &str) -> Vec<(String, String, Vec<String>)> {
+    let listed = links(hub, token)
+        .list_linked_servers(ListLinkedServersRequest::default())
+        .await
+        .unwrap()
+        .into_owned();
+    listed
+        .servers
+        .into_iter()
+        .map(|server| (server.name, server.url, server.addresses))
+        .collect()
+}
+
+#[sqlx::test(migrations = false)]
+async fn an_account_lists_the_server_addresses_its_server_last_reported(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    assert_eq!(
+        server_addresses(&hub, &ada).await,
+        [("Living room".to_owned(), String::new(), vec![])]
+    );
+    set_addresses(&hub, &living_room, "", &["http://192.168.1.10:7980"])
+        .await
+        .unwrap();
+
+    set_addresses(
+        &hub,
+        &living_room,
+        "https://nama.example.com",
+        &["http://192.168.1.11:7980"],
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        server_addresses(&hub, &ada).await,
+        [(
+            "Living room".to_owned(),
+            "https://nama.example.com".to_owned(),
+            vec![
+                "https://nama.example.com".to_owned(),
+                "http://192.168.1.11:7980".to_owned()
+            ]
+        )]
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn an_account_lists_the_servers_its_users_are_on_and_no_others(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let bea = create_proven(&hub, &mut inbox, "bea@example.com").await;
+    let cy = create_proven(&hub, &mut inbox, "cy@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    linked(&hub, &ada, "Cabin").await;
+    set_addresses(&hub, &living_room, "https://nama.example.com", &[])
+        .await
+        .unwrap();
+    let code = start_user(&hub, &living_room, 7).await.unwrap();
+    approve_user(&hub, &bea, &code).await.unwrap();
+
+    assert_eq!(
+        server_addresses(&hub, &bea).await,
+        [(
+            "Living room".to_owned(),
+            "https://nama.example.com".to_owned(),
+            vec!["https://nama.example.com".to_owned()]
+        )]
+    );
+    assert_eq!(server_names(&hub, &ada).await, ["Living room", "Cabin"]);
+    assert_eq!(server_names(&hub, &cy).await, Vec::<String>::new());
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_server_sets_only_its_own_addresses(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let bea = create_proven(&hub, &mut inbox, "bea@example.com").await;
+    linked(&hub, &ada, "Ada's").await;
+    let beas = linked(&hub, &bea, "Bea's").await;
+
+    set_addresses(&hub, &beas, "https://bea.example.com", &[])
+        .await
+        .unwrap();
+
+    assert_eq!(
+        server_addresses(&hub, &ada).await,
+        [("Ada's".to_owned(), String::new(), vec![])]
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_server_address_must_be_an_http_url(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    let too_many = ["http://192.168.1.10:7980"; 17];
+    let too_long = format!("https://{}.example.com", "a".repeat(2000));
+
+    for (url, lan_addresses) in [
+        ("javascript:alert(1)", &[][..]),
+        ("", &["192.168.1.10:7980"][..]),
+        (too_long.as_str(), &[][..]),
+        ("", &too_many[..]),
+    ] {
+        assert_refused(
+            set_addresses(&hub, &living_room, url, lan_addresses).await,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_SERVER_ADDRESS_INVALID,
+        );
+    }
+    assert_refused(
+        set_addresses(&hub, "not a credential", "", &[]).await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+    );
+    assert_eq!(
+        server_addresses(&hub, &ada).await,
+        [("Living room".to_owned(), String::new(), vec![])]
     );
 }

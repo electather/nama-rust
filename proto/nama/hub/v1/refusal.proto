@@ -57,4 +57,8 @@ enum RefusalReason {
   // `already_exists`: the User is Linked to an Account already, and a User Links to one only.
   // Unlink them first.
   REFUSAL_REASON_USER_LINKED = 14;
+  // `invalid_argument`: a Server Address isn't an `http` or `https` URL of at most `maxLength`
+  // characters, or the Server reported more than `maxLanAddresses` LAN addresses. Params:
+  // `maxLength` and `maxLanAddresses`.
+  REFUSAL_REASON_SERVER_ADDRESS_INVALID = 15;
 }
