@@ -419,7 +419,7 @@ struct Watched {
     played_episodes: usize,
     started: bool,
     /// Whether the User played the Movie, or an Episode, through or past halfway.
-    played: bool,
+    played_or_past_halfway: bool,
     /// When the Watch State, or any Episode's, last changed, in milliseconds since the Unix epoch.
     last_changed_ms: i64,
 }
@@ -454,7 +454,7 @@ impl History {
                     episodes: 0,
                     played_episodes: 0,
                     started: false,
-                    played: false,
+                    played_or_past_halfway: false,
                     last_changed_ms: 0,
                 }
             });
@@ -468,9 +468,6 @@ impl History {
     }
 
     /// The titles of `watchlist` the User hasn't started or played, in its order.
-    ///
-    /// ponytail: a Watchlist title matches only by the id the Kernel lists it under, so one added
-    /// under another id shows even once started; match every id when the Kernel lists them.
     fn unstarted(&self, watchlist: &[WatchlistTitle]) -> Vec<HomeRowTitle> {
         self.unstarted_of(
             (watchlist.iter())
@@ -479,6 +476,10 @@ impl History {
     }
 
     /// The titles of `keys` the User hasn't started or played, in their order.
+    ///
+    /// ponytail: a title matches only by the id the Kernel lists it under, so one named by
+    /// another, such as a Show listed by its TVDB id, shows even once started; match every id
+    /// when the Kernel lists them.
     fn unstarted_of(&self, keys: impl IntoIterator<Item = Key>) -> Vec<HomeRowTitle> {
         let started: HashSet<&Key> = (self.titles.iter())
             .filter(|title| title.started)
@@ -501,7 +502,7 @@ impl History {
     /// If TMDB can't answer.
     fn because_you_watched(&self, api: &Api) -> Result<Vec<HomeRow>, Error> {
         let mut played: Vec<(&Watched, [&str; 2])> = (self.titles.iter())
-            .filter(|title| title.played)
+            .filter(|title| title.played_or_past_halfway)
             .filter_map(|title| Some((title, title.key.tmdb_path()?)))
             .collect();
         played.sort_by_key(|(title, _)| Reverse(title.last_changed_ms));
@@ -537,11 +538,11 @@ impl History {
         Ok(again.iter().map(|title| title.key.row_title()).collect())
     }
 
-    /// How many titles of each genre the User played.
+    /// How many titles of each genre the User played an Episode of, or the Movie.
     fn genre_plays(&self) -> HashMap<&str, usize> {
         let mut plays = HashMap::new();
-        for genre in
-            (self.titles.iter().filter(|title| title.played)).flat_map(|title| &title.genres)
+        for genre in (self.titles.iter().filter(|title| title.played_episodes > 0))
+            .flat_map(|title| &title.genres)
         {
             *plays.entry(genre.as_str()).or_default() += 1;
         }
@@ -597,7 +598,7 @@ impl Watched {
         self.episodes += 1;
         self.played_episodes += usize::from(played);
         self.started |= played || states.iter().any(|state| state.position_ms > 0);
-        self.played |= played
+        self.played_or_past_halfway |= played
             || (states.iter())
                 .any(|state| state.duration_ms > 0 && state.position_ms > state.duration_ms / 2);
         self.last_changed_ms = (states.iter())
