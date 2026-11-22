@@ -1,6 +1,6 @@
 //! Talking to the Hub: its API (`proto/nama/hub/v1/`) and its published key set.
 
-use std::{sync::Arc, time::Duration};
+use std::{net::Ipv4Addr, sync::Arc, time::Duration};
 
 use bytes::Bytes;
 use connectrpc::client::{
@@ -57,7 +57,12 @@ impl Hub {
         } else {
             builder.with_provider_and_native_roots(provider)?
         };
-        let connector = builder.https_or_http().enable_http1().build();
+        let mut http = HttpConnector::new();
+        http.enforce_http(false);
+        // IPv4 only: the Hub checks the Server's public port at the address its calls come from,
+        // and the router opens that port on its IPv4 address alone (ADR 0057).
+        http.set_local_address(Some(Ipv4Addr::UNSPECIFIED.into()));
+        let connector = builder.https_or_http().enable_http1().wrap_connector(http);
         let client = Client::builder(TokioExecutor::new()).build(connector);
         Ok(Self {
             url,

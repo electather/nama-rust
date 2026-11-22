@@ -39,16 +39,18 @@ pub(crate) fn tell_every_minute(
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         let mut ticks = tokio::time::interval(EVERY);
-        let mut router = Router::default();
+        let mut opened = OpenedPort::default();
         loop {
             ticks.tick().await;
             let Some(plugin) = points.ranked::<dyn ServerLinker>().into_iter().next() else {
+                // So enabling it again opens the port at once, whose lease may have run out since.
+                opened = OpenedPort::default();
                 continue;
             };
             let lan = lan_address(listening);
             let public_port = match forwarded {
                 Some(port) => Some(port.get()),
-                None => router.port(lan).await,
+                None => opened.port(lan).await,
             };
             let addresses = ServerAddresses {
                 url: as_sent(&url.url()),
@@ -62,14 +64,14 @@ pub(crate) fn tell_every_minute(
 
 /// The port opened on the router, kept between ticks.
 #[derive(Default)]
-struct Router {
+struct OpenedPort {
     /// The port open on the router's public IP address, if it opened one.
     port: Option<u16>,
     /// Ticks left until the port is opened again; 0 opens it on the next.
     ticks_left: u32,
 }
 
-impl Router {
+impl OpenedPort {
     /// The port open on the router to the Server at its LAN address `lan`, opened again every
     /// [`OPEN_PORT_EVERY`] calls. NAT-PMP and UPnP's port forwarding are IPv4 only.
     async fn port(&mut self, lan: Option<SocketAddr>) -> Option<u16> {

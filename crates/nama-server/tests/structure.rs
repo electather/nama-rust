@@ -120,12 +120,12 @@ const ROWS: &[&[&str]] = &[
         "server_settings",
         "ffmpeg",
         "web",
+        "port_mapping",
         "diagnostics",
         "db",
         "page",
         "config",
         "log_capture",
-        "port_mapping",
     ],
 ];
 

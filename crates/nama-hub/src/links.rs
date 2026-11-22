@@ -406,7 +406,7 @@ fn is_address(address: &str) -> bool {
 }
 
 /// Whether `public` takes a TCP connection within [`REACH_WITHIN`].
-// shortcut: a connection shows only that something listens there; check that it is this Server,
+// ponytail: a connection shows only that something listens there; check that it is this Server,
 // over TLS to its name, once Servers have names (#1830).
 async fn reaches(public: SocketAddr) -> bool {
     let connected = tokio::time::timeout(REACH_WITHIN, TcpStream::connect(public)).await;

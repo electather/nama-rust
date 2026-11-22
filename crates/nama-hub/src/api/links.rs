@@ -260,9 +260,9 @@ impl LinkedServerService for LinkedServerServiceHandler {
     }
 }
 
-/// Where the Server that sent the request `ctx` is for says it is reached from outside: the IP
-/// address the request came from (ADR 0018), the only one the Hub connects to, so a Server can't
-/// have it call anyone else, with `port`. `None` for port 0.
+/// The address to check the calling Server's public `port` at: the IP address its request `ctx`
+/// came from (ADR 0018), never one it names, so a Server can't have the Hub call anyone else.
+/// `None` for port 0.
 fn public_address(ctx: &RequestContext, port: u32) -> Result<Option<SocketAddr>, ConnectError> {
     if port == 0 {
         return Ok(None);

@@ -11,6 +11,8 @@ use std::{
 use tokio::{net::UdpSocket, time::timeout};
 use url::Url;
 
+use crate::diagnostics;
+
 /// How long the router keeps the port open unless the Server opens it again.
 pub(crate) const LEASE: Duration = Duration::from_hours(1);
 
@@ -33,7 +35,7 @@ type Failed = Box<dyn Error + Send + Sync>;
 /// Opens the port `server` listens on, under the same number, on the router's public IP address,
 /// with UPnP or else NAT-PMP, for [`LEASE`]. `None` when the router does neither or refuses, as for
 /// a port another device has.
-// shortcut: asks only for the Server's own port number; ask for another once routers refuse it.
+// ponytail: asks only for the Server's own port number; ask for another once routers refuse it.
 pub(crate) async fn open(server: SocketAddrV4) -> Option<u16> {
     let upnp = match open_with_upnp(server).await {
         Ok(port) => return Some(port),
@@ -73,6 +75,7 @@ async fn find_router(lan_ip: Ipv4Addr) -> Result<Url, Failed> {
 
 /// Asks the router described at `description` to forward its port `server.port()` to `server`.
 async fn add_port_mapping(description: &Url, server: SocketAddrV4) -> Result<u16, Failed> {
+    diagnostics::use_ring_for_tls();
     let client = reqwest::Client::builder().timeout(ANSWER_WITHIN).build()?;
     let described = client.get(description.clone()).send().await?;
     let (control, service) =
@@ -143,7 +146,7 @@ fn port_mapping_request(service: &str, server: SocketAddrV4) -> String {
 }
 
 async fn open_with_nat_pmp(server: SocketAddrV4) -> Result<u16, Failed> {
-    // shortcut: reads only Linux's routing table, so elsewhere a Server opens its port with UPnP
+    // ponytail: reads only Linux's routing table, so elsewhere a Server opens its port with UPnP
     // alone; read the others' once a Server there needs NAT-PMP.
     let routes = tokio::fs::read_to_string("/proc/net/route").await?;
     let gateway = default_gateway(&routes).ok_or("no default route")?;
