@@ -1,11 +1,6 @@
+import { PermissionsFieldset } from "@/features/settings/components/permissions-fieldset";
 import type { Permission, User } from "@/gen/nama/v1/sign_in_pb";
-import { PermissionChoices } from "@/shared/components/permissions-form/permission-choices";
-import {
-  labelsOf,
-  mayChangeDefaultPermissions,
-  permissionsToOffer,
-  toggledPermissions,
-} from "@/shared/lib/permissions";
+import { labelsOf, mayChangeDefaultPermissions } from "@/shared/lib/permissions";
 
 /** The Permissions new Users get, as checkboxes when `you` may change them, else named. */
 export function DefaultPermissions({
@@ -31,16 +26,8 @@ export function DefaultPermissions({
     );
   }
   return (
-    <fieldset>
-      <legend className="sr-only">Default Permissions</legend>
+    <PermissionsFieldset legend="Default Permissions" you={you} held={held} onChange={onChange}>
       {about}
-      <PermissionChoices
-        offer={permissionsToOffer(you)}
-        held={held}
-        onToggle={(permission, checked) => {
-          onChange({ permissions: toggledPermissions(held, permission, checked) });
-        }}
-      />
-    </fieldset>
+    </PermissionsFieldset>
   );
 }

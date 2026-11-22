@@ -177,14 +177,14 @@ test("changes refused together wait for one “Confirm it’s you”, then all g
 
   fireEvent.click(await screen.findByRole("link", { name: "Alex" }));
   const alex = await screen.findByRole("region", { name: "Alex" });
-  fireEvent.click(within(alex).getByRole("checkbox", { name: "Admin" }));
+  const promote = within(alex).getByRole("checkbox", { name: "Admin" });
   fireEvent.click(screen.getByRole("button", { name: "Reset password for Alex" }));
   const reset = await screen.findByRole("alertdialog", { name: "Reset Alex’s password?" });
   fireEvent.change(within(reset).getByLabelText("New password"), {
     target: { value: "battery staple" },
   });
   // Both before either is refused.
-  fireEvent.click(screen.getByRole("button", { name: "Save Permissions" }));
+  fireEvent.click(promote);
   fireEvent.click(within(reset).getByRole("button", { name: "Reset password" }));
   await confirmItsYou();
 
