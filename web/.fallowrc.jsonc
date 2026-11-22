@@ -172,11 +172,14 @@
       },
       {
         "from": "settings",
-        // Its Plugins and Default Home panes render the admin features' parts.
+        // Its Plugins and Default Home panes render the admin features' parts; its Backups pane renders Backups' parts,
+        // and each Backup's row says when it was written as a Job's Run does.
         "allow": [
           "settings",
           "admin-plugins",
           "admin-home",
+          "admin-backups",
+          "admin-jobs",
           "shared-components",
           "shared-ui",
           "shared-hooks",
@@ -221,7 +224,6 @@
           "admin-needs-a-match",
           "admin-playback",
           "admin-jobs",
-          "admin-backups",
           "admin-now-playing",
           "admin-users",
           "invites",

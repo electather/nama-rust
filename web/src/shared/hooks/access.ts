@@ -62,7 +62,6 @@ export const adminPages = [
   { to: "/admin/playback", label: "Playback", permission: Permission.ADMIN },
   { to: "/admin/now-playing", label: "Now Playing", permission: Permission.ADMIN },
   { to: "/admin/jobs", label: "Jobs", permission: Permission.ADMIN },
-  { to: "/admin/backups", label: "Backups", permission: Permission.ADMIN },
 ] as const;
 
 /** The Admin pages `user` may open. */

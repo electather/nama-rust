@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 
+import { BackupsPane } from "@/features/settings/components/backups-pane";
 import { ConnectionsPane } from "@/features/settings/components/connections-pane";
 import { DefaultHomePane } from "@/features/settings/components/default-home-pane";
 import { DevicesPane } from "@/features/settings/components/devices-pane";
@@ -22,6 +23,7 @@ const panes: Record<Section, ComponentType<{ user: User | undefined }>> = {
   connections: ConnectionsPane,
   server: ServerPane,
   "default-home": DefaultHomePane,
+  backups: BackupsPane,
   plugins: PluginsPane,
 };
 
