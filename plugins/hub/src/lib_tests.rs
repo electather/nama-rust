@@ -107,6 +107,18 @@ async fn a_server_that_isnt_linked_asks_the_hub_nothing() {
 }
 
 #[tokio::test]
+async fn the_code_keeps_showing_while_the_hub_is_unreachable() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    let started = linker.start_link("Living room").await.unwrap();
+    hub.stop();
+
+    let link = linker.link().await.unwrap();
+
+    assert_eq!(link, started);
+}
+
+#[tokio::test]
 async fn a_linked_server_cant_start_linking_again() {
     let hub = FakeHub::start().await;
     let linker = enabled(&hub, &store());

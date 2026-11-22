@@ -100,7 +100,9 @@ impl Linker {
         let polled = match self.hub.poll(&code.device_code).await {
             Ok(polled) => polled,
             Err(Polling::Expired) => return Ok(None),
-            Err(Polling::Failed(err)) => return Err(err),
+            // The code still works on the Hub, and the next poll asks again: a Hub that is down
+            // for a moment shouldn't fail the Settings that show the code.
+            Err(Polling::Failed) => return Ok(Some(self.showing(code))),
         };
         if !polled.linked {
             return Ok(Some(self.showing(code)));
@@ -118,6 +120,9 @@ impl Linker {
     }
 
     async fn start(&self, server_name: &str) -> Result<ServerLink, PluginError> {
+        // Held from the check on: a poll keeping a credential meanwhile would otherwise see its
+        // Link overwritten by the next, leaving one on the Hub that nothing could Unlink.
+        let mut waiting = self.waiting.lock().await;
         if self.kept().await?.is_some() {
             return Err("the Server is Linked already: Unlink it first".into());
         }
@@ -131,7 +136,7 @@ impl Linker {
             expires: now + Duration::from_secs(started.expires_in_seconds.try_into().unwrap_or(0)),
         };
         let link = self.showing(&code);
-        *self.waiting.lock().await = Some(code);
+        *waiting = Some(code);
         Ok(link)
     }
 

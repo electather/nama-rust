@@ -3,9 +3,8 @@
 use std::{sync::Arc, time::Duration};
 
 use bytes::Bytes;
-use connectrpc::{
-    ConnectError,
-    client::{ClientBody, ClientConfig, ClientTransport as _, ServiceTransport, full_body},
+use connectrpc::client::{
+    ClientBody, ClientConfig, ClientTransport as _, ServiceTransport, full_body,
 };
 use http::{Request, StatusCode};
 use http_body_util::{BodyExt as _, Limited};
@@ -83,7 +82,7 @@ impl Hub {
     pub(crate) async fn poll(&self, device_code: &str) -> Result<PollServerLinkResponse, Polling> {
         let client = ServerLinkServiceClient::new(
             self.transport.clone(),
-            self.config().map_err(Polling::Failed)?,
+            self.config().map_err(|_unreachable| Polling::Failed)?,
         );
         let polled = client
             .poll_server_link(PollServerLinkRequest {
@@ -94,7 +93,7 @@ impl Hub {
         match polled {
             Ok(polled) => Ok(polled.into_owned()),
             Err(err) if err.code == connectrpc::ErrorCode::NotFound => Err(Polling::Expired),
-            Err(err) => Err(Polling::Failed(err.into())),
+            Err(_failed) => Err(Polling::Failed),
         }
     }
 
@@ -138,11 +137,6 @@ impl Hub {
 pub(crate) enum Polling {
     /// The codes expired or were used: start again.
     Expired,
-    Failed(PluginError),
-}
-
-impl From<ConnectError> for Polling {
-    fn from(err: ConnectError) -> Self {
-        Self::Failed(err.into())
-    }
+    /// The Hub couldn't be reached or failed: ask again at the next poll.
+    Failed,
 }
