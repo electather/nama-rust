@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/hub/v1/account.proto.
  */
 export const file_nama_hub_v1_account: GenFile = /*@__PURE__*/
-  fileDesc("ChluYW1hL2h1Yi92MS9hY2NvdW50LnByb3RvEgtuYW1hLmh1Yi52MSIkCgdBY2NvdW50EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJIjcKFENyZWF0ZUFjY291bnRSZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIj4KFUNyZWF0ZUFjY291bnRSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudCIwCg1TaWduSW5SZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIjcKDlNpZ25JblJlc3BvbnNlEiUKB2FjY291bnQYASABKAsyFC5uYW1hLmh1Yi52MS5BY2NvdW50IhAKDlNpZ25PdXRSZXF1ZXN0IhEKD1NpZ25PdXRSZXNwb25zZSITChFHZXRBY2NvdW50UmVxdWVzdCI7ChJHZXRBY2NvdW50UmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQyxQIKDkFjY291bnRTZXJ2aWNlElYKDUNyZWF0ZUFjY291bnQSIS5uYW1hLmh1Yi52MS5DcmVhdGVBY2NvdW50UmVxdWVzdBoiLm5hbWEuaHViLnYxLkNyZWF0ZUFjY291bnRSZXNwb25zZRJBCgZTaWduSW4SGi5uYW1hLmh1Yi52MS5TaWduSW5SZXF1ZXN0GhsubmFtYS5odWIudjEuU2lnbkluUmVzcG9uc2USRAoHU2lnbk91dBIbLm5hbWEuaHViLnYxLlNpZ25PdXRSZXF1ZXN0GhwubmFtYS5odWIudjEuU2lnbk91dFJlc3BvbnNlElIKCkdldEFjY291bnQSHi5uYW1hLmh1Yi52MS5HZXRBY2NvdW50UmVxdWVzdBofLm5hbWEuaHViLnYxLkdldEFjY291bnRSZXNwb25zZSIDkAIBYgZwcm90bzM");
+  fileDesc("ChluYW1hL2h1Yi92MS9hY2NvdW50LnByb3RvEgtuYW1hLmh1Yi52MSIkCgdBY2NvdW50EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJIjcKFENyZWF0ZUFjY291bnRSZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIj4KFUNyZWF0ZUFjY291bnRSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudCIwCg1TaWduSW5SZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIjcKDlNpZ25JblJlc3BvbnNlEiUKB2FjY291bnQYASABKAsyFC5uYW1hLmh1Yi52MS5BY2NvdW50IjsKFVNlbmRTaWduSW5MaW5rUmVxdWVzdBINCgVlbWFpbBgBIAEoCRITCgtjb250aW51ZV90bxgCIAEoCSIYChZTZW5kU2lnbkluTGlua1Jlc3BvbnNlIiUKFEdldFNpZ25JbkxpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFUdldFNpZ25JbkxpbmtSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudBIUCgxlbWFpbF9wcm92ZW4YAiABKAgiJgoVU2lnbkluV2l0aExpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFlNpZ25JbldpdGhMaW5rUmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQSEwoLY29udGludWVfdG8YAiABKAkiEAoOU2lnbk91dFJlcXVlc3QiEQoPU2lnbk91dFJlc3BvbnNlIhMKEUdldEFjY291bnRSZXF1ZXN0IjsKEkdldEFjY291bnRSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudDLTBAoOQWNjb3VudFNlcnZpY2USVgoNQ3JlYXRlQWNjb3VudBIhLm5hbWEuaHViLnYxLkNyZWF0ZUFjY291bnRSZXF1ZXN0GiIubmFtYS5odWIudjEuQ3JlYXRlQWNjb3VudFJlc3BvbnNlEkEKBlNpZ25JbhIaLm5hbWEuaHViLnYxLlNpZ25JblJlcXVlc3QaGy5uYW1hLmh1Yi52MS5TaWduSW5SZXNwb25zZRJZCg5TZW5kU2lnbkluTGluaxIiLm5hbWEuaHViLnYxLlNlbmRTaWduSW5MaW5rUmVxdWVzdBojLm5hbWEuaHViLnYxLlNlbmRTaWduSW5MaW5rUmVzcG9uc2USVgoNR2V0U2lnbkluTGluaxIhLm5hbWEuaHViLnYxLkdldFNpZ25JbkxpbmtSZXF1ZXN0GiIubmFtYS5odWIudjEuR2V0U2lnbkluTGlua1Jlc3BvbnNlElkKDlNpZ25JbldpdGhMaW5rEiIubmFtYS5odWIudjEuU2lnbkluV2l0aExpbmtSZXF1ZXN0GiMubmFtYS5odWIudjEuU2lnbkluV2l0aExpbmtSZXNwb25zZRJECgdTaWduT3V0EhsubmFtYS5odWIudjEuU2lnbk91dFJlcXVlc3QaHC5uYW1hLmh1Yi52MS5TaWduT3V0UmVzcG9uc2USUgoKR2V0QWNjb3VudBIeLm5hbWEuaHViLnYxLkdldEFjY291bnRSZXF1ZXN0Gh8ubmFtYS5odWIudjEuR2V0QWNjb3VudFJlc3BvbnNlIgOQAgFiBnByb3RvMw");
 
 /**
  * A person's identity on the Hub.
@@ -127,6 +127,132 @@ export const SignInResponseSchema: GenMessage<SignInResponse> = /*@__PURE__*/
   messageDesc(file_nama_hub_v1_account, 4);
 
 /**
+ * @generated from message nama.hub.v1.SendSignInLinkRequest
+ */
+export type SendSignInLinkRequest = Message<"nama.hub.v1.SendSignInLinkRequest"> & {
+  /**
+   * @generated from field: string email = 1;
+   */
+  email: string;
+
+  /**
+   * The Hub path to continue at once signed in, such as `/`. Anything else continues at `/`.
+   *
+   * @generated from field: string continue_to = 2;
+   */
+  continueTo: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.SendSignInLinkRequest.
+ * Use `create(SendSignInLinkRequestSchema)` to create a new message.
+ */
+export const SendSignInLinkRequestSchema: GenMessage<SendSignInLinkRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 5);
+
+/**
+ * @generated from message nama.hub.v1.SendSignInLinkResponse
+ */
+export type SendSignInLinkResponse = Message<"nama.hub.v1.SendSignInLinkResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.SendSignInLinkResponse.
+ * Use `create(SendSignInLinkResponseSchema)` to create a new message.
+ */
+export const SendSignInLinkResponseSchema: GenMessage<SendSignInLinkResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 6);
+
+/**
+ * @generated from message nama.hub.v1.GetSignInLinkRequest
+ */
+export type GetSignInLinkRequest = Message<"nama.hub.v1.GetSignInLinkRequest"> & {
+  /**
+   * The token from the link's address.
+   *
+   * @generated from field: string token = 1;
+   */
+  token: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.GetSignInLinkRequest.
+ * Use `create(GetSignInLinkRequestSchema)` to create a new message.
+ */
+export const GetSignInLinkRequestSchema: GenMessage<GetSignInLinkRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 7);
+
+/**
+ * @generated from message nama.hub.v1.GetSignInLinkResponse
+ */
+export type GetSignInLinkResponse = Message<"nama.hub.v1.GetSignInLinkResponse"> & {
+  /**
+   * The Account the link signs in.
+   *
+   * @generated from field: nama.hub.v1.Account account = 1;
+   */
+  account?: Account | undefined;
+
+  /**
+   * Whether the Account's email is proven. If not, using the link proves it, and also ends the
+   * Account's other sessions and removes its password.
+   *
+   * @generated from field: bool email_proven = 2;
+   */
+  emailProven: boolean;
+};
+
+/**
+ * Describes the message nama.hub.v1.GetSignInLinkResponse.
+ * Use `create(GetSignInLinkResponseSchema)` to create a new message.
+ */
+export const GetSignInLinkResponseSchema: GenMessage<GetSignInLinkResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 8);
+
+/**
+ * @generated from message nama.hub.v1.SignInWithLinkRequest
+ */
+export type SignInWithLinkRequest = Message<"nama.hub.v1.SignInWithLinkRequest"> & {
+  /**
+   * @generated from field: string token = 1;
+   */
+  token: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.SignInWithLinkRequest.
+ * Use `create(SignInWithLinkRequestSchema)` to create a new message.
+ */
+export const SignInWithLinkRequestSchema: GenMessage<SignInWithLinkRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 9);
+
+/**
+ * @generated from message nama.hub.v1.SignInWithLinkResponse
+ */
+export type SignInWithLinkResponse = Message<"nama.hub.v1.SignInWithLinkResponse"> & {
+  /**
+   * The Account just signed in.
+   *
+   * @generated from field: nama.hub.v1.Account account = 1;
+   */
+  account?: Account | undefined;
+
+  /**
+   * The Hub path to continue at, as asked for with the link.
+   *
+   * @generated from field: string continue_to = 2;
+   */
+  continueTo: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.SignInWithLinkResponse.
+ * Use `create(SignInWithLinkResponseSchema)` to create a new message.
+ */
+export const SignInWithLinkResponseSchema: GenMessage<SignInWithLinkResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 10);
+
+/**
  * @generated from message nama.hub.v1.SignOutRequest
  */
 export type SignOutRequest = Message<"nama.hub.v1.SignOutRequest"> & {
@@ -137,7 +263,7 @@ export type SignOutRequest = Message<"nama.hub.v1.SignOutRequest"> & {
  * Use `create(SignOutRequestSchema)` to create a new message.
  */
 export const SignOutRequestSchema: GenMessage<SignOutRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_account, 5);
+  messageDesc(file_nama_hub_v1_account, 11);
 
 /**
  * @generated from message nama.hub.v1.SignOutResponse
@@ -150,7 +276,7 @@ export type SignOutResponse = Message<"nama.hub.v1.SignOutResponse"> & {
  * Use `create(SignOutResponseSchema)` to create a new message.
  */
 export const SignOutResponseSchema: GenMessage<SignOutResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_account, 6);
+  messageDesc(file_nama_hub_v1_account, 12);
 
 /**
  * @generated from message nama.hub.v1.GetAccountRequest
@@ -163,7 +289,7 @@ export type GetAccountRequest = Message<"nama.hub.v1.GetAccountRequest"> & {
  * Use `create(GetAccountRequestSchema)` to create a new message.
  */
 export const GetAccountRequestSchema: GenMessage<GetAccountRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_account, 7);
+  messageDesc(file_nama_hub_v1_account, 13);
 
 /**
  * @generated from message nama.hub.v1.GetAccountResponse
@@ -180,7 +306,7 @@ export type GetAccountResponse = Message<"nama.hub.v1.GetAccountResponse"> & {
  * Use `create(GetAccountResponseSchema)` to create a new message.
  */
 export const GetAccountResponseSchema: GenMessage<GetAccountResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_account, 8);
+  messageDesc(file_nama_hub_v1_account, 14);
 
 /**
  * Creating an Account, and signing it in and out, for the Hub's web pages. A session is an
@@ -214,6 +340,43 @@ export const AccountService: GenService<{
     methodKind: "unary";
     input: typeof SignInRequestSchema;
     output: typeof SignInResponseSchema;
+  },
+  /**
+   * Emails a Sign-in Link to the Account with this email, compared without regard to case. It
+   * answers the same whether or not an Account has the email, and sends nothing when none does.
+   * Fails with `REFUSAL_REASON_SIGN_IN_LINKS_OFF` when the Hub has no mail set up,
+   * `REFUSAL_REASON_EMAIL_INVALID`, and `REFUSAL_REASON_TOO_MANY_ATTEMPTS` after too many
+   * requests from one client or for one email.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.SendSignInLink
+   */
+  sendSignInLink: {
+    methodKind: "unary";
+    input: typeof SendSignInLinkRequestSchema;
+    output: typeof SendSignInLinkResponseSchema;
+  },
+  /**
+   * Names the Account a Sign-in Link signs in, without using it up. Fails with
+   * `REFUSAL_REASON_SIGN_IN_LINK_EXPIRED` for a link that expired, was used or never existed.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.GetSignInLink
+   */
+  getSignInLink: {
+    methodKind: "unary";
+    input: typeof GetSignInLinkRequestSchema;
+    output: typeof GetSignInLinkResponseSchema;
+  },
+  /**
+   * Uses a Sign-in Link up, signing its Account in and ending the calling session, if any. The
+   * first one used on an Account whose email isn't proven also ends its other sessions and removes
+   * its password (ADR 0100). Fails as `GetSignInLink` does.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.SignInWithLink
+   */
+  signInWithLink: {
+    methodKind: "unary";
+    input: typeof SignInWithLinkRequestSchema;
+    output: typeof SignInWithLinkResponseSchema;
   },
   /**
    * Ends the calling session and clears its cookie. Fails with `REFUSAL_REASON_SIGN_IN_REQUIRED`

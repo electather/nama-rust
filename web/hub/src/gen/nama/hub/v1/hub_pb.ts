@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/hub/v1/hub.proto.
  */
 export const file_nama_hub_v1_hub: GenFile = /*@__PURE__*/
-  fileDesc("ChVuYW1hL2h1Yi92MS9odWIucHJvdG8SC25hbWEuaHViLnYxIhMKEUdldEh1YkluZm9SZXF1ZXN0IiUKEkdldEh1YkluZm9SZXNwb25zZRIPCgd2ZXJzaW9uGAEgASgJMmAKCkh1YlNlcnZpY2USUgoKR2V0SHViSW5mbxIeLm5hbWEuaHViLnYxLkdldEh1YkluZm9SZXF1ZXN0Gh8ubmFtYS5odWIudjEuR2V0SHViSW5mb1Jlc3BvbnNlIgOQAgFiBnByb3RvMw");
+  fileDesc("ChVuYW1hL2h1Yi92MS9odWIucHJvdG8SC25hbWEuaHViLnYxIhMKEUdldEh1YkluZm9SZXF1ZXN0IjwKEkdldEh1YkluZm9SZXNwb25zZRIPCgd2ZXJzaW9uGAEgASgJEhUKDXNpZ25faW5fbGlua3MYAiABKAgyYAoKSHViU2VydmljZRJSCgpHZXRIdWJJbmZvEh4ubmFtYS5odWIudjEuR2V0SHViSW5mb1JlcXVlc3QaHy5uYW1hLmh1Yi52MS5HZXRIdWJJbmZvUmVzcG9uc2UiA5ACAWIGcHJvdG8z");
 
 /**
  * @generated from message nama.hub.v1.GetHubInfoRequest
@@ -35,6 +35,13 @@ export type GetHubInfoResponse = Message<"nama.hub.v1.GetHubInfoResponse"> & {
    * @generated from field: string version = 1;
    */
   version: string;
+
+  /**
+   * Whether the Hub emails Sign-in Links, which it does once it has mail set up.
+   *
+   * @generated from field: bool sign_in_links = 2;
+   */
+  signInLinks: boolean;
 };
 
 /**

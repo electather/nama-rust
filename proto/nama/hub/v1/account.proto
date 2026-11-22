@@ -15,6 +15,19 @@ service AccountService {
   // `REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD`, without saying which is wrong, and with
   // `REFUSAL_REASON_TOO_MANY_ATTEMPTS` after too many failures from one client or for one email.
   rpc SignIn(SignInRequest) returns (SignInResponse);
+  // Emails a Sign-in Link to the Account with this email, compared without regard to case. It
+  // answers the same whether or not an Account has the email, and sends nothing when none does.
+  // Fails with `REFUSAL_REASON_SIGN_IN_LINKS_OFF` when the Hub has no mail set up,
+  // `REFUSAL_REASON_EMAIL_INVALID`, and `REFUSAL_REASON_TOO_MANY_ATTEMPTS` after too many
+  // requests from one client or for one email.
+  rpc SendSignInLink(SendSignInLinkRequest) returns (SendSignInLinkResponse);
+  // Names the Account a Sign-in Link signs in, without using it up. Fails with
+  // `REFUSAL_REASON_SIGN_IN_LINK_EXPIRED` for a link that expired, was used or never existed.
+  rpc GetSignInLink(GetSignInLinkRequest) returns (GetSignInLinkResponse);
+  // Uses a Sign-in Link up, signing its Account in and ending the calling session, if any. The
+  // first one used on an Account whose email isn't proven also ends its other sessions and removes
+  // its password (ADR 0100). Fails as `GetSignInLink` does.
+  rpc SignInWithLink(SignInWithLinkRequest) returns (SignInWithLinkResponse);
   // Ends the calling session and clears its cookie. Fails with `REFUSAL_REASON_SIGN_IN_REQUIRED`
   // without a session.
   rpc SignOut(SignOutRequest) returns (SignOutResponse);
@@ -52,6 +65,38 @@ message SignInRequest {
 message SignInResponse {
   // The Account just signed in.
   Account account = 1;
+}
+
+message SendSignInLinkRequest {
+  string email = 1;
+  // The Hub path to continue at once signed in, such as `/`. Anything else continues at `/`.
+  string continue_to = 2;
+}
+
+message SendSignInLinkResponse {}
+
+message GetSignInLinkRequest {
+  // The token from the link's address.
+  string token = 1;
+}
+
+message GetSignInLinkResponse {
+  // The Account the link signs in.
+  Account account = 1;
+  // Whether the Account's email is proven. If not, using the link proves it, and also ends the
+  // Account's other sessions and removes its password.
+  bool email_proven = 2;
+}
+
+message SignInWithLinkRequest {
+  string token = 1;
+}
+
+message SignInWithLinkResponse {
+  // The Account just signed in.
+  Account account = 1;
+  // The Hub path to continue at, as asked for with the link.
+  string continue_to = 2;
 }
 
 message SignOutRequest {}

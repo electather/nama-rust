@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE accounts SET email_proven = true, password_hash = NULL\n         WHERE id = $1 AND NOT email_proven",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7bd2ed773f01a2ca2553c3b22d44e4ff201f35d03ac16d8a52a8057ee5a05839"
+}

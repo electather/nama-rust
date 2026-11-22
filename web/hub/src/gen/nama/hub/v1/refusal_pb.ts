@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/hub/v1/refusal.proto.
  */
 export const file_nama_hub_v1_refusal: GenFile = /*@__PURE__*/
-  fileDesc("ChluYW1hL2h1Yi92MS9yZWZ1c2FsLnByb3RvEgtuYW1hLmh1Yi52MSKlAQoHUmVmdXNhbBIqCgZyZWFzb24YASABKA4yGi5uYW1hLmh1Yi52MS5SZWZ1c2FsUmVhc29uEg0KBWZpZWxkGAIgASgJEjAKBnBhcmFtcxgDIAMoCzIgLm5hbWEuaHViLnYxLlJlZnVzYWwuUGFyYW1zRW50cnkaLQoLUGFyYW1zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASqMAgoNUmVmdXNhbFJlYXNvbhIeChpSRUZVU0FMX1JFQVNPTl9VTlNQRUNJRklFRBAAEiMKH1JFRlVTQUxfUkVBU09OX1NJR05fSU5fUkVRVUlSRUQQARIqCiZSRUZVU0FMX1JFQVNPTl9XUk9OR19FTUFJTF9PUl9QQVNTV09SRBACEiQKIFJFRlVTQUxfUkVBU09OX1RPT19NQU5ZX0FUVEVNUFRTEAMSHgoaUkVGVVNBTF9SRUFTT05fRU1BSUxfVEFLRU4QBBIgChxSRUZVU0FMX1JFQVNPTl9FTUFJTF9JTlZBTElEEAUSIgoeUkVGVVNBTF9SRUFTT05fUEFTU1dPUkRfTEVOR1RIEAZiBnByb3RvMw");
+  fileDesc("ChluYW1hL2h1Yi92MS9yZWZ1c2FsLnByb3RvEgtuYW1hLmh1Yi52MSKlAQoHUmVmdXNhbBIqCgZyZWFzb24YASABKA4yGi5uYW1hLmh1Yi52MS5SZWZ1c2FsUmVhc29uEg0KBWZpZWxkGAIgASgJEjAKBnBhcmFtcxgDIAMoCzIgLm5hbWEuaHViLnYxLlJlZnVzYWwuUGFyYW1zRW50cnkaLQoLUGFyYW1zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASrbAgoNUmVmdXNhbFJlYXNvbhIeChpSRUZVU0FMX1JFQVNPTl9VTlNQRUNJRklFRBAAEiMKH1JFRlVTQUxfUkVBU09OX1NJR05fSU5fUkVRVUlSRUQQARIqCiZSRUZVU0FMX1JFQVNPTl9XUk9OR19FTUFJTF9PUl9QQVNTV09SRBACEiQKIFJFRlVTQUxfUkVBU09OX1RPT19NQU5ZX0FUVEVNUFRTEAMSHgoaUkVGVVNBTF9SRUFTT05fRU1BSUxfVEFLRU4QBBIgChxSRUZVU0FMX1JFQVNPTl9FTUFJTF9JTlZBTElEEAUSIgoeUkVGVVNBTF9SRUFTT05fUEFTU1dPUkRfTEVOR1RIEAYSJwojUkVGVVNBTF9SRUFTT05fU0lHTl9JTl9MSU5LX0VYUElSRUQQBxIkCiBSRUZVU0FMX1JFQVNPTl9TSUdOX0lOX0xJTktTX09GRhAIYgZwcm90bzM");
 
 /**
  * Why the Hub refused a request, in the shape of the Server's `nama.v1.Refusal` (ADR 0019). Every
@@ -81,8 +81,8 @@ export const RefusalReason = {
   WRONG_EMAIL_OR_PASSWORD: 2,
 
   /**
-   * `resource_exhausted`: too many attempts lately. Params: `retryAfterSeconds`, also sent
-   * as the `Retry-After` header.
+   * `resource_exhausted`: too many attempts lately, such as failed sign-ins or Sign-in Links asked
+   * for. Params: `retryAfterSeconds`, also sent as the `Retry-After` header.
    *
    * @generated from enum value: REFUSAL_REASON_TOO_MANY_ATTEMPTS = 3;
    */
@@ -110,6 +110,20 @@ export const RefusalReason = {
    * @generated from enum value: REFUSAL_REASON_PASSWORD_LENGTH = 6;
    */
   PASSWORD_LENGTH: 6,
+
+  /**
+   * `not_found`: the Sign-in Link expired, was used already, or never existed.
+   *
+   * @generated from enum value: REFUSAL_REASON_SIGN_IN_LINK_EXPIRED = 7;
+   */
+  SIGN_IN_LINK_EXPIRED: 7,
+
+  /**
+   * `failed_precondition`: the Hub has no mail set up, so it can't email Sign-in Links.
+   *
+   * @generated from enum value: REFUSAL_REASON_SIGN_IN_LINKS_OFF = 8;
+   */
+  SIGN_IN_LINKS_OFF: 8,
 } as const;
 
 /**

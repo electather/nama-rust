@@ -16,6 +16,7 @@ export function CredentialsForm({
   attempt,
   newPassword = false,
   onSubmit,
+  alternative,
   footer,
 }: {
   heading: string;
@@ -26,6 +27,8 @@ export function CredentialsForm({
   /** Whether this sets the password, rather than checking it. */
   newPassword?: boolean;
   onSubmit: (credentials: Credentials) => void;
+  /** Another way to do it, under the button, if any. */
+  alternative?: ReactNode;
   /** Another page instead, such as signing in for someone who has an Account. */
   footer: ReactNode;
 }) {
@@ -65,6 +68,7 @@ export function CredentialsForm({
       <Button type="submit" size="lg" disabled={attempt.isPending}>
         {action}
       </Button>
+      {alternative}
       <p className="text-center text-sm text-muted-foreground">{footer}</p>
     </form>
   );

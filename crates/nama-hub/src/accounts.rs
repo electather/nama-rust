@@ -1,19 +1,29 @@
-//! Accounts: creating one with an email and a password, and signing it in and out, each sign-in a
-//! web session (ADR 0098).
+//! Accounts: creating one with an email and a password, and signing it in, with its password or a
+//! Sign-in Link, and out, each sign-in a web session (ADR 0098).
 
 mod passwords;
 mod rate_limits;
 mod sessions;
+mod sign_in_links;
 
-use std::{fmt, net::IpAddr, sync::Arc, time::Instant};
+use std::{
+    fmt::{self, Write as _},
+    net::IpAddr,
+    sync::Arc,
+    time::Instant,
+};
 
+use sha2::{Digest as _, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::mail::Mail;
 pub(crate) use passwords::PASSWORD_LENGTH;
 pub(crate) use rate_limits::Blocked;
 use rate_limits::{CreationLimits, SignInLimits};
 pub(crate) use sessions::SESSION_DAYS;
+use sign_in_links::Outbox;
+pub(crate) use sign_in_links::{SignInLink, SignedInByLink};
 
 /// The most characters an email may have: the longest a mailbox can be (RFC 5321).
 pub(crate) const EMAIL_LENGTH: usize = 254;
@@ -65,6 +75,12 @@ pub(crate) enum Error {
     PasswordLength,
     #[error("no Account has this email and password")]
     WrongEmailOrPassword,
+    #[error("the Hub has no mail set up, so it can't email Sign-in Links")]
+    SignInLinksOff,
+    #[error("the Sign-in Link expired, was used already, or never existed")]
+    SignInLinkExpired,
+    #[error("the Sign-in Links waiting to be sent are too many, or no longer being sent")]
+    MailQueueFull,
     #[error(transparent)]
     Blocked(#[from] Blocked),
     #[error("could not hash or check a password: {0}")]
@@ -75,17 +91,23 @@ pub(crate) enum Error {
     Database(#[from] sqlx::Error),
 }
 
-/// The Accounts kept in the database, and the recent failed sign-ins and creations.
+/// The Accounts kept in the database, the recent failed sign-ins and creations, and the Sign-in
+/// Links being sent.
 #[derive(Clone)]
 pub(crate) struct Accounts {
     db: PgPool,
     sign_ins: Arc<SignInLimits>,
     creations: Arc<CreationLimits>,
+    /// Only with mail set up.
+    outbox: Option<Outbox>,
 }
 
 impl Accounts {
-    pub(crate) fn new(db: PgPool) -> Self {
+    /// Accounts in `db`, sending Sign-in Links through `mail` if it is set up. Must run inside a
+    /// Tokio runtime.
+    pub(crate) fn new(db: PgPool, mail: Option<Mail>) -> Self {
         Self {
+            outbox: mail.map(|mail| Outbox::start(db.clone(), mail)),
             db,
             sign_ins: Arc::default(),
             creations: Arc::default(),
@@ -146,21 +168,62 @@ impl Accounts {
         )
         .fetch_optional(&self.db)
         .await?;
-        let Some(found) = found else {
+        // An Account a Sign-in Link took over has no password (ADR 0100).
+        let Some((account, password_hash)) = found.and_then(|found| {
+            let account = Account {
+                id: AccountId(found.id),
+                email: found.email,
+            };
+            Some((account, found.password_hash?))
+        }) else {
             passwords::verify_unknown(password.to_owned()).await;
             return Err(Error::WrongEmailOrPassword);
         };
-        if !passwords::verify(password.to_owned(), found.password_hash).await? {
+        if !passwords::verify(password.to_owned(), password_hash).await? {
             return Err(Error::WrongEmailOrPassword);
         }
         self.sign_ins.succeeded(&attempt);
-        let account = Account {
-            id: AccountId(found.id),
-            email: found.email,
-        };
         let mut conn = self.db.acquire().await?;
         let token = sessions::start(&mut conn, account.id).await?;
         Ok(SignedIn { account, token })
+    }
+
+    /// Whether the Hub emails Sign-in Links, which it does with mail set up.
+    pub(crate) fn sends_sign_in_links(&self) -> bool {
+        self.outbox.is_some()
+    }
+
+    /// Emails a Sign-in Link, off the request path, to the Account whose email is `email`, trimmed
+    /// and compared without regard to case, if there is one, as asked by `ip` at `now`. The link
+    /// continues at `continue_to` if it is a Hub path, or else at `/`.
+    pub(crate) fn send_sign_in_link(
+        &self,
+        email: &str,
+        continue_to: &str,
+        ip: IpAddr,
+        now: Instant,
+    ) -> Result<(), Error> {
+        let outbox = self.outbox.as_ref().ok_or(Error::SignInLinksOff)?;
+        let email = email.trim();
+        if !is_email(email) {
+            return Err(Error::EmailInvalid);
+        }
+        outbox.send(email, continue_to, ip, now)
+    }
+
+    /// The waiting Sign-in Link `token` names, without using it up.
+    pub(crate) async fn sign_in_link(&self, token: &str) -> Result<SignInLink, Error> {
+        sign_in_links::find(&self.db, token).await
+    }
+
+    /// Signs in with the Sign-in Link `token` names, using it up, in place of `replacing`, the
+    /// browser's session, if any.
+    pub(crate) async fn sign_in_with_link(
+        &self,
+        token: &str,
+        replacing: Option<&AccountSession>,
+    ) -> Result<SignedInByLink, Error> {
+        sign_in_links::use_up(&self.db, token, replacing).await
     }
 
     /// The session `token` names, unless it has ended or expired.
@@ -182,6 +245,21 @@ fn is_email(email: &str) -> bool {
         && email
             .rsplit_once('@')
             .is_some_and(|(local, domain)| !local.is_empty() && !domain.is_empty())
+}
+
+/// A new random opaque token, 32 bytes as hex, for a session or a Sign-in Link.
+fn new_token() -> Result<String, getrandom::Error> {
+    let mut bytes = [0; 32];
+    getrandom::fill(&mut bytes)?;
+    Ok(bytes.iter().fold(String::new(), |mut hex, byte| {
+        let _infallible = write!(hex, "{byte:02x}");
+        hex
+    }))
+}
+
+/// What the database keeps of a token (ADR 0098).
+fn token_hash(token: &str) -> [u8; 32] {
+    Sha256::digest(token).into()
 }
 
 #[cfg(test)]
