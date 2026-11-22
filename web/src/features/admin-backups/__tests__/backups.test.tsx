@@ -11,7 +11,7 @@ import {
   type UpdateBackupSettingsRequest,
 } from "@/gen/nama/v1/server_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { type ServerState, admin, fakeServer, fill, newUser, openApp } from "@/test-app";
+import { type ServerState, admin, fakeServer, fill, newUser } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
 import { openSettings } from "@/test-settings";
 
@@ -170,14 +170,6 @@ describe("backup settings", () => {
 });
 
 describe("where Backups are", () => {
-  test("the old Backups address lands on Home with Settings open on Backups", async () => {
-    const router = openApp("/admin/backups", backupsServer());
-
-    await expect(screen.findByLabelText("Backup folder")).resolves.toBeDefined();
-    expect(router.state.location.pathname).toBe("/");
-    expect(router.state.location.search).toMatchObject({ settings: "backups" });
-  });
-
   test("a User who manages settings but isn't an Admin has no Backups section", async () => {
     openSettings("backups", fakeServer({ signedIn: [...newUser, Permission.MANAGE_SETTINGS] }));
 

@@ -290,6 +290,11 @@ test("g then a page's key goes to that page", async () => {
   await waitFor(() => {
     expect(router.state.location.pathname).toBe("/requests");
   });
+  // Settings opens over the page it's asked for on.
+  fireEvent.keyDown(document.body, { key: "g" });
+  fireEvent.keyDown(document.body, { key: "s" });
+  await screen.findByRole("dialog", { name: "Settings" });
+  expect(router.state.location.pathname).toBe("/requests");
 });
 
 test("a link to the old search page opens the action bar on what it searched for", async () => {

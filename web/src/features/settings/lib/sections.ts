@@ -21,7 +21,7 @@ const sections = [
 export type Section = (typeof sections)[number];
 
 /** The section Settings opens on when asked for one it doesn't have. */
-export const firstSection: Section = "playback";
+const firstSection: Section = "playback";
 
 /** The section `?settings=` asks for: none without it, and the first for a word no section has. */
 export function sectionParam(value: unknown): Section | undefined {

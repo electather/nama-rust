@@ -47,7 +47,7 @@ async function submitSetup(setupCode: string) {
   fireEvent.click(screen.getByRole("button", { name: "Set up" }));
 }
 
-test.each(["/", "/libraries/1", "/sign-in", "/admin/users"])(
+test.each(["/", "/libraries/1", "/sign-in", "/admin/jobs"])(
   "a fresh Server sends %s to /setup",
   async (path) => {
     const router = openApp(path, fakeServer({ setupRequired: true }));

@@ -26,7 +26,7 @@ export interface BarState {
 /** What picking a row can do. */
 export interface BarActions {
   push: (frame: Frame) => void;
-  go: (to: Page["to"]) => void;
+  go: (page: Page) => void;
   open: (title: FoundTitle) => void;
   retry: () => void;
 }
@@ -110,13 +110,13 @@ function rootGroups(state: BarState, actions: BarActions): Group[] {
     },
   });
   const jumps = state.pages.map((page): Row => ({
-    id: `page:${page.to}`,
+    id: `page:${page.label}`,
     label: page.label,
     hint: page.hint,
     icon: page.icon,
     action: "Go",
     run: () => {
-      actions.go(page.to);
+      actions.go(page);
     },
   }));
   const shortcuts: Row = {

@@ -2,7 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { type RefObject, useEffect } from "react";
 
 import { type Keys, press } from "@/features/action-bar/lib/keys";
-import { pagesFor } from "@/features/action-bar/lib/pages";
+import { goTo, pagesFor } from "@/features/action-bar/lib/pages";
 import type { Frame } from "@/features/action-bar/lib/rows";
 
 /** Whether ⌘ or Ctrl is held, which makes a key a command rather than a letter. */
@@ -41,7 +41,7 @@ export function useActionBarKeys({
       pagesFor(hasAdminPages).map((page) => [
         page.key.toLowerCase(),
         () => {
-          void navigate({ to: page.to });
+          goTo(navigate, page);
         },
       ]),
     );
