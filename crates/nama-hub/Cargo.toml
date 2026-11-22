@@ -6,9 +6,36 @@ license = "AGPL-3.0-only"
 edition.workspace = true
 repository.workspace = true
 
-# The Hub is a stub until its own milestone, so there is nothing to release yet.
+# Linux only: the Hub ships as a Docker image. It has no `web` feature, which the workspace's
+# `features` would ask for.
 [package.metadata.dist]
-dist = false
+targets = ["aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"]
+features = []
+
+[dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "http2", "tokio"] }
+clap = { version = "4", features = ["derive"] }
+connectrpc = { version = "0.9.1", features = ["axum"] }
+figment = { version = "0.10", features = ["env"] }
+nama-hub-proto = { version = "0.1.0", path = "../nama-hub-proto" }
+# Diagnostics (ADR 0054), as the Server's: traces and logs exported over OTLP/HTTP only when an
+# endpoint is set.
+opentelemetry = { version = "0.33.1", default-features = false, features = ["trace"] }
+opentelemetry-appender-tracing = "0.33.1"
+opentelemetry-otlp = { version = "0.33.1", default-features = false, features = ["http-proto", "logs", "reqwest-blocking-client", "trace"] }
+opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["logs", "trace"] }
+serde = { version = "1", features = ["derive"] }
+sqlx = { version = "0.9", default-features = false, features = ["macros", "migrate", "postgres", "runtime-tokio", "sqlx-toml", "tls-rustls-ring-webpki"] }
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal"] }
+tracing = "0.1"
+tracing-opentelemetry = { version = "0.34.0", default-features = false }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+connectrpc = { version = "0.9.1", features = ["client"] }
+figment = { version = "0.10", features = ["test"] }
+tokio = { version = "1", features = ["sync"] }
 
 [lints]
 workspace = true

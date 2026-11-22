@@ -66,6 +66,8 @@ sqlx migrate run --source crates/nama-server/migrations
 cargo sqlx prepare --workspace -- --all-targets
 ```
 
+The Hub's queries in the same `.sqlx/` are checked against PostgreSQL, so regenerating needs that running too: [`crates/nama-hub/README.md`](../nama-hub/README.md) has the full steps.
+
 Commit the changes under `.sqlx/`. CI's `rust-check` job runs `cargo sqlx prepare --check` and fails if they're stale. When you upgrade the `sqlx` crate, bump the `sqlx-cli` version here and in `.github/workflows/ci.yml` to the same minor version.
 
 ## Serving the web app

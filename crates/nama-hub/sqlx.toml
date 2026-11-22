@@ -1,0 +1,4 @@
+# The Hub's queries are checked against PostgreSQL, the Server's against SQLite, so each crate
+# names its own database. The query data for both stays in the workspace's `.sqlx/`.
+[common]
+database-url-var = "NAMA_HUB_DATABASE_URL"

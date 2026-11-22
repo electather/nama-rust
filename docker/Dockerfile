@@ -1,9 +1,24 @@
-# The Server with jellyfin-ffmpeg, a known-good ffmpeg with VAAPI, QSV, NVENC and tone-mapping
-# (ADR 0026). `.github/workflows/docker.yml` builds it from the release's Linux binaries, which it
-# puts at `<arch>/nama-server` beside this file.
-FROM debian:trixie-slim
+# The images of the Server and the Hub, one build target each, named after its app.
+# `.github/workflows/docker.yml` builds them from the release's Linux binaries, which it puts at
+# `<arch>/<app>` beside this file. The Server's is the default.
+FROM debian:trixie-slim AS base
 
 LABEL org.opencontainers.image.source=https://github.com/electather/nama-rust
+
+RUN useradd --uid 1000 --user-group --home-dir /data --shell /usr/sbin/nologin nama \
+    && install --directory --owner=nama --group=nama /data
+
+# The Hub keeps its state in PostgreSQL (ADR 0005), so it needs no volume.
+FROM base AS nama-hub
+ARG TARGETARCH
+COPY --chmod=755 ${TARGETARCH}/nama-hub /usr/local/bin/nama-hub
+USER 1000:1000
+EXPOSE 7981
+ENTRYPOINT ["nama-hub"]
+
+# The Server with jellyfin-ffmpeg, a known-good ffmpeg with VAAPI, QSV, NVENC and tone-mapping
+# (ADR 0026).
+FROM base AS nama-server
 
 # Pinned so a swapped key on Jellyfin's host can't sign what gets installed. It has no expiry.
 ADD --chmod=644 --checksum=sha256:a0cde241ae297fa6f0265c0bf15ce9eb9ee97c008904a59ab367a67d59532839 \
@@ -17,9 +32,6 @@ RUN apt-get update \
     && apt-get update \
     && apt-get install --yes --no-install-recommends jellyfin-ffmpeg8 \
     && rm -rf /var/lib/apt/lists/*
-
-RUN useradd --uid 1000 --user-group --home-dir /data --shell /usr/sbin/nologin nama \
-    && install --directory --owner=nama --group=nama /data
 
 ARG TARGETARCH
 COPY --chmod=755 ${TARGETARCH}/nama-server /usr/local/bin/nama-server

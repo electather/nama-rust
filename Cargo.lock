@@ -2179,6 +2179,33 @@ checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 [[package]]
 name = "nama-hub"
 version = "0.1.0"
+dependencies = [
+ "axum",
+ "clap",
+ "connectrpc",
+ "figment",
+ "nama-hub-proto",
+ "opentelemetry",
+ "opentelemetry-appender-tracing",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "serde",
+ "sqlx",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "nama-hub-proto"
+version = "0.1.0"
+dependencies = [
+ "buffa",
+ "connectrpc",
+ "serde",
+]
 
 [[package]]
 name = "nama-pdk"
@@ -3691,6 +3718,7 @@ dependencies = [
  "log",
  "memchr",
  "percent-encoding",
+ "rustls",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -3698,8 +3726,10 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tokio-stream",
+ "toml 0.8.23",
  "tracing",
  "url",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -3732,6 +3762,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "sqlx-core",
+ "sqlx-postgres",
  "sqlx-sqlite",
  "syn 2.0.119",
  "thiserror 2.0.21",

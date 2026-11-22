@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package nama.hub.v1;
+
+// Facts about the Hub that anyone can read, without signing in.
+service HubService {
+  // Returns the version of the Hub program, once the Hub has reached its database. Answers
+  // `unavailable` while it can't, so a host can probe it with a GET request.
+  rpc GetHubInfo(GetHubInfoRequest) returns (GetHubInfoResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message GetHubInfoRequest {}
+
+message GetHubInfoResponse {
+  // The version of the Hub program, e.g. "0.1.0".
+  string version = 1;
+}

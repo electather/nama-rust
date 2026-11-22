@@ -1,14 +1,14 @@
 # Declared schema breaks
 
-CI runs `buf breaking` on the client API, `proto/nama/v1/`, against main on every change (ADR 0007). A change that breaks it on purpose declares it here, and CI then prints the breaks and passes (ADR 0032). A change under `proto/nama/plugin/` needs no entry: the Plugin contract carries its own version, which says what a Plugin built before can still use (ADR 0041). How to add one is in [`crates/nama-proto/README.md`](../crates/nama-proto/README.md).
+CI runs `buf breaking` on the client API, `proto/nama/v1/`, and the Hub API, `proto/nama/hub/v1/`, against main on every change (ADR 0007). A change that breaks either on purpose declares it here, and CI then prints the breaks and passes (ADR 0032). A change under `proto/nama/plugin/` needs no entry: the Plugin contract carries its own version, which says what a Plugin built before can still use (ADR 0041). How to add one is in [`crates/nama-proto/README.md`](../crates/nama-proto/README.md).
 
-Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the day the change merges, followed by:
+Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>, <package>` heading, dated the day the change merges and naming the package it breaks, `nama.v1` or `nama.hub.v1`, followed by:
 
 - each rule and file `buf breaking` reports;
 - what changed in the schema;
 - what a client built before the change must do.
 
-CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
+CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own. The entries from before the Hub API, which name no package, are all `nama.v1`'s.
 
 ## 2026-11-22, #1750
 

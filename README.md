@@ -12,6 +12,7 @@ A self-hosted media server and request manager, with an optional central Hub for
 | [`crates/nama-pdk`](crates/nama-pdk) | Plugin development kit for Installed Plugins |
 | [`crates/nama-proto`](crates/nama-proto) | Rust types and ConnectRPC stubs generated from the client API in `proto/nama/v1/` |
 | [`crates/nama-plugin-proto`](crates/nama-plugin-proto) | Rust types generated from the Plugin contract in `proto/nama/plugin/`, and its version |
+| [`crates/nama-hub-proto`](crates/nama-hub-proto) | Rust types and ConnectRPC stubs generated from the Hub API in `proto/nama/hub/` |
 | [`crates/nama-test-plugin`](crates/nama-test-plugin) | An Installed Plugin used only in the Server's tests |
 | [`crates/nama-test-report`](crates/nama-test-report) | CI tooling: records test results and reports flaky and slow tests |
 | [`plugins/`](plugins) | Built-in Plugins, the Installed Plugins the Server bundles, and the libraries they share |
@@ -133,7 +134,7 @@ Building the Server builds the Plugins it bundles for wasm32 (`crates/nama-serve
 
 `cargo deny check advisories` fails a PR only on an advisory its own `Cargo.lock` adds, not one already on main ([`.github/scripts/advisories.sh`](.github/scripts/advisories.sh)). The [`advisories`](.github/workflows/advisories.yml) workflow checks main daily and opens a `needs-triage` issue for each advisory it finds there.
 
-`buf breaking` fails a change that breaks the client API in `proto/nama/v1/` against main, unless the change declares the break with a new entry in [`proto/BREAKING.md`](proto/BREAKING.md) ([`.github/scripts/buf-breaking.sh`](.github/scripts/buf-breaking.sh), ADR 0032). The Plugin contract in `proto/nama/plugin/` has its own version instead (ADR 0041).
+`buf breaking` fails a change that breaks the client API in `proto/nama/v1/` or the Hub API in `proto/nama/hub/v1/` against main, unless the change declares the break with a new entry in [`proto/BREAKING.md`](proto/BREAKING.md) ([`.github/scripts/buf-breaking.sh`](.github/scripts/buf-breaking.sh), ADR 0032). The Plugin contract in `proto/nama/plugin/` has its own version instead (ADR 0041).
 
 CI also checks that the generated code and the sqlx query data are current. If you change `proto/`, see [`crates/nama-proto/README.md`](crates/nama-proto/README.md). If you change a query or a migration, see [`crates/nama-server/README.md`](crates/nama-server/README.md).
 
