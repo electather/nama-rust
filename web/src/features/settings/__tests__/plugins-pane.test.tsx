@@ -164,11 +164,13 @@ test("a disabled Plugin's view has Enable, and says why the Server refused to", 
     "test-plugin",
   );
   const opened = within(await screen.findByRole("region", { name: "test-plugin" }));
+  // The region shows before the Plugin's details load, and Enable comes with them.
+  const enable = await opened.findByRole("button", { name: "Enable test-plugin" });
   expect(opened.queryByText("Disabled")).toBeNull();
   // With no links and nothing to disable, there's no “…”.
   expect(opened.queryByRole("button", { name: "More for test-plugin" })).toBeNull();
 
-  fireEvent.click(opened.getByRole("button", { name: "Enable test-plugin" }));
+  fireEvent.click(enable);
 
   await expect(
     opened.findByText("It needs Sonarr URL set before it can be enabled."),
