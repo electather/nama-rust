@@ -106,9 +106,9 @@ impl Plugin for Hub {
         let sharer: Arc<dyn DiagnosticsSharer> = Arc::<Linker>::clone(&linker);
         registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::<Linker>::clone(&linker));
         registrar.provide::<dyn DiagnosticsSharer>(Priority::DEFAULT, sharer);
-        registrar.provide::<dyn SimilarSource>(Priority::DEFAULT, similar);
         registrar.observe::<WatchStatesChanged>(WatchStateSync(Arc::clone(&linker)));
         registrar.provide::<dyn JobRunner>(Priority::DEFAULT, Arc::new(WatchStateSync(linker)));
+        registrar.provide::<dyn SimilarSource>(Priority::DEFAULT, similar);
         Ok(())
     }
 }
