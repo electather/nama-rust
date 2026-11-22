@@ -149,14 +149,7 @@
       },
       {
         "from": "admin-users",
-        "allow": [
-          "admin-users",
-          "invites",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-        ],
+        "allow": ["admin-users", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
       {
         "from": "invites",
@@ -226,7 +219,6 @@
           "admin-backups",
           "admin-now-playing",
           "admin-home",
-          "admin-users",
           "invites",
           "requests",
           "action-bar",
