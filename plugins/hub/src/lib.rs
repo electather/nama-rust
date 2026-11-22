@@ -113,10 +113,10 @@ impl Plugin for Hub {
         let viewing = ViewingEvents::new(Arc::clone(&linker));
         let sharer: Arc<dyn DiagnosticsSharer> = Arc::<Linker>::clone(&linker);
         registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, linker);
-        registrar.provide::<dyn DiagnosticsSharer>(Priority::DEFAULT, sharer);
         registrar.observe::<Events>(viewing.clone());
         let jobs: Arc<dyn JobRunner> = Arc::new(viewing);
         registrar.provide::<dyn JobRunner>(Priority::DEFAULT, jobs);
+        registrar.provide::<dyn DiagnosticsSharer>(Priority::DEFAULT, sharer);
         Ok(())
     }
 }
