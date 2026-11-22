@@ -4,7 +4,7 @@ use sqlx::PgPool;
 
 use super::{CONTINUE_TO_LENGTH, LINK_MINUTES, find, hub_path, issue, use_up};
 use crate::{
-    accounts::{Accounts, Error},
+    accounts::{Accounts, Caller, Error},
     db,
 };
 
@@ -35,8 +35,10 @@ async fn a_link_older_than_15_minutes_neither_names_its_account_nor_signs_in(db:
         .create(
             "ada@example.com",
             "correct horse battery",
-            "203.0.113.1".parse().unwrap(),
-            Instant::now(),
+            Caller {
+                ip: "203.0.113.1".parse().unwrap(),
+                now: Instant::now(),
+            },
         )
         .await
         .unwrap();
