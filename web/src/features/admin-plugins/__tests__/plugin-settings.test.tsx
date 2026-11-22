@@ -161,7 +161,7 @@ test("enter in a field sends what was typed", async () => {
 test("replace lets a set secret be typed again, and sends it", async () => {
   const { sent } = openToSave("tmdb");
   const found11 = await plugin("TMDB");
-  fireEvent.click(found11.getByRole("button", { name: "Replace API key" }));
+  fireEvent.click(await found11.findByRole("button", { name: "Replace API key" }));
   await typeAndLeave("TMDB", "API key", "new-key");
 
   const found12 = await sent;
@@ -171,7 +171,7 @@ test("replace lets a set secret be typed again, and sends it", async () => {
 test("forget forgets a set secret once it's confirmed, sending its key", async () => {
   const { sent } = openToSave("tmdb");
   const found13 = await plugin("TMDB");
-  fireEvent.click(found13.getByRole("button", { name: "Forget API key" }));
+  fireEvent.click(await found13.findByRole("button", { name: "Forget API key" }));
   // The X is gone once it asks, so this is the confirmation's Forget.
   fireEvent.click(found13.getByRole("button", { name: "Forget API key" }));
 
@@ -183,7 +183,7 @@ test("forget forgets a set secret once it's confirmed, sending its key", async (
 test("cancelling forget keeps a set secret, sending nothing", async () => {
   const { requests } = openToSave("tmdb");
   const page = await plugin("TMDB");
-  fireEvent.click(page.getByRole("button", { name: "Forget API key" }));
+  fireEvent.click(await page.findByRole("button", { name: "Forget API key" }));
   expect(page.getByText("Forget it?")).toBeDefined();
 
   fireEvent.click(page.getByRole("button", { name: "Cancel" }));
