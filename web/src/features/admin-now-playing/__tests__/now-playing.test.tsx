@@ -8,7 +8,9 @@ import {
   type PlaySchema,
   type StopPlayRequest,
 } from "@/gen/nama/v1/server_pb";
-import { admin, eventFeed, fakeServer, fill, openApp } from "@/test-app";
+import { Permission } from "@/gen/nama/v1/sign_in_pb";
+import { admin, eventFeed, fakeServer, fill } from "@/test-app";
+import { openSettings } from "@/test-settings";
 
 type Play = MessageInitShape<typeof PlaySchema>;
 
@@ -36,7 +38,7 @@ const darkOnTv: Play = {
 };
 
 /**
- * Opens the page on a fake Server playing `plays` as they are at each call. A stop ends its play
+ * Opens Now Playing in Settings on a fake Server playing `plays` as they are at each call. A stop ends its play
  * and is kept in `stopped`.
  */
 function openNowPlaying(plays: Play[], events = eventFeed(), stopped: StopPlayRequest[] = []) {
@@ -48,8 +50,8 @@ function openNowPlaying(plays: Play[], events = eventFeed(), stopped: StopPlayRe
     );
     return {};
   };
-  openApp(
-    "/admin/now-playing",
+  openSettings(
+    "now-playing",
     fakeServer(
       {
         signedIn: admin,
@@ -72,14 +74,16 @@ function openNowPlaying(plays: Play[], events = eventFeed(), stopped: StopPlayRe
   );
 }
 
-describe("the Now Playing page", () => {
+describe("the Now Playing section", () => {
   test("shows a play going on as it opens: who, where, what, how, why, how far and on what", async () => {
     openNowPlaying([darkOnTv]);
 
-    await expect(screen.findByText("Ada on Living room TV")).resolves.toBeDefined();
+    await expect(
+      screen.findByText(
+        "Ada on Living room TV · Transcode on AMD Radeon RX 9070 XT · VAAPI · 12:34 of 52:05",
+      ),
+    ).resolves.toBeDefined();
     expect(screen.getByText("Dark S01E02")).toBeDefined();
-    expect(screen.getByText("Transcode on AMD Radeon RX 9070 XT · VAAPI")).toBeDefined();
-    expect(screen.getByText("12:34 of 52:05")).toBeDefined();
     expect(
       screen.getByText(
         "This Device can’t decode HEVC video, so it can’t be Direct Played or Remuxed.",
@@ -99,7 +103,7 @@ describe("the Now Playing page", () => {
 
     plays[0] = { ...darkOnTv, transcodesOn: { api: HardwareAcceleration.OFF } };
     events.send({ event: { case: "playbackChanged", value: { playback: darkOnTv.playback } } });
-    await expect(screen.findByText("Transcode on the CPU")).resolves.toBeDefined();
+    await expect(screen.findByText(/Transcode on the CPU/u)).resolves.toBeDefined();
 
     plays.pop();
     events.send({ event: { case: "playbackEnded", value: { playback: darkOnTv.playback } } });
@@ -107,7 +111,7 @@ describe("the Now Playing page", () => {
     expect(screen.queryByText("Dark S01E02")).toBeNull();
   });
 
-  test("stop with a message ends the play, and it leaves the page", async () => {
+  test("stop with a message ends the play, and it leaves the list", async () => {
     const stopped: StopPlayRequest[] = [];
     openNowPlaying([darkOnTv], eventFeed(), stopped);
 
@@ -121,6 +125,35 @@ describe("the Now Playing page", () => {
     await expect(screen.findByText("Nothing is playing.")).resolves.toBeDefined();
     expect(stopped.map(({ planId, message }) => ({ planId, message }))).toStrictEqual([
       { planId: 7n, message: "Bedtime!" },
+    ]);
+  });
+});
+
+describe("where Now Playing is", () => {
+  test("a User who manages Libraries but isn't an Admin has no Now Playing section", async () => {
+    openSettings("now-playing", fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }));
+
+    await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
+    expect(screen.queryByRole("link", { name: "Now Playing" })).toBeNull();
+  });
+
+  test("it's under Activity, before Admin, and searching Settings for streams finds it", async () => {
+    openSettings("playback", fakeServer({ signedIn: admin }));
+
+    const nav = within(await screen.findByRole("navigation", { name: "Settings" }));
+    expect(nav.getAllByRole("heading").map((heading) => heading.textContent)).toStrictEqual([
+      "You",
+      "Preferences",
+      "Activity",
+      "Admin",
+    ]);
+    expect(nav.getAllByRole("link")[6]?.textContent).toBe("Now Playing");
+    fireEvent.change(screen.getByRole("combobox", { name: "Search settings" }), {
+      target: { value: "streams" },
+    });
+
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toStrictEqual([
+      "Now Playing",
     ]);
   });
 });
