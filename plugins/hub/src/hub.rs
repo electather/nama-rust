@@ -114,7 +114,7 @@ impl Hub {
     }
 
     /// The titles like the one `request` names, asked as the Server whose credential is
-    /// `credential`. None if the Hub doesn't know the credential any more, as [`Hub::unlink`]
+    /// `credential`. Empty if the Hub doesn't know the credential any more, as [`Hub::unlink`]
     /// takes it: a Server no longer Linked has no answer, which isn't a failure.
     pub(crate) async fn similar(
         &self,

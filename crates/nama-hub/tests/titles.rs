@@ -47,6 +47,7 @@ async fn trained(db: &PgPool) {
 /// The ids of `similar`, most alike first, checking their weights fall from at most 1.0.
 fn ids_by_weight(similar: &[SimilarTitle]) -> Vec<ExternalId> {
     let weights: Vec<f32> = similar.iter().map(|title| title.weight).collect();
+    // Identical vectors' cosine distance can round below 0, so their weight above 1.0.
     assert!(
         weights.is_sorted_by(|a, b| a >= b) && weights.iter().all(|&w| w > 0.0 && w < 1.001),
         "{weights:?}"

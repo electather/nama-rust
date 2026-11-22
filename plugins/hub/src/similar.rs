@@ -50,7 +50,11 @@ impl Similar {
         };
         let similar = self.hub.similar(&credential, request).await?;
         Ok(SimilarTitles {
-            titles: similar.titles.into_iter().map(similar_title).collect(),
+            titles: similar
+                .titles
+                .into_iter()
+                .filter_map(similar_title)
+                .collect(),
             ..Default::default()
         })
     }
@@ -65,9 +69,10 @@ impl SimilarSource for Similar {
     }
 }
 
-fn similar_title(similar: hub::SimilarTitle) -> SimilarTitle {
-    let id = similar.id.into_option().unwrap_or_default();
-    SimilarTitle {
+/// `similar` as the Kernel takes it, or `None` without an id, which no title could match.
+fn similar_title(similar: hub::SimilarTitle) -> Option<SimilarTitle> {
+    let id = similar.id.into_option()?;
+    Some(SimilarTitle {
         id: TitleId {
             namespace: id.namespace,
             value: id.value,
@@ -76,5 +81,5 @@ fn similar_title(similar: hub::SimilarTitle) -> SimilarTitle {
         .into(),
         weight: similar.weight,
         ..Default::default()
-    }
+    })
 }

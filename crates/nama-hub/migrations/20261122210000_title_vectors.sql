@@ -24,9 +24,10 @@ CREATE TABLE training_runs (
 );
 
 -- A title's vector, from the run that made it. A run replaces every vector in one transaction.
+-- Sparse, since a title has a few dozen facts among a billion dimensions (`src/titles/vectors.rs`).
 CREATE TABLE title_vectors (
     id uuid PRIMARY KEY DEFAULT uuidv7(),
     title_id uuid NOT NULL UNIQUE REFERENCES titles (id) ON DELETE CASCADE,
     training_run_id uuid NOT NULL REFERENCES training_runs (id),
-    embedding vector(256) NOT NULL
+    embedding sparsevec NOT NULL
 );

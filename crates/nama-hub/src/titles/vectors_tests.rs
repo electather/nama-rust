@@ -1,7 +1,9 @@
-use super::{LEAST_WEIGHT, embed};
+use std::collections::BTreeMap;
+
+use super::embed;
 
 /// The vector of a title with `facts`, each with how many titles share it.
-fn vector(facts: &[(&str, i64)]) -> Vec<f32> {
+fn vector(facts: &[(&str, i64)]) -> BTreeMap<u64, f32> {
     let facts: Vec<(String, i64)> = facts
         .iter()
         .map(|&(fact, sharing)| (fact.to_owned(), sharing))
@@ -9,9 +11,12 @@ fn vector(facts: &[(&str, i64)]) -> Vec<f32> {
     embed(facts.iter().map(|(fact, sharing)| (fact, *sharing))).unwrap()
 }
 
-fn cosine(a: &[f32], b: &[f32]) -> f32 {
-    let dot: f32 = a.iter().zip(b).map(|(a, b)| a * b).sum();
-    let norm = |v: &[f32]| v.iter().map(|x| x * x).sum::<f32>().sqrt();
+fn cosine(a: &BTreeMap<u64, f32>, b: &BTreeMap<u64, f32>) -> f32 {
+    let dot: f32 = a
+        .iter()
+        .filter_map(|(dimension, x)| Some(x * b.get(dimension)?))
+        .sum();
+    let norm = |v: &BTreeMap<u64, f32>| v.values().map(|x| x * x).sum::<f32>().sqrt();
     dot / (norm(a) * norm(b))
 }
 
@@ -25,7 +30,7 @@ fn sharing_a_rare_fact_makes_titles_more_alike_than_sharing_a_common_one() {
 }
 
 #[test]
-fn titles_sharing_no_fact_weigh_less_than_an_answer_needs() {
+fn titles_sharing_no_fact_are_not_alike_at_all() {
     let title = vector(&[
         ("cast:Q43416", 40),
         ("director:Q9545711", 3),
@@ -39,7 +44,7 @@ fn titles_sharing_no_fact_weigh_less_than_an_answer_needs() {
         ("country:Q145", 1200),
     ]);
 
-    assert!(cosine(&title, &other) < LEAST_WEIGHT);
+    assert_eq!(cosine(&title, &other), 0.0);
 }
 
 #[test]

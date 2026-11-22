@@ -193,8 +193,8 @@ async fn train_vectors() -> ExitCode {
     let trained = titles::train(&db).await;
     db.close().await;
     match trained {
-        Ok(titles) => {
-            info!(titles, "trained the title vectors");
+        Ok(vectors) => {
+            info!(vectors, "trained the title vectors");
             ExitCode::SUCCESS
         }
         Err(err) => {
