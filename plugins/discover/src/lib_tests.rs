@@ -48,8 +48,43 @@ fn tmdb(request: &HttpRequest) -> Response {
                 { "iso_3166_1": "DE", "english_name": "Germany", "native_name": "Deutschland" },
             ]),
         ),
-        _ => answer(404, &json!({ "status_code": 34 })),
+        "/3/genre/movie/list" => genres(&[
+            (28, "Action"),
+            (35, "Comedy"),
+            (18, "Drama"),
+            (27, "Horror"),
+        ]),
+        "/3/genre/tv/list" => genres(&[(35, "Comedy"), (18, "Drama"), (10765, "Sci-Fi & Fantasy")]),
+        "/3/discover/movie" | "/3/discover/tv" => {
+            let asked = |name: &str| {
+                url.query_pairs()
+                    .find(|(asked_name, _)| asked_name == name)
+                    .map(|(_, value)| value.into_owned())
+            };
+            assert_eq!(asked("sort_by").as_deref(), Some("vote_average.desc"));
+            page_after(&asked("with_genres").expect("a genre is asked"))
+        }
+        path => match path.split('/').collect::<Vec<_>>()[..] {
+            ["", "3", "movie" | "tv", id, "recommendations"] => page_after(id),
+            _ => answer(404, &json!({ "status_code": 34 })),
+        },
     }
+}
+
+/// A page of two titles, numbered `id` with a 1 and then a 2 after it, without their media as
+/// TMDB answers for a page of one media.
+fn page_after(id: &str) -> Response {
+    let results: Vec<_> = (1..=2)
+        .map(|n| json!({ "id": format!("{id}{n}").parse::<u64>().unwrap() }))
+        .collect();
+    answer(200, &json!({ "page": 1, "results": results }))
+}
+
+fn genres(genres: &[(u64, &str)]) -> Response {
+    let genres: Vec<_> = (genres.iter())
+        .map(|(id, name)| json!({ "id": id, "name": name }))
+        .collect();
+    answer(200, &json!({ "genres": genres }))
 }
 
 /// Wikidata's answer to a SPARQL query of `request`'s URL: each award's Movies as TMDB ids, newest
@@ -487,9 +522,10 @@ fn tmdb_id(value: &str) -> TitleId {
     }
 }
 
-/// A Movie in Library 1, by its TMDB id.
+/// A Movie in Library 1, by its TMDB id, named `Movie <id>`.
 fn movie(value: &str, genres: &[&str]) -> Title {
     Title {
+        title: format!("Movie {value}"),
         title_ref: TitleRef {
             library_id: 1,
             kind: TitleRefKind::TITLE_REF_KIND_MOVIE.into(),
@@ -502,9 +538,10 @@ fn movie(value: &str, genres: &[&str]) -> Title {
     }
 }
 
-/// An Episode in Library 1 of the Show with the TMDB id `show`.
+/// An Episode in Library 1 of the Show with the TMDB id `show`, named `Show <show>`.
 fn episode(value: &str, show: &str, genres: &[&str]) -> Title {
     Title {
+        show_title: Some(format!("Show {show}")),
         title_ref: TitleRef {
             kind: TitleRefKind::TITLE_REF_KIND_EPISODE.into(),
             ..(*movie(value, genres).title_ref).clone()
@@ -531,7 +568,9 @@ fn user_kernel(picked: &[&str], titles: &[Title]) -> Kernel {
         ..Library::default()
     };
     Kernel::new()
+        .setting(API_KEY, VALID_KEY)
         .setting(USER_ROWS, &json::to_string(picked).unwrap())
+        .http(|request, _body| Ok(tmdb(request)))
         .libraries([library])
         .titles(1, titles.iter().cloned())
         .watch_states(&TitleRef::default(), [])
@@ -745,6 +784,207 @@ fn watch_it_again_is_answered_without_your_watchlist_when_read_watchlists_is_not
             "Watch it again",
             6 * 60 * 60,
             vec![(Some(TitleKind::TITLE_KIND_MOVIE), "1")]
+        )]
+    );
+}
+
+#[test]
+fn because_you_watched_follows_the_three_titles_played_most_recently_newest_first() {
+    let titles = [
+        movie("1", &[]),
+        movie("2", &[]),
+        episode("30", "3", &[]),
+        movie("4", &[]),
+        movie("5", &[]),
+    ];
+    let mut kernel = user_kernel(&["because"], &titles);
+    for (title, changed_at) in [
+        (&titles[0], days_ago(4)),
+        (&titles[1], days_ago(1)),
+        (&titles[2], days_ago(2)),
+        (&titles[3], days_ago(3)),
+    ] {
+        kernel = watching(kernel, title, ADA, PLAYED, changed_at);
+    }
+    let mut kernel = watching(kernel, &titles[4], ADA, STARTED, days_ago(0));
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    let movie = Some(TitleKind::TITLE_KIND_MOVIE);
+    let show = Some(TitleKind::TITLE_KIND_SHOW);
+    let ttl = 6 * 60 * 60;
+    assert_eq!(
+        summary(&rows),
+        [
+            (
+                "because-1",
+                "Because you watched Movie 2",
+                ttl,
+                vec![(movie, "21"), (movie, "22")]
+            ),
+            (
+                "because-2",
+                "Because you watched Show 3",
+                ttl,
+                vec![(show, "31"), (show, "32")]
+            ),
+            (
+                "because-3",
+                "Because you watched Movie 4",
+                ttl,
+                vec![(movie, "41"), (movie, "42")]
+            ),
+        ]
+    );
+}
+
+#[test]
+fn because_you_watched_keeps_its_keys_as_the_titles_it_follows_change() {
+    let titles = [movie("1", &[]), movie("2", &[])];
+    let kernel = user_kernel(&["because"], &titles);
+    let mut kernel = watching(kernel, &titles[0], ADA, PLAYED, days_ago(2));
+    let before = user_rows(&mut kernel, ADA).unwrap();
+    let mut kernel = watching(kernel, &titles[1], ADA, PLAYED, days_ago(1));
+
+    let after = user_rows(&mut kernel, ADA).unwrap();
+
+    let keys_and_headings = |rows: &HomeRows| -> Vec<(String, String)> {
+        (rows.rows.iter())
+            .map(|row| (row.key.clone(), row.heading.clone()))
+            .collect()
+    };
+    assert_eq!(
+        keys_and_headings(&before),
+        [("because-1".into(), "Because you watched Movie 1".into())]
+    );
+    assert_eq!(
+        keys_and_headings(&after),
+        [
+            ("because-1".into(), "Because you watched Movie 2".into()),
+            ("because-2".into(), "Because you watched Movie 1".into()),
+        ]
+    );
+}
+
+#[test]
+fn because_you_watched_cuts_a_long_title_to_40_characters_ending_in_an_ellipsis() {
+    let titles = [Title {
+        title: "The Lord of the Rings: The Return of the King".to_owned(),
+        ..movie("1", &[])
+    }];
+    let kernel = user_kernel(&["because"], &titles);
+    let mut kernel = watching(kernel, &titles[0], ADA, PLAYED, days_ago(1));
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    assert_eq!(
+        rows.rows[0].heading,
+        "Because you watched The Lord of the Rin…"
+    );
+}
+
+#[test]
+fn because_you_watched_leaves_out_titles_the_user_played_or_started() {
+    let titles = [movie("1", &[]), movie("11", &[]), movie("12", &[])];
+    let kernel = user_kernel(&["because"], &titles);
+    let kernel = watching(kernel, &titles[0], ADA, PLAYED, days_ago(1));
+    let kernel = watching(kernel, &titles[1], ADA, PLAYED, days_ago(5));
+    let mut kernel = watching(kernel, &titles[2], ADA, STARTED, days_ago(3));
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    let movie = Some(TitleKind::TITLE_KIND_MOVIE);
+    let ttl = 6 * 60 * 60;
+    assert_eq!(
+        summary(&rows),
+        [
+            ("because-1", "Because you watched Movie 1", ttl, vec![]),
+            (
+                "because-2",
+                "Because you watched Movie 11",
+                ttl,
+                vec![(movie, "111"), (movie, "112")]
+            ),
+        ]
+    );
+}
+
+#[test]
+fn because_you_watched_follows_a_title_watched_past_halfway_but_not_one_stopped_before() {
+    let titles = [movie("1", &[]), movie("2", &[])];
+    let stopped_at = |position_ms, updated_at_ms| WatchState {
+        user_id: ADA,
+        position_ms,
+        duration_ms: 90 * 60_000,
+        updated_at_ms,
+        ..WatchState::default()
+    };
+    let mut kernel = user_kernel(&["because"], &titles)
+        .watch_states(&titles[0].title_ref, [stopped_at(50 * 60_000, days_ago(2))])
+        .watch_states(&titles[1].title_ref, [stopped_at(10 * 60_000, days_ago(1))]);
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    let headings: Vec<_> = rows.rows.iter().map(|row| row.heading.as_str()).collect();
+    assert_eq!(headings, ["Because you watched Movie 1"]);
+}
+
+#[test]
+fn more_genre_follows_the_two_genres_tmdb_knows_the_user_played_most_leaving_out_played_titles() {
+    let titles = [
+        movie("1", &["Drama", "Anime"]),
+        movie("181", &["Drama", "Anime"]),
+        episode("1000", "100", &["Drama", "Comedy", "Anime"]),
+        movie("3", &["Comedy", "Anime"]),
+        movie("4", &["Horror"]),
+        movie("5", &["Comedy"]),
+    ];
+    let mut kernel = user_kernel(&["more-genre"], &titles);
+    for title in &titles[..5] {
+        kernel = watching(kernel, title, ADA, PLAYED, days_ago(1));
+    }
+    let mut kernel = watching(kernel, &titles[5], ADA, STARTED, days_ago(1));
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    let movie = Some(TitleKind::TITLE_KIND_MOVIE);
+    let show = Some(TitleKind::TITLE_KIND_SHOW);
+    let ttl = 6 * 60 * 60;
+    assert_eq!(
+        summary(&rows),
+        [
+            (
+                "more-genre-1",
+                "More Drama",
+                ttl,
+                vec![(show, "181"), (movie, "182"), (show, "182")]
+            ),
+            (
+                "more-genre-2",
+                "More Comedy",
+                ttl,
+                vec![(movie, "351"), (show, "351"), (movie, "352"), (show, "352")]
+            ),
+        ]
+    );
+}
+
+#[test]
+fn more_genre_of_a_genre_tmdb_has_only_for_shows_holds_shows() {
+    let titles = [episode("10", "100", &["Sci-Fi & Fantasy"])];
+    let kernel = user_kernel(&["more-genre"], &titles);
+    let mut kernel = watching(kernel, &titles[0], ADA, PLAYED, days_ago(1));
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    let show = Some(TitleKind::TITLE_KIND_SHOW);
+    assert_eq!(
+        summary(&rows),
+        [(
+            "more-genre-1",
+            "More Sci-Fi & Fantasy",
+            6 * 60 * 60,
+            vec![(show, "107651"), (show, "107652")]
         )]
     );
 }
