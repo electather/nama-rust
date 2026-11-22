@@ -156,8 +156,8 @@ impl Accounts {
     /// browser's session, if any.
     #[expect(
         clippy::too_many_arguments,
-        reason = "the credentials, the session to end and the rate limit's inputs are unrelated; \
-                  a struct bundling them would exist only for this call"
+        reason = "`replacing` is as in `sign_in_with_link`, and `ip` and `now` are the rate \
+                  limit's, as in `create`; bundling those callers' arguments is its own change"
     )]
     pub(crate) async fn sign_in(
         &self,

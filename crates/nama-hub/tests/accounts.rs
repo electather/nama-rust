@@ -208,7 +208,9 @@ async fn signing_in_with_the_password_starts_a_session_of_its_own(db: PgPool) {
 }
 
 #[sqlx::test(migrations = false)]
-async fn signing_in_with_the_password_ends_the_browsers_session_only_once_it_is_right(db: PgPool) {
+async fn signing_in_with_the_password_ends_the_browsers_session_only_once_the_password_is_right(
+    db: PgPool,
+) {
     let hub = TestHub::start(db, None).await;
     let other = create(&hub, "ada@example.com").await;
     let browser = session_cookie(
