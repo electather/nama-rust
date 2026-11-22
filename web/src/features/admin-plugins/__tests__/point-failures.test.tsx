@@ -29,6 +29,8 @@ async function openFlaky(failures: Failure[] = []) {
           extensionPoints: [ExtensionPoint.RECOGNISER, ExtensionPoint.NOTIFIER],
         },
         failures,
+        // Something the details show, to wait on where no failure shows.
+        license: "MIT",
       },
     }),
   });
@@ -43,7 +45,7 @@ function failed(point: ExtensionPoint, lastError: string, failedInARow: number):
 test("a Recogniser whose calls keep failing shows its last error, when and how often", async () => {
   const page = await openFlaky([failed(ExtensionPoint.RECOGNISER, "the anime list timed out", 3)]);
 
-  const failing = page.getByRole("region", { name: "Recogniser failing" });
+  const failing = await page.findByRole("region", { name: "Recogniser failing" });
   expect(failing.textContent).toContain("Its last 3 calls failed");
   expect(failing.textContent).toContain("the anime list timed out");
   expect(failing.textContent).toContain("stay undecided and are tried again at the next Scan");
@@ -55,7 +57,7 @@ test("a Recogniser whose calls keep failing shows its last error, when and how o
 test("a Recogniser whose one call failed says so in the singular", async () => {
   const page = await openFlaky([failed(ExtensionPoint.RECOGNISER, "bad answer", 1)]);
 
-  const failing = page.getByRole("region", { name: "Recogniser failing" });
+  const failing = await page.findByRole("region", { name: "Recogniser failing" });
   expect(failing.textContent).toContain("Its last call failed");
 });
 
@@ -65,19 +67,18 @@ test("each failing Extension Point shows its own failure", async () => {
     failed(ExtensionPoint.NOTIFIER, "the topic is gone", 1),
   ]);
 
-  const notifier = page.getByRole("region", { name: "Notifier failing" });
+  const notifier = await page.findByRole("region", { name: "Notifier failing" });
   expect(notifier.textContent).toContain("Its last call failed");
   expect(notifier.textContent).toContain("the topic is gone");
   expect(notifier.textContent).not.toContain("Scan");
-  expect(page.getByRole("region", { name: "Recogniser failing" }).textContent).toContain(
-    "the anime list timed out",
-  );
+  const recogniser = await page.findByRole("region", { name: "Recogniser failing" });
+  expect(recogniser.textContent).toContain("the anime list timed out");
 });
 
 test("a Home row source whose refresh failed says Users still see its last rows", async () => {
   const page = await openFlaky([failed(ExtensionPoint.HOME_ROW, "the list is private", 1)]);
 
-  const failing = page.getByRole("region", { name: "Home rows failing" });
+  const failing = await page.findByRole("region", { name: "Home rows failing" });
   expect(failing.textContent).toContain("the list is private");
   expect(failing.textContent).toContain("Users go on seeing the rows it last gave");
 });
@@ -85,5 +86,6 @@ test("a Home row source whose refresh failed says Users still see its last rows"
 test("a Plugin whose calls answer shows no failure", async () => {
   const page = await openFlaky();
 
+  await page.findByText("MIT licence");
   expect(page.queryByRole("region", { name: /failing/u })).toBeNull();
 });
