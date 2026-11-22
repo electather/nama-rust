@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 pub(crate) use passwords::PASSWORD_LENGTH;
 pub(crate) use rate_limits::Blocked;
-use rate_limits::SignInLimits;
+use rate_limits::{CreationLimits, SignInLimits};
 pub(crate) use sessions::SESSION_DAYS;
 
 /// The most characters an email may have: the longest a mailbox can be (RFC 5321).
@@ -75,11 +75,12 @@ pub(crate) enum Error {
     Database(#[from] sqlx::Error),
 }
 
-/// The Accounts kept in the database, and the recent failed sign-ins.
+/// The Accounts kept in the database, and the recent failed sign-ins and creations.
 #[derive(Clone)]
 pub(crate) struct Accounts {
     db: PgPool,
     limits: Arc<SignInLimits>,
+    creations: Arc<CreationLimits>,
 }
 
 impl Accounts {
@@ -87,11 +88,19 @@ impl Accounts {
         Self {
             db,
             limits: Arc::default(),
+            creations: Arc::default(),
         }
     }
 
-    /// Creates an Account with `email`, trimmed, and `password`, and signs it in.
-    pub(crate) async fn create(&self, email: &str, password: &str) -> Result<SignedIn, Error> {
+    /// Creates an Account with `email`, trimmed, and `password`, for the client at `ip` at `now`,
+    /// and signs it in.
+    pub(crate) async fn create(
+        &self,
+        email: &str,
+        password: &str,
+        ip: IpAddr,
+        now: Instant,
+    ) -> Result<SignedIn, Error> {
         let email = email.trim();
         if !is_email(email) {
             return Err(Error::EmailInvalid);
@@ -99,6 +108,7 @@ impl Accounts {
         if !PASSWORD_LENGTH.contains(&password.chars().count()) {
             return Err(Error::PasswordLength);
         }
+        self.creations.admit(ip, now)?;
         let password_hash = passwords::hash(password.to_owned()).await?;
         let mut tx = self.db.begin().await?;
         let id = sqlx::query_scalar!(
