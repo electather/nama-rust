@@ -3094,13 +3094,41 @@ pub struct ServerSettings {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub url: ::buffa::alloc::string::String,
+    /// Whether the Server shares its Diagnostics with Nama's developers, through the Hub once it is
+    /// Linked: spans of ids, counts and durations, and the few log lines a reviewed list names (ADR
+    /// 0054). Off by default.
+    ///
+    /// Field 2: `share_diagnostics`
+    #[serde(
+        rename = "shareDiagnostics",
+        alias = "share_diagnostics",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub share_diagnostics: bool,
+    /// Whether the Server shares Usage Analytics with Nama's developers, through the Hub once it is
+    /// Linked: named events saying a feature was used, with no titles or names (ADR 0054). Off by
+    /// default.
+    ///
+    /// Field 3: `share_usage_analytics`
+    #[serde(
+        rename = "shareUsageAnalytics",
+        alias = "share_usage_analytics",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub share_usage_analytics: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for ServerSettings {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("ServerSettings").field("url", &self.url).finish()
+        f.debug_struct("ServerSettings")
+            .field("url", &self.url)
+            .field("share_diagnostics", &self.share_diagnostics)
+            .field("share_usage_analytics", &self.share_usage_analytics)
+            .finish()
     }
 }
 impl ServerSettings {
@@ -3133,6 +3161,12 @@ impl ::buffa::Message for ServerSettings {
         if !self.url.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.url) as u64;
         }
+        if self.share_diagnostics {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.share_usage_analytics {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3145,6 +3179,12 @@ impl ::buffa::Message for ServerSettings {
         use ::buffa::Enumeration as _;
         if !self.url.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.url, buf);
+        }
+        if self.share_diagnostics {
+            ::buffa::types::put_bool_field(2u32, self.share_diagnostics, buf);
+        }
+        if self.share_usage_analytics {
+            ::buffa::types::put_bool_field(3u32, self.share_usage_analytics, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3166,6 +3206,20 @@ impl ::buffa::Message for ServerSettings {
                 )?;
                 ::buffa::types::merge_string(&mut self.url, buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.share_diagnostics = ::buffa::types::decode_bool(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.share_usage_analytics = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3175,6 +3229,8 @@ impl ::buffa::Message for ServerSettings {
     }
     fn clear(&mut self) {
         self.url.clear();
+        self.share_diagnostics = false;
+        self.share_usage_analytics = false;
         self.__buffa_unknown_fields.clear();
     }
 }

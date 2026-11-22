@@ -1,6 +1,7 @@
 //! `AccountService`: creating an Account, and signing it in, with its password or a Sign-in Link,
 //! and out, against a real PostgreSQL.
 
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/hub.rs"]
 mod hub;
 #[path = "support/mail.rs"]

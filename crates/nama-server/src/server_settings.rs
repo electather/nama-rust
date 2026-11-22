@@ -1,5 +1,6 @@
 //! What an admin sets about the Server as a whole, kept in the one `server_settings` row: its
-//! URL, which notifications link to the web app with, and the Playback settings: the folder
+//! URL, which notifications link to the web app with, what it shares with Nama's developers, and
+//! the Playback settings: the folder
 //! playback writes segment files to, how far behind playback it keeps them, the most Transcodes it
 //! runs at once, what they run on, and the default Playback Limit for remote playback; and whether
 //! Posters and Backdrops are resized, how much disk the resized copies take, and which store
@@ -24,6 +25,7 @@ use url::Url;
 
 use crate::{
     db::{BoxFuture, Database},
+    diagnostics::{self, Sharing},
     ffmpeg::{Accel, Hardware},
 };
 
@@ -53,6 +55,7 @@ pub(crate) struct Settings {
 pub(crate) struct Values {
     /// The address people reach the Server at, or `""` for none.
     pub(crate) url: String,
+    pub(crate) sharing: Sharing,
     pub(crate) playback: PlaybackValues,
     pub(crate) images: ImageValues,
     /// The Plugin keeping the image store's originals, or `None` for local disk.
@@ -181,13 +184,17 @@ impl Settings {
             "SELECT url, segment_folder, max_transcodes, keep_behind_minutes,
                     hardware_acceleration, hardware_gpu, hardware_gpu_name, remote_playback_limit,
                     resize_images, resized_cache_mib, image_store_plugin, default_home_layout,
-                    backup_folder, backups_kept
+                    backup_folder, backups_kept, share_diagnostics, share_usage_analytics
              FROM server_settings"
         )
         .fetch_optional(self.db.reader())
         .await?;
         let values = stored.map_or_else(Values::default, |stored| Values {
             url: stored.url,
+            sharing: Sharing {
+                diagnostics: stored.share_diagnostics != 0,
+                usage_analytics: stored.share_usage_analytics != 0,
+            },
             playback: PlaybackValues {
                 segment_folder: stored.segment_folder,
                 max_transcodes: stored.max_transcodes.and_then(non_zero),
@@ -216,6 +223,7 @@ impl Settings {
                 kept: stored.backups_kept.and_then(non_zero),
             },
         });
+        diagnostics::SHARING.set(values.sharing);
         *self.values.write().unwrap_or_else(PoisonError::into_inner) = values;
         Ok(())
     }
@@ -243,12 +251,17 @@ impl Settings {
         ImageSettings(Arc::clone(&self.values))
     }
 
-    /// Stores `url`, trimmed, as the Server URL and uses it from now on.
+    /// Stores `url`, trimmed, as the Server URL, and what the Server shares, and uses both from
+    /// now on.
     ///
     /// # Errors
     ///
-    /// [`Invalid::NotAUrl`], or if storing it fails.
-    pub(crate) async fn set_url(&self, url: &str) -> Result<String, ChangeError> {
+    /// [`Invalid::NotAUrl`], or if storing them fails.
+    pub(crate) async fn change_server(
+        &self,
+        url: &str,
+        sharing: Sharing,
+    ) -> Result<String, ChangeError> {
         let url = url.trim().to_owned();
         if !is_server_url(&url) {
             return Err(Invalid::NotAUrl.into());
@@ -259,16 +272,26 @@ impl Settings {
             move |tx| {
                 Box::pin(async move {
                     sqlx::query!(
-                        "INSERT INTO server_settings (id, url) VALUES (1, ?)
-                         ON CONFLICT (id) DO UPDATE SET url = excluded.url",
-                        stored
+                        "INSERT INTO server_settings
+                             (id, url, share_diagnostics, share_usage_analytics)
+                         VALUES (1, ?, ?, ?)
+                         ON CONFLICT (id) DO UPDATE SET url = excluded.url,
+                             share_diagnostics = excluded.share_diagnostics,
+                             share_usage_analytics = excluded.share_usage_analytics",
+                        stored,
+                        sharing.diagnostics,
+                        sharing.usage_analytics,
                     )
                     .execute(&mut **tx)
                     .await?;
                     Ok(())
                 })
             },
-            move |values| values.url = in_use,
+            move |values| {
+                values.url = in_use;
+                values.sharing = sharing;
+                diagnostics::SHARING.set(sharing);
+            },
         )
         .await?;
         Ok(url)

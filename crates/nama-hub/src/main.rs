@@ -12,6 +12,7 @@ use clap::{Parser, Subcommand};
 use nama_hub::{
     config::Config,
     db,
+    diagnostics::{Backend, Otlp, OtlpError},
     mail::{Mail, MailError, Resend},
     signing::Keys,
     titles,
@@ -45,7 +46,9 @@ const OTLP_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
                   NAMA_HUB_SIGNING_KEYS, the Ed25519 private keys it signs with, as PEM blocks \
                   one after another, and, to email Sign-in Links, NAMA_HUB_RESEND_API_KEY, \
                   NAMA_HUB_MAIL_FROM, the address mail comes from, and NAMA_HUB_PUBLIC_URL, the \
-                  Hub's address that links lead to."
+                  Hub's address that links lead to, and, to forward what Servers share, \
+                  NAMA_HUB_DIAGNOSTICS_ENDPOINT, an OTLP/HTTP endpoint, and \
+                  NAMA_HUB_DIAGNOSTICS_HEADERS, the headers sent to it, as key=value pairs."
 )]
 struct Args {
     /// Serves the Hub when none is given.
@@ -102,6 +105,13 @@ async fn run() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    let diagnostics = match diagnostics(&config) {
+        Ok(diagnostics) => diagnostics,
+        Err(err) => {
+            error!("could not set up the Diagnostics backend: {err}");
+            return ExitCode::FAILURE;
+        }
+    };
 
     if let Err(err) = db::migrate(&db).await {
         error!("could not migrate the database: {err}");
@@ -133,6 +143,7 @@ async fn run() -> ExitCode {
         keys,
         &config.trusted_proxies,
         mail,
+        diagnostics,
         shutdown,
     )
     .await;
@@ -158,6 +169,17 @@ fn mail(config: &Config) -> Result<Option<Mail>, MailError> {
         mailer: Arc::new(Resend::new(api_key.clone(), from.clone())?),
         public_url: public_url.clone(),
     }))
+}
+
+/// The backend what Servers share goes to, if `config` names one.
+fn diagnostics(config: &Config) -> Result<Option<Arc<dyn Backend>>, OtlpError> {
+    let Some(endpoint) = &config.diagnostics_endpoint else {
+        return Ok(None);
+    };
+    Ok(Some(Arc::new(Otlp::new(
+        endpoint,
+        &config.diagnostics_headers,
+    )?)))
 }
 
 /// Imports Wikidata's dump from stdin, leaving the titles as they were if it fails.

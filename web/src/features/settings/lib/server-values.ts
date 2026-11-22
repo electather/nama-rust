@@ -1,4 +1,4 @@
-import type { ImageSettings } from "@/gen/nama/v1/server_pb";
+import type { ImageSettings, ServerSettings } from "@/gen/nama/v1/server_pb";
 import type { SettingText } from "@/shared/lib/setting-text";
 
 /** The Server pane's settings, as its controls hold them. */
@@ -7,7 +7,16 @@ export interface ServerValues {
   resize: boolean;
   /** The most disk the resized copies take, in MiB, as its dropdown is valued. */
   space: string;
+  shareDiagnostics: boolean;
+  shareUsageAnalytics: boolean;
 }
+
+/** The settings saved with the Server URL, in one call: the rest are image settings. */
+export const serverSettingKeys: readonly (keyof ServerValues)[] = [
+  "url",
+  "shareDiagnostics",
+  "shareUsageAnalytics",
+];
 
 /**
  * What each setting's row says, in the pane's order, the image store's included. The toast names a
@@ -34,6 +43,16 @@ export const serverLabels: Record<keyof ServerValues | "imageStore" | "store", S
     hint: "Where the Server keeps the images it fetched, Custom Images and Plugin logos. Resized copies always stay on local disk.",
     words: "storage",
   },
+  shareDiagnostics: {
+    label: "Share Diagnostics",
+    hint: "Sends Nama’s developers how this Server runs, through the Hub while it’s Linked: timings, counts and errors, never titles, file paths, names or addresses.",
+    words: "telemetry crash reports",
+  },
+  shareUsageAnalytics: {
+    label: "Share Usage Analytics",
+    hint: "Tells Nama’s developers which features are used, such as a Request made or playback started, through the Hub while it’s Linked. Never titles or names.",
+    words: "statistics tracking",
+  },
   store: {
     label: "Keep images on",
     hint: "An enabled Blob store Plugin, such as S3, can keep them in place of local disk. Every image is copied across before the switch, and the old store keeps its copies.",
@@ -46,10 +65,20 @@ const MIB_PER_GB = 1024;
 const offeredGb = [1, 2, 5, 10, 20];
 
 /** The pane's settings as the Server has them saved. */
-export function savedServer(url: string, images: ImageSettings | undefined): ServerValues {
+export function savedServer(
+  server: ServerSettings | undefined,
+  images: ImageSettings | undefined,
+): ServerValues {
+  const { url = "", shareDiagnostics = false, shareUsageAnalytics = false } = server ?? {};
   // Resizing is on until the Server says otherwise, as it is by default.
   const { resizeImages = true, resizedCacheMib = DEFAULT_MIB } = images ?? {};
-  return { url, resize: resizeImages, space: String(resizedCacheMib) };
+  return {
+    url,
+    resize: resizeImages,
+    space: String(resizedCacheMib),
+    shareDiagnostics,
+    shareUsageAnalytics,
+  };
 }
 
 /** The sizes to pick from, with the `saved` one if it's none of them, so opening the pane never changes it. */

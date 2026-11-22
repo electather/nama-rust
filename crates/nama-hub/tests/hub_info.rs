@@ -1,5 +1,6 @@
 //! `HubService.GetHubInfo`, the Hub's health check, against a real PostgreSQL.
 
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/hub.rs"]
 mod hub;
 

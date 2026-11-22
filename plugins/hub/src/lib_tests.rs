@@ -12,6 +12,7 @@ use nama_plugin_api::{
         functions::{StoreDelete, StoreGet, StorePut},
     },
     contract::{StoreEntry, StoreKey, StoreValue, Stored},
+    diagnostics_sharer::{DiagnosticsSharer, Signal},
     server_link::{ServerLink, ServerLinker},
 };
 use serde_json::json;
@@ -189,6 +190,52 @@ async fn a_hub_signed_token_verifies_against_the_kept_key_set_while_the_hub_is_u
 
     assert_eq!(claims.email, "bea@example.com");
     assert_eq!(hub.key_set_fetches(), 1);
+}
+
+/// The Plugin's sharer, enabled against `hub` with the Store in `kernel`.
+fn sharer(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Arc<dyn DiagnosticsSharer> {
+    let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
+    Hub::at(hub.url()).register(&mut registrar).unwrap();
+    registrar
+        .into_registrations()
+        .iter()
+        .find_map(nama_plugin_api::Registration::provider::<dyn DiagnosticsSharer>)
+        .unwrap()
+}
+
+#[tokio::test]
+async fn a_linked_server_sends_each_shared_batch_to_the_hub_unchanged_with_its_credential() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+
+    let sharer = sharer(&hub, &kernel);
+    sharer
+        .share(Signal::Traces, b"spans".to_vec())
+        .await
+        .unwrap();
+    sharer.share(Signal::Logs, b"lines".to_vec()).await.unwrap();
+
+    assert_eq!(
+        hub.shared(),
+        [
+            ("traces".to_owned(), b"spans".to_vec()),
+            ("logs".to_owned(), b"lines".to_vec())
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_server_that_isnt_linked_sends_nothing() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+
+    sharer(&hub, &kernel)
+        .share(Signal::Traces, b"spans".to_vec())
+        .await
+        .unwrap();
+
+    assert_eq!(hub.shared(), []);
 }
 
 #[test]

@@ -1,13 +1,91 @@
 use nama_plugin_api::PluginId;
-use opentelemetry_sdk::trace::{InMemorySpanExporter, SdkTracerProvider};
+use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
+use opentelemetry_sdk::{
+    logs::{InMemoryLogExporter, SdkLoggerProvider},
+    trace::{InMemorySpanExporter, SdkTracerProvider, SimpleSpanProcessor},
+};
 use tracing::Level;
-use tracing_subscriber::layer::SubscriberExt as _;
+use tracing_subscriber::{Layer as _, layer::SubscriberExt as _};
 
 use super::{
-    MAX_PLUGIN_LINE_BYTES, PLUGIN_TARGET, PluginLine, following_current, forget_plugin_lines,
-    job_run_span, keep_plugin_lines, layer, plugin_lines, plugin_lines_layer, push_plugin_line,
-    service_and_method,
+    MAX_PLUGIN_LINE_BYTES, PLUGIN_TARGET, PluginLine, SharedSpans, Sharing, SharingSwitches, Usage,
+    following_current, forget_plugin_lines, job_run_span, keep_plugin_lines, layer, plugin_lines,
+    plugin_lines_layer, push_plugin_line, record, service_and_method, shared_logs_filter,
+    sharing_layer,
 };
+
+/// The names of the spans and log records a Server sharing what `sharing` says shares of a span,
+/// a line on the shared list, a line that isn't, and a Usage Analytics event.
+fn shared(sharing: Sharing) -> (Vec<String>, Vec<String>) {
+    // Its own, since the Server's are process-wide.
+    let switches: &'static SharingSwitches = Box::leak(Box::default());
+    switches.set(sharing);
+    let spans = InMemorySpanExporter::default();
+    let traces = SdkTracerProvider::builder()
+        .with_span_processor(SharedSpans::new(
+            SimpleSpanProcessor::new(spans.clone()),
+            switches,
+        ))
+        .build();
+    let lines = InMemoryLogExporter::default();
+    let logs = SdkLoggerProvider::builder()
+        .with_simple_exporter(lines.clone())
+        .build();
+    let subscriber = tracing_subscriber::registry()
+        .with(sharing_layer(&traces, switches))
+        .with(OpenTelemetryTracingBridge::new(&logs).with_filter(shared_logs_filter(switches)));
+    tracing::subscriber::with_default(subscriber, || {
+        tracing::info_span!("transcode", plan = 7).in_scope(|| {
+            tracing::warn!(
+                name: "hardware acceleration failed partway",
+                plan = 7,
+                "hardware acceleration failed partway, so the rest Transcodes in software"
+            );
+            tracing::warn!("could not probe /media/Alien (1979).mkv");
+        });
+        record(Usage::RequestMade);
+    });
+    let span_names = spans.get_finished_spans().unwrap();
+    let line_names = lines.get_emitted_logs().unwrap();
+    (
+        span_names
+            .into_iter()
+            .map(|span| span.name.into())
+            .collect(),
+        line_names
+            .into_iter()
+            .filter_map(|line| Some(line.record.event_name()?.to_owned()))
+            .collect(),
+    )
+}
+
+#[test]
+fn with_neither_shared_nothing_is() {
+    assert_eq!(shared(Sharing::default()), (vec![], vec![]));
+}
+
+#[test]
+fn sharing_diagnostics_shares_spans_and_only_the_lines_on_the_list() {
+    let sharing = Sharing {
+        diagnostics: true,
+        usage_analytics: false,
+    };
+
+    let (spans, lines) = shared(sharing);
+
+    assert_eq!(spans, ["transcode"]);
+    assert_eq!(lines, ["hardware acceleration failed partway"]);
+}
+
+#[test]
+fn sharing_usage_analytics_shares_only_their_events() {
+    let sharing = Sharing {
+        diagnostics: false,
+        usage_analytics: true,
+    };
+
+    assert_eq!(shared(sharing), (vec![], vec!["request made".to_owned()]));
+}
 
 #[test]
 fn service_and_method_names_the_service_and_method_of_a_connect_path() {
