@@ -11,6 +11,7 @@ use nama_plugin_api::{
     contract::StoreEntry,
     job::{Job, JobRunner, RunJob},
     points::{WatchStateChange, WatchStateChanges, WatchStatesChanged},
+    server_link::Link,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
@@ -76,14 +77,13 @@ impl JobRunner for WatchStateSync {
 }
 
 impl Linker {
-    /// Queues `changed`, if its User is Linked.
+    /// Queues `changed`, if its User is Linked. It asks the Hub as Settings would, since a User
+    /// who never opened Settings, such as one who only signs in with their Account, has no kept
+    /// Link.
     async fn queue_changes(&self, changed: &WatchStateChanges) -> Result<(), PluginError> {
-        let Some(kept) = self.kept().await? else {
+        let Some(Link::Linked { .. }) = self.current_user_link(changed.user_id).await? else {
             return Ok(());
         };
-        if self.kept_account(changed.user_id, &kept).await?.is_none() {
-            return Ok(());
-        }
         let _queue = self.queue.lock().await;
         let mut queue: Queue = self.stored_json(QUEUE_KEY).await?.unwrap_or_default();
         // The last page fills up before another starts.

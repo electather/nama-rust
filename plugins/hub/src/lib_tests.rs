@@ -522,14 +522,22 @@ async fn a_server_linked_again_doesnt_show_its_users_old_links() {
 async fn syncing_user_7(
     hub: &FakeHub,
 ) -> (Arc<dyn Observer<WatchStatesChanged>>, Arc<dyn JobRunner>) {
-    let mut registrar = Registrar::new().with_kernel(store());
-    Hub::at(hub.url()).register(&mut registrar).unwrap();
-    let registrations = registrar.into_registrations();
-    let linker = (registrations.iter())
-        .find_map(Registration::provider::<dyn ServerLinker>)
-        .unwrap();
+    let kernel = store();
+    let linker = enabled(hub, &kernel);
     link(hub, linker.as_ref()).await;
     link_user(hub, linker.as_ref(), 7).await;
+    syncing(hub, &kernel)
+}
+
+/// The Plugin enabled against `hub`, keeping its Store in `kernel`, as the Kernel tells it of
+/// Watch State changes and runs its Job.
+fn syncing(
+    hub: &FakeHub,
+    kernel: &Arc<dyn Kernel>,
+) -> (Arc<dyn Observer<WatchStatesChanged>>, Arc<dyn JobRunner>) {
+    let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
+    Hub::at(hub.url()).register(&mut registrar).unwrap();
+    let registrations = registrar.into_registrations();
     let observer = (registrations.iter())
         .find_map(Registration::observer::<WatchStatesChanged>)
         .unwrap();
@@ -708,6 +716,51 @@ async fn a_user_who_isnt_linked_keeps_their_watch_state_on_the_server() {
     run_sync(jobs.as_ref()).await.unwrap();
 
     assert_eq!(hub.pushes(), Vec::<Vec<HubChange>>::new());
+}
+
+#[tokio::test]
+async fn a_user_linked_on_the_hub_has_their_changes_pushed_though_settings_never_asked() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.link_user_on_hub(7);
+    let (observer, jobs) = syncing(&hub, &kernel);
+
+    tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(pushed(&hub), [[("tmdb-348".to_owned(), 1000, 1_000)]]);
+}
+
+#[tokio::test]
+async fn a_user_whose_link_the_hub_cant_be_asked_about_has_nothing_queued() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.link_user_on_hub(7);
+    hub.stop();
+    // Enabled again, so no connection made before the stop still reaches the Hub.
+    let (observer, jobs) = syncing(&hub, &kernel);
+
+    tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
+
+    // A queued change would fail to reach the unreachable Hub.
+    run_sync(jobs.as_ref()).await.unwrap();
+}
+
+#[tokio::test]
+async fn changes_dont_ask_the_hub_again_about_a_user_it_was_just_asked_about() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.link_user_on_hub(7);
+    let (observer, _) = syncing(&hub, &kernel);
+    let asks = hub.user_link_asks();
+
+    tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
+    tell(observer.as_ref(), 7, vec![movie_at(348, 2000, 2_000)]).await;
+
+    assert_eq!(hub.user_link_asks(), asks + 1);
 }
 
 #[tokio::test]

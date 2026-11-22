@@ -99,11 +99,7 @@ impl Linker {
     }
 
     /// The email of the Account `user_id` Linked to under the Server's Link `kept`, as last kept.
-    pub(super) async fn kept_account(
-        &self,
-        user_id: i64,
-        kept: &Kept,
-    ) -> Result<Option<String>, PluginError> {
+    async fn kept_account(&self, user_id: i64, kept: &Kept) -> Result<Option<String>, PluginError> {
         let Some(stored) = self.stored(&user_key(user_id)).await? else {
             return Ok(None);
         };
