@@ -19,8 +19,7 @@ The web app's own rules. `web/AGENTS.md` has the ones every web package shares. 
   - A feature imports `shared/` and the sibling features its zone lists.
   - `app/` imports `shared/` and the features it renders.
   - `routes/` imports everything but another route file. Only `main.tsx`, `router.tsx` and the route tree import route files.
-  - `gen/` imports nothing from the app.
-- **Never edit `gen/` or `routeTree.gen.ts` by hand.** Change `proto/` and run `buf generate` there, or let the router plugin regenerate the route tree.
+- **Never edit `gen/` or `routeTree.gen.ts` by hand.** `gen/` imports nothing from the app. Change `proto/` and run `buf generate` there, or let the router plugin regenerate the route tree.
 - **Sensitive changes ask "Confirm it’s you".** Call an RPC that needs Recent Authentication (`crates/nama-server/AGENTS.md`) with `useSensitiveMutation`, never connect-query's `useMutation`. `web/README.md` says how it works.
 - **Settings, not Account.** A User's own settings are "Settings" (`?settings=<section>`, a modal over any signed-in page), never "Account": an Account is the Hub identity. Don't use `/link` for anything but Linking an Account.
 - **One component per file**, small stateless helpers included, so a file's name says what it renders. A component file exports only components, so Fast Refresh keeps its state. A test may keep wrapper and fixture components inline. `vp check` enforces both.

@@ -17,7 +17,7 @@ allowBuilds:
 runtimeOnFail: ignore
 pmOnFail: ignore
 
-# A dependency both packages declare is pinned here once, so they can't drift apart.
+# web/AGENTS.md, "One version of a shared dependency".
 catalog:
   class-variance-authority: ^0.7.1
   cn: ^0.5.2

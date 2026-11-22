@@ -213,7 +213,7 @@ jobs:
             web/test-results/tree
           if-no-files-found: ignore
       # From the repo root, where impeccable finds .impeccable/config.json (which ignores
-      # web/src/gen) and DESIGN.md. From web/ it would read neither. web/ui/src is nama-ui.
+      # web/src/gen) and DESIGN.md. From web/ it would read neither.
       - name: Design check
         run: vp dlx impeccable@4.8.0 detect --json web/src web/ui/src
 
