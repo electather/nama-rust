@@ -131,7 +131,9 @@ describe("linking a Server", () => {
     openAccount(undefined, { listFails: true });
 
     await expect(
-      screen.findByText("The Hub couldn’t list your Servers just now. Reload the page to try again."),
+      screen.findByText(
+        "The Hub couldn’t list your Servers just now. Reload the page to try again.",
+      ),
     ).resolves.toBeDefined();
     expect(screen.getByRole("button", { name: "Link Server" })).toBeDefined();
   });

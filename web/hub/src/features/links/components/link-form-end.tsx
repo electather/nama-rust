@@ -1,7 +1,6 @@
-import { useSignOut } from "@hub/features/account/data/sessions";
+import { LinkRemedy } from "@hub/features/links/components/link-remedy";
 import type { LinkErrors } from "@hub/features/links/lib/link-refusal";
-import { Link } from "@tanstack/react-router";
-import { Button, buttonVariants } from "nama-ui/components/button";
+import { Button } from "nama-ui/components/button";
 
 /** The end of the code form: the Server just Linked or why not, and its buttons. */
 export function LinkFormEnd({
@@ -14,7 +13,6 @@ export function LinkFormEnd({
   errors: LinkErrors;
   pending: boolean;
 }) {
-  const signOut = useSignOut();
   return (
     <>
       <output className="text-sm empty:hidden">
@@ -27,27 +25,7 @@ export function LinkFormEnd({
         <Button type="submit" disabled={pending}>
           {pending ? "Linking…" : "Link Server"}
         </Button>
-        {errors.signInAgain === true && (
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={signOut.isPending}
-            onClick={() => {
-              signOut.mutate({});
-            }}
-          >
-            Sign in again
-          </Button>
-        )}
-        {errors.proveEmail === true && (
-          <Link
-            to="/send-sign-in-link"
-            search={{ continue: "/" }}
-            className={buttonVariants({ variant: "ghost" })}
-          >
-            Email me a Sign-in Link
-          </Link>
-        )}
+        <LinkRemedy errors={errors} />
       </div>
     </>
   );
