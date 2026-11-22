@@ -4,17 +4,25 @@ import { callUnaryMethod, useTransport } from "@connectrpc/connect-query";
 import { type Query, type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import { PlanPlaybackResponseSchema, PlaybackService } from "@/gen/nama/v1/playback_pb";
+import {
+  PlanPlaybackResponseSchema,
+  type PlaybackPlan,
+  PlaybackService,
+} from "@/gen/nama/v1/playback_pb";
 
 /** What every plan's query key starts with. */
 export const planKey = ["planPlayback"] as const;
 
-/** How often an open plan asks for its URL. The Server stops a plan a minute after it was last asked
- * for, and a paused player, its buffer full, asks for nothing. */
+/**
+ * How often an open plan asks for its URL. The Server stops a plan a minute after it was last
+ * asked for, and a paused player, its buffer full, asks for nothing.
+ */
 const KEEP_ALIVE_MS = 30_000;
 
-/** The plans one Query client's players ended, kept outside React since a stop fires after its
- * player is gone. */
+/**
+ * The plans one Query client's players ended, kept outside React since a stop fires after its
+ * player is gone.
+ */
 interface Ended {
   /** The plans a player let go of, by id, each to be stopped once the task that let go ends. */
   letGo: Map<bigint, ReturnType<typeof setTimeout>>;
@@ -28,6 +36,8 @@ interface Plans extends Ended {
   transport: Transport;
 }
 
+type Playing = Pick<PlaybackPlan, "id" | "url">;
+
 // Per Query client, not one set for the page, so each test's app starts with no plans ended.
 const endedBy = new WeakMap<QueryClient, Ended>();
 
@@ -35,8 +45,9 @@ const endedBy = new WeakMap<QueryClient, Ended>();
  * The lifetime of the Query client's Playback Plans, each stopped exactly once and forgotten once
  * nothing shows it. `stopReplaced` tells the Server a plan stopped while its player is still open,
  * as before asking for the plan that replaces it, so a Transcode it runs no longer counts toward
- * the Server's limit. `keepPlaying` is an effect that keeps an open plan alive until the page goes
- * or its cleanup, either of which stops it. The rule it keeps is in `features/player/AGENTS.md`.
+ * the Server's limit, and forgets it. `keepPlaying` is an effect that keeps an open plan alive
+ * until the page goes or its cleanup, either of which stops it. The rule it keeps is in
+ * `features/player/AGENTS.md`.
  */
 export function usePlanLifetime() {
   const queryClient = useQueryClient();
@@ -45,9 +56,11 @@ export function usePlanLifetime() {
     const plans = { queryClient, transport, ...endedIn(queryClient) };
     return {
       stopReplaced: async (planId: bigint) => {
+        // Now, before the plan that replaces it is cached: a restarted Server may give it this id.
+        forget(queryClient, planId);
         await stopEarly(plans, planId);
       },
-      keepPlaying: (plan: { id: bigint; url: string }) => keepPlaying(plans, plan),
+      keepPlaying: (plan: Playing) => keepPlaying(plans, plan),
     };
   }, [queryClient, transport]);
 }
@@ -67,7 +80,7 @@ async function stopEarly(plans: Plans, planId: bigint) {
  * Asks for the plan `planId`'s `url` every `KEEP_ALIVE_MS`. The cleanup it returns stops the plan
  * and forgets it, so opening the player again asks for a new plan.
  */
-function keepPlaying(plans: Plans, { id: planId, url }: { id: bigint; url: string }) {
+function keepPlaying(plans: Plans, { id: planId, url }: Playing) {
   // React may clean up an effect and set it up again for the same plan, as `StrictMode` does on
   // mounting: a stop sent at once would end the plan the `<video>` goes on playing.
   clearTimeout(plans.letGo.get(planId));
@@ -124,8 +137,10 @@ async function ask(url: string) {
   }
 }
 
-/** Drops the plan `planId` from the cache once nothing shows it, so the Version's next player asks
- * for a new one. */
+/**
+ * Drops the plan `planId` from the cache once nothing shows it, so the Version's next player asks
+ * for a new one, though Suspense keeps an unseen query for a second.
+ */
 function forget(queryClient: QueryClient, planId: bigint) {
   const queries = queryClient.getQueryCache().findAll({
     queryKey: planKey,

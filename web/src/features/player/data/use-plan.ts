@@ -16,9 +16,9 @@ import { adminStopQuery } from "@/shared/hooks/admin-stop-query";
 /**
  * The plan for Version `versionId` as `asking` says, asked for once and never reused after, once
  * the Server is told the plan it replaces stopped, so that one's Transcode leaves room for it. Its
- * player forgets it on closing (`usePlanLifetime`). A Server too busy to Transcode it, or that fails to
- * plan it, gives a plan that can't play, saying so. With it come the title's other Versions that
- * play on this Device, by id, best first, when the plan can't play.
+ * player forgets it on closing (`usePlanLifetime`). A Server too busy to Transcode it, or that
+ * fails to plan it, gives a plan that can't play, saying so. With it come the title's other
+ * Versions that play on this Device, by id, best first, when the plan can't play.
  */
 export function usePlan(versionId: bigint, asking: Asking) {
   const transport = useTransport();
