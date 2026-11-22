@@ -11,4 +11,4 @@ Films and series from Wikidata's weekly dump, and the External ID crosswalk betw
 ### Neighbours
 
 - Uses: nothing but the database.
-- Used by: `main` (`import`).
+- Used by: `main` (`import`). `crosswalk` awaits the Hub Plugin's RPCs (#1806, #1823).

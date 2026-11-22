@@ -12,7 +12,7 @@ use super::{ExternalId, TitleKind};
 /// parsed, which is most of the dump, since a title without one can't be asked about.
 const ID_PROPERTIES: [&str; 4] = [r#""P345""#, r#""P4947""#, r#""P4983""#, r#""P4835""#];
 
-// shortcut: only these classes, not their subclasses, which would need the whole class tree;
+// ponytail: only these classes, not their subclasses, which would need the whole class tree;
 // a TMDB or TVDB id also says the kind. Add a class when titles Servers ask about go missing.
 /// Wikidata classes whose instances are Movies: film, feature, short, television, animated and
 /// documentary film.
@@ -53,6 +53,10 @@ pub enum ImportError {
 /// Runs as the `import-wikidata` subcommand, which the host's scheduler starts weekly, never in
 /// the serving process (ADR 0096). All of it is one transaction, so the Hub answers from the last
 /// import until this one commits.
+///
+/// ponytail: that transaction lasts hours, and a deploy's migration touching these tables waits
+/// for it; deploy such a migration between imports. Stage into a table of its own and swap once
+/// imports must not hold locks that long.
 ///
 /// # Errors
 ///
@@ -216,27 +220,33 @@ enum Rank {
 
 impl Entity {
     fn into_title(self) -> Option<Title> {
-        let kind = self.claims.kind()?;
-        let Claims {
-            imdb,
-            tmdb_movie,
-            tmdb_series,
-            tvdb_series,
-            ..
-        } = self.claims;
-        let tmdb = match kind {
-            TitleKind::Movie => tmdb_movie,
-            TitleKind::Show => tmdb_series,
+        let claims = self.claims;
+        let tmdb_movie = best_value(claims.tmdb_movie);
+        let tmdb_series = best_value(claims.tmdb_series);
+        let tvdb = best_value(claims.tvdb_series);
+        // An id Wikidata deprecates says no kind, as it is often one put on the wrong title.
+        let movie = tmdb_movie.is_some() || is_instance_of(&claims.instance_of, &FILM_CLASSES);
+        let show = tmdb_series.is_some()
+            || tvdb.is_some()
+            || is_instance_of(&claims.instance_of, &SERIES_CLASSES);
+        let (kind, tmdb_of_kind) = match (movie, show) {
+            (true, false) => (TitleKind::Movie, tmdb_movie),
+            (false, true) => (TitleKind::Show, tmdb_series),
+            _ => return None,
         };
-        let ids: Vec<_> = [("imdb", imdb), ("tmdb", tmdb), ("tvdb", tvdb_series)]
-            .into_iter()
-            .filter_map(|(namespace, statements)| {
-                Some(ExternalId {
-                    namespace: namespace.to_owned(),
-                    value: best_value(statements)?,
-                })
+        let ids: Vec<_> = [
+            ("imdb", best_value(claims.imdb)),
+            ("tmdb", tmdb_of_kind),
+            ("tvdb", tvdb),
+        ]
+        .into_iter()
+        .filter_map(|(namespace, value)| {
+            Some(ExternalId {
+                namespace: namespace.to_owned(),
+                value: value?,
             })
-            .collect();
+        })
+        .collect();
         (!ids.is_empty()).then_some(Title {
             wikidata_id: self.id,
             kind,
@@ -245,27 +255,12 @@ impl Entity {
     }
 }
 
-impl Claims {
-    /// `None` when nothing says, or one thing says Movie and another Show.
-    fn kind(&self) -> Option<TitleKind> {
-        let movie = !self.tmdb_movie.is_empty() || self.is_instance_of(&FILM_CLASSES);
-        let show = !self.tmdb_series.is_empty()
-            || !self.tvdb_series.is_empty()
-            || self.is_instance_of(&SERIES_CLASSES);
-        match (movie, show) {
-            (true, false) => Some(TitleKind::Movie),
-            (false, true) => Some(TitleKind::Show),
-            _ => None,
-        }
-    }
-
-    fn is_instance_of(&self, classes: &[&str]) -> bool {
-        self.instance_of
-            .iter()
-            .filter(|statement| statement.rank != Rank::Deprecated)
-            .filter_map(|statement| statement.mainsnak.datavalue.as_ref())
-            .any(|class| classes.contains(&class.value.id.as_str()))
-    }
+fn is_instance_of(instance_of: &[Statement<ItemRef>], classes: &[&str]) -> bool {
+    instance_of
+        .iter()
+        .filter(|statement| statement.rank != Rank::Deprecated)
+        .filter_map(|statement| statement.mainsnak.datavalue.as_ref())
+        .any(|class| classes.contains(&class.value.id.as_str()))
 }
 
 /// The value of the best-ranked statement Wikidata doesn't deprecate, the first among equals,

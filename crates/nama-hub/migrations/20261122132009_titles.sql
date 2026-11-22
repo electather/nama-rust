@@ -12,10 +12,11 @@ CREATE TABLE titles (
 
 -- A title's External IDs, at most one per namespace (ADR 0042).
 CREATE TABLE title_ids (
+    id uuid PRIMARY KEY DEFAULT uuidv7(),
     title_id uuid NOT NULL REFERENCES titles (id) ON DELETE CASCADE,
     namespace text NOT NULL,
     value text NOT NULL,
-    PRIMARY KEY (title_id, namespace)
+    UNIQUE (title_id, namespace)
 );
 
-CREATE INDEX title_ids_by_id ON title_ids (namespace, value);
+CREATE INDEX title_ids_by_value ON title_ids (namespace, value);

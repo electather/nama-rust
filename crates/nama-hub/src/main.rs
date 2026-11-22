@@ -72,7 +72,7 @@ async fn run() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let Some((config, db)) = connect().await else {
+    let Some((config, db)) = load_config_and_connect().await else {
         return ExitCode::FAILURE;
     };
     info!(listen = %config.listen, "loaded config");
@@ -112,7 +112,7 @@ async fn run() -> ExitCode {
 
 /// Imports Wikidata's dump from stdin, leaving the titles as they were if it fails.
 async fn import_wikidata() -> ExitCode {
-    let Some((_, db)) = connect().await else {
+    let Some((_, db)) = load_config_and_connect().await else {
         return ExitCode::FAILURE;
     };
     // Lines run to hundreds of KiB, and each read on stdin is a hop to a blocking thread.
@@ -132,7 +132,7 @@ async fn import_wikidata() -> ExitCode {
 }
 
 /// Loads the config and connects to its database, logging why it couldn't.
-async fn connect() -> Option<(Config, PgPool)> {
+async fn load_config_and_connect() -> Option<(Config, PgPool)> {
     let config = Config::load()
         .inspect_err(|err| error!("could not load config: {err}"))
         .ok()?;

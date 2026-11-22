@@ -192,3 +192,24 @@ fn empty_claims_written_as_an_array_parse() {
 fn a_malformed_entity_naming_an_id_property_is_an_error() {
     title(r#"{"id":"Q7","claims":{"P345":"#).unwrap_err();
 }
+
+#[test]
+fn a_deprecated_id_of_the_other_kind_leaves_the_kind_alone() {
+    let line = entity(
+        "Q8",
+        &[
+            ("P31", &[class("Q11424")]),
+            ("P4947", &[string("8", "normal")]),
+            ("P4983", &[string("80", "deprecated")]),
+        ],
+    );
+
+    assert_eq!(
+        parsed(&line),
+        Some(Title {
+            wikidata_id: "Q8".to_owned(),
+            kind: TitleKind::Movie,
+            ids: vec![id("tmdb", "8")],
+        })
+    );
+}

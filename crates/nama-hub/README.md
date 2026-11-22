@@ -35,7 +35,7 @@ curl -fsS https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.gz \
   | gzip -d | docker run --rm -i -e NAMA_HUB_DATABASE_URL ghcr.io/electather/nama-hub import-wikidata
 ```
 
-The dump is over 100 GiB compressed, so an import takes hours; it streams, holding nothing on disk.
+The dump is over 100 GiB compressed, so an import takes hours; it streams, holding nothing on disk. Its transaction holds the titles' tables all that time, so deploy a Hub whose migration changes them between imports: its startup would wait for the import to finish.
 
 ## Tests
 
