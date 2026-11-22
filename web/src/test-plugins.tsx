@@ -130,9 +130,8 @@ export async function input(name: string, label: string) {
 /** Sends the settings form in the view of the Plugin shown as `name`, as changing any does. */
 export async function saveSettings(name: string) {
   const view = await plugin(name);
-  // The view shows before its settings, which wait for the Plugin's details.
-  const heading = await view.findByRole("heading", { name: "Settings" });
-  const form = heading.closest("form");
+  // The view shows before its settings form, which waits for the Plugin's details.
+  const form = (await view.findByRole("heading", { name: "Settings" })).closest("form");
   if (form === null) {
     throw new Error(`${name} has no settings form`);
   }
