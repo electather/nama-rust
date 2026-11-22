@@ -146,7 +146,12 @@ pub(super) fn fallback(
     let stops_tone_mapping = tone_map.is_none() && video.tone_map.is_some();
     let still_holds = |reason: &&Reason| {
         reason.kind != Kind::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE
-            && (reason.kind != Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED || !stops_tone_mapping)
+            && !(stops_tone_mapping
+                && matches!(
+                    reason.kind,
+                    Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED
+                        | Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_ENCODER
+                ))
     };
     let failed = accel_reason(
         Kind::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY,
@@ -334,6 +339,14 @@ fn tone_mapping(facts: &Facts, video: &VideoConversion) -> Option<Reason> {
             hdr_name(hdr)
         );
         let kind = Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN;
+        return Some(hdr_reason(kind, hdr, text).deciding());
+    }
+    if facts.device.hdr {
+        let text = format!(
+            "Its {} picture is tone-mapped to SDR, as this Transcode can't make HEVC",
+            hdr_name(hdr)
+        );
+        let kind = Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_ENCODER;
         return Some(hdr_reason(kind, hdr, text).deciding());
     }
     let text = format!("Its {} picture is tone-mapped to SDR", hdr_name(hdr));

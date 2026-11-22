@@ -2,7 +2,7 @@ use std::{collections::BTreeSet, num::NonZeroU32};
 
 use nama_proto::nama::v1::PlaybackReasonKind as Kind;
 
-use super::{keyframes_unlisted, remux, too_busy_to_play};
+use super::{hdr_reason, keyframes_unlisted, remux, too_busy_to_play};
 #[cfg(unix)]
 use crate::ffmpeg::fake::{vaapi_on_two_gpus, vaapi_on_two_gpus_at};
 use crate::{
@@ -677,6 +677,15 @@ fn without_zscale_a_hardware_transcode_of_hdr_falls_back_without_tone_mapping_an
         ],
         "on hardware: {:?}",
         kinds(&plan)
+    );
+    let for_encoder = Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_ENCODER;
+    let reasons = [hdr_reason(for_encoder, Hdr::Hdr10, String::new())];
+    let from_hdr_device = super::fallback(&facts, &transcoded(&plan), &reasons).unwrap();
+    assert!(
+        !from_hdr_device
+            .reasons
+            .iter()
+            .any(|reason| reason.kind == for_encoder)
     );
 }
 

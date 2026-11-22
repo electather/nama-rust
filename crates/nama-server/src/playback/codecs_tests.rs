@@ -465,7 +465,12 @@ fn with_tonemapx_dolby_vision_5_transcodes_to_sdr_reshaped_by_its_rpu_and_says_s
         kind_and_params(tone_mapped).1,
         [("hdrFormat", "HDR_FORMAT_DOLBY_VISION")]
     );
+    assert_eq!(
+        tone_mapped.text,
+        "Its Dolby Vision picture is tone-mapped to SDR"
+    );
     assert!(!kinds(&plan).contains(&Kind::PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER));
+    assert!(!kinds(&plan).contains(&Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_ENCODER));
 }
 
 #[test]
@@ -732,12 +737,26 @@ fn dolby_vision_5_transcodes_to_hdr10_hevc_reshaped_by_its_rpu_for_an_hdr_device
 }
 
 #[test]
-fn without_hevc_hardware_dolby_vision_5_transcodes_to_sdr_for_an_hdr_device() {
+fn without_hevc_hardware_dolby_vision_5_transcodes_to_sdr_for_an_hdr_device_and_says_why() {
     let plan = build(&mut dolby_vision_5_for_hdr_on(false));
 
     let (codec, bit_depth, hdr, _) = video_made(&plan);
     assert_eq!((codec, bit_depth, hdr), ("h264", Some(8), None));
     assert_eq!(transcoded(&plan).video.tone_map, RESHAPED);
+    let tone_mapped = reason_of(
+        &plan,
+        Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_ENCODER,
+    );
+    assert_eq!(
+        kind_and_params(tone_mapped).1,
+        [("hdrFormat", "HDR_FORMAT_DOLBY_VISION")]
+    );
+    assert_eq!(
+        tone_mapped.text,
+        "Its Dolby Vision picture is tone-mapped to SDR, as this Transcode can't make HEVC"
+    );
+    assert!(tone_mapped.decided);
+    assert!(!kinds(&plan).contains(&Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED));
 }
 
 #[test]
