@@ -11,7 +11,7 @@ export function UserItem({ user, isYou }: { user: User; isYou: boolean }) {
   const name = (
     <Link
       to="."
-      search={(rest) => ({ ...rest, user: String(user.id) })}
+      search={(rest) => ({ ...rest, user: Number(user.id) })}
       className="outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
     >
       {user.name}

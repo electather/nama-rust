@@ -13,6 +13,6 @@ export function UsersPane({ user: you }: { user: User | undefined }) {
   const users = useUsers();
   const asked = useSearch({ strict: false, select: ({ user }) => user });
   // An id no User has shows the list, as an address from before one was deleted would.
-  const open = users.find((user) => String(user.id) === asked);
+  const open = users.find((user) => Number(user.id) === asked);
   return open ? <UserDetail user={open} you={you} /> : <UserList users={users} you={you} />;
 }

@@ -28,10 +28,17 @@ export function sectionParam(value: unknown): Section | undefined {
   return sections.find((each) => each === value) ?? firstSection;
 }
 
-/** The id `?plugin=` or `?user=` asks its section to open: none without it. */
-export function idParam(value: unknown) {
+/** The Plugin `?plugin=` asks the Plugins section to open: none without it. */
+export function pluginParam(value: unknown) {
   // The router reads an id made of digits as a number.
   return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
+}
+
+/** The User `?user=` asks the Users section to open: none without it. */
+export function userParam(value: unknown) {
+  // A number, as the router writes a string of digits quoted: `user=%222%22`, not `user=2`.
+  const id = typeof value === "string" || typeof value === "number" ? Number(value) : Number.NaN;
+  return Number.isSafeInteger(id) ? id : undefined;
 }
 
 /** Each section's name, in the sidebar and over its pane. */

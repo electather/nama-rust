@@ -1,7 +1,12 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { MemberLayout } from "@/app/member-layout";
-import { type Section, idParam, sectionParam } from "@/features/settings/lib/sections";
+import {
+  type Section,
+  pluginParam,
+  sectionParam,
+  userParam,
+} from "@/features/settings/lib/sections";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { adminPagesFor, isSetupRequired, serverInfo, whoIsSignedIn } from "@/shared/hooks/access";
 import { recordDiagnosticsIfExported } from "@/shared/lib/diagnostics";
@@ -15,7 +20,7 @@ interface MemberSearch {
   search?: string | undefined;
   settings?: Section | undefined;
   plugin?: string | undefined;
-  user?: string | undefined;
+  user?: number | undefined;
 }
 
 /** Pages for signed-in Users. */
@@ -23,8 +28,8 @@ export const Route = createFileRoute("/_member")({
   validateSearch: (search): MemberSearch => ({
     search: wordsParam(search["search"]),
     settings: sectionParam(search["settings"]),
-    plugin: idParam(search["plugin"]),
-    user: idParam(search["user"]),
+    plugin: pluginParam(search["plugin"]),
+    user: userParam(search["user"]),
   }),
   beforeLoad: async ({ context, location }) => {
     if (await isSetupRequired(context)) {

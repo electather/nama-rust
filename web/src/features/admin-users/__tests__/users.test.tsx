@@ -44,7 +44,8 @@ test("a User opens in place of the list, and the crumb over it goes back", async
 
   fireEvent.click(await screen.findByRole("link", { name: "Alex" }));
   const opened = await screen.findByRole("region", { name: "Alex" });
-  expect(router.state.location.search).toMatchObject({ settings: "users", user: "2" });
+  expect(router.state.location.search).toMatchObject({ settings: "users", user: 2 });
+  expect(router.state.location.searchStr).toBe("?settings=users&user=2");
   const crumbs = within(opened).getByRole("navigation", { name: "Breadcrumb" });
   expect(within(crumbs).getByText("Alex").getAttribute("aria-current")).toBe("page");
   expect(
