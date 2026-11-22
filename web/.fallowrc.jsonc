@@ -172,10 +172,11 @@
       },
       {
         "from": "settings",
-        // Its Plugins pane lists the Plugins page's rows.
+        // Its Admin panes render the admin features they replaced pages of.
         "allow": [
           "settings",
           "admin-plugins",
+          "admin-playback",
           "shared-components",
           "shared-ui",
           "shared-hooks",

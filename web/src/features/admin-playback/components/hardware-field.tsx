@@ -1,3 +1,5 @@
+import type { ChangeEvent } from "react";
+
 import { usePlaybackStatus } from "@/features/admin-playback/data/use-playback-status";
 import { hardwareValue, isSaved, notFoundLabel } from "@/features/admin-playback/lib/hardware";
 import { HardwareAcceleration, type PlaybackSettings } from "@/gen/nama/v1/server_pb";
@@ -11,9 +13,12 @@ import { type Hardware, hardwareLabel } from "@/shared/lib/playback-names";
 export function HardwareField({
   saved,
   error,
+  onChange,
 }: {
   saved: PlaybackSettings;
   error: string | undefined;
+  /** Picking one, which saves it. */
+  onChange: (event: ChangeEvent<HTMLSelectElement>) => void;
 }) {
   const { hardware } = usePlaybackStatus();
   const choices: Hardware[] = [
@@ -25,11 +30,13 @@ export function HardwareField({
   const asSaved = { api: saved.hardwareAcceleration, gpu: saved.gpu };
   return (
     <FormSelect
+      row
       label="Hardware acceleration"
       name="hardwareAcceleration"
       defaultValue={hardwareValue(chosen ?? asSaved)}
       hint="What every Transcode decodes, scales and encodes video on. Automatic picks the one marked above. Off runs them in software, and so does a pick that was missing or didn’t pass its test when the Server started. A change applies from the next Transcode."
       error={error}
+      onChange={onChange}
     >
       {choices.map((choice) => (
         <option key={hardwareValue(choice)} value={hardwareValue(choice)}>

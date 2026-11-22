@@ -224,7 +224,6 @@ test.each([
       "Users",
       "Plugins",
       "Home",
-      "Playback",
       "Now Playing",
       "Jobs",
       "Backups",

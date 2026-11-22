@@ -74,11 +74,11 @@ For Intel or AMD hardware acceleration (VAAPI and QSV), pass the GPU and the gro
   --device /dev/dri:/dev/dri --group-add "$(stat -c %g /dev/dri/renderD128)"
 ```
 
-The Server tests each GPU it is given and prefers a dedicated one to one built into the CPU. An Admin can pick the GPU Transcodes run on instead, under Hardware acceleration on the Playback page, or keep the Server off a GPU altogether by passing only the other one's node, such as `--device /dev/dri/renderD129`.
+The Server tests each GPU it is given and prefers a dedicated one to one built into the CPU. An Admin can pick the GPU Transcodes run on instead, under Hardware acceleration in Settings' Server Playback, or keep the Server off a GPU altogether by passing only the other one's node, such as `--device /dev/dri/renderD129`.
 
 For NVIDIA (NVENC), install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) on the host and add `--gpus all`.
 
-An Admin sees which ffmpeg the Server found, and its version, on the Playback page.
+An Admin sees which ffmpeg the Server found, and its version, in Settings' Server Playback.
 
 ## Diagnostics
 

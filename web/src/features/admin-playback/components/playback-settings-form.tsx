@@ -1,3 +1,5 @@
+import type { ChangeEvent, FocusEvent } from "react";
+
 import { HardwareField } from "@/features/admin-playback/components/hardware-field";
 import { RemoteLimitField } from "@/features/admin-playback/components/remote-limit-field";
 import { SegmentFields } from "@/features/admin-playback/components/segment-fields";
@@ -7,31 +9,41 @@ import {
   playbackSettingsErrors,
   typedSettings,
 } from "@/features/admin-playback/lib/playback-settings-form";
-import { FormEnd } from "@/shared/components/form-field/form-end";
+import { AlertText } from "@/shared/components/form-field/alert-text";
 import { FormField } from "@/shared/components/form-field/form-field";
-import { onSubmitted } from "@/shared/lib/forms";
 
 /**
  * The form an Admin sets how the Server plays Versions it changes with: the folder Remuxes and
  * Transcodes write their segment files to, how much of them they keep for skipping back, what
  * Transcodes run on, the most it runs at once, and the default Playback Limit for remote playback.
- * One form, as saving replaces every Playback setting.
+ * A dropdown is saved as it's picked, a field once it's left. Each save
+ * sends the whole form, as saving replaces every Playback setting.
  */
 export function PlaybackSettingsForm() {
   const settings = usePlaybackSettings();
   const update = useUpdatePlaybackSettings();
   const errors = playbackSettingsErrors(update.error);
+  const save = (form: HTMLFormElement | null) => {
+    if (form !== null) {
+      update.mutate({ settings: typedSettings(new FormData(form)) });
+    }
+  };
+  const onPick = (event: ChangeEvent<HTMLSelectElement>) => {
+    save(event.currentTarget.form);
+  };
+  const onLeave = ({ currentTarget: field }: FocusEvent<HTMLInputElement>) => {
+    // A field's `defaultValue` is what's saved, so leaving one unchanged saves nothing.
+    if (field.value !== field.defaultValue) {
+      save(field.form);
+    }
+  };
 
   return (
-    <form
-      className="mt-10 flex max-w-md flex-col gap-5"
-      onSubmit={onSubmitted((typed) => {
-        update.mutate({ settings: typedSettings(typed) });
-      })}
-    >
-      <SegmentFields saved={settings} errors={errors} />
-      <HardwareField saved={settings} error={errors.hardwareAcceleration} />
+    <form className="flex flex-col">
+      <SegmentFields saved={settings} errors={errors} onBlur={onLeave} />
+      <HardwareField saved={settings} error={errors.hardwareAcceleration} onChange={onPick} />
       <FormField
+        row
         label="Transcodes at once"
         name="maxTranscodes"
         type="number"
@@ -40,14 +52,10 @@ export function PlaybackSettingsForm() {
         defaultValue={settings.maxTranscodes}
         hint="The most the Server runs at once. Remuxes don’t count. While that many run, a Device that can play a Remux gets one instead, and one that can’t is told the Server is busy. Leave it empty for at most 2 at once of those that run on the CPU, in software or tone-mapping HDR there, and no limit for those that run fully on a GPU."
         error={errors.maxTranscodes}
+        onBlur={onLeave}
       />
-      <RemoteLimitField saved={settings.remotePlaybackLimit} />
-      <FormEnd
-        action={update.isPending ? "Saving playback settings…" : "Save playback settings"}
-        pending={update.isPending}
-        done={update.isSuccess ? "Saved." : undefined}
-        refusal={errors.form}
-      />
+      <RemoteLimitField saved={settings.remotePlaybackLimit} onChange={onPick} />
+      <AlertText error={errors.form} />
     </form>
   );
 }
