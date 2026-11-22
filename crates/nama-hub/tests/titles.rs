@@ -61,6 +61,16 @@ async fn any_id_of_a_title_answers_in_the_namespaces_the_server_uses(db: PgPool)
 }
 
 #[sqlx::test(migrations = false)]
+async fn a_movie_resolves_by_its_tvdb_id(db: PgPool) {
+    imported(&db).await;
+    let uses = namespaces(&["tmdb"]);
+
+    let movie = titles::crosswalk(&db, TitleKind::Movie, &id("tvdb", "169"), &uses).await;
+
+    assert_eq!(movie.unwrap(), vec![id("tmdb", "603")]);
+}
+
+#[sqlx::test(migrations = false)]
 async fn a_movie_and_a_show_with_one_tmdb_id_are_different_titles(db: PgPool) {
     imported(&db).await;
     let tmdb = id("tmdb", "603");

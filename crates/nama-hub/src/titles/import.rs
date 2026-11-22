@@ -10,7 +10,13 @@ use super::{ExternalId, TitleKind};
 
 /// The properties holding the External IDs kept. An entity naming none is skipped without being
 /// parsed, which is most of the dump, since a title without one can't be asked about.
-const ID_PROPERTIES: [&str; 4] = [r#""P345""#, r#""P4947""#, r#""P4983""#, r#""P4835""#];
+const ID_PROPERTIES: [&str; 5] = [
+    r#""P345""#,
+    r#""P4947""#,
+    r#""P4983""#,
+    r#""P12196""#,
+    r#""P4835""#,
+];
 
 // ponytail: only these classes, not their subclasses, which would need the whole class tree;
 // a TMDB or TVDB id also says the kind. Add a class when titles Servers ask about go missing.
@@ -21,8 +27,7 @@ const FILM_CLASSES: [&str; 6] = ["Q11424", "Q24869", "Q24862", "Q506240", "Q2028
 /// television series.
 const SERIES_CLASSES: [&str; 4] = ["Q5398426", "Q1259759", "Q117467246", "Q63952888"];
 
-/// Titles saved in one statement.
-const BATCH: usize = 10_000;
+const TITLES_PER_STATEMENT: usize = 10_000;
 
 /// Why an import stopped. It leaves the titles as they were.
 #[derive(Debug, thiserror::Error)]
@@ -69,7 +74,7 @@ pub async fn import(db: &PgPool, dump: impl AsyncBufRead + Unpin) -> Result<usiz
         .await?;
     let mut lines = dump.lines();
     let mut line_number = 0;
-    let mut batch = Vec::with_capacity(BATCH);
+    let mut batch = Vec::with_capacity(TITLES_PER_STATEMENT);
     let mut imported = 0;
     loop {
         let line = lines.next_line().await?.ok_or(ImportError::Truncated)?;
@@ -80,12 +85,12 @@ pub async fn import(db: &PgPool, dump: impl AsyncBufRead + Unpin) -> Result<usiz
             "]" => break,
             _ => {}
         }
-        let title = title(entity).map_err(|source| ImportError::Malformed {
+        let title = parse_title(entity).map_err(|source| ImportError::Malformed {
             line: line_number,
             source,
         })?;
         batch.extend(title);
-        if batch.len() == BATCH {
+        if batch.len() == TITLES_PER_STATEMENT {
             save(&mut tx, &batch).await?;
             imported += batch.len();
             batch.clear();
@@ -112,7 +117,7 @@ pub(super) struct Title {
 
 /// The title one line's entity is, or `None` if it's neither a film nor a series with an External
 /// ID.
-pub(super) fn title(entity: &str) -> Result<Option<Title>, serde_json::Error> {
+pub(super) fn parse_title(entity: &str) -> Result<Option<Title>, serde_json::Error> {
     if !ID_PROPERTIES
         .iter()
         .any(|property| entity.contains(property))
@@ -183,6 +188,8 @@ struct Claims {
     tmdb_movie: Vec<Statement<String>>,
     #[serde(rename = "P4983")]
     tmdb_series: Vec<Statement<String>>,
+    #[serde(rename = "P12196")]
+    tvdb_movie: Vec<Statement<String>>,
     #[serde(rename = "P4835")]
     tvdb_series: Vec<Statement<String>>,
 }
@@ -221,23 +228,25 @@ enum Rank {
 impl Entity {
     fn into_title(self) -> Option<Title> {
         let claims = self.claims;
-        let tmdb_movie = best_value(claims.tmdb_movie);
-        let tmdb_series = best_value(claims.tmdb_series);
-        let tvdb = best_value(claims.tvdb_series);
+        // Each kind's TMDB and TVDB ids: both number Movies and Shows apart (ADR 0042).
+        let film_ids = (best_value(claims.tmdb_movie), best_value(claims.tvdb_movie));
+        let series_ids = (
+            best_value(claims.tmdb_series),
+            best_value(claims.tvdb_series),
+        );
         // An id Wikidata deprecates says no kind, as it is often one put on the wrong title.
-        let movie = tmdb_movie.is_some() || is_instance_of(&claims.instance_of, &FILM_CLASSES);
-        let show = tmdb_series.is_some()
-            || tvdb.is_some()
-            || is_instance_of(&claims.instance_of, &SERIES_CLASSES);
-        let (kind, tmdb_of_kind) = match (movie, show) {
-            (true, false) => (TitleKind::Movie, tmdb_movie),
-            (false, true) => (TitleKind::Show, tmdb_series),
+        let movie = film_ids != (None, None) || is_instance_of(&claims.instance_of, &FILM_CLASSES);
+        let show =
+            series_ids != (None, None) || is_instance_of(&claims.instance_of, &SERIES_CLASSES);
+        let (kind, ids_of_kind) = match (movie, show) {
+            (true, false) => (TitleKind::Movie, film_ids),
+            (false, true) => (TitleKind::Show, series_ids),
             _ => return None,
         };
         let ids: Vec<_> = [
             ("imdb", best_value(claims.imdb)),
-            ("tmdb", tmdb_of_kind),
-            ("tvdb", tvdb),
+            ("tmdb", ids_of_kind.0),
+            ("tvdb", ids_of_kind.1),
         ]
         .into_iter()
         .filter_map(|(namespace, value)| {

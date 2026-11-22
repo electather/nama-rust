@@ -1,4 +1,4 @@
-use super::{Title, title};
+use super::{Title, parse_title};
 use crate::titles::{ExternalId, TitleKind};
 
 /// A line of the dump for item `id` with `claims`, each a property and its statements.
@@ -32,10 +32,10 @@ fn id(namespace: &str, value: &str) -> ExternalId {
     }
 }
 
-/// `title` of `line`, which must parse.
+/// `parse_title` of `line`, which must parse.
 fn parsed(line: &str) -> Option<Title> {
     let entity = line.trim_end_matches(',');
-    title(entity).unwrap_or_else(|err| panic!("{err}: {entity}"))
+    parse_title(entity).unwrap_or_else(|err| panic!("{err}: {entity}"))
 }
 
 #[test]
@@ -81,12 +81,34 @@ fn a_series_keeps_its_tmdb_series_and_tvdb_ids() {
 }
 
 #[test]
+fn a_film_keeps_its_tvdb_movie_id() {
+    let line = entity(
+        "Q83495",
+        &[
+            ("P31", &[class("Q11424")]),
+            ("P4947", &[string("603", "normal")]),
+            ("P12196", &[string("169", "normal")]),
+        ],
+    );
+
+    assert_eq!(
+        parsed(&line).map(|title| title.ids),
+        Some(vec![id("tmdb", "603"), id("tvdb", "169")])
+    );
+}
+
+#[test]
 fn a_tmdb_or_tvdb_id_says_the_kind_without_a_known_class() {
     let film = entity("Q1", &[("P4947", &[string("1", "normal")])]);
+    let tvdb_film = entity("Q9", &[("P12196", &[string("9", "normal")])]);
     let series = entity("Q2", &[("P4835", &[string("2", "normal")])]);
 
     assert_eq!(
         parsed(&film).map(|title| title.kind),
+        Some(TitleKind::Movie)
+    );
+    assert_eq!(
+        parsed(&tvdb_film).map(|title| title.kind),
         Some(TitleKind::Movie)
     );
     assert_eq!(
@@ -177,7 +199,7 @@ fn an_unknown_value_is_skipped() {
 
 #[test]
 fn an_entity_naming_no_id_property_is_skipped_unparsed() {
-    assert_eq!(title("not JSON at all").unwrap(), None);
+    assert_eq!(parse_title("not JSON at all").unwrap(), None);
 }
 
 #[test]
@@ -185,12 +207,12 @@ fn empty_claims_written_as_an_array_parse() {
     // Wikidata writes an empty object as `[]`.
     let line = r#"{"type":"item","id":"Q6","labels":{"en":{"value":"\"P345\""}},"claims":[]}"#;
 
-    assert_eq!(title(line).unwrap(), None);
+    assert_eq!(parse_title(line).unwrap(), None);
 }
 
 #[test]
 fn a_malformed_entity_naming_an_id_property_is_an_error() {
-    title(r#"{"id":"Q7","claims":{"P345":"#).unwrap_err();
+    parse_title(r#"{"id":"Q7","claims":{"P345":"#).unwrap_err();
 }
 
 #[test]

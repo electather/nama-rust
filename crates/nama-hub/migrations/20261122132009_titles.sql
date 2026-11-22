@@ -1,6 +1,5 @@
--- Films and series from Wikidata's dump, the Hub's External ID crosswalk (ADR 0095). Only
--- Wikidata's CC0 data goes here, never TMDB's or TVDB's (ADR 0094), and no Account owns it
--- (ADR 0097).
+-- Films and series from Wikidata's dump, the Hub's External ID crosswalk (ADR 0095). What may be
+-- stored here: `src/titles/AGENTS.md`.
 CREATE TABLE titles (
     id uuid PRIMARY KEY DEFAULT uuidv7(),
     -- Its Wikidata item, such as `Q83495`, which each import matches the row on.
