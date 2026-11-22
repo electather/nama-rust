@@ -35,7 +35,7 @@ pub(crate) fn router(db: PgPool, trusted_proxies: &[IpRange], mail: Option<Mail>
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(HubServiceHandler {
             db,
-            sign_in_links: accounts.sends_sign_in_links(),
+            sends_sign_in_links: accounts.sends_sign_in_links(),
         }))
         .add_service(Arc::new(AccountServiceHandler {
             accounts: accounts.clone(),
@@ -54,7 +54,7 @@ pub(crate) fn router(db: PgPool, trusted_proxies: &[IpRange], mail: Option<Mail>
 /// `nama.hub.v1.HubService`: facts about the Hub, for anyone.
 struct HubServiceHandler {
     db: PgPool,
-    sign_in_links: bool,
+    sends_sign_in_links: bool,
 }
 
 #[expect(
@@ -74,7 +74,7 @@ impl HubService for HubServiceHandler {
         })?;
         connectrpc::Response::ok(GetHubInfoResponse {
             version: env!("CARGO_PKG_VERSION").to_owned(),
-            sign_in_links: self.sign_in_links,
+            sign_in_links: self.sends_sign_in_links,
             ..Default::default()
         })
     }
