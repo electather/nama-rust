@@ -817,7 +817,7 @@ export const RefusalReason = {
 
   /**
    * `not_found`: the sign-in with an Account wasn't approved on the Hub, expired or was used.
-   * Start again. `field` is `handle`.
+   * Start again. `field` is `handle`, or `account_sign_in_handle` in `Reauthenticate`.
    *
    * @generated from enum value: REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND = 98;
    */

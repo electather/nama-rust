@@ -30,8 +30,8 @@ const LINKING_FAILED: &str = "the Plugin that links the Server failed; its page 
 /// What `unavailable` says when a sign-in with an Account fails, such as while the Hub is down. A
 /// Device already signed in never needs the Hub (ADR 0092).
 const ACCOUNT_SIGN_IN_FAILED: &str = "Signing in with an Account needs the Hub, which can't be \
-                                      reached right now. Sign in with your password, or try \
-                                      again later.";
+                                      reached right now. Try again later, or use your password \
+                                      if you have one.";
 
 /// Where Linking stands, unset without an enabled Plugin that links the Server.
 pub(super) async fn get(points: &ExtensionPoints) -> ServiceResult<GetServerLinkResponse> {
@@ -181,10 +181,12 @@ pub(super) async fn start_account_sign_in(
     })
 }
 
-/// The id of the User the sign-in with an Account `handle` stands for, once it was approved.
+/// The id of the User the sign-in with an Account `handle` stands for, once it was approved. A
+/// refusal names `field`, the request's field `handle` came in.
 pub(super) async fn account_signing_in(
     points: &ExtensionPoints,
     handle: &str,
+    field: &str,
 ) -> Result<i64, ConnectError> {
     ask_or(points, ACCOUNT_SIGN_IN_FAILED, async |linker| {
         linker.finish_account_sign_in(handle).await
@@ -196,7 +198,7 @@ pub(super) async fn account_signing_in(
             RefusalReason::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND,
             "the sign-in wasn't approved on the Hub, or it expired; start again",
         )
-        .field("handle")
+        .field(field)
         .into()
     })
 }

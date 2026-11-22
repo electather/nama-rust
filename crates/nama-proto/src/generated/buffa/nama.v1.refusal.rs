@@ -289,7 +289,7 @@ pub enum RefusalReason {
     /// `box_set_id`.
     REFUSAL_REASON_BOX_SET_NOT_FOUND = 97i32,
     /// `not_found`: the sign-in with an Account wasn't approved on the Hub, expired or was used.
-    /// Start again. `field` is `handle`.
+    /// Start again. `field` is `handle`, or `account_sign_in_handle` in `Reauthenticate`.
     REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND = 98i32,
     /// `unauthenticated`: the Account that approved signing in on the Hub isn't the one Linked to the
     /// calling User. `field` is `account_sign_in_handle`.

@@ -53,7 +53,7 @@ test("while the Hub is down, signing in with an Account says why and what to do"
   const { transport } = linkedServer(true, {
     startAccountSignIn: () => {
       throw new ConnectError(
-        "Signing in with an Account needs the Hub, which can't be reached right now. Sign in with your password, or try again later.",
+        "Signing in with an Account needs the Hub, which can't be reached right now. Try again later, or use your password if you have one.",
         Code.Unavailable,
       );
     },
@@ -64,7 +64,7 @@ test("while the Hub is down, signing in with an Account says why and what to do"
 
   await expect(
     screen.findByText(
-      /needs the Hub, which can't be reached right now\. Sign in with your password/u,
+      /needs the Hub, which can't be reached right now\. Try again later, or use your password/u,
     ),
   ).resolves.toBeDefined();
   expect(screen.getByRole("button", { name: "Sign in" })).toBeDefined();
