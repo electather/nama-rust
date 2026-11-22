@@ -17,5 +17,9 @@ export function LibrariesPane() {
   if (asked === "new") {
     return <NewLibrary />;
   }
-  return open ? <LibraryDetail listed={open} /> : <LibraryList libraries={libraries} />;
+  return open ? (
+    <LibraryDetail key={open.id} listed={open} />
+  ) : (
+    <LibraryList libraries={libraries} />
+  );
 }

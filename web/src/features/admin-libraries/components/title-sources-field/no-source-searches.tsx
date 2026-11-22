@@ -20,7 +20,7 @@ export function NoSourceSearches({ order, listed }: { order: string[]; listed: T
   const plugins = may(signedIn.user, Permission.MANAGE_SETTINGS) ? (
     <Link
       to="."
-      search={(rest) => ({ ...rest, settings: "plugins", library: undefined })}
+      search={(rest) => ({ ...rest, settings: "plugins", library: undefined, setting: undefined })}
       className={textLink}
     >
       Plugins

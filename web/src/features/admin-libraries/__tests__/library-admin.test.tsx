@@ -154,3 +154,19 @@ describe("a Library's change", () => {
     },
   );
 });
+
+test("a refused change to a Library's folders puts back the saved ones", async () => {
+  const shown = "The folder srv is not absolute.";
+  openLibraries(
+    serverRefusingLibraryChanges(refused(Code.InvalidArgument, shown, { field: "folders[0]" })),
+    "1",
+  );
+  const folders = await screen.findByRole("textbox", { name: "Folders" });
+  fireEvent.change(folders, { target: { value: "srv" } });
+  fireEvent.blur(folders);
+
+  await screen.findByText(shown);
+  expect(screen.getByRole<HTMLTextAreaElement>("textbox", { name: "Folders" }).value).toBe(
+    films.folders.join("\n"),
+  );
+});

@@ -20,7 +20,7 @@ export function LibraryDetail({ listed }: { listed: Library }) {
   const library = useLibrary(listed.id) ?? listed;
   const { values, edit, says, dismiss, foldersSaved } = useLibraryChanges(library);
   const body = (
-    <div className="flex flex-col gap-8 px-4 pt-6 pb-4 md:px-6 md:pb-6">
+    <div className="flex flex-col gap-6 px-4 pt-6 pb-4 md:px-6 md:pb-6">
       <LibraryScan library={library} foldersSaved={foldersSaved} />
       <LibraryBackdrop library={library} />
       <LibraryFields values={values} onEdit={edit} />

@@ -19,6 +19,8 @@ export function FoldersRow({
       {(control) => (
         <Textarea
           {...control}
+          // Uncontrolled, so a refused save that puts `saved` back must remount it to show that.
+          key={saved.join("\n")}
           spellCheck={false}
           defaultValue={saved.join("\n")}
           onBlur={(event) => {
