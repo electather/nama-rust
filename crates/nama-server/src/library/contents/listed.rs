@@ -28,6 +28,10 @@ pub(crate) struct Listed {
     pub(crate) content_rating: Option<String>,
     /// An Episode's Show's preferred id, its `listed_id` in `matched_items`; `None` for a Movie.
     pub(crate) show_id: Option<ExternalId>,
+    /// Every id of the Movie or Episode, `id` among them.
+    pub(crate) ids: ExternalIds,
+    /// Every id of an Episode's Show, `show_id` among them; empty for a Movie.
+    pub(crate) show_ids: ExternalIds,
 }
 
 impl Contents {
@@ -49,14 +53,18 @@ impl Contents {
         // it, so pages stay in id order. `items` is MATERIALIZED, or SQLite would run `own_id`'s
         // subquery again at each use.
         macro_rules! select {
-            (($($matched:tt)+)) => {
+            ($ids:literal, ($($matched:tt)+)) => {
                 sqlx::query!(
                     r#"WITH items AS MATERIALIZED (
                            SELECT matched_items.own_id, matched_items.listed_id,
                                   matched_items.path, matched_items.season, matched_items.episode,
                                   matched_items.added_at, item_matches.title,
                                   item_matches.show_title, item_matches.genres,
-                                  item_matches.content_rating
+                                  item_matches.content_rating, "#
+                        + $ids
+                        + r#"'title') AS ids, "#
+                        + $ids
+                        + r#"'show') AS show_ids
                            FROM "#
                         + $($matched)+
                         + r#" AS matched_items
@@ -72,7 +80,8 @@ impl Contents {
                        SELECT namespace AS "namespace!: String", value AS "value!: String",
                               title AS "title!", show_title, season, episode,
                               newest_added_at AS "newest_added_at!: i64",
-                              genres, content_rating, listed_id AS "listed_id!: String"
+                              genres, content_rating, listed_id AS "listed_id!: String",
+                              ids AS "ids?: String", show_ids AS "show_ids?: String"
                        FROM listed
                        WHERE version = 1
                          AND (?3 IS NULL
@@ -87,7 +96,9 @@ impl Contents {
                 )
             };
         }
-        let rows = matched_items!(select).fetch_all(self.db.reader()).await?;
+        let rows = ids_sql!(matched_items, select)
+            .fetch_all(self.db.reader())
+            .await?;
         let mut listed = Vec::with_capacity(rows.len());
         for row in rows {
             let Ok(id) = ExternalId::new(&row.namespace, row.value) else {
@@ -105,6 +116,8 @@ impl Contents {
                 content_rating: row.content_rating,
                 // A Movie is listed under its own id, which isn't a Show's.
                 show_id: parse_hint(&row.listed_id).filter(|_| episode),
+                ids: ids_from_json(row.ids.as_deref()),
+                show_ids: ids_from_json(row.show_ids.as_deref().filter(|_| episode)),
             });
         }
         Ok(listed)

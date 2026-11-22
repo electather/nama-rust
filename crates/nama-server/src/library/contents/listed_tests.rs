@@ -94,9 +94,9 @@ async fn a_page_lists_each_movie_once_by_id_after_the_one_named() {
 }
 
 #[tokio::test]
-async fn a_page_of_episodes_gives_their_show_numbers_and_added_time() {
+async fn a_page_of_episodes_gives_their_show_numbers_ids_and_added_time() {
     let fx = Fixture::shows().await;
-    let dark = ExternalIds::from_iter([ExternalId::tmdb(70_523)]);
+    let dark = ExternalIds::from_iter([ExternalId::tmdb(70_523), ExternalId::tvdb(121)]);
     let before = db::now();
     matched_episode(&fx, "/media/Dark - S01E01.mkv", 1, "Secrets", dark).await;
     let after = db::now();
@@ -122,6 +122,8 @@ async fn a_page_of_episodes_gives_their_show_numbers_and_added_time() {
             genres: Vec::new(),
             content_rating: None,
             show_id: Some(ExternalId::tmdb(70_523)),
+            ids: ExternalIds::from_iter([ExternalId::tmdb(1001)]),
+            show_ids: ExternalIds::from_iter([ExternalId::tmdb(70_523), ExternalId::tvdb(121)]),
         }
     );
     assert!((before..=after).contains(&listed.added_at), "{listed:?}");
