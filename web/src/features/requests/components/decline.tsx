@@ -1,3 +1,5 @@
+import { X } from "lucide-react";
+
 import { useDeclineRequest } from "@/features/requests/data/use-decline-request";
 import { type Target, changeRefusal } from "@/features/requests/lib/request-target";
 import { ConfirmDialog } from "@/shared/components/confirm-dialog/confirm-dialog";
@@ -11,6 +13,7 @@ export function Decline({ id, ...target }: Target) {
   return (
     <ConfirmDialog
       action="Decline"
+      Icon={X}
       name={`Decline ${label}`}
       title={`Decline ${label}?`}
       description={`Its Requesters see that it was declined, and why if you say. Anyone can ask for ${label} again.`}

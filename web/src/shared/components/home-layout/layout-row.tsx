@@ -1,9 +1,9 @@
 import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { DragHandle } from "@/shared/components/home-layout/drag-handle";
 import { MoveButtons } from "@/shared/components/home-layout/move-buttons";
 import { RowLabel } from "@/shared/components/home-layout/row-label";
-import { ShownSwitch } from "@/shared/components/home-layout/shown-switch";
 import { IconTile } from "@/shared/components/icon-tile";
 import type { RowDrag } from "@/shared/hooks/use-row-drag";
 import type { RowName } from "@/shared/lib/home-layout";
@@ -16,33 +16,34 @@ declare module "react" {
 }
 
 /**
- * One Home row of the layout, at `place`: dragged by its grip or icon, which lifts it, or moved by
- * its arrows, and shown or not, dimmed while hidden. `?setting=` finds it by its `setting` key.
+ * One row of a reorderable list, such as a Home row or a title source, at `place`: dragged by its
+ * grip or icon, which lifts it, or moved by its arrows, dimmed while `hidden`, with its own `control`
+ * at the end. `?setting=` finds it by its `setting` key.
  */
 export function LayoutRow({
   setting,
   Icon,
   name,
-  shown,
+  hidden = false,
   place,
   drag,
   onMove,
-  onShownChange,
+  control,
 }: {
-  setting: string;
+  setting?: string;
   Icon: LucideIcon;
   name: RowName;
-  shown: boolean;
+  hidden?: boolean;
   place: { index: number; count: number };
   drag: RowDrag;
   onMove: (from: number, before: number) => void;
-  onShownChange: (shown: boolean) => void;
+  control: ReactNode;
 }) {
   return (
     // The rows it passes slide out of a dragged row's way; the dragged row follows the pointer.
     <li
       data-setting={setting}
-      data-hidden={!shown || undefined}
+      data-hidden={hidden || undefined}
       data-dragging={drag.dragging || undefined}
       data-sliding={drag.sliding || undefined}
       style={{ "--offset": `${drag.offset}px` }}
@@ -51,10 +52,10 @@ export function LayoutRow({
       <DragHandle {...drag.handle}>
         <IconTile Icon={Icon} />
       </DragHandle>
-      <div className="flex min-w-0 flex-1 items-center gap-3 border-t py-1.5 group-data-dragging:border-transparent">
+      <div className="flex min-w-0 flex-1 items-center gap-3 border-t py-1.5 group-first:border-t-0 group-data-dragging:border-transparent">
         <RowLabel name={name} />
         <MoveButtons label={name.label} place={place} onMove={onMove} />
-        <ShownSwitch label={name.label} shown={shown} onShownChange={onShownChange} />
+        {control}
       </div>
     </li>
   );

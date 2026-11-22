@@ -2,9 +2,8 @@ import { useId } from "react";
 
 import { AddSources } from "@/features/admin-libraries/components/title-sources-field/add-sources";
 import { NoSourceSearches } from "@/features/admin-libraries/components/title-sources-field/no-source-searches";
-import { SourceRow } from "@/features/admin-libraries/components/title-sources-field/source-row";
+import { SourceList } from "@/features/admin-libraries/components/title-sources-field/source-list";
 import { useTitleSources } from "@/features/admin-libraries/data/use-title-sources";
-import { sourceName, unusable } from "@/features/admin-libraries/lib/title-sources";
 
 /**
  * The Library's title sources in their `order`, which an Admin reorders, adds to and removes from,
@@ -26,23 +25,7 @@ export function TitleSourcesField({
   return (
     <fieldset className="flex flex-col gap-2" aria-describedby={`${id}-hint ${id}-error`}>
       <legend className="mb-2 text-sm font-medium">Title sources</legend>
-      <ol aria-label="Title sources" className="flex flex-col gap-1">
-        {order.map((namespace, index) => {
-          const source = listed.find((each) => each.namespace === namespace);
-          return (
-            <SourceRow
-              key={namespace}
-              order={order}
-              index={index}
-              setOrder={setOrder}
-              label={source === undefined ? namespace : sourceName(source)}
-              // Until the list arrives, no stored source is known to be missing.
-              note={data === undefined ? undefined : unusable(source)}
-              artworkOnly={source?.searches === false}
-            />
-          );
-        })}
-      </ol>
+      <SourceList order={order} setOrder={setOrder} listed={listed} loaded={data !== undefined} />
       <AddSources listed={listed} order={order} setOrder={setOrder} />
       <p id={`${id}-hint`} className="text-sm text-muted-foreground">
         Titles are Matched with the first source that finds them. Artwork comes from every source in

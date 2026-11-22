@@ -1,3 +1,5 @@
+import { Check } from "lucide-react";
+
 import { ChangeButton } from "@/features/requests/components/change-button";
 import { useApproveRequest } from "@/features/requests/data/use-approve-request";
 import { type Target, changeRefusal } from "@/features/requests/lib/request-target";
@@ -8,6 +10,7 @@ export function Approve({ id, ...target }: Target) {
   return (
     <ChangeButton
       action="Approve"
+      Icon={Check}
       name={`Approve ${target.label}`}
       change={approve}
       id={id}

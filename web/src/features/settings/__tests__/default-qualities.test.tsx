@@ -1,5 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { ExtensionPoint, type QualitySchema } from "@/gen/nama/v1/plugin_pb";
@@ -30,6 +30,7 @@ function server(
   return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
     router.service(RequestService, {
       listDefaultQualities: () => ({ defaults: [radarr] }),
+      listRequests: () => ({}),
       setDefaultQuality: (request) => {
         set.push(request);
         return {};
@@ -42,9 +43,9 @@ test("a User who may choose sets their default Quality for Movies, the default p
   const set: SetDefaultQualityRequest[] = [];
   openSettings("requests", server(mayChoose, {}, set));
 
-  const movies = await screen.findByRole("combobox", { name: "Quality for Movies" });
+  const movies = await screen.findByRole("combobox", { name: "Movies" });
   expect(movies.textContent).toBe("HD (Default)");
-  pick("Quality for Movies", "4K");
+  pick("Movies", "4K");
 
   await expect.poll(() => set).toMatchObject([{ pluginId: "radarr", quality: 2n }]);
 });
@@ -52,20 +53,18 @@ test("a User who may choose sets their default Quality for Movies, the default p
 test("a default an admin has since removed is flagged, with the default picked", async () => {
   openSettings("requests", server(mayChoose, { qualities: [hd], quality: 2n }));
 
-  const movies = await screen.findByRole("combobox", { name: "Quality for Movies" });
+  const movies = await screen.findByRole("combobox", { name: "Movies" });
   expect(movies.textContent).toBe("HD (Default)");
   expect(
     screen.getByText("The Quality you picked is no longer offered, so your Requests get HD."),
   ).toBeDefined();
 });
 
-test("a User who may not choose a Quality has no Requests section, and its address opens Playback", async () => {
+test("a User who may not choose a Quality sees their Requests without a default Quality", async () => {
   openSettings("requests", server(newUser, { quality: 2n }));
 
-  await screen.findByRole("heading", { name: "Playback" });
-  const sections = within(screen.getByRole("navigation", { name: "Settings" }));
-  expect(sections.queryByRole("link", { name: "Requests" })).toBeNull();
-  expect(screen.queryByLabelText("Quality for Movies")).toBeNull();
+  await screen.findByText("No Requests yet. Request a Movie or Show from its page.");
+  expect(screen.queryByLabelText("Movies")).toBeNull();
 });
 
 test("saving a default for Shows reads the Show Quality menu's Qualities again", async () => {
@@ -101,8 +100,8 @@ test("saving a default for Shows reads the Show Quality menu's Qualities again",
   await act(async () => {
     await router.navigate({ to: ".", search: { settings: "requests" } });
   });
-  await screen.findByRole("combobox", { name: "Quality for Shows" });
-  pick("Quality for Shows", "4K");
+  await screen.findByRole("combobox", { name: "Shows" });
+  pick("Shows", "4K");
   await expect.poll(() => personalDefault).toBe(2n);
 
   // Settings sits over the Show's page, so closing it is all it takes to be back there.

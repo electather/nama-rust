@@ -1,7 +1,7 @@
 import { RequestState } from "@/gen/nama/v1/request_pb";
 import { requestStateName } from "@/shared/components/request-state/request-states";
 
-/** The Requests page's `state` search parameter values, in the order the filter offers them. */
+/** The states Requests are listed in, in the order the filter offers them. */
 const stateFilters = {
   all: RequestState.UNSPECIFIED,
   pending: RequestState.PENDING,
@@ -13,12 +13,11 @@ const stateFilters = {
   declined: RequestState.DECLINED,
 };
 
-/** A state to list Requests and Followed Shows in, as the Requests page's URL names it. */
+/** A state to list Requests and Followed Shows in. */
 export type StateFilter = keyof typeof stateFilters;
 
-/** Whether `value` names a state filter, so an unknown one in a URL counts as none. */
-export function isStateFilter(value: unknown): value is StateFilter {
-  return typeof value === "string" && Object.hasOwn(stateFilters, value);
+function isStateFilter(value: string): value is StateFilter {
+  return Object.hasOwn(stateFilters, value);
 }
 
 // Every key passes: the filter only narrows `Object.keys`'s `string[]` to the filters' type.
@@ -30,7 +29,7 @@ export function filterName(filter: StateFilter) {
   return filter === "all" ? "All" : requestStateName(stateFilters[filter]);
 }
 
-/** `ListRequests`'s `RequestFilter` for `filter`, where no filter means All. */
-export function listedIn(filter: StateFilter | undefined) {
-  return { state: stateFilters[filter ?? "all"] };
+/** `ListRequests`'s `RequestFilter` for `filter`. */
+export function listedIn(filter: StateFilter) {
+  return { state: stateFilters[filter] };
 }

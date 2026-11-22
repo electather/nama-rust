@@ -7,6 +7,7 @@ Read `README.md` for the layout and the checks CI runs. Rules for one package li
 - **Comments say why:** a reason, an outside constraint (SQLite, a protocol, an ADR), a trap for the next editor, or a `ponytail:` ceiling. What the code says, a clearer name, a type or an assertion says instead. A test's name says what it checks.
 - **CI jobs.** A new job in `.github/workflows/ci.yml` goes in `ci-ok`'s `needs`. Main's ruleset requires only `ci-ok`, so a job left out never blocks a merge.
 - **Commit messages** are 10 words or fewer.
+- **Test and check output goes to a file.** An agent redirects a run of tests, checks or lints to a file (`> /tmp/web-tests.txt 2>&1`), never straight into its context, then reads only what it needs from that file: the summary line, the failures, a `grep` or a line range.
 - **Rules live in `AGENTS.md`.** A rule future code in a package must follow goes once in that package's `AGENTS.md`; code that enforces it points there in one line. A package's `README.md` says how to work on it.
 
 ## Agent skills

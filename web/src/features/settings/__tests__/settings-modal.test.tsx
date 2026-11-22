@@ -73,7 +73,14 @@ test("a section's link opens it, and a word that names none opens Playback", asy
   openApp("/code?settings=nonsense", fakeServer({ signedIn: newUser }));
 
   await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
-  expect(sections()).toStrictEqual(["Sign-in", "Devices", "Playback", "Home", "Connections"]);
+  expect(sections()).toStrictEqual([
+    "Sign-in",
+    "Devices",
+    "Playback",
+    "Home",
+    "Requests",
+    "Connections",
+  ]);
   fireEvent.click(screen.getByRole("link", { name: "Devices" }));
 
   await expect(screen.findByRole("heading", { name: "Devices" })).resolves.toBeDefined();
@@ -98,4 +105,27 @@ test("a pane that doesn't load says so in place, and Try again loads it", async 
   fireEvent.click(screen.getByRole("button", { name: "Try again" }));
 
   await expect(screen.findByText("Laptop")).resolves.toBeDefined();
+});
+
+test("a part of a pane that doesn't load says so in its place, and the rest of the pane shows", async () => {
+  let listNotificationPreferences = locked;
+  openSettings(
+    "connections",
+    fakeServer(
+      { signedIn: newUser },
+      {},
+      { listNotificationPreferences: () => listNotificationPreferences() },
+    ),
+  );
+
+  await expect(
+    screen.findByText("Couldn’t load what you’re messaged about."),
+  ).resolves.toBeDefined();
+  expect(screen.getByText("No Plugins on this Server can message you yet.")).toBeDefined();
+  listNotificationPreferences = () => ({});
+  fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+  await waitFor(() => {
+    expect(screen.queryByText("Couldn’t load what you’re messaged about.")).toBeNull();
+  });
 });

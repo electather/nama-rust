@@ -2,6 +2,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "nama-ui/compon
 import { useId } from "react";
 
 import type { Library } from "@/gen/nama/v1/library_pb";
+import { useModalContainer } from "@/shared/hooks/use-modal-container";
 
 /**
  * Picks the Library whose Items show, or every one's (`undefined`), calling `onPick` with it. Where
@@ -17,6 +18,8 @@ export function LibraryFilter({
   onPick: (library: string | undefined) => void;
 }) {
   const id = useId();
+  // Its list goes inside Settings' dialog, as only what's inside one shows over it.
+  const [field, container] = useModalContainer();
   const options = [
     { value: "", label: "All Libraries" },
     ...libraries.map((library) => ({ value: String(library.id), label: library.name })),
@@ -34,8 +37,8 @@ export function LibraryFilter({
         onPick(library === null || library === "" ? undefined : library);
       }}
     >
-      <SelectTrigger id={id} />
-      <SelectContent>{items}</SelectContent>
+      <SelectTrigger ref={field} id={id} />
+      <SelectContent container={container}>{items}</SelectContent>
     </Select>
   );
   return (

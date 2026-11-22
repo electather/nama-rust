@@ -2,9 +2,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { type RefObject, useEffect } from "react";
 
 import { type Keys, press } from "@/features/action-bar/lib/keys";
-import { goTo, pagesFor } from "@/features/action-bar/lib/pages";
+import { goTo, pages } from "@/features/action-bar/lib/pages";
 import type { Frame } from "@/features/action-bar/lib/rows";
-import type { Section } from "@/features/settings/lib/sections";
 
 /** Whether ⌘ or Ctrl is held, which makes a key a command rather than a letter. */
 function held(event: KeyboardEvent) {
@@ -26,12 +25,10 @@ function quiet({ altKey, target }: KeyboardEvent) {
  */
 export function useActionBarKeys({
   dialog,
-  adminSection,
   open,
 }: {
   /** The action bar's dialog, while it's open. */
   dialog: RefObject<HTMLDialogElement | null>;
-  adminSection: Section | undefined;
   open: (frame: Frame) => void;
 }) {
   const navigate = useNavigate();
@@ -39,7 +36,7 @@ export function useActionBarKeys({
     // When G was last pressed: a page's key goes to its page only within a second of it.
     let armed = Number.NEGATIVE_INFINITY;
     const jumps: Keys = Object.fromEntries(
-      pagesFor(adminSection).map((page) => [
+      pages.map((page) => [
         page.key.toLowerCase(),
         () => {
           goTo(navigate, page);
@@ -95,5 +92,5 @@ export function useActionBarKeys({
     return () => {
       globalThis.removeEventListener("keydown", onKeyDown);
     };
-  }, [dialog, adminSection, navigate, open]);
+  }, [dialog, navigate, open]);
 }

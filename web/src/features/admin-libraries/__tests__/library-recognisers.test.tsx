@@ -69,7 +69,7 @@ function recognisersShown() {
   }
   return within(list)
     .getAllByRole("listitem")
-    .map((item) => item.textContent);
+    .map((item) => Array.from(item.querySelectorAll("p"), (line) => line.textContent).join(" · "));
 }
 
 /** Fills in a new Library's name and folder, then creates it. */
@@ -118,8 +118,8 @@ test("a Library's Recognisers show in its order, and moving one saves the new or
   await screen.findByRole("button", { name: "Remove Anime numbers" });
 
   expect(recognisersShown()).toStrictEqual([
-    "dates · not enabled",
-    "gone · not available",
+    "dates · Not enabled",
+    "gone · Not available",
     "Anime numbers",
   ]);
   fireEvent.click(screen.getByRole("button", { name: "Move Anime numbers up" }));

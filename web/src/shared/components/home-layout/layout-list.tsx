@@ -4,6 +4,7 @@ import { useRef } from "react";
 import type { HomeLayout, HomeLayoutRow } from "@/gen/nama/v1/server_pb";
 import { FeaturedRow } from "@/shared/components/home-layout/featured-row";
 import { LayoutRow } from "@/shared/components/home-layout/layout-row";
+import { ShownSwitch } from "@/shared/components/home-layout/shown-switch";
 import { useRowDrag } from "@/shared/hooks/use-row-drag";
 import { useSlideRows } from "@/shared/hooks/use-slide-rows";
 import { rowKey, rowName, rowSetting } from "@/shared/lib/home-layout";
@@ -43,21 +44,31 @@ export function LayoutList({
     <div className="-mb-1.5 flex flex-col">
       <FeaturedRow shown={layout.featuredHidden !== true} onShownChange={setFeaturedShown} />
       <ul ref={list} className="flex flex-col">
-        {layout.rows.map((row, index) => (
-          <LayoutRow
-            key={rowKey(row)}
-            setting={rowSetting(row)}
-            Icon={row.row.case === "kernel" ? CirclePlay : Puzzle}
-            name={rowName(row, names)}
-            shown={!row.hidden}
-            place={{ index, count: layout.rows.length }}
-            drag={rowDrag(index)}
-            onMove={slidingMove}
-            onShownChange={(shown) => {
-              setShown(row, shown);
-            }}
-          />
-        ))}
+        {layout.rows.map((row, index) => {
+          const name = rowName(row, names);
+          const shownSwitch = (
+            <ShownSwitch
+              label={name.label}
+              shown={!row.hidden}
+              onShownChange={(shown) => {
+                setShown(row, shown);
+              }}
+            />
+          );
+          return (
+            <LayoutRow
+              key={rowKey(row)}
+              setting={rowSetting(row)}
+              Icon={row.row.case === "kernel" ? CirclePlay : Puzzle}
+              name={name}
+              hidden={row.hidden}
+              place={{ index, count: layout.rows.length }}
+              drag={rowDrag(index)}
+              onMove={slidingMove}
+              control={shownSwitch}
+            />
+          );
+        })}
       </ul>
       <output aria-live="polite" className="sr-only">
         {announced}
