@@ -122,11 +122,7 @@ impl Hub {
         signal: Signal,
         batch: Vec<u8>,
     ) -> Result<(), PluginError> {
-        let path = match signal {
-            Signal::Traces => "traces",
-            Signal::Logs => "logs",
-        };
-        let request = Request::post(format!("{}/otlp/v1/{path}", self.url))
+        let request = Request::post(format!("{}/otlp/{}", self.url, signal.path()))
             .header(CONTENT_TYPE, "application/x-protobuf")
             .header(AUTHORIZATION, format!("Bearer {credential}"))
             .body(full_body(Bytes::from(batch)))?;

@@ -12,10 +12,21 @@ use crate::{BoxFuture, PluginError};
 /// Which OTLP signal a batch holds, as its OTLP/HTTP path names it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Signal {
-    /// Spans, posted to `/v1/traces`.
+    /// Spans.
     Traces,
-    /// Log records, posted to `/v1/logs`: the allow-listed log lines and Usage Analytics.
+    /// Log records: the allow-listed log lines and Usage Analytics.
     Logs,
+}
+
+impl Signal {
+    /// Its path under an OTLP/HTTP endpoint.
+    #[must_use]
+    pub const fn path(self) -> &'static str {
+        match self {
+            Self::Traces => "v1/traces",
+            Self::Logs => "v1/logs",
+        }
+    }
 }
 
 /// A Provider that takes shared Diagnostics and Usage Analytics to Nama's developers.

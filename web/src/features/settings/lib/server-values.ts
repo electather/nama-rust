@@ -43,6 +43,10 @@ export const serverLabels: Record<keyof ServerValues | "imageStore" | "store", S
     hint: "Where the Server keeps the images it fetched, Custom Images and Plugin logos. Resized copies always stay on local disk.",
     words: "storage",
   },
+  store: {
+    label: "Keep images on",
+    hint: "An enabled Blob store Plugin, such as S3, can keep them in place of local disk. Every image is copied across before the switch, and the old store keeps its copies.",
+  },
   shareDiagnostics: {
     label: "Share Diagnostics",
     hint: "Sends Nama’s developers how this Server runs, through the Hub while it’s Linked: timings, counts and errors, never titles, file paths, names or addresses.",
@@ -52,10 +56,6 @@ export const serverLabels: Record<keyof ServerValues | "imageStore" | "store", S
     label: "Share Usage Analytics",
     hint: "Tells Nama’s developers which features are used, such as a Request made or playback started, through the Hub while it’s Linked. Never titles or names.",
     words: "statistics tracking",
-  },
-  store: {
-    label: "Keep images on",
-    hint: "An enabled Blob store Plugin, such as S3, can keep them in place of local disk. Every image is copied across before the switch, and the old store keeps its copies.",
   },
 };
 
