@@ -15,8 +15,9 @@ use hyper_util::{
 };
 use nama_hub_proto::nama::hub::v1::{
     GetUserLinkRequest, LinkedServerServiceClient, PollServerLinkRequest, PollServerLinkResponse,
-    ServerLinkServiceClient, StartServerLinkRequest, StartServerLinkResponse, StartUserLinkRequest,
-    StartUserLinkResponse, UnlinkServerRequest, UnlinkUserRequest,
+    PushWatchStatesRequest, ServerLinkServiceClient, StartServerLinkRequest,
+    StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest,
+    UnlinkUserRequest, WatchStateChange,
 };
 use nama_plugin_api::PluginError;
 
@@ -161,6 +162,22 @@ impl Hub {
             })
             .await;
         unlinked_already(unlinked.map(drop))
+    }
+
+    /// Pushes `changes` to the Watch State of the Accounts the Users of the Server whose credential
+    /// is `credential` are Linked to, in order.
+    pub(crate) async fn push_watch_states(
+        &self,
+        credential: &str,
+        changes: Vec<WatchStateChange>,
+    ) -> Result<(), PluginError> {
+        self.linked_server(credential)?
+            .push_watch_states(PushWatchStatesRequest {
+                changes,
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
     }
 
     /// The Hub's API for the Server whose credential is `credential`.

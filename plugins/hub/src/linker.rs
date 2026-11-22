@@ -1,7 +1,9 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
-//! keeps in the Plugin's Store once someone entered it. Its Users' Links are in `users.rs`.
+//! keeps in the Plugin's Store once someone entered it. Its Users' Links are in `users.rs`, and
+//! syncing their Watch State in `watch_states.rs`.
 
 mod users;
+mod watch_states;
 
 use std::{
     collections::HashMap,
@@ -27,6 +29,8 @@ use crate::{
     hub::{Hub, Polling},
     token::{self, Claims, Rejected},
 };
+
+pub(crate) use self::watch_states::{WatchStateSync, sync_job};
 
 /// The Store key of the Link, a [`Kept`] as JSON.
 const LINK_KEY: &str = "link";
@@ -71,6 +75,8 @@ pub(crate) struct Linker {
     waiting: Mutex<Option<Waiting>>,
     /// What the Plugin knows of each User's Link but what it keeps in the Store.
     users: std::sync::Mutex<HashMap<i64, users::UserState>>,
+    /// Held while the queue of Watch State changes is read and written, so none is lost.
+    queue: Mutex<()>,
 }
 
 impl Linker {
@@ -80,6 +86,7 @@ impl Linker {
             kernel,
             waiting: Mutex::default(),
             users: std::sync::Mutex::default(),
+            queue: Mutex::default(),
         }
     }
 

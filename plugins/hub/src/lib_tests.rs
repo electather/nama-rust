@@ -6,15 +6,19 @@ use std::{
 
 use buffa::Message as _;
 use nama_plugin_api::{
-    BoxFuture, Registrar,
+    BoxFuture, Observer, Registrar, Registration,
     automation::{
         Kernel, KernelFunction as _, KernelRefused,
         functions::{StoreDelete, StoreGet, StorePut},
     },
     contract::{StoreEntry, StoreKey, StoreValue, Stored},
+    job::RunJob,
+    points::{WatchStateChange, WatchStateChanges},
     server_link::{Link, ServerLinker},
 };
 use serde_json::json;
+
+use nama_hub_proto::nama::hub::v1::WatchStateChange as HubChange;
 
 use super::*;
 use crate::fake_hub::{EMAIL, FakeHub, USER_CODE, USER_LINK_CODE};
@@ -352,4 +356,137 @@ async fn a_server_linked_again_doesnt_show_its_users_old_links() {
 
     assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
     assert_eq!(linker.user_link(8).await.unwrap(), Some(Link::NotLinked));
+}
+
+/// The Plugin enabled against `hub`, the Server and its User 7 Linked, as the Kernel tells it of
+/// Watch State changes and runs its Job.
+async fn syncing_user_7(
+    hub: &FakeHub,
+) -> (Arc<dyn Observer<WatchStatesChanged>>, Arc<dyn JobRunner>) {
+    let mut registrar = Registrar::new().with_kernel(store());
+    Hub::at(hub.url()).register(&mut registrar).unwrap();
+    let registrations = registrar.into_registrations();
+    let linker = (registrations.iter())
+        .find_map(Registration::provider::<dyn ServerLinker>)
+        .unwrap();
+    link(hub, linker.as_ref()).await;
+    link_user(hub, linker.as_ref(), 7).await;
+    let observer = (registrations.iter())
+        .find_map(Registration::observer::<WatchStatesChanged>)
+        .unwrap();
+    let jobs = (registrations.iter())
+        .find_map(Registration::provider::<dyn JobRunner>)
+        .unwrap();
+    (observer, jobs)
+}
+
+/// The Movie `tmdb-<id>` at `position_ms`, changed at `changed_at_ms`.
+fn movie_at(id: u64, position_ms: u64, changed_at_ms: i64) -> WatchStateChange {
+    WatchStateChange {
+        episode: false,
+        ids: vec![format!("tmdb-{id}")],
+        played: false,
+        position_ms,
+        duration_ms: 7000,
+        changed_at_ms,
+    }
+}
+
+/// Tells `observer` of the User `user_id`'s `changes`, in one write.
+async fn tell(
+    observer: &dyn Observer<WatchStatesChanged>,
+    user_id: i64,
+    changes: Vec<WatchStateChange>,
+) {
+    let write = WatchStateChanges { user_id, changes };
+    observer.observe(&write).await.unwrap();
+}
+
+async fn run_sync(jobs: &dyn JobRunner) -> Result<(), PluginError> {
+    let run = RunJob {
+        job_id: "sync".to_owned(),
+        ..Default::default()
+    };
+    jobs.run(&run).await
+}
+
+/// What the Hub was pushed, in order, as each change's first id, position and when it changed.
+fn pushed(hub: &FakeHub) -> Vec<Vec<(String, u64, i64)>> {
+    let changes = |push: Vec<HubChange>| {
+        (push.into_iter())
+            .map(|change| {
+                (
+                    change.ids[0].clone(),
+                    change.position_ms,
+                    change.changed_at_ms,
+                )
+            })
+            .collect()
+    };
+    hub.pushes().into_iter().map(changes).collect()
+}
+
+#[tokio::test]
+async fn changes_made_while_the_hub_is_down_reach_it_in_order_once_it_is_back() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs) = syncing_user_7(&hub).await;
+    hub.set_down(true);
+
+    tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
+    tell(observer.as_ref(), 7, vec![movie_at(679, 2000, 2_000)]).await;
+    assert!(run_sync(jobs.as_ref()).await.is_err());
+    tell(observer.as_ref(), 7, vec![movie_at(348, 3000, 3_000)]).await;
+    hub.set_down(false);
+    run_sync(jobs.as_ref()).await.unwrap();
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(
+        pushed(&hub),
+        [[
+            ("tmdb-679".to_owned(), 2000, 2_000),
+            ("tmdb-348".to_owned(), 3000, 3_000)
+        ]]
+    );
+}
+
+#[tokio::test]
+async fn a_change_told_after_a_later_one_of_the_same_title_is_dropped() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs) = syncing_user_7(&hub).await;
+
+    tell(observer.as_ref(), 7, vec![movie_at(348, 3000, 2_000)]).await;
+    tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(pushed(&hub), [[("tmdb-348".to_owned(), 3000, 2_000)]]);
+}
+
+#[tokio::test]
+async fn a_user_who_isnt_linked_keeps_their_watch_state_on_the_server() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs) = syncing_user_7(&hub).await;
+
+    tell(observer.as_ref(), 8, vec![movie_at(348, 1000, 1_000)]).await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(hub.pushes(), Vec::<Vec<HubChange>>::new());
+}
+
+#[tokio::test]
+async fn a_write_of_many_changes_is_pushed_a_page_at_a_time_in_order() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs) = syncing_user_7(&hub).await;
+    let changes: Vec<_> = (1..=250).map(|id| movie_at(id, 1000, 1_000)).collect();
+
+    tell(observer.as_ref(), 7, changes).await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    let pushes = hub.pushes();
+    let sizes: Vec<_> = pushes.iter().map(Vec::len).collect();
+    let ids: Vec<_> = (pushes.into_iter().flatten())
+        .map(|change| change.ids[0].clone())
+        .collect();
+    let expected: Vec<_> = (1..=250).map(|id| format!("tmdb-{id}")).collect();
+    assert_eq!(sizes, [100, 100, 50]);
+    assert_eq!(ids, expected);
 }
