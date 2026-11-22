@@ -3,6 +3,7 @@
 
 mod accounts;
 mod links;
+mod viewing;
 
 use std::sync::Arc;
 
@@ -25,11 +26,12 @@ use nama_hub_proto::nama::hub::v1::{
 use sqlx::PgPool;
 use tracing::Instrument as _;
 
-use crate::{accounts::Accounts, db, links::Links, mail::Mail, signing::Keys};
+use crate::{accounts::Accounts, db, links::Links, mail::Mail, signing::Keys, viewing::Viewing};
 
 use self::{
     accounts::{AccountServiceHandler, COOKIE_NAME},
     links::{LinkServiceHandler, LinkedServerServiceHandler, ServerLinkServiceHandler},
+    viewing::ViewingEventServiceHandler,
 };
 
 /// The Hub's routes: every service, each call in a span of its own, knowing where it came from
@@ -44,6 +46,7 @@ pub(crate) fn router(
 ) -> axum::Router {
     let accounts = Accounts::new(db.clone(), mail);
     let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys));
+    let viewing = Viewing::new(db.clone(), links.clone());
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(HubServiceHandler {
             db,
@@ -60,7 +63,9 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(LinkedServerServiceHandler {
             links: links.clone(),
+            viewing: viewing.clone(),
         }))
+        .add_service(Arc::new(ViewingEventServiceHandler { viewing }))
         .into_axum_service();
     let jwks = async move || {
         let jwks = keys.jwks().to_owned();
@@ -224,9 +229,9 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED => ErrorCode::NotFound,
         R::REFUSAL_REASON_TOO_MANY_ATTEMPTS => ErrorCode::ResourceExhausted,
         R::REFUSAL_REASON_EMAIL_TAKEN | R::REFUSAL_REASON_USER_LINKED => ErrorCode::AlreadyExists,
-        R::REFUSAL_REASON_EMAIL_INVALID | R::REFUSAL_REASON_PASSWORD_LENGTH => {
-            ErrorCode::InvalidArgument
-        }
+        R::REFUSAL_REASON_EMAIL_INVALID
+        | R::REFUSAL_REASON_PASSWORD_LENGTH
+        | R::REFUSAL_REASON_VIEWING_EVENT_INVALID => ErrorCode::InvalidArgument,
         // Never sent; a client sees it only for a reason it doesn't know.
         R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,
     }

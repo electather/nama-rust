@@ -44,6 +44,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
             "user_link_codes",
         ],
     ),
+    ("src/viewing", &["viewing_events"]),
 ];
 
 /// The Hub's modules in rows of who may call whom, highest row first (ADR 0099).

@@ -7,15 +7,19 @@ use nama_hub_proto::nama::hub::v1::{
     ApproveUserLinkResponse, GetUserLinkRequest, GetUserLinkResponse, LinkService,
     LinkedServerService, ListLinkedServersRequest, ListLinkedServersResponse,
     ListLinkedUsersRequest, ListLinkedUsersResponse, PollServerLinkRequest, PollServerLinkResponse,
-    RefusalReason, ServerLinkService, StartServerLinkRequest, StartServerLinkResponse,
-    StartUserLinkRequest, StartUserLinkResponse, UnlinkLinkedUserRequest, UnlinkLinkedUserResponse,
-    UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
+    RecordViewingEventsRequest, RecordViewingEventsResponse, RefusalReason, ServerLinkService,
+    StartServerLinkRequest, StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse,
+    UnlinkLinkedUserRequest, UnlinkLinkedUserResponse, UnlinkServerRequest, UnlinkServerResponse,
+    UnlinkUserRequest, UnlinkUserResponse,
 };
 
-use super::{accounts::signed_in, hub_failed, refuse};
-use crate::links::{
-    self, CODE_LIFETIME_MINS, LinkId, LinkedServer, Links, ListedServer, ListedUser,
-    POLL_INTERVAL_SECS, Polled,
+use super::{accounts::signed_in, hub_failed, refuse, viewing};
+use crate::{
+    links::{
+        self, CODE_LIFETIME_MINS, LinkId, LinkedServer, Links, ListedServer, ListedUser,
+        POLL_INTERVAL_SECS, Polled,
+    },
+    viewing::Viewing,
 };
 
 /// `nama.hub.v1.ServerLinkService`: a Server not yet Linked, so anyone.
@@ -163,6 +167,7 @@ impl LinkService for LinkServiceHandler {
 /// `nama.hub.v1.LinkedServerService`: a Linked Server, by its credential.
 pub(super) struct LinkedServerServiceHandler {
     pub(super) links: Links,
+    pub(super) viewing: Viewing,
 }
 
 #[expect(
@@ -226,6 +231,19 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(UnlinkUserResponse::default())
+    }
+
+    async fn record_viewing_events(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, RecordViewingEventsRequest>,
+    ) -> ServiceResult<RecordViewingEventsResponse> {
+        let server = linked_server(&ctx)?;
+        let events = viewing::recorded_from_proto(request.to_owned_message().events)?;
+        (self.viewing.record(server, events))
+            .await
+            .map_err(|err| viewing::refused(&err))?;
+        Response::ok(RecordViewingEventsResponse::default())
     }
 }
 

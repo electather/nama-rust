@@ -12,4 +12,4 @@ Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011
 ### Neighbours
 
 - Uses: `accounts` (an `AccountSession`'s proven email and Recent Authentication, an Account's email) and `signing` (the token).
-- Used by: `api`, whose auth layer turns a bearer credential into a `LinkedServer`, and which converts what `links.rs` re-exports.
+- Used by: `viewing`, which asks which Account a Linked Server's User is Linked to, and `api`, whose auth layer turns a bearer credential into a `LinkedServer`, and which converts what `links.rs` re-exports.

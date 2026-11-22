@@ -57,4 +57,7 @@ enum RefusalReason {
   // `already_exists`: the User is Linked to an Account already, and a User Links to one only.
   // Unlink them first.
   REFUSAL_REASON_USER_LINKED = 14;
+  // `invalid_argument`: a Viewing Event breaks the rules `ViewingEvent` and `UserViewingEvent`
+  // give, or more than `maxEvents` came at once. Params: `maxEvents`.
+  REFUSAL_REASON_VIEWING_EVENT_INVALID = 15;
 }
