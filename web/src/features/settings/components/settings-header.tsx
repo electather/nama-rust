@@ -1,10 +1,17 @@
 import { X } from "lucide-react";
 import { Button } from "nama-ui/components/button";
-import { Suspense } from "react";
+import { type ComponentType, Suspense } from "react";
 
 import { Crumbs } from "@/features/settings/components/crumbs";
+import { JobCrumbs } from "@/features/settings/components/job-crumbs";
 import { PluginCrumbs } from "@/features/settings/components/plugin-crumbs";
 import { type Section, sectionTitles } from "@/features/settings/lib/sections";
+
+// The sections that open one of their things in place of their list, whose crumbs then name it.
+const openedCrumbs: Partial<Record<Section, ComponentType>> = {
+  plugins: PluginCrumbs,
+  jobs: JobCrumbs,
+};
 
 /** The top of the pane: where in Settings it is, and the button that closes it. */
 export function SettingsHeader({
@@ -17,14 +24,14 @@ export function SettingsHeader({
   onClose: () => void;
 }) {
   const plain = <Crumbs current={sectionTitles[section]} />;
-  const crumbs =
-    section === "plugins" ? (
-      <Suspense fallback={plain}>
-        <PluginCrumbs />
-      </Suspense>
-    ) : (
-      plain
-    );
+  const Opened = openedCrumbs[section];
+  const crumbs = Opened ? (
+    <Suspense fallback={plain}>
+      <Opened />
+    </Suspense>
+  ) : (
+    plain
+  );
   return (
     // First on a phone, over the strip of sections that comes before it in the page.
     <header className="flex h-12 shrink-0 items-center justify-between gap-2 ps-4 pe-1.5 max-md:order-first md:ps-6">
