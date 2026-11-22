@@ -2,7 +2,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { MatchService, TitleKind } from "@/gen/nama/v1/match_pb";
+import { type ListUnmatchedItemsRequest, MatchService, TitleKind } from "@/gen/nama/v1/match_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { admin, fakeServer, openApp } from "@/test-app";
 import { openSettings, pick } from "@/test-settings";
@@ -68,13 +68,13 @@ describe("where Needs a Match is", () => {
 });
 
 test("every Library's Items are asked for at once, not after the Library before's", async () => {
-  const asked: bigint[] = [];
+  const asked: ListUnmatchedItemsRequest[] = [];
   openSettings(
     "needs-a-match",
     fakeServer({ signedIn: admin, libraries: [films, shows] }, {}, {}, (router) => {
       router.service(MatchService, {
-        listUnmatchedItems: async ({ filter }) => {
-          asked.push(filter?.libraryId ?? 0n);
+        listUnmatchedItems: async (request) => {
+          asked.push(request);
           // Films never answers, so Shows is asked only if it isn't waiting on Films.
           await new Promise(() => {});
           return {};
@@ -84,7 +84,9 @@ test("every Library's Items are asked for at once, not after the Library before'
   );
 
   await waitFor(() => {
-    expect(asked.toSorted()).toStrictEqual([films.id, shows.id]);
+    expect(new Set(asked.map((request) => request.filter?.libraryId))).toStrictEqual(
+      new Set([films.id, shows.id]),
+    );
   });
 });
 
@@ -110,6 +112,22 @@ describe("the Library picker", () => {
     expect(router.state.location.search.library).toBe("2");
     fireEvent.click(screen.getByRole("link", { name: "Playback" }));
     await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
+    expect(router.state.location.search.library).toBeUndefined();
+  });
+
+  test("closing Settings forgets which", async () => {
+    const router = openSettings("needs-a-match", matchServer(admin));
+    await expect(screen.findByText(dark.path)).resolves.toBeDefined();
+    pick("Library", "Shows");
+    await waitFor(() => {
+      expect(router.state.location.search.library).toBe("2");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Close Settings" }));
+
+    await waitFor(() => {
+      expect(router.state.location.search.settings).toBeUndefined();
+    });
     expect(router.state.location.search.library).toBeUndefined();
   });
 
