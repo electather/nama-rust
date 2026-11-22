@@ -131,8 +131,8 @@ impl Key {
         }
     }
 
-    /// Every id of the Movie `title` is, or of the Show whose Episode it is, the one the Kernel
-    /// lists it under first; none for an Episode without its Show's id.
+    /// Every id of the Movie `title` is, or of the Show whose Episode it is, with the one the
+    /// Kernel lists it under first; none for an Episode without its Show's id.
     fn every_of_title(title: &Title) -> Vec<Self> {
         let Some(title_ref) = title.title_ref.as_option() else {
             return Vec::new();
@@ -234,7 +234,9 @@ fn ranked(
         .collect();
     let mut picks: Vec<Pick> = (order.into_iter())
         .filter_map(|key| {
-            let candidate = candidates.get(&key).filter(|title| !title.started)?;
+            let candidate = candidates
+                .get(&key)
+                .filter(|candidate| !candidate.started)?;
             Some(Pick {
                 on_watchlist: !candidate.ids.is_disjoint(&watchlist),
                 genre_plays: (candidate.genres.iter())
