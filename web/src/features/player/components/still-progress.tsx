@@ -1,4 +1,4 @@
-import { Progress } from "@/shared/ui/progress";
+import { Progress } from "nama-ui/components/progress";
 
 /** How far into an Episode you are, along the foot of its Still, once you've started it. */
 export function StillProgress({ percent }: { percent: number }) {

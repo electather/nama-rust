@@ -1,7 +1,7 @@
+import { DropdownMenuRadioItem } from "nama-ui/components/dropdown-menu";
 import { useId } from "react";
 
 import type { Quality } from "@/gen/nama/v1/plugin_pb";
-import { DropdownMenuRadioItem } from "@/shared/ui/dropdown-menu";
 
 /**
  * One Quality in the Quality menu, marked if it's the Fulfiller's default, with its description,

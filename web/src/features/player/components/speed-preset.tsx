@@ -1,5 +1,6 @@
+import { Button } from "nama-ui/components/button";
+
 import { presetName } from "@/features/player/lib/speeds";
-import { Button } from "@/shared/ui/button";
 
 /** One preset, pressed while it's the speed, with "Normal" under 1.0. */
 export function SpeedPreset({

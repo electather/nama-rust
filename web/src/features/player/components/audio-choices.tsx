@@ -1,6 +1,7 @@
+import { RadioGroup } from "nama-ui/components/radio-group";
+
 import { AudioItem } from "@/features/player/components/audio-item";
 import type { Track } from "@/gen/nama/v1/browse_pb";
-import { RadioGroup } from "@/shared/ui/radio-group";
 
 /** The audio Tracks the plan offers, by their places in `tracks`, the one at `playing` chosen. */
 export function AudioChoices({

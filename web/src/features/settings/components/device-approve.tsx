@@ -1,7 +1,7 @@
 import type { ConnectError } from "@connectrpc/connect";
+import { Button } from "nama-ui/components/button";
 
 import { useApproveDevice } from "@/features/settings/data/use-approve-device";
-import { Button } from "@/shared/ui/button";
 
 /**
  * The second step of signing in another Device from the Devices pane: names the Device `code`

@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 
 import { StateLabel } from "@/shared/components/state-label";
-import { Button } from "@/shared/ui/button";
 
 /** The foot of the password form: what changing it does to your other Devices, and its button. */
 export function PasswordEnd({ pending, done }: { pending: boolean; done: boolean }) {

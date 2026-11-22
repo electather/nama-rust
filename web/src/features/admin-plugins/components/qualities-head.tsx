@@ -1,7 +1,6 @@
 import { Plus } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 import type { Ref } from "react";
-
-import { Button } from "@/shared/ui/button";
 
 /**
  * The Qualities heading, with the button that adds one at its end where `onAdd` is given. The

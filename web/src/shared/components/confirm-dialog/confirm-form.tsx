@@ -1,10 +1,10 @@
+import { Button } from "nama-ui/components/button";
 import { useState } from "react";
 
 import { CloseButton } from "@/shared/components/confirm-dialog/close-button";
 import type { Confirmation } from "@/shared/components/confirm-dialog/confirm-modal";
 import { AlertText } from "@/shared/components/form-field/alert-text";
 import { onSubmitted } from "@/shared/lib/forms";
-import { Button } from "@/shared/ui/button";
 
 /** The form inside a `ConfirmModal`: its words, fields, the Server's refusal and its buttons. */
 export function ConfirmForm({

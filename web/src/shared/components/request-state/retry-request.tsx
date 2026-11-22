@@ -1,10 +1,11 @@
+import { Button } from "nama-ui/components/button";
+
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { type Request, RequestState } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { useMay } from "@/shared/hooks/use-may";
 import { useRetryRequest } from "@/shared/hooks/use-retry-request";
 import { refusal } from "@/shared/lib/forms";
-import { Button } from "@/shared/ui/button";
 
 /**
  * Retry, which hands `request` for `what` to its Fulfiller again, while it's Failed, for a Request

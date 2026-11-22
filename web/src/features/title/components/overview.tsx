@@ -1,6 +1,5 @@
+import { Button } from "nama-ui/components/button";
 import { useCallback, useState } from "react";
-
-import { Button } from "@/shared/ui/button";
 
 /** A title's overview in two lines, with "More" to show the rest, when it doesn't fit. */
 export function Overview({ text }: { text: string }) {

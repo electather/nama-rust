@@ -1,14 +1,14 @@
 import { Ellipsis } from "lucide-react";
-
-import type { Quality } from "@/gen/nama/v1/plugin_pb";
-import { useModalContainer } from "@/shared/hooks/use-modal-container";
-import { Button } from "@/shared/ui/button";
+import { Button } from "nama-ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/shared/ui/dropdown-menu";
+} from "nama-ui/components/dropdown-menu";
+
+import type { Quality } from "@/gen/nama/v1/plugin_pb";
+import { useModalContainer } from "@/shared/hooks/use-modal-container";
 
 /**
  * The "…" at the end of a Quality's row: editing it, making it the default unless it is, and

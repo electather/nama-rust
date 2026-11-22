@@ -1,8 +1,8 @@
+import { Button } from "nama-ui/components/button";
 import { type RefObject, useId } from "react";
 
 import { FindAMatch } from "@/shared/components/find-a-match/find-a-match";
 import { type ItemToMatch, parsedAs } from "@/shared/lib/unmatched-names";
-import { Button } from "@/shared/ui/button";
 
 /** The dialog holding `item`'s Match flow, which searches only once `opened`. */
 export function MatchDialog({

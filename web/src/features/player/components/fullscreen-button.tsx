@@ -1,9 +1,9 @@
 import { Maximize, Minimize } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 import type { RefObject } from "react";
 
 import { useIsFullscreen } from "@/features/player/hooks/use-is-fullscreen";
 import { toggleFullscreen } from "@/features/player/lib/video-actions";
-import { Button } from "@/shared/ui/button";
 
 /** Makes the player full screen, or not, where the browser can. */
 export function FullscreenButton({ playerRef }: { playerRef: RefObject<HTMLDivElement | null> }) {

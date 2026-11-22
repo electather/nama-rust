@@ -1,11 +1,11 @@
 import { Settings } from "lucide-react";
+import { Button } from "nama-ui/components/button";
+import { Popover, PopoverContent, PopoverTrigger } from "nama-ui/components/popover";
 import { type ComponentProps, useRef, useState } from "react";
 
 import { SettingsViews } from "@/features/player/components/settings-views";
 import { PANEL_GAP, type PanelPlace } from "@/features/player/lib/panel-place";
 import { type SettingsView, type SlideFrom, stepsBack } from "@/features/player/lib/settings-view";
-import { Button } from "@/shared/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 
 /** What Playback settings shows, besides where it is. */
 export type ViewProps = Omit<

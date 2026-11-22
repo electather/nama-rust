@@ -1,7 +1,7 @@
+import { Button } from "nama-ui/components/button";
 import { useId, useState } from "react";
 
 import { FormField } from "@/shared/components/form-field/form-field";
-import { Button } from "@/shared/ui/button";
 
 /** The sign-in password field, with "Forgot your password?" opening who can reset it. */
 export function ForgotPassword({ error }: { error: string | undefined }) {

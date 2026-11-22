@@ -1,7 +1,6 @@
 import { Copy } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 import { useState } from "react";
-
-import { Button } from "@/shared/ui/button";
 
 /** Copies `url`, then says it did. */
 export function CopyLinkButton({ url }: { url: string }) {

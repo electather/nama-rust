@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Play } from "lucide-react";
-
-import { buttonVariants } from "@/shared/ui/button";
+import { buttonVariants } from "nama-ui/components/button";
 
 /** Plays Version `id` in this player instead, named for its `picture` size, such as "1080p". */
 export function PlayOtherVersion({ id, picture }: { id: bigint; picture: string | undefined }) {

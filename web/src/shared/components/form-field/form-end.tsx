@@ -1,6 +1,5 @@
+import { Button } from "nama-ui/components/button";
 import type { ReactNode } from "react";
-
-import { Button } from "@/shared/ui/button";
 
 /** The end of a form on a page: what submitting it did, why the Server refused, and its button. */
 export function FormEnd({

@@ -1,7 +1,7 @@
+import { Button } from "nama-ui/components/button";
 import { useId, useState } from "react";
 
 import { CodeField } from "@/features/auth/components/code-field";
-import { Button } from "@/shared/ui/button";
 
 /** Step 1 of setting up: the Setup Code, with "Where’s the log?" saying where to find it. */
 export function SetupCodeField({ error }: { error: string | undefined }) {

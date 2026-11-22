@@ -1,8 +1,8 @@
+import { Button } from "nama-ui/components/button";
 import { useRef, useState } from "react";
 
 import { MatchDialog } from "@/features/player/components/match-dialog";
 import type { ItemToMatch } from "@/shared/lib/unmatched-names";
-import { Button } from "@/shared/ui/button";
 
 /** "Match it", which opens `item`'s Match flow in a dialog over the player. */
 export function MatchIt({ item, libraryId }: { item: ItemToMatch; libraryId: bigint }) {

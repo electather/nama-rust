@@ -1,10 +1,10 @@
 import { Link, type LinkOptions } from "@tanstack/react-router";
 import { SkipForward } from "lucide-react";
+import { buttonVariants } from "nama-ui/components/button";
 import { useId } from "react";
 
 import { NextEpisodePeek } from "@/features/player/components/next-episode-peek";
 import type { Episode } from "@/gen/nama/v1/browse_pb";
-import { buttonVariants } from "@/shared/ui/button";
 
 /**
  * A link that plays the next Episode now, previewing it while hovered or focused. Not on phones,

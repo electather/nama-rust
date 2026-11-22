@@ -216,7 +216,7 @@ jobs:
       # From the repo root, where impeccable finds .impeccable/config.json (which ignores
       # web/src/gen) and DESIGN.md. From web/ it would read neither.
       - name: Design check
-        run: vp dlx impeccable@4.8.0 detect --json web/src
+        run: vp dlx impeccable@4.8.0 detect --json web/src web/ui/src
 
   # Everything that type-checks the workspace: .sqlx query data, clippy and rustdoc.
   rust-check:

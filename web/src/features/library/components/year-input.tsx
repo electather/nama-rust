@@ -1,6 +1,5 @@
+import { Input } from "nama-ui/components/input";
 import { useState } from "react";
-
-import { Input } from "@/shared/ui/input";
 
 /** A year field that changes the listing once it holds a four-digit year, or is cleared. */
 export function YearInput({

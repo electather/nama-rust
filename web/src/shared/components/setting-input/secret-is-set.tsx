@@ -1,11 +1,11 @@
 import { Pencil, X } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 import { useState } from "react";
 
 import type { Setting } from "@/gen/nama/v1/plugin_pb";
 import { ForgetSecret } from "@/shared/components/setting-input/forget-secret";
 import { SettingRow } from "@/shared/components/setting-row";
 import type { SecretAction } from "@/shared/lib/setting-values";
-import { Button } from "@/shared/ui/button";
 
 /**
  * A secret that is set, in the field it would be typed in: masked, as its value never comes back,

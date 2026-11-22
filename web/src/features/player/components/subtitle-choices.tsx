@@ -1,3 +1,4 @@
+import { RadioGroup, RadioRow } from "nama-ui/components/radio-group";
 import type { RefObject } from "react";
 
 import { BurnInItem } from "@/features/player/components/burn-in-item";
@@ -8,7 +9,6 @@ import type { SubtitleChoice } from "@/features/player/lib/asking";
 import type { SubtitleState } from "@/features/player/lib/subtitle-render";
 import type { Track } from "@/gen/nama/v1/browse_pb";
 import { PickedTrackKind, type PlaybackSubtitle } from "@/gen/nama/v1/playback_pb";
-import { RadioGroup, RadioRow } from "@/shared/ui/radio-group";
 
 /**
  * Off, the plan's subtitles and the Tracks to burn in, the one shown or burned in chosen, then its

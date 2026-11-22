@@ -1,6 +1,5 @@
 import { SkipForward } from "lucide-react";
-
-import { Button } from "@/shared/ui/button";
+import { Button } from "nama-ui/components/button";
 
 /** Plays the next Episode now, without waiting out the countdown. */
 export function PlayNextButton({ onPlayNext }: { onPlayNext: () => void }) {

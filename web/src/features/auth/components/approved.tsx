@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
+import { buttonVariants } from "nama-ui/components/button";
 
 import { Decision } from "@/features/auth/components/decision";
-import { buttonVariants } from "@/shared/ui/button";
 
 /** Says the Device is signed in, and offers to sign in another. */
 export function Approved({ deviceName }: { deviceName: string }) {

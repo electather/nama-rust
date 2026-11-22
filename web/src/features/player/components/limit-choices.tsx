@@ -1,7 +1,8 @@
+import { RadioGroup, RadioRow } from "nama-ui/components/radio-group";
+
 import { ChoiceLabel } from "@/features/player/components/choice-label";
 import type { limitItems } from "@/features/player/lib/limit-items";
 import type { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
-import { RadioGroup, RadioRow } from "@/shared/ui/radio-group";
 
 /** The Playback Limits to pick from, the one `playing` chosen. */
 export function LimitChoices({

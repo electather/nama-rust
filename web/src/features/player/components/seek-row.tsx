@@ -1,3 +1,4 @@
+import { Slider } from "nama-ui/components/slider";
 import { useState } from "react";
 
 import { SeekPreview } from "@/features/player/components/seek-preview";
@@ -5,7 +6,6 @@ import type { Video } from "@/features/player/hooks/use-video";
 import { seekBarShortcutFor } from "@/features/player/lib/seek-bar-keys";
 import { type SeekBar, sectionAt } from "@/features/player/lib/seek-sections";
 import { clock } from "@/shared/lib/clock";
-import { Slider } from "@/shared/ui/slider";
 
 const HOUR_SECONDS = 3600;
 

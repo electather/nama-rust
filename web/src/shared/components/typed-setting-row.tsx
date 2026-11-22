@@ -1,7 +1,7 @@
+import { Input } from "nama-ui/components/input";
 import { type ComponentProps, useState } from "react";
 
 import { SettingRow } from "@/shared/components/setting-row";
-import { Input } from "@/shared/ui/input";
 
 /**
  * A setting typed on its row, saved once the field is left or Enter is pressed in it, never while

@@ -4,8 +4,9 @@
   "$schema": "https://fallow.tools/schema.json",
   // Generated code: `buf generate` writes src/gen/, the router plugin writes the route tree.
   "ignorePatterns": ["src/gen/**", "src/routeTree.gen.ts"],
-  // shadcn files export every sub-part of a component, used or not.
-  "ignoreExports": [{ "file": "src/shared/ui/**", "exports": ["*"] }],
+  // nama-ui's package exports make every component an entry point, so this is what still fails a
+  // component, or a sub-part, that no screen uses (ui/src/components/AGENTS.md).
+  "workspaces": { "settings": { "ui": { "includeEntryExports": true } } },
   // Run by `buf generate` in proto/, never imported.
   "ignoreDependencies": ["@bufbuild/protoc-gen-es"],
   // web/src/AGENTS.md, "File size". Fallow sets limits by glob, not by zone.
@@ -18,11 +19,6 @@
         "files": ["src/**/__tests__/**"],
         "maxFileLines": 400,
         "reason": "A test file holds a feature's cases and the fixtures they share.",
-      },
-      {
-        "files": ["src/styles.css"],
-        "maxFileLines": 220,
-        "reason": "The app's tokens and global CSS, plus one import for each feature's own tokens file (`home.css`, `title.css`).",
       },
       {
         "files": ["src/shared/lib/playback-wording.ts"],
@@ -40,7 +36,6 @@
   // @bufbuild/protobuf, so it needs no zone. A file is in the first zone that matches it.
   "boundaries": {
     "zones": [
-      { "name": "shared-ui", "patterns": ["src/shared/ui/**"] },
       { "name": "shared-components", "patterns": ["src/shared/components/**"] },
       { "name": "shared-hooks", "patterns": ["src/shared/hooks/**"] },
       { "name": "shared-lib", "patterns": ["src/shared/lib/**"] },
@@ -79,89 +74,60 @@
         "allow": ["shared-hooks", "shared-lib"],
       },
       {
-        "from": "shared-ui",
-        "allow": ["shared-ui"],
-      },
-      {
         "from": "shared-components",
-        "allow": ["shared-components", "shared-ui", "shared-hooks", "shared-lib"],
+        "allow": ["shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "auth",
-        "allow": ["auth", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
+        "allow": ["auth", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "admin-libraries",
-        "allow": [
-          "admin-libraries",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-        ],
+        "allow": ["admin-libraries", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "admin-plugins",
-        "allow": ["admin-plugins", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
+        "allow": ["admin-plugins", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "admin-needs-a-match",
-        "allow": [
-          "admin-needs-a-match",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-        ],
+        "allow": ["admin-needs-a-match", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "admin-playback",
-        "allow": ["admin-playback", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
+        "allow": ["admin-playback", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "admin-jobs",
-        "allow": ["admin-jobs", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
+        "allow": ["admin-jobs", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "admin-backups",
-        "allow": [
-          "admin-backups",
-          "admin-jobs",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-        ],
+        "allow": ["admin-backups", "admin-jobs", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "admin-now-playing",
-        "allow": [
-          "admin-now-playing",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-        ],
+        "allow": ["admin-now-playing", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "admin-home",
-        "allow": ["admin-home", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
+        "allow": ["admin-home", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "admin-users",
-        "allow": ["admin-users", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
+        "allow": ["admin-users", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "invites",
-        "allow": ["invites", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
+        "allow": ["invites", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "requests",
-        "allow": ["requests", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
+        "allow": ["requests", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "action-bar",
-        "allow": ["action-bar", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
+        "allow": ["action-bar", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "settings",
@@ -178,26 +144,25 @@
           "admin-jobs",
           "auth",
           "shared-components",
-          "shared-ui",
           "shared-hooks",
           "shared-lib",
         ],
       },
       {
         "from": "home",
-        "allow": ["home", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
+        "allow": ["home", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "library",
-        "allow": ["library", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
+        "allow": ["library", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "title",
-        "allow": ["title", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
+        "allow": ["title", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "player",
-        "allow": ["player", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
+        "allow": ["player", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "app",
@@ -207,7 +172,6 @@
           "player",
           "settings",
           "shared-components",
-          "shared-ui",
           "shared-hooks",
           "shared-lib",
         ],
@@ -231,22 +195,13 @@
           "title",
           "player",
           "shared-components",
-          "shared-ui",
           "shared-hooks",
           "shared-lib",
         ],
       },
       {
         "from": "router",
-        "allow": [
-          "router",
-          "routes",
-          "app",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-        ],
+        "allow": ["router", "routes", "app", "shared-components", "shared-hooks", "shared-lib"],
       },
     ],
   },

@@ -1,6 +1,12 @@
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxItem,
+  ComboboxTrigger,
+} from "nama-ui/components/combobox";
+
 import type { RowControl } from "@/shared/components/setting-row";
 import { useModalContainer } from "@/shared/hooks/use-modal-container";
-import { Combobox, ComboboxContent, ComboboxItem, ComboboxTrigger } from "@/shared/ui/combobox";
 
 /**
  * A dropdown at the end of a setting's row for more `options` than anyone would scroll through:

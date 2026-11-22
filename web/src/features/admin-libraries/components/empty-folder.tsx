@@ -1,8 +1,8 @@
 import { TriangleAlert } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 
 import { EmptyFolderNote } from "@/features/admin-libraries/components/empty-folder-note";
 import { useScanLibrary } from "@/features/admin-libraries/data/use-scan-library";
-import { Button } from "@/shared/ui/button";
 
 /** The warning that `folder` looks empty, with the button that removes what's missing from it. */
 export function EmptyFolder({ libraryId, folder }: { libraryId: bigint; folder: string }) {

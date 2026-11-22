@@ -1,4 +1,6 @@
 import { Captions } from "lucide-react";
+import { Button } from "nama-ui/components/button";
+import { Popover, PopoverContent, PopoverTrigger } from "nama-ui/components/popover";
 import type { RefObject } from "react";
 
 import { TrackLists } from "@/features/player/components/track-lists";
@@ -8,8 +10,6 @@ import type { usePlaybackPlan } from "@/features/player/hooks/use-playback-plan"
 import { useShownSubtitles } from "@/features/player/hooks/use-shown-subtitles";
 import { PANEL_GAP, type PanelPlace } from "@/features/player/lib/panel-place";
 import type { Track } from "@/gen/nama/v1/browse_pb";
-import { Button } from "@/shared/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/popover";
 
 /**
  * Audio and subtitles side by side, as one button opens them. Picking one keeps the panel open for

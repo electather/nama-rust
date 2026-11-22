@@ -1,7 +1,6 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 import type { RefObject } from "react";
-
-import { Button } from "@/shared/ui/button";
 
 const ways = {
   left: { Icon: ChevronLeft, by: -0.6 },

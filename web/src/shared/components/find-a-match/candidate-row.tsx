@@ -1,6 +1,7 @@
+import { Button } from "nama-ui/components/button";
+
 import type { TitleCandidate } from "@/gen/nama/v1/match_pb";
 import { withYear } from "@/shared/lib/unmatched-names";
-import { Button } from "@/shared/ui/button";
 
 /** One title found, with the button that Matches to it. */
 export function CandidateRow({

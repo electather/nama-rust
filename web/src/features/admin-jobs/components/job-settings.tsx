@@ -1,9 +1,9 @@
+import { Button } from "nama-ui/components/button";
 import { useState } from "react";
 
 import { EnabledSwitch } from "@/features/admin-jobs/components/enabled-switch";
 import { ScheduleField } from "@/features/admin-jobs/components/schedule-field";
 import type { Job } from "@/gen/nama/v1/job_pb";
-import { Button } from "@/shared/ui/button";
 
 /**
  * What Configure asks of `job`: whether it's on and, if its Plugin gives it a schedule, one of its

@@ -1,5 +1,6 @@
+import { Button } from "nama-ui/components/button";
+
 import { Decision } from "@/features/auth/components/decision";
-import { Button } from "@/shared/ui/button";
 
 /** Names the Device asking to sign in, so it's signed in only once the User has seen which. */
 export function Approve({

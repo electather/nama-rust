@@ -15,7 +15,7 @@
   "aliases": {
     "components": "@/shared/components",
     "utils": "@/lib/utils",
-    "ui": "@/shared/ui",
+    "ui": "nama-ui/components",
     "lib": "@/shared/lib",
     "hooks": "@/shared/hooks"
   },

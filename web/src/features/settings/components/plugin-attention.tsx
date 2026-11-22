@@ -1,11 +1,11 @@
 import { Link } from "@tanstack/react-router";
 import { Ban, TriangleAlert } from "lucide-react";
+import { buttonVariants } from "nama-ui/components/button";
 
 import { needsAttention } from "@/features/settings/lib/plugin-list";
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
 import { StateLabel } from "@/shared/components/state-label";
 import { pluginName } from "@/shared/lib/plugins";
-import { buttonVariants } from "@/shared/ui/button";
 
 /**
  * What the row of a Plugin waiting on an admin says: why it waits, and for one that runs without a

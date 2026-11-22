@@ -1,4 +1,5 @@
 import { PowerOff } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 import { useRef, useState } from "react";
 
 import { RequestedPermissions } from "@/features/admin-plugins/components/requested-permissions";
@@ -8,7 +9,6 @@ import type { PluginSummary, Setting } from "@/gen/nama/v1/plugin_pb";
 import { ConfirmModal } from "@/shared/components/confirm-dialog/confirm-modal";
 import { StateLabel } from "@/shared/components/state-label";
 import { pluginName } from "@/shared/lib/plugins";
-import { Button } from "@/shared/ui/button";
 
 /**
  * A disabled Plugin that requests Plugin Permissions, with an Enable button that opens a dialog
