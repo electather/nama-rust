@@ -2361,6 +2361,7 @@ dependencies = [
  "http-body-util",
  "hyper-rustls",
  "hyper-util",
+ "jiff",
  "nama-hub-proto",
  "nama-plugin-api",
  "ring",

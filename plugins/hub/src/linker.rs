@@ -2,6 +2,9 @@
 //! keeps in the Plugin's Store once someone entered it. Its Users' Links are in `users.rs`.
 
 mod users;
+mod viewing;
+
+pub(crate) use viewing::{SEND_JOB, ViewingEvents};
 
 use std::{
     collections::HashMap,

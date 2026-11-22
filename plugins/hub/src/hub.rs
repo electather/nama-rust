@@ -15,8 +15,9 @@ use hyper_util::{
 };
 use nama_hub_proto::nama::hub::v1::{
     GetUserLinkRequest, LinkedServerServiceClient, PollServerLinkRequest, PollServerLinkResponse,
-    ServerLinkServiceClient, StartServerLinkRequest, StartServerLinkResponse, StartUserLinkRequest,
-    StartUserLinkResponse, UnlinkServerRequest, UnlinkUserRequest,
+    RecordViewingEventsRequest, ServerLinkServiceClient, StartServerLinkRequest,
+    StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest,
+    UnlinkUserRequest,
 };
 use nama_plugin_api::PluginError;
 
@@ -161,6 +162,30 @@ impl Hub {
             })
             .await;
         unlinked_already(unlinked.map(drop))
+    }
+
+    /// Records `events`, Viewing Events of the Server whose credential is `credential`. A refusal
+    /// sending them again would meet too, the Hub not knowing the credential or finding an event
+    /// invalid, counts as done, so they aren't kept forever.
+    pub(crate) async fn record_viewing_events(
+        &self,
+        credential: &str,
+        events: RecordViewingEventsRequest,
+    ) -> Result<(), PluginError> {
+        let recorded = (self.linked_server(credential)?)
+            .record_viewing_events(events)
+            .await;
+        match recorded {
+            Err(err)
+                if !matches!(
+                    err.code,
+                    connectrpc::ErrorCode::Unauthenticated | connectrpc::ErrorCode::InvalidArgument
+                ) =>
+            {
+                Err(err.into())
+            }
+            _ => Ok(()),
+        }
     }
 
     /// The Hub's API for the Server whose credential is `credential`.

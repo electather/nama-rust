@@ -1,5 +1,5 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
-//! one Server's device flow, Unlinking, its Users' Links, and a key set of one Ed25519 key it signs
+//! one Server's device flow, Unlinking, its Users' Links and Viewing Events, and a key set of one Ed25519 key it signs
 //! with, as the Hub's API (`proto/nama/hub/v1/link.proto`) says the Hub does.
 
 use std::{
@@ -11,12 +11,15 @@ use std::{
 
 use axum::http::StatusCode;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
+use connectrpc::{
+    ConnectError, ErrorCode, RequestContext, Response, ServiceRequest, ServiceResult,
+};
 use nama_hub_proto::nama::hub::v1::{
     GetUserLinkRequest, GetUserLinkResponse, LinkedServerService, PollServerLinkRequest,
-    PollServerLinkResponse, ServerLinkService, StartServerLinkRequest, StartServerLinkResponse,
-    StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest, UnlinkServerResponse,
-    UnlinkUserRequest, UnlinkUserResponse,
+    PollServerLinkResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
+    ServerLinkService, StartServerLinkRequest, StartServerLinkResponse, StartUserLinkRequest,
+    StartUserLinkResponse, UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest,
+    UnlinkUserResponse, UserViewingEvent,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::{Value, json};
@@ -54,6 +57,10 @@ struct State {
     user_accounts: HashMap<i64, String>,
     /// How often a User's Link was asked about.
     user_link_asks: usize,
+    /// Each Viewing Event recorded, in order.
+    viewing_events: Vec<UserViewingEvent>,
+    /// What recording Viewing Events fails with, if it does.
+    recording_failure: Option<ErrorCode>,
 }
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
@@ -144,6 +151,17 @@ impl FakeHub {
     /// How often the Server asked about a User's Link.
     pub(super) fn user_link_asks(&self) -> usize {
         lock(&self.state).user_link_asks
+    }
+
+    /// Each Viewing Event recorded, in order.
+    pub(super) fn viewing_events(&self) -> Vec<UserViewingEvent> {
+        lock(&self.state).viewing_events.clone()
+    }
+
+    /// Has recording Viewing Events fail with `failure`, such as `unavailable` for a Hub that is
+    /// down, or work again with `None`.
+    pub(super) fn fail_recording(&self, failure: Option<ErrorCode>) {
+        lock(&self.state).recording_failure = failure;
     }
 
     /// Has the key set fail, as if the Hub went down right after handing out a credential.
@@ -313,6 +331,20 @@ impl LinkedServerService for Linked {
         state.user_codes.remove(&request.user_id);
         state.user_accounts.remove(&request.user_id);
         Response::ok(UnlinkUserResponse::default())
+    }
+
+    async fn record_viewing_events(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, RecordViewingEventsRequest>,
+    ) -> ServiceResult<RecordViewingEventsResponse> {
+        let mut state = self.caller(&ctx)?;
+        if let Some(failure) = state.recording_failure {
+            return Err(ConnectError::new(failure, "recording failed"));
+        }
+        let recorded = request.to_owned_message().events;
+        state.viewing_events.extend(recorded);
+        Response::ok(RecordViewingEventsResponse::default())
     }
 }
 

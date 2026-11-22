@@ -1,7 +1,8 @@
 //! The Hub Plugin (ADR 0094): the Built-in Plugin through which a Server does everything
 //! Hub-facing. It Links the Server to an Account, through a code an Admin enters on the Hub (ADR
 //! 0011), and keeps the credential the Server presents to the Hub from then on in its Store. Its
-//! Users then Link to their own Accounts the same way.
+//! Users then Link to their own Accounts the same way, and each play of theirs goes to the Hub as
+//! a Viewing Event (ADR 0093).
 
 mod hub;
 mod linker;
@@ -10,11 +11,17 @@ mod token;
 use std::{env, sync::Arc};
 
 use nama_plugin_api::{
-    Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar, automation::Permission,
+    Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    automation::Permission,
+    job::{Job, JobRunner},
+    points::Events,
     server_link::ServerLinker,
 };
 
-use crate::{hub::Hub as HubApi, linker::Linker};
+use crate::{
+    hub::Hub as HubApi,
+    linker::{Linker, SEND_JOB, ViewingEvents},
+};
 
 /// The variable naming the Hub's address, such as `https://hub.example`.
 const HUB_URL_VARIABLE: &str = "NAMA_HUB_URL";
@@ -55,16 +62,38 @@ impl Plugin for Hub {
     fn manifest(&self) -> Manifest {
         Manifest {
             name: "Hub".to_owned(),
-            description: "Links the Server, and its Users, to Accounts on Nama's Hub.".to_owned(),
+            description: "Links the Server, and its Users, to Accounts on Nama's Hub, and sends \
+                          the Hub what Linked Users play."
+                .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_markdown: "Enable it, then Link the Server under Settings, Server. The Server \
                              shows a code to enter on the Hub while signed in to your Account. \
                              Once it is Linked, each User can Link to their own Account the same \
-                             way, from their own Settings."
+                             way, from their own Settings. From then on, each play of a Matched \
+                             title by a Linked User goes to the Hub as a Viewing Event, which \
+                             their Account can see, delete and export there. Read Libraries, \
+                             Read Watch State and Read Users tell it what was played, how far, \
+                             and on what kind of Device."
                 .to_owned(),
-            extension_points: vec![PointKey::provide::<dyn ServerLinker>()],
+            extension_points: vec![
+                PointKey::provide::<dyn ServerLinker>(),
+                PointKey::observe::<Events>(),
+                PointKey::provide::<dyn JobRunner>(),
+            ],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
-            permissions: vec![Permission::PERMISSION_STORE],
+            permissions: vec![
+                Permission::PERMISSION_STORE,
+                Permission::PERMISSION_READ_LIBRARIES,
+                Permission::PERMISSION_READ_WATCH_STATES,
+                Permission::PERMISSION_READ_USERS,
+            ],
+            jobs: vec![Job {
+                id: SEND_JOB.to_owned(),
+                name: "Send Viewing Events".to_owned(),
+                description: "Sends the Hub the Viewing Events of plays it was unreachable for."
+                    .to_owned(),
+                schedule: Some("*/5 * * * *".to_owned()),
+            }],
             ..Manifest::new(Self::ID)
         }
     }
@@ -76,8 +105,12 @@ impl Plugin for Hub {
         let kernel = registrar
             .kernel()
             .ok_or("the Kernel handed the Hub Plugin none of its functions")?;
-        let linker: Arc<dyn ServerLinker> = Arc::new(Linker::new(HubApi::new(url)?, kernel));
+        let linker = Arc::new(Linker::new(HubApi::new(url)?, kernel));
+        let viewing = ViewingEvents::new(Arc::clone(&linker));
         registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, linker);
+        registrar.observe::<Events>(viewing.clone());
+        let jobs: Arc<dyn JobRunner> = Arc::new(viewing);
+        registrar.provide::<dyn JobRunner>(Priority::DEFAULT, jobs);
         Ok(())
     }
 }
