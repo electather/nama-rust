@@ -8,6 +8,7 @@ import {
 } from "nama-ui/components/dropdown-menu";
 
 import { useSignOut } from "@/app/data/use-sign-out";
+import { sectionSearch } from "@/features/settings/lib/sections";
 
 /** The signed-in User's menu, behind their initial: their Settings, and signing out. */
 export function UserMenu({ userName }: { userName: string }) {
@@ -33,7 +34,10 @@ export function UserMenu({ userName }: { userName: string }) {
         <DropdownMenuItem
           onClick={() => {
             // A history entry of its own, so Back closes Settings.
-            void navigate({ to: ".", search: (rest) => ({ ...rest, settings: "playback" }) });
+            void navigate({
+              to: ".",
+              search: (rest) => ({ ...rest, ...sectionSearch("playback") }),
+            });
           }}
         >
           Settings
