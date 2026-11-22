@@ -12,6 +12,7 @@ import { type ExternalId, TitleKind } from "@/gen/nama/v1/match_pb";
 import { WatchlistButton } from "@/shared/components/watchlist-button";
 
 const watchlistKind = { Movie: TitleKind.MOVIE, Show: TitleKind.SHOW };
+const noBoxed: (string | undefined)[] = [];
 
 /**
  * The top every title's page shares: its name, or `logoUrl`, the Title Logo only a title in a
@@ -26,7 +27,7 @@ export function TitleTop({
   id,
   logoUrl,
   facts,
-  boxed,
+  boxed = noBoxed,
   actions,
   more,
 }: {
@@ -46,7 +47,7 @@ export function TitleTop({
   id: ExternalId;
   logoUrl?: string | undefined;
   facts: (string | undefined)[];
-  boxed: (string | undefined)[];
+  boxed?: (string | undefined)[];
   actions?: ReactNode;
   more?: ReactNode;
 }) {

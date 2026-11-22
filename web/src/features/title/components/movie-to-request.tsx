@@ -31,7 +31,6 @@ export function MovieToRequest({ movieId, you }: { movieId: ExternalId; you: big
           kind="Movie"
           id={movieId}
           facts={[movie.year?.toString(), runtimeOf(movie.runtimeMinutes, "short")]}
-          boxed={[]}
           actions={<FoundMovieState movie={movie} you={you} primary />}
         />
       }

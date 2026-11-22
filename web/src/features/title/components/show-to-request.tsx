@@ -25,9 +25,7 @@ export function ShowToRequest({ showId, you }: { showId: ExternalId; you: bigint
   }
   return (
     <TitlePage
-      hero={
-        <TitleTop title={show} kind="Show" id={showId} facts={[show.year?.toString()]} boxed={[]} />
-      }
+      hero={<TitleTop title={show} kind="Show" id={showId} facts={[show.year?.toString()]} />}
     >
       <SeasonPicker show={show} you={you} />
       <TitleTrailers
