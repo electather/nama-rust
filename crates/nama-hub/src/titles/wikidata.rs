@@ -286,5 +286,5 @@ fn best_value(statements: Vec<Statement<String>>) -> Option<String> {
 }
 
 #[cfg(test)]
-#[path = "import_tests.rs"]
+#[path = "wikidata_tests.rs"]
 mod tests;
