@@ -51,11 +51,11 @@ A client installation signed in to a Server as a User. Revoking a Device signs i
 _Avoid_: client, session, token (for the Device itself)
 
 **Sign-in Method**:
-A way a User can prove who they are on a Server, such as a password, a passkey or an identity at an outside provider. A User can have several.
+A way a User can prove who they are on a Server, or an Account on the Hub, such as a password, a passkey or an identity at an outside provider. Either can have several.
 _Avoid_: credential, account, login, identity
 
 **Recent Authentication**:
-A Device having proved who it is with one of its User's Sign-in Methods in the last 10 minutes, which sensitive changes need.
+A Device having proved who it is with one of its User's Sign-in Methods in the last 10 minutes, or a Hub session with one of its Account's, which sensitive changes need.
 _Avoid_: sudo mode, step-up, fresh session
 
 **Sign-in Code**:
@@ -81,6 +81,10 @@ _Avoid_: invitation code, share, referral
 **Account**:
 A person's identity on the Hub, which can be linked to Users on many Servers. It is also a Sign-in Method: an Admin can create a User from an Account, and that User signs in through the Hub.
 _Avoid_: Hub user, login, profile
+
+**Sign-in Link**:
+A link the Hub emails to an Account's address that signs that Account in once, within 15 minutes. Using one proves the Account owns its email, which an Account needs before it can Link (ADR 0100).
+_Avoid_: magic link, login link, email link
 
 **Link**:
 The connection between a User and an Account, made when a User Links later or when a User is created from an Account. A Server Links too, when it registers with the Hub, and becomes a Linked Server.
