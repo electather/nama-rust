@@ -8,8 +8,7 @@ use std::collections::{HashMap, HashSet};
 use nama_pdk::{
     FeaturedSuggestion, FeaturedSuggestions, HomeRow, HomeRowSource, HomeRowTitle, HomeRows,
     Manifest, Permission, SettingField, Title, TitleId, TitleKind, TitleRefKind, TitleWatchStates,
-    UserFeaturedAsked, UserRowsAsked, WatchlistTitle, extism_pdk::Error, kernel,
-    nama_plugin_proto::nama::plugin::v1::Texts, services, setting_value,
+    UserFeaturedAsked, UserRowsAsked, WatchlistTitle, extism_pdk::Error, kernel, services,
 };
 
 // A new key, not the free-text `family_ratings`: the Server keeps that one's stored text, unused.
@@ -52,10 +51,7 @@ mod exports {
 /// What `manifest()` returns, kept apart from the export so a unit test can read it.
 fn manifest() -> Manifest {
     let family_ratings = SettingField {
-        default_value: nama_pdk::setting_default(setting_value::Value::Texts(Box::new(Texts {
-            values: DEFAULT_FAMILY_RATINGS.map(str::to_owned).into(),
-            ..Texts::default()
-        }))),
+        default_value: nama_pdk::picked_default(DEFAULT_FAMILY_RATINGS),
         ..nama_pdk::choices_setting_field(
             FAMILY_RATINGS,
             "Family Content Ratings",
