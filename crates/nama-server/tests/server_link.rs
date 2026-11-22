@@ -563,14 +563,16 @@ async fn a_user_created_from_an_account_signs_in_and_reauthenticates_once_the_ac
         RefusalReason::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
     );
     let hedy = create_from_account(&server, "Hedy").await.unwrap();
+    let by_hedy = start_account_sign_in(&server).await.unwrap();
     linker.script().approved = Some(hedy);
     assert_refused(
-        reauthenticate_with_account(device.clone(), &started.handle).await,
+        reauthenticate_with_account(device.clone(), &by_hedy.handle).await,
         ErrorCode::Unauthenticated,
         RefusalReason::REFUSAL_REASON_WRONG_ACCOUNT,
     );
+    let by_grace = start_account_sign_in(&server).await.unwrap();
     linker.script().approved = Some(grace);
-    reauthenticate_with_account(device.clone(), &started.handle)
+    reauthenticate_with_account(device.clone(), &by_grace.handle)
         .await
         .unwrap();
     start_user_link().await.unwrap();
@@ -590,11 +592,8 @@ async fn with_the_hub_down_devices_stay_signed_in_but_accounts_cant_sign_in_or_r
     linker.script().link = None;
 
     let device = server.client_config_as(&signed_in.token);
-    let not_reauthenticated = reauthenticate_with_account(device.clone(), &started.handle).await;
-    assert_eq!(
-        not_reauthenticated.unwrap_err().code,
-        ErrorCode::Unavailable
-    );
+    let not_confirmed = reauthenticate_with_account(device.clone(), &started.handle).await;
+    assert_eq!(not_confirmed.unwrap_err().code, ErrorCode::Unavailable);
     let still = SignInServiceClient::new(HttpClient::plaintext(), device)
         .who_am_i(WhoAmIRequest::default())
         .await;
