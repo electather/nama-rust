@@ -40,6 +40,26 @@ service LinkService {
   rpc UnlinkLinkedUser(UnlinkLinkedUserRequest) returns (UnlinkLinkedUserResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Returns the Users Admins created from the signed-in Account that it hasn't accepted yet,
+  // oldest first (ADR 0092).
+  rpc ListUserInvites(ListUserInvitesRequest) returns (ListUserInvitesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Accepts a User created from the signed-in Account, which Links them to it, so they can sign in
+  // with it. Fails like `ApproveServerLink`, with `REFUSAL_REASON_USER_INVITE_NOT_FOUND` for an id
+  // none of its invites has, and with `REFUSAL_REASON_USER_LINKED` if the User Linked meanwhile.
+  rpc AcceptUserInvite(AcceptUserInviteRequest) returns (AcceptUserInviteResponse);
+  // Names the Server a sign-in with the Account was started on, and the signed-in Account's User
+  // there, so the person can check them before approving. Fails with
+  // `REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND` for a sign-in that expired, was approved, or never
+  // existed.
+  rpc GetServerSignIn(GetServerSignInRequest) returns (GetServerSignInResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Approves a sign-in with the signed-in Account, as its User on that Server, and returns where to
+  // go back to. Fails like `GetServerSignIn`, and with `REFUSAL_REASON_NO_USER_ON_SERVER` if the
+  // Account has no User Linked on that Server.
+  rpc ApproveServerSignIn(ApproveServerSignInRequest) returns (ApproveServerSignInResponse);
 }
 
 // What a Linked Server asks the Hub. It sends the credential `PollServerLink` gave it in an
@@ -63,6 +83,19 @@ service LinkedServerService {
   rpc UnlinkUser(UnlinkUserRequest) returns (UnlinkUserResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Asks the Account with `email`, if there is one, to accept one of the Server's Users created
+  // from it (ADR 0092). It answers the same whether or not there is, so it reveals nothing about
+  // which emails have Accounts. Asking again for the same User replaces the request.
+  rpc InviteUser(InviteUserRequest) returns (InviteUserResponse);
+  // Starts someone signing in to the Server with their Account, as an OAuth device flow: the
+  // person approves it on the Hub's page for `id`, which then sends them to `return_url`, and the
+  // Server collects the sign-in with `PollServerSignIn`. Both stop working after
+  // `expires_in_seconds`.
+  rpc StartServerSignIn(StartServerSignInRequest) returns (StartServerSignInResponse);
+  // Whether the sign-in was approved. Once it is, the first poll gets the token naming the User
+  // and every later one fails. Fails with `REFUSAL_REASON_LINK_EXPIRED` for a device code that
+  // expired, was used, or never existed.
+  rpc PollServerSignIn(PollServerSignInRequest) returns (PollServerSignInResponse);
 }
 
 // A Server registered with the Hub, owned by an Account.
@@ -194,3 +227,91 @@ message UnlinkUserRequest {
 }
 
 message UnlinkUserResponse {}
+
+// A User an Admin created from an Account, waiting for it to accept them.
+message UserInvite {
+  // The invite's id, a UUID.
+  string id = 1;
+  // The User's name on their Server.
+  string name = 2;
+  // The name of the Linked Server the User is on.
+  string server_name = 3;
+  // When the Admin created them, in seconds since the Unix epoch.
+  int64 invited_at = 4;
+}
+
+message ListUserInvitesRequest {}
+
+message ListUserInvitesResponse {
+  repeated UserInvite invites = 1;
+}
+
+message AcceptUserInviteRequest {
+  // The invite's id, as `UserInvite.id`.
+  string id = 1;
+}
+
+message AcceptUserInviteResponse {
+  // The User just Linked.
+  LinkedUser user = 1;
+}
+
+message GetServerSignInRequest {
+  // The sign-in's id, from the page's address.
+  string id = 1;
+}
+
+message GetServerSignInResponse {
+  // The name of the Linked Server it signs in to.
+  string server_name = 1;
+  // The name of the signed-in Account's User on that Server, or empty if it has none there.
+  string user_name = 2;
+}
+
+message ApproveServerSignInRequest {
+  // The sign-in's id, from the page's address.
+  string id = 1;
+}
+
+message ApproveServerSignInResponse {
+  // Where to send the person back to, on the Server.
+  string return_url = 1;
+}
+
+message InviteUserRequest {
+  // The User's id on the Server.
+  int64 user_id = 1;
+  // The User's name, which the Account's list of invites shows: up to 100 characters, cut there if
+  // longer.
+  string name = 2;
+  // The email of the Account to ask, in any case.
+  string email = 3;
+}
+
+message InviteUserResponse {}
+
+message StartServerSignInRequest {
+  // Where the Hub's page sends the person once they approve: an `http` or `https` address on the
+  // Server. Fails with `invalid_argument` for any other.
+  string return_url = 1;
+}
+
+message StartServerSignInResponse {
+  // What the Server polls with. A secret: only the Server and the browser that started see it.
+  string device_code = 1;
+  // The sign-in's id: the Hub's page for it is `/server-sign-in/<id>`.
+  string id = 2;
+  // How long both work.
+  int32 expires_in_seconds = 3;
+}
+
+message PollServerSignInRequest {
+  string device_code = 1;
+}
+
+message PollServerSignInResponse {
+  // Empty until the sign-in is approved. Then a JWT the Hub signed as `PollServerLinkResponse`'s
+  // is: `sub` is the User's id on the Server, `aud` the Linked Server's id, and it expires 5
+  // minutes after it was made.
+  string token = 1;
+}

@@ -1,7 +1,10 @@
 //! Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011), the Linked
 //! Server's opaque credential, Unlinking, and the token signed for a Server once it is Linked.
-//! Linking its Users to Accounts is in `users.rs`.
+//! Linking its Users to Accounts is in `users.rs`, Users created from an Account in `invites.rs`,
+//! and signing in to a Server with an Account in `server_sign_ins.rs`.
 
+mod invites;
+mod server_sign_ins;
 mod users;
 
 use std::{
@@ -20,7 +23,11 @@ use crate::{
     signing::Keys,
 };
 
-pub(crate) use self::users::{LinkId, ListedUser};
+pub(crate) use self::{
+    invites::{InviteId, ListedInvite},
+    server_sign_ins::SignInId,
+    users::{LinkId, ListedUser},
+};
 
 /// How long a Server's or a User's codes work after it starts.
 pub(crate) const CODE_LIFETIME_MINS: i32 = 10;
@@ -38,7 +45,7 @@ const CODE_LETTERS: &[u8] = b"BCDFGHJKLMNPQRSTVWXZ";
 /// How many letters a code has: 20^8 codes, against the few waiting at once.
 const CODE_LENGTH: usize = 8;
 
-/// How long the token a newly Linked Server gets stays valid.
+/// How long the token a newly Linked Server gets, or one for a sign-in, stays valid.
 const TOKEN_LIFETIME_SECS: u64 = 5 * 60;
 
 /// A Linked Server's id.
@@ -94,8 +101,16 @@ pub(crate) enum Error {
     CodeNotFound,
     #[error("the User is Linked already; Unlink them first")]
     UserLinked,
-    #[error("the code expired; start Linking again")]
+    #[error("the code expired; start again")]
     Expired,
+    #[error("no User created from your Account is waiting on this")]
+    InviteNotFound,
+    #[error("this sign-in expired or was used; start signing in again on the Server")]
+    SignInNotFound,
+    #[error("your Account has no User on this Server; ask its Admin to create one from it")]
+    NoUserOnServer,
+    #[error("the return address must be an http or https address")]
+    UrlInvalid,
     #[error("could not generate a code: {0}")]
     Random(#[from] getrandom::Error),
     #[error("database error: {0}")]
@@ -239,10 +254,7 @@ impl Links {
             .email(AccountId(account_id))
             .await?
             .unwrap_or_default();
-        let iat = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let iat = issued_at();
         let token = self.keys.sign(&LinkedClaims {
             sub: linked_server_id.to_string(),
             email: &email,
@@ -294,6 +306,14 @@ impl Links {
             .await?;
         Ok(())
     }
+}
+
+/// Now, in seconds since the Unix epoch, as a token's `iat`.
+fn issued_at() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }
 
 /// Whether `session` may Link: with a proven email (ADR 0100), checked first since signing in again
