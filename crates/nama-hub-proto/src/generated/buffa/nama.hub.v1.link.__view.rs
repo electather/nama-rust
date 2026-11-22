@@ -20,8 +20,9 @@ pub struct LinkedServerView<'a> {
     ///
     /// Field 4: `url`
     pub url: &'a str,
-    /// The Server Addresses a client tries, as the Server last reported them: its Server URL first,
-    /// then its LAN addresses.
+    /// The Server Addresses a client tries, best first, as the Server last reported them: its Server
+    /// URL, then its public address if the Hub reached it there from outside, then its LAN addresses,
+    /// plain `http://<lan-ip>` (ADR 0057).
     ///
     /// Field 5: `addresses`
     pub addresses: ::buffa::RepeatedView<'a, &'a str>,
@@ -334,8 +335,9 @@ impl LinkedServerOwnedView {
     pub fn url(&self) -> &'_ str {
         self.0.reborrow().url
     }
-    /// The Server Addresses a client tries, as the Server last reported them: its Server URL first,
-    /// then its LAN addresses.
+    /// The Server Addresses a client tries, best first, as the Server last reported them: its Server
+    /// URL, then its public address if the Hub reached it there from outside, then its LAN addresses,
+    /// plain `http://<lan-ip>` (ADR 0057).
     ///
     /// Field 5: `addresses`
     #[must_use]
@@ -12913,6 +12915,12 @@ pub struct SetServerAddressesRequestView<'a> {
     ///
     /// Field 2: `lan_addresses`
     pub lan_addresses: ::buffa::RepeatedView<'a, &'a str>,
+    /// The port on its router's public IP address that reaches it: one it opened with UPnP or
+    /// NAT-PMP, or one its Admin forwarded. 0 for none. The Hub connects to it at the IP address the
+    /// request came from, the only one it checks, so a Server can't have the Hub call anyone else.
+    ///
+    /// Field 3: `public_port`
+    pub public_port: u32,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for SetServerAddressesRequestView<'a> {
@@ -12951,6 +12959,13 @@ impl<'a> ::buffa::MessageView<'a> for SetServerAddressesRequestView<'a> {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 view.url = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.public_port = ::buffa::types::decode_uint32(&mut cur)?;
             }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -12993,6 +13008,7 @@ impl<'a> ::buffa::MessageView<'a> for SetServerAddressesRequestView<'a> {
         ::core::result::Result::Ok(super::super::SetServerAddressesRequest {
             url: self.url.to_string(),
             lan_addresses: self.lan_addresses.iter().map(|s| s.to_string()).collect(),
+            public_port: self.public_port,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -13010,6 +13026,9 @@ impl<'a> ::buffa::ViewEncode<'a> for SetServerAddressesRequestView<'a> {
         for v in &self.lan_addresses {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.public_port != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.public_port) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -13026,6 +13045,9 @@ impl<'a> ::buffa::ViewEncode<'a> for SetServerAddressesRequestView<'a> {
         }
         for v in &self.lan_addresses {
             ::buffa::types::put_string_field(2u32, v, buf);
+        }
+        if self.public_port != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.public_port, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -13053,6 +13075,13 @@ impl<'__a> ::serde::Serialize for SetServerAddressesRequestView<'__a> {
         }
         if !self.lan_addresses.is_empty() {
             __map.serialize_entry("lanAddresses", &*self.lan_addresses)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.public_port) {
+            __map
+                .serialize_entry(
+                    "publicPort",
+                    &::buffa::json_helpers::ProtoJson(&self.public_port),
+                )?;
         }
         __map.end()
     }
@@ -13163,6 +13192,15 @@ impl SetServerAddressesRequestOwnedView {
     pub fn lan_addresses(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
         &self.0.reborrow().lan_addresses
     }
+    /// The port on its router's public IP address that reaches it: one it opened with UPnP or
+    /// NAT-PMP, or one its Admin forwarded. 0 for none. The Hub connects to it at the IP address the
+    /// request came from, the only one it checks, so a Server can't have the Hub call anyone else.
+    ///
+    /// Field 3: `public_port`
+    #[must_use]
+    pub fn public_port(&self) -> u32 {
+        self.0.reborrow().public_port
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<SetServerAddressesRequestView<'static>>>
 for SetServerAddressesRequestOwnedView {
@@ -13196,6 +13234,15 @@ impl ::serde::Serialize for SetServerAddressesRequestOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct SetServerAddressesResponseView<'a> {
+    /// Where the Hub tried to reach the Server from outside, such as `http://203.0.113.7:7980`: the
+    /// IP address the request came from, with `public_port`. Empty without one.
+    ///
+    /// Field 1: `public_address`
+    pub public_address: &'a str,
+    /// Whether the Hub reached it there. Only then is it one of the Server's Server Addresses.
+    ///
+    /// Field 2: `reachable`
+    pub reachable: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for SetServerAddressesResponseView<'a> {
@@ -13228,6 +13275,20 @@ impl<'a> ::buffa::MessageView<'a> for SetServerAddressesResponseView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.public_address = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.reachable = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -13256,6 +13317,8 @@ impl<'a> ::buffa::MessageView<'a> for SetServerAddressesResponseView<'a> {
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::SetServerAddressesResponse {
+            public_address: self.public_address.to_string(),
+            reachable: self.reachable,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -13267,6 +13330,14 @@ impl<'a> ::buffa::ViewEncode<'a> for SetServerAddressesResponseView<'a> {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        if !self.public_address.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.public_address) as u64;
+        }
+        if self.reachable {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -13278,6 +13349,12 @@ impl<'a> ::buffa::ViewEncode<'a> for SetServerAddressesResponseView<'a> {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        if !self.public_address.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.public_address, buf);
+        }
+        if self.reachable {
+            ::buffa::types::put_bool_field(2u32, self.reachable, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -13299,6 +13376,12 @@ impl<'__a> ::serde::Serialize for SetServerAddressesResponseView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.public_address) {
+            __map.serialize_entry("publicAddress", self.public_address)?;
+        }
+        if self.reachable {
+            __map.serialize_entry("reachable", &self.reachable)?;
+        }
         __map.end()
     }
 }
@@ -13393,6 +13476,21 @@ impl SetServerAddressesResponseOwnedView {
     #[must_use]
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
+    }
+    /// Where the Hub tried to reach the Server from outside, such as `http://203.0.113.7:7980`: the
+    /// IP address the request came from, with `public_port`. Empty without one.
+    ///
+    /// Field 1: `public_address`
+    #[must_use]
+    pub fn public_address(&self) -> &'_ str {
+        self.0.reborrow().public_address
+    }
+    /// Whether the Hub reached it there. Only then is it one of the Server's Server Addresses.
+    ///
+    /// Field 2: `reachable`
+    #[must_use]
+    pub fn reachable(&self) -> bool {
+        self.0.reborrow().reachable
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<SetServerAddressesResponseView<'static>>>
