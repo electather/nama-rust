@@ -1,7 +1,7 @@
 //! Diagnostics: the spans the Server records about itself, exported only to an endpoint its admin
 //! sets, and shared with Nama's developers, with Usage Analytics, only if the admin shares them
-//! (ADR 0054); and each Plugin's recent Plugin Log lines, kept for its Plugins page (ADR 0061). What a span may carry is a rule in
-//! `crates/nama-server/AGENTS.md`.
+//! (ADR 0054); and each Plugin's recent Plugin Log lines, kept for its Plugins page (ADR 0061).
+//! What a span may carry is a rule in `crates/nama-server/AGENTS.md`.
 
 use std::{
     collections::{BTreeMap, VecDeque},

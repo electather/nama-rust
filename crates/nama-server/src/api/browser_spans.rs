@@ -108,7 +108,10 @@ impl BrowserSpans {
             return StatusCode::TOO_MANY_REQUESTS;
         }
         if self.sharing() && content_type.as_ref().is_some_and(|t| t == OTLP_PROTOBUF) {
-            share_diagnostics(&self.points, Signal::Traces, body.clone()).await;
+            // Spawned: the Hub may take longer than the web's exporter waits, and a post it gave up
+            // on would never reach the collector.
+            let (points, batch) = (self.points.clone(), body.clone());
+            tokio::spawn(async move { share_diagnostics(&points, Signal::Traces, batch).await });
         }
         match &self.collector {
             Some(url) => self.post(url, content_type, body).await,

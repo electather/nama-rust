@@ -349,14 +349,36 @@ type Shared = Arc<Mutex<Vec<(Signal, Vec<u8>)>>>;
 
 /// A Plugin standing in for the Hub Plugin, recording each batch it is handed to share.
 #[derive(Clone, Default)]
-struct RecordingSharer(Shared);
+struct RecordingSharer {
+    shared: Shared,
+    /// Never answers, as a Hub that has stopped responding.
+    stuck: bool,
+}
 
 impl RecordingSharer {
+    /// The batches handed to it so far.
     fn shared(&self) -> Vec<(Signal, Vec<u8>)> {
-        self.0
+        self.shared
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone()
+    }
+
+    /// The batches handed to it, once there are `count`, since the Server shares in the background.
+    async fn shared_once(&self, count: usize) -> Vec<(Signal, Vec<u8>)> {
+        let started = Instant::now();
+        loop {
+            let shared = self.shared();
+            if shared.len() >= count {
+                return shared;
+            }
+            assert!(
+                started.elapsed() < WAIT,
+                "only {} batches shared",
+                shared.len()
+            );
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
     }
 }
 
@@ -376,8 +398,12 @@ impl Plugin for RecordingSharer {
 
 impl DiagnosticsSharer for RecordingSharer {
     fn share(&self, signal: Signal, batch: Vec<u8>) -> BoxFuture<'_, Result<(), PluginError>> {
-        (self.0.lock().unwrap_or_else(PoisonError::into_inner)).push((signal, batch));
-        Box::pin(future::ready(Ok(())))
+        (self.shared.lock().unwrap_or_else(PoisonError::into_inner)).push((signal, batch));
+        if self.stuck {
+            Box::pin(future::pending())
+        } else {
+            Box::pin(future::ready(Ok(())))
+        }
     }
 }
 
@@ -445,7 +471,7 @@ async fn while_sharing_without_an_endpoint_a_device_s_spans_reach_the_sharer_unc
 
     assert!(exported);
     assert_eq!(reply.status, 200);
-    assert_eq!(sharer.shared(), [(Signal::Traces, spans)]);
+    assert_eq!(sharer.shared_once(1).await, [(Signal::Traces, spans)]);
 }
 
 #[tokio::test]
@@ -480,7 +506,10 @@ async fn with_an_endpoint_spans_reach_the_sharer_only_while_sharing_and_the_coll
         .map(|(_, body)| body)
         .collect();
     assert_eq!(received, [&b"before"[..], b"during"]);
-    assert_eq!(sharer.shared(), [(Signal::Traces, b"during".to_vec())]);
+    assert_eq!(
+        sharer.shared_once(1).await,
+        [(Signal::Traces, b"during".to_vec())]
+    );
 }
 
 #[tokio::test]
@@ -498,5 +527,23 @@ async fn the_shared_path_refuses_a_body_over_256_kib_and_a_device_posting_too_of
 
     assert_eq!(too_big.status, 413);
     assert_eq!(refused.status, 429);
-    assert_eq!(sharer.shared().len(), 60);
+    assert_eq!(sharer.shared_once(60).await.len(), 60);
+}
+
+#[tokio::test]
+async fn a_sharer_that_never_answers_holds_neither_the_post_nor_the_collector() {
+    let collector = FakeCollector::start().await;
+    let sharer = RecordingSharer {
+        stuck: true,
+        ..RecordingSharer::default()
+    };
+    let server = with_sharer(&sharer, Some(&collector)).await;
+    set_sharing_diagnostics(&server, true).await;
+
+    let post = post_protobuf(&server, &server.admin_token, b"spans".to_vec());
+    let reply = tokio::time::timeout(Duration::from_secs(2), post).await;
+
+    assert_eq!(reply.map(|reply| reply.status).ok(), Some(200));
+    assert_eq!(collector.received().len(), 1);
+    assert_eq!(sharer.shared_once(1).await.len(), 1);
 }
