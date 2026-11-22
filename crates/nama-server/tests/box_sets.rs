@@ -13,6 +13,7 @@ mod refused;
 mod server;
 
 use std::{
+    collections::HashMap,
     future,
     sync::{Arc, Mutex, PoisonError},
     time::Duration,
@@ -31,8 +32,9 @@ use nama_plugin_api::{
 use nama_plugin_upkeep::Upkeep;
 use nama_proto::nama::v1::{
     BoxSet, BrowseServiceClient, CreateRequestRequest, ExternalId, GetBoxSetRequest,
-    GetMovieRequest, JobServiceClient, LibraryKind, ListBoxSetsRequest, Permission, RefusalReason,
-    RequestServiceClient, RequestState, RunJobRequest, home_row_title::MovieOrShow,
+    GetMovieRequest, JobServiceClient, LibraryKind, ListBoxSetsRequest, MatchServiceClient,
+    Permission, RefusalReason, RequestServiceClient, RequestState, RunJobRequest, SetMatchRequest,
+    home_row_title::MovieOrShow,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -226,13 +228,31 @@ impl Fixture {
 
     /// A Movies Library holding `titles`, scanned and Matched.
     async fn library(&self, titles: &[&str]) -> Library {
+        self.library_with_items(titles).await.0
+    }
+
+    /// A Movies Library holding `titles`, scanned and Matched, with the item of each file by its
+    /// path.
+    async fn library_with_items(&self, titles: &[&str]) -> (Library, HashMap<String, i64>) {
         let files: Vec<String> = titles.iter().map(|title| file(title)).collect();
         let files: Vec<&str> = files.iter().map(String::as_str).collect();
         let library = (self.server)
             .create_library_searching(LibraryKind::LIBRARY_KIND_MOVIES, &files, &[SERIES])
             .await;
-        self.server.scan_and_match(&library).await;
-        library
+        let items = self.server.scan_and_match(&library).await;
+        (library, items)
+    }
+
+    /// Fixes the Match of the file of `title` by hand, to the Movie `to`, as an Admin can.
+    async fn pin(&self, items: &HashMap<String, i64>, title: &str, to: &str) {
+        MatchServiceClient::new(HttpClient::plaintext(), self.server.client_config())
+            .set_match(SetMatchRequest {
+                item_id: items[&file(title)],
+                title_id: external_id(to).into(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
     }
 
     fn browse(&self) -> BrowseServiceClient<HttpClient> {
@@ -544,5 +564,60 @@ async fn a_box_set_listing_no_movies_groups_those_naming_it_by_release_date() {
     assert_eq!(
         shown(&box_set),
         [on("Alien", &movies), on("Aliens", &movies)]
+    );
+}
+
+#[tokio::test]
+async fn a_pinned_match_lists_its_box_sets_missing_movies() {
+    let fx = Fixture::start().await;
+    let (movies, items) = fx.library_with_items(&["Heat"]).await;
+
+    fx.pin(&items, "Heat", "1").await;
+
+    assert_eq!(
+        shown(&fx.alien_collection().await),
+        [on("Alien", &movies), missing("Aliens"), missing("Alien 3")]
+    );
+}
+
+#[tokio::test]
+async fn a_box_set_no_matched_movie_names_any_more_is_not_found() {
+    let fx = Fixture::start().await;
+    fx.series
+        .answer_alien_collection("Alien Collection", &["1", "2", "6"]);
+    let (_, items) = fx.library_with_items(&["Alien", "Heat"]).await;
+
+    fx.pin(&items, "Alien", "4").await;
+
+    let read = fx
+        .browse()
+        .get_box_set(GetBoxSetRequest {
+            box_set_id: external_id(ALIEN_COLLECTION).into(),
+            ..Default::default()
+        })
+        .await;
+    assert_refused(
+        read,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_BOX_SET_NOT_FOUND,
+    );
+}
+
+#[tokio::test]
+async fn a_movie_its_box_set_does_not_list_still_shows_in_release_order() {
+    let fx = Fixture::start().await;
+    fx.series
+        .answer_alien_collection("Alien Collection", &["1", "3"]);
+    let movies = fx.library(&["Alien 3", "Aliens", "Alien"]).await;
+
+    let box_set = fx.alien_collection().await;
+
+    assert_eq!(
+        shown(&box_set),
+        [
+            on("Alien", &movies),
+            on("Aliens", &movies),
+            on("Alien 3", &movies)
+        ]
     );
 }

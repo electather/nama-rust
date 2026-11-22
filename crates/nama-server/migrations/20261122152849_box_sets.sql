@@ -4,8 +4,8 @@ ALTER TABLE title_details ADD COLUMN box_set TEXT;
 
 -- Each Box Set as the Movie of it fetched last gave it, keyed on its External ID alone: Box Sets
 -- of different title sources keep titles under different namespaces, so they never share a row.
--- A row outlives its Movies' Matches, as other per-title data does; reads show only a Box Set
--- with a Matched Movie.
+-- A row outlives its Movies' Matches, as other per-title data does, and goes when its Plugin
+-- does; reads show only a Box Set that a Matched Movie still names.
 CREATE TABLE box_sets (
     namespace TEXT NOT NULL,
     value TEXT NOT NULL,

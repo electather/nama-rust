@@ -117,9 +117,9 @@ impl TitlePages {
     }
 
     /// `stored` as `user` sees it, `None` if they can't: they see a Box Set only when a Library
-    /// has one of its Movies and they see at least two, counting those it lacks only if they may
-    /// Request Movies. Its Movies come in its title source's order, then the others naming it,
-    /// by release date.
+    /// has one of the Movies naming it and they see at least two, counting those it lacks only if
+    /// they may Request Movies. Its Movies come in its title source's order, with the others
+    /// naming it placed among them by release date.
     async fn seen(&self, user: &User, stored: StoredBoxSet) -> Result<Option<SeenBoxSet>, Error> {
         let mut ids = stored.listed.clone();
         ids.extend(
@@ -156,18 +156,46 @@ impl TitlePages {
         let mut named_only: Vec<FoundMovie> = on_server.into_iter().flatten().collect();
         named_only
             .sort_by_cached_key(|movie| (movie.release_date.is_none(), movie.release_date.clone()));
-        movies.extend(named_only.into_iter().map(on_server_title));
-        let has_one = (movies.iter()).any(|title| matches!(title, RowTitle::OnServer(_)));
-        Ok((has_one && movies.len() >= 2).then_some(SeenBoxSet {
-            box_set: stored,
-            movies,
-        }))
+        for movie in named_only {
+            let at = (movie.release_date.as_deref())
+                .and_then(|date| {
+                    (movies.iter()).position(|title| released(title).is_none_or(|it| *it > *date))
+                })
+                .unwrap_or(movies.len());
+            movies.insert(at, on_server_title(movie));
+        }
+        // A Box Set's row outlives its Movies' Matches, so one whose Movies all moved to another
+        // Box Set, or left the Server, would still list those its stale listing names.
+        let named_on_server = (movies.iter()).any(|title| match title {
+            RowTitle::OnServer(OnServer::Movie(movie)) => {
+                (stored.named_by.iter()).any(|id| has_id(movie, id))
+            }
+            RowTitle::OnServer(OnServer::Show(_))
+            | RowTitle::MissingMovie(..)
+            | RowTitle::MissingShow(_) => false,
+        });
+        Ok(
+            (named_on_server && movies.len() >= 2).then_some(SeenBoxSet {
+                box_set: stored,
+                movies,
+            }),
+        )
     }
 }
 
 /// Whether `movie` is known by `id`.
 fn has_id(movie: &FoundMovie, id: &ExternalId) -> bool {
     movie.id == *id || movie.ids.iter().any(|known| known == *id)
+}
+
+/// When `title` came out, as text that sorts by date: a missing Movie's year alone, which sorts
+/// before the dates of that year.
+fn released(title: &RowTitle) -> Option<std::borrow::Cow<'_, str>> {
+    match title {
+        RowTitle::OnServer(OnServer::Movie(movie)) => movie.release_date.as_deref().map(Into::into),
+        RowTitle::MissingMovie(movie, _) => movie.year.map(|year| year.to_string().into()),
+        RowTitle::OnServer(OnServer::Show(_)) | RowTitle::MissingShow(_) => None,
+    }
 }
 
 fn on_server_title(movie: FoundMovie) -> RowTitle {

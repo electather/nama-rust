@@ -16,9 +16,17 @@ use crate::library::{
 };
 
 impl Matcher {
+    /// `outcomes` with what each Match stores beyond its title source's answer, looked up before
+    /// the write that stores them. Every path that stores a Match takes them here, so none skips
+    /// one.
+    pub(super) async fn with_lookups(&self, outcomes: Outcomes) -> Outcomes {
+        let outcomes = self.with_similar(outcomes).await;
+        self.with_box_set_movies(outcomes).await
+    }
+
     /// `outcomes` with what each enabled Similar source answers about each Matched title, a Movie
     /// or an Episode's Show, asked once per title, before the write that stores them (ADR 0084).
-    pub(super) async fn with_similar(&self, mut outcomes: Outcomes) -> Outcomes {
+    async fn with_similar(&self, mut outcomes: Outcomes) -> Outcomes {
         let mut answered: HashMap<ExternalIds, Vec<SimilarAnswer>> = HashMap::new();
         for (_, outcome) in &mut outcomes.items {
             let Ok(matched) = outcome else { continue };
@@ -38,7 +46,7 @@ impl Matcher {
     /// Matched it has them, looked up once per Box Set before the write that stores them, as a
     /// Home row's missing titles are. Every one is looked up, those on the Server too, since
     /// whether the Server has one is decided as a User looks, and it may lose one.
-    pub(super) async fn with_box_set_movies(&self, mut outcomes: Outcomes) -> Outcomes {
+    async fn with_box_set_movies(&self, mut outcomes: Outcomes) -> Outcomes {
         let mut looked_up: HashMap<ExternalId, Option<Vec<ListedMovie>>> = HashMap::new();
         for (_, outcome) in &mut outcomes.items {
             let Ok(matched) = outcome else { continue };

@@ -51,7 +51,7 @@ pub(super) async fn store(
     similar::store(conn, matched).await
 }
 
-/// Deletes the Scores and Trailers `plugin`'s title source gave.
+/// Deletes the Scores, Trailers and Movies' Box Sets `plugin`'s title source gave.
 pub(super) async fn forget_plugin(
     conn: &mut SqliteConnection,
     plugin: &str,
