@@ -10,13 +10,15 @@ pub enum Permission {
     PERMISSION_UNSPECIFIED = 0i32,
     /// The Plugin's own Store: `store_get`, `store_put` and `store_delete`.
     PERMISSION_STORE = 1i32,
-    /// Libraries and their titles: `list_libraries`, `list_titles` and `list_titles_sharing`.
+    /// Libraries and their titles: `list_libraries`, `list_titles`, `list_titles_sharing` and
+    /// `list_version_titles`.
     PERMISSION_READ_LIBRARIES = 2i32,
     /// Every User's Watch State: `list_watch_states`.
     PERMISSION_READ_WATCH_STATES = 3i32,
     /// Deleting a title's media files: `delete_media`.
     PERMISSION_DELETE_MEDIA = 4i32,
-    /// Every User's id and display name: `list_users`.
+    /// Every User's id and display name, and what kind of Device each Device is: `list_users` and
+    /// `list_devices`.
     PERMISSION_READ_USERS = 5i32,
     /// Who Requested each title: `list_requesters`.
     PERMISSION_READ_REQUESTS = 6i32,
@@ -573,6 +575,175 @@ impl ::buffa::Enumeration for TitleRefKind {
         ]
     }
 }
+/// What kind of Device a Device is, as the Kernel reads it from the `User-Agent` it signed in with.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[repr(i32)]
+pub enum DeviceKind {
+    /// One the Kernel couldn't tell.
+    DEVICE_KIND_UNSPECIFIED = 0i32,
+    DEVICE_KIND_COMPUTER = 1i32,
+    DEVICE_KIND_PHONE = 2i32,
+    DEVICE_KIND_TABLET = 3i32,
+    DEVICE_KIND_TV = 4i32,
+}
+impl DeviceKind {
+    ///Idiomatic alias for [`Self::DEVICE_KIND_UNSPECIFIED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Unspecified: Self = Self::DEVICE_KIND_UNSPECIFIED;
+    ///Idiomatic alias for [`Self::DEVICE_KIND_COMPUTER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Computer: Self = Self::DEVICE_KIND_COMPUTER;
+    ///Idiomatic alias for [`Self::DEVICE_KIND_PHONE`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Phone: Self = Self::DEVICE_KIND_PHONE;
+    ///Idiomatic alias for [`Self::DEVICE_KIND_TABLET`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Tablet: Self = Self::DEVICE_KIND_TABLET;
+    ///Idiomatic alias for [`Self::DEVICE_KIND_TV`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const Tv: Self = Self::DEVICE_KIND_TV;
+}
+impl ::core::default::Default for DeviceKind {
+    fn default() -> Self {
+        Self::DEVICE_KIND_UNSPECIFIED
+    }
+}
+impl ::serde::Serialize for DeviceKind {
+    fn serialize<S: ::serde::Serializer>(
+        &self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        s.serialize_str(::buffa::Enumeration::proto_name(self))
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeviceKind {
+    fn deserialize<D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        struct _V;
+        impl ::serde::de::Visitor<'_> for _V {
+            type Value = DeviceKind;
+            fn expecting(
+                &self,
+                f: &mut ::core::fmt::Formatter<'_>,
+            ) -> ::core::fmt::Result {
+                f.write_str(
+                    concat!("a string, integer, or null for ", stringify!(DeviceKind)),
+                )
+            }
+            fn visit_str<E: ::serde::de::Error>(
+                self,
+                v: &str,
+            ) -> ::core::result::Result<DeviceKind, E> {
+                <DeviceKind as ::buffa::Enumeration>::from_proto_name(v)
+                    .ok_or_else(|| { ::serde::de::Error::unknown_variant(v, &[]) })
+            }
+            fn visit_i64<E: ::serde::de::Error>(
+                self,
+                v: i64,
+            ) -> ::core::result::Result<DeviceKind, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <DeviceKind as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_u64<E: ::serde::de::Error>(
+                self,
+                v: u64,
+            ) -> ::core::result::Result<DeviceKind, E> {
+                let v32 = i32::try_from(v)
+                    .map_err(|_| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("enum value {v} out of i32 range"),
+                        )
+                    })?;
+                <DeviceKind as ::buffa::Enumeration>::from_i32(v32)
+                    .ok_or_else(|| {
+                        ::serde::de::Error::custom(
+                            ::buffa::alloc::format!("unknown enum value {v32}"),
+                        )
+                    })
+            }
+            fn visit_unit<E: ::serde::de::Error>(
+                self,
+            ) -> ::core::result::Result<DeviceKind, E> {
+                ::core::result::Result::Ok(::core::default::Default::default())
+            }
+        }
+        d.deserialize_any(_V)
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for DeviceKind {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+impl ::buffa::Enumeration for DeviceKind {
+    fn from_i32(value: i32) -> ::core::option::Option<Self> {
+        match value {
+            0i32 => ::core::option::Option::Some(Self::DEVICE_KIND_UNSPECIFIED),
+            1i32 => ::core::option::Option::Some(Self::DEVICE_KIND_COMPUTER),
+            2i32 => ::core::option::Option::Some(Self::DEVICE_KIND_PHONE),
+            3i32 => ::core::option::Option::Some(Self::DEVICE_KIND_TABLET),
+            4i32 => ::core::option::Option::Some(Self::DEVICE_KIND_TV),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn to_i32(&self) -> i32 {
+        *self as i32
+    }
+    fn proto_name(&self) -> &'static str {
+        match self {
+            Self::DEVICE_KIND_UNSPECIFIED => "DEVICE_KIND_UNSPECIFIED",
+            Self::DEVICE_KIND_COMPUTER => "DEVICE_KIND_COMPUTER",
+            Self::DEVICE_KIND_PHONE => "DEVICE_KIND_PHONE",
+            Self::DEVICE_KIND_TABLET => "DEVICE_KIND_TABLET",
+            Self::DEVICE_KIND_TV => "DEVICE_KIND_TV",
+        }
+    }
+    fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
+        match name {
+            "DEVICE_KIND_UNSPECIFIED" => {
+                ::core::option::Option::Some(Self::DEVICE_KIND_UNSPECIFIED)
+            }
+            "DEVICE_KIND_COMPUTER" => {
+                ::core::option::Option::Some(Self::DEVICE_KIND_COMPUTER)
+            }
+            "DEVICE_KIND_PHONE" => ::core::option::Option::Some(Self::DEVICE_KIND_PHONE),
+            "DEVICE_KIND_TABLET" => {
+                ::core::option::Option::Some(Self::DEVICE_KIND_TABLET)
+            }
+            "DEVICE_KIND_TV" => ::core::option::Option::Some(Self::DEVICE_KIND_TV),
+            _ => ::core::option::Option::None,
+        }
+    }
+    fn values() -> &'static [Self] {
+        &[
+            Self::DEVICE_KIND_UNSPECIFIED,
+            Self::DEVICE_KIND_COMPUTER,
+            Self::DEVICE_KIND_PHONE,
+            Self::DEVICE_KIND_TABLET,
+            Self::DEVICE_KIND_TV,
+        ]
+    }
+}
 /// The Kernel's functions, which any Plugin asks the Kernel through (ADR 0048).
 ///
 /// They are the functions in the Wasm import namespace `nama` that any Plugin, whatever its
@@ -599,6 +770,8 @@ impl ::buffa::Enumeration for TitleRefKind {
 ///   refresh_metadata:  RefreshMetadataAsked -\> MetadataRefreshed  PERMISSION_REFRESH_METADATA
 ///   list_titles_sharing: TitlesSharingAsked -\> SharingTitles  PERMISSION_READ_LIBRARIES
 ///   back_up:           BackUpAsked      -\> BackedUp       PERMISSION_BACK_UP
+///   list_version_titles: VersionTitlesAsked -\> VersionTitles  PERMISSION_READ_LIBRARIES
+///   list_devices:      DevicesAsked     -\> Devices        PERMISSION_READ_USERS
 ///
 /// The functions are documented here rather than declared as a service: they are not an Extension
 /// Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`.
@@ -4012,6 +4185,769 @@ pub const __USER_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_
     type_url: "type.googleapis.com/nama.plugin.v1.User",
     to_json: ::buffa::type_registry::any_to_json::<User>,
     from_json: ::buffa::type_registry::any_from_json::<User>,
+    is_wkt: false,
+};
+/// What `list_version_titles` takes.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct VersionTitlesAsked {
+    /// The Version, by its id as a `Playback` gives it.
+    ///
+    /// Field 1: `version_id`
+    #[serde(
+        rename = "versionId",
+        alias = "version_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub version_id: i64,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for VersionTitlesAsked {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("VersionTitlesAsked")
+            .field("version_id", &self.version_id)
+            .finish()
+    }
+}
+impl VersionTitlesAsked {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.VersionTitlesAsked";
+}
+::buffa::impl_default_instance!(VersionTitlesAsked);
+impl ::buffa::MessageName for VersionTitlesAsked {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "VersionTitlesAsked";
+    const FULL_NAME: &'static str = "nama.plugin.v1.VersionTitlesAsked";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.VersionTitlesAsked";
+}
+impl ::buffa::Message for VersionTitlesAsked {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.version_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.version_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.version_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.version_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.version_id = ::buffa::types::decode_int64(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.version_id = 0i64;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for VersionTitlesAsked {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.VersionTitlesAsked";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for VersionTitlesAsked {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __VERSION_TITLES_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.VersionTitlesAsked",
+    to_json: ::buffa::type_registry::any_to_json::<VersionTitlesAsked>,
+    from_json: ::buffa::type_registry::any_from_json::<VersionTitlesAsked>,
+    is_wkt: false,
+};
+/// What `list_version_titles` answers: the Movie, or each Episode in order, that the Version's file
+/// holds, leaving out any whose Item isn't Matched. Empty for a Version that is gone.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct VersionTitles {
+    /// Field 1: `titles`
+    #[serde(
+        rename = "titles",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub titles: ::buffa::alloc::vec::Vec<TitleRef>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for VersionTitles {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("VersionTitles").field("titles", &self.titles).finish()
+    }
+}
+impl VersionTitles {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.VersionTitles";
+}
+::buffa::impl_default_instance!(VersionTitles);
+impl ::buffa::MessageName for VersionTitles {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "VersionTitles";
+    const FULL_NAME: &'static str = "nama.plugin.v1.VersionTitles";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.VersionTitles";
+}
+impl ::buffa::Message for VersionTitles {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.titles {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.titles {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.titles.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.titles.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for VersionTitles {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.VersionTitles";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for VersionTitles {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __VERSION_TITLES_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.VersionTitles",
+    to_json: ::buffa::type_registry::any_to_json::<VersionTitles>,
+    from_json: ::buffa::type_registry::any_from_json::<VersionTitles>,
+    is_wkt: false,
+};
+/// What `list_devices` takes.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct DevicesAsked {
+    /// The Devices, by their ids as a `Playback` gives them.
+    ///
+    /// Field 1: `device_ids`
+    #[serde(
+        rename = "deviceIds",
+        alias = "device_ids",
+        with = "::buffa::json_helpers::proto_seq",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
+    )]
+    pub device_ids: ::buffa::alloc::vec::Vec<i64>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for DevicesAsked {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("DevicesAsked").field("device_ids", &self.device_ids).finish()
+    }
+}
+impl DevicesAsked {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.DevicesAsked";
+}
+::buffa::impl_default_instance!(DevicesAsked);
+impl ::buffa::MessageName for DevicesAsked {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "DevicesAsked";
+    const FULL_NAME: &'static str = "nama.plugin.v1.DevicesAsked";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.DevicesAsked";
+}
+impl ::buffa::Message for DevicesAsked {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.device_ids.is_empty() {
+            let payload: u64 = self
+                .device_ids
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.device_ids.is_empty() {
+            let payload: u64 = self
+                .device_ids
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(1u32, payload, buf);
+            for &v in &self.device_ids {
+                ::buffa::types::encode_int64(v, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    if buf.chunk().len() >= len {
+                        ::buffa::types::extend_packed_int64(
+                            &buf.chunk()[..len],
+                            &mut self.device_ids,
+                            len,
+                        )?;
+                        buf.advance(len);
+                    } else {
+                        self.device_ids.reserve(len);
+                        let mut limited = buf.take(len);
+                        while limited.has_remaining() {
+                            self.device_ids
+                                .push(::buffa::types::decode_int64_packed(&mut limited)?);
+                        }
+                        let leftover = limited.remaining();
+                        if leftover > 0 {
+                            limited.advance(leftover);
+                        }
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.device_ids.push(::buffa::types::decode_int64(buf)?);
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.device_ids.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for DevicesAsked {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.DevicesAsked";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for DevicesAsked {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __DEVICES_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.DevicesAsked",
+    to_json: ::buffa::type_registry::any_to_json::<DevicesAsked>,
+    from_json: ::buffa::type_registry::any_from_json::<DevicesAsked>,
+    is_wkt: false,
+};
+/// What `list_devices` answers: each Device asked for that the Kernel still has, in no order.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct Devices {
+    /// Field 1: `devices`
+    #[serde(
+        rename = "devices",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub devices: ::buffa::alloc::vec::Vec<Device>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for Devices {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Devices").field("devices", &self.devices).finish()
+    }
+}
+impl Devices {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Devices";
+}
+::buffa::impl_default_instance!(Devices);
+impl ::buffa::MessageName for Devices {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "Devices";
+    const FULL_NAME: &'static str = "nama.plugin.v1.Devices";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Devices";
+}
+impl ::buffa::Message for Devices {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.devices {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.devices {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.devices.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.devices.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for Devices {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.Devices";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for Devices {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __DEVICES_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.Devices",
+    to_json: ::buffa::type_registry::any_to_json::<Devices>,
+    from_json: ::buffa::type_registry::any_from_json::<Devices>,
+    is_wkt: false,
+};
+/// A Device, as a Plugin sees one: its id, its User's and its kind only.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct Device {
+    /// Field 1: `id`
+    #[serde(
+        rename = "id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub id: i64,
+    /// Field 2: `user_id`
+    #[serde(
+        rename = "userId",
+        alias = "user_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub user_id: i64,
+    /// Field 3: `kind`
+    #[serde(
+        rename = "kind",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub kind: ::buffa::EnumValue<DeviceKind>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for Device {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Device")
+            .field("id", &self.id)
+            .field("user_id", &self.user_id)
+            .field("kind", &self.kind)
+            .finish()
+    }
+}
+impl Device {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Device";
+}
+::buffa::impl_default_instance!(Device);
+impl ::buffa::MessageName for Device {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "Device";
+    const FULL_NAME: &'static str = "nama.plugin.v1.Device";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.Device";
+}
+impl ::buffa::Message for Device {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.id) as u64;
+        }
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
+        }
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.id, buf);
+        }
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(2u32, self.user_id, buf);
+        }
+        {
+            let val = self.kind.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.id = ::buffa::types::decode_int64(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.user_id = ::buffa::types::decode_int64(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.kind = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.id = 0i64;
+        self.user_id = 0i64;
+        self.kind = ::buffa::EnumValue::from(0);
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for Device {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.Device";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for Device {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __DEVICE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.Device",
+    to_json: ::buffa::type_registry::any_to_json::<Device>,
+    from_json: ::buffa::type_registry::any_from_json::<Device>,
     is_wkt: false,
 };
 /// What `list_requesters` takes.

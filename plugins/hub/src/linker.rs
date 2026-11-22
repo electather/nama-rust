@@ -1,11 +1,12 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
 //! keeps in the Plugin's Store once someone entered it, the Server Addresses it tells the Hub, and
 //! through it shares what the Admin chooses with Nama's developers (ADR 0054). Its Users' Links are
-//! in `users.rs`, syncing their Watch State in `watch_states.rs`, and signing in with an Account,
-//! and Users created from one, in `accounts.rs`.
+//! in `users.rs`, syncing their Watch State in `watch_states.rs`, their plays as Viewing Events in
+//! `viewing.rs`, and signing in with an Account, and Users created from one, in `accounts.rs`.
 
 mod accounts;
 mod users;
+mod viewing;
 mod watch_states;
 
 use std::{
@@ -23,6 +24,7 @@ use nama_plugin_api::{
     },
     contract::{StoreEntry, StoreKey},
     diagnostics_sharer::{DiagnosticsSharer, Signal},
+    job::{JobRunner, RunJob},
     server_link::{AccountSignIn, Link, Reachability, ServerAddresses, ServerLinker},
 };
 use ring::digest;
@@ -34,7 +36,29 @@ use crate::{
     token::{self, Claims, Rejected},
 };
 
-pub(crate) use self::watch_states::{WatchStateSync, sync_job};
+pub(crate) use self::{
+    viewing::{ViewingEvents, send_job},
+    watch_states::{WatchStateSync, sync_job},
+};
+
+/// Runs the Hub Plugin's Jobs. One runner serves them all, as the Kernel asks only the first
+/// `JobRunner` a Plugin provides.
+pub(crate) struct Jobs {
+    pub(crate) linker: Arc<Linker>,
+    pub(crate) viewing: ViewingEvents,
+}
+
+impl JobRunner for Jobs {
+    fn run<'a>(&'a self, run: &'a RunJob) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(async move {
+            match run.job_id.as_str() {
+                watch_states::SYNC => self.linker.send_queued().await,
+                viewing::SEND_JOB => self.viewing.send().await,
+                other => Err(format!("the Hub Plugin has no Job {other}").into()),
+            }
+        })
+    }
+}
 
 /// The Store key of the Link, a [`Kept`] as JSON.
 const LINK_KEY: &str = "link";

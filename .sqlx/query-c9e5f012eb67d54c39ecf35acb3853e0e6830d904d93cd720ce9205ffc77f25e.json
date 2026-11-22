@@ -1,0 +1,119 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, kind, external_id, extract(epoch FROM started_at)::bigint AS \"started_at!\",\n             time_of_day_minutes, stop_position_ms, duration_ms, finished, device_kind\n             FROM viewing_events WHERE account_id = $1 ORDER BY started_at DESC, id DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "viewing_events",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "viewing_events",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "external_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "viewing_events",
+            "name": "external_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "started_at!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "time_of_day_minutes",
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "viewing_events",
+            "name": "time_of_day_minutes"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "stop_position_ms",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "viewing_events",
+            "name": "stop_position_ms"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "duration_ms",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "viewing_events",
+            "name": "duration_ms"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "finished",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "viewing_events",
+            "name": "finished"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "device_kind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "viewing_events",
+            "name": "device_kind"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c9e5f012eb67d54c39ecf35acb3853e0e6830d904d93cd720ce9205ffc77f25e"
+}
