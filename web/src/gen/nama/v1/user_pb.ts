@@ -1370,7 +1370,8 @@ export const NotificationKindSchema: GenEnum<NotificationKind> = /*@__PURE__*/
  * User with it, grant it, put it in the default Permissions or create a User while they hold it, or
  * set their own Permissions; others fail with `permission_denied` and a Refusal naming
  * `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions`, `SetDefaultPermissions`,
- * `DeleteUser` and `StartUserLink` also need Recent Authentication, as `SignInService` describes.
+ * `DeleteUser`, `StartUserLink` and `CreateUserFromAccount` also need Recent Authentication, as
+ * `SignInService` describes.
  * RPCs name Users by ID, not by name.
  *
  * @generated from service nama.v1.UserService

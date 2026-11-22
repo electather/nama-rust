@@ -452,6 +452,16 @@ async fn a_user_created_from_an_account_signs_in_once_the_account_approves() {
         Some("https://nama.example/sign-in")
     );
     assert_refused(
+        sign_in(&server)
+            .start_account_sign_in(StartAccountSignInRequest {
+                return_url: "javascript:alert(1)".to_owned(),
+                ..Default::default()
+            })
+            .await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_NOT_A_URL,
+    );
+    assert_refused(
         sign_in_with_account(&server, &started.handle).await,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND,

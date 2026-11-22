@@ -86,9 +86,10 @@ service SignInService {
   // Starts signing the calling Device in with a Hub Account, on a Server Linked to the Hub (ADR
   // 0092). The client sends the person to `url`, where they approve it on the Hub, which then sends
   // them to `return_url`; the client then finishes with `SignInWithAccount`. Fails with
-  // `failed_precondition` and `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled Plugin that
-  // links the Server, and with `unavailable` while the Server isn't Linked or the Hub can't be
-  // reached, which a Device already signed in never needs.
+  // `invalid_argument` and `REFUSAL_REASON_NOT_A_URL` if `return_url` isn't an `http` or `https`
+  // URL, with `failed_precondition` and `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled
+  // Plugin that links the Server, and with `unavailable` while the Server isn't Linked or the Hub
+  // can't be reached, which a Device already signed in never needs.
   rpc StartAccountSignIn(StartAccountSignInRequest) returns (StartAccountSignInResponse);
   // Signs the calling Device in as the User whose Account approved the sign-in `handle` stands
   // for, the way `SignIn` does, without Recent Authentication. Fails with `not_found` and

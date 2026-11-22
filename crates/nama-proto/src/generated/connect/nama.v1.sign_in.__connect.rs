@@ -914,9 +914,10 @@ pub trait SignInService: Send + Sync + 'static {
     /// Starts signing the calling Device in with a Hub Account, on a Server Linked to the Hub (ADR
     /// 0092). The client sends the person to `url`, where they approve it on the Hub, which then sends
     /// them to `return_url`; the client then finishes with `SignInWithAccount`. Fails with
-    /// `failed_precondition` and `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled Plugin that
-    /// links the Server, and with `unavailable` while the Server isn't Linked or the Hub can't be
-    /// reached, which a Device already signed in never needs.
+    /// `invalid_argument` and `REFUSAL_REASON_NOT_A_URL` if `return_url` isn't an `http` or `https`
+    /// URL, with `failed_precondition` and `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled
+    /// Plugin that links the Server, and with `unavailable` while the Server isn't Linked or the Hub
+    /// can't be reached, which a Device already signed in never needs.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

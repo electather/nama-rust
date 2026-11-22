@@ -111,25 +111,37 @@ pub(super) async fn create_user_from_account(
     name: &str,
     email: &str,
 ) -> ServiceResult<CreateUserFromAccountResponse> {
-    let id = users.create_from_account(by, name).await?;
-    let invited = ask_or(
-        points,
-        "the Server couldn't ask the Hub, so no User was created; try again later",
-        async |linker| linker.invite_user(id, name.trim(), email).await,
-    )
-    .await
-    .and_then(|invited| invited.ok_or_else(no_linker));
-    if let Err(err) = invited {
-        if let Err(not_deleted) = users.delete(by, id).await {
-            tracing::error!(
-                user = id,
-                "could not delete a User the Hub wasn't told of: {not_deleted}"
-            );
+    let (points, users, by) = (points.clone(), users.clone(), by.clone());
+    let (name, email) = (name.to_owned(), email.to_owned());
+    // Spawned, so a client that leaves mid-way can't drop it between creating the User and
+    // deleting them again, which would leave a User with no way to sign in.
+    let created = tokio::spawn(async move {
+        let id = users.create_from_account(&by, &name).await?;
+        let invited = ask_or(
+            &points,
+            "the Server couldn't ask the Hub, so no User was created; try again later",
+            async |linker| linker.invite_user(id, name.trim(), &email).await,
+        )
+        .await
+        .and_then(|invited| invited.ok_or_else(no_linker));
+        if let Err(err) = invited {
+            if let Err(not_deleted) = users.delete(&by, id).await {
+                tracing::error!(
+                    user = id,
+                    "could not delete a User the Hub wasn't told of: {not_deleted}"
+                );
+            }
+            return Err(err);
         }
-        return Err(err);
-    }
+        Ok::<_, ConnectError>(id)
+    })
+    .await
+    .map_err(|panicked| {
+        tracing::error!("creating a User from an Account panicked: {panicked}");
+        ConnectError::internal("the Server failed to create the User")
+    })??;
     Response::ok(CreateUserFromAccountResponse {
-        id,
+        id: created,
         ..Default::default()
     })
 }
@@ -146,6 +158,15 @@ pub(super) async fn start_account_sign_in(
     points: &ExtensionPoints,
     return_url: &str,
 ) -> ServiceResult<StartAccountSignInResponse> {
+    // The Hub refuses any other, but its refusal would reach the client as the Hub failing.
+    if !is_web_address(return_url) {
+        return Err(refuse(
+            RefusalReason::REFUSAL_REASON_NOT_A_URL,
+            "the return URL must be an http or https URL",
+        )
+        .field("return_url")
+        .into());
+    }
     let started = ask_or(points, ACCOUNT_SIGN_IN_FAILED, async |linker| {
         linker.start_account_sign_in(return_url).await
     })
@@ -206,6 +227,11 @@ where
         tracing::warn!(plugin = %answer.plugin, "Linking failed: {}", failure.message);
         ConnectError::unavailable(unavailable)
     })
+}
+
+/// Whether `url` is an `http` or `https` URL with a host.
+fn is_web_address(url: &str) -> bool {
+    url::Url::parse(url).is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.has_host())
 }
 
 fn no_linker() -> ConnectError {

@@ -191,7 +191,7 @@ const SIGN_OUT: &str = "/nama.v1.SignInService/SignOut";
 
 /// The RPCs that change who can sign in as whom, delete media or Link the Server or a User, which
 /// need Recent Authentication (ADR 0014).
-const SENSITIVE: [&str; 10] = [
+const SENSITIVE: [&str; 11] = [
     "/nama.v1.UserService/ChangePassword",
     "/nama.v1.UserService/ResetPassword",
     "/nama.v1.UserService/SetPermissions",
@@ -202,6 +202,7 @@ const SENSITIVE: [&str; 10] = [
     "/nama.v1.ServerService/StartServerLink",
     "/nama.v1.ServerService/UnlinkServer",
     "/nama.v1.UserService/StartUserLink",
+    "/nama.v1.UserService/CreateUserFromAccount",
 ];
 
 struct Reply {

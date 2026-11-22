@@ -246,7 +246,7 @@ pub(super) fn permission_required(needed: Permission) -> ConnectError {
 /// Authentication on top of their [`Access`] (ADR 0014, and see AGENTS.md). A list of its own, not
 /// an `Access` variant: `SetPermissions` needs a Permission as well, `ChangePassword` only a
 /// session.
-const NEEDS_RECENT_AUTHENTICATION: [&str; 10] = [
+const NEEDS_RECENT_AUTHENTICATION: [&str; 11] = [
     proto::USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_SET_PERMISSIONS_SPEC.procedure,
@@ -261,6 +261,8 @@ const NEEDS_RECENT_AUTHENTICATION: [&str; 10] = [
     proto::SERVER_SERVICE_UNLINK_SERVER_SPEC.procedure,
     // Linking hands the User's Watch State and history to an Account (ADR 0008).
     proto::USER_SERVICE_START_USER_LINK_SPEC.procedure,
+    // The Account it names signs in as the User once it accepts (ADR 0092).
+    proto::USER_SERVICE_CREATE_USER_FROM_ACCOUNT_SPEC.procedure,
 ];
 
 /// Why `caller` may not request `path` yet, if it needs Recent Authentication their Device lacks.
