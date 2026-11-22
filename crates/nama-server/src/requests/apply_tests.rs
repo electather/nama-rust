@@ -1,4 +1,4 @@
-use std::{collections::HashMap, pin::Pin, sync::Arc, time::Duration};
+use std::{collections::HashMap, pin::Pin, sync::Arc};
 
 use futures_util::Stream;
 use nama_plugin_api::{
@@ -12,8 +12,8 @@ use tokio::sync::Notify;
 
 use crate::requests::Requests;
 use crate::requests::testing::{
-    ADA, Asked, DARK, FulfillerPlugin, ada, approved_for, approved_on, ask_as, dark, enable_tmdb,
-    follow_as, fulfilled, next_happened, told_season,
+    ADA, Asked, DARK, FulfillerPlugin, GIVE_UP_AFTER, ada, approved_for, approved_on, ask_as, dark,
+    enable_tmdb, follow_as, fulfilled, next_happened, told_season,
 };
 use crate::{
     events::Filter,
@@ -45,7 +45,7 @@ async fn leave_once_queued<T: Send + 'static>(
             tokio::task::yield_now().await;
         }
     };
-    tokio::time::timeout(Duration::from_secs(30), queued)
+    tokio::time::timeout(GIVE_UP_AFTER, queued)
         .await
         .expect("the change never queued its write");
 
@@ -232,14 +232,14 @@ impl Fulfiller<Shows> for Unfollowing {
 }
 
 /// The TMDB ids of the Shows `unfollowing` was told to stop following, once it was told any,
-/// waiting up to 30 seconds.
+/// waiting up to [`GIVE_UP_AFTER`].
 async fn unfollowed_shows(unfollowing: &Unfollowing) -> Vec<i64> {
     let told = async {
         while unfollowing.0.lock().unwrap().is_empty() {
             tokio::task::yield_now().await;
         }
     };
-    tokio::time::timeout(Duration::from_secs(30), told)
+    tokio::time::timeout(GIVE_UP_AFTER, told)
         .await
         .expect("the Shows Fulfiller was never told to stop following a Show");
     unfollowing.0.lock().unwrap().clone()
