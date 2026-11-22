@@ -562,12 +562,6 @@ fn setting_field(field: &wire::SettingField) -> Result<SettingField, Refused> {
         .default_value
         .as_option()
         .and_then(contract::setting_value);
-    if default.as_ref().is_some_and(|default| !default.is(kind)) {
-        return Err(Refused::DefaultWrongKind {
-            key: field.key.clone(),
-            kind,
-        });
-    }
     let mut field = SettingField {
         key: field.key.clone(),
         label: field.label.clone(),
@@ -597,6 +591,7 @@ fn setting_field(field: &wire::SettingField) -> Result<SettingField, Refused> {
 /// The refusal of an Installed Plugin declaring a setting with `flaw`.
 fn refused_for(flaw: SettingFlaw) -> Refused {
     match flaw {
+        SettingFlaw::DefaultWrongKind { key, kind } => Refused::DefaultWrongKind { key, kind },
         SettingFlaw::BoundsOnAnotherKind { key } => Refused::BoundsOnAnotherKind { key },
         SettingFlaw::BoundsCrossed { key, min, max } => Refused::BoundsCrossed { key, min, max },
         SettingFlaw::DefaultOutOfBounds { key } => Refused::DefaultOutOfBounds { key },
