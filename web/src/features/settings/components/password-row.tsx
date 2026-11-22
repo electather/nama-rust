@@ -17,17 +17,15 @@ export function PasswordRow({
   error: string | undefined;
 }) {
   return (
-    <SettingRow label={label} hint={hint} error={error}>
+    <SettingRow label={label} hint={hint} error={error} size="field">
       {(control) => (
-        <span className="flex w-40 md:w-60">
-          <Input
-            {...control}
-            name={name}
-            type="password"
-            autoComplete={autoComplete}
-            aria-invalid={error !== undefined}
-          />
-        </span>
+        <Input
+          {...control}
+          name={name}
+          type="password"
+          autoComplete={autoComplete}
+          aria-invalid={error !== undefined}
+        />
       )}
     </SettingRow>
   );

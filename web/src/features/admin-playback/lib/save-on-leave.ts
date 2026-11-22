@@ -21,5 +21,11 @@ export function saveOnLeave(shown: string, onSave: (typed: string) => void) {
         commit(event.currentTarget);
       }
     },
+    // A number field's − and + leave it where it is, so each step is saved as it's made.
+    onStep: (value: string) => {
+      if (value !== shown) {
+        onSave(value);
+      }
+    },
   };
 }

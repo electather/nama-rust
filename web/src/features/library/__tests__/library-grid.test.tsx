@@ -97,7 +97,7 @@ test("choosing a sort or a filter asks for the first page of it", async () => {
   fireEvent.click(await screen.findByRole("menuitemradio", { name: "Not started" }));
   await screen.findByRole("button", { name: "Watch State: Not started" });
   act(() => {
-    fireEvent.change(screen.getByRole("spinbutton", { name: "From year" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "From year" }), {
       target: { value: "1990" },
     });
   });

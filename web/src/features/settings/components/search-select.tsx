@@ -32,7 +32,7 @@ export function SearchSelect({
     </ComboboxItem>
   );
   return (
-    <span ref={box} className="flex w-40 md:w-60">
+    <span ref={box} className="flex w-full">
       <Combobox
         items={options}
         value={options.find((option) => option.value === value) ?? null}

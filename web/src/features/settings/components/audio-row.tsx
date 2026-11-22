@@ -14,6 +14,7 @@ export function AudioRow({
     <SettingRow
       label={playbackLabels.audio}
       hint="Audio starts in this language when the file has it."
+      size="field"
     >
       {(control) => (
         <LanguageSelect

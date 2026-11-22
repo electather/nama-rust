@@ -24,6 +24,7 @@ export function ImageRows({
       <SettingRow
         label={serverLabels.space}
         hint="The most disk the resized copies take. Lowering it removes the oldest; they’re made again when needed."
+        size="field"
       >
         {(control) => (
           <SpaceSelect
