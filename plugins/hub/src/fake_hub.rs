@@ -1,8 +1,9 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
 //! one Server's device flow, Unlinking, its Users' Links, Users created from Accounts, one sign-in
-//! with an Account at a time, its Server Addresses, the Watch State it pushes, which its Linked
-//! Users pull back, the titles like The Matrix, and a key set of one Ed25519 key it signs with, as
-//! the Hub's API (`proto/nama/hub/v1/link.proto`) says the Hub does, and takes shared Diagnostics.
+//! with an Account at a time, its Server Addresses and whether its public port is reached, the
+//! Watch State it pushes, which its Linked Users pull back, its Viewing Events, the titles like
+//! The Matrix, and a key set of one Ed25519 key it signs with, as the Hub's API
+//! (`proto/nama/hub/v1/`) says the Hub does, and takes shared Diagnostics.
 
 use std::{
     collections::HashMap,
@@ -17,17 +18,20 @@ use axum::{
     http::{HeaderMap, StatusCode},
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
+use connectrpc::{
+    ConnectError, ErrorCode, RequestContext, Response, ServiceRequest, ServiceResult,
+};
 use nama_hub_proto::nama::hub::v1::{
     ExternalId, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest, InviteUserResponse,
     LinkedServerService, ListSimilarTitlesRequest, ListSimilarTitlesResponse,
     PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
     PollServerSignInResponse, PullWatchStatesRequest, PullWatchStatesResponse,
-    PushWatchStatesRequest, PushWatchStatesResponse, ServerLinkService, SetServerAddressesRequest,
+    PushWatchStatesRequest, PushWatchStatesResponse, RecordViewingEventsRequest,
+    RecordViewingEventsResponse, ServerLinkService, SetServerAddressesRequest,
     SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest, StartServerLinkResponse,
     StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
     StartUserLinkResponse, TitleKind, UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest,
-    UnlinkUserResponse, WatchStateChange,
+    UnlinkUserResponse, UserViewingEvent, WatchStateChange,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::{Value, json};
@@ -51,6 +55,12 @@ pub(super) const SIGN_IN_ID: &str = "sign-in-id";
 /// The email of the Account the code is entered by.
 pub(super) const EMAIL: &str = "ada@example.com";
 
+/// The IP address the fake sees the Server's calls come from.
+pub(super) const PUBLIC_IP: &str = "203.0.113.7";
+
+/// The one public port the fake reaches the Server at.
+pub(super) const OPEN_PORT: u16 = 7980;
+
 /// What the fake Hub knows.
 #[derive(Default)]
 struct State {
@@ -73,6 +83,10 @@ struct State {
     user_accounts: HashMap<i64, String>,
     /// How often a User's Link was asked about.
     user_link_asks: usize,
+    /// Each Viewing Event recorded, in order.
+    viewing_events: Vec<UserViewingEvent>,
+    /// What recording Viewing Events fails with, if it does.
+    recording_failure: Option<ErrorCode>,
     /// Each push's changes, in the order they came.
     pushes: Vec<Vec<WatchStateChange>>,
     /// Why pushes fail, as if the Hub were down, while they do.
@@ -230,6 +244,17 @@ impl FakeHub {
     /// Has the next report of Server Addresses fail, as if the Hub blinked.
     pub(super) fn fail_next_addresses(&self) {
         lock(&self.state).addresses_failures += 1;
+    }
+
+    /// Each Viewing Event recorded, in order.
+    pub(super) fn viewing_events(&self) -> Vec<UserViewingEvent> {
+        lock(&self.state).viewing_events.clone()
+    }
+
+    /// Has recording Viewing Events fail with `failure`, such as `unavailable` for a Hub that is
+    /// down, or work again with `None`.
+    pub(super) fn fail_recording(&self, failure: Option<ErrorCode>) {
+        lock(&self.state).recording_failure = failure;
     }
 
     /// Has the key set fail, as if the Hub went down right after handing out a credential.
@@ -513,7 +538,28 @@ impl LinkedServerService for Linked {
         state
             .reported_addresses
             .push((request.url.to_owned(), lan.collect()));
-        Response::ok(SetServerAddressesResponse::default())
+        if request.public_port == 0 {
+            return Response::ok(SetServerAddressesResponse::default());
+        }
+        Response::ok(SetServerAddressesResponse {
+            public_address: format!("http://{PUBLIC_IP}:{}", request.public_port),
+            reachable: request.public_port == u32::from(OPEN_PORT),
+            ..Default::default()
+        })
+    }
+
+    async fn record_viewing_events(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, RecordViewingEventsRequest>,
+    ) -> ServiceResult<RecordViewingEventsResponse> {
+        let mut state = self.caller(&ctx)?;
+        if let Some(failure) = state.recording_failure {
+            return Err(ConnectError::new(failure, "recording failed"));
+        }
+        let recorded = request.to_owned_message().events;
+        state.viewing_events.extend(recorded);
+        Response::ok(RecordViewingEventsResponse::default())
     }
 
     /// The Matrix's sequel and Alien, by IMDb id, for a Movie asked about by The Matrix's TMDB id;

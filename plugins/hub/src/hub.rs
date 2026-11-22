@@ -1,6 +1,6 @@
 //! Talking to the Hub: its API (`proto/nama/hub/v1/`) and its published key set.
 
-use std::{sync::Arc, time::Duration};
+use std::{net::Ipv4Addr, sync::Arc, time::Duration};
 
 use bytes::Bytes;
 use connectrpc::client::{
@@ -20,12 +20,16 @@ use nama_hub_proto::nama::hub::v1::{
     GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient, ListSimilarTitlesRequest,
     ListSimilarTitlesResponse, PollServerLinkRequest, PollServerLinkResponse,
     PollServerSignInRequest, PullWatchStatesRequest, PushWatchStatesRequest,
-    ServerLinkServiceClient, SetServerAddressesRequest, StartServerLinkRequest,
-    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
-    StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest, UnlinkUserRequest,
-    WatchStateChange,
+    RecordViewingEventsRequest, ServerLinkServiceClient, SetServerAddressesRequest,
+    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
+    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest,
+    UnlinkUserRequest, WatchStateChange,
 };
-use nama_plugin_api::{PluginError, diagnostics_sharer::Signal, server_link::ServerAddresses};
+use nama_plugin_api::{
+    PluginError,
+    diagnostics_sharer::Signal,
+    server_link::{Reachability, ServerAddresses},
+};
 
 const TIMEOUT: Duration = Duration::from_secs(20);
 
@@ -57,7 +61,12 @@ impl Hub {
         } else {
             builder.with_provider_and_native_roots(provider)?
         };
-        let connector = builder.https_or_http().enable_http1().build();
+        let mut http = HttpConnector::new();
+        http.enforce_http(false);
+        // IPv4 only: the Hub checks the Server's public port at the address its calls come from,
+        // and the router opens that port on its IPv4 address alone (ADR 0057).
+        http.set_local_address(Some(Ipv4Addr::UNSPECIFIED.into()));
+        let connector = builder.https_or_http().enable_http1().wrap_connector(http);
         let client = Client::builder(TokioExecutor::new()).build(connector);
         Ok(Self {
             url,
@@ -225,20 +234,52 @@ impl Hub {
     }
 
     /// Tells the Hub `addresses` are where clients reach the Server whose credential is
-    /// `credential`.
+    /// `credential`, and answers whether the Hub reached its public port, if it has one.
     pub(crate) async fn set_addresses(
         &self,
         credential: &str,
         addresses: &ServerAddresses,
-    ) -> Result<(), PluginError> {
-        self.linked_server(credential)?
+    ) -> Result<Option<Reachability>, PluginError> {
+        let checked = self
+            .linked_server(credential)?
             .set_server_addresses(SetServerAddressesRequest {
                 url: addresses.url.clone(),
                 lan_addresses: addresses.lan.clone(),
+                public_port: addresses.public_port.map_or(0, u32::from),
                 ..Default::default()
             })
-            .await?;
-        Ok(())
+            .await?
+            .into_owned();
+        Ok(
+            (!checked.public_address.is_empty()).then_some(Reachability {
+                address: checked.public_address,
+                reachable: checked.reachable,
+            }),
+        )
+    }
+
+    /// Records `events`, Viewing Events of the Server whose credential is `credential`. A refusal
+    /// sending them again would meet too, the Hub not knowing the credential or finding an event
+    /// invalid, counts as done, so they aren't kept forever.
+    pub(crate) async fn record_viewing_events(
+        &self,
+        credential: &str,
+        events: RecordViewingEventsRequest,
+    ) -> Result<(), PluginError> {
+        let recorded = (self.linked_server(credential)?)
+            .record_viewing_events(events)
+            .await;
+        match recorded {
+            Err(err)
+                if !matches!(
+                    err.code,
+                    connectrpc::ErrorCode::Unauthenticated | connectrpc::ErrorCode::InvalidArgument
+                ) =>
+            {
+                Err(err.into())
+            }
+            _ => Ok(()),
+        }
     }
 
     /// Starts a sign-in with an Account to the Server whose credential is `credential`, which the

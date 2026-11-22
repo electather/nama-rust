@@ -15,7 +15,7 @@ use crate::{
     config::Config,
     connections::Connections,
     db::Database,
-    diagnostics::{self, BrowserSpans, RecordFailures},
+    diagnostics::{self, RecordFailures},
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
     home_rows::HomeRows,
@@ -59,6 +59,7 @@ mod watchlist;
 pub(crate) use server_link::pull_watch_states_after_scans;
 
 use access::require_access;
+pub(crate) use browser_spans::BrowserSpans;
 
 /// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers
 /// that identify the caller and refuse calls they may not make.
@@ -91,6 +92,7 @@ pub(crate) fn router(
     running: RunningPlans,
     abilities: Abilities,
     preview_frames: PreviewFrames,
+    browser_spans: BrowserSpans,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
 ) -> axum::Router {
@@ -128,7 +130,7 @@ pub(crate) fn router(
             home_rows: home_rows.clone(),
             data_dir: config.data_dir.clone(),
             backups: Backups::new(&config.data_dir, &config.file, settings.clone()),
-            exports_diagnostics: config.otlp_endpoint.is_some(),
+            browser_spans: browser_spans.clone(),
             running: running.clone(),
         }))
         .add_service(Arc::new(sign_in::SignInServiceHandler {
@@ -230,9 +232,7 @@ pub(crate) fn router(
         .merge(local_images_router(local_images, image_settings))
         .merge(plugin_logos_router(plugin_logos))
         .merge(media)
-        .merge(browser_spans::router(
-            config.otlp_endpoint.as_deref().map(BrowserSpans::new),
-        ))
+        .merge(browser_spans::router(browser_spans))
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
         .layer(middleware::from_fn_with_state(

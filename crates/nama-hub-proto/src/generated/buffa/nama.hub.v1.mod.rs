@@ -2,6 +2,7 @@
 
 include!("nama.hub.v1.account.rs");
 include!("nama.hub.v1.hub.rs");
+include!("nama.hub.v1.viewing.rs");
 include!("nama.hub.v1.link.rs");
 include!("nama.hub.v1.refusal.rs");
 #[allow(
@@ -23,6 +24,7 @@ pub mod __buffa {
         use super::*;
         include!("nama.hub.v1.account.__view.rs");
         include!("nama.hub.v1.hub.__view.rs");
+        include!("nama.hub.v1.viewing.__view.rs");
         include!("nama.hub.v1.link.__view.rs");
         include!("nama.hub.v1.refusal.__view.rs");
     }
@@ -47,6 +49,14 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_ACCOUNT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_HUB_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_HUB_INFO_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__VIEWING_EVENT_JSON_ANY);
+        reg.register_json_any(super::__LIST_VIEWING_EVENTS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_VIEWING_EVENTS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__DELETE_VIEWING_EVENT_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DELETE_VIEWING_EVENT_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__USER_VIEWING_EVENT_JSON_ANY);
+        reg.register_json_any(super::__RECORD_VIEWING_EVENTS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__RECORD_VIEWING_EVENTS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LINKED_SERVER_JSON_ANY);
         reg.register_json_any(super::__START_SERVER_LINK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__START_SERVER_LINK_RESPONSE_JSON_ANY);
@@ -176,6 +186,38 @@ pub use self::__buffa::view::GetHubInfoRequestOwnedView;
 pub use self::__buffa::view::GetHubInfoResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::GetHubInfoResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ViewingEventView;
+#[doc(inline)]
+pub use self::__buffa::view::ViewingEventOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListViewingEventsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListViewingEventsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListViewingEventsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListViewingEventsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteViewingEventRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteViewingEventRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteViewingEventResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteViewingEventResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserViewingEventView;
+#[doc(inline)]
+pub use self::__buffa::view::UserViewingEventOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RecordViewingEventsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::RecordViewingEventsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RecordViewingEventsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::RecordViewingEventsResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::LinkedServerView;
 #[doc(inline)]

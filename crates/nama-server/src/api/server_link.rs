@@ -36,9 +36,9 @@ const LINKING_FAILED: &str = "the Plugin that links the Server failed; its page 
 
 /// What `unavailable` says when a sign-in with an Account fails, such as while the Hub is down. A
 /// Device already signed in never needs the Hub (ADR 0092).
-const ACCOUNT_SIGN_IN_FAILED: &str = "Signing in with an Account needs the Hub, which can't be \
-                                      reached right now. Sign in with your password, or try \
-                                      again later.";
+/// No password advice: a User whose only Sign-in Method is their Account has none.
+const ACCOUNT_SIGN_IN_FAILED: &str =
+    "Signing in with an Account needs the Hub, which can't be reached right now. Try again later.";
 
 /// Where Linking stands, unset without an enabled Plugin that links the Server.
 pub(super) async fn get(points: &ExtensionPoints) -> ServiceResult<GetServerLinkResponse> {
@@ -367,30 +367,37 @@ fn no_linker() -> ConnectError {
 }
 
 fn link_to_proto(link: Link) -> proto::ServerLink {
-    let (code, url, account) = link_fields(link);
-    proto::ServerLink {
-        code,
-        url,
-        account,
-        ..Default::default()
+    match link {
+        Link::NotLinked => proto::ServerLink::default(),
+        Link::Waiting { code, url } => proto::ServerLink {
+            code,
+            url,
+            ..Default::default()
+        },
+        Link::Linked {
+            account,
+            reachability,
+        } => {
+            let reachability = reachability.unwrap_or_default();
+            proto::ServerLink {
+                account,
+                public_address: reachability.address,
+                reachable: reachability.reachable,
+                ..Default::default()
+            }
+        }
     }
 }
 
+/// A User's Link as the Server's shows it, but for where the service reached the Server.
 fn user_link_to_proto(link: Link) -> proto::UserLink {
-    let (code, url, account) = link_fields(link);
+    let proto::ServerLink {
+        code, url, account, ..
+    } = link_to_proto(link);
     proto::UserLink {
         code,
         url,
         account,
         ..Default::default()
-    }
-}
-
-/// A Link's `code`, `url` and `account`, as both messages hold them: each empty but those it has.
-fn link_fields(link: Link) -> (String, String, String) {
-    match link {
-        Link::NotLinked => Default::default(),
-        Link::Waiting { code, url } => (code, url, String::new()),
-        Link::Linked { account } => (String::new(), String::new(), account),
     }
 }

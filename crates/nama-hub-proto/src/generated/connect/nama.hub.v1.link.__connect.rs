@@ -180,6 +180,18 @@ pub type OwnedSetServerAddressesResponseView = ::buffa::view::OwnedView<
         'static,
     >,
 >;
+///Shorthand for `OwnedView<RecordViewingEventsRequestView<'static>>`.
+pub type OwnedRecordViewingEventsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsRequestView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<RecordViewingEventsResponseView<'static>>`.
+pub type OwnedRecordViewingEventsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsResponseView<
+        'static,
+    >,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::StartServerLinkResponse>
 for crate::messages::nama::hub::v1::__buffa::view::StartServerLinkResponseView<'_> {
     fn encode(
@@ -908,6 +920,42 @@ for crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseVie
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SetServerAddressesResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseView<
+        'static,
+    >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::RecordViewingEventsResponse>
+for crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::RecordViewingEventsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsResponseView<
         'static,
     >,
 > {
@@ -3029,6 +3077,12 @@ pub const LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC: ::connectrpc::Spec = 
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `RecordViewingEvents` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_RECORD_VIEWING_EVENTS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/RecordViewingEvents",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
 /// What a Linked Server asks the Hub. It sends the credential `PollServerLink` gave it in an
 /// `Authorization: Bearer <credential>` header, and every call fails with
 /// `REFUSAL_REASON_SERVER_NOT_LINKED` without one the Hub knows.
@@ -3331,8 +3385,9 @@ pub trait LinkedServerService: Send + Sync + 'static {
         >,
     > + Send;
     /// Replaces the Server Addresses the calling Server reported before. The Server reports them
-    /// whenever they change. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an
-    /// `http` or `https` URL, or for too many.
+    /// whenever they change, and every half hour, since only then does the Hub check from outside
+    /// whether its `public_port` can be reached. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID`
+    /// for one that isn't an `http` or `https` URL, for too many, or for a port over 65535.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -3352,6 +3407,32 @@ pub trait LinkedServerService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::hub::v1::SetServerAddressesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Records a Viewing Event for each play by one of the Server's Users, under the Account they are
+    /// Linked to (ADR 0093); one for a User who isn't Linked is left out. Sending one again by its
+    /// `key` records it once. Fails with `REFUSAL_REASON_VIEWING_EVENT_INVALID`, recording none, when
+    /// any breaks the rules `ViewingEvent` gives, or more than 1000 come at once.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn record_viewing_events<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::RecordViewingEventsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::RecordViewingEventsResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -3706,6 +3787,35 @@ impl<S: LinkedServerService> LinkedServerServiceExt for S {
                 },
             )
             .with_spec(LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC)
+            .route_view(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "RecordViewingEvents",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::RecordViewingEventsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.record_viewing_events(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::RecordViewingEventsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_RECORD_VIEWING_EVENTS_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -3826,6 +3936,12 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC),
+                )
+            }
+            "RecordViewingEvents" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(LINKED_SERVER_SERVICE_RECORD_VIEWING_EVENTS_SPEC),
                 )
             }
             _ => None,
@@ -4082,6 +4198,28 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .await?
                         .encode::<
                             crate::messages::nama::hub::v1::SetServerAddressesResponse,
+                        >(format)
+                })
+            }
+            "RecordViewingEvents" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::RecordViewingEventsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::RecordViewingEventsRequest,
+                    >::from_parts(&req, &body);
+                    svc.record_viewing_events(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::RecordViewingEventsResponse,
                         >(format)
                 })
             }
@@ -4702,6 +4840,51 @@ where
                 &self.transport,
                 &self.config,
                 LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the RecordViewingEvents RPC. Sends a request to /nama.hub.v1.LinkedServerService/RecordViewingEvents.
+    pub async fn record_viewing_events(
+        &self,
+        request: crate::messages::nama::hub::v1::RecordViewingEventsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.record_viewing_events_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the RecordViewingEvents RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn record_viewing_events_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::RecordViewingEventsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_RECORD_VIEWING_EVENTS_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

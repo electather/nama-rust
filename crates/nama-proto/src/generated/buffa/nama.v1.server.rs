@@ -634,6 +634,28 @@ pub struct ServerLink {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub account: ::buffa::alloc::string::String,
+    /// Where the Hub last tried to reach the Server from outside the LAN, such as
+    /// `http://203.0.113.7:7980`: its public IP address, with the port it opened on its router with
+    /// UPnP or NAT-PMP, or the one its `forwarded_port` config names (ADR 0057). Empty until the Hub
+    /// tried, and while the Server has no such port.
+    ///
+    /// Field 4: `public_address`
+    #[serde(
+        rename = "publicAddress",
+        alias = "public_address",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub public_address: ::buffa::alloc::string::String,
+    /// Whether the Hub reached the Server at `public_address`, so clients outside the LAN try it.
+    ///
+    /// Field 5: `reachable`
+    #[serde(
+        rename = "reachable",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub reachable: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -644,6 +666,8 @@ impl ::core::fmt::Debug for ServerLink {
             .field("code", &self.code)
             .field("url", &self.url)
             .field("account", &self.account)
+            .field("public_address", &self.public_address)
+            .field("reachable", &self.reachable)
             .finish()
     }
 }
@@ -683,6 +707,14 @@ impl ::buffa::Message for ServerLink {
         if !self.account.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.account) as u64;
         }
+        if !self.public_address.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.public_address) as u64;
+        }
+        if self.reachable {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -701,6 +733,12 @@ impl ::buffa::Message for ServerLink {
         }
         if !self.account.is_empty() {
             ::buffa::types::put_string_field(3u32, &self.account, buf);
+        }
+        if !self.public_address.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.public_address, buf);
+        }
+        if self.reachable {
+            ::buffa::types::put_bool_field(5u32, self.reachable, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -736,6 +774,20 @@ impl ::buffa::Message for ServerLink {
                 )?;
                 ::buffa::types::merge_string(&mut self.account, buf)?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.public_address, buf)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.reachable = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -747,6 +799,8 @@ impl ::buffa::Message for ServerLink {
         self.code.clear();
         self.url.clear();
         self.account.clear();
+        self.public_address.clear();
+        self.reachable = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2320,11 +2374,13 @@ pub struct GetServerInfoResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub image_widths: ::buffa::alloc::vec::Vec<u32>,
-    /// Whether the Server exports Diagnostics, because its admin set `OTEL_EXPORTER_OTLP_ENDPOINT`
-    /// (ADR 0054). Only then does a signed-in web app record its own and POST them as OTLP/HTTP to
-    /// `/diagnostics/v1/traces`, which the Server forwards there unchanged. That path answers 404
-    /// while this is false, refuses a body over 256 KiB with HTTP 413, and refuses a Device posting
-    /// too often with HTTP 429.
+    /// Whether the Server exports Diagnostics: its admin set `OTEL_EXPORTER_OTLP_ENDPOINT`, shares
+    /// them, or both, so it changes as they turn sharing on or off (ADR 0054). Only then does a
+    /// signed-in web app record its own and POST them as OTLP/HTTP protobuf to
+    /// `/diagnostics/v1/traces`, which the Server forwards unchanged to that endpoint and, while they
+    /// are shared, to the Hub. That path answers 404 while this is false, refuses a body over 256 KiB
+    /// with HTTP 413, a Device posting too often with HTTP 429, and a body that isn't protobuf while
+    /// the Server only shares them with HTTP 415.
     ///
     /// Field 5: `exports_diagnostics`
     #[serde(

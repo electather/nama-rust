@@ -542,6 +542,17 @@ pub struct ServerLinkView<'a> {
     ///
     /// Field 3: `account`
     pub account: &'a str,
+    /// Where the Hub last tried to reach the Server from outside the LAN, such as
+    /// `http://203.0.113.7:7980`: its public IP address, with the port it opened on its router with
+    /// UPnP or NAT-PMP, or the one its `forwarded_port` config names (ADR 0057). Empty until the Hub
+    /// tried, and while the Server has no such port.
+    ///
+    /// Field 4: `public_address`
+    pub public_address: &'a str,
+    /// Whether the Hub reached the Server at `public_address`, so clients outside the LAN try it.
+    ///
+    /// Field 5: `reachable`
+    pub reachable: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ServerLinkView<'a> {
@@ -595,6 +606,20 @@ impl<'a> ::buffa::MessageView<'a> for ServerLinkView<'a> {
                 )?;
                 view.account = ::buffa::types::borrow_str(&mut cur)?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.public_address = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.reachable = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -620,6 +645,8 @@ impl<'a> ::buffa::MessageView<'a> for ServerLinkView<'a> {
             code: self.code.to_string(),
             url: self.url.to_string(),
             account: self.account.to_string(),
+            public_address: self.public_address.to_string(),
+            reachable: self.reachable,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -640,6 +667,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ServerLinkView<'a> {
         if !self.account.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.account) as u64;
         }
+        if !self.public_address.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.public_address) as u64;
+        }
+        if self.reachable {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -659,6 +694,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ServerLinkView<'a> {
         }
         if !self.account.is_empty() {
             ::buffa::types::put_string_field(3u32, &self.account, buf);
+        }
+        if !self.public_address.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.public_address, buf);
+        }
+        if self.reachable {
+            ::buffa::types::put_bool_field(5u32, self.reachable, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -689,6 +730,12 @@ impl<'__a> ::serde::Serialize for ServerLinkView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.account) {
             __map.serialize_entry("account", self.account)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.public_address) {
+            __map.serialize_entry("publicAddress", self.public_address)?;
+        }
+        if self.reachable {
+            __map.serialize_entry("reachable", &self.reachable)?;
         }
         __map.end()
     }
@@ -801,6 +848,23 @@ impl ServerLinkOwnedView {
     #[must_use]
     pub fn account(&self) -> &'_ str {
         self.0.reborrow().account
+    }
+    /// Where the Hub last tried to reach the Server from outside the LAN, such as
+    /// `http://203.0.113.7:7980`: its public IP address, with the port it opened on its router with
+    /// UPnP or NAT-PMP, or the one its `forwarded_port` config names (ADR 0057). Empty until the Hub
+    /// tried, and while the Server has no such port.
+    ///
+    /// Field 4: `public_address`
+    #[must_use]
+    pub fn public_address(&self) -> &'_ str {
+        self.0.reborrow().public_address
+    }
+    /// Whether the Hub reached the Server at `public_address`, so clients outside the LAN try it.
+    ///
+    /// Field 5: `reachable`
+    #[must_use]
+    pub fn reachable(&self) -> bool {
+        self.0.reborrow().reachable
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ServerLinkView<'static>>>
@@ -3852,11 +3916,13 @@ pub struct GetServerInfoResponseView<'a> {
     ///
     /// Field 4: `image_widths`
     pub image_widths: ::buffa::RepeatedView<'a, u32>,
-    /// Whether the Server exports Diagnostics, because its admin set `OTEL_EXPORTER_OTLP_ENDPOINT`
-    /// (ADR 0054). Only then does a signed-in web app record its own and POST them as OTLP/HTTP to
-    /// `/diagnostics/v1/traces`, which the Server forwards there unchanged. That path answers 404
-    /// while this is false, refuses a body over 256 KiB with HTTP 413, and refuses a Device posting
-    /// too often with HTTP 429.
+    /// Whether the Server exports Diagnostics: its admin set `OTEL_EXPORTER_OTLP_ENDPOINT`, shares
+    /// them, or both, so it changes as they turn sharing on or off (ADR 0054). Only then does a
+    /// signed-in web app record its own and POST them as OTLP/HTTP protobuf to
+    /// `/diagnostics/v1/traces`, which the Server forwards unchanged to that endpoint and, while they
+    /// are shared, to the Hub. That path answers 404 while this is false, refuses a body over 256 KiB
+    /// with HTTP 413, a Device posting too often with HTTP 429, and a body that isn't protobuf while
+    /// the Server only shares them with HTTP 415.
     ///
     /// Field 5: `exports_diagnostics`
     pub exports_diagnostics: bool,
@@ -4229,11 +4295,13 @@ impl GetServerInfoResponseOwnedView {
     pub fn image_widths(&self) -> &::buffa::RepeatedView<'_, u32> {
         &self.0.reborrow().image_widths
     }
-    /// Whether the Server exports Diagnostics, because its admin set `OTEL_EXPORTER_OTLP_ENDPOINT`
-    /// (ADR 0054). Only then does a signed-in web app record its own and POST them as OTLP/HTTP to
-    /// `/diagnostics/v1/traces`, which the Server forwards there unchanged. That path answers 404
-    /// while this is false, refuses a body over 256 KiB with HTTP 413, and refuses a Device posting
-    /// too often with HTTP 429.
+    /// Whether the Server exports Diagnostics: its admin set `OTEL_EXPORTER_OTLP_ENDPOINT`, shares
+    /// them, or both, so it changes as they turn sharing on or off (ADR 0054). Only then does a
+    /// signed-in web app record its own and POST them as OTLP/HTTP protobuf to
+    /// `/diagnostics/v1/traces`, which the Server forwards unchanged to that endpoint and, while they
+    /// are shared, to the Hub. That path answers 404 while this is false, refuses a body over 256 KiB
+    /// with HTTP 413, a Device posting too often with HTTP 429, and a body that isn't protobuf while
+    /// the Server only shares them with HTTP 415.
     ///
     /// Field 5: `exports_diagnostics`
     #[must_use]

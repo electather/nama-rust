@@ -137,6 +137,13 @@ message ServerLink {
   string url = 2;
   // The Account the Server is Linked to, as its email, once it is.
   string account = 3;
+  // Where the Hub last tried to reach the Server from outside the LAN, such as
+  // `http://203.0.113.7:7980`: its public IP address, with the port it opened on its router with
+  // UPnP or NAT-PMP, or the one its `forwarded_port` config names (ADR 0057). Empty until the Hub
+  // tried, and while the Server has no such port.
+  string public_address = 4;
+  // Whether the Hub reached the Server at `public_address`, so clients outside the LAN try it.
+  bool reachable = 5;
 }
 
 message StartServerLinkRequest {}
@@ -209,11 +216,13 @@ message GetServerInfoResponse {
   // that is no wider, an SVG, or over 12 megapixels, or has transparency and would be a JPEG.
   // While it's off, the width is ignored.
   repeated uint32 image_widths = 4;
-  // Whether the Server exports Diagnostics, because its admin set `OTEL_EXPORTER_OTLP_ENDPOINT`
-  // (ADR 0054). Only then does a signed-in web app record its own and POST them as OTLP/HTTP to
-  // `/diagnostics/v1/traces`, which the Server forwards there unchanged. That path answers 404
-  // while this is false, refuses a body over 256 KiB with HTTP 413, and refuses a Device posting
-  // too often with HTTP 429.
+  // Whether the Server exports Diagnostics: its admin set `OTEL_EXPORTER_OTLP_ENDPOINT`, shares
+  // them, or both, so it changes as they turn sharing on or off (ADR 0054). Only then does a
+  // signed-in web app record its own and POST them as OTLP/HTTP protobuf to
+  // `/diagnostics/v1/traces`, which the Server forwards unchanged to that endpoint and, while they
+  // are shared, to the Hub. That path answers 404 while this is false, refuses a body over 256 KiB
+  // with HTTP 413, a Device posting too often with HTTP 429, and a body that isn't protobuf while
+  // the Server only shares them with HTTP 415.
   bool exports_diagnostics = 5;
   // Anyone could read this before sign-in; `PlaybackPlan.can_search_subtitles` says it instead.
   reserved 6;

@@ -143,6 +143,7 @@ impl ServerLinker for Hub {
 fn linked() -> Link {
     Link::Linked {
         account: "ada@example.com".to_owned(),
+        reachability: None,
     }
 }
 
