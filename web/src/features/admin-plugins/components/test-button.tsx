@@ -24,7 +24,7 @@ export function TestButton({
       <Button
         type="button"
         variant="ghost"
-        size="icon"
+        size="icon-sm"
         aria-label="Test the settings"
         title="Test the settings"
         aria-busy={pending}

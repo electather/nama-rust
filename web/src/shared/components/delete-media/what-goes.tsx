@@ -16,17 +16,15 @@ export function WhatGoes(deletable: Deletable) {
           label="What to delete"
           name="version"
           value={chosen}
-          onChange={(event) => {
-            setChosen(event.target.value);
-          }}
-        >
-          <option value={EVERY_VERSION}>Every Version</option>
-          {deletable.versions.map((version) => (
-            <option key={String(version.id)} value={String(version.id)}>
-              {version.fileName} ({metadataLine(versionLine(version), sizeOf(version.size))})
-            </option>
-          ))}
-        </FormSelect>
+          onValueChange={setChosen}
+          options={[
+            { value: EVERY_VERSION, label: "Every Version" },
+            ...deletable.versions.map((version) => ({
+              value: String(version.id),
+              label: `${version.fileName} (${metadataLine(versionLine(version), sizeOf(version.size))})`,
+            })),
+          ]}
+        />
       )}
       <FilesThatGo deletable={deletable} chosen={chosen} />
     </>

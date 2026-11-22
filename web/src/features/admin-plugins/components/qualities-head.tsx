@@ -19,7 +19,7 @@ export function QualitiesHead({
       <Button
         ref={ref}
         variant="ghost"
-        size="icon"
+        size="icon-sm"
         aria-label="Add a Quality"
         title="Add a Quality"
         onClick={onAdd}

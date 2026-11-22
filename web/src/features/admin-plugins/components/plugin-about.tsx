@@ -10,13 +10,13 @@ export function PluginAbout({ plugin }: { plugin: Pick<Plugin, "setupMarkdown" |
     return null;
   }
   return (
-    <section aria-labelledby="about" className="mt-10 max-w-prose text-pretty">
-      <h2 id="about" className="font-medium">
+    <section aria-labelledby="about" className="mt-10 max-w-prose text-sm/6 text-pretty">
+      <h2 id="about" className="text-base font-medium">
         About
       </h2>
       <SetupSteps markdown={plugin.setupMarkdown} />
       {plugin.license !== "" && (
-        <p className="mt-4 text-sm text-muted-foreground">{plugin.license} licence</p>
+        <p className="mt-4 text-xs text-muted-foreground">{plugin.license} licence</p>
       )}
     </section>
   );

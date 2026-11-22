@@ -15,6 +15,7 @@ import { eventFeed, fakeServer, newUser, openApp } from "@/test-app";
 import { layOutShelves } from "@/test-layout";
 import { openMenu, pickFromMenu } from "@/test-menu";
 import { refused } from "@/test-refusal";
+import { pick } from "@/test-settings";
 
 // A Show's row of Episodes is virtual, so it needs a layout to show its cards.
 beforeEach(layOutShelves);
@@ -223,7 +224,7 @@ test("deleting one Version of an Episode with two names only it", async () => {
   openDark(deletesMedia, recording(deleted));
   const dialog = await openDialog("More for Secrets", "Delete", "Secrets");
 
-  fireEvent.change(within(dialog).getByLabelText("What to delete"), { target: { value: "4" } });
+  pick("What to delete", /^Dark - S01E01\.mkv /u);
   fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
 
   await waitFor(() => {

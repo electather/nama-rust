@@ -20,7 +20,7 @@ export function ForgetButton({
       <Button
         type="button"
         variant="ghost"
-        size="icon"
+        size="icon-sm"
         aria-label={`Forget your ${name} settings`}
         title="Forget these settings"
         disabled={disabled}

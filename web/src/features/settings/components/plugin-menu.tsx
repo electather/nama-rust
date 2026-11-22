@@ -30,7 +30,7 @@ export function PluginMenu({
     <Button
       ref={trigger}
       variant="ghost"
-      size="icon"
+      size="icon-sm"
       aria-label={`More for ${pluginName(plugin)}`}
     />
   );

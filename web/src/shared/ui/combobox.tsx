@@ -1,10 +1,11 @@
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox";
 import { cn } from "cn";
-import { Check, ChevronDown, Search } from "lucide-react";
+import { Check, ChevronDown, Search, X } from "lucide-react";
 
-// shadcn's base-nova combobox, trimmed to the one we use: a field that reads as `select.tsx`'s,
-// with a search over its list, for a list too long to scroll through. DESIGN.md, "Inputs" for the
-// field and "Menus" for its list.
+// shadcn's base-nova combobox, trimmed to the two we use: a field that reads as `select.tsx`'s,
+// with a search over its list, for a list too long to scroll through; and, `multiple`, a field of
+// chips, one per picked item, typed into to narrow the list. DESIGN.md, "Inputs" for the fields and
+// "Menus" for the list.
 
 /** Give it `items`, each a `value` and `label`. Its `value` is one of them, whole. */
 const Combobox = ComboboxPrimitive.Root;
@@ -31,26 +32,42 @@ function ComboboxTrigger({ className, ...props }: ComboboxPrimitive.Trigger.Prop
 }
 
 /**
- * The list under the field: a search named `search`, then the items that match it, each drawn by
- * `children`, or `empty` when none does. Inside a modal `<dialog>`, give it that dialog as
- * `container`: the page under one can't be seen or clicked, the list included.
+ * The list under the field: a search named `search`, if the field isn't typed into itself, then
+ * the items that match, each drawn by `children`, or `empty` when none does. Under chips, give it
+ * their element as `anchor`. Inside a modal `<dialog>`, give it that dialog as `container`: the page under one
+ * can't be seen or clicked, the list included.
  */
 function ComboboxContent({
   search,
   empty,
   container,
+  anchor,
   className,
   children,
   ...props
 }: Omit<ComboboxPrimitive.Popup.Props, "children"> &
   Pick<ComboboxPrimitive.List.Props, "children"> &
-  Pick<ComboboxPrimitive.Portal.Props, "container"> & { search: string; empty: string }) {
+  Pick<ComboboxPrimitive.Portal.Props, "container"> &
+  Pick<ComboboxPrimitive.Positioner.Props, "anchor"> & { search?: string; empty: string }) {
+  const searched = search !== undefined && (
+    <div className="flex shrink-0 items-center gap-2 border-b ps-3 text-muted-foreground">
+      <Search aria-hidden strokeWidth={1.5} className="size-4 shrink-0" />
+      <ComboboxPrimitive.Input
+        data-slot="combobox-input"
+        aria-label={search}
+        placeholder={search}
+        // 16px on a phone, where iOS zooms into a field with smaller text.
+        className="h-11 min-w-0 flex-1 bg-transparent pe-3 text-base text-foreground outline-none placeholder:text-muted-foreground md:h-9 md:text-sm"
+      />
+    </div>
+  );
   return (
     <ComboboxPrimitive.Portal container={container}>
       <ComboboxPrimitive.Positioner
         className="isolate z-50 outline-none"
         align="start"
         sideOffset={4}
+        anchor={anchor}
       >
         <ComboboxPrimitive.Popup
           data-slot="combobox-content"
@@ -60,16 +77,7 @@ function ComboboxContent({
           )}
           {...props}
         >
-          <div className="flex shrink-0 items-center gap-2 border-b ps-3 text-muted-foreground">
-            <Search aria-hidden strokeWidth={1.5} className="size-4 shrink-0" />
-            <ComboboxPrimitive.Input
-              data-slot="combobox-input"
-              aria-label={search}
-              placeholder={search}
-              // 16px on a phone, where iOS zooms into a field with smaller text.
-              className="h-11 min-w-0 flex-1 bg-transparent pe-3 text-base text-foreground outline-none placeholder:text-muted-foreground md:h-9 md:text-sm"
-            />
-          </div>
+          {searched}
           <ComboboxPrimitive.Empty className="px-3 py-2.5 text-sm text-muted-foreground empty:hidden">
             {empty}
           </ComboboxPrimitive.Empty>
@@ -106,4 +114,73 @@ function ComboboxItem({ className, children, ...props }: ComboboxPrimitive.Item.
   );
 }
 
-export { Combobox, ComboboxContent, ComboboxItem, ComboboxTrigger };
+/**
+ * A `multiple` field: a chip per picked item and the input that narrows the list, wrapping onto
+ * more lines as chips fill it. Reads as `Input`: 44px on a phone, 32px from `md` up.
+ */
+function ComboboxChips({ className, ...props }: ComboboxPrimitive.Chips.Props) {
+  return (
+    <ComboboxPrimitive.Chips
+      data-slot="combobox-chips"
+      className={cn(
+        "flex min-h-11 w-full min-w-0 cursor-text flex-wrap items-center gap-1 rounded-lg border border-input bg-input/30 p-1 text-sm transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 has-aria-invalid:border-destructive/50 md:min-h-8",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+/** One picked item in `ComboboxChips`, with an X that unpicks it, named `remove`. */
+function ComboboxChip({
+  remove,
+  className,
+  children,
+  ...props
+}: ComboboxPrimitive.Chip.Props & { remove: string }) {
+  return (
+    <ComboboxPrimitive.Chip
+      data-slot="combobox-chip"
+      className={cn(
+        "flex h-6 items-center gap-0.5 rounded-md border bg-secondary ps-2 pe-0.5 text-xs whitespace-nowrap outline-none data-highlighted:bg-accent",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+      <ComboboxPrimitive.ChipRemove
+        aria-label={remove}
+        className="flex size-5 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+      >
+        <X aria-hidden strokeWidth={1.5} className="size-3" />
+      </ComboboxPrimitive.ChipRemove>
+    </ComboboxPrimitive.Chip>
+  );
+}
+
+/** What's typed in `ComboboxChips` to narrow the list. 16px on a phone, where iOS zooms otherwise. */
+function ComboboxChipsInput({ className, ...props }: ComboboxPrimitive.Input.Props) {
+  return (
+    <ComboboxPrimitive.Input
+      data-slot="combobox-chip-input"
+      className={cn(
+        "h-8 min-w-16 flex-1 bg-transparent ps-1.5 text-base outline-none placeholder:text-muted-foreground md:h-6 md:text-sm",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+const ComboboxValue = ComboboxPrimitive.Value;
+
+export {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxItem,
+  ComboboxTrigger,
+  ComboboxValue,
+};

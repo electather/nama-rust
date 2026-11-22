@@ -135,9 +135,9 @@ The neutrals have no chroma. A coloured background competes with the artwork, so
 ### Hierarchy
 - **Display** (500, 2.5rem, 1.05, -0.035em): Movie and Show titles on title pages, set over backdrops, when they have no Title Logo.
 - **Headline** (`text-3xl font-medium tracking-tight`): page headings, Library names and shelf headings such as Continue Watching.
-- **Title** (`text-lg font-semibold`): the title of a list row, a dialog or a settings pane.
+- **Title** (`text-lg font-semibold`): the title of a dialog, or the heading of a section of a page, such as Cast & Crew. Settings is quieter: see Components. A Plugin's name at the top of its own view is `text-lg font-medium`.
 - **Body** (`text-base leading-7`): overviews and descriptions, capped at 65–75ch.
-- **Interface** (`text-sm`, `font-semibold` when selected): control labels, menu items and settings rows. A poster's caption and a settings group heading are `text-base font-medium`.
+- **Interface** (`text-sm`, `font-medium` when selected): control labels, menu items, and settings rows. A settings row's name is `font-medium`, and a settings group heading is `font-medium` in Quiet ink. A poster's caption is `text-base font-medium`.
 - **Label** (`text-xs`, Quiet ink): metadata such as year, runtime, rating and Request state. Sentence case, not tracked uppercase.
 - **Log** (`font-mono`, `text-sm`): what a line of a Plugin Log says, under its time in `font-mono text-xs` Quiet ink. Its level stays in the sans, with an icon.
 
@@ -159,9 +159,10 @@ Flat by default. Depth comes from tonal layering plus a hairline: each surface s
 
 Only the app shell exists so far. The tokens above set the shape every component inherits:
 
-- **Buttons**: pills, 14px medium text, 32px tall. Play and Resume at the top of a title page are larger: 44px tall, 16px text, with a filled ▶. An icon-only button is 40px square with a 10px radius. Primary is Near-white with black semibold ink, once per screen. Disabled is Muted with Quiet ink, never a faded colour. Secondary is the translucent Secondary fill with Ink. Destructive, the confirm button of a dialog that asks before something can’t be undone (revoking a Device, deleting a User), is red ink on a 10% red tint. Everything else is ghost: no fill until hover, then Muted.
+- **Buttons**: pills, 14px medium text, 32px tall. Play and Resume at the top of a title page are larger: 44px tall, 16px text, with a filled ▶. An icon-only button (`icon-sm`) is 32px square with a 10px radius and a 16px icon, a dialog's ✕ included. Over video, the player's icon-only controls (`icon`) are 40px with a 20px icon. Primary is Near-white with black semibold ink, once per screen. Disabled is Muted with Quiet ink, never a faded colour. Secondary is the translucent Secondary fill with Ink. Destructive, the confirm button of a dialog that asks before something can’t be undone (revoking a Device, deleting a User), is red ink on a 10% red tint. Everything else is ghost: no fill until hover, then Muted.
+- **Settings**: a dialog 700px wide (800px from `lg`) and at most 500px tall; full screen on a phone. Its sections run the full height down the side on the Sidebar surface, with Search settings at the top and the groups' names in Label. Over the pane, its title is a trail in Interface: "Settings", a chevron, then the open section in `font-medium`, with the ✕ at the end. Panes keep 24px at their sides and 24px between groups. A row keeps 10px over and under, with a 32px logo or icon tile at its start; nothing in Settings is semibold.
 - **Cards**: Card, 14px radius, a hairline border, 18px padding. No shadow.
-- **Inputs**: the Rim at 30% as a fill, a full Rim border, 10px radius. Focus turns the border Near-white with a 3px ring at 50%.
+- **Inputs**: the Rim at 30% as a fill, a full Rim border, 10px radius, 32px tall with 10px at each side. A field that filters a list draws its 16px search icon inside that box. Choices in one pill (a segmented control) are 32px tall too, the chosen one raised on the Rim. On a phone both are 44px tall, so they're easy to tap. Focus turns the border Near-white with a 3px ring at 50%.
 - **Menus**: Popover, 14px radius, a hairline, `shadow-md`. Items are 10px-radius rows that turn Accent when highlighted.
 - **Sliders and progress**: a Muted track with a Near-white fill; a slider's thumb is Near-white. A Request's pill fills with Ink at 25% instead, so its label reads over it.
 - **Posters**: 2:3, 10px radius, a hairline border. A 2px progress bar sits under a poster with Watch State.

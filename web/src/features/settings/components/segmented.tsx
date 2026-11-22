@@ -17,11 +17,11 @@ export function Segmented<Value extends string>({
   "aria-describedby"?: string;
 }) {
   return (
-    <div role="radiogroup" {...group} className="flex h-11 rounded-lg bg-muted p-0.75 md:h-9">
+    <div role="radiogroup" {...group} className="flex h-11 rounded-lg bg-muted p-0.75 md:h-8">
       {options.map(([each, label]) => (
         <label
           key={each}
-          className="flex flex-auto cursor-pointer items-center justify-center rounded-md border border-transparent px-2 text-sm font-medium whitespace-nowrap transition-colors has-checked:border-input has-checked:bg-input/30 has-checked:shadow-xs has-focus-visible:border-ring has-focus-visible:ring-3 has-focus-visible:ring-ring/50 motion-reduce:transition-none"
+          className="flex flex-auto cursor-pointer items-center justify-center rounded-md border border-transparent px-2 text-sm whitespace-nowrap transition-colors has-checked:border-input has-checked:bg-input/30 has-checked:shadow-xs has-focus-visible:border-ring has-focus-visible:ring-3 has-focus-visible:ring-ring/50 motion-reduce:transition-none"
         >
           <input
             type="radio"

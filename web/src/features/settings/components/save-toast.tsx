@@ -33,7 +33,7 @@ export function SaveToast({
       </p>
       <Button
         variant="ghost"
-        size="icon"
+        size="icon-sm"
         aria-label="Dismiss"
         onFocus={(event) => {
           before.current = event.relatedTarget instanceof HTMLElement ? event.relatedTarget : null;

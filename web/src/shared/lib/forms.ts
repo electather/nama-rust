@@ -32,6 +32,21 @@ export interface FormErrors {
   language?: string;
 }
 
+/** The attribute `useAutoSubmit` marks a form with, which saves as each field is changed. */
+export const SAVES_ON_CHANGE = "data-saves-on-change";
+
+/**
+ * Saves the form `field` is in, if it saves as it's changed, for a field the browser doesn't
+ * report a change of, such as a dropdown drawn by Base UI. Unless the browser finds a field wrong:
+ * then it says which, and why.
+ */
+export function changed(field: Element | null) {
+  const form = field?.closest("form");
+  if (form?.hasAttribute(SAVES_ON_CHANGE) === true && form.reportValidity()) {
+    form.requestSubmit();
+  }
+}
+
 /**
  * A native form's `onSubmit` that hands `handle` what was typed, and the form itself. It stops the
  * browser's own submit, which would clear every field after a refusal.

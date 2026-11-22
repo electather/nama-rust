@@ -39,17 +39,15 @@ export function HardwareField({
       value={value}
       hint="What every Transcode decodes, scales and encodes video on. Automatic picks the one marked above. Off runs them in software, and so does a pick that was missing or didn’t pass its test when the Server started. A change applies from the next Transcode."
       error={error}
-      onChange={(event) => {
-        onPick(event.target.value);
-      }}
-    >
-      {choices.map((choice) => (
-        <option key={hardwareValue(choice)} value={hardwareValue(choice)}>
-          {hardwareLabel(choice)}
-        </option>
-      ))}
-      {/* Offered as it was saved, so saving another setting doesn't change it. */}
-      {!listed && <option value={hardwareValue(asSaved)}>{notFoundLabel(asSaved)}</option>}
-    </FormSelect>
+      onValueChange={onPick}
+      options={[
+        ...choices.map((choice) => ({
+          value: hardwareValue(choice),
+          label: hardwareLabel(choice),
+        })),
+        // Offered as it was saved, so saving another setting doesn't change it.
+        ...(listed ? [] : [{ value: hardwareValue(asSaved), label: notFoundLabel(asSaved) }]),
+      ]}
+    />
   );
 }

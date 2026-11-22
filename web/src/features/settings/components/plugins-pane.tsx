@@ -13,5 +13,5 @@ export function PluginsPane() {
   const asked = useSearch({ strict: false, select: ({ plugin }) => plugin });
   // An id no Plugin has shows the list, as an address from before one was uninstalled would.
   const open = summaries.find((plugin) => plugin.id === asked);
-  return open ? <PluginDetail id={open.id} /> : <PluginList summaries={summaries} />;
+  return open ? <PluginDetail summary={open} /> : <PluginList summaries={summaries} />;
 }

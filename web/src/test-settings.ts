@@ -13,11 +13,20 @@ export function dropdown(label: string) {
   return screen.getByRole("combobox", { name: label });
 }
 
-/** Picks the option named `name` in the dropdown labelled `label`. */
-export function pick(label: string, name: string) {
+/** Picks the option named `name`, or whose name matches it, in the dropdown labelled `label`. */
+export function pick(label: string, name: RegExp | string) {
   fireEvent.click(dropdown(label));
   const option = screen.getByRole("option", { name });
   // The list takes a click only from a press that began on the option.
   fireEvent.pointerDown(option);
   fireEvent.click(option);
+}
+
+/** The names of the options the dropdown labelled `label` offers, in order, from its list. */
+export async function offered(label: string) {
+  fireEvent.click(dropdown(label));
+  const options = await screen.findAllByRole("option");
+  const names = options.map((option) => option.textContent);
+  fireEvent.keyDown(options[0] ?? document.body, { key: "Escape" });
+  return names;
 }

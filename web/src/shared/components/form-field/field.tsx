@@ -42,10 +42,12 @@ export function Field({
     <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-2">
       {heading ? (
         <h2 className="order-1 flex-1 text-base font-medium">
-          <label htmlFor={id}>{label}</label>
+          <label id={`${id}-label`} htmlFor={id}>
+            {label}
+          </label>
         </h2>
       ) : (
-        <label htmlFor={id} className="order-1 flex-1 text-sm font-medium">
+        <label id={`${id}-label`} htmlFor={id} className="order-1 flex-1 text-sm font-medium">
           {label}
         </label>
       )}

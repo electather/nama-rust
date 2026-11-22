@@ -1,4 +1,5 @@
 import { TestButton } from "@/features/admin-plugins/components/test-button";
+import { useOfferedProfiles } from "@/features/admin-plugins/data/use-offered-profiles";
 import { useSettingsTest } from "@/features/admin-plugins/data/use-settings-test";
 import { useUpdatePluginSettings } from "@/features/admin-plugins/data/use-update-plugin-settings";
 import { settingErrors } from "@/features/admin-plugins/lib/setting-errors";
@@ -12,12 +13,15 @@ import { forgottenTyped, settingsTyped } from "@/shared/lib/setting-values";
 /**
  * The form an Admin changes `plugin`'s settings with, under its heading. Each setting is saved as
  * it's changed, and a refusal shows under the setting it names. A Plugin with a settings check can
- * test what was typed from the button at the heading's end, which offers the choices for its
- * choice settings.
+ * test what was typed from the button at the heading's end. Its choice settings offer what the
+ * check offers on the stored settings, or on what was typed once it's tested.
  */
 export function PluginSettings({ plugin }: { plugin: PluginDetails }) {
   const update = useUpdatePluginSettings();
   const { choices, test } = useSettingsTest();
+  const stored = useOfferedProfiles(plugin);
+  // What the stored settings offer, until a test of what's typed offers something else.
+  const offered = choices ?? stored.data?.choices;
   const auto = useAutoSubmit();
   // One message at a time: each resets the other.
   const errors = settingErrors(update.error, test.error);
@@ -42,7 +46,7 @@ export function PluginSettings({ plugin }: { plugin: PluginDetails }) {
         <SettingInput
           key={setting.key}
           setting={setting}
-          offered={choices}
+          offered={offered}
           checksSettings={plugin.checksSettings}
           error={errors[setting.key]}
           checksRequired={plugin.summary.enabled}

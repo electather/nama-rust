@@ -19,8 +19,8 @@ export function refused(
 /** Expects `message` to show under the field labelled `label`, marking it invalid. */
 export async function expectUnderField(label: string, message: string) {
   const error = await screen.findByText(message);
-  // A label can also name a list, such as a Library page's "Folders".
-  const field = screen.getByLabelText(label, { selector: "input, textarea, select" });
+  // A label can also name a list, such as a Library page's "Folders". A dropdown is a combobox.
+  const field = screen.getByLabelText(label, { selector: "input, textarea, [role=combobox]" });
   expect(field.getAttribute("aria-invalid")).toBe("true");
   expect(field.getAttribute("aria-describedby")).toContain(error.id);
 }

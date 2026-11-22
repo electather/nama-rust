@@ -10,7 +10,7 @@ export function SettingsSearch({
 }) {
   return (
     // DESIGN.md, "Inputs", drawn around the icon and the field together.
-    <label className="flex h-8 shrink-0 items-center gap-2 rounded-lg border border-input bg-input/30 px-2.5 text-muted-foreground transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 max-md:hidden">
+    <label className="flex h-8 shrink-0 items-center gap-2 rounded-lg border border-input bg-input/30 px-2 text-muted-foreground transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 max-md:hidden">
       <Search aria-hidden strokeWidth={1.5} className="size-4 shrink-0" />
       <input
         type="search"

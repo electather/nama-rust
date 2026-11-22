@@ -45,11 +45,13 @@ export function SettingsModal({ section, user }: { section: Section; user: User 
           close();
         }
       }}
-      className="inset-0 m-auto size-auto max-h-none max-w-none flex-col overflow-hidden overscroll-contain bg-background text-foreground shadow-lg outline-none backdrop:overflow-hidden backdrop:overscroll-contain backdrop:bg-scrim open:flex md:inset-4 md:max-h-190 md:max-w-260 md:rounded-lg md:border lg:inset-8"
+      className="inset-0 m-auto size-auto max-h-none max-w-none flex-col overflow-hidden overscroll-contain bg-background text-foreground shadow-lg outline-none backdrop:overflow-hidden backdrop:overscroll-contain backdrop:bg-scrim open:flex md:inset-4 md:max-h-125 md:max-w-175 md:flex-row md:rounded-lg md:border lg:max-w-200"
     >
-      <SettingsHeader titleId={titleId} onClose={close} />
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <SettingsSide groups={groups} section={shown} />
+      <SettingsSide groups={groups} section={shown} />
+      {/* Wider, the sections run the full height beside the title and the pane. A phone drops
+          this box so its title can sit over the strip of sections. */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col max-md:contents">
+        <SettingsHeader titleId={titleId} section={shown} onClose={close} />
         <SettingsPane key={shown} section={shown} user={user} />
       </div>
     </dialog>

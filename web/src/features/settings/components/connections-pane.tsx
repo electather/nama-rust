@@ -18,7 +18,7 @@ export function ConnectionsPane({ user }: { user: User | undefined }) {
       {connections.length === 0 ? (
         <NoConnections managesPlugins={may(user, Permission.MANAGE_SETTINGS)} />
       ) : (
-        <ul aria-label="Plugins" className="-my-3.5 flex flex-col">
+        <ul aria-label="Plugins" className="-my-2.5 flex flex-col">
           {connections.map((connection) => (
             <ConnectionItem key={connection.pluginId} connection={connection} />
           ))}

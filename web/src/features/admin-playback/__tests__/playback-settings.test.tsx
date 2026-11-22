@@ -1,6 +1,6 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Code, type ServiceImpl } from "@connectrpc/connect";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { expect, test } from "vite-plus/test";
 
 import { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
@@ -13,7 +13,7 @@ import {
 } from "@/gen/nama/v1/server_pb";
 import { admin, fakeServer, fill } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
-import { openSettings } from "@/test-settings";
+import { dropdown, offered, openSettings, pick } from "@/test-settings";
 
 /**
  * Opens Server Playback on a Server answering as `serverService` says, with no hardware, which
@@ -145,8 +145,8 @@ test("an Admin chooses hardware acceleration that passed its test, saved as it's
   );
 
   const choice = await screen.findByRole("combobox", { name: "Hardware acceleration" });
-  expect(choice).toHaveProperty("value", String(HardwareAcceleration.UNSPECIFIED));
-  fireEvent.change(choice, { target: { value: String(HardwareAcceleration.QSV) } });
+  expect(choice.textContent).toBe("Automatic");
+  pick("Hardware acceleration", "Intel QSV");
 
   await expect
     .poll(() => updates)
@@ -167,12 +167,17 @@ const twoGpus = {
   ],
 };
 
-/** The labels of the options the select labelled "Hardware acceleration" offers. */
+/** The labels of the options the dropdown labelled "Hardware acceleration" offers. */
 async function hardwareOffered() {
-  const select = await screen.findByRole("combobox", { name: "Hardware acceleration" });
-  return within(select)
-    .getAllByRole("option")
-    .map((option) => option.textContent);
+  await screen.findByRole("combobox", { name: "Hardware acceleration" });
+  return offered("Hardware acceleration");
+}
+
+/** Waits for the dropdown labelled "Hardware acceleration" to show `label` chosen. */
+async function hardwareChosen(label: string) {
+  await waitFor(() => {
+    expect(dropdown("Hardware acceleration").textContent).toBe(label);
+  });
 }
 
 test("an Admin picks an API on one GPU from one option per pair", async () => {
@@ -185,9 +190,7 @@ test("an Admin picks an API on one GPU from one option per pair", async () => {
     "Integrated GPU (AMD Ryzen 9 7950X3D) · VAAPI",
     "NVIDIA NVENC",
   ]);
-  fireEvent.change(screen.getByRole("combobox", { name: "Hardware acceleration" }), {
-    target: { value: `${HardwareAcceleration.VAAPI}@0000:18:00.0` },
-  });
+  pick("Hardware acceleration", "Integrated GPU (AMD Ryzen 9 7950X3D) · VAAPI");
 
   await expect
     .poll(() => updates)
@@ -204,9 +207,7 @@ test("a saved API with no GPU shows the first GPU it passed on chosen, which the
     { getPlaybackStatus: () => twoGpus },
   );
 
-  await expect(
-    screen.findByRole("option", { name: "AMD Radeon RX 9070 XT · VAAPI", selected: true }),
-  ).resolves.toBeDefined();
+  await hardwareChosen("AMD Radeon RX 9070 XT · VAAPI");
   change("Transcodes at once", "3");
 
   await expect
@@ -234,12 +235,7 @@ test("a saved GPU that didn't pass is offered as not found and stays chosen", as
     "NVIDIA NVENC",
     "AMD Radeon RX 9070 XT · VAAPI (not found)",
   ]);
-  expect(
-    screen.getByRole("option", {
-      name: "AMD Radeon RX 9070 XT · VAAPI (not found)",
-      selected: true,
-    }),
-  ).toBeDefined();
+  await hardwareChosen("AMD Radeon RX 9070 XT · VAAPI (not found)");
   change("Transcodes at once", "3");
 
   await expect
@@ -266,9 +262,8 @@ test("a GPU the Server refuses is refused under the hardware acceleration", asyn
     },
   );
 
-  fireEvent.change(await screen.findByRole("combobox", { name: "Hardware acceleration" }), {
-    target: { value: String(HardwareAcceleration.NVENC) },
-  });
+  await screen.findByRole("combobox", { name: "Hardware acceleration" });
+  pick("Hardware acceleration", "NVIDIA NVENC");
 
   await expectUnderField(
     "Hardware acceleration",
@@ -279,9 +274,7 @@ test("a GPU the Server refuses is refused under the hardware acceleration", asyn
 test("a saved hardware acceleration that didn't pass its test stays chosen", async () => {
   const updates = openPlayback({ hardwareAcceleration: HardwareAcceleration.NVENC });
 
-  await expect(
-    screen.findByRole("option", { name: "NVIDIA NVENC", selected: true }),
-  ).resolves.toBeDefined();
+  await hardwareChosen("NVIDIA NVENC");
   change("Transcodes at once", "3");
 
   await expect
@@ -372,10 +365,10 @@ test("an Admin sets the default Playback Limit for remote playback, which starts
   });
   const limit = "Default Playback Limit for remote playback";
 
-  const select = await screen.findByLabelText<HTMLSelectElement>(limit);
-  const offered = [...select.options].map((option) => option.text);
-  expect(select.selectedOptions[0]?.text).toBe("Original");
-  fireEvent.change(select, { target: { value: String(PlaybackLimit.PLAYBACK_LIMIT_720P) } });
+  const select = await screen.findByRole("combobox", { name: limit });
+  const limits = await offered(limit);
+  expect(select.textContent).toBe("Original");
+  pick(limit, "720p");
 
   await expect
     .poll(() => updates)
@@ -388,5 +381,5 @@ test("an Admin sets the default Playback Limit for remote playback, which starts
         },
       },
     ]);
-  expect(offered).toStrictEqual(["Original", "1080p", "720p", "480p"]);
+  expect(limits).toStrictEqual(["Original", "1080p", "720p", "480p"]);
 });

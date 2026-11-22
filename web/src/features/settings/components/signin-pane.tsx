@@ -10,7 +10,7 @@ export function SigninPane({ user }: { user: User | undefined }) {
     <PaneFrame section="signin">
       <SettingRow label="Username" hint="You sign in with this.">
         {(control) => (
-          <output {...control} className="text-sm font-semibold">
+          <output {...control} className="text-sm font-medium">
             {user?.name}
           </output>
         )}

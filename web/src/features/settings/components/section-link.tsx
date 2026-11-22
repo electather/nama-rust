@@ -34,9 +34,9 @@ const icons: Record<Section, LucideIcon> = {
 };
 
 const LINK =
-  "flex h-11 flex-none items-center gap-2.5 rounded-sm px-2.5 text-sm whitespace-nowrap transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:h-10";
+  "flex h-11 flex-none items-center gap-2.5 rounded-sm px-2 text-sm whitespace-nowrap transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:h-8";
 // The open section is filled and bold, so it isn't marked by colour alone.
-const CURRENT = `${LINK} bg-popover font-semibold text-foreground`;
+const CURRENT = `${LINK} bg-popover font-medium text-foreground`;
 const OTHER = `${LINK} text-muted-foreground hover:bg-muted hover:text-foreground`;
 
 /** A section's link in the sidebar, marked while it's the one open. */
@@ -63,7 +63,7 @@ export function SectionLink({ section, current }: { section: Section; current: b
       <Icon
         aria-hidden
         strokeWidth={1.5}
-        className={current ? "size-5 text-primary max-md:hidden" : "size-5 max-md:hidden"}
+        className={current ? "size-4 text-primary max-md:hidden" : "size-4 max-md:hidden"}
       />
       {sectionTitles[section]}
     </Link>

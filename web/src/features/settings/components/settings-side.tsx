@@ -14,13 +14,13 @@ export function SettingsSide({ groups, section }: { groups: SectionGroup[]; sect
   const strip = useRef<HTMLElement>(null);
   const found = matching(groups, typed);
   return (
-    <div className="flex shrink-0 items-center gap-0.5 px-1 md:w-52 md:flex-col md:items-stretch md:gap-2.5 md:overflow-y-auto md:border-e md:p-3.5 lg:w-62">
+    <div className="flex shrink-0 items-center gap-0.5 px-1 md:w-48 md:flex-col md:items-stretch md:gap-2.5 md:overflow-y-auto md:bg-sidebar md:px-2 md:py-3 lg:w-52">
       <SettingsSearch typed={typed} onType={setTyped} />
       <ScrollSections strip={strip} to="left" />
       <SectionNav ref={strip} groups={found} section={section} />
       <ScrollSections strip={strip} to="right" />
       {found.length === 0 && (
-        <p className="px-2.5 text-sm text-muted-foreground max-md:hidden">
+        <p className="px-2 text-sm text-muted-foreground max-md:hidden">
           No settings match “{typed.trim()}”.
         </p>
       )}

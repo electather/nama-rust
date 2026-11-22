@@ -1,45 +1,33 @@
-import { Link } from "@tanstack/react-router";
-import { ArrowLeft, Ban } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { Ban } from "lucide-react";
+import { Suspense, useEffect, useRef } from "react";
 
+import { LoadedPlugin } from "@/features/settings/components/loaded-plugin";
 import { PluginActions } from "@/features/settings/components/plugin-actions";
 import { PluginMore } from "@/features/settings/components/plugin-more";
+import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
 import { PluginLogo } from "@/shared/components/plugin-logo";
 import { StateLabel } from "@/shared/components/state-label";
-import { kindAndVersion, type PluginDetails, pluginName } from "@/shared/lib/plugins";
+import { kindAndVersion, pluginName } from "@/shared/lib/plugins";
 
 /**
- * The top of a Plugin's view, over a hairline: the link back to the list, then its logo, its name
- * over its id and where it comes from, and at the end its "…" and, while it's disabled, Enable. One
- * the Server refused says so there instead. Where there's room it stays at the top of the pane while
- * the rest scrolls under it.
+ * The top of a Plugin's view, over a hairline: its logo, its name over its id and where it comes
+ * from, and at the end its "…" and, while it's disabled, Enable. One the Server refused says so
+ * there instead. Where there's room it stays at the top of the pane while the rest scrolls under
+ * it. Its "…" and Enable need the Plugin's details, so they appear once those load.
  */
-export function PluginHeader({ titleId, plugin }: { titleId: string; plugin: PluginDetails }) {
-  const { summary } = plugin;
+export function PluginHeader({ titleId, summary }: { titleId: string; summary: PluginSummary }) {
   const title = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     // The list this replaced held focus, so it moves to what took its place.
     title.current?.focus();
   }, []);
-  const back = (
-    <Link
-      to="."
-      search={(rest) => ({ ...rest, plugin: undefined })}
-      // The list's search is a subset of the open Plugin's, so inclusive matching marks this current.
-      activeOptions={{ exact: true }}
-      className="-ms-1 mb-3.5 flex min-h-11 w-fit items-center gap-1.5 rounded-sm px-1 text-sm font-medium outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 md:min-h-8"
-    >
-      <ArrowLeft aria-hidden strokeWidth={1.5} className="size-4 rtl:rotate-180" />
-      Plugins
-    </Link>
-  );
   const name = (
     <div className="flex min-w-0 flex-1 basis-50 flex-col gap-0.5">
       <h3
         ref={title}
         id={titleId}
         tabIndex={-1}
-        className="truncate text-2xl font-semibold tracking-tight outline-none"
+        className="truncate text-lg font-medium outline-none"
       >
         {pluginName(summary)}
       </h3>
@@ -48,16 +36,27 @@ export function PluginHeader({ titleId, plugin }: { titleId: string; plugin: Plu
       </p>
     </div>
   );
+  const more = (
+    <Suspense fallback={null}>
+      <LoadedPlugin id={summary.id}>{(plugin) => <PluginMore plugin={plugin} />}</LoadedPlugin>
+    </Suspense>
+  );
   const refused = (
     <div className="ms-auto flex items-center gap-2">
       <StateLabel label="Refused" Icon={Ban} />
-      <PluginMore plugin={plugin} />
+      {more}
     </div>
   );
-  const end = summary.refusedReason === "" ? <PluginActions plugin={plugin} /> : refused;
+  const end =
+    summary.refusedReason === "" ? (
+      <Suspense fallback={null}>
+        <LoadedPlugin id={summary.id}>{(plugin) => <PluginActions plugin={plugin} />}</LoadedPlugin>
+      </Suspense>
+    ) : (
+      refused
+    );
   return (
-    <header data-sticks className="top-0 z-10 bg-background px-4 pt-4 md:sticky md:px-7.5 md:pt-5">
-      {back}
+    <header data-sticks className="top-0 z-10 bg-background px-4 pt-4 md:sticky md:px-6 md:pt-2">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 border-b pb-6">
         <PluginLogo large plugin={summary} />
         {name}
