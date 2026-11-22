@@ -7,13 +7,14 @@ use std::{
     process::ExitCode,
 };
 
-use clap::Parser;
-use nama_hub::{config::Config, db};
+use clap::{Parser, Subcommand};
+use nama_hub::{config::Config, db, titles};
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_otlp::{ExporterBuildError, LogExporter, SpanExporter};
 use opentelemetry_sdk::{logs::SdkLoggerProvider, trace::SdkTracerProvider};
-use tokio::net::TcpListener;
+use sqlx::PgPool;
+use tokio::{io::BufReader, net::TcpListener};
 use tracing::{Subscriber, error, info, warn};
 use tracing_subscriber::{
     EnvFilter, Layer,
@@ -34,13 +35,27 @@ const OTLP_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
                   PostgreSQL database as a postgres:// URL, and NAMA_HUB_LISTEN, the address to \
                   listen on (0.0.0.0:7981 by default)."
 )]
-struct Args;
+struct Args {
+    /// Serves the Hub when none is given.
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Debug, Subcommand)]
+enum Command {
+    /// Replaces the Hub's films and series with those in Wikidata's JSON dump, decompressed on
+    /// stdin. Start it weekly from the host's scheduler, as its own process.
+    ImportWikidata,
+}
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    Args::parse();
+    let args = Args::parse();
     let exporting = init_tracing();
-    let exit = run().await;
+    let exit = match args.command {
+        None => run().await,
+        Some(Command::ImportWikidata) => import_wikidata().await,
+    };
     if let Some(exporting) = exporting {
         exporting.shutdown();
     }
@@ -49,13 +64,6 @@ async fn main() -> ExitCode {
 
 /// Runs the Hub until it is told to stop.
 async fn run() -> ExitCode {
-    let config = match Config::load() {
-        Ok(config) => config,
-        Err(err) => {
-            error!("could not load config: {err}");
-            return ExitCode::FAILURE;
-        }
-    };
     // Listen before announcing startup, so a Ctrl-C right after the log line isn't missed.
     let shutdown = match shutdown_signal() {
         Ok(shutdown) => shutdown,
@@ -64,15 +72,11 @@ async fn run() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    let Some((config, db)) = load_config_and_connect().await else {
+        return ExitCode::FAILURE;
+    };
     info!(listen = %config.listen, "loaded config");
 
-    let db = match db::connect(&config.database_url).await {
-        Ok(db) => db,
-        Err(err) => {
-            error!("{err}");
-            return ExitCode::FAILURE;
-        }
-    };
     if let Err(err) = db::migrate(&db).await {
         error!("could not migrate the database: {err}");
         return ExitCode::FAILURE;
@@ -104,6 +108,39 @@ async fn run() -> ExitCode {
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
+}
+
+/// Imports Wikidata's dump from stdin, leaving the titles as they were if it fails.
+async fn import_wikidata() -> ExitCode {
+    let Some((_, db)) = load_config_and_connect().await else {
+        return ExitCode::FAILURE;
+    };
+    // Lines run to hundreds of KiB, and each read on stdin is a hop to a blocking thread.
+    let dump = BufReader::with_capacity(1 << 20, tokio::io::stdin());
+    let imported = titles::import(&db, dump).await;
+    db.close().await;
+    match imported {
+        Ok(titles) => {
+            info!(titles, "imported Wikidata's films and series");
+            ExitCode::SUCCESS
+        }
+        Err(err) => {
+            error!("could not import Wikidata's dump: {err}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Loads the config and connects to its database, logging why it couldn't.
+async fn load_config_and_connect() -> Option<(Config, PgPool)> {
+    let config = Config::load()
+        .inspect_err(|err| error!("could not load config: {err}"))
+        .ok()?;
+    let db = db::connect(&config.database_url)
+        .await
+        .inspect_err(|err| error!("{err}"))
+        .ok()?;
+    Some((config, db))
 }
 
 /// Logs to stdout at `info`, or at whatever `RUST_LOG` asks for, and, only if
