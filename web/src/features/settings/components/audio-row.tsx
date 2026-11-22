@@ -1,6 +1,7 @@
 import { LanguageSelect } from "@/features/settings/components/language-select";
 import { type PlaybackValues, playbackLabels } from "@/features/settings/lib/playback-values";
 import { SettingRow } from "@/shared/components/setting-row";
+import { rowText } from "@/shared/lib/setting-text";
 
 /** The row of the User's own Audio Preference: the language audio starts in. */
 export function AudioRow({
@@ -11,11 +12,7 @@ export function AudioRow({
   onEdit: (edits: Partial<PlaybackValues>) => void;
 }) {
   return (
-    <SettingRow
-      label={playbackLabels.audio}
-      hint="Audio starts in this language when the file has it."
-      size="field"
-    >
+    <SettingRow {...rowText(playbackLabels, "audio")} size="field">
       {(control) => (
         <LanguageSelect
           control={control}

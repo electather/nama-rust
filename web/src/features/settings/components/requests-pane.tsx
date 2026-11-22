@@ -25,7 +25,7 @@ export function RequestsPane() {
     },
   );
   const labels = Object.fromEntries(
-    defaults.map((fulfiller) => [fulfiller.pluginId, qualityLabel(fulfiller)]),
+    defaults.map((fulfiller) => [fulfiller.pluginId, { label: qualityLabel(fulfiller) }]),
   );
   return (
     <>

@@ -5,6 +5,7 @@ import { SettingRow } from "@/shared/components/setting-row";
 
 /** A setting that's on or off: its row, with a switch at the end. */
 export function SwitchRow({
+  setting,
   label,
   hint,
   error,
@@ -12,6 +13,7 @@ export function SwitchRow({
   disabled = false,
   onChange,
 }: {
+  setting?: string;
   label: string;
   hint?: ReactNode;
   error?: string | undefined;
@@ -20,7 +22,7 @@ export function SwitchRow({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <SettingRow label={label} hint={hint} error={error}>
+    <SettingRow setting={setting} label={label} hint={hint} error={error}>
       {(control) => (
         <Switch {...control} checked={checked} disabled={disabled} onCheckedChange={onChange} />
       )}

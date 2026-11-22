@@ -11,7 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CreateAccountRouteImport } from './routes/create-account'
+import { Route as SendSignInLinkRouteImport } from './routes/send-sign-in-link'
 import { Route as SignInRouteImport } from './routes/sign-in'
+import { Route as SignInLinkRouteImport } from './routes/sign-in-link'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -23,40 +25,74 @@ const CreateAccountRoute = CreateAccountRouteImport.update({
   path: '/create-account',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SendSignInLinkRoute = SendSignInLinkRouteImport.update({
+  id: '/send-sign-in-link',
+  path: '/send-sign-in-link',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SignInRoute = SignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignInLinkRoute = SignInLinkRouteImport.update({
+  id: '/sign-in-link',
+  path: '/sign-in-link',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/create-account': typeof CreateAccountRoute
+  '/send-sign-in-link': typeof SendSignInLinkRoute
   '/sign-in': typeof SignInRoute
+  '/sign-in-link': typeof SignInLinkRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/create-account': typeof CreateAccountRoute
+  '/send-sign-in-link': typeof SendSignInLinkRoute
   '/sign-in': typeof SignInRoute
+  '/sign-in-link': typeof SignInLinkRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/create-account': typeof CreateAccountRoute
+  '/send-sign-in-link': typeof SendSignInLinkRoute
   '/sign-in': typeof SignInRoute
+  '/sign-in-link': typeof SignInLinkRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/create-account' | '/sign-in'
+  fullPaths:
+    | '/'
+    | '/create-account'
+    | '/send-sign-in-link'
+    | '/sign-in'
+    | '/sign-in-link'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/create-account' | '/sign-in'
-  id: '__root__' | '/' | '/create-account' | '/sign-in'
+  to:
+    | '/'
+    | '/create-account'
+    | '/send-sign-in-link'
+    | '/sign-in'
+    | '/sign-in-link'
+  id:
+    | '__root__'
+    | '/'
+    | '/create-account'
+    | '/send-sign-in-link'
+    | '/sign-in'
+    | '/sign-in-link'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CreateAccountRoute: typeof CreateAccountRoute
+  SendSignInLinkRoute: typeof SendSignInLinkRoute
   SignInRoute: typeof SignInRoute
+  SignInLinkRoute: typeof SignInLinkRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -75,11 +111,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CreateAccountRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/send-sign-in-link': {
+      id: '/send-sign-in-link'
+      path: '/send-sign-in-link'
+      fullPath: '/send-sign-in-link'
+      preLoaderRoute: typeof SendSignInLinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sign-in': {
       id: '/sign-in'
       path: '/sign-in'
       fullPath: '/sign-in'
       preLoaderRoute: typeof SignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sign-in-link': {
+      id: '/sign-in-link'
+      path: '/sign-in-link'
+      fullPath: '/sign-in-link'
+      preLoaderRoute: typeof SignInLinkRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -88,7 +138,9 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CreateAccountRoute: CreateAccountRoute,
+  SendSignInLinkRoute: SendSignInLinkRoute,
   SignInRoute: SignInRoute,
+  SignInLinkRoute: SignInLinkRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

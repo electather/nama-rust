@@ -26,8 +26,8 @@ enum RefusalReason {
   // `unauthenticated`: no Account has this email and password. Which of the two is wrong isn't
   // said.
   REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD = 2;
-  // `resource_exhausted`: too many attempts failed lately. Params: `retryAfterSeconds`, also sent
-  // as the `Retry-After` header.
+  // `resource_exhausted`: too many attempts lately, such as failed sign-ins or Sign-in Links asked
+  // for. Params: `retryAfterSeconds`, also sent as the `Retry-After` header.
   REFUSAL_REASON_TOO_MANY_ATTEMPTS = 3;
   // `already_exists`: another Account has this email, compared without regard to case.
   REFUSAL_REASON_EMAIL_TAKEN = 4;
@@ -37,4 +37,8 @@ enum RefusalReason {
   // `invalid_argument`: the password is too short or too long. Params: `minLength` and
   // `maxLength`, in characters.
   REFUSAL_REASON_PASSWORD_LENGTH = 6;
+  // `not_found`: the Sign-in Link expired, was used already, or never existed.
+  REFUSAL_REASON_SIGN_IN_LINK_EXPIRED = 7;
+  // `failed_precondition`: the Hub has no mail set up, so it can't email Sign-in Links.
+  REFUSAL_REASON_SIGN_IN_LINKS_OFF = 8;
 }

@@ -2,6 +2,7 @@ import { Segmented } from "@/features/settings/components/segmented";
 import { SwitchRow } from "@/features/settings/components/switch-row";
 import { type PlaybackValues, playbackLabels } from "@/features/settings/lib/playback-values";
 import { SettingRow } from "@/shared/components/setting-row";
+import { rowText } from "@/shared/lib/setting-text";
 
 const FULL_ONLY = "Only applies to Full subtitles.";
 
@@ -18,20 +19,14 @@ export function WhichRows({
 }) {
   const forced = values.which === "forced";
   // Neither applies to forced-only subtitles, so each is off and says so while they're picked.
-  const hints = forced
-    ? { onlyOther: FULL_ONLY, sdh: FULL_ONLY }
-    : {
-        onlyOther: "Subtitles stay off when the audio is already in your subtitle language.",
-        sdh: "Adds sounds like [door slams] when the file has them.",
-      };
+  const switchText = (key: "onlyOther" | "sdh") => ({
+    ...rowText(playbackLabels, key),
+    ...(forced && { hint: FULL_ONLY }),
+  });
   const on = forced ? { onlyOther: false, sdh: false } : values;
   return (
     <>
-      <SettingRow
-        wide
-        label={playbackLabels.which}
-        hint="Full is every line. Forced only is signs and lines in another language."
-      >
+      <SettingRow wide {...rowText(playbackLabels, "which")}>
         {(control) => (
           <Segmented
             aria-labelledby={control["aria-labelledby"]}
@@ -49,8 +44,7 @@ export function WhichRows({
         )}
       </SettingRow>
       <SwitchRow
-        label={playbackLabels.onlyOther}
-        hint={hints.onlyOther}
+        {...switchText("onlyOther")}
         checked={on.onlyOther}
         disabled={forced}
         onChange={(onlyOther) => {
@@ -58,8 +52,7 @@ export function WhichRows({
         }}
       />
       <SwitchRow
-        label={playbackLabels.sdh}
-        hint={hints.sdh}
+        {...switchText("sdh")}
         checked={on.sdh}
         disabled={forced}
         onChange={(sdh) => {

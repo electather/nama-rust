@@ -1,6 +1,7 @@
-import { playbackLabels } from "@/features/admin-playback/lib/playback-settings-form";
+import { serverPlaybackLabels } from "@/features/admin-playback/lib/playback-labels";
 import { limits } from "@/features/admin-playback/lib/remote-limits";
 import { FormSelect } from "@/shared/components/form-field/form-select";
+import { rowText } from "@/shared/lib/setting-text";
 
 /** The field for the default Playback Limit for remote playback, showing the one in `value`. */
 export function RemoteLimitField({
@@ -15,11 +16,10 @@ export function RemoteLimitField({
   return (
     <FormSelect
       row
-      label={playbackLabels.remotePlaybackLimit}
+      {...rowText(serverPlaybackLabels, "remotePlaybackLimit")}
       name="remotePlaybackLimit"
       value={value}
       onValueChange={onPick}
-      hint="The most a Device outside the local network is sent until its User picks a Playback Limit in the player. Original sends each Version as it is."
       options={limits.map(({ limit, name }) => ({ value: String(limit), label: name }))}
     />
   );

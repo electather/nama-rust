@@ -65,7 +65,7 @@ pub(crate) use track_preferences::{
 };
 pub(crate) use tracks::{
     Chapter, Probe, Segment, SegmentKind, Segments, Track, TrackKind, Tracks, make_segments_due,
-    track_to_proto,
+    title_ids_changed, track_to_proto,
 };
 
 use std::{collections::BTreeSet, num::NonZeroU32};

@@ -10,7 +10,7 @@ import {
   HomeLayoutSchema,
   type SetDefaultHomeLayoutRequest,
 } from "@/gen/nama/v1/server_pb";
-import { admin, fakeServer, openApp } from "@/test-app";
+import { admin, fakeServer } from "@/test-app";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -160,12 +160,4 @@ test("an Admin drags a Home row to the end", async () => {
   await waitFor(() => {
     expect(saves).toHaveLength(1);
   });
-});
-
-test("the old default Home address lands on Home with Settings open on Default Home", async () => {
-  const router = openApp("/admin/home", defaultHomeServer({ rows: [continueWatching] }).transport);
-
-  await screen.findByText("Continue Watching");
-  expect(router.state.location.pathname).toBe("/");
-  expect(router.state.location.search).toMatchObject({ settings: "default-home" });
 });

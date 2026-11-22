@@ -3,6 +3,7 @@ import { useState } from "react";
 import { CardHeading } from "@/features/settings/components/card-heading";
 import { ForgetButton } from "@/features/settings/components/forget-button";
 import { usePersonalChanges } from "@/features/settings/hooks/use-personal-changes";
+import { personalSetting } from "@/features/settings/lib/server-defined";
 import type { PersonalSettings as Personal } from "@/gen/nama/v1/user_pb";
 import { SettingInput } from "@/shared/components/setting-input/setting-input";
 import { useAutoSubmit } from "@/shared/hooks/use-auto-submit";
@@ -42,13 +43,16 @@ export function PersonalForm({ plugin, headingId }: { plugin: Personal; headingI
   const rows = (
     <div key={forgotten} className="flex flex-col">
       {plugin.settings.map((setting) => (
-        // No choices: the Kernel refuses a CHOICE Personal setting (ADR 0046).
-        <SettingInput
+        // Each row is drawn by the input its kind takes, so `?setting=` finds this box around it,
+        // which draws the hairline between rows in its place.
+        <div
           key={setting.key}
-          setting={setting}
-          error={errors[setting.key]}
-          checksRequired
-        />
+          data-setting={personalSetting(plugin.pluginId, setting.key)}
+          className="not-first:border-t"
+        >
+          {/* No choices: the Kernel refuses a CHOICE Personal setting (ADR 0046). */}
+          <SettingInput setting={setting} error={errors[setting.key]} checksRequired />
+        </div>
       ))}
     </div>
   );

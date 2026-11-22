@@ -4,6 +4,7 @@ mod accounts;
 mod api;
 pub mod config;
 pub mod db;
+pub mod mail;
 pub mod titles;
 #[cfg(feature = "web")]
 mod web;
@@ -14,9 +15,12 @@ use nama_forwarded::IpRange;
 use sqlx::PgPool;
 use tokio::net::TcpListener;
 
+use crate::mail::Mail;
+
 /// Serves the Hub API on `listener`, backed by `db`, which must be migrated already, until
 /// `shutdown` resolves, then lets requests in flight finish. Forwarded headers are believed only
-/// from a peer in `trusted_proxies` (ADR 0018).
+/// from a peer in `trusted_proxies` (ADR 0018). Sign-in Links are emailed through `mail`, and
+/// without it aren't offered. Must be called inside a Tokio runtime, which sends them.
 ///
 /// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
 /// protobuf bodies. With the `web` feature, any other `GET` gets the Hub's web pages.
@@ -28,9 +32,10 @@ pub fn serve(
     listener: TcpListener,
     db: PgPool,
     trusted_proxies: &[IpRange],
+    mail: Option<Mail>,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
-    let app = api::router(db, trusted_proxies);
+    let app = api::router(db, trusted_proxies, mail);
     #[cfg(feature = "web")]
     let app = app.layer(axum::middleware::from_fn(web::serve));
     let app = app.into_make_service_with_connect_info::<SocketAddr>();

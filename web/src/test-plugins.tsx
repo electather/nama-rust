@@ -14,7 +14,7 @@ import { libraries, plugins, summaryOf } from "@/test-plugin-list";
  * with `changes`, and other `LibraryService` calls, such as listing the Libraries, with `library`.
  * A User with `signedIn` is signed in to it: by default, one who manages settings.
  */
-export function pluginServer(
+function pluginServer(
   changes: Partial<ServiceImpl<typeof PluginService>>,
   library: Partial<ServiceImpl<typeof LibraryService>> = {},
   signedIn: Permission[] = [Permission.MANAGE_SETTINGS],

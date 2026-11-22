@@ -1,7 +1,8 @@
 use super::{
-    Exception, area_modules, code_only, crate_paths, deep_reaches, rooted, stale_exceptions,
-    too_long,
+    Exception, area_modules, code_only, crate_paths, deep_reach_problems, deep_reaches, rooted,
+    stale_exceptions, too_long,
 };
+use crate::{MustFind, SourceFile};
 
 #[test]
 fn area_modules_names_files_and_folders_but_not_tests_or_root_files() {
@@ -79,6 +80,60 @@ fn deep_reaches_fails_a_path_into_another_areas_module_unless_excepted() {
             "SURFACE_EXCEPTIONS lets neighbours reach crate::far::gone, but nothing does: \
              remove the entry (why gone)"
         ]
+    );
+}
+
+#[test]
+fn deep_reach_problems_lets_through_only_an_item_the_root_re_exports_under_its_modules_name() {
+    let reaches = |root: &str, text: &str| {
+        let files = [
+            ("src/far.rs", root),
+            ("src/far/thing.rs", ""),
+            ("src/near.rs", text),
+        ]
+        .map(|(path, text)| SourceFile {
+            path: path.to_owned(),
+            text: text.to_owned(),
+        });
+        let must_find = MustFind {
+            nested_folder: "",
+            area_module: None,
+            crate_paths: 0,
+            named_paths: 0,
+        };
+        deep_reach_problems(&files, &[], &must_find)
+    };
+    let reexports = "mod thing;\npub use thing::{Error, thing};";
+    assert_eq!(
+        reaches(reexports, "crate::far::thing(1);"),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        reaches(
+            "mod thing;\n#[cfg(feature = \"a\")]\npub(crate) use thing::thing;",
+            "crate::far::thing(1);"
+        ),
+        Vec::<String>::new()
+    );
+    let fails = |path: &str| {
+        vec![format!(
+            "src/near.rs:1: crate::{path} reaches into far: import what far.rs re-exports"
+        )]
+    };
+    assert_eq!(
+        reaches(reexports, "use crate::far::thing::inner;"),
+        fails("far::thing::inner")
+    );
+    assert_eq!(
+        reaches(
+            "mod thing;\nfn f() { thing::thing(); }",
+            "crate::far::thing(1);"
+        ),
+        fails("far::thing")
+    );
+    assert_eq!(
+        reaches("mod thing;\npub use thing::other;", "crate::far::thing(1);"),
+        fails("far::thing")
     );
 }
 
