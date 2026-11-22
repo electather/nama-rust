@@ -18,6 +18,16 @@ The factory triages `needs-triage` issues itself (`.sandcastle/triage-prompt.md`
 
 `ready-for-agent` goes on the issues the factory builds, never on a parent. A parent with sub-issues isn't built itself: its children carry the label, and the factory closes the parent once they're all closed.
 
+## Area labels
+
+Each issue also carries a label for every project its change touches, so work can be targeted by project. An issue can have several; a parent carries the union of its children's.
+
+| Label | The issue touches |
+| ----- | ----------------- |
+| `hub` | The Hub: `crates/nama-hub` and its proto package |
+| `server` | The Server: `crates/nama-server`, the Kernel, Built-in Plugins and `plugins/` |
+| `web` | The web apps under `web/`, the Hub's included |
+
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
 Edit the "Label in our tracker" column to match whatever vocabulary you actually use.
