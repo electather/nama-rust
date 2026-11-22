@@ -60,6 +60,15 @@ test("a Plugin opens in place of the list, and the link over it goes back", asyn
   expect(router.state.location.search.plugin).toBeUndefined();
 });
 
+test("a Plugin's link back to the list isn't marked as the current page", async () => {
+  openPluginSettings({}, "tmdb");
+
+  const opened = await screen.findByRole("region", { name: "TMDB" });
+  expect(
+    within(opened).getByRole("link", { name: "Plugins" }).getAttribute("aria-current"),
+  ).toBeNull();
+});
+
 test("a Plugin's view says what each of its Extension Points means", async () => {
   openPluginSettings({}, "tmdb");
 
