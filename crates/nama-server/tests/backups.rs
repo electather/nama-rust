@@ -1,5 +1,5 @@
-//! The Backups page's RPCs: listing the Backup folder and saving where Backups go and how many are
-//! kept. Who may call them is in `access.rs`.
+//! The Backups section's RPCs: listing the Backup folder and saving where Backups go and how many
+//! are kept. Who may call them is in `access.rs`.
 
 #[path = "support/refused.rs"]
 mod refused;

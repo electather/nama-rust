@@ -109,8 +109,8 @@ fn jobs() -> Vec<Job> {
             id: BACK_UP.to_owned(),
             name: "Back up".to_owned(),
             description: "Writes a Backup of the Server into the Backup folder, then \
-                          deletes the oldest it wrote beyond the count kept, both set on \
-                          the Backups page. A Backup that fails deletes none."
+                          deletes the oldest it wrote beyond the count kept, both set in \
+                          Settings' Backups section. A Backup that fails deletes none."
                 .to_owned(),
             // Before the 04:00 Jobs, so the Backup holds what they'd delete.
             schedule: Some("0 3 * * *".to_owned()),
