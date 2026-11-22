@@ -624,11 +624,12 @@ async fn a_server_address_must_be_an_http_url(db: PgPool) {
             RefusalReason::REFUSAL_REASON_SERVER_ADDRESS_INVALID,
         );
     }
-    assert_refused(
+    let port_refusal = assert_refused(
         set_addresses_with_port(&hub, &living_room, "", &[], 65536).await,
         ErrorCode::InvalidArgument,
         RefusalReason::REFUSAL_REASON_SERVER_ADDRESS_INVALID,
     );
+    assert_eq!(port_refusal.params["maxPort"], "65535");
     assert_refused(
         set_addresses(&hub, "not a credential", "", &[]).await,
         ErrorCode::Unauthenticated,

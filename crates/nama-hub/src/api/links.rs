@@ -326,7 +326,8 @@ fn refused(err: links::Error) -> ConnectError {
         E::UserLinked => refuse(R::REFUSAL_REASON_USER_LINKED, message),
         E::AddressInvalid => refuse(R::REFUSAL_REASON_SERVER_ADDRESS_INVALID, message)
             .param("maxLength", &ADDRESS_LENGTH)
-            .param("maxLanAddresses", &MAX_LAN_ADDRESSES),
+            .param("maxLanAddresses", &MAX_LAN_ADDRESSES)
+            .param("maxPort", &u16::MAX),
         E::Random(_) | E::Database(_) => return hub_failed(&err),
     };
     refused.into()

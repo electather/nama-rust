@@ -1,8 +1,10 @@
 //! The Server's Server Addresses (GLOSSARY.md), which the enabled Plugin that links the Server,
 //! such as the Hub Plugin, is told so the service can hand them to clients (ADR 0094), and the
-//! port it opens on the router for clients outside the LAN while that Plugin is enabled (ADR 0057).
+//! port it opens on the router for clients outside the LAN while that Plugin has it Linked
+//! (ADR 0057).
 
 use std::{
+    future::Future,
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
     num::NonZeroU16,
     sync::Arc,
@@ -10,8 +12,8 @@ use std::{
 };
 
 use nama_plugin_api::{
-    PluginId,
-    server_link::{ServerAddresses, ServerLinker},
+    PluginError, PluginId,
+    server_link::{Link, ServerAddresses, ServerLinker},
 };
 use tokio::{sync::oneshot, task::JoinHandle};
 use url::Url;
@@ -24,13 +26,14 @@ const EVERY: Duration = Duration::from_mins(1);
 
 /// How many times the Plugin is told between opening the port on the router again: half its
 /// [`port_mapping::LEASE`], so it never closes while the Server runs.
-const OPEN_PORT_EVERY: u32 = 30;
+const OPEN_PORT_EVERY: u64 = port_mapping::LEASE.as_secs() / 2 / EVERY.as_secs();
 
 /// Tells the enabled Plugin that links the Server its Server Addresses now and every minute: the
 /// Server URL `url` holds, the LAN address of `listening`, and the public port: `forwarded`, the
 /// one the Admin forwarded, or else one the Server opens on the router, only while such a Plugin
-/// is enabled. Runs until the task is aborted; each call runs in the Plugin's scope, so disabling
-/// it or shutting down cancels and joins the call. A Plugin that fails shows it on its page.
+/// has it Linked. Runs until the task is aborted; each call runs in the Plugin's scope, so
+/// disabling it or shutting down cancels and joins the call. A Plugin that fails shows it on its
+/// page.
 pub(crate) fn tell_every_minute(
     points: ExtensionPoints,
     url: ServerUrl,
@@ -50,14 +53,19 @@ pub(crate) fn tell_every_minute(
             let lan = lan_address(listening);
             let public_port = match forwarded {
                 Some(port) => Some(port.get()),
-                None => opened.port(lan).await,
+                None if linked(&points, &plugin).await => opened.port(lan).await,
+                None => {
+                    // Shut while the Server isn't Linked, and opened at once when it is.
+                    opened = OpenedPort::default();
+                    None
+                }
             };
             let addresses = ServerAddresses {
                 url: as_sent(&url.url()),
                 lan: lan.map(|lan| format!("http://{lan}")).into_iter().collect(),
                 public_port,
             };
-            tell(&points, plugin, addresses).await;
+            tell(&points, &plugin, addresses).await;
         }
     })
 }
@@ -68,7 +76,7 @@ struct OpenedPort {
     /// The port open on the router's public IP address, if it opened one.
     port: Option<u16>,
     /// Ticks left until the port is opened again; 0 opens it on the next.
-    ticks_left: u32,
+    ticks_left: u64,
 }
 
 impl OpenedPort {
@@ -87,26 +95,53 @@ impl OpenedPort {
     }
 }
 
-/// Tells `plugin`, the first enabled one that links the Server, `addresses`, in its scope, and
-/// waits until it answered or its scope was cancelled.
-async fn tell(points: &ExtensionPoints, plugin: PluginId, addresses: ServerAddresses) {
-    let (asking, telling) = (points.clone(), plugin.clone());
+/// Tells `plugin` `addresses`, and waits until it answered or its scope was cancelled.
+async fn tell(points: &ExtensionPoints, plugin: &PluginId, addresses: ServerAddresses) {
+    ask_in_scope(points, plugin, move |linker| {
+        let addresses = addresses.clone();
+        async move { linker.set_addresses(addresses).await }
+    })
+    .await;
+}
+
+/// Whether `plugin` has the Server Linked. Not, if it fails to say.
+async fn linked(points: &ExtensionPoints, plugin: &PluginId) -> bool {
+    let link = ask_in_scope(points, plugin, |linker| async move { linker.link().await }).await;
+    matches!(link, Some(Link::Linked { .. }))
+}
+
+/// What `call` gets from `plugin`, the first enabled one that links the Server, asked in its
+/// scope. `None` once it failed, didn't answer within [`EVERY`], or its scope was cancelled.
+async fn ask_in_scope<R, F>(
+    points: &ExtensionPoints,
+    plugin: &PluginId,
+    call: impl Fn(Arc<dyn ServerLinker>) -> F + Send + Sync + 'static,
+) -> Option<R>
+where
+    R: Send + 'static,
+    F: Future<Output = Result<R, PluginError>> + Send,
+{
+    let (asking, asked) = (points.clone(), plugin.clone());
     let (told, answered) = oneshot::channel();
-    let spawned = points.spawn_in(&plugin, async move {
-        asking
-            .ask(&telling, async |linker: Arc<dyn ServerLinker>| {
-                // Bounded, so a Plugin that never answers can't stop every later report.
-                tokio::time::timeout(EVERY, linker.set_addresses(addresses.clone()))
-                    .await
-                    .unwrap_or_else(|_elapsed| Err("it didn't answer in time".into()))
+    let spawned = points.spawn_in(plugin, async move {
+        let answer = asking
+            .ask(&asked, |linker: Arc<dyn ServerLinker>| {
+                // Bounded, so a Plugin that never answers can't stop every later call.
+                let calling = tokio::time::timeout(EVERY, call(linker));
+                async move {
+                    calling
+                        .await
+                        .unwrap_or_else(|_elapsed| Err("it didn't answer in time".into()))
+                }
             })
             .await;
-        let _: Result<(), ()> = told.send(());
+        let _: Result<(), _> = told.send(answer.and_then(|answer| answer.result.ok()));
     });
-    if spawned {
-        // A cancelled scope drops the sender, which ends the wait as well.
-        let _: Result<(), _> = answered.await;
+    if !spawned {
+        return None;
     }
+    // A cancelled scope drops the sender, which ends the wait as well.
+    answered.await.ok().flatten()
 }
 
 /// The Server URL `url` as `url` serialises it, or empty for none: ASCII throughout, so the service,
