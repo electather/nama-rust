@@ -17,9 +17,8 @@ import { openTracks, pickIn, rowsOf } from "@/test-player";
 afterEach(cleanup);
 
 const PLAYER = "/libraries/1/movies/tmdb-348/play";
+// Shown only after `getting-ready.tsx` waits 1 s, so finding it needs `test-app.tsx`'s raised wait.
 const READY = "Getting this ready…";
-/** Longer than the player waits before saying it's getting ready. */
-const PAST_NOTICEABLE_WAIT = { timeout: 3000 };
 
 type Plan = MessageInitShape<typeof PlaybackPlanSchema>;
 
@@ -88,7 +87,7 @@ test("the player shows the title, Back and that it's getting ready until the fir
   const server = slowServer();
   openApp(PLAYER, server.transport);
 
-  const getting = await screen.findByRole("status", {}, PAST_NOTICEABLE_WAIT);
+  const getting = await screen.findByRole("status");
   expect(getting.textContent).toBe(READY);
   expect(screen.getByRole("heading", { name: "Alien" })).toBeDefined();
   expect(screen.getByRole("link", { name: "Back" }).getAttribute("href")).toBe(
@@ -114,7 +113,7 @@ test("choosing another audio Track shows it's getting ready until that plan come
 
   const second = await server.asked(1);
   expect(second.request.audioTrack).toBe(2);
-  await expect(screen.findByText(READY, {}, PAST_NOTICEABLE_WAIT)).resolves.toBeDefined();
+  await expect(screen.findByText(READY)).resolves.toBeDefined();
 
   second.answer(directPlay("/media/versions/7?audio=2", 2));
 

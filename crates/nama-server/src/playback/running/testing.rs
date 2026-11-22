@@ -19,7 +19,10 @@ use super::{
     subtitles,
     timeline::Timeline,
 };
-use crate::ffmpeg::Keyframe;
+use crate::{
+    ffmpeg::Keyframe,
+    playback::{ProbePasses, WholeFileReads},
+};
 
 /// Runs a test starts, ends and watches being dropped, as a plan starts them.
 #[derive(Clone, Default)]
@@ -161,9 +164,20 @@ impl RunningPlans {
         let settings =
             crate::server_settings::Settings::new(Arc::clone(db), folder.join("transcodes"));
         let subtitles = subtitles::Cache::new(folder);
-        let images = crate::images::ImageStore::new(folder, Arc::clone(db));
-        let probing = Probing::new(Arc::clone(db), Arc::clone(&ffmpeg), subtitles, images);
+        let probing = Probing::new(
+            Arc::clone(db),
+            Arc::clone(&ffmpeg),
+            ProbePasses::default(),
+            WholeFileReads::default(),
+        );
         let contents = Contents::new(Arc::clone(db));
-        Self::new(settings.playback(), ffmpeg, contents, probing, events)
+        Self::new(
+            settings.playback(),
+            ffmpeg,
+            contents,
+            probing,
+            subtitles,
+            events,
+        )
     }
 }

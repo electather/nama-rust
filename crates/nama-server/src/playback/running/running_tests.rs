@@ -21,7 +21,7 @@ use crate::{
     events::{EventBus, Filter, event},
     ffmpeg::{Accel, Ffmpeg, Hardware},
     library::Contents,
-    playback::{Probing, subtitles},
+    playback::{ProbePasses, Probing, WholeFileReads, subtitles},
     plugins::ExtensionPoints,
     server_settings::{HardwareChoice, PlaybackChange, PlaybackSettings, ServerUrl, Settings},
 };
@@ -45,15 +45,20 @@ pub(super) fn plans_with(
     events: &EventBus,
 ) -> RunningPlans {
     let ffmpeg = Arc::new(Ffmpeg::default());
-    // Nothing here cleans subtitles, so their cache's and the image store's folder is never
-    // touched.
+    // Nothing here burns a subtitle in, so the cache's folder is never touched.
     let subtitles = subtitles::Cache::new(&std::env::temp_dir());
-    let images = crate::images::ImageStore::new(&std::env::temp_dir(), Arc::clone(db));
+    let probing = Probing::new(
+        Arc::clone(db),
+        Arc::clone(&ffmpeg),
+        ProbePasses::default(),
+        WholeFileReads::default(),
+    );
     RunningPlans::new(
         settings,
-        Arc::clone(&ffmpeg),
+        ffmpeg,
         Contents::new(Arc::clone(db)),
-        Probing::new(Arc::clone(db), ffmpeg, subtitles, images),
+        probing,
+        subtitles,
         events.clone(),
     )
 }

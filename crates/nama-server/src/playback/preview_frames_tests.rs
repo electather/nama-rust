@@ -11,7 +11,7 @@ use crate::{
         Change, Item, Order,
         fixture::{MatchedMovie, tmdb_movie},
     },
-    playback::{SubtitleCache, Track, tracks::Probe},
+    playback::{Track, tracks::Probe},
     plugins::ExtensionPoints,
     server_settings::ServerUrl,
 };
@@ -54,16 +54,9 @@ impl Fixture {
             ServerUrl::default(),
         );
         let images = ImageStore::new(data.path(), Arc::clone(&db));
-        let subtitles = SubtitleCache::new(data.path());
-        let probing = Probing::new(
-            Arc::clone(&db),
-            Arc::clone(&ffmpeg),
-            subtitles,
-            images.clone(),
-        );
         let running = RunningPlans::for_tests(&db, events, data.path());
         Self {
-            frames: PreviewFrames::new(Arc::clone(&db), images, ffmpeg, running, probing),
+            frames: PreviewFrames::new(Arc::clone(&db), images, ffmpeg, running, Arc::default()),
             contents: Contents::new(Arc::clone(&db)),
             libraries: Libraries::new(Arc::clone(&db)),
             tracks: Tracks::new(db),

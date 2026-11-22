@@ -1,4 +1,5 @@
-//! Browse: the Movies and Shows a Library holds, as a User sees them.
+//! Browse: the Movies and Shows a Library holds, and the pages of those and of Found ones, as a
+//! User sees them.
 //!
 //! [`Browse`] finds titles through [`Contents`], never in the content tables itself (see
 //! `src/library/AGENTS.md`), and attaches the User's [`WatchState`]s and, only to the Movies and
@@ -14,9 +15,9 @@ use crate::{
     db::Database,
     library::{
         Contents, Found, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
-        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listing, MAX_SIMILAR, NotFound,
-        OnServer, Roles, SimilarAnswer, SimilarSources, Stored, TitleKind, TitleTarget as Target,
-        Titles, Unmatched, WatchState, WatchStateKind, WatchStates, merged_similar,
+        LibraryMovie, LibrarySeason, LibraryShow, LibraryVersion, Listing, NotFound, OnServer,
+        Stored, TitleKind, TitleTarget as Target, Titles, Unmatched, WatchState, WatchStateKind,
+        WatchStates,
     },
     page::{self, Page},
     playback::{Probe, StoredTracks, Track},
@@ -24,9 +25,11 @@ use crate::{
 };
 
 mod featured;
+mod title_pages;
 mod watching;
 
 pub(crate) use featured::Featured;
+pub(crate) use title_pages::{FoundPageError, TitlePages};
 pub(crate) use watching::Started;
 
 /// A Movie whose Versions have their Tracks.
@@ -133,16 +136,6 @@ impl Browse {
         Ok((movie, state.flatten(), read_only_folder))
     }
 
-    /// `movie`'s Roles, each list in billing order.
-    pub(crate) async fn movie_roles(&self, movie: &Movie) -> Result<Roles, Error> {
-        Ok(self.contents.movie_roles(movie).await?)
-    }
-
-    /// `show`'s Roles, over its whole run.
-    pub(crate) async fn show_roles(&self, show: &Show) -> Result<Roles, Error> {
-        Ok(self.contents.show_roles(show).await?)
-    }
-
     /// The Episodes of Season `season` of the Show `show` of the Shows Library `library`, each
     /// with the User `user`'s Watch State of it, if they've started it.
     pub(crate) async fn episodes(
@@ -199,11 +192,6 @@ impl Browse {
     /// The Show `id` of the Shows Library `library`.
     pub(crate) async fn show(&self, library: i64, id: &ExternalId) -> Result<Show, Error> {
         Ok(self.titles(&self.library(library).await?).await?.show(id)?)
-    }
-
-    /// How many of `show`'s Episodes have aired: see [`Contents::aired_episodes`].
-    pub(crate) async fn aired_episodes(&self, show: &Show) -> Result<u32, sqlx::Error> {
-        self.contents.aired_episodes(show).await
     }
 
     /// Season `number` of the Show `show` of the Shows Library `library`.
@@ -347,31 +335,6 @@ impl Browse {
             return Ok(HashMap::new());
         }
         self.tracks.of(&files).await
-    }
-
-    /// The Similar titles of the title of `kind` known by `ids`, merged from what each of
-    /// `sources` last answered about it, as [`Self::similar_in_libraries`] finds them.
-    pub(crate) async fn similar(
-        &self,
-        kind: TitleKind,
-        ids: &ExternalIds,
-        sources: &SimilarSources,
-    ) -> Result<Vec<OnServer>, Error> {
-        let answers = sources.of_enabled(self.contents.similar(kind, ids).await?);
-        self.similar_in_libraries(kind, &answers).await
-    }
-
-    /// The first [`MAX_SIMILAR`] titles of `answers`, merged (ADR 0084), that a Library has, as
-    /// [`Self::in_libraries`] finds them: a title two sources answer, by any id they share, once,
-    /// at its heaviest weight.
-    pub(crate) async fn similar_in_libraries(
-        &self,
-        kind: TitleKind,
-        answers: &[SimilarAnswer],
-    ) -> Result<Vec<OnServer>, Error> {
-        let mut similar = self.in_libraries(kind, &merged_similar(answers)).await?;
-        similar.truncate(MAX_SIMILAR);
-        Ok(similar)
     }
 
     /// The titles of `kind` that `ids` name and a Library has, in the order of `ids`, each once,
