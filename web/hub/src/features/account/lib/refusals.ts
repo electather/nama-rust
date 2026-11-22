@@ -39,6 +39,9 @@ const wording: Partial<
   [RefusalReason.EMAIL_INVALID]: () => ({
     email: "Enter an email address, such as you@example.com.",
   }),
+  [RefusalReason.SIGN_IN_LINKS_OFF]: () => ({
+    form: "This Hub can’t email Sign-in Links. Sign in with your password instead.",
+  }),
   [RefusalReason.PASSWORD_LENGTH]: (param) => ({
     password: `A password needs ${param("minLength")} to ${param("maxLength")} characters.`,
   }),

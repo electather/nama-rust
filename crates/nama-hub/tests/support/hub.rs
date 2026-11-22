@@ -4,7 +4,7 @@
 use std::net::SocketAddr;
 
 use connectrpc::client::ClientConfig;
-use nama_hub::db;
+use nama_hub::{db, mail::Mail};
 use sqlx::PgPool;
 use tokio::{net::TcpListener, sync::oneshot};
 
@@ -21,13 +21,14 @@ pub(crate) struct TestHub {
     reason = "a test helper fails its test by panicking"
 )]
 impl TestHub {
-    /// Migrates `db`, as the Hub does at startup, and serves the Hub on it.
-    pub(crate) async fn start(db: PgPool) -> Self {
+    /// Migrates `db`, as the Hub does at startup, and serves the Hub on it, sending mail through
+    /// `mail`, if any.
+    pub(crate) async fn start(db: PgPool, mail: Option<Mail>) -> Self {
         db::migrate(&db).await.unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let (stop, stopped) = oneshot::channel::<()>();
-        tokio::spawn(nama_hub::serve(listener, db.clone(), &[], async {
+        tokio::spawn(nama_hub::serve(listener, db.clone(), &[], mail, async {
             let _: Result<(), oneshot::error::RecvError> = stopped.await;
         }));
         Self {

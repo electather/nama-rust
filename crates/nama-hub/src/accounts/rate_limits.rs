@@ -1,6 +1,7 @@
 //! Slowing down guesses at passwords, by refusing sign-ins after too many recent failures from one
-//! client IP or for one email, as the Server's `users/rate_limits.rs` does for User names. A
-//! client IP is counted by its /64 if it is IPv6.
+//! client IP or for one email, as the Server's `users/rate_limits.rs` does for User names, and
+//! mail floods, by refusing Sign-in Links asked for too often the same way. A client IP is counted
+//! by its /64 if it is IPv6.
 //!
 //! ponytail: counts live in this process's memory (ADR 0096); they move to PostgreSQL once the Hub
 //! runs as replicas. They expire as the window slides past them and a restart forgets them, so
@@ -24,14 +25,28 @@ const FAILURES_PER_EMAIL: usize = 10;
 /// How many failures from one client IP the window may hold before its sign-ins are refused.
 const FAILURES_PER_IP: usize = 50;
 
+/// How many Sign-in Links one email may be asked for in the window, whether or not it has an
+/// Account.
+const LINKS_PER_EMAIL: usize = 3;
+
+/// How many Sign-in Links one client IP may ask for in the window.
+const LINKS_PER_IP: usize = 20;
+
 /// The recent failed sign-ins, by client IP and by email.
 #[derive(Debug, Default)]
 pub(super) struct SignInLimits {
-    failures: Mutex<Failures>,
+    failures: Mutex<Counts>,
 }
 
+/// The recent requests for a Sign-in Link, by client IP and by email.
 #[derive(Debug, Default)]
-struct Failures {
+pub(super) struct LinkLimits {
+    requests: Mutex<Counts>,
+}
+
+/// When each client IP and each email was counted, within the window.
+#[derive(Debug, Default)]
+struct Counts {
     by_ip: Window<IpAddr>,
     by_email: Window<String>,
 }
@@ -46,11 +61,11 @@ pub(super) struct Attempt {
     at: Instant,
 }
 
-/// A sign-in refused for too many recent failures.
+/// A request refused for too many recent ones.
 #[derive(Debug, thiserror::Error)]
-#[error("too many failed attempts; try again in {} seconds", self.retry_after_secs())]
+#[error("too many attempts lately; try again in {} seconds", self.retry_after_secs())]
 pub(crate) struct Blocked {
-    /// How long until the oldest failure in the way leaves the window.
+    /// How long until the oldest count in the way leaves the window.
     retry_after: Duration,
 }
 
@@ -65,33 +80,56 @@ impl SignInLimits {
     /// Lets a sign-in from `ip` with `email` through at `now` unless too many have failed
     /// recently, and counts it as failed until it succeeds.
     pub(super) fn admit(&self, ip: IpAddr, email: &str, now: Instant) -> Result<Attempt, Blocked> {
-        let ip = counted_ip(ip);
-        let email = counted_email(email);
-        let mut failures = self.lock();
-        let ip_wait = failures.by_ip.wait(&ip, FAILURES_PER_IP, now);
-        let email_wait = failures.by_email.wait(&email, FAILURES_PER_EMAIL, now);
-        if let Some(retry_after) = ip_wait.max(email_wait) {
-            return Err(Blocked { retry_after });
-        }
-        failures.by_ip.record(ip, now);
-        failures.by_email.record(email.clone(), now);
+        let (ip, email) =
+            lock(&self.failures).count((ip, FAILURES_PER_IP), (email, FAILURES_PER_EMAIL), now)?;
         Ok(Attempt { ip, email, at: now })
     }
 
     /// Un-counts `attempt`, which succeeded, and forgets every failure for its email.
     pub(super) fn succeeded(&self, attempt: &Attempt) {
-        let mut failures = self.lock();
+        let mut failures = lock(&self.failures);
         failures.by_ip.forget(&attempt.ip, attempt.at);
         failures.by_email.clear(&attempt.email);
     }
+}
 
-    fn lock(&self) -> MutexGuard<'_, Failures> {
-        // Every change leaves the counts consistent, so a panic elsewhere doesn't spoil them.
-        self.failures.lock().unwrap_or_else(PoisonError::into_inner)
+impl LinkLimits {
+    /// Lets a request from `ip` for a Sign-in Link to `email` through at `now`, and counts it,
+    /// unless too many came lately.
+    pub(super) fn admit(&self, ip: IpAddr, email: &str, now: Instant) -> Result<(), Blocked> {
+        lock(&self.requests).count((ip, LINKS_PER_IP), (email, LINKS_PER_EMAIL), now)?;
+        Ok(())
     }
 }
 
-/// What failures for `email` are counted under: lowercased, as emails are compared, and cut short
+fn lock(counts: &Mutex<Counts>) -> MutexGuard<'_, Counts> {
+    // Every change leaves the counts consistent, so a panic elsewhere doesn't spoil them.
+    counts.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+impl Counts {
+    /// Counts one for `ip` and one for `email` at `now`, each paired with its limit, unless either
+    /// is at it. Returns the keys they were counted under.
+    fn count(
+        &mut self,
+        (ip, ip_limit): (IpAddr, usize),
+        (email, email_limit): (&str, usize),
+        now: Instant,
+    ) -> Result<(IpAddr, String), Blocked> {
+        let ip = counted_ip(ip);
+        let email = counted_email(email);
+        let ip_wait = self.by_ip.wait(&ip, ip_limit, now);
+        let email_wait = self.by_email.wait(&email, email_limit, now);
+        if let Some(retry_after) = ip_wait.max(email_wait) {
+            return Err(Blocked { retry_after });
+        }
+        self.by_ip.record(ip, now);
+        self.by_email.record(email.clone(), now);
+        Ok((ip, email))
+    }
+}
+
+/// What `email` is counted under: lowercased, as emails are compared, and cut short
 /// past the longest an Account's can be, so a request can't have a huge one kept for the window.
 fn counted_email(email: &str) -> String {
     email
@@ -101,7 +139,7 @@ fn counted_email(email: &str) -> String {
         .to_lowercase()
 }
 
-/// What failures from `ip` are counted under: an IPv6 address by its /64, since one client
+/// What `ip` is counted under: an IPv6 address by its /64, since one client
 /// normally holds a whole /64 and could use a new address for each attempt.
 fn counted_ip(ip: IpAddr) -> IpAddr {
     match ip.to_canonical() {
@@ -110,11 +148,11 @@ fn counted_ip(ip: IpAddr) -> IpAddr {
     }
 }
 
-/// When each key's failures still in the window happened, oldest first.
+/// When each key's counts still in the window happened, oldest first.
 #[derive(Debug)]
 struct Window<K> {
     times: HashMap<K, VecDeque<Instant>>,
-    /// When keys whose failures had all left the window were last dropped.
+    /// When keys whose counts had all left the window were last dropped.
     swept_at: Option<Instant>,
 }
 
@@ -128,7 +166,7 @@ impl<K> Default for Window<K> {
 }
 
 impl<K: Hash + Eq> Window<K> {
-    /// How long `key` must wait, as of `now`, before it has fewer than `limit` failures in the
+    /// How long `key` must wait, as of `now`, before it has fewer than `limit` counts in the
     /// window, if it has that many now.
     fn wait(&mut self, key: &K, limit: usize, now: Instant) -> Option<Duration> {
         let times = self.times.get_mut(key)?;
@@ -138,12 +176,12 @@ impl<K: Hash + Eq> Window<K> {
         {
             times.pop_front();
         }
-        // Failures are only recorded below the limit, so at the limit the oldest has to leave.
+        // Counts are only recorded below the limit, so at the limit the oldest has to leave.
         let oldest = *times.front()?;
         (times.len() >= limit).then(|| WINDOW.saturating_sub(now.saturating_duration_since(oldest)))
     }
 
-    /// Counts one for `key` at `at`. Once a window, it also drops the keys whose failures have all
+    /// Counts one for `key` at `at`. Once a window, it also drops the keys whose counts have all
     /// left it: sweeping on every count would make each one slower the more clients failed lately.
     fn record(&mut self, key: K, at: Instant) {
         if self

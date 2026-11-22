@@ -20,7 +20,7 @@ fn client(hub: &TestHub) -> HubServiceClient<HttpClient> {
 
 #[sqlx::test(migrations = false)]
 async fn get_hub_info_answers_the_hubs_version_without_sign_in(db: PgPool) {
-    let hub = TestHub::start(db).await;
+    let hub = TestHub::start(db, None).await;
 
     let info = client(&hub)
         .get_hub_info(GetHubInfoRequest::default())
@@ -33,7 +33,7 @@ async fn get_hub_info_answers_the_hubs_version_without_sign_in(db: PgPool) {
 
 #[sqlx::test(migrations = false)]
 async fn get_hub_info_answers_a_get_request_so_a_host_can_probe_it(db: PgPool) {
-    let hub = TestHub::start(db).await;
+    let hub = TestHub::start(db, None).await;
 
     let info = call_unary_get::<_, _, GetHubInfoResponseView<'static>>(
         &HttpClient::plaintext(),
@@ -51,7 +51,7 @@ async fn get_hub_info_answers_a_get_request_so_a_host_can_probe_it(db: PgPool) {
 
 #[sqlx::test(migrations = false)]
 async fn get_hub_info_answers_unavailable_while_postgres_is_down(db: PgPool) {
-    let hub = TestHub::start(db).await;
+    let hub = TestHub::start(db, None).await;
     hub.lose_database().await;
 
     let err = client(&hub)

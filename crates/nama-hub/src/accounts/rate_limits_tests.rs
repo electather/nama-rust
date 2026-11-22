@@ -1,6 +1,9 @@
 use std::{net::IpAddr, time::Instant};
 
-use super::{FAILURES_PER_EMAIL, FAILURES_PER_IP, SignInLimits, WINDOW};
+use super::{
+    FAILURES_PER_EMAIL, FAILURES_PER_IP, LINKS_PER_EMAIL, LINKS_PER_IP, LinkLimits, SignInLimits,
+    WINDOW,
+};
 
 fn ip(ip: &str) -> IpAddr {
     ip.parse().unwrap()
@@ -85,4 +88,47 @@ fn signing_in_forgets_the_emails_failures() {
         |_| ip("203.0.113.1"),
         |_| "ada@example.com".to_owned(),
     );
+}
+
+#[test]
+fn an_email_asked_a_link_for_too_often_is_refused_in_any_case_from_anywhere_until_the_window_passes()
+ {
+    let limits = LinkLimits::default();
+    let now = Instant::now();
+    for i in 0..LINKS_PER_EMAIL {
+        limits
+            .admit(ip(&format!("203.0.113.{i}")), "Nobody@example.com", now)
+            .unwrap();
+    }
+
+    let blocked = limits
+        .admit(ip("198.51.100.1"), "nobody@EXAMPLE.com", now)
+        .unwrap_err();
+
+    assert_eq!(blocked.retry_after_secs(), WINDOW.as_secs());
+    limits
+        .admit(ip("198.51.100.1"), "nobody@example.com", now + WINDOW)
+        .unwrap();
+}
+
+#[test]
+fn a_client_asking_for_too_many_links_is_refused_counting_ipv6_by_its_64() {
+    let limits = LinkLimits::default();
+    let now = Instant::now();
+    for i in 0..LINKS_PER_IP {
+        limits
+            .admit(
+                ip(&format!("2001:db8::{i:x}")),
+                &format!("{i}@example.com"),
+                now,
+            )
+            .unwrap();
+    }
+
+    limits
+        .admit(ip("2001:db8::ffff"), "new@example.com", now)
+        .unwrap_err();
+    limits
+        .admit(ip("2001:db8:0:1::1"), "new@example.com", now)
+        .unwrap();
 }
