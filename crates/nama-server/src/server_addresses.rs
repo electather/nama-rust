@@ -50,7 +50,10 @@ async fn tell(points: &ExtensionPoints, addresses: ServerAddresses) {
     let spawned = points.spawn_in(&plugin, async move {
         asking
             .ask(&telling, async |linker: Arc<dyn ServerLinker>| {
-                linker.set_addresses(addresses.clone()).await
+                // Bounded, so a Plugin that never answers can't stop every later report.
+                tokio::time::timeout(EVERY, linker.set_addresses(addresses.clone()))
+                    .await
+                    .unwrap_or_else(|_elapsed| Err("it didn't answer in time".into()))
             })
             .await;
         let _: Result<(), ()> = told.send(());
