@@ -9,6 +9,7 @@ const sections = [
   "home",
   "requests",
   "connections",
+  "libraries",
   "needs-a-match",
   "now-playing",
   "jobs",
@@ -36,7 +37,7 @@ export function sectionParam(value: unknown): Section | undefined {
 
 /**
  * The Plugin `?plugin=` asks the Plugins section to open, the Job `?job=` asks the Jobs section to
- * open, the Library `?library=` asks Needs a Match to show, or the setting `?setting=` asks for: none without it.
+ * open, the Library `?library=` asks Libraries to, or the setting `?setting=` asks for: none without it.
  */
 export function idParam(value: unknown) {
   // The router reads an id made of digits as a number.
@@ -44,8 +45,8 @@ export function idParam(value: unknown) {
 }
 
 /**
- * The address of `section` in Settings, at its `setting` if one is asked for. A Plugin, User or Job open
- * in another Section closes, and a Library picked there is forgotten.
+ * The address of `section` in Settings, at its `setting` if one is asked for. A Plugin, User, Job or
+ * Library open in another Section closes.
  */
 export function sectionSearch(section: Section, setting?: string) {
   return {
@@ -73,6 +74,7 @@ export const sectionTitles: Record<Section, string> = {
   home: "Home",
   requests: "Requests",
   connections: "Connections",
+  libraries: "Libraries",
   "needs-a-match": "Needs a Match",
   "now-playing": "Now Playing",
   jobs: "Jobs",
@@ -92,6 +94,7 @@ export const loadNouns: Record<Section, string> = {
   home: "your Home layout",
   requests: "your Requests settings",
   connections: "your Connections",
+  libraries: "the Libraries",
   "needs-a-match": "what needs a Match",
   "now-playing": "what’s playing",
   jobs: "the Jobs",
@@ -105,6 +108,8 @@ export const loadNouns: Record<Section, string> = {
 
 /** What else search finds a section by, past its name, for the sections that have such words. */
 export const sectionWords: Partial<Record<Section, string>> = {
+  libraries:
+    "libraries library folders scan movies shows title sources recognisers segment sources backdrop",
   "needs-a-match": "needs a match unmatched identify fix wrong title",
   "now-playing": "now playing watching streams sessions stop transcode",
   jobs: "jobs schedule run tasks upkeep",
@@ -119,6 +124,7 @@ export interface SectionGroup {
 /** The Permission a section needs, for the ones not every User sees. */
 const needs: Partial<Record<Section, Permission>> = {
   requests: Permission.CHOOSE_QUALITY,
+  libraries: Permission.MANAGE_LIBRARIES,
   "needs-a-match": Permission.MANAGE_LIBRARIES,
   "now-playing": Permission.ADMIN,
   jobs: Permission.ADMIN,
@@ -133,7 +139,7 @@ const needs: Partial<Record<Section, Permission>> = {
 const groups: SectionGroup[] = [
   { label: "You", items: ["signin", "devices"] },
   { label: "Preferences", items: ["playback", "home", "requests", "connections"] },
-  { label: "Media", items: ["needs-a-match"] },
+  { label: "Media", items: ["libraries", "needs-a-match"] },
   { label: "Activity", items: ["now-playing", "jobs"] },
   {
     label: "Admin",
@@ -147,6 +153,14 @@ export function groupsFor(user: User | undefined): SectionGroup[] {
     const permission = needs[section];
     return permission === undefined || may(user, permission);
   });
+}
+
+/** The groups every User has: the top bar's and action bar's "Admin" open the first past them. */
+const ownGroups = new Set(["You", "Preferences"]);
+
+/** Where "Admin" opens Settings for `user`: none for a User who may open no admin section. */
+export function adminSectionFor(user: User | undefined): Section | undefined {
+  return groupsFor(user).find(({ label }) => !ownGroups.has(label))?.items[0];
 }
 
 /** The groups with only the sections `keep` keeps, without the groups left empty. */

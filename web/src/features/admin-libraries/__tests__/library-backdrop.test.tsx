@@ -5,7 +5,8 @@ import { afterEach, expect, test, vi } from "vite-plus/test";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind, type LibrarySchema } from "@/gen/nama/v1/library_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { admin, fakeServer, openApp } from "@/test-app";
+import { admin, fakeServer } from "@/test-app";
+import { openLibraries } from "@/test-settings";
 
 afterEach(() => {
   cleanup();
@@ -17,8 +18,8 @@ type Library = MessageInitShape<typeof LibrarySchema>;
 const NEWEST = "/media/artwork/tmdb/%2Falien-backdrop.jpg";
 const CUSTOM = "/media/custom-images/library/1/backdrop/v1";
 
-/** The app at `path` for a User with `permissions`, on a Server whose Libraries are `libraries()` now. */
-function open(path: string, permissions: Permission[], libraries: () => Library[]) {
+/** The first of `libraries()` in Settings, for a User with `permissions`, as the Server has it now. */
+function open(permissions: Permission[], libraries: () => Library[]) {
   const transport = fakeServer(
     {
       signedIn: permissions,
@@ -33,7 +34,7 @@ function open(path: string, permissions: Permission[], libraries: () => Library[
       router.service(BrowseService, { listContinueWatching: () => ({}) });
     },
   );
-  openApp(path, transport);
+  openLibraries(transport, "1");
 }
 
 test("an uploaded Backdrop goes to the Library's path and shows without a reload", async () => {
@@ -43,7 +44,7 @@ test("an uploaded Backdrop goes to the Library's path and shows without a reload
     library = { ...library, backdropUrl: CUSTOM, customBackdrop: true };
     return new Response(null, { status: 204 });
   });
-  open("/admin/libraries/1", admin, () => [library]);
+  open(admin, () => [library]);
   const backdrop = await screen.findByRole("img", { name: "Backdrop" });
   expect(backdrop.getAttribute("src")).toBe(NEWEST);
   expect(screen.queryByRole("button", { name: /Remove custom image/u })).toBeNull();
@@ -73,7 +74,7 @@ test("removing a Library's Custom Image brings the newest title's Backdrop back"
     library = { ...library, backdropUrl: NEWEST, customBackdrop: false };
     return new Response(null, { status: 204 });
   });
-  open("/admin/libraries/1", [Permission.MANAGE_LIBRARIES], () => [library]);
+  open([Permission.MANAGE_LIBRARIES], () => [library]);
 
   fireEvent.click(await screen.findByRole("button", { name: "Remove custom image: Backdrop" }));
 

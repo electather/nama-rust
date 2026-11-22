@@ -2,14 +2,14 @@
 //! (ADR 0098), that signs the Account in once within [`LINK_MINUTES`]. Using one proves the
 //! Account owns its email, and the first used on an unproven Account takes it over (ADR 0100).
 
-use std::{net::IpAddr, sync::Arc, time::Instant};
+use std::sync::Arc;
 
 use sqlx::PgPool;
 use tokio::sync::mpsc;
 
 use super::{
-    Account, AccountId, AccountSession, Error, SignedIn, new_token, rate_limits::LinkLimits,
-    sessions, token_hash,
+    Account, AccountId, AccountSession, Caller, Error, SignedIn, new_token,
+    rate_limits::LinkLimits, sessions, token_hash,
 };
 use crate::mail::{Email, Mail, MailError};
 
@@ -66,15 +66,9 @@ impl Outbox {
     }
 
     /// Queues a Sign-in Link to `email`, already checked to be an address, continuing at
-    /// `continue_to`, as asked by `ip` at `now`.
-    pub(super) fn send(
-        &self,
-        email: &str,
-        continue_to: &str,
-        ip: IpAddr,
-        now: Instant,
-    ) -> Result<(), Error> {
-        self.limits.admit(ip, email, now)?;
+    /// `continue_to`, as asked by `caller`.
+    pub(super) fn send(&self, email: &str, continue_to: &str, caller: Caller) -> Result<(), Error> {
+        self.limits.admit(caller, email)?;
         let request = LinkRequest {
             email: email.to_owned(),
             continue_to: hub_path(continue_to).to_owned(),

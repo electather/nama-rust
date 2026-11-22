@@ -27,7 +27,6 @@ export function RecogniserList({
       {order.map((pluginId, index) => (
         <RecogniserRow
           key={pluginId}
-          name={kind.name}
           pluginId={pluginId}
           plugin={recognisers.find((each) => each.id === pluginId)}
           listed={listed}

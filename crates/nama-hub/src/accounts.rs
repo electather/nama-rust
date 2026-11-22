@@ -8,9 +8,7 @@ mod sign_in_links;
 
 use std::{
     fmt::{self, Write as _},
-    net::IpAddr,
     sync::Arc,
-    time::Instant,
 };
 
 use sha2::{Digest as _, Sha256};
@@ -19,7 +17,7 @@ use uuid::Uuid;
 
 use crate::mail::Mail;
 pub(crate) use passwords::PASSWORD_LENGTH;
-pub(crate) use rate_limits::Blocked;
+pub(crate) use rate_limits::{Blocked, Caller};
 use rate_limits::{CreationLimits, SignInLimits};
 pub(crate) use sessions::{RECENT_AUTHENTICATION_MINS, SESSION_DAYS};
 use sign_in_links::Outbox;
@@ -124,21 +122,19 @@ impl Accounts {
         }
     }
 
-    /// Creates an Account with `email`, trimmed, and `password`, for the client at `ip` at `now`,
-    /// and signs it in.
+    /// Creates an Account with `email`, trimmed, and `password`, for `caller`, and signs it in.
     pub(crate) async fn create(
         &self,
         email: &str,
         password: &str,
-        ip: IpAddr,
-        now: Instant,
+        caller: Caller,
     ) -> Result<SignedIn, Error> {
         let email = email.trim();
         if !is_email(email) {
             return Err(Error::EmailInvalid);
         }
         check_password_length(password)?;
-        self.creations.admit(ip, now)?;
+        self.creations.admit(caller)?;
         let password_hash = passwords::hash(password.to_owned()).await?;
         let mut tx = self.db.begin().await?;
         let id = sqlx::query_scalar!(
@@ -160,23 +156,17 @@ impl Accounts {
     }
 
     /// Signs in the Account whose email is `email`, compared without regard to case, if
-    /// `password` is its password, from the client at `ip` at `now`, in place of `replacing`, the
-    /// browser's session, if any.
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "`replacing` is as in `sign_in_with_link`, and `ip` and `now` are the rate \
-                  limit's, as in `create`; bundling those callers' arguments is its own change"
-    )]
+    /// `password` is its password, for `caller`, in place of `replacing`, the browser's session,
+    /// if any.
     pub(crate) async fn sign_in(
         &self,
         email: &str,
         password: &str,
         replacing: Option<&AccountSession>,
-        ip: IpAddr,
-        now: Instant,
+        caller: Caller,
     ) -> Result<SignedIn, Error> {
         let email = email.trim();
-        let attempt = self.sign_ins.admit(ip, email, now)?;
+        let attempt = self.sign_ins.admit(caller, email)?;
         let found = sqlx::query!(
             "SELECT id, email, password_hash FROM accounts WHERE lower(email) = lower($1)",
             email,
@@ -252,21 +242,20 @@ impl Accounts {
     }
 
     /// Emails a Sign-in Link, off the request path, to the Account whose email is `email`, trimmed
-    /// and compared without regard to case, if there is one, as asked by `ip` at `now`. The link
+    /// and compared without regard to case, if there is one, as asked by `caller`. The link
     /// continues at `continue_to` if it is a Hub path, or else at `/`.
     pub(crate) fn send_sign_in_link(
         &self,
         email: &str,
         continue_to: &str,
-        ip: IpAddr,
-        now: Instant,
+        caller: Caller,
     ) -> Result<(), Error> {
         let outbox = self.outbox.as_ref().ok_or(Error::SignInLinksOff)?;
         let email = email.trim();
         if !is_email(email) {
             return Err(Error::EmailInvalid);
         }
-        outbox.send(email, continue_to, ip, now)
+        outbox.send(email, continue_to, caller)
     }
 
     /// The waiting Sign-in Link `token` names, without using it up.

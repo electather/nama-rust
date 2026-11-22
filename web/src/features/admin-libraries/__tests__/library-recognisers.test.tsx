@@ -1,13 +1,14 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Code, type ServiceImpl } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { LibraryKind, type LibrarySchema, type LibraryService } from "@/gen/nama/v1/library_pb";
 import { ExtensionPoint, PluginService, type PluginSummarySchema } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { admin, fakeServer, fill, openApp } from "@/test-app";
+import { admin, fakeServer, fill } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { openLibraries } from "@/test-settings";
 
 afterEach(cleanup);
 
@@ -74,22 +75,20 @@ function recognisersShown() {
 /** Fills in a new Library's name and folder, then creates it. */
 function createFilms() {
   fill("Name", "Films");
-  fireEvent.change(screen.getByRole("textbox", { name: "Folders" }), {
-    target: { value: "/srv/films" },
-  });
+  fill("Folders", "/srv/films");
   fireEvent.click(screen.getByRole("button", { name: "Create Library" }));
 }
 
-test("a new Library sends the Recognisers picked, in their order, then the field empties", async () => {
+test("a new Library sends the Recognisers picked, in their order, then opens", async () => {
   let sent: string[] = [];
-  openApp(
-    "/admin/libraries",
+  openLibraries(
     recognisersServer({
       createLibrary: (request) => {
         sent = request.recogniserIds;
         return { library: { ...films, recogniserIds: request.recogniserIds } };
       },
     }),
+    "new",
   );
   fireEvent.click(await screen.findByRole("button", { name: "Add Anime numbers" }));
   fireEvent.click(screen.getByRole("button", { name: "Add dates · not enabled" }));
@@ -97,15 +96,13 @@ test("a new Library sends the Recognisers picked, in their order, then the field
   expect(screen.queryByRole("button", { name: /Add TVDB/u })).toBeNull();
   createFilms();
 
-  await screen.findByText("Films is ready. Scan it to fill it.");
+  await expect(screen.findByRole("heading", { name: "Films" })).resolves.toBeDefined();
   expect(sent).toStrictEqual(["dates", "anime"]);
-  expect(recognisersShown()).toStrictEqual([]);
 });
 
-test("a Library's Recognisers show in its order, and save unchanged", async () => {
+test("a Library's Recognisers show in its order, and moving one saves the new order", async () => {
   let sent: string[] | undefined;
-  openApp(
-    "/admin/libraries/1",
+  openLibraries(
     recognisersServer(
       {
         updateLibrary: (request) => {
@@ -116,6 +113,7 @@ test("a Library's Recognisers show in its order, and save unchanged", async () =
       [anime, dates],
       { ...films, recogniserIds: ["dates", "gone", "anime"] },
     ),
+    "1",
   );
   await screen.findByRole("button", { name: "Remove Anime numbers" });
 
@@ -124,15 +122,15 @@ test("a Library's Recognisers show in its order, and save unchanged", async () =
     "gone · not available",
     "Anime numbers",
   ]);
-  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
-  await screen.findByText("Saved. Scan the Library to pick up new folders.");
-  expect(sent).toStrictEqual(["dates", "gone", "anime"]);
+  fireEvent.click(screen.getByRole("button", { name: "Move Anime numbers up" }));
+  await waitFor(() => {
+    expect(sent).toStrictEqual(["dates", "anime", "gone"]);
+  });
 });
 
 test("removing a Library's last Recogniser saves an empty order, not none", async () => {
   let sent: string[] | undefined;
-  openApp(
-    "/admin/libraries/1",
+  openLibraries(
     recognisersServer(
       {
         updateLibrary: (request) => {
@@ -143,16 +141,17 @@ test("removing a Library's last Recogniser saves an empty order, not none", asyn
       [anime],
       { ...films, recogniserIds: ["anime"] },
     ),
+    "1",
   );
   fireEvent.click(await screen.findByRole("button", { name: "Remove Anime numbers" }));
-  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
-  await screen.findByText("Saved. Scan the Library to pick up new folders.");
-  expect(sent).toStrictEqual([]);
+  await waitFor(() => {
+    expect(sent).toStrictEqual([]);
+  });
 });
 
 test("with no Recogniser installed the field says the Server's own Matching reads every file", async () => {
-  openApp("/admin/libraries/1", recognisersServer({}, [tvdb]));
+  openLibraries(recognisersServer({}, [tvdb]), "1");
 
   const hint = await screen.findByText(
     "No Recogniser is installed, so the Server’s own Matching reads every file.",
@@ -163,8 +162,7 @@ test("with no Recogniser installed the field says the Server's own Matching read
 });
 
 test("a refused create shows on the Recognisers field", async () => {
-  openApp(
-    "/admin/libraries",
+  openLibraries(
     recognisersServer({
       createLibrary: () => {
         throw refused(Code.InvalidArgument, "anime is named twice", {
@@ -174,6 +172,7 @@ test("a refused create shows on the Recognisers field", async () => {
         });
       },
     }),
+    "new",
   );
   await screen.findByRole("button", { name: "Add Anime numbers" });
   createFilms();
@@ -183,9 +182,8 @@ test("a refused create shows on the Recognisers field", async () => {
   expect(field.getAttribute("aria-describedby")).toContain(error.id);
 });
 
-test("a refused update shows on the Recognisers field", async () => {
-  openApp(
-    "/admin/libraries/1",
+test("a refused Recogniser order says why in the toast, and the order goes back", async () => {
+  openLibraries(
     recognisersServer({
       updateLibrary: () => {
         throw refused(Code.InvalidArgument, "dates is no Recogniser", {
@@ -195,12 +193,13 @@ test("a refused update shows on the Recognisers field", async () => {
         });
       },
     }),
+    "1",
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Save changes" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Add Anime numbers" }));
 
-  const error = await screen.findByText("Dates is no Recogniser.");
-  const field = screen.getByRole("group", { name: "Recognisers" });
-  expect(field.getAttribute("aria-describedby")).toContain(error.id);
+  await expect(screen.findByText("Dates is no Recogniser.")).resolves.toBeDefined();
+  expect(screen.getByText("Not saved")).toBeDefined();
+  expect(recognisersShown()).toStrictEqual([]);
 });
 
 const introDb: Summary = {
@@ -218,8 +217,7 @@ const chapters: Summary = {
 
 test("a new Library sends its Segment sources in their order, apart from its Recognisers", async () => {
   let sent: { recognisers: string[]; sources: string[] } | undefined;
-  openApp(
-    "/admin/libraries",
+  openLibraries(
     recognisersServer(
       {
         createLibrary: (request) => {
@@ -229,6 +227,7 @@ test("a new Library sends its Segment sources in their order, apart from its Rec
       },
       [anime, introDb, chapters],
     ),
+    "new",
   );
   const sources = await screen.findByRole("group", { name: "Segment sources" });
   fireEvent.click(await within(sources).findByRole("button", { name: "Add TheIntroDB" }));
@@ -237,14 +236,13 @@ test("a new Library sends its Segment sources in their order, apart from its Rec
   expect(within(sources).queryByRole("button", { name: /Anime/u })).toBeNull();
   createFilms();
 
-  await screen.findByText("Films is ready. Scan it to fill it.");
+  await expect(screen.findByRole("heading", { name: "Films" })).resolves.toBeDefined();
   expect(sent).toStrictEqual({ recognisers: [], sources: ["chapters", "theintrodb"] });
 });
 
 test("removing a Library's Segment source saves the order without it", async () => {
   let sent: string[] | undefined;
-  openApp(
-    "/admin/libraries/1",
+  openLibraries(
     recognisersServer(
       {
         updateLibrary: (request) => {
@@ -255,30 +253,33 @@ test("removing a Library's Segment source saves the order without it", async () 
       [introDb, chapters],
       { ...films, segmentSourceIds: ["theintrodb", "chapters"] },
     ),
+    "1",
   );
   fireEvent.click(await screen.findByRole("button", { name: "Remove TheIntroDB" }));
-  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
-  await screen.findByText("Saved. Scan the Library to pick up new folders.");
-  expect(sent).toStrictEqual(["chapters"]);
+  await waitFor(() => {
+    expect(sent).toStrictEqual(["chapters"]);
+  });
 });
 
-test("a refused update shows on the Segment sources field", async () => {
-  openApp(
-    "/admin/libraries/1",
-    recognisersServer({
-      updateLibrary: () => {
-        throw refused(Code.InvalidArgument, "dates is no Segment source", {
-          reason: RefusalReason.SEGMENT_SOURCES_INVALID,
-          field: "segment_source_order",
-          params: { pluginId: "dates" },
-        });
+test("a refused Segment source order says why in the toast", async () => {
+  openLibraries(
+    recognisersServer(
+      {
+        updateLibrary: () => {
+          throw refused(Code.InvalidArgument, "theintrodb is no Segment source", {
+            reason: RefusalReason.SEGMENT_SOURCES_INVALID,
+            field: "segment_source_order",
+            params: { pluginId: "theintrodb" },
+          });
+        },
       },
-    }),
+      [introDb],
+    ),
+    "1",
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Save changes" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Add TheIntroDB" }));
 
-  const error = await screen.findByText("Dates is no Segment source.");
-  const field = screen.getByRole("group", { name: "Segment sources" });
-  expect(field.getAttribute("aria-describedby")).toContain(error.id);
+  await expect(screen.findByText("Theintrodb is no Segment source.")).resolves.toBeDefined();
+  expect(screen.getByText("Not saved")).toBeDefined();
 });

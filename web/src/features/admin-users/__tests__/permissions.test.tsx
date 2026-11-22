@@ -158,7 +158,7 @@ test("removing your own Admin Permission takes Users out of Settings", async () 
   expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
 });
 
-test("removing your own Admin Permission but keeping Manage Users leaves only Users in Settings' Admin group", async () => {
+test("removing your own Admin Permission but keeping Manage Users leaves only Users in Settings' Admin group, and the Admin link", async () => {
   const state: ServerState = { signedIn: admin };
   let sam: Holder = { id: 1n, name: "Sam", permissions: [...admin] };
   openApp(
@@ -185,7 +185,7 @@ test("removing your own Admin Permission but keeping Manage Users leaves only Us
     expect(screen.queryByRole("link", { name: "Server" })).toBeNull();
   });
   expect(screen.getByRole("region", { name: "Sam" })).toBeDefined();
-  expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
+  expect(screen.getByRole("link", { name: "Admin" })).toBeDefined();
 });
 
 // Sam is you, and Pat is an Admin.

@@ -56,7 +56,7 @@ describe("where Needs a Match is", () => {
     const links = nav.getAllByRole("link").map((link) => link.textContent);
     expect(
       links.slice(links.indexOf("Connections"), links.indexOf("Now Playing") + 1),
-    ).toStrictEqual(["Connections", "Needs a Match", "Now Playing"]);
+    ).toStrictEqual(["Connections", "Libraries", "Needs a Match", "Now Playing"]);
     fireEvent.change(screen.getByRole("combobox", { name: "Search settings" }), {
       target: { value: "unmatched" },
     });

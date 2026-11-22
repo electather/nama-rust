@@ -26,7 +26,6 @@ export function SourceRow({
   };
   return (
     <li className="flex items-center gap-1 text-sm">
-      <input type="hidden" name="titleSources" value={order[index]} />
       <span className="me-auto">
         {label}
         {note !== undefined && <span className="text-muted-foreground"> · {note}</span>}
