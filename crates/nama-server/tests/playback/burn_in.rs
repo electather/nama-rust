@@ -83,3 +83,35 @@ async fn a_burn_in_after_the_ass_and_fonts_are_cached_reads_them_from_the_cache(
     );
     assert!(burn_in.contains(&from_cache), "{burn_in}");
 }
+
+#[tokio::test]
+async fn a_pgs_track_burned_into_hdr10_on_an_hdr_screen_keeps_hdr10_its_square_at_reference_white()
+{
+    let write = |file: &Path| ffmpeg::write_hdr_ramp_with_pgs(file, "smpte2084");
+    let (fx, version) = Fixture::alien_written(system_ffmpeg(), write).await;
+
+    let plan = fx
+        .ask_for_plan(PlanPlaybackRequest {
+            version_id: version,
+            subtitle_track: Some(1),
+            device_decoding: DeviceDecoding {
+                hdr: true,
+                ..chrome()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(plan.burn_in_tracks, vec![1]);
+    let transfer = played_streams(&fx, &plan.url, "v", "0.m4s", "color_transfer").await;
+    assert_eq!(transfer, "smpte2084");
+    let picture = sidecars::last_frame(&fx, &plan.url, "0.m4s").await;
+    // As a code of 10-bit limited range: `last_frame` reads full-range 8-bit grey.
+    let square = 64 + u32::from(picture[108 * 320 + 108]) * 876 / 255;
+    assert!(
+        (563..=583).contains(&square),
+        "the square's luma is {square}, not PQ's 203 nits"
+    );
+}

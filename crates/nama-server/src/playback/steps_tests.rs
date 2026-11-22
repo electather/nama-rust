@@ -399,6 +399,7 @@ fn automatic_transcodes_on_the_first_hardware_found_and_the_plan_says_so() {
             tone_map: None,
             limit: None,
             burn_in: None,
+            subtitle_white: None,
             in_band_headers: true,
             hevc: false,
         }

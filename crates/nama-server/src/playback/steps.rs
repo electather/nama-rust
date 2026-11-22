@@ -19,8 +19,8 @@ use super::{
 };
 use crate::{
     ffmpeg::{
-        Accel, AudioConversion, Gpu, Hardware, Remux, RemuxAudio, ToneMapper, Transcode,
-        TranscodeAudio, VideoConversion, VideoTag,
+        Accel, AudioConversion, BurnIn, Gpu, Hardware, ReferenceWhite, Remux, RemuxAudio,
+        ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoTag,
     },
     server_settings::HardwareChoice,
 };
@@ -177,27 +177,52 @@ pub(super) fn fallback(
     })
 }
 
-/// What converts the played video's HDR in a Transcode. HDR the Device can't show is tone-mapped
-/// to SDR by the GPU, if a Transcode runs on one that passed its tone-map test and burns nothing
-/// in, which takes the frames off it, or else by software, if ffmpeg can. Dolby Vision with no
-/// Base Layer is always reshaped by `tonemapx`: into HDR10 if the Transcode makes `hevc`, which it
-/// does only for a Device showing HDR, and else tone-mapped to SDR.
+/// What converts the played video's HDR in a Transcode. HDR the Device can't show, or that a
+/// text subtitle is burned into that ffmpeg can't draw over HDR, is tone-mapped to SDR by the GPU,
+/// if a Transcode runs on one that passed its tone-map test and burns nothing in, which takes the
+/// frames off it, or else by software, if ffmpeg can. Dolby Vision with no Base Layer is always
+/// reshaped by `tonemapx`: into HDR10 if the Transcode makes `hevc`, which it does only for a
+/// Device showing HDR, and keeps HDR, and else tone-mapped to SDR.
 fn tone_mapper(facts: &Facts, hevc: bool) -> Option<ToneMapper> {
+    let keeps_hdr = facts.device.hdr && !burns_text_into_sdr(facts);
     if needs_reshaping(facts) {
-        let reshaped = if hevc {
+        let reshaped = if hevc && keeps_hdr {
             ToneMapper::DolbyVisionToHdr10
         } else {
             ToneMapper::Tonemapx { dolby_vision: true }
         };
         return facts.can_do.converts_dolby_vision().then_some(reshaped);
     }
-    if facts.device.hdr || played_hdr(facts).and_then(transcoded_hdr).is_none() {
+    if keeps_hdr || played_hdr(facts).and_then(transcoded_hdr).is_none() {
         return None;
     }
     let gpu = transcodes_on(facts)
         .ok()
         .filter(|_| burn_in(facts).is_none());
     facts.can_do.tone_mapper(gpu.as_ref())
+}
+
+/// Whether a Transcode for `facts` burns a text subtitle into an HDR Device's picture with no
+/// layer of its own, as the Server's ffmpeg can't draw one or the picture's size or rate isn't
+/// known, so it tone-maps the picture to SDR as for an SDR Device, and the subtitle doesn't glare
+/// (ADR 0103).
+fn burns_text_into_sdr(facts: &Facts) -> bool {
+    facts.device.hdr && matches!(burn_in(facts), Some(BurnIn::Text { layer: None, .. }))
+}
+
+/// The reference white a Transcode for `facts` that tone-maps with `tone_map` maps a subtitle it
+/// burns in to: only into a picture that stays HDR on a Device that shows it (ADR 0103).
+fn subtitle_white(facts: &Facts, tone_map: Option<ToneMapper>) -> Option<ReferenceWhite> {
+    let into_hdr = facts.device.hdr
+        && burn_in(facts).is_some()
+        && !tone_map.is_some_and(ToneMapper::makes_sdr);
+    match played_hdr(facts)
+        .and_then(transcoded_hdr)
+        .filter(|_| into_hdr)?
+    {
+        Hdr::Hlg => Some(ReferenceWhite::Hlg),
+        Hdr::Hdr10 | Hdr::DolbyVision { .. } => Some(ReferenceWhite::Pq),
+    }
 }
 
 /// The step for what the method `playing` changes, which runs once the plan has one, as it rules
@@ -225,7 +250,7 @@ pub(super) fn converting(
         )
         .collect();
     if let Some(Playing::Transcode { transcode, .. }) = playing {
-        reasons.extend(tone_mapping(facts, transcode.video.tone_map));
+        reasons.extend(tone_mapping(facts, &transcode.video));
         reasons.extend(match &transcode.video.hardware {
             Some(hardware) => {
                 let gpu = (hardware.gpu.as_ref()).map_or_else(|| "GPU".to_owned(), Gpu::name);
@@ -287,16 +312,29 @@ fn fewer_channels(
     )
 }
 
-/// Whether a Transcode tone-maps the played picture to SDR with `tone_map`, which only
-/// [`tone_mapper`] sets, or not when it's HDR the Device can't show and the Transcode keeps. A
-/// Dolby Vision picture reshaped to HDR10 is neither.
-fn tone_mapping(facts: &Facts, tone_map: Option<ToneMapper>) -> Option<Reason> {
+/// Whether a Transcode converting `video` tone-maps the played picture to SDR, which only
+/// [`tone_mapper`] decides, and why, or not when it's HDR the Device can't show and the Transcode
+/// keeps. A Dolby Vision picture reshaped to HDR10 is neither.
+fn tone_mapping(facts: &Facts, video: &VideoConversion) -> Option<Reason> {
     let hdr = played_hdr(facts)?;
-    if tone_map.is_some_and(|tone_map| !tone_map.makes_sdr()) {
+    let Some(tone_map) = video.tone_map else {
+        return (!facts.device.hdr && transcoded_hdr(hdr).is_some()).then(|| not_tone_mapped(hdr));
+    };
+    if !tone_map.makes_sdr() {
         return None;
     }
-    if tone_map.is_none() {
-        return (!facts.device.hdr && transcoded_hdr(hdr).is_some()).then(|| not_tone_mapped(hdr));
+    // On an HDR Device, only a text Burn-in ffmpeg can't draw over HDR tone-maps.
+    let burns_text = matches!(video.burn_in, Some(BurnIn::Text { .. }));
+    // Dolby Vision with no Base Layer is tone-mapped anyway unless the Transcode makes HEVC.
+    let reshapes_anyway = !video.hevc && tone_map == (ToneMapper::Tonemapx { dolby_vision: true });
+    if facts.device.hdr && burns_text && !reshapes_anyway {
+        let text = format!(
+            "Its {} picture is converted to SDR to burn in its subtitles, which the Server's \
+             ffmpeg can't draw over HDR",
+            hdr_name(hdr)
+        );
+        let kind = Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN;
+        return Some(hdr_reason(kind, hdr, text).deciding());
     }
     let text = format!("Its {} picture is tone-mapped to SDR", hdr_name(hdr));
     Some(hdr_reason(Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED, hdr, text).deciding())
@@ -409,14 +447,16 @@ fn transcodes_full(facts: &Facts, video: Option<&VideoConversion>) -> Option<u32
 fn video_conversion(facts: &Facts) -> VideoConversion {
     let hardware = transcodes_on(facts).ok();
     let hevc = hardware.as_ref().is_some_and(|hardware| hardware.hevc) && wants_hevc(facts);
+    let tone_map = tone_mapper(facts, hevc);
     VideoConversion {
         // Hardware making H.264 may fail, and software carry on after its init segment.
         in_band_headers: hardware.is_some() && !hevc,
         hevc,
         hardware,
-        tone_map: tone_mapper(facts, hevc),
+        tone_map,
         limit: video_limit(facts),
         burn_in: burn_in(facts),
+        subtitle_white: subtitle_white(facts, tone_map),
     }
 }
 
@@ -590,3 +630,7 @@ pub(super) fn keyframes_unlisted(facts: &Facts, _: Option<&Candidates>) -> Vec<R
 #[cfg(test)]
 #[path = "steps_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "steps_burn_in_tests.rs"]
+mod burn_in_tests;
