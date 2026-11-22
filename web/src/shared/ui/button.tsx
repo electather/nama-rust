@@ -39,8 +39,10 @@ const buttonVariants = cva(
         // A dialog's ✕ in its corner, quiet until hovered or focused.
         close:
           "size-7 rounded-sm opacity-70 hover:opacity-100 focus-visible:opacity-100 [&_svg]:size-4",
-        // A square button holding only an icon, named by its `aria-label`.
+        // A square button holding only an icon, named by its `aria-label`: the player's controls.
         icon: "size-10 rounded-lg [&_svg]:size-5",
+        // The same, everywhere but over video: a dialog's ✕, a row's "…", a list's move buttons.
+        "icon-sm": "size-8 rounded-lg [&_svg]:size-4",
         // The player's large controls, 44px tall: `round` holds only an icon.
         round: "size-11 [&_svg]:size-5",
         tall: "h-11 px-5 [&_svg]:size-5",

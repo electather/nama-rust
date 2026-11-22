@@ -24,7 +24,7 @@ export function SectionNav({
     >
       {groups.map((group) => (
         <div key={group.label} className="contents md:flex md:flex-col md:gap-0.5">
-          <h3 className="px-2.5 pt-2.5 pb-1 text-xs text-muted-foreground max-md:hidden">
+          <h3 className="px-2 pt-2.5 pb-1 text-xs text-muted-foreground max-md:hidden">
             {group.label}
           </h3>
           {group.items.map((item) => (

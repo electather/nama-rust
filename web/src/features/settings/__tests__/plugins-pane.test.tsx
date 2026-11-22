@@ -47,17 +47,18 @@ test("typing narrows the list, and so does where Plugins come from", async () =>
   expect(screen.getByText("No Plugin matches.")).toBeDefined();
 });
 
-test("a Plugin opens in place of the list, and the link over it goes back", async () => {
+test("a Plugin opens in place of the list, and the Plugins crumb goes back", async () => {
   const router = openPluginSettings();
 
   fireEvent.click(await screen.findByRole("link", { name: "TMDB" }));
   const opened = await screen.findByRole("region", { name: "TMDB" });
   expect(router.state.location.search).toMatchObject({ settings: "plugins", plugin: "tmdb" });
   expect(within(opened).getByText("Finds Movies and Shows on TMDB.")).toBeDefined();
-  expect(within(opened).getByRole("heading", { name: "Settings" })).toBeDefined();
+  const trail = screen.getByRole("navigation", { name: "Breadcrumbs" });
+  expect(within(trail).getByText("TMDB")).toBeDefined();
   expect(screen.queryByRole("searchbox", { name: "Filter Plugins" })).toBeNull();
 
-  fireEvent.click(within(opened).getByRole("link", { name: "Plugins" }));
+  fireEvent.click(within(trail).getByRole("link", { name: "Plugins" }));
   await expect(screen.findByRole("list", { name: "Enabled" })).resolves.toBeDefined();
   expect(router.state.location.search.plugin).toBeUndefined();
 });
@@ -65,10 +66,9 @@ test("a Plugin opens in place of the list, and the link over it goes back", asyn
 test("a Plugin's link back to the list isn't marked as the current page", async () => {
   openPluginSettings({}, "tmdb");
 
-  const opened = await screen.findByRole("region", { name: "TMDB" });
-  expect(
-    within(opened).getByRole("link", { name: "Plugins" }).getAttribute("aria-current"),
-  ).toBeNull();
+  await screen.findByRole("region", { name: "TMDB" });
+  const trail = within(screen.getByRole("navigation", { name: "Breadcrumbs" }));
+  expect(trail.getByRole("link", { name: "Plugins" }).getAttribute("aria-current")).toBeNull();
 });
 
 test("a Plugin's view says what each of its Extension Points means", async () => {

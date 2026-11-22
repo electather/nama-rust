@@ -17,13 +17,15 @@ export function ProfileSelect({
       ? profiles
       : [...profiles, { value: profileId, label: profileId }];
   return (
-    <FormSelect row label="Profile" name="profile" defaultValue={profileId}>
-      <option value="">Pick one</option>
-      {shown.map(({ value, label }) => (
-        <option key={value} value={value}>
-          {label}
-        </option>
-      ))}
-    </FormSelect>
+    <FormSelect
+      row
+      label="Profile"
+      name="profile"
+      defaultValue={profileId}
+      options={[
+        { value: "", label: "Pick one" },
+        ...shown.map(({ value, label }) => ({ value, label })),
+      ]}
+    />
   );
 }

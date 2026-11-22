@@ -27,7 +27,7 @@ export function QualityMenu({
 }) {
   const [trigger, container] = useModalContainer();
   const more = (
-    <Button ref={trigger} variant="ghost" size="icon" aria-label={`More for ${quality.name}`} />
+    <Button ref={trigger} variant="ghost" size="icon-sm" aria-label={`More for ${quality.name}`} />
   );
   return (
     <DropdownMenu>

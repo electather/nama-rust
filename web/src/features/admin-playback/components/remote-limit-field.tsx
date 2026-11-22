@@ -18,16 +18,9 @@ export function RemoteLimitField({
       label={playbackLabels.remotePlaybackLimit}
       name="remotePlaybackLimit"
       value={value}
-      onChange={(event) => {
-        onPick(event.target.value);
-      }}
+      onValueChange={onPick}
       hint="The most a Device outside the local network is sent until its User picks a Playback Limit in the player. Original sends each Version as it is."
-    >
-      {limits.map(({ limit, name }) => (
-        <option key={limit} value={limit}>
-          {name}
-        </option>
-      ))}
-    </FormSelect>
+      options={limits.map(({ limit, name }) => ({ value: String(limit), label: name }))}
+    />
   );
 }

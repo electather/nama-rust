@@ -23,7 +23,7 @@ export function PluginToolbar({
   return (
     <div
       data-sticks
-      className="top-0 z-10 flex flex-wrap items-center gap-2.5 bg-background px-4 pt-4 pb-3.5 md:sticky md:px-7.5 md:pt-5"
+      className="top-0 z-10 flex flex-wrap items-center gap-2 bg-background px-4 pt-4 pb-3 md:sticky md:px-6 md:pt-2"
     >
       <FilterField label="Filter Plugins" typed={typed} onType={onType} />
       <span id={kindId} className="sr-only">

@@ -11,6 +11,7 @@ import {
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { openPlugin, plugin } from "@/test-plugins";
 import { refused } from "@/test-refusal";
+import { pick } from "@/test-settings";
 
 afterEach(cleanup);
 
@@ -116,7 +117,7 @@ test("the plus opens a row for a new Quality, which Add saves with the rest of t
   const list = await qualitiesList();
 
   fireEvent.click(screen.getByRole("button", { name: "Add a Quality" }));
-  fireEvent.change(list.getByLabelText("Profile"), { target: { value: "5" } });
+  pick("Profile", "Ultra-HD");
   fireEvent.change(list.getByLabelText("Name"), { target: { value: "4K" } });
   // Nothing is sent as a new Quality is typed: only Add sends it.
   expect(sent).toStrictEqual([]);
@@ -141,8 +142,7 @@ test("the first Quality added is the default, and Cancel adds none", async () =>
   expect(page.queryByLabelText("Name")).toBeNull();
 
   fireEvent.click(page.getByRole("button", { name: "Add a Quality" }));
-  await page.findByRole("option", { name: "HD-1080p" });
-  fireEvent.change(page.getByLabelText("Profile"), { target: { value: "4" } });
+  pick("Profile", "HD-1080p");
   fireEvent.change(page.getByLabelText("Name"), { target: { value: "HD" } });
   fireEvent.click(page.getByRole("button", { name: "Add" }));
 

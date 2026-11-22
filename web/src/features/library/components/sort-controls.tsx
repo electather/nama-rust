@@ -21,7 +21,7 @@ export function SortControls({ listing, change }: BarProps) {
       />
       <Button
         variant="ghost"
-        size="icon"
+        size="icon-sm"
         aria-label={descending ? "Sort ascending" : "Sort descending"}
         onClick={() => {
           change({ ...listing, order: descending ? "asc" : "desc" });

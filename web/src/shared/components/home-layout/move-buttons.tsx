@@ -42,7 +42,7 @@ export function MoveButtons({
           ref={ref}
           type="button"
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           aria-label={`Move ${label} ${direction}`}
           disabled={disabled}
           onClick={() => {

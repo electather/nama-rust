@@ -1,6 +1,7 @@
 import { useId } from "react";
 
 import type { Library } from "@/gen/nama/v1/library_pb";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/select";
 
 /** Picks the Library whose Items show, or every one's (`undefined`), calling `onPick` with it. */
 export function LibraryFilter({
@@ -13,27 +14,34 @@ export function LibraryFilter({
   onPick: (library: string | undefined) => void;
 }) {
   const id = useId();
+  const options = [
+    { value: "", label: "All Libraries" },
+    ...libraries.map((library) => ({ value: String(library.id), label: library.name })),
+  ];
+  const items = options.map((option) => (
+    <SelectItem key={option.value} value={option.value}>
+      {option.label}
+    </SelectItem>
+  ));
+  const select = (
+    <Select
+      items={options}
+      value={picked ?? ""}
+      onValueChange={(library) => {
+        onPick(library === null || library === "" ? undefined : library);
+      }}
+    >
+      <SelectTrigger id={id} />
+      <SelectContent>{items}</SelectContent>
+    </Select>
+  );
   return (
-    <div className="mt-8 flex items-center gap-3">
+    // The field fills what the label leaves, up to a dropdown's width.
+    <div className="mt-8 flex max-w-80 items-center gap-3">
       <label htmlFor={id} className="text-sm font-medium">
         Library
       </label>
-      <select
-        id={id}
-        value={picked ?? ""}
-        onChange={(event) => {
-          const library = event.target.value;
-          onPick(library === "" ? undefined : library);
-        }}
-        className="h-9 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/25"
-      >
-        <option value="">All Libraries</option>
-        {libraries.map((library) => (
-          <option key={library.id} value={String(library.id)}>
-            {library.name}
-          </option>
-        ))}
-      </select>
+      {select}
     </div>
   );
 }

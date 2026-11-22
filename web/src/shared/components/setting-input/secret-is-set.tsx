@@ -1,8 +1,16 @@
+import { Pencil, X } from "lucide-react";
+import { useState } from "react";
+
 import type { Setting } from "@/gen/nama/v1/plugin_pb";
+import { ForgetSecret } from "@/shared/components/setting-input/forget-secret";
+import { SettingRow } from "@/shared/components/setting-row";
 import type { SecretAction } from "@/shared/lib/setting-values";
 import { Button } from "@/shared/ui/button";
 
-/** Says a secret is set, with the buttons to replace it or, if `forgettable`, forget it. */
+/**
+ * A secret that is set, in the field it would be typed in: masked, as its value never comes back,
+ * with a pencil that replaces it and, if `forgettable`, the X that forgets it once that's confirmed in its place.
+ */
 export function SecretIsSet({
   setting,
   forgettable,
@@ -12,33 +20,60 @@ export function SecretIsSet({
   forgettable: boolean;
   onPress: (action: SecretAction) => void;
 }) {
-  const actions: SecretAction[] = forgettable ? ["Replace", "Forget"] : ["Replace"];
+  const [confirming, setConfirming] = useState(false);
+  const masked = (
+    <span className="flex h-11 min-w-0 flex-1 items-center rounded-lg border border-input bg-input/30 ps-2.5 text-sm tracking-widest text-muted-foreground md:h-8">
+      <span aria-hidden>••••••••••••</span>
+      <span className="sr-only">Set</span>
+    </span>
+  );
+  const forget = forgettable && (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      aria-label={`Forget ${setting.label}`}
+      onClick={() => {
+        setConfirming(true);
+      }}
+    >
+      <X aria-hidden strokeWidth={1.5} />
+    </Button>
+  );
+  const set = (
+    <span className="flex w-full items-center gap-1 md:w-60">
+      {masked}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={`Replace ${setting.label}`}
+        onClick={() => {
+          onPress("Replace");
+        }}
+      >
+        <Pencil aria-hidden strokeWidth={1.5} />
+      </Button>
+      {forget}
+    </span>
+  );
   return (
-    // Spaced and ruled as `SettingRow` is, which it sits among.
-    <div className="flex items-center justify-between gap-x-5 py-3.5 not-first:border-t">
-      <div className="min-w-0 flex-1">
-        <p className="text-sm">{setting.label}</p>
-        <p className="text-xs text-pretty text-muted-foreground empty:hidden">
-          {setting.description}
-        </p>
-      </div>
-      {/* A ghost button is pulled back by its own padding, so its words line up with the inputs. */}
-      <div className="-me-4 flex shrink-0 items-center gap-2">
-        <span className="text-sm">Set</span>
-        {actions.map((action) => (
-          <Button
-            key={action}
-            type="button"
-            variant="ghost"
-            aria-label={`${action} ${setting.label}`}
-            onClick={() => {
-              onPress(action);
+    <SettingRow wide label={setting.label} hint={setting.description}>
+      {() =>
+        confirming ? (
+          <ForgetSecret
+            label={setting.label}
+            onForget={() => {
+              onPress("Forget");
             }}
-          >
-            {action}
-          </Button>
-        ))}
-      </div>
-    </div>
+            onCancel={() => {
+              setConfirming(false);
+            }}
+          />
+        ) : (
+          set
+        )
+      }
+    </SettingRow>
   );
 }

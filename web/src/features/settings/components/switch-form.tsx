@@ -1,6 +1,6 @@
-import { StoreOptions } from "@/features/settings/components/store-options";
 import { useSwitchImageStore } from "@/features/settings/data/use-switch-image-store";
 import { switchRefusal } from "@/features/settings/lib/image-store";
+import { storeOptions } from "@/features/settings/lib/store-options";
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
 import { FormEnd } from "@/shared/components/form-field/form-end";
 import { FormSelect } from "@/shared/components/form-field/form-select";
@@ -25,7 +25,7 @@ export function SwitchForm({
     <form
       className="flex flex-col gap-3"
       onSubmit={onSubmitted((typed) => {
-        // A disabled option isn't submitted, so the store in use, when disabled, sends no pluginId.
+        // Without a pluginId, the store in use is kept.
         const pluginId = typed.has("pluginId") ? formText(typed, "pluginId") : current;
         switchStore.mutate({ pluginId });
       })}
@@ -38,9 +38,8 @@ export function SwitchForm({
         // Local disk is the empty value, which a required select would refuse.
         required={false}
         hint="An enabled Blob store Plugin, such as S3, can keep them in place of local disk. Every image is copied across before the switch, and the old store keeps its copies."
-      >
-        <StoreOptions current={current} stores={stores} nameOf={nameOf} />
-      </FormSelect>
+        options={storeOptions(current, stores, nameOf)}
+      />
       <FormEnd
         action={switchStore.isPending ? "Checking the store…" : "Switch image store"}
         variant="ghost"

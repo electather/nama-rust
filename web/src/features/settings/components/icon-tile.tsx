@@ -5,9 +5,9 @@ export function IconTile({ Icon }: { Icon: LucideIcon }) {
   return (
     <span
       aria-hidden
-      className="grid size-10 shrink-0 place-items-center rounded-lg bg-muted inset-ring inset-ring-border"
+      className="grid size-8 shrink-0 place-items-center rounded-md bg-muted inset-ring inset-ring-border"
     >
-      <Icon strokeWidth={1.5} className="size-5" />
+      <Icon strokeWidth={1.5} className="size-4" />
     </span>
   );
 }

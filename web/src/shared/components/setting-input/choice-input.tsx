@@ -30,9 +30,8 @@ export function ChoiceInput({
             "Test the settings to choose from what the Plugin offers.",
           ].join(" ")}
           error={error}
-        >
-          <option>{stored === "" ? "Not chosen" : stored}</option>
-        </FormSelect>
+          options={[{ value: stored, label: stored === "" ? "Not chosen" : stored }]}
+        />
         {/* A disabled dropdown isn't sent, so this sends the stored choice as it was. */}
         <input type="hidden" name={setting.key} value={stored} />
       </>
@@ -47,13 +46,10 @@ export function ChoiceInput({
       required={required}
       hint={setting.description}
       error={error}
-    >
-      <option value="">Pick one</option>
-      {choices.map(({ value, label }) => (
-        <option key={value} value={value}>
-          {label}
-        </option>
-      ))}
-    </FormSelect>
+      options={[
+        { value: "", label: "Pick one" },
+        ...choices.map(({ value, label }) => ({ value, label })),
+      ]}
+    />
   );
 }

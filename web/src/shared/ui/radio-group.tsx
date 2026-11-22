@@ -17,7 +17,7 @@ function RadioRow({ children, ...props }: RadioPrimitive.Root.Props) {
   return (
     <RadioPrimitive.Root
       data-slot="radio-row"
-      className="flex min-h-10 w-full shrink-0 cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-start transition-colors outline-none select-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 data-checked:bg-accent data-checked:font-semibold data-checked:text-primary data-checked:inset-ring data-checked:inset-ring-primary/60"
+      className="flex min-h-10 w-full shrink-0 cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-start transition-colors outline-none select-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 data-checked:bg-accent data-checked:font-medium data-checked:text-primary data-checked:inset-ring data-checked:inset-ring-primary/60"
       {...props}
     >
       <span className="flex-1 py-2">{children}</span>

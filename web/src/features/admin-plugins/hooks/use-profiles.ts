@@ -5,13 +5,10 @@ import { type PluginDetails, pluginName } from "@/shared/lib/plugins";
 
 /**
  * The profiles `plugin`'s settings check offers on its stored settings, none until it answers, and
- * why there are none when it failed. A secret isn't sent, so the Server uses the stored one.
+ * why there are none when it failed.
  */
 export function useProfiles(plugin: PluginDetails) {
-  const stored = Object.fromEntries(
-    plugin.settings.flatMap(({ key, value }) => (value ? [[key, value]] : [])),
-  );
-  const offered = useOfferedProfiles(plugin.summary.id, stored);
+  const offered = useOfferedProfiles(plugin);
   return {
     profiles: offered.data?.choices[qualityProfile]?.choices,
     unoffered: offered.error

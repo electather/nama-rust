@@ -1,11 +1,20 @@
 import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import type { LibraryService } from "@/gen/nama/v1/library_pb";
 import { SettingKind, type UpdatePluginSettingsRequest } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { input, openPlugin, plugin, saveSettings } from "@/test-plugins";
+import {
+  chipsField,
+  input,
+  offeredIn,
+  openPlugin,
+  pickedIn,
+  plugin,
+  saveSettings,
+  toggleIn,
+} from "@/test-plugins";
 import { expectUnderField, refused } from "@/test-refusal";
 
 afterEach(cleanup);
@@ -159,14 +168,28 @@ test("replace lets a set secret be typed again, and sends it", async () => {
   expect(found12.settings["api_key"]?.value).toStrictEqual({ case: "textValue", value: "new-key" });
 });
 
-test("forget forgets a set secret at the press, sending its key", async () => {
+test("forget forgets a set secret once it's confirmed, sending its key", async () => {
   const { sent } = openToSave("tmdb");
   const found13 = await plugin("TMDB");
+  fireEvent.click(found13.getByRole("button", { name: "Forget API key" }));
+  // The X is gone once it asks, so this is the confirmation's Forget.
   fireEvent.click(found13.getByRole("button", { name: "Forget API key" }));
 
   const { settings, forgottenSecrets } = await sent;
   expect(forgottenSecrets).toStrictEqual(["api_key"]);
   expect(settings["api_key"]).toBeUndefined();
+});
+
+test("cancelling forget keeps a set secret, sending nothing", async () => {
+  const { requests } = openToSave("tmdb");
+  const page = await plugin("TMDB");
+  fireEvent.click(page.getByRole("button", { name: "Forget API key" }));
+  expect(page.getByText("Forget it?")).toBeDefined();
+
+  fireEvent.click(page.getByRole("button", { name: "Cancel" }));
+
+  expect(page.getByRole("button", { name: "Replace API key" })).toBeDefined();
+  expect(requests).toStrictEqual([]);
 });
 
 test("a bool and a number, however it is written, are sent as their kind", async () => {
@@ -228,34 +251,25 @@ test("a Plugin no longer on the Server says so for the form", async () => {
   ).resolves.toBeDefined();
 });
 
-/** The Libraries setting in the cleanup Plugin's view, once its Libraries show. */
+/** The Libraries field in the cleanup Plugin's view, once its Libraries show. */
 async function librariesToClean() {
-  const found101 = await plugin("cleanup");
-  const group = found101.getByRole("group", { name: "Libraries to clean" });
-  await within(group).findByRole("checkbox", { name: "Movies" });
-  return within(group);
+  const field = await chipsField("cleanup", "Libraries to clean");
+  return field;
 }
 
 test("a Libraries setting shows the Libraries it holds by name, leaving out one since deleted", async () => {
   openPlugin("cleanup");
 
-  const group = await librariesToClean();
-  const ticked = group
-    .getAllByRole<HTMLInputElement>("checkbox")
-    .map((box) => [box.labels?.[0]?.textContent, box.checked]);
-  expect(ticked).toStrictEqual([
-    ["Movies", true],
-    ["Shows", false],
-    ["Anime", false],
-  ]);
+  const field = await librariesToClean();
+  expect(pickedIn(field)).toStrictEqual(["Movies"]);
+  await expect(offeredIn(field)).resolves.toStrictEqual(["Movies", "Shows", "Anime"]);
 });
 
-test("each Library ticked or unticked saves the ids picked", async () => {
+test("each Library picked or removed saves the ids picked", async () => {
   const { requests } = openToSave("cleanup");
-  const group = await librariesToClean();
-  fireEvent.click(group.getByRole("checkbox", { name: "Movies" }));
-  fireEvent.click(group.getByRole("checkbox", { name: "Shows" }));
-  fireEvent.click(group.getByRole("checkbox", { name: "Anime" }));
+  await toggleIn(await librariesToClean(), "Movies");
+  await toggleIn(await librariesToClean(), "Shows");
+  await toggleIn(await librariesToClean(), "Anime");
 
   await waitFor(() => {
     expect(requests).toHaveLength(3);
@@ -286,8 +300,7 @@ test.each([
   async ({ shown, listLibraries }) => {
     const { sent } = openToSave("cleanup", { listLibraries });
     const found21 = await plugin("cleanup");
-    const group = within(found21.getByRole("group", { name: "Libraries to clean" }));
-    await group.findByText(shown);
+    await found21.findByText(shown);
 
     await saveSettings("cleanup");
 
@@ -307,12 +320,12 @@ test("a refusal naming a Library no longer on the Server shows under the Librari
       });
     },
   });
-  const group = await librariesToClean();
+  await librariesToClean();
 
   await saveSettings("cleanup");
 
   const error = await screen.findByText("A Library picked here isn’t on the Server any more.");
-  const box = group.getByRole("checkbox", { name: "Movies" });
-  expect(box.getAttribute("aria-invalid")).toBe("true");
-  expect(box.getAttribute("aria-describedby")).toContain(error.id);
+  const field = await librariesToClean();
+  expect(field.getAttribute("aria-invalid")).toBe("true");
+  expect(field.getAttribute("aria-describedby")).toContain(error.id);
 });

@@ -14,6 +14,7 @@ import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { type ServerState, admin, eventFeed, fakeServer, newUser, openApp } from "@/test-app";
 import { openMenu, pickFromMenu } from "@/test-menu";
 import { confirmItsYou, recentAuthenticationRequired, refused } from "@/test-refusal";
+import { pick } from "@/test-settings";
 
 afterEach(cleanup);
 
@@ -129,7 +130,7 @@ test("deleting one Version deletes only it", async () => {
   const dialog = await openDeleteDialog();
   await within(dialog).findByText("Alien (1979) - 2160p.mkv");
 
-  fireEvent.change(within(dialog).getByLabelText("What to delete"), { target: { value: "1" } });
+  pick("What to delete", /^Alien \(1979\) - 1080p\.mkv /u);
   await waitFor(() => {
     expect(within(dialog).queryByText("Alien (1979) - 2160p.mkv")).toBeNull();
   });
@@ -268,7 +269,7 @@ test("deleting one Version when Radarr couldn't be told says so on the Movie", a
   const dialog = await openDeleteDialog();
   await within(dialog).findByText("Alien (1979) - 2160p.mkv");
 
-  fireEvent.change(within(dialog).getByLabelText("What to delete"), { target: { value: "1" } });
+  pick("What to delete", /^Alien \(1979\) - 1080p\.mkv /u);
   fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
 
   await expect(

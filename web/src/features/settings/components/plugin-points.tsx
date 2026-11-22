@@ -20,7 +20,7 @@ export function PluginPoints({ extensionPoints }: { extensionPoints: ExtensionPo
       <h2 id="extension-points" className="font-medium">
         Extension Points
       </h2>
-      <ul className="-mb-3.5 flex flex-col">{rows}</ul>
+      <ul className="-mb-2.5 flex flex-col">{rows}</ul>
     </section>
   );
 }

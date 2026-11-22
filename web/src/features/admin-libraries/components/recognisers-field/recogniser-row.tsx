@@ -37,7 +37,7 @@ export function RecogniserRow({
           key={name}
           type="button"
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           aria-label={name}
           disabled={onClick === undefined}
           onClick={onClick}

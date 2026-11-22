@@ -73,11 +73,12 @@ test("a Device revoked elsewhere meanwhile just leaves the list", async () => {
   expect(screen.queryByRole("alertdialog")).toBeNull();
 });
 
-test("the Devices pane leads to signing in another Device", async () => {
+test("the Devices pane signs in another Device in place", async () => {
   openSettings("devices", fakeServer({ signedIn: newUser }));
 
-  const signIn = await screen.findByRole("link", { name: "Sign in a Device" });
-  expect(signIn.getAttribute("href")).toBe("/code");
+  fireEvent.click(await screen.findByRole("button", { name: "Sign in a Device" }));
+  const settings = screen.getByRole("dialog", { name: "Settings" });
+  expect(within(settings).getByRole("textbox", { name: "Sign-in Code" })).toBeDefined();
 });
 
 /** The Sign-in pane, on a Server whose password is "correct horse", which records what it changed to. */

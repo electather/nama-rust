@@ -208,7 +208,8 @@ test("enabling a Plugin in its view shows it enabled there and on the list", asy
   await waitFor(() => {
     expect(view.queryByRole("button", { name: "Enable log-events" })).toBeNull();
   });
-  fireEvent.click(view.getByRole("link", { name: "Plugins" }));
+  const trail = screen.getByRole("navigation", { name: "Breadcrumbs" });
+  fireEvent.click(within(trail).getByRole("link", { name: "Plugins" }));
   const listed = within(await screen.findByRole("list", { name: "Enabled" }));
   expect(listed.getByRole("link", { name: "log-events" })).toBeDefined();
 });

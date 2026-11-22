@@ -67,8 +67,14 @@ function openDefaultHome(layout: MessageInitShape<typeof HomeLayoutSchema>, refu
 }
 
 /** The names of the rows the pane lists, top to bottom, under Featured. */
+/** The list of default Home rows: the breadcrumbs over the pane are a list too. */
+function rowList() {
+  const rows = screen.getAllByRole("list").find((list) => list.closest("nav") === null);
+  return within(rows ?? document.body);
+}
+
 function rowNames() {
-  return within(screen.getByRole("list"))
+  return rowList()
     .getAllByRole("listitem")
     .map((row) => row.querySelector("p")?.textContent);
 }
@@ -138,7 +144,7 @@ test("an Admin drags a Home row to the end", async () => {
   const saves = openDefaultHome({ rows: [continueWatching, picks, usersRows] });
 
   await screen.findByText("Continue Watching");
-  const items = within(screen.getByRole("list")).getAllByRole("listitem");
+  const items = rowList().getAllByRole("listitem");
   for (const [index, item] of items.entries()) {
     vi.spyOn(item, "getBoundingClientRect").mockReturnValue(
       DOMRect.fromRect({ y: index * 60, height: 60 }),

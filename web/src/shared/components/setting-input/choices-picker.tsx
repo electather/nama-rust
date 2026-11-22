@@ -1,11 +1,10 @@
 import type { Choice, Setting } from "@/gen/nama/v1/plugin_pb";
-import { PickBox } from "@/shared/components/setting-input/pick-box";
-import { PickList } from "@/shared/components/setting-input/pick-list";
+import { PickChips } from "@/shared/components/setting-input/pick-chips";
 
 /**
- * A several-choices setting's input: a checkbox per choice `offered`, ticked for the ones it holds,
- * then a ticked one per held value not among them, marked no longer offered once `offered` is
- * `current`, so an admin sees why saving is refused and can unpick it.
+ * A several-choices setting's input: a chip per choice it holds, picked from the ones `offered`,
+ * then one per held value not among them, marked no longer offered once `offered` is `current`, so
+ * an admin sees why saving is refused and can remove it.
  */
 export function ChoicesPicker({
   setting,
@@ -20,29 +19,18 @@ export function ChoicesPicker({
   error: string | undefined;
 }) {
   const held = heldOf(setting);
-  const gone = held.filter((value) => !offered.some((choice) => choice.value === value));
+  const gone = held
+    .filter((value) => !offered.some((choice) => choice.value === value))
+    .map((value) => ({ value, label: current ? `${value} (no longer offered)` : value }));
   return (
-    <PickList label={setting.label} hint={hintOf(setting)} error={error}>
-      {(box) => [
-        ...offered.map(({ value, label }) => (
-          <PickBox
-            key={value}
-            name={setting.key}
-            value={value}
-            checked={held.includes(value)}
-            {...box}
-          >
-            {label}
-          </PickBox>
-        )),
-        ...gone.map((value) => (
-          <PickBox key={value} name={setting.key} value={value} checked {...box}>
-            {value}
-            {current && <span className="text-muted-foreground"> (no longer offered)</span>}
-          </PickBox>
-        )),
-      ]}
-    </PickList>
+    <PickChips
+      label={setting.label}
+      hint={hintOf(setting)}
+      error={error}
+      name={setting.key}
+      items={[...offered.map(({ value, label }) => ({ value, label })), ...gone]}
+      held={held}
+    />
   );
 }
 

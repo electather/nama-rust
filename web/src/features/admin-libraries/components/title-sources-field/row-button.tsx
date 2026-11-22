@@ -18,7 +18,7 @@ export function RowButton({
     <Button
       type="button"
       variant="ghost"
-      size="icon"
+      size="icon-sm"
       aria-label={name}
       disabled={disabled}
       onClick={onClick}
