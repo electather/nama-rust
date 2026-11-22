@@ -1,5 +1,5 @@
 import { Code } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
@@ -71,7 +71,7 @@ test("setting up creates the first Admin and lands on the home page", async () =
   const router = openApp("/setup", transport);
 
   await submitSetup("ABCD-EFGH");
-  await expect(screen.findByRole("link", { name: "Admin" })).resolves.toBeDefined();
+  await expect(screen.findByRole("button", { name: /’s menu$/u })).resolves.toBeDefined();
   expect(router.state.location.pathname).toBe("/");
 });
 
@@ -187,7 +187,7 @@ test("signing in never redirects to another site", async () => {
 });
 
 test("a User who manages nothing opening an Admin page is told they can't, and has no Admin link", async () => {
-  openApp("/admin/libraries", fakeServer({ signedIn: newUser }));
+  openApp("/admin", fakeServer({ signedIn: newUser }));
 
   await expect(
     screen.findByRole("heading", { name: "You can’t open this page" }),
@@ -195,36 +195,13 @@ test("a User who manages nothing opening an Admin page is told they can't, and h
   expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
 });
 
-test.each([
-  {
-    name: "Manage Libraries",
-    permission: Permission.MANAGE_LIBRARIES,
-    landing: "/admin/libraries",
-    pages: ["Libraries"],
-  },
-  {
-    name: "Admin",
-    permission: Permission.ADMIN,
-    landing: "/admin/libraries",
-    pages: ["Libraries"],
-  },
-])(
-  "with only the $name Permission, Admin opens on $landing and lists only the pages it allows",
-  async ({ permission, landing, pages }) => {
-    const router = openApp(
-      "/admin",
-      fakeServer({ signedIn: [permission] }, {}, { listUsers: () => ({}) }),
-    );
+test("an Admin with every Permission opening /admin is told they can't, as no Admin page is left", async () => {
+  openApp("/admin", fakeServer({ signedIn: [Permission.ADMIN] }));
 
-    const nav = await screen.findByRole("navigation", { name: "Admin" });
-    expect(
-      within(nav)
-        .getAllByRole("link")
-        .map((link) => link.textContent),
-    ).toStrictEqual(pages);
-    expect(router.state.location.pathname).toBe(landing);
-  },
-);
+  await expect(
+    screen.findByRole("heading", { name: "You can’t open this page" }),
+  ).resolves.toBeDefined();
+});
 
 test("a wrong password shows an error and keeps the username", async () => {
   const router = openApp(

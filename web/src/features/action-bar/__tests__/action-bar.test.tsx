@@ -151,12 +151,12 @@ test("⌘K opens the action bar on the pages a User may jump to, and closes it",
   });
 });
 
-test("a User who may open Admin pages can jump to Admin", async () => {
+test("an Admin has no Admin page to jump to, as none is left", async () => {
   openApp("/code", serverToSearch(findsOffice, admin));
 
   await openActionBar();
 
-  expect(screen.getByRole("option", { name: /^Admin/u })).toBeDefined();
+  expect(screen.queryByRole("option", { name: /^Admin/u })).toBeNull();
 });
 
 test("typing lists the titles found, Enter opens the first, and it's a Recent next time", async () => {

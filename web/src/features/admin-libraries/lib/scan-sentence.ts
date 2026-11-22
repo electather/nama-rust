@@ -14,11 +14,16 @@ export function scanSentence(scan: ScanState) {
 
 /** When a Library's last finished scan ended and what it found, as a sentence. */
 export function lastScanSentence(last: LastScan) {
-  const at = new Date(Number(last.finishedAt) * 1000).toLocaleString(undefined, {
+  return `${lastScanned(last)}: ${foundCounts(last)}`;
+}
+
+/** When a Library's last finished scan ended, as "Last scanned <when>". */
+export function lastScanned({ finishedAt }: LastScan) {
+  const at = new Date(Number(finishedAt) * 1000).toLocaleString(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
   });
-  return `Last scanned ${at}: ${foundCounts(last)}`;
+  return `Last scanned ${at}`;
 }
 
 function foundCounts({
