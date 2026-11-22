@@ -1,14 +1,15 @@
 import { describe, expect, test } from "vite-plus/test";
 
 import { jobSearch } from "@/shared/lib/job-key";
+import { settingsDetailParams } from "@/shared/lib/settings-detail-params";
 
 describe("opening a Job in Settings", () => {
-  test("drops a Library already in the address", () => {
-    const address = { library: "x" };
+  test("drops every other detail already in the address", () => {
+    const address = Object.fromEntries(
+      Object.keys(settingsDetailParams).map((key): [string, string] => [key, "x"]),
+    );
     const search = { ...address, ...jobSearch("p", "j") };
 
-    expect(search.library).toBeUndefined();
-    expect(search.settings).toBe("jobs");
-    expect(search.job).toBe("p:j");
+    expect(search).toStrictEqual({ ...settingsDetailParams, settings: "jobs", job: "p:j" });
   });
 });
