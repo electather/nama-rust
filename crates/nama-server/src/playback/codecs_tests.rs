@@ -1,9 +1,9 @@
 use nama_proto::nama::v1::{AudioCodec, PlaybackReasonKind as Kind, VideoCodec};
 
 use crate::{
-    ffmpeg::{Accel, Hardware, ToneMapper},
+    ffmpeg::{Accel, Hardware, ToneMapper, VideoTag},
     playback::{
-        Facts, Method, build,
+        Facts, Method, Playing, build,
         tests::{
             DOLBY_VISION_5, Given, MKV, MP4, audio, audio_with, decided, dolby_vision_8, facts,
             falls_back_to, firefox, given, hdr_video, in_container, kind_and_params, kinds,
@@ -390,10 +390,13 @@ fn dolby_vision_without_a_base_layer_isnt_transcoded_so_a_device_that_cant_decod
     assert_eq!(decided(&plan), [true, true, true]);
 }
 
-/// Dolby Vision profile 5 in HEVC, for an HDR Device that decodes HEVC and shows the profiles
-/// `shown`.
-fn dolby_vision_5_for(shown: Vec<i32>) -> Facts {
-    let mut facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(DOLBY_VISION_5))]));
+/// Dolby Vision profile 5 in HEVC in `container`, for an HDR Device that decodes HEVC and shows
+/// the profiles `shown`.
+fn dolby_vision_5_for(container: &str, shown: Vec<i32>) -> Facts {
+    let mut facts = in_container(
+        container,
+        Some(vec![hdr_video("hevc", Some(DOLBY_VISION_5))]),
+    );
     facts.device.video_codecs.push(VideoCodec::VIDEO_CODEC_HEVC);
     facts.device.hdr = true;
     facts.device.dolby_vision_profiles = shown;
@@ -402,7 +405,7 @@ fn dolby_vision_5_for(shown: Vec<i32>) -> Facts {
 
 #[test]
 fn an_hdr_device_not_showing_dolby_vision_5_isnt_sent_it_by_direct_play_or_remux() {
-    let mut facts = dolby_vision_5_for(vec![8]);
+    let mut facts = dolby_vision_5_for(MP4, vec![8]);
 
     let plan = build(&mut facts);
 
@@ -418,11 +421,23 @@ fn an_hdr_device_not_showing_dolby_vision_5_isnt_sent_it_by_direct_play_or_remux
 
 #[test]
 fn a_device_showing_dolby_vision_5_direct_plays_it() {
-    let mut facts = dolby_vision_5_for(vec![5]);
+    let mut facts = dolby_vision_5_for(MP4, vec![5]);
 
     let plan = build(&mut facts);
 
     assert_eq!(plan.method(), Some(Method::DirectPlay));
+}
+
+#[test]
+fn a_device_showing_dolby_vision_5_is_sent_it_remuxed_from_mkv_as_dvh1() {
+    let mut facts = dolby_vision_5_for(MKV, vec![5]);
+
+    let plan = build(&mut facts);
+
+    let Some(Playing::Remux { remux, .. }) = plan.playing else {
+        panic!("{:?} isn't a Remux", plan.playing);
+    };
+    assert_eq!(remux.video_tag, Some(VideoTag::Dvh1));
 }
 
 /// Dolby Vision profile 5 for Firefox, which neither decodes HEVC nor shows HDR, on a Server

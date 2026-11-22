@@ -99,11 +99,11 @@ fn unshown(hdr: Hdr, device: &DeviceDecoding) -> Option<Reason> {
         return None;
     };
     let shown = (device.dolby_vision_profiles.iter()).any(|&shown| i64::from(shown) == profile);
-    let text = format!(
-        "This Device can't show Dolby Vision profile {profile}, which has no Base Layer, so it \
-         can't be Direct Played or Remuxed"
-    );
     (!shown).then(|| {
+        let text = format!(
+            "This Device can't show Dolby Vision profile {profile}, which has no Base Layer, so \
+             it can't be Direct Played or Remuxed"
+        );
         Reason::new(
             Kind::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_DOLBY_VISION,
             text,

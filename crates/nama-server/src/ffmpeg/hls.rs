@@ -65,6 +65,7 @@ pub(crate) struct Remux {
 /// where ffmpeg writes `hev1` unless told.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum VideoTag {
+    /// For HEVC that isn't Dolby Vision 5.
     Hvc1,
     /// For Dolby Vision 5, as Apple's HLS authoring spec has it (rule 1.10).
     Dvh1,

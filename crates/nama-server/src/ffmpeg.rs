@@ -240,7 +240,7 @@ impl Ffmpeg {
     }
 
     /// What `ffmpeg -hide_banner <args>` prints, or why it couldn't say. Empty without ffmpeg.
-    #[tracing::instrument(name = "ffmpeg list", skip_all, fields(ffmpeg.list = %args.join(" ")))]
+    #[tracing::instrument(name = "ffmpeg print", skip_all, fields(ffmpeg.args = %args.join(" ")))]
     async fn printed(&self, args: &[&str]) -> Result<String, String> {
         let Ok(ffmpeg) = &self.ffmpeg else {
             return Ok(String::new());
