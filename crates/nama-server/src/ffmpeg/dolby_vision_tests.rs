@@ -123,12 +123,9 @@ fn dolby_vision_5_to_hdr10_is_reshaped_into_10_bit_pq_in_software_then_uploaded_
 
 #[tokio::test]
 async fn dolby_vision_5_to_hdr10_is_10_bit_bt2020_pq_in_the_colours_its_rpu_reshapes_it_to() {
-    let ffmpeg = system_ffmpeg();
-    // CI's jellyfin-ffmpeg has it, and its job fails without it.
-    if !ffmpeg.has_tonemapx().await.unwrap() {
-        eprintln!("skipped: the ffmpeg on PATH lacks jellyfin-ffmpeg's tonemapx");
+    let Some(ffmpeg) = ffmpeg_with_tonemapx().await else {
         return;
-    }
+    };
     let dir = tempfile::tempdir().unwrap();
     let out = dir.path().join("hdr10.mp4");
     // VideoToolbox's frames stay in memory, so its filters run anywhere; libx265 stands in for the
@@ -198,12 +195,9 @@ async fn a_dolby_vision_5_remux_is_tagged_dvh1_and_keeps_its_dolby_vision_record
 
 #[tokio::test]
 async fn a_dolby_vision_5_transcode_is_bt709_sdr_in_the_colours_its_rpu_reshapes_it_to() {
-    let ffmpeg = system_ffmpeg();
-    // CI's jellyfin-ffmpeg has it, and its job fails without it.
-    if !ffmpeg.has_tonemapx().await.unwrap() {
-        eprintln!("skipped: the ffmpeg on PATH lacks jellyfin-ffmpeg's tonemapx");
+    let Some(ffmpeg) = ffmpeg_with_tonemapx().await else {
         return;
-    }
+    };
     let dir = tempfile::tempdir().unwrap();
     let transcode = Transcode {
         audio: None,
@@ -257,6 +251,17 @@ async fn a_dolby_vision_5_transcode_is_bt709_sdr_in_the_colours_its_rpu_reshapes
         mean_apart >= 8,
         "the RPU moved each colour by {mean_apart} on average"
     );
+}
+
+/// The ffmpeg on `PATH`, or `None`, saying the test skips, if it lacks jellyfin-ffmpeg's `tonemapx`.
+// CI's jellyfin-ffmpeg has it, and its job fails without it.
+async fn ffmpeg_with_tonemapx() -> Option<super::Ffmpeg> {
+    let ffmpeg = system_ffmpeg();
+    if ffmpeg.has_tonemapx().await.unwrap() {
+        return Some(ffmpeg);
+    }
+    eprintln!("skipped: the ffmpeg on PATH lacks jellyfin-ffmpeg's tonemapx");
+    None
 }
 
 /// How far apart the same-sized pictures `a` and `b` are on average, per colour of each pixel.
