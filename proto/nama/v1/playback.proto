@@ -367,6 +367,9 @@ message DeviceDecoding {
   repeated SubtitleFormat subtitle_formats = 9;
   // How sure it is of what it says it decodes.
   DecodingEvidence evidence = 11;
+  // The Dolby Vision profiles it shows, such as 5 and 8. Direct Play and Remux of a Dolby Vision
+  // Track with no Base Layer need its profile here.
+  repeated int32 dolby_vision_profiles = 12;
 }
 
 // How a Device found out what it decodes, and so how sure it is. A choice that goes wrong where a
@@ -630,7 +633,8 @@ enum PlaybackReasonKind {
   PLAYBACK_REASON_KIND_SERVER_LACKS_FFMPEG = 8;
   // Rules out Transcode: the Server's ffmpeg lacks libx264.
   PLAYBACK_REASON_KIND_SERVER_CANT_ENCODE_VIDEO = 9;
-  // Rules out Transcode: the picture is Dolby Vision with no Base Layer, as in profile 5.
+  // Rules out Transcode: the picture is Dolby Vision with no Base Layer, as in profile 5, and
+  // the Server's ffmpeg lacks jellyfin-ffmpeg's `tonemapx`, which converts it (ADR 0102).
   PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER = 10;
   // Rules out the method in `method` (`PLAYBACK_METHOD_REMUX`): it just failed on the Device, or
   // every Recipe of it did. One for each method that did.
@@ -658,6 +662,10 @@ enum PlaybackReasonKind {
   // before writing anything for it, so the Server planned the next method instead. One for each
   // method that did.
   PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER = 34;
+  // Rules out Direct Play and Remux: the picture is Dolby Vision with no Base Layer, as in
+  // profile 5, and the Device doesn't list its profile in `DeviceDecoding.dolby_vision_profiles`.
+  // Params: `profile` (`5`).
+  PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_DOLBY_VISION = 36;
 
   // The rest rule nothing out.
 

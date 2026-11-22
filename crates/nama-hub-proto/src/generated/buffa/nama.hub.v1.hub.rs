@@ -117,13 +117,26 @@ pub struct GetHubInfoResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub version: ::buffa::alloc::string::String,
+    /// Whether the Hub emails Sign-in Links, which it does once it has mail set up.
+    ///
+    /// Field 2: `sign_in_links`
+    #[serde(
+        rename = "signInLinks",
+        alias = "sign_in_links",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub sign_in_links: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for GetHubInfoResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("GetHubInfoResponse").field("version", &self.version).finish()
+        f.debug_struct("GetHubInfoResponse")
+            .field("version", &self.version)
+            .field("sign_in_links", &self.sign_in_links)
+            .finish()
     }
 }
 impl GetHubInfoResponse {
@@ -156,6 +169,9 @@ impl ::buffa::Message for GetHubInfoResponse {
         if !self.version.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.version) as u64;
         }
+        if self.sign_in_links {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -168,6 +184,9 @@ impl ::buffa::Message for GetHubInfoResponse {
         use ::buffa::Enumeration as _;
         if !self.version.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.version, buf);
+        }
+        if self.sign_in_links {
+            ::buffa::types::put_bool_field(2u32, self.sign_in_links, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -189,6 +208,13 @@ impl ::buffa::Message for GetHubInfoResponse {
                 )?;
                 ::buffa::types::merge_string(&mut self.version, buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.sign_in_links = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -198,6 +224,7 @@ impl ::buffa::Message for GetHubInfoResponse {
     }
     fn clear(&mut self) {
         self.version.clear();
+        self.sign_in_links = false;
         self.__buffa_unknown_fields.clear();
     }
 }

@@ -14,6 +14,30 @@ pub type OwnedSignInRequestView = ::buffa::view::OwnedView<
 pub type OwnedSignInResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::SignInResponseView<'static>,
 >;
+///Shorthand for `OwnedView<SendSignInLinkRequestView<'static>>`.
+pub type OwnedSendSignInLinkRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SendSignInLinkRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SendSignInLinkResponseView<'static>>`.
+pub type OwnedSendSignInLinkResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SendSignInLinkResponseView<'static>,
+>;
+///Shorthand for `OwnedView<GetSignInLinkRequestView<'static>>`.
+pub type OwnedGetSignInLinkRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::GetSignInLinkRequestView<'static>,
+>;
+///Shorthand for `OwnedView<GetSignInLinkResponseView<'static>>`.
+pub type OwnedGetSignInLinkResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::GetSignInLinkResponseView<'static>,
+>;
+///Shorthand for `OwnedView<SignInWithLinkRequestView<'static>>`.
+pub type OwnedSignInWithLinkRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SignInWithLinkRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SignInWithLinkResponseView<'static>>`.
+pub type OwnedSignInWithLinkResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SignInWithLinkResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<SignOutRequestView<'static>>`.
 pub type OwnedSignOutRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::SignOutRequestView<'static>,
@@ -76,6 +100,108 @@ for crate::messages::nama::hub::v1::__buffa::view::SignInResponseView<'_> {
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SignInResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::SignInResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SendSignInLinkResponse>
+for crate::messages::nama::hub::v1::__buffa::view::SendSignInLinkResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SendSignInLinkResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SendSignInLinkResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::GetSignInLinkResponse>
+for crate::messages::nama::hub::v1::__buffa::view::GetSignInLinkResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::GetSignInLinkResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::GetSignInLinkResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SignInWithLinkResponse>
+for crate::messages::nama::hub::v1::__buffa::view::SignInWithLinkResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SignInWithLinkResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SignInWithLinkResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -180,6 +306,24 @@ pub const ACCOUNT_SERVICE_SIGN_IN_SPEC: ::connectrpc::Spec = ::connectrpc::Spec:
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `SendSignInLink` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const ACCOUNT_SERVICE_SEND_SIGN_IN_LINK_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.AccountService/SendSignInLink",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `GetSignInLink` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const ACCOUNT_SERVICE_GET_SIGN_IN_LINK_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.AccountService/GetSignInLink",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `SignInWithLink` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const ACCOUNT_SERVICE_SIGN_IN_WITH_LINK_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.AccountService/SignInWithLink",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `SignOut` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const ACCOUNT_SERVICE_SIGN_OUT_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.hub.v1.AccountService/SignOut",
@@ -246,8 +390,9 @@ pub const ACCOUNT_SERVICE_GET_ACCOUNT_SPEC: ::connectrpc::Spec = ::connectrpc::S
 #[allow(clippy::type_complexity)]
 pub trait AccountService: Send + Sync + 'static {
     /// Creates an Account with an email and a password, and signs it in. Fails with
-    /// `REFUSAL_REASON_EMAIL_TAKEN` when another Account has the email, and with
-    /// `REFUSAL_REASON_EMAIL_INVALID` or `REFUSAL_REASON_PASSWORD_LENGTH` when one breaks the rules.
+    /// `REFUSAL_REASON_EMAIL_TAKEN` when another Account has the email, with
+    /// `REFUSAL_REASON_EMAIL_INVALID` or `REFUSAL_REASON_PASSWORD_LENGTH` when one breaks the rules,
+    /// and with `REFUSAL_REASON_TOO_MANY_ATTEMPTS` after too many creations from one client.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -292,6 +437,82 @@ pub trait AccountService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::hub::v1::SignInResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Emails a Sign-in Link to the Account with this email, compared without regard to case. It
+    /// answers the same whether or not an Account has the email, and sends nothing when none does.
+    /// Fails with `REFUSAL_REASON_SIGN_IN_LINKS_OFF` when the Hub has no mail set up,
+    /// `REFUSAL_REASON_EMAIL_INVALID`, and `REFUSAL_REASON_TOO_MANY_ATTEMPTS` after too many
+    /// requests from one client or for one email.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn send_sign_in_link<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::SendSignInLinkRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::SendSignInLinkResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Names the Account a Sign-in Link signs in, without using it up. Fails with
+    /// `REFUSAL_REASON_SIGN_IN_LINK_EXPIRED` for a link that expired, was used or never existed.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn get_sign_in_link<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::GetSignInLinkRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::GetSignInLinkResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Uses a Sign-in Link up, signing its Account in and ending the calling session, if any. The
+    /// first one used on an Account whose email isn't proven also ends its other sessions and removes
+    /// its password (ADR 0100). Fails as `GetSignInLink` does.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn sign_in_with_link<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::SignInWithLinkRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::SignInWithLinkResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -434,6 +655,93 @@ impl<S: AccountService> AccountServiceExt for S {
             .with_spec(ACCOUNT_SERVICE_SIGN_IN_SPEC)
             .route_view(
                 ACCOUNT_SERVICE_SERVICE_NAME,
+                "SendSignInLink",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::SendSignInLinkRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::SendSignInLinkRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.send_sign_in_link(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::SendSignInLinkResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(ACCOUNT_SERVICE_SEND_SIGN_IN_LINK_SPEC)
+            .route_view(
+                ACCOUNT_SERVICE_SERVICE_NAME,
+                "GetSignInLink",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::GetSignInLinkRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::GetSignInLinkRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.get_sign_in_link(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::GetSignInLinkResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(ACCOUNT_SERVICE_GET_SIGN_IN_LINK_SPEC)
+            .route_view(
+                ACCOUNT_SERVICE_SERVICE_NAME,
+                "SignInWithLink",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::SignInWithLinkRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::SignInWithLinkRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.sign_in_with_link(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::SignInWithLinkResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(ACCOUNT_SERVICE_SIGN_IN_WITH_LINK_SPEC)
+            .route_view(
+                ACCOUNT_SERVICE_SERVICE_NAME,
                 "SignOut",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
@@ -556,6 +864,24 @@ impl<T: AccountService> ::connectrpc::Dispatcher for AccountServiceServer<T> {
                         .with_spec(ACCOUNT_SERVICE_SIGN_IN_SPEC),
                 )
             }
+            "SendSignInLink" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(ACCOUNT_SERVICE_SEND_SIGN_IN_LINK_SPEC),
+                )
+            }
+            "GetSignInLink" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(ACCOUNT_SERVICE_GET_SIGN_IN_LINK_SPEC),
+                )
+            }
+            "SignInWithLink" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(ACCOUNT_SERVICE_SIGN_IN_WITH_LINK_SPEC),
+                )
+            }
             "SignOut" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -623,6 +949,72 @@ impl<T: AccountService> ::connectrpc::Dispatcher for AccountServiceServer<T> {
                     svc.sign_in(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::hub::v1::SignInResponse>(format)
+                })
+            }
+            "SendSignInLink" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::SendSignInLinkRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::SendSignInLinkRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::SendSignInLinkRequest,
+                    >::from_parts(&req, &body);
+                    svc.send_sign_in_link(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::SendSignInLinkResponse,
+                        >(format)
+                })
+            }
+            "GetSignInLink" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::GetSignInLinkRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::GetSignInLinkRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::GetSignInLinkRequest,
+                    >::from_parts(&req, &body);
+                    svc.get_sign_in_link(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::GetSignInLinkResponse,
+                        >(format)
+                })
+            }
+            "SignInWithLink" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::SignInWithLinkRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::SignInWithLinkRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::SignInWithLinkRequest,
+                    >::from_parts(&req, &body);
+                    svc.sign_in_with_link(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::SignInWithLinkResponse,
+                        >(format)
                 })
             }
             "SignOut" => {
@@ -878,6 +1270,141 @@ where
                 &self.transport,
                 &self.config,
                 ACCOUNT_SERVICE_SIGN_IN_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SendSignInLink RPC. Sends a request to /nama.hub.v1.AccountService/SendSignInLink.
+    pub async fn send_sign_in_link(
+        &self,
+        request: crate::messages::nama::hub::v1::SendSignInLinkRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SendSignInLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.send_sign_in_link_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SendSignInLink RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn send_sign_in_link_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::SendSignInLinkRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SendSignInLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                ACCOUNT_SERVICE_SEND_SIGN_IN_LINK_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetSignInLink RPC. Sends a request to /nama.hub.v1.AccountService/GetSignInLink.
+    pub async fn get_sign_in_link(
+        &self,
+        request: crate::messages::nama::hub::v1::GetSignInLinkRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::GetSignInLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_sign_in_link_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the GetSignInLink RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_sign_in_link_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::GetSignInLinkRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::GetSignInLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                ACCOUNT_SERVICE_GET_SIGN_IN_LINK_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SignInWithLink RPC. Sends a request to /nama.hub.v1.AccountService/SignInWithLink.
+    pub async fn sign_in_with_link(
+        &self,
+        request: crate::messages::nama::hub::v1::SignInWithLinkRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SignInWithLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.sign_in_with_link_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SignInWithLink RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn sign_in_with_link_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::SignInWithLinkRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SignInWithLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                ACCOUNT_SERVICE_SIGN_IN_WITH_LINK_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

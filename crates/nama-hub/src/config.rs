@@ -22,6 +22,15 @@ pub struct Config {
     /// addresses or CIDR ranges, such as `["10.0.0.0/8"]` (ADR 0018). None by default.
     #[serde(default)]
     pub trusted_proxies: Vec<IpRange>,
+    /// The Resend API key the Hub sends mail with, such as Sign-in Links. Without one it sends
+    /// none, so it doesn't offer Sign-in Links.
+    pub resend_api_key: Option<String>,
+    /// The address mail comes from, such as `Nama Hub <hub@example.com>`, on a domain verified
+    /// with Resend. Required with `resend_api_key`.
+    pub mail_from: Option<String>,
+    /// The Hub's address as people reach it, such as `https://hub.example.com`, which links in
+    /// its mail lead to. Required with `resend_api_key`.
+    pub public_url: Option<String>,
 }
 
 impl Config {
@@ -29,9 +38,31 @@ impl Config {
     ///
     /// # Errors
     ///
-    /// If `NAMA_HUB_DATABASE_URL` is unset, or a variable doesn't parse.
+    /// If `NAMA_HUB_DATABASE_URL` is unset, a variable doesn't parse, or
+    /// `NAMA_HUB_RESEND_API_KEY` is set without `NAMA_HUB_MAIL_FROM` or `NAMA_HUB_PUBLIC_URL`.
     pub fn load() -> Result<Self, Box<figment::Error>> {
-        Ok(Figment::from(Env::prefixed(ENV_PREFIX)).extract()?)
+        let mut config: Self = Figment::from(Env::prefixed(ENV_PREFIX)).extract()?;
+        // A deploy that blanks the variable means no mail, not a key Resend would refuse.
+        config.resend_api_key = config.resend_api_key.filter(|key| !key.is_empty());
+        match config.missing_for_mail() {
+            Some(missing) => Err(Box::new(figment::Error::from(format!(
+                "{ENV_PREFIX}RESEND_API_KEY is set, so {ENV_PREFIX}{missing} must be too"
+            )))),
+            None => Ok(config),
+        }
+    }
+
+    /// The variable mail needs that is unset, if `resend_api_key` is set. The public URL is
+    /// never taken from a request's Host header, which whoever sends the request picks.
+    fn missing_for_mail(&self) -> Option<&'static str> {
+        self.resend_api_key.as_ref()?;
+        if self.mail_from.is_none() {
+            Some("MAIL_FROM")
+        } else if self.public_url.is_none() {
+            Some("PUBLIC_URL")
+        } else {
+            None
+        }
     }
 }
 
@@ -39,12 +70,14 @@ fn default_listen() -> SocketAddr {
     SocketAddr::from(([0, 0, 0, 0], 7981))
 }
 
-// The URL may hold the database's password, so it is never printed.
+// The URL may hold the database's password, and the API key is a secret, so neither is printed.
 impl fmt::Debug for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Config")
             .field("listen", &self.listen)
             .field("trusted_proxies", &self.trusted_proxies)
+            .field("mail_from", &self.mail_from)
+            .field("public_url", &self.public_url)
             .finish_non_exhaustive()
     }
 }

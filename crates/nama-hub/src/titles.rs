@@ -1,11 +1,11 @@
 //! Films and series, loaded from Wikidata's weekly dump, and the External ID crosswalk between
 //! them (ADR 0095).
 
-mod import;
+mod wikidata;
 
 use sqlx::PgPool;
 
-pub use import::{ImportError, import};
+pub use wikidata::{ImportError, import};
 
 /// Whether a title is a Movie or a Show, whose External IDs are separate id spaces (ADR 0042).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -23,16 +23,20 @@ use nama_hub_proto::nama::hub::v1::{
 use sqlx::PgPool;
 use tracing::Instrument as _;
 
-use crate::{accounts::Accounts, db};
+use crate::{accounts::Accounts, db, mail::Mail};
 
 use self::accounts::{AccountServiceHandler, COOKIE_NAME};
 
 /// The Hub's routes: every service, each call in a span of its own, knowing where it came from
-/// through `trusted_proxies` (ADR 0018) and which Account, if any, sent it.
-pub(crate) fn router(db: PgPool, trusted_proxies: &[IpRange]) -> axum::Router {
-    let accounts = Accounts::new(db.clone());
+/// through `trusted_proxies` (ADR 0018) and which Account, if any, sent it. Sign-in Links go out
+/// through `mail`, if it is set up.
+pub(crate) fn router(db: PgPool, trusted_proxies: &[IpRange], mail: Option<Mail>) -> axum::Router {
+    let accounts = Accounts::new(db.clone(), mail);
     let rpcs = connectrpc::Router::new()
-        .add_service(Arc::new(HubServiceHandler { db }))
+        .add_service(Arc::new(HubServiceHandler {
+            db,
+            sends_sign_in_links: accounts.sends_sign_in_links(),
+        }))
         .add_service(Arc::new(AccountServiceHandler {
             accounts: accounts.clone(),
         }))
@@ -50,6 +54,7 @@ pub(crate) fn router(db: PgPool, trusted_proxies: &[IpRange]) -> axum::Router {
 /// `nama.hub.v1.HubService`: facts about the Hub, for anyone.
 struct HubServiceHandler {
     db: PgPool,
+    sends_sign_in_links: bool,
 }
 
 #[expect(
@@ -69,6 +74,7 @@ impl HubService for HubServiceHandler {
         })?;
         connectrpc::Response::ok(GetHubInfoResponse {
             version: env!("CARGO_PKG_VERSION").to_owned(),
+            sign_in_links: self.sends_sign_in_links,
             ..Default::default()
         })
     }
@@ -171,6 +177,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         R::REFUSAL_REASON_EMAIL_INVALID | R::REFUSAL_REASON_PASSWORD_LENGTH => {
             ErrorCode::InvalidArgument
         }
+        R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED => ErrorCode::NotFound,
+        R::REFUSAL_REASON_SIGN_IN_LINKS_OFF => ErrorCode::FailedPrecondition,
         // Never sent; a client sees it only for a reason it doesn't know.
         R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,
     }

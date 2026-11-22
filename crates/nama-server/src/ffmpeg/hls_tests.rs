@@ -5,13 +5,13 @@ use std::{
 
 use super::{
     AudioConversion, AudioEncoder, Ffmpeg, FromCut, Keyframe, Remux, RemuxAudio, ToneMapper,
-    Transcode, TranscodeAudio, VideoConversion, VideoLimit, test_media::write_test_media,
+    Transcode, TranscodeAudio, VideoConversion, VideoLimit, VideoTag, test_media::write_test_media,
     write_h264_with_5_1, write_hevc_with_5_1,
 };
 use crate::config::Config;
 
 /// The ffmpeg and ffprobe on `PATH`, which these tests need.
-fn system_ffmpeg() -> Ffmpeg {
+pub(super) fn system_ffmpeg() -> Ffmpeg {
     let ffmpeg = Ffmpeg::find(&Config::default(), &std::env::var_os("PATH").unwrap());
     assert!(
         ffmpeg.can_remux(),
@@ -26,7 +26,7 @@ fn system_ffmpeg() -> Ffmpeg {
     clippy::too_many_arguments,
     reason = "forwards `Ffmpeg::remux`'s arguments, and takes the ffmpeg to run them on"
 )]
-async fn remux_with(
+pub(super) async fn remux_with(
     ffmpeg: &Ffmpeg,
     path: &Path,
     remux: &Remux,
@@ -56,7 +56,7 @@ async fn remux(
     };
     let remux = Remux {
         audio: Some(audio),
-        hevc: false,
+        video_tag: None,
     };
     remux_with(ffmpeg, path, &remux, dir, from, 0).await;
 }
@@ -383,7 +383,7 @@ async fn an_hevc_remux_writes_its_video_as_hvc1_not_hev1() {
 
     let hevc = Remux {
         audio: None,
-        hevc: true,
+        video_tag: Some(VideoTag::Hvc1),
     };
     remux_with(&ffmpeg, &file, &hevc, &dir, first, 0).await;
 
@@ -493,7 +493,7 @@ async fn a_remux_of_a_file_starting_after_0_starts_its_copied_audio_where_a_run_
             track: 0,
             conversion: None,
         }),
-        hevc: false,
+        video_tag: None,
     };
     let first = Keyframe {
         n: 0,

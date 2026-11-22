@@ -1,6 +1,7 @@
-//! Creating an Account and signing it in and out: `nama.hub.v1.AccountService`.
+//! Creating an Account and signing it in, with its password or a Sign-in Link, and out:
+//! `nama.hub.v1.AccountService`.
 
-use std::{future, time::Instant};
+use std::{future, net::IpAddr, time::Instant};
 
 use axum::http::{
     Extensions, HeaderMap, HeaderValue,
@@ -12,14 +13,15 @@ use connectrpc::{
 use nama_forwarded::RequestSource;
 use nama_hub_proto::nama::hub::v1::{
     self as proto, AccountService, CreateAccountRequest, CreateAccountResponse, GetAccountRequest,
-    GetAccountResponse, RefusalReason, SignInRequest, SignInResponse, SignOutRequest,
-    SignOutResponse,
+    GetAccountResponse, GetSignInLinkRequest, GetSignInLinkResponse, RefusalReason,
+    SendSignInLinkRequest, SendSignInLinkResponse, SignInRequest, SignInResponse,
+    SignInWithLinkRequest, SignInWithLinkResponse, SignOutRequest, SignOutResponse,
 };
 
 use super::{hub_failed, refuse};
 use crate::accounts::{
     self, Account, AccountSession, Accounts, Blocked, EMAIL_LENGTH, PASSWORD_LENGTH, SESSION_DAYS,
-    SignedIn,
+    SignInLink, SignedIn, SignedInByLink,
 };
 
 /// The cookie that holds a browser's session token.
@@ -43,7 +45,12 @@ impl AccountService for AccountServiceHandler {
     ) -> ServiceResult<CreateAccountResponse> {
         let signed_in = self
             .accounts
-            .create(request.email, request.password)
+            .create(
+                request.email,
+                request.password,
+                client_ip(&ctx)?,
+                Instant::now(),
+            )
             .await
             .map_err(refused)?;
         Ok(hand_out_session(signed_in, &ctx, |account| {
@@ -59,19 +66,75 @@ impl AccountService for AccountServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, SignInRequest>,
     ) -> ServiceResult<SignInResponse> {
-        let ip = ctx
-            .extensions()
-            .get::<RequestSource>()
-            .ok_or_else(|| hub_failed(&"a request came without its peer's address"))?
-            .client_ip;
         let signed_in = self
             .accounts
-            .sign_in(request.email, request.password, ip, Instant::now())
+            .sign_in(
+                request.email,
+                request.password,
+                client_ip(&ctx)?,
+                Instant::now(),
+            )
             .await
             .map_err(refused)?;
         Ok(hand_out_session(signed_in, &ctx, |account| {
             SignInResponse {
                 account: account.into(),
+                ..Default::default()
+            }
+        }))
+    }
+
+    fn send_sign_in_link<'a>(
+        &'a self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SendSignInLinkRequest>,
+    ) -> impl Future<Output = ServiceResult<impl Encodable<SendSignInLinkResponse> + Send + use<'a>>>
+    + Send {
+        let queued = client_ip(&ctx).and_then(|ip| {
+            self.accounts
+                .send_sign_in_link(request.email, request.continue_to, ip, Instant::now())
+                .map_err(refused)
+        });
+        future::ready(queued.and_then(|()| Response::ok(SendSignInLinkResponse::default())))
+    }
+
+    async fn get_sign_in_link(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, GetSignInLinkRequest>,
+    ) -> ServiceResult<GetSignInLinkResponse> {
+        let SignInLink {
+            account,
+            email_proven,
+        } = self
+            .accounts
+            .sign_in_link(request.token)
+            .await
+            .map_err(refused)?;
+        Response::ok(GetSignInLinkResponse {
+            account: account_to_proto(account).into(),
+            email_proven,
+            ..Default::default()
+        })
+    }
+
+    async fn sign_in_with_link(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SignInWithLinkRequest>,
+    ) -> ServiceResult<SignInWithLinkResponse> {
+        let SignedInByLink {
+            signed_in,
+            continue_to,
+        } = self
+            .accounts
+            .sign_in_with_link(request.token, ctx.extensions().get::<AccountSession>())
+            .await
+            .map_err(refused)?;
+        Ok(hand_out_session(signed_in, &ctx, |account| {
+            SignInWithLinkResponse {
+                account: account.into(),
+                continue_to,
                 ..Default::default()
             }
         }))
@@ -103,6 +166,15 @@ impl AccountService for AccountServiceHandler {
             })
         }))
     }
+}
+
+/// The address of the client that sent the request `ctx` is for (ADR 0018).
+fn client_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
+    Ok(ctx
+        .extensions()
+        .get::<RequestSource>()
+        .ok_or_else(|| hub_failed(&"a request came without its peer's address"))?
+        .client_ip)
 }
 
 /// The session the request `ctx` is for, or `REFUSAL_REASON_SIGN_IN_REQUIRED`.
@@ -147,7 +219,8 @@ fn account_to_proto(account: Account) -> proto::Account {
     }
 }
 
-/// The Connect error a client gets for an Account that couldn't be created or signed in.
+/// The Connect error a client gets for an Account that couldn't be created or signed in, or a
+/// Sign-in Link that couldn't be sent or used.
 #[expect(
     clippy::needless_pass_by_value,
     reason = "by value, so callers can write `.map_err(refused)`"
@@ -166,13 +239,22 @@ fn refused(err: accounts::Error) -> ConnectError {
             .param("minLength", PASSWORD_LENGTH.start())
             .param("maxLength", PASSWORD_LENGTH.end()),
         E::WrongEmailOrPassword => refuse(R::REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD, message),
+        E::SignInLinksOff => refuse(R::REFUSAL_REASON_SIGN_IN_LINKS_OFF, message),
+        E::SignInLinkExpired => refuse(R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED, message),
         E::Blocked(ref blocked) => return too_many_attempts(blocked),
-        E::Password(_) | E::Random(_) | E::Database(_) => return hub_failed(&err),
+        // ADR 0019: no Refusal, but `unavailable`, since the queue drains and a retry may work.
+        E::MailQueueFull => {
+            tracing::warn!("{message}");
+            return ConnectError::unavailable(message);
+        }
+        E::Password(_) | E::Random(_) | E::Database(_) => {
+            return hub_failed(&err);
+        }
     };
     refused.into()
 }
 
-/// Refuses a sign-in until `blocked` lets it through, with the delay to wait in both `Retry-After`
+/// Refuses a request until `blocked` lets it through, with the delay to wait in both `Retry-After`
 /// and the Refusal's `retryAfterSeconds`.
 fn too_many_attempts(blocked: &Blocked) -> ConnectError {
     let retry_after_secs = blocked.retry_after_secs();
