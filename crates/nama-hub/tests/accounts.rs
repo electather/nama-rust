@@ -19,6 +19,10 @@ use sqlx::PgPool;
 
 const PASSWORD: &str = "correct horse battery";
 
+/// How many Accounts one client IP may create in the window: `rate_limits.rs`'s private
+/// `CREATIONS_PER_IP`, which a test outside the crate can't import.
+const CREATIONS_PER_IP: usize = 10;
+
 /// A client of `hub` whose requests come from `ip`, as `hub`'s reverse proxy says.
 fn accounts_from(hub: &TestHub, ip: &str) -> AccountServiceClient<HttpClient> {
     let config = hub
@@ -311,9 +315,6 @@ async fn too_many_failed_sign_ins_for_an_email_refuse_even_the_right_password(db
     assert_eq!(refusal.params["retryAfterSeconds"], retry_after);
     assert!((1..=900).contains(&retry_after.parse::<u64>().unwrap()));
 }
-
-/// How many Accounts one client IP may create in the window.
-const CREATIONS_PER_IP: usize = 10;
 
 #[sqlx::test(migrations = false)]
 async fn too_many_creations_from_one_ip_are_refused_without_creating_the_account(db: PgPool) {

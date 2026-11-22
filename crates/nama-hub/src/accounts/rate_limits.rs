@@ -108,16 +108,19 @@ impl CreationLimits {
     /// recently, and counts it.
     pub(super) fn admit(&self, ip: IpAddr, now: Instant) -> Result<(), Blocked> {
         let ip = counted_ip(ip);
-        // As for sign-ins, every change leaves the counts consistent.
-        let mut creations = self
-            .creations
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
+        let mut creations = self.lock();
         if let Some(retry_after) = creations.wait(&ip, CREATIONS_PER_IP, now) {
             return Err(Blocked { retry_after });
         }
         creations.record(ip, now);
         Ok(())
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Window<IpAddr>> {
+        // As for sign-ins, every change leaves the counts consistent.
+        self.creations
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 }
 

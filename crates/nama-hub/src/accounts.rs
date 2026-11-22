@@ -79,7 +79,7 @@ pub(crate) enum Error {
 #[derive(Clone)]
 pub(crate) struct Accounts {
     db: PgPool,
-    limits: Arc<SignInLimits>,
+    sign_ins: Arc<SignInLimits>,
     creations: Arc<CreationLimits>,
 }
 
@@ -87,7 +87,7 @@ impl Accounts {
     pub(crate) fn new(db: PgPool) -> Self {
         Self {
             db,
-            limits: Arc::default(),
+            sign_ins: Arc::default(),
             creations: Arc::default(),
         }
     }
@@ -139,7 +139,7 @@ impl Accounts {
         now: Instant,
     ) -> Result<SignedIn, Error> {
         let email = email.trim();
-        let attempt = self.limits.admit(ip, email, now)?;
+        let attempt = self.sign_ins.admit(ip, email, now)?;
         let found = sqlx::query!(
             "SELECT id, email, password_hash FROM accounts WHERE lower(email) = lower($1)",
             email,
@@ -153,7 +153,7 @@ impl Accounts {
         if !passwords::verify(password.to_owned(), found.password_hash).await? {
             return Err(Error::WrongEmailOrPassword);
         }
-        self.limits.succeeded(&attempt);
+        self.sign_ins.succeeded(&attempt);
         let account = Account {
             id: AccountId(found.id),
             email: found.email,
