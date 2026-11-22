@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { EverythingMatched } from "@/features/admin-needs-a-match/components/everything-matched";
-import { LibraryList } from "@/features/admin-needs-a-match/components/library-list";
+import { UnmatchedLibrary } from "@/features/settings/components/unmatched-library";
 import type { Library } from "@/gen/nama/v1/library_pb";
 
 /** The Unmatched Items of each of `libraries` that has any, or that everything is Matched. */
@@ -15,6 +15,12 @@ export function UnmatchedLists({ libraries: [first, ...rest] }: { libraries: Lib
     return <EverythingMatched anyListed={false} />;
   }
   return (
-    <LibraryList library={first} rest={rest} anyBefore={false} fixing={fixing} toggle={toggle} />
+    <UnmatchedLibrary
+      library={first}
+      rest={rest}
+      anyBefore={false}
+      fixing={fixing}
+      toggle={toggle}
+    />
   );
 }

@@ -144,7 +144,7 @@
       {
         "from": "settings",
         // Its Plugins, Default Home and Users panes render the admin features' parts (Users also renders Invites'); its Backups pane renders Backups' parts,
-        // and each Backup's row says when it was written as a Job's Run does. Its Now Playing pane renders Now Playing's parts. Its Devices pane signs in another Device with the Sign-in Code parts of `/code`.
+        // and each Backup's row says when it was written as a Job's Run does. Its Needs a Match and Now Playing panes render those features' parts. Its Devices pane signs in another Device with the Sign-in Code parts of `/code`.
         "allow": [
           "settings",
           "admin-plugins",
@@ -154,6 +154,7 @@
           "admin-playback",
           "admin-backups",
           "admin-jobs",
+          "admin-needs-a-match",
           "admin-now-playing",
           "auth",
           "shared-components",
@@ -195,7 +196,6 @@
           "app",
           "auth",
           "admin-libraries",
-          "admin-needs-a-match",
           "admin-playback",
           "admin-jobs",
           "invites",

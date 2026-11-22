@@ -10,12 +10,14 @@ import { wordsParam } from "@/shared/lib/words-param";
 
 // On any page: the words the action bar opens on (`src/app/top-bar/use-search-from-url.ts`), the
 // section Settings is open on (`src/app/settings-loader.tsx`), the Plugin or User open in its
-// Plugins or Users section, and the setting a search found in it.
+// Plugins or Users section, the Library its Needs a Match section shows, and the setting a search
+// found in it.
 interface MemberSearch {
   search?: string | undefined;
   settings?: Section | undefined;
   plugin?: string | undefined;
   user?: number | undefined;
+  library?: string | undefined;
   setting?: string | undefined;
 }
 
@@ -26,6 +28,7 @@ export const Route = createFileRoute("/_member")({
     settings: sectionParam(search["settings"]),
     plugin: idParam(search["plugin"]),
     user: userParam(search["user"]),
+    library: idParam(search["library"]),
     setting: idParam(search["setting"]),
   }),
   beforeLoad: async ({ context, location }) => {
