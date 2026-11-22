@@ -10,6 +10,7 @@ pub mod mail;
 pub mod signing;
 mod sync;
 pub mod titles;
+mod viewing;
 #[cfg(feature = "web")]
 mod web;
 
