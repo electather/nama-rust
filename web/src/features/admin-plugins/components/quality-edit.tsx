@@ -1,8 +1,9 @@
+import { Button } from "nama-ui/components/button";
+
 import { QualityFields } from "@/features/admin-plugins/components/quality-fields";
 import type { Choice, Quality } from "@/gen/nama/v1/plugin_pb";
 import { useAutoSubmit } from "@/shared/hooks/use-auto-submit";
 import { onSubmitted } from "@/shared/lib/forms";
-import { Button } from "@/shared/ui/button";
 
 /**
  * The fields of a Quality open under its row. Each is handed to `onSave` as it's changed, as the

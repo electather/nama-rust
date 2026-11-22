@@ -1,18 +1,18 @@
 import { Link } from "@tanstack/react-router";
 import { Ellipsis } from "lucide-react";
-
-import { enabledFromItsView, switchable } from "@/features/settings/lib/plugin-list";
-import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
-import { useModalContainer } from "@/shared/hooks/use-modal-container";
-import { pluginName } from "@/shared/lib/plugins";
-import { Button } from "@/shared/ui/button";
+import { Button } from "nama-ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLinkItem,
   DropdownMenuTrigger,
-} from "@/shared/ui/dropdown-menu";
+} from "nama-ui/components/dropdown-menu";
+
+import { enabledFromItsView, switchable } from "@/features/settings/lib/plugin-list";
+import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
+import { useModalContainer } from "@/shared/hooks/use-modal-container";
+import { pluginName } from "@/shared/lib/plugins";
 
 /**
  * The "…" at the end of a Plugin's row: opening it, and enabling or disabling it. Where a setting

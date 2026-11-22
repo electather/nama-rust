@@ -1,3 +1,4 @@
+import { Button } from "nama-ui/components/button";
 import { useId } from "react";
 
 import { ItemFacts } from "@/features/admin-needs-a-match/components/item-facts";
@@ -5,7 +6,6 @@ import type { UnmatchedItem } from "@/gen/nama/v1/match_pb";
 import { FindAMatch } from "@/shared/components/find-a-match/find-a-match";
 import { PlayUnmatched } from "@/shared/components/play-unmatched";
 import { parsedAs } from "@/shared/lib/unmatched-names";
-import { Button } from "@/shared/ui/button";
 
 /**
  * An Unmatched Item: what its file's name was parsed as, and the file. Opening it searches the

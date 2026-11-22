@@ -1,4 +1,4 @@
-import { DropdownMenuItem } from "@/shared/ui/dropdown-menu";
+import { DropdownMenuItem } from "nama-ui/components/dropdown-menu";
 
 /** Delete, disabled, saying the Server can't write to `folder`, which holds the title. */
 export function CantDeleteItem({ folder }: { folder: string }) {

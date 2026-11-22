@@ -1,8 +1,8 @@
+import { Button } from "nama-ui/components/button";
 import { type Ref, useImperativeHandle, useRef, useState } from "react";
 
 import { type Confirmation, ConfirmModal } from "@/shared/components/confirm-dialog/confirm-modal";
 import type { Opener } from "@/shared/lib/opener";
-import { Button } from "@/shared/ui/button";
 
 /**
  * A button that asks in a dialog before doing something that can't be undone. The dialog stays

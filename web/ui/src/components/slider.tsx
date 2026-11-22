@@ -1,8 +1,7 @@
 import { Slider as SliderPrimitive } from "@base-ui/react/slider";
 import { cn } from "cn";
+import { SliderTrack } from "nama-ui/components/slider-track";
 import { type CSSProperties, type PointerEvent, type ReactNode, useState } from "react";
-
-import { SliderTrack } from "@/shared/ui/slider-track";
 
 /** How far along `element` from its start edge, 0 to 1, the pointer at `clientX` is. */
 function fractionAt(element: HTMLElement, clientX: number) {

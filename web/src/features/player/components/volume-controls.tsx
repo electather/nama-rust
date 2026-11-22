@@ -1,8 +1,9 @@
+import { Button } from "nama-ui/components/button";
+import { Slider } from "nama-ui/components/slider";
+
 import { VolumeIcon } from "@/features/player/components/volume-icon";
 import type { Video } from "@/features/player/hooks/use-video";
 import { setVolume, toggleMute } from "@/features/player/lib/video-actions";
-import { Button } from "@/shared/ui/button";
-import { Slider } from "@/shared/ui/slider";
 
 /** Mute, which opens to the volume on hover or focus, on screens wider than a phone's. */
 export function VolumeControls({ video }: { video: Video }) {

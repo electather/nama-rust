@@ -1,5 +1,6 @@
+import { Input } from "nama-ui/components/input";
+
 import { SettingRow } from "@/shared/components/setting-row";
-import { Input } from "@/shared/ui/input";
 
 /** A password field on its row, with what's wrong with what was typed under its hint. */
 export function PasswordRow({

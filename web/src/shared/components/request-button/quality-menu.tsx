@@ -1,7 +1,12 @@
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "nama-ui/components/dropdown-menu";
+
 import { QualityChevron } from "@/shared/components/request-button/quality-chevron";
 import { QualityChoices } from "@/shared/components/request-button/quality-choices";
 import { useQualities } from "@/shared/hooks/use-qualities";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/shared/ui/dropdown-menu";
 
 /**
  * The chevron of the split Request button, whose menu Requests `what` at the Quality picked from

@@ -1,13 +1,13 @@
 import { useNavigate } from "@tanstack/react-router";
 import { ChevronDown } from "lucide-react";
-
-import { useSignOut } from "@/app/data/use-sign-out";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/shared/ui/dropdown-menu";
+} from "nama-ui/components/dropdown-menu";
+
+import { useSignOut } from "@/app/data/use-sign-out";
 
 /** The signed-in User's menu, behind their initial: their Settings, and signing out. */
 export function UserMenu({ userName }: { userName: string }) {

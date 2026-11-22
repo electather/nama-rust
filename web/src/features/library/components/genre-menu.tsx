@@ -1,14 +1,14 @@
 import { ChevronDown } from "lucide-react";
-
-import { chosenGenres } from "@/features/library/lib/chosen-genres";
-import type { BarProps } from "@/features/library/lib/listing-bar";
-import { Button } from "@/shared/ui/button";
+import { Button } from "nama-ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
-} from "@/shared/ui/dropdown-menu";
+} from "nama-ui/components/dropdown-menu";
+
+import { chosenGenres } from "@/features/library/lib/chosen-genres";
+import type { BarProps } from "@/features/library/lib/listing-bar";
 
 /**
  * A "Genre: …" button whose menu turns each of `genres` on or off, keeping titles with any genre

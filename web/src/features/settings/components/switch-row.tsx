@@ -1,7 +1,7 @@
+import { Switch } from "nama-ui/components/switch";
 import type { ReactNode } from "react";
 
 import { SettingRow } from "@/shared/components/setting-row";
-import { Switch } from "@/shared/ui/switch";
 
 /** A setting that's on or off: its row, with a switch at the end. */
 export function SwitchRow({

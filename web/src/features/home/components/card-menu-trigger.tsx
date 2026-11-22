@@ -1,7 +1,6 @@
 import { Ellipsis } from "lucide-react";
-
-import { Button } from "@/shared/ui/button";
-import { DropdownMenuTrigger } from "@/shared/ui/dropdown-menu";
+import { Button } from "nama-ui/components/button";
+import { DropdownMenuTrigger } from "nama-ui/components/dropdown-menu";
 
 /** The button of a card's menu, named for the title it's over. */
 export function CardMenuTrigger({ title }: { title: string }) {

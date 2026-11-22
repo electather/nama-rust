@@ -1,11 +1,11 @@
 import { Link, type LinkOptions } from "@tanstack/react-router";
 import { Play } from "lucide-react";
+import { buttonVariants } from "nama-ui/components/button";
 
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { ResumeProgress } from "@/shared/components/watch-state/resume-progress";
 import { remainingOf } from "@/shared/lib/title-facts";
 import { isStarted } from "@/shared/lib/watch-progress";
-import { buttonVariants } from "@/shared/ui/button";
 
 /**
  * The pill that plays `link`: "Play", or once started, how far in you are and what's left, such

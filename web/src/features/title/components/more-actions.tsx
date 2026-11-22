@@ -1,8 +1,12 @@
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "nama-ui/components/dropdown-menu";
 import { type ReactNode, useRef } from "react";
 
 import { MoreActionsButton } from "@/features/title/components/more-actions-button";
 import { AfterMenuCloses } from "@/features/title/hooks/use-after-menu-closes";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/shared/ui/dropdown-menu";
 
 /** The "…" named `label`, `quiet` on a card, and the menu of `children`, its items, it opens. */
 export function MoreActions({

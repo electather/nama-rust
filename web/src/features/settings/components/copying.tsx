@@ -1,5 +1,6 @@
+import { Progress } from "nama-ui/components/progress";
+
 import type { ImageStoreSwitch } from "@/gen/nama/v1/server_pb";
-import { Progress } from "@/shared/ui/progress";
 
 /** The running copy to the store shown as `to`: a bar, and how many images it has copied. */
 export function Copying({

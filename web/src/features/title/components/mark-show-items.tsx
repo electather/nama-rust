@@ -1,6 +1,7 @@
+import { DropdownMenuItem } from "nama-ui/components/dropdown-menu";
+
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { useSetPlayed } from "@/shared/hooks/use-set-played";
-import { DropdownMenuItem } from "@/shared/ui/dropdown-menu";
 
 /** Marks the whole Show watched or unwatched. */
 export function MarkShowItems({ libraryId, showId }: { libraryId: bigint; showId: ExternalId }) {

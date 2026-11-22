@@ -1,9 +1,9 @@
+import { Button } from "nama-ui/components/button";
 import { useEffect, useRef } from "react";
 
 import { QualityFields } from "@/features/admin-plugins/components/quality-fields";
 import type { Choice } from "@/gen/nama/v1/plugin_pb";
 import { onSubmitted } from "@/shared/lib/forms";
-import { Button } from "@/shared/ui/button";
 
 const BLANK = { profileId: "", name: "", description: "" };
 

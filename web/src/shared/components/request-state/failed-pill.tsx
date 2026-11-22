@@ -1,9 +1,9 @@
+import { Tooltip, TooltipContent, TooltipTrigger } from "nama-ui/components/tooltip";
 import { useId } from "react";
 
 import { RequestState } from "@/gen/nama/v1/request_pb";
 import { shownOnTitle } from "@/shared/components/request-state/request-states";
 import { StateLabel } from "@/shared/components/state-label";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
 
 /**
  * "Failed" in red, with its Fulfiller's `reason`, if it gave one, on hover and on focus; `large`

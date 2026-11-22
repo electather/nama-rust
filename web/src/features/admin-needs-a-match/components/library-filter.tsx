@@ -1,7 +1,7 @@
+import { Select, SelectContent, SelectItem, SelectTrigger } from "nama-ui/components/select";
 import { useId } from "react";
 
 import type { Library } from "@/gen/nama/v1/library_pb";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/select";
 
 /** Picks the Library whose Items show, or every one's (`undefined`), calling `onPick` with it. */
 export function LibraryFilter({

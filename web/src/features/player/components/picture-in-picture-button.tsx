@@ -1,9 +1,9 @@
 import { PictureInPicture2 } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 import type { RefObject } from "react";
 
 import { usePictureInPicture } from "@/features/player/hooks/use-picture-in-picture";
 import { togglePictureInPicture } from "@/features/player/lib/video-actions";
-import { Button } from "@/shared/ui/button";
 
 /** Plays the video in a window of its own over other apps, or back in the page, where the browser can. */
 export function PictureInPictureButton({

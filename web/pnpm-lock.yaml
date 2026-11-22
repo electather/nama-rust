@@ -6,6 +6,21 @@ settings:
 
 catalogs:
   default:
+    class-variance-authority:
+      specifier: ^0.7.1
+      version: 0.7.1
+    cn:
+      specifier: ^0.5.2
+      version: 0.5.2
+    lucide-react:
+      specifier: ^1.72.0
+      version: 1.72.0
+    react:
+      specifier: ^19.3.1
+      version: 19.3.1
+    tailwindcss:
+      specifier: ^4
+      version: 4.3.5
     vite:
       specifier: npm:@voidzero-dev/vite-plus-core@1.6.0
       version: 1.6.0
@@ -21,9 +36,6 @@ importers:
 
   .:
     dependencies:
-      '@base-ui/react':
-        specifier: ^1.9.0
-        version: 1.9.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@bufbuild/protobuf':
         specifier: ^2.17.0
         version: 2.17.0
@@ -36,9 +48,6 @@ importers:
       '@connectrpc/connect-web':
         specifier: ^2.3.0
         version: 2.3.0(@bufbuild/protobuf@2.17.0)(@connectrpc/connect@2.3.0(@bufbuild/protobuf@2.17.0))
-      '@fontsource-variable/geist':
-        specifier: ^5.3.0
-        version: 5.3.0
       '@opentelemetry/api':
         specifier: ^1.10.0
         version: 1.10.0
@@ -64,10 +73,10 @@ importers:
         specifier: ^3.14.26
         version: 3.14.26(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       class-variance-authority:
-        specifier: ^0.7.1
+        specifier: 'catalog:'
         version: 0.7.1
       cn:
-        specifier: ^0.5.2
+        specifier: 'catalog:'
         version: 0.5.2
       hls.js:
         specifier: ^1.7.4
@@ -79,29 +88,26 @@ importers:
         specifier: 1.13.2
         version: 1.13.2(hls.js@1.7.4)(react@19.3.1)
       lucide-react:
-        specifier: ^1.72.0
+        specifier: 'catalog:'
         version: 1.72.0(@types/react@19.3.0)(react@19.3.1)
+      nama-ui:
+        specifier: workspace:*
+        version: link:ui
       qrcode.react:
         specifier: ^4.2.0
         version: 4.2.0(react@19.3.1)
       react:
-        specifier: ^19.3.1
+        specifier: 'catalog:'
         version: 19.3.1
       react-dom:
         specifier: ^19.3.1
         version: 19.3.1(react@19.3.1)
-      shadcn:
-        specifier: ^4.23.0
-        version: 4.23.0(supports-color@7.2.0)
       tailwindcss:
-        specifier: ^4
+        specifier: 'catalog:'
         version: 4.3.5
       thumbhash:
         specifier: ^0.1.1
         version: 0.1.1
-      tw-animate-css:
-        specifier: ^1.4.0
-        version: 1.4.0
     devDependencies:
       '@bufbuild/protoc-gen-es':
         specifier: ^2.17.0
@@ -151,6 +157,36 @@ importers:
       vite-plus:
         specifier: 'catalog:'
         version: 1.6.0(@opentelemetry/api@1.10.0)(@types/node@26.6.6)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jiti@2.7.0)(typescript@5.4.5)
+
+  ui:
+    dependencies:
+      '@base-ui/react':
+        specifier: ^1.9.0
+        version: 1.9.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@fontsource-variable/geist':
+        specifier: ^5.3.0
+        version: 5.3.0
+      class-variance-authority:
+        specifier: 'catalog:'
+        version: 0.7.1
+      cn:
+        specifier: 'catalog:'
+        version: 0.5.2
+      lucide-react:
+        specifier: 'catalog:'
+        version: 1.72.0(@types/react@19.3.0)(react@19.3.1)
+      react:
+        specifier: 'catalog:'
+        version: 19.3.1
+      shadcn:
+        specifier: ^4.23.0
+        version: 4.23.0(supports-color@7.2.0)
+      tailwindcss:
+        specifier: 'catalog:'
+        version: 4.3.5
+      tw-animate-css:
+        specifier: ^1.4.0
+        version: 1.4.0
 
 packages:
 

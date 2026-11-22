@@ -1,7 +1,7 @@
 import { Check, Plus } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 
 import { type OnWatchlist, useToggleWatchlist } from "@/shared/hooks/use-toggle-watchlist";
-import { Button } from "@/shared/ui/button";
 
 /**
  * Adds a title to your Watchlist, or, with a check while it's on it, takes it off. Its name says

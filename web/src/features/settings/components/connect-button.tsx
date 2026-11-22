@@ -1,5 +1,6 @@
+import { Button } from "nama-ui/components/button";
+
 import type { useConnectionChanges } from "@/features/settings/hooks/use-connection-changes";
-import { Button } from "@/shared/ui/button";
 
 /** Starts connecting the User to the Plugin `name`, which opens its link. */
 export function ConnectButton({

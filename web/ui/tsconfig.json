@@ -1,0 +1,6 @@
+{
+  "extends": "../tsconfig.json",
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  // web/AGENTS.md, "Imports go one way".
+  "compilerOptions": { "paths": {} }
+}

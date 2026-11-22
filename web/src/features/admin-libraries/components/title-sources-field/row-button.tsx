@@ -1,6 +1,5 @@
+import { Button } from "nama-ui/components/button";
 import type { ReactNode } from "react";
-
-import { Button } from "@/shared/ui/button";
 
 /** An icon button on a title source's row, named by `name`. */
 export function RowButton({

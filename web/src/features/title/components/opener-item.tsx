@@ -1,8 +1,8 @@
+import { DropdownMenuItem } from "nama-ui/components/dropdown-menu";
 import type { ReactNode, RefObject } from "react";
 
 import { useAfterMenuCloses } from "@/features/title/hooks/use-after-menu-closes";
 import type { Opener } from "@/shared/lib/opener";
-import { DropdownMenuItem } from "@/shared/ui/dropdown-menu";
 
 /**
  * A menu item that opens the dialog `opener` holds, which lives outside the menu, once the menu

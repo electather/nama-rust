@@ -1,8 +1,8 @@
 import { SkipForward } from "lucide-react";
+import { Switch } from "nama-ui/components/switch";
 
 import { useAutoplayOn } from "@/features/player/data/use-autoplay-on";
 import { useSetAutoplay } from "@/shared/hooks/use-set-autoplay";
-import { Switch } from "@/shared/ui/switch";
 
 /** Whether the next Episode plays by itself, the same choice as in Settings. */
 export function AutoplayRow() {

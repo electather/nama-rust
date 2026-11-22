@@ -1,10 +1,10 @@
 import { X } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 import { Suspense } from "react";
 
 import { Crumbs } from "@/features/settings/components/crumbs";
 import { PluginCrumbs } from "@/features/settings/components/plugin-crumbs";
 import { type Section, sectionTitles } from "@/features/settings/lib/sections";
-import { Button } from "@/shared/ui/button";
 
 /** The top of the pane: where in Settings it is, and the button that closes it. */
 export function SettingsHeader({

@@ -1,6 +1,7 @@
+import { Progress } from "nama-ui/components/progress";
+
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { watchedPercent } from "@/shared/lib/watch-progress";
-import { Progress } from "@/shared/ui/progress";
 
 /** A bar showing how far in you are, when you've started and not played it. */
 export function WatchedBar({ state }: { state: WatchState | undefined }) {

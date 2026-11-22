@@ -1,8 +1,9 @@
+import { Button } from "nama-ui/components/button";
+
 import { useRunJob } from "@/features/admin-jobs/data/use-run-job";
 import { isRunning } from "@/features/admin-jobs/lib/outcomes";
 import { runRefused } from "@/features/admin-jobs/lib/run-refused";
 import type { Job } from "@/gen/nama/v1/job_pb";
-import { Button } from "@/shared/ui/button";
 
 /** Runs the Back up Job now, with why the Server wouldn't start it, if it wouldn't. */
 export function BackUpNow({ job }: { job: Job }) {

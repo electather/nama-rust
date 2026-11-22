@@ -1,10 +1,10 @@
+import { Button } from "nama-ui/components/button";
 import type { ComponentProps, ReactNode } from "react";
 
 import { FormNotices } from "@/shared/components/sign-in-layout/form-notices";
 import { SignInCard } from "@/shared/components/sign-in-layout/sign-in-card";
 import { useWarp } from "@/shared/components/sign-in-layout/warp";
 import { type FormErrors, onSubmitted } from "@/shared/lib/forms";
-import { Button } from "@/shared/ui/button";
 
 /**
  * A signed-out page's card, holding one form, with the Server's refusal of the whole form above its

@@ -1,7 +1,7 @@
+import { TabsList, TabsTab } from "nama-ui/components/tabs";
 import { useEffect, useRef } from "react";
 
 import { seasonName } from "@/shared/lib/title-facts";
-import { TabsList, TabsTab } from "@/shared/ui/tabs";
 
 /**
  * A tab for each of the Show's Seasons, at the head of the Episodes panel, keeping the one marked,

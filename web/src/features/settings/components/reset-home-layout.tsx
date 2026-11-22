@@ -1,6 +1,7 @@
+import { Button } from "nama-ui/components/button";
+
 import { useResetHomeLayout } from "@/features/settings/data/use-reset-home-layout";
 import { refusal } from "@/shared/lib/forms";
-import { Button } from "@/shared/ui/button";
 
 /** Drops the signed-in User's own Home layout, so their Home follows the Server's again. */
 export function ResetHomeLayout() {

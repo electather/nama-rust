@@ -1,12 +1,13 @@
-import { useOfferedQualities } from "@/features/requests/data/use-offered-qualities";
-import type { QualityTarget } from "@/features/requests/lib/quality-target";
-import { Button } from "@/shared/ui/button";
+import { Button } from "nama-ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/shared/ui/dropdown-menu";
+} from "nama-ui/components/dropdown-menu";
+
+import { useOfferedQualities } from "@/features/requests/data/use-offered-qualities";
+import type { QualityTarget } from "@/features/requests/lib/quality-target";
 
 /**
  * Makes a Request manager's `change` to a Request, such as approving it, at another of its

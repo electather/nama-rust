@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
-
-import { buttonVariants } from "@/shared/ui/button";
+import { buttonVariants } from "nama-ui/components/button";
 
 /** The way out of a page that can't show what it's for. */
 export function BackToLibraries() {

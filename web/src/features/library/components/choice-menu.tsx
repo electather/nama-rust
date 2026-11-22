@@ -1,13 +1,12 @@
 import { ChevronDown } from "lucide-react";
-
-import { Button } from "@/shared/ui/button";
+import { Button } from "nama-ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-} from "@/shared/ui/dropdown-menu";
+} from "nama-ui/components/dropdown-menu";
 
 /** A "`label`: …" button whose menu offers `choices`, each a value and what it shows. */
 export function ChoiceMenu<T extends string>({

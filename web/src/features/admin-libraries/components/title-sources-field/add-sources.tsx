@@ -1,7 +1,8 @@
+import { Button } from "nama-ui/components/button";
+
 import { ArtworkOnly } from "@/features/admin-libraries/components/title-sources-field/artwork-only";
 import { sourceName } from "@/features/admin-libraries/lib/title-sources";
 import type { TitleSource } from "@/gen/nama/v1/library_pb";
-import { Button } from "@/shared/ui/button";
 
 /** A button per running source the order leaves out, which adds it at the end. */
 export function AddSources({

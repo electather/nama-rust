@@ -1,7 +1,6 @@
 import { Link, type LinkOptions, useNavigate } from "@tanstack/react-router";
+import { Button, buttonVariants } from "nama-ui/components/button";
 import { useEffect, useId, useRef } from "react";
-
-import { Button, buttonVariants } from "@/shared/ui/button";
 
 /** "Are you still watching?", which keeps the player paused until it's answered. */
 export function StillWatching({

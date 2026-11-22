@@ -1,9 +1,9 @@
+import { Button } from "nama-ui/components/button";
 import { useState } from "react";
 
 import type { Video } from "@/features/player/hooks/use-video";
 import { skippable } from "@/features/player/lib/segments";
 import type { Segment } from "@/gen/nama/v1/playback_pb";
-import { Button } from "@/shared/ui/button";
 
 /** "Skip intro" or "Skip recap" while one plays, which seeks to where it ends. Hidden otherwise. */
 export function SkipSegmentButton({ segments, video }: { segments: Segment[]; video: Video }) {

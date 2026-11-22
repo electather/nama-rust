@@ -1,8 +1,7 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 import { useRef } from "react";
 import { flushSync } from "react-dom";
-
-import { Button } from "@/shared/ui/button";
 
 /** The arrows that move the row called `label`, at `index` of `count`, one place up or down. */
 export function MoveButtons({

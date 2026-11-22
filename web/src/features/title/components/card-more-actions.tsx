@@ -1,7 +1,7 @@
+import { ContextMenuContent } from "nama-ui/components/context-menu";
 import type { ReactNode } from "react";
 
 import { MoreActions } from "@/features/title/components/more-actions";
-import { ContextMenuContent } from "@/shared/ui/context-menu";
 
 /**
  * A card's "…", named `label`, and its right-click menu (`BackdropFrame`), both of `children`, its

@@ -1,6 +1,5 @@
 import { Share } from "lucide-react";
-
-import { Button } from "@/shared/ui/button";
+import { Button } from "nama-ui/components/button";
 
 async function share(url: string) {
   try {

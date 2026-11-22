@@ -1,10 +1,10 @@
+import { Button } from "nama-ui/components/button";
 import { useRef } from "react";
 
 import type { useConnectionChanges } from "@/features/settings/hooks/use-connection-changes";
 import { ConfirmDialog } from "@/shared/components/confirm-dialog/confirm-dialog";
 import { refusal } from "@/shared/lib/forms";
 import type { Opener } from "@/shared/lib/opener";
-import { Button } from "@/shared/ui/button";
 
 /** The button that disconnects the User from the Plugin `name`, asking first. */
 export function Disconnect({

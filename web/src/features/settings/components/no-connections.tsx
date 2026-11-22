@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
-
-import { buttonVariants } from "@/shared/ui/button";
+import { buttonVariants } from "nama-ui/components/button";
 
 /** Says no Plugin connects Users yet, and who can change that: you, if you manage the Plugins. */
 export function NoConnections({ managesPlugins }: { managesPlugins: boolean }) {

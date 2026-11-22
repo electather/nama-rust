@@ -1,8 +1,9 @@
+import { ButtonGroup } from "nama-ui/components/button-group";
+
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { OneClickRequest } from "@/shared/components/request-button/one-click-request";
 import { QualityMenuLoader } from "@/shared/components/request-button/quality-menu-loader";
 import { useMay } from "@/shared/hooks/use-may";
-import { ButtonGroup } from "@/shared/ui/button-group";
 
 /**
  * Request, which asks for `what` at the User's Quality, and beside it a chevron whose menu asks at

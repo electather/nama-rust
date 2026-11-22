@@ -1,13 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import { CircleCheck, Info, X } from "lucide-react";
-
-import type { CardActions } from "@/features/home/lib/card-actions";
-import { ContextMenuContent } from "@/shared/ui/context-menu";
+import { ContextMenuContent } from "nama-ui/components/context-menu";
 import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLinkItem,
-} from "@/shared/ui/dropdown-menu";
+} from "nama-ui/components/dropdown-menu";
+
+import type { CardActions } from "@/features/home/lib/card-actions";
 
 /**
  * What a Continue Watching card's menu holds, each with its icon: its title's page, as Featured's

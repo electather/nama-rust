@@ -1,4 +1,4 @@
-import { Switch } from "@/shared/ui/switch";
+import { Switch } from "nama-ui/components/switch";
 
 /** Whether Home shows the row called `label`. */
 export function ShownSwitch({

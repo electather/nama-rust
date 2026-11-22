@@ -1,6 +1,7 @@
+import { Select, SelectContent, SelectItem, SelectTrigger } from "nama-ui/components/select";
+
 import type { RowControl } from "@/shared/components/setting-row";
 import { useModalContainer } from "@/shared/hooks/use-modal-container";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/select";
 
 /** A dropdown at the end of a setting's row: `options` to pick from, the one valued `value` chosen. */
 export function SelectBox({

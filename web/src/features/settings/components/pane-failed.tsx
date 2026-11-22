@@ -1,7 +1,7 @@
 import { TriangleAlert } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 
 import { type Section, loadNouns } from "@/features/settings/lib/sections";
-import { Button } from "@/shared/ui/button";
 
 /** Says a pane's settings couldn't load, with a way to try again. */
 export function PaneFailed({ section, onRetry }: { section: Section; onRetry: () => void }) {
