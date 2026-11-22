@@ -1,8 +1,6 @@
 //! Changing a running Plugin's grants over the API leaves what runs and what is stored agreeing,
 //! even when the Plugin won't enable with the new grants (ADR 0028, 0049).
 
-#[path = "support/kernel.rs"]
-mod kernel;
 #[path = "support/server.rs"]
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
@@ -16,7 +14,8 @@ use buffa::EnumValue;
 use connectrpc::client::HttpClient;
 use nama_plugin_api::{
     Manifest, Plugin, PluginError, PluginId, Registrar,
-    automation::{Kernel, Permission, Users, UsersAsked},
+    automation::{Kernel, Permission, functions::ListUsers},
+    contract::UsersAsked,
     settings::{SettingField, SettingKind, SettingsSchema},
 };
 use nama_proto::nama::v1::{
@@ -210,7 +209,8 @@ async fn a_plugin_that_wont_enable_with_new_grants_runs_on_with_its_old_ones() {
     let summary = listed(&server).await;
     assert!(summary.enabled);
     assert_eq!(summary.granted_permissions, values(&[STORE]));
-    let refused = kernel::ask::<Users>(&FAILS_ONCE.kernel(), "list_users", &UsersAsked::default())
+    let refused = (FAILS_ONCE.kernel())
+        .ask::<ListUsers>(UsersAsked::default())
         .await
         .expect_err("the Users Permission was never granted");
     assert!(refused.0.contains("Read Users"), "{refused}");

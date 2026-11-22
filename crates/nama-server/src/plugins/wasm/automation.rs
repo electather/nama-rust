@@ -25,26 +25,6 @@ pub(super) struct Reach {
     pub(super) calls: Calls,
 }
 
-/// The name of each Kernel function, as `automation.proto` lists them.
-pub(crate) const KERNEL_IMPORTS: &[&str] = &[
-    "store_get",
-    "store_put",
-    "store_delete",
-    "list_libraries",
-    "list_titles",
-    "list_watch_states",
-    "list_users",
-    "list_requesters",
-    "list_watchlist",
-    "delete_media",
-    "forget_home_rows",
-    "delete_expired_sign_ins",
-    "forget_gone_plugins",
-    "refresh_metadata",
-    "list_titles_sharing",
-    "back_up",
-];
-
 fn refused(words: &str) -> kernel_answer::Result {
     kernel_answer::Result::Refused(words.to_owned())
 }

@@ -18,7 +18,10 @@ use nama_plugin_proto::nama::plugin::v1::{
     Watchlist, WatchlistAsked, WatchlistTitle, kernel_answer,
 };
 
-use crate::{Response, kernel::MAX_PAGE_SIZE};
+use crate::{
+    Response,
+    kernel::{KernelFunction, MAX_PAGE_SIZE},
+};
 
 /// Answers a Plugin's HTTP request, given with its body (empty for none); an `Err` is a host
 /// that can't be reached.
@@ -44,6 +47,9 @@ type RefreshMetadataHandler = Box<dyn FnMut() -> Result<(u64, Vec<String>), Stri
 /// Answers a Plugin's `back_up` with the Backup's file name and size in bytes.
 type BackUpHandler = Box<dyn FnMut() -> Result<(String, u64), String>>;
 
+/// Answers a Kernel function given by [`Kernel::answer`], from its request encoded.
+type FunctionHandler = Box<dyn FnMut(&[u8]) -> Result<Answered, Error>>;
+
 /// What the Kernel gives a Plugin during a test: its settings, answers to its HTTP requests, and
 /// the Kernel functions the test granted.
 #[derive(Default)]
@@ -65,6 +71,8 @@ pub struct Kernel {
     forget_gone_plugins: Option<ForgetGonePluginsHandler>,
     refresh_metadata: Option<RefreshMetadataHandler>,
     back_up: Option<BackUpHandler>,
+    /// The functions [`Kernel::answer`] answers, by name, before any of the above.
+    answers: HashMap<&'static str, FunctionHandler>,
     /// Each Library's titles, by its id, answered once `libraries` is granted.
     titles: HashMap<i64, Vec<Title>>,
     /// What `list_titles_sharing` answers once `libraries` is granted, and the asks it had.
@@ -279,6 +287,19 @@ impl Kernel {
         self
     }
 
+    /// The Kernel, answering each call of the Kernel function `F` with `handler`, which is given
+    /// its request, whatever else it was given for `F` or granted. An `Err` holds the Kernel's
+    /// words refusing it, which reach the Plugin as the Kernel's.
+    #[must_use]
+    pub fn answer<F: KernelFunction>(
+        mut self,
+        mut handler: impl FnMut(F::Request) -> Result<F::Response, String> + 'static,
+    ) -> Self {
+        let answer = move |request: &[u8]| typed(request, &mut handler);
+        self.answers.insert(F::NAME, Box::new(answer));
+        self
+    }
+
     /// The HTTP requests the Plugin sent, in order.
     #[must_use]
     pub fn sent(&self) -> &[Sent] {
@@ -371,7 +392,7 @@ pub(crate) fn http_request(request: &HttpRequest, body: &[u8]) -> Result<Respons
 /// Kernel's `KernelAnswer`.
 pub(crate) fn kernel_function(name: &str, request: &[u8]) -> Result<Vec<u8>, Error> {
     installed(|kernel| {
-        let result = match kernel.answer(name, request)? {
+        let result = match kernel.respond(name, request)? {
             Ok(answer) => kernel_answer::Result::Answer(answer),
             Err(refused) => kernel_answer::Result::Refused(refused),
         };
@@ -387,7 +408,10 @@ pub(crate) fn kernel_function(name: &str, request: &[u8]) -> Result<Vec<u8>, Err
 type Answered = Result<Vec<u8>, String>;
 
 impl Kernel {
-    fn answer(&mut self, name: &str, request: &[u8]) -> Result<Answered, Error> {
+    fn respond(&mut self, name: &str, request: &[u8]) -> Result<Answered, Error> {
+        if let Some(answer) = self.answers.get_mut(name) {
+            return answer(request);
+        }
         match name {
             "store_get" => typed(request, |asked| self.store_get(asked)),
             "store_put" => typed(request, |entry| self.store_put(entry)),
@@ -645,10 +669,12 @@ mod tests {
     use ::extism_pdk::{Error, HttpRequest};
     use buffa::MessageField;
 
+    use nama_plugin_proto::nama::plugin::v1::{Users, UsersAsked};
+
     use super::{Kernel, with};
     use crate::{
         Library, Response, Title, TitleId, TitleKind, TitleRef, TitleRefKind, TitleWatchStates,
-        User, WatchState, WatchlistTitle,
+        User, WatchState, WatchlistTitle, kernel::functions::ListUsers,
     };
 
     fn get(url: &str) -> Result<Response, Error> {
@@ -1131,6 +1157,28 @@ mod tests {
             ]
             .map(not_granted)
         );
+    }
+
+    #[test]
+    fn a_function_answered_by_its_marker_reaches_a_call_by_its_marker() {
+        let ada = User {
+            id: 1,
+            display_name: "Ada".to_owned(),
+            ..User::default()
+        };
+        let listed = ada.clone();
+        let mut kernel = Kernel::new().answer::<ListUsers>(move |_asked| {
+            Ok(Users {
+                users: vec![listed.clone()],
+                ..Users::default()
+            })
+        });
+
+        let answered = with(&mut kernel, || {
+            crate::kernel::call::<ListUsers>(&UsersAsked::default())
+        });
+
+        assert_eq!(answered.unwrap().users, [ada]);
     }
 
     #[test]

@@ -6,7 +6,8 @@ use std::{
 use buffa::Message;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, Registrar,
-    automation::{Kernel, KernelRefused, Permission, StoreEntry, StoreKey, StoreValue},
+    automation::{Kernel, KernelRefused, Permission},
+    contract::{StoreEntry, StoreKey, StoreValue},
     job::{JobRunner, RunJob},
     settings::Settings,
 };

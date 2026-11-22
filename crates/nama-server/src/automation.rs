@@ -17,15 +17,22 @@ use buffa::{EnumValue, Message, MessageField};
 use nama_plugin_api::{
     BoxFuture, PluginId,
     automation::{
-        BackUpAsked, BackedUp, DeleteAsked, DeleteStarted, ExpiredSignInsAsked,
-        ExpiredSignInsDeleted, ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten,
-        HomeRowsForgotten, Kernel, KernelRefused, Libraries, LibrariesAsked, Library, LibraryKind,
-        MetadataRefreshed, Permission, RefreshMetadataAsked, Requesters, RequestersAsked,
-        StoreEntry, StoreKey, StoreValue, Stored, Title, TitleRef, TitleRefKind, TitleRequesters,
-        TitleWatchStates, Titles, TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates,
-        WatchStatesAsked, Watchlist, WatchlistAsked, WatchlistTitle,
+        Kernel, KernelFunction, KernelRefused, Permission,
+        functions::{
+            BackUp, DeleteExpiredSignIns, DeleteMedia, ForgetGonePlugins, ForgetHomeRows,
+            ListLibraries, ListRequesters, ListTitles, ListTitlesSharing, ListUsers,
+            ListWatchStates, ListWatchlist, RefreshMetadata, StoreDelete, StoreGet, StorePut,
+        },
     },
-    contract,
+    contract::{
+        self, BackUpAsked, BackedUp, DeleteAsked, DeleteStarted, ExpiredSignInsAsked,
+        ExpiredSignInsDeleted, ForgetGonePluginsAsked, ForgetHomeRowsAsked, GonePluginsForgotten,
+        HomeRowsForgotten, Libraries, LibrariesAsked, Library, LibraryKind, MetadataRefreshed,
+        RefreshMetadataAsked, Requesters, RequestersAsked, StoreEntry, StoreKey, StoreValue,
+        Stored, Title, TitleRef, TitleRefKind, TitleRequesters, TitleWatchStates, Titles,
+        TitlesAsked, User, Users, UsersAsked, WatchState, WatchStates, WatchStatesAsked, Watchlist,
+        WatchlistAsked, WatchlistTitle,
+    },
     fulfiller::TitleId,
     metadata::{ExternalId, ExternalIds},
 };
@@ -110,104 +117,51 @@ struct Function {
     answer: fn(Caller, Vec<u8>) -> Answer,
 }
 
-/// Every Kernel function, as `automation.proto` lists them: the one place that decides which
-/// Plugin Permission each needs.
+/// The row binding the Kernel function `$function`, a marker in the contract's table, to
+/// `$handler`, which must take and answer its messages.
+macro_rules! row {
+    ($function:ty, $handler:path) => {
+        Function {
+            name: <$function>::NAME,
+            needs: <$function>::NEEDS,
+            answer: |caller, request| typed::<$function, _>(caller, request, $handler),
+        }
+    };
+}
+
+/// Every Kernel function the contract's table lists, with its handler.
 const FUNCTIONS: &[Function] = &[
-    Function {
-        name: "store_get",
-        needs: Permission::PERMISSION_STORE,
-        answer: |caller, request| typed(caller, request, Caller::store_get),
-    },
-    Function {
-        name: "store_put",
-        needs: Permission::PERMISSION_STORE,
-        answer: |caller, request| typed(caller, request, Caller::store_put),
-    },
-    Function {
-        name: "store_delete",
-        needs: Permission::PERMISSION_STORE,
-        answer: |caller, request| typed(caller, request, Caller::store_delete),
-    },
-    Function {
-        name: "list_libraries",
-        needs: Permission::PERMISSION_READ_LIBRARIES,
-        answer: |caller, request| typed(caller, request, Caller::list_libraries),
-    },
-    Function {
-        name: "list_titles",
-        needs: Permission::PERMISSION_READ_LIBRARIES,
-        answer: |caller, request| typed(caller, request, Caller::list_titles),
-    },
-    Function {
-        name: "list_watch_states",
-        needs: Permission::PERMISSION_READ_WATCH_STATES,
-        answer: |caller, request| typed(caller, request, Caller::list_watch_states),
-    },
-    Function {
-        name: "list_users",
-        needs: Permission::PERMISSION_READ_USERS,
-        answer: |caller, request| typed(caller, request, Caller::list_users),
-    },
-    Function {
-        name: "list_requesters",
-        needs: Permission::PERMISSION_READ_REQUESTS,
-        answer: |caller, request| typed(caller, request, Caller::list_requesters),
-    },
-    Function {
-        name: "list_watchlist",
-        needs: Permission::PERMISSION_READ_WATCHLISTS,
-        answer: |caller, request| typed(caller, request, Caller::list_watchlist),
-    },
-    Function {
-        name: "delete_media",
-        needs: Permission::PERMISSION_DELETE_MEDIA,
-        answer: |caller, request| typed(caller, request, Caller::delete_media),
-    },
-    Function {
-        name: "forget_home_rows",
-        needs: Permission::PERMISSION_FORGET_HOME_ROWS,
-        answer: |caller, request| typed(caller, request, Caller::forget_home_rows),
-    },
-    Function {
-        name: "delete_expired_sign_ins",
-        needs: Permission::PERMISSION_DELETE_EXPIRED_SIGN_INS,
-        answer: |caller, request| typed(caller, request, Caller::delete_expired_sign_ins),
-    },
-    Function {
-        name: "forget_gone_plugins",
-        needs: Permission::PERMISSION_FORGET_GONE_PLUGINS,
-        answer: |caller, request| typed(caller, request, Caller::forget_gone_plugins),
-    },
-    Function {
-        name: "refresh_metadata",
-        needs: Permission::PERMISSION_REFRESH_METADATA,
-        answer: |caller, request| typed(caller, request, Caller::refresh_metadata),
-    },
-    Function {
-        name: "list_titles_sharing",
-        needs: Permission::PERMISSION_READ_LIBRARIES,
-        answer: |caller, request| typed(caller, request, Caller::list_titles_sharing),
-    },
-    Function {
-        name: "back_up",
-        needs: Permission::PERMISSION_BACK_UP,
-        answer: |caller, request| typed(caller, request, Caller::back_up),
-    },
+    row!(StoreGet, Caller::store_get),
+    row!(StorePut, Caller::store_put),
+    row!(StoreDelete, Caller::store_delete),
+    row!(ListLibraries, Caller::list_libraries),
+    row!(ListTitles, Caller::list_titles),
+    row!(ListWatchStates, Caller::list_watch_states),
+    row!(ListUsers, Caller::list_users),
+    row!(ListRequesters, Caller::list_requesters),
+    row!(ListWatchlist, Caller::list_watchlist),
+    row!(DeleteMedia, Caller::delete_media),
+    row!(ForgetHomeRows, Caller::forget_home_rows),
+    row!(DeleteExpiredSignIns, Caller::delete_expired_sign_ins),
+    row!(ForgetGonePlugins, Caller::forget_gone_plugins),
+    row!(RefreshMetadata, Caller::refresh_metadata),
+    row!(ListTitlesSharing, Caller::list_titles_sharing),
+    row!(BackUp, Caller::back_up),
 ];
 
-/// Decodes `request`, has `handler` answer it for `caller`, and encodes its response.
-fn typed<Req, Resp, Handled>(
+/// Decodes `request` as `F` takes it, has `handler` answer it for `caller`, and encodes its
+/// response.
+fn typed<F, Handled>(
     caller: Caller,
     request: Vec<u8>,
-    handler: fn(Caller, Req) -> Handled,
+    handler: fn(Caller, F::Request) -> Handled,
 ) -> Answer
 where
-    Req: Message,
-    Resp: Message,
-    Handled: Future<Output = Result<Resp, KernelRefused>> + Send + 'static,
+    F: KernelFunction,
+    Handled: Future<Output = Result<F::Response, KernelRefused>> + Send + 'static,
 {
     Box::pin(async move {
-        let request = Req::decode_from_slice(&request).map_err(|_unreadable| {
+        let request = F::Request::decode_from_slice(&request).map_err(|_unreadable| {
             KernelRefused("the Kernel couldn't read the request".to_owned())
         })?;
         Ok(handler(caller, request).await?.encode_to_vec())

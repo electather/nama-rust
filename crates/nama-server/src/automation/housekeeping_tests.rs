@@ -1,12 +1,19 @@
 use std::{fs, path::Path, sync::Arc};
 
-use nama_plugin_api::automation::{
-    BackUpAsked, BackedUp, ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetGonePluginsAsked,
-    ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten, MetadataRefreshed, Permission,
-    RefreshMetadataAsked,
+use nama_plugin_api::{
+    automation::{
+        Permission,
+        functions::{
+            BackUp, DeleteExpiredSignIns, ForgetGonePlugins, ForgetHomeRows, RefreshMetadata,
+        },
+    },
+    contract::{
+        BackUpAsked, ExpiredSignInsAsked, ForgetGonePluginsAsked, ForgetHomeRowsAsked,
+        RefreshMetadataAsked,
+    },
 };
 
-use super::testing::{ALIEN_TMDB_ID, ask, kernel, leave_behind, left_behind, movies, users};
+use super::testing::{ALIEN_TMDB_ID, kernel, leave_behind, left_behind, movies, users};
 use crate::{
     backup,
     db::Database,
@@ -23,8 +30,8 @@ async fn forget_home_rows_refuses_0_days_and_answers_how_many_users_it_forgot() 
         ..ForgetHomeRowsAsked::default()
     };
 
-    let refused = ask::<HomeRowsForgotten>(&kernel, "forget_home_rows", &asked(0)).await;
-    let forgotten = ask::<HomeRowsForgotten>(&kernel, "forget_home_rows", &asked(30)).await;
+    let refused = kernel.ask::<ForgetHomeRows>(asked(0)).await;
+    let forgotten = kernel.ask::<ForgetHomeRows>(asked(30)).await;
 
     assert_eq!(refused.unwrap_err().0, "days must be at least 1");
     assert_eq!(forgotten.unwrap().users, 0, "nobody has opened home");
@@ -38,7 +45,7 @@ async fn delete_expired_sign_ins_answers_how_many_devices_and_invites_it_deleted
     let (_automation, kernel) = kernel(&db, data.path(), needs);
 
     let asked = ExpiredSignInsAsked::default();
-    let deleted = ask::<ExpiredSignInsDeleted>(&kernel, "delete_expired_sign_ins", &asked).await;
+    let deleted = kernel.ask::<DeleteExpiredSignIns>(asked).await;
 
     let deleted = deleted.unwrap();
     assert_eq!(
@@ -67,7 +74,7 @@ async fn forget_gone_plugins_deletes_what_a_long_gone_plugin_left_and_keeps_a_re
         ..ForgetGonePluginsAsked::default()
     };
 
-    let forgotten = ask::<GonePluginsForgotten>(&kernel, "forget_gone_plugins", &asked).await;
+    let forgotten = kernel.ask::<ForgetGonePlugins>(asked).await;
 
     assert_eq!(forgotten.unwrap().plugin_ids, ["long-gone"]);
     assert_eq!(left_behind(&db, "long-gone", ada).await, [false; 8]);
@@ -91,7 +98,7 @@ async fn refresh_metadata_answers_how_many_titles_it_fetched_again() {
         .unwrap();
 
     let asked = RefreshMetadataAsked::default();
-    let refreshed = ask::<MetadataRefreshed>(&kernel, "refresh_metadata", &asked).await;
+    let refreshed = kernel.ask::<RefreshMetadata>(asked).await;
 
     let refreshed = refreshed.unwrap();
     assert_eq!(
@@ -106,7 +113,7 @@ async fn back_up_writes_a_backup_named_by_the_time_into_the_data_directory_that_
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_BACK_UP);
 
-    let backed_up = ask::<BackedUp>(&kernel, "back_up", &BackUpAsked::default()).await;
+    let backed_up = kernel.ask::<BackUp>(BackUpAsked::default()).await;
 
     let backed_up = backed_up.unwrap();
     let name = &backed_up.name;
@@ -141,7 +148,7 @@ async fn back_up_keeps_the_newest_7_it_wrote_and_never_deletes_another_file() {
         fs::write(folder.join(other), "mine").unwrap();
     }
 
-    let backed_up = ask::<BackedUp>(&kernel, "back_up", &BackUpAsked::default()).await;
+    let backed_up = kernel.ask::<BackUp>(BackUpAsked::default()).await;
 
     let mut kept = older[1..].to_vec();
     kept.push(backed_up.unwrap().name);
@@ -160,7 +167,7 @@ async fn a_back_up_that_fails_deletes_nothing_and_leaves_no_backup() {
     let folder = elsewhere.path().join("backups");
     let older = older_backups(&folder, 8);
 
-    let refused = ask::<BackedUp>(&kernel, "back_up", &BackUpAsked::default()).await;
+    let refused = kernel.ask::<BackUp>(BackUpAsked::default()).await;
 
     let refused = refused.unwrap_err().0;
     assert!(

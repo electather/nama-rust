@@ -3,13 +3,17 @@
 
 use std::sync::Arc;
 
-use buffa::Message;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     automation::{
-        BackUpAsked, BackedUp, ExpiredSignInsAsked, ExpiredSignInsDeleted, ForgetGonePluginsAsked,
-        ForgetHomeRowsAsked, GonePluginsForgotten, HomeRowsForgotten, Kernel, MetadataRefreshed,
-        Permission, RefreshMetadataAsked,
+        Kernel, Permission,
+        functions::{
+            BackUp, DeleteExpiredSignIns, ForgetGonePlugins, ForgetHomeRows, RefreshMetadata,
+        },
+    },
+    contract::{
+        BackUpAsked, ExpiredSignInsAsked, ForgetGonePluginsAsked, ForgetHomeRowsAsked,
+        RefreshMetadataAsked,
     },
     job::{Job, JobRunner, RunJob},
     settings::{SettingField, SettingKind, SettingValue, Settings, SettingsSchema},
@@ -198,9 +202,7 @@ impl JobRunner for Jobs {
 
 impl Jobs {
     async fn back_up(&self) -> Result<(), PluginError> {
-        let asked = BackUpAsked::default().encode_to_vec();
-        let answer = self.kernel.call("back_up", asked).await?;
-        let backed_up = BackedUp::decode_from_slice(&answer)?;
+        let backed_up = self.kernel.ask::<BackUp>(BackUpAsked::default()).await?;
         info!(
             name = backed_up.name,
             bytes = backed_up.size_bytes,
@@ -214,10 +216,7 @@ impl Jobs {
             days: self.home_rows_days,
             ..ForgetHomeRowsAsked::default()
         };
-        let answer = (self.kernel)
-            .call("forget_home_rows", asked.encode_to_vec())
-            .await?;
-        let forgotten = HomeRowsForgotten::decode_from_slice(&answer)?;
+        let forgotten = self.kernel.ask::<ForgetHomeRows>(asked).await?;
         info!(
             users = forgotten.users,
             "forgot the Home rows of Users who stopped opening home"
@@ -226,9 +225,8 @@ impl Jobs {
     }
 
     async fn delete_expired_sign_ins(&self) -> Result<(), PluginError> {
-        let asked = ExpiredSignInsAsked::default().encode_to_vec();
-        let answer = (self.kernel).call("delete_expired_sign_ins", asked).await?;
-        let deleted = ExpiredSignInsDeleted::decode_from_slice(&answer)?;
+        let asked = ExpiredSignInsAsked::default();
+        let deleted = self.kernel.ask::<DeleteExpiredSignIns>(asked).await?;
         info!(
             devices = deleted.devices,
             invites = deleted.invites,
@@ -242,10 +240,7 @@ impl Jobs {
             days: self.gone_plugins_days,
             ..ForgetGonePluginsAsked::default()
         };
-        let answer = (self.kernel)
-            .call("forget_gone_plugins", asked.encode_to_vec())
-            .await?;
-        let forgotten = GonePluginsForgotten::decode_from_slice(&answer)?;
+        let forgotten = self.kernel.ask::<ForgetGonePlugins>(asked).await?;
         info!(
             plugins = ?forgotten.plugin_ids,
             "forgot what Plugins the Server no longer has left behind"
@@ -254,9 +249,8 @@ impl Jobs {
     }
 
     async fn refresh_metadata(&self) -> Result<(), PluginError> {
-        let asked = RefreshMetadataAsked::default().encode_to_vec();
-        let answer = self.kernel.call("refresh_metadata", asked).await?;
-        let refreshed = MetadataRefreshed::decode_from_slice(&answer)?;
+        let asked = RefreshMetadataAsked::default();
+        let refreshed = self.kernel.ask::<RefreshMetadata>(asked).await?;
         info!(
             titles = refreshed.titles,
             unavailable = ?refreshed.unavailable_plugin_ids,
