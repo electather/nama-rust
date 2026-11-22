@@ -44,19 +44,22 @@ export function idParam(value: unknown) {
   return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
 }
 
+/** The address with Settings closed: no section, and no Plugin, User, Job, Library or setting. */
+export const closedSearch = {
+  settings: undefined,
+  plugin: undefined,
+  user: undefined,
+  job: undefined,
+  library: undefined,
+  setting: undefined,
+};
+
 /**
  * The address of `section` in Settings, at its `setting` if one is asked for. A Plugin, User, Job or
  * Library open in another Section closes.
  */
 export function sectionSearch(section: Section, setting?: string) {
-  return {
-    settings: section,
-    plugin: undefined,
-    user: undefined,
-    job: undefined,
-    library: undefined,
-    setting,
-  };
+  return { ...closedSearch, settings: section, setting };
 }
 
 /** The User `?user=` asks the Users section to open: none without it. */

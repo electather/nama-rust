@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
 
-import { sectionSearch } from "@/features/settings/lib/sections";
+import { closedSearch } from "@/features/settings/lib/sections";
 
 /** Closes Settings, leaving the page under it. */
 export function useCloseSettings() {
@@ -12,8 +12,7 @@ export function useCloseSettings() {
     // was opened from this page.
     void navigate({
       to: ".",
-      // sectionSearch lists every detail param a section opens, so closing clears them all.
-      search: (rest) => ({ ...rest, ...sectionSearch("playback"), settings: undefined }),
+      search: (rest) => ({ ...rest, ...closedSearch }),
       replace: true,
     });
   }, [navigate]);

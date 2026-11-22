@@ -55,7 +55,7 @@ test("your menu opens Playback, dropping a Job and other details left in the add
   expect(router.state.location.href).toBe("/code?settings=playback");
 });
 
-test("closing Settings with a Job in the address leaves none of Settings there", async () => {
+test("closing Settings clears every Settings detail from the address, a Job too", async () => {
   const router = openApp(
     "/code?settings=jobs&job=7&plugin=tmdb&user=2&library=3&setting=quality",
     fakeServer({ signedIn: newUser }),
