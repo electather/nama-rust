@@ -98,7 +98,7 @@ pub(super) async fn unlink_deleted_user(points: &ExtensionPoints, user_id: i64) 
     if let Some(answer) = unlinked
         && answer.result.is_err()
     {
-        // Ids only: the failure's message may hold words, which spans mustn't (ADR 0054).
+        // Ids only: `ask_first` already puts the failure's message on the Plugin's page.
         tracing::warn!(plugin = %answer.plugin, user = user_id, "could not Unlink a deleted User");
     }
 }

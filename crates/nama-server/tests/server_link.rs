@@ -27,7 +27,7 @@ use nama_plugin_api::{
 };
 use nama_proto::nama::v1::{
     self as proto, DeleteUserRequest, GetServerLinkRequest, GetUserLinkRequest, ListUsersRequest,
-    RefusalReason, ServerServiceClient, StartServerLinkRequest, StartUserLinkRequest,
+    Permission, RefusalReason, ServerServiceClient, StartServerLinkRequest, StartUserLinkRequest,
     UnlinkServerRequest, UnlinkUserRequest, UserServiceClient,
 };
 use nama_server::plugins::Registry;
@@ -178,9 +178,9 @@ async fn user_link(config: ClientConfig) -> Option<proto::UserLink> {
     got.into_owned().link.into_option()
 }
 
-/// Deletes the User `user_id` as the Admin.
-async fn delete(server: &TestServer, user_id: i64) -> Result<(), ConnectError> {
-    users(server.client_config())
+/// Deletes the User `user_id`, calling as `who`.
+async fn delete(who: ClientConfig, user_id: i64) -> Result<(), ConnectError> {
+    users(who)
         .delete_user(DeleteUserRequest {
             user_id,
             ..Default::default()
@@ -343,9 +343,30 @@ async fn deleting_a_user_unlinks_them_once() {
     let server = with_linker(&linker).await;
     let grace = server.user_with_default_permissions("Grace").await;
 
-    delete(&server, grace.id).await.unwrap();
+    delete(server.client_config(), grace.id).await.unwrap();
 
     assert_eq!(linker.script().unlinked_users, [grace.id]);
+}
+
+#[tokio::test]
+async fn an_admin_deleting_themselves_is_unlinked() {
+    let linker = Scripted::default();
+    let server = with_linker(&linker).await;
+    let ada = server.user("Ada", &[Permission::Admin]).await;
+
+    delete(ada.client_config(), ada.id).await.unwrap();
+
+    assert_eq!(linker.script().unlinked_users, [ada.id]);
+}
+
+#[tokio::test]
+async fn an_unlinked_user_is_deleted() {
+    let linker = Scripted::default();
+    linker.script().user_link = Some(Link::NotLinked);
+    let server = with_linker(&linker).await;
+    let grace = server.user_with_default_permissions("Grace").await;
+
+    delete(server.client_config(), grace.id).await.unwrap();
 }
 
 #[tokio::test]
@@ -353,7 +374,7 @@ async fn a_refused_delete_unlinks_no_one() {
     let linker = Scripted::default();
     let server = with_linker(&linker).await;
 
-    delete(&server, 9999).await.unwrap_err();
+    delete(server.client_config(), 9999).await.unwrap_err();
 
     assert_eq!(linker.script().unlinked_users, Vec::<i64>::new());
 }
@@ -363,7 +384,7 @@ async fn a_user_is_deleted_without_a_plugin_that_links_the_server() {
     let server = TestServer::builder().start().await;
     let grace = server.user_with_default_permissions("Grace").await;
 
-    delete(&server, grace.id).await.unwrap();
+    delete(server.client_config(), grace.id).await.unwrap();
 }
 
 #[tokio::test]
@@ -374,7 +395,7 @@ async fn a_plugin_that_cant_unlink_a_deleted_user_leaves_them_deleted_and_warns(
     let server = with_linker(&linker).await;
     let grace = server.user_with_default_permissions("Grace").await;
 
-    delete(&server, grace.id).await.unwrap();
+    delete(server.client_config(), grace.id).await.unwrap();
 
     let listed = users(server.client_config())
         .list_users(ListUsersRequest::default())
