@@ -686,6 +686,9 @@ enum PlaybackReasonKind {
   // The plan Transcodes HDR the Device can't show, and nothing tone-maps it, so its colours look
   // washed out. Params: `hdrFormat`.
   PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED = 20;
+  // The plan Transcodes for a Device that shows HDR, and tone-maps the picture to SDR to burn in
+  // a text subtitle the Server's ffmpeg can't draw over HDR (ADR 0103). Params: `hdrFormat`.
+  PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN = 37;
   // The default Playback Limit for remote playback chose the limit, as the Device is outside the
   // local network, and the limit scaled the picture down or was dropped. Params: `playbackLimit`.
   PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT = 21;

@@ -4,9 +4,12 @@
 //! the Hub the Diagnostics and Usage Analytics the Admin shares (ADR 0054). Its Users then Link to
 //! their own Accounts the same way, and the Hub lists the Server, with its Server Addresses, to
 //! every Account it has a User on.
+//! Once Linked, it is also a Similar source answering the titles the Hub finds alike (ADR 0084,
+//! 0095).
 
 mod hub;
 mod linker;
+mod similar;
 mod token;
 
 use std::{env, sync::Arc};
@@ -14,9 +17,10 @@ use std::{env, sync::Arc};
 use nama_plugin_api::{
     Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar, automation::Permission,
     diagnostics_sharer::DiagnosticsSharer, server_link::ServerLinker,
+    similar_source::SimilarSource,
 };
 
-use crate::{hub::Hub as HubApi, linker::Linker};
+use crate::{hub::Hub as HubApi, linker::Linker, similar::Similar};
 
 /// The variable naming the Hub's address, such as `https://hub.example`.
 const HUB_URL_VARIABLE: &str = "NAMA_HUB_URL";
@@ -57,8 +61,9 @@ impl Plugin for Hub {
     fn manifest(&self) -> Manifest {
         Manifest {
             name: "Hub".to_owned(),
-            description: "Links the Server, and its Users, to Accounts on Nama's Hub, and sends \
-                          it the Diagnostics and Usage Analytics you share in Settings."
+            description: "Links the Server, and its Users, to Accounts on Nama's Hub, sends it \
+                          the Diagnostics and Usage Analytics you share in Settings, and adds \
+                          the titles the Hub finds alike to Similar titles."
                 .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_markdown: "Enable it, then Link the Server under Settings, Server. The Server \
@@ -75,6 +80,7 @@ impl Plugin for Hub {
             extension_points: vec![
                 PointKey::provide::<dyn ServerLinker>(),
                 PointKey::provide::<dyn DiagnosticsSharer>(),
+                PointKey::provide::<dyn SimilarSource>(),
             ],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
             permissions: vec![Permission::PERMISSION_STORE],
@@ -89,10 +95,14 @@ impl Plugin for Hub {
         let kernel = registrar
             .kernel()
             .ok_or("the Kernel handed the Hub Plugin none of its functions")?;
-        let linker = Arc::new(Linker::new(HubApi::new(url)?, kernel));
+        let hub = HubApi::new(url)?;
+        let similar: Arc<dyn SimilarSource> =
+            Arc::new(Similar::new(hub.clone(), Arc::clone(&kernel)));
+        let linker = Arc::new(Linker::new(hub, kernel));
         let sharer: Arc<dyn DiagnosticsSharer> = Arc::<Linker>::clone(&linker);
         registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, linker);
         registrar.provide::<dyn DiagnosticsSharer>(Priority::DEFAULT, sharer);
+        registrar.provide::<dyn SimilarSource>(Priority::DEFAULT, similar);
         Ok(())
     }
 }

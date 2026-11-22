@@ -26,6 +26,7 @@ buffa = "0.9.2"
 clap = { version = "4", features = ["derive"] }
 connectrpc = { version = "0.9.1", features = ["axum"] }
 figment = { version = "0.10", features = ["env"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 getrandom = "0.4"
 nama-forwarded = { version = "0.1.0", path = "../nama-forwarded" }
 nama-hub-proto = { version = "0.1.0", path = "../nama-hub-proto" }

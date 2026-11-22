@@ -311,6 +311,7 @@ async fn ffmpeg_can_do_what_it_lists_and_what_passes_its_test_encode() {
             runs: true,
             zscale: true,
             tonemapx: false,
+            subtitle_layer: false,
             libx264: true,
             hardware: vec![Hardware {
                 accel: Accel::Vaapi,
@@ -341,6 +342,7 @@ async fn ffmpeg_without_zscale_libx264_or_ffprobe_can_do_no_more_than_no_ffmpeg(
             runs: false,
             zscale: false,
             tonemapx: false,
+            subtitle_layer: false,
             libx264: false,
             hardware: vec![],
             gpus: vec![],
@@ -370,6 +372,26 @@ async fn ffmpeg_has_tonemapx_only_if_it_applies_dolby_vision() {
         let ffmpeg = fake_ffmpeg(bin.path(), &format!("*filter=tonemapx*) echo '{help}' ;;"));
 
         assert_eq!(can_do(ffmpeg).await.tonemapx, has, "{help}");
+    }
+}
+
+#[tokio::test]
+async fn ffmpeg_draws_a_subtitle_layer_only_with_alphasrc_and_sub2video() {
+    let bin = tempfile::tempdir().unwrap();
+    let alphasrc = "' ... alphasrc  |->V  Generate a transparent video'";
+    // Upstream's `subtitles` has `alpha` too; only jellyfin-ffmpeg's has `sub2video`.
+    let sub2video = "'   sub2video  <boolean>  ..FV....... Enable sub2video mode'";
+    let cases = [
+        (alphasrc, sub2video, true),
+        ("", sub2video, false),
+        (alphasrc, "", false),
+    ];
+    for (filters, options, has) in cases {
+        let script = format!("*-filters*) echo {filters} ;; *filter=subtitles*) echo {options} ;;");
+
+        let ffmpeg = fake_ffmpeg(bin.path(), &script);
+
+        assert_eq!(can_do(ffmpeg).await.subtitle_layer, has, "{script}");
     }
 }
 
@@ -553,10 +575,11 @@ fn opened(hardware: &Hardware) -> Vec<String> {
         tone_map: None,
         limit: None,
         burn_in: None,
+        subtitle_white: None,
         in_band_headers: true,
         hevc: false,
     };
-    let input = video_args("alien.mkv", &video, false).input;
+    let input = video_args("alien.mkv", &video, 0).input;
     (input.windows(2))
         .filter_map(|pair| match pair {
             [option, value] if option == "-init_hw_device" => Some(value.clone()),

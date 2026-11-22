@@ -51,6 +51,12 @@ service LinkedServerService {
   // Unlinks the calling Server: its credential stops working at once, and it leaves its Account's
   // Servers.
   rpc UnlinkServer(UnlinkServerRequest) returns (UnlinkServerResponse);
+  // The titles most like one title, of its kind, by the vectors the Hub builds from Wikidata's
+  // facts (ADR 0095): at most 100, most alike first. Empty when Wikidata lacks the title or the
+  // kind is unspecified, which isn't a failure: the Server's other Similar sources cover it.
+  rpc ListSimilarTitles(ListSimilarTitlesRequest) returns (ListSimilarTitlesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
   // Starts Linking one of the Server's Users: the code they enter on the Hub, which replaces any
   // code they were waiting on and stops working after `expires_in_seconds`. Fails with
   // `REFUSAL_REASON_USER_LINKED` for a User Linked already, since a User Links to one Account.
@@ -143,6 +149,40 @@ message UnlinkServerRequest {}
 
 message UnlinkServerResponse {}
 
+// Whether a title is a Movie or a Show, whose External IDs are separate id spaces (ADR 0042).
+enum TitleKind {
+  TITLE_KIND_UNSPECIFIED = 0;
+  TITLE_KIND_MOVIE = 1;
+  TITLE_KIND_SHOW = 2;
+}
+
+// A title's id at a metadata source (ADR 0042).
+message ExternalId {
+  // The metadata source, such as `tmdb`, `imdb` or `tvdb`.
+  string namespace = 1;
+  // The title's id there, such as `603`.
+  string value = 2;
+}
+
+message ListSimilarTitlesRequest {
+  TitleKind kind = 1;
+  // The title's External IDs, at most one per namespace, in the order the Server prefers its
+  // answers' namespaces.
+  repeated ExternalId ids = 2;
+}
+
+message ListSimilarTitlesResponse {
+  repeated SimilarTitle titles = 1;
+}
+
+// A title like the one asked about.
+message SimilarTitle {
+  // Its id in the first namespace of the request's `ids` that the Hub knows it by. A title the Hub
+  // knows by none of them isn't answered.
+  ExternalId id = 1;
+  // How alike, from 0.0 to 1.0.
+  float weight = 2;
+}
 // A User on a Linked Server, Linked to an Account.
 message LinkedUser {
   // The Link's id, a UUID.

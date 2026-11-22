@@ -13,9 +13,10 @@ use nama_proto::nama::v1::{
     self as proto, GetServerLinkResponse, GetUserLinkResponse, RefusalReason,
     StartServerLinkResponse, StartUserLinkResponse, UnlinkServerResponse, UnlinkUserResponse,
 };
+use tracing::Instrument;
 
 use super::refuse;
-use crate::{plugins::ExtensionPoints, users::User};
+use crate::{diagnostics, plugins::ExtensionPoints, users::User};
 
 /// Where Linking stands, unset without an enabled Plugin that links the Server.
 pub(super) async fn get(points: &ExtensionPoints) -> ServiceResult<GetServerLinkResponse> {
@@ -89,18 +90,32 @@ pub(super) async fn unlink_user(
 }
 
 /// Unlinks the User `user_id`, just deleted, so the service forgets their Link or waiting code
-/// too. A failure is logged, not answered: the User is gone either way, and the service being
-/// unreachable mustn't fail their delete.
-pub(super) async fn unlink_deleted_user(points: &ExtensionPoints, user_id: i64) {
-    let unlinked = points
-        .ask_first::<dyn ServerLinker, _, _, _, _>(async |linker| linker.unlink_user(user_id).await)
-        .await;
-    if let Some(answer) = unlinked
-        && answer.result.is_err()
-    {
-        // Ids only: `ask_first` already puts the failure's message on the Plugin's page.
-        tracing::warn!(plugin = %answer.plugin, user = user_id, "could not Unlink a deleted User");
-    }
+/// too, without waiting for it. A failure is logged, not answered: the User is gone either way,
+/// and the service being unreachable mustn't fail or hold up their delete (#1919). Must be called
+/// within a Tokio runtime.
+pub(super) fn unlink_deleted_user(points: &ExtensionPoints, user_id: i64) {
+    let points = points.clone();
+    let unlinking = async move {
+        let unlinked = points
+            .ask_first::<dyn ServerLinker, _, _, _, _>(async |linker| {
+                linker.unlink_user(user_id).await
+            })
+            .await;
+        if let Some(answer) = unlinked
+            && answer.result.is_err()
+        {
+            // Ids only: `ask_first` already puts the failure's message on the Plugin's page. The
+            // User may never have Linked, so this says only that the service wasn't told.
+            tracing::warn!(
+                plugin = %answer.plugin,
+                user = user_id,
+                "could not tell the service a User was deleted"
+            );
+        }
+    };
+    let span =
+        diagnostics::following_current(tracing::info_span!(parent: None, "unlink_deleted_user"));
+    tokio::spawn(unlinking.instrument(span));
 }
 
 /// What `call` gets from the enabled Plugin that links the Server, or `None` without one. Its

@@ -21,6 +21,9 @@ pub(crate) struct CanDo {
     /// Transcode tone-maps with in software in place of zscale's, and converts Dolby Vision with
     /// no Base Layer with (ADR 0102).
     pub(crate) tonemapx: bool,
+    /// Whether ffmpeg has jellyfin-ffmpeg's `alphasrc` and `subtitles=…:alpha=1:sub2video=1`,
+    /// which draw a text subtitle on its own layer to burn it into HDR (ADR 0103).
+    pub(crate) subtitle_layer: bool,
     /// Whether ffmpeg has libx264, which a Transcode encodes its video with in software.
     pub(crate) libx264: bool,
     /// The APIs on GPUs that passed their test, in the order Automatic picks.
@@ -77,6 +80,7 @@ struct AbilitiesInner {
     ffmpeg: Arc<Ffmpeg>,
     zscale: tokio::sync::OnceCell<bool>,
     tonemapx: tokio::sync::OnceCell<bool>,
+    subtitle_layer: tokio::sync::OnceCell<bool>,
     libx264: tokio::sync::OnceCell<bool>,
     hardware: tokio::sync::OnceCell<Vec<Hardware>>,
     /// The hardware test, so shutting down can wait for it.
@@ -94,6 +98,7 @@ impl Abilities {
                 ffmpeg,
                 zscale: tokio::sync::OnceCell::new(),
                 tonemapx: tokio::sync::OnceCell::new(),
+                subtitle_layer: tokio::sync::OnceCell::new(),
                 libx264: tokio::sync::OnceCell::new(),
                 hardware: tokio::sync::OnceCell::new(),
                 tasks: TaskTracker::new(),
@@ -125,9 +130,14 @@ impl Abilities {
     pub(crate) async fn can_do(&self) -> CanDo {
         let ffmpeg = &self.inner.ffmpeg;
         // Together, so a busy host waits out one listing's timeout, not two.
-        let (zscale, tonemapx, libx264, hardware) = tokio::join!(
+        let (zscale, tonemapx, subtitle_layer, libx264, hardware) = tokio::join!(
             answered_once(&self.inner.zscale, "zscale", ffmpeg.has_zscale()),
             answered_once(&self.inner.tonemapx, "tonemapx", ffmpeg.has_tonemapx()),
+            answered_once(
+                &self.inner.subtitle_layer,
+                "a subtitle layer",
+                ffmpeg.has_subtitle_layer()
+            ),
             answered_once(&self.inner.libx264, "libx264", ffmpeg.has_libx264()),
             self.hardware(),
         );
@@ -135,6 +145,7 @@ impl Abilities {
             runs: ffmpeg.can_remux(),
             zscale,
             tonemapx,
+            subtitle_layer,
             libx264,
             hardware: hardware.to_vec(),
             gpus: ffmpeg.gpus.clone(),

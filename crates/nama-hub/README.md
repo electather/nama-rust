@@ -37,14 +37,15 @@ A Server Links to it through its Hub Plugin, which calls the Hub that `NAMA_HUB_
 
 ## Importing Wikidata
 
-The Hub knows films and series, and which TMDB, IMDb and TVDB ids name each, from Wikidata's JSON dump, which Wikidata publishes weekly (ADR 0095). `nama-hub import-wikidata` reads the decompressed dump on stdin and replaces the titles with those in it, in one transaction: the Hub keeps answering from the last import meanwhile, and a dump cut short, which ends before its closing `]`, changes nothing. Run it weekly from the host's scheduler, as its own process, never inside the serving one (ADR 0096), with the same `NAMA_HUB_DATABASE_URL`, after the serving Hub has migrated the database:
+The Hub knows films and series, which TMDB, IMDb and TVDB ids name each, and their cast, directors, writers, genres, subjects, awards, franchises and countries, from Wikidata's JSON dump, which Wikidata publishes weekly (ADR 0095). `nama-hub import-wikidata` reads the decompressed dump on stdin and replaces the titles with those in it, in one transaction: the Hub keeps answering from the last import meanwhile, and a dump cut short, which ends before its closing `]`, changes nothing. `nama-hub train-vectors` then builds each title's vector from those facts, which is how the Hub's Similar titles find the titles most alike; it replaces the last run's vectors in one transaction too, so run it after each import. Run both weekly from the host's scheduler, as their own processes, never inside the serving one (ADR 0096), with the same `NAMA_HUB_DATABASE_URL`, after the serving Hub has migrated the database:
 
 ```sh
 curl -fsS https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.gz \
-  | gzip -d | nama-hub import-wikidata
+  | gzip -d | nama-hub import-wikidata && nama-hub train-vectors
 # or, from the Docker image:
 curl -fsS https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.gz \
-  | gzip -d | docker run --rm -i -e NAMA_HUB_DATABASE_URL ghcr.io/electather/nama-hub import-wikidata
+  | gzip -d | docker run --rm -i -e NAMA_HUB_DATABASE_URL ghcr.io/electather/nama-hub import-wikidata \
+  && docker run --rm -e NAMA_HUB_DATABASE_URL ghcr.io/electather/nama-hub train-vectors
 ```
 
 The dump is over 100 GiB compressed, so an import takes hours; it streams, holding nothing on disk. Its transaction holds the titles' tables all that time, so deploy a Hub whose migration changes them between imports: its startup would wait for the import to finish.

@@ -129,7 +129,7 @@ impl UserService for UserServiceHandler {
     ) -> ServiceResult<DeleteUserResponse> {
         let caller = caller(&ctx)?;
         self.users.delete(&caller.user, request.user_id).await?;
-        server_link::unlink_deleted_user(&self.points, request.user_id).await;
+        server_link::unlink_deleted_user(&self.points, request.user_id);
         let response = DeleteUserResponse::default();
         Ok(if request.user_id == caller.user.id {
             signed_out(response, &ctx)

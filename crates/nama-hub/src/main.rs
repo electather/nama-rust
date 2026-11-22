@@ -61,6 +61,9 @@ enum Command {
     /// Replaces the Hub's films and series with those in Wikidata's JSON dump, decompressed on
     /// stdin. Start it weekly from the host's scheduler, as its own process.
     ImportWikidata,
+    /// Builds every title's vector from the facts the last import left, replacing the previous
+    /// run's vectors at once. Start it after each import, as its own process.
+    TrainVectors,
 }
 
 #[tokio::main]
@@ -70,6 +73,7 @@ async fn main() -> ExitCode {
     let exit = match args.command {
         None => run().await,
         Some(Command::ImportWikidata) => import_wikidata().await,
+        Some(Command::TrainVectors) => train_vectors().await,
     };
     if let Some(exporting) = exporting {
         exporting.shutdown();
@@ -198,6 +202,25 @@ async fn import_wikidata() -> ExitCode {
         }
         Err(err) => {
             error!("could not import Wikidata's dump: {err}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Builds the title vectors, leaving the previous run's if it fails.
+async fn train_vectors() -> ExitCode {
+    let Some((_, db)) = load_config_and_connect().await else {
+        return ExitCode::FAILURE;
+    };
+    let trained = titles::train(&db).await;
+    db.close().await;
+    match trained {
+        Ok(vectors) => {
+            info!(vectors, "trained the title vectors");
+            ExitCode::SUCCESS
+        }
+        Err(err) => {
+            error!("could not train the title vectors: {err}");
             ExitCode::FAILURE
         }
     }

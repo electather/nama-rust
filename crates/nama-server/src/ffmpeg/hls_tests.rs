@@ -168,6 +168,7 @@ async fn transcode(ffmpeg: &Ffmpeg, path: &Path, dir: &Path, n: usize) {
             tone_map: None,
             limit: None,
             burn_in: None,
+            subtitle_white: None,
             in_band_headers: false,
             hevc: false,
         },
@@ -222,6 +223,7 @@ async fn tone_mapped_hdr10_probed(limit: Option<VideoLimit>) -> String {
             tone_map: Some(ToneMapper::Software),
             limit,
             burn_in: None,
+            subtitle_white: None,
             in_band_headers: false,
             hevc: false,
         },
@@ -307,6 +309,7 @@ async fn hardware_found_on_this_host_transcodes_cut_at_every_cut_and_tone_maps_h
             bits_per_second: 8_000_000,
         }),
         burn_in: None,
+        subtitle_white: None,
         in_band_headers: true,
         hevc: false,
     };
@@ -359,6 +362,7 @@ async fn hardware_found_on_this_host_keeps_hdr10_and_hlg_as_10_bit_hevc_tagged_h
             tone_map: None,
             limit: None,
             burn_in: None,
+            subtitle_white: None,
             in_band_headers: false,
             hevc: true,
         };
