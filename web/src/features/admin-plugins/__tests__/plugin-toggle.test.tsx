@@ -23,7 +23,7 @@ test.each([
     },
   });
   const testPlugin = await plugin("test-plugin");
-  fireEvent.click(testPlugin.getByRole("button", { name: "Enable test-plugin" }));
+  fireEvent.click(await testPlugin.findByRole("button", { name: "Enable test-plugin" }));
 
   const alert = await testPlugin.findByText("It refused to start: the key was turned down.");
   expect(alert.getAttribute("role")).toBe("alert");
@@ -72,7 +72,7 @@ test("enabling a Plugin that requests Plugin Permissions lists them, none checke
     PluginPermission.DELETE_MEDIA,
   ]);
   const found1 = await plugin("cleanup");
-  fireEvent.click(found1.getByRole("button", { name: "Enable cleanup" }));
+  fireEvent.click(await found1.findByRole("button", { name: "Enable cleanup" }));
 
   const dialog = within(await screen.findByRole("alertdialog", { name: "Enable cleanup?" }));
   const boxes = dialog.getAllByRole<HTMLInputElement>("checkbox");
@@ -91,7 +91,7 @@ test("enabling sends only the Plugin Permissions checked", async () => {
     PluginPermission.DELETE_MEDIA,
   ]);
   const found2 = await plugin("cleanup");
-  fireEvent.click(found2.getByRole("button", { name: "Enable cleanup" }));
+  fireEvent.click(await found2.findByRole("button", { name: "Enable cleanup" }));
 
   const dialog = within(await screen.findByRole("alertdialog", { name: "Enable cleanup?" }));
   fireEvent.click(dialog.getByLabelText("Read Libraries"));
@@ -106,7 +106,7 @@ test("enabling sends only the Plugin Permissions checked", async () => {
 test("a Plugin requesting no Plugin Permissions enables without a dialog", async () => {
   const sent = openWithCleanup([]);
   const found3 = await plugin("cleanup");
-  fireEvent.click(found3.getByRole("button", { name: "Enable cleanup" }));
+  fireEvent.click(await found3.findByRole("button", { name: "Enable cleanup" }));
 
   await waitFor(() => {
     expect(sent).toStrictEqual([[]]);
@@ -130,7 +130,7 @@ test("an enabled Plugin's view lists the Plugin Permissions granted it", async (
 test("a Built-in Plugin requesting Plugin Permissions enables without a dialog", async () => {
   const sent = openWithCleanup([PluginPermission.STORE], PluginKind.BUILT_IN);
   const found5 = await plugin("cleanup");
-  fireEvent.click(found5.getByRole("button", { name: "Enable cleanup" }));
+  fireEvent.click(await found5.findByRole("button", { name: "Enable cleanup" }));
 
   await waitFor(() => {
     expect(sent).toStrictEqual([[]]);
