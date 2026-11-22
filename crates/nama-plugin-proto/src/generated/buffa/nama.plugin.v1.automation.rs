@@ -2310,6 +2310,25 @@ pub struct Title {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub show_id: ::buffa::MessageField<TitleId, ::buffa::Inline<TitleId>>,
+    /// Every id of the Movie or the Episode, `title_ref.id` among them, any of which identifies it.
+    ///
+    /// Field 10: `ids`
+    #[serde(
+        rename = "ids",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub ids: ::buffa::alloc::vec::Vec<TitleId>,
+    /// Every id of the Episode's Show, `show_id` among them. Empty for a Movie.
+    ///
+    /// Field 11: `show_ids`
+    #[serde(
+        rename = "showIds",
+        alias = "show_ids",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub show_ids: ::buffa::alloc::vec::Vec<TitleId>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2326,6 +2345,8 @@ impl ::core::fmt::Debug for Title {
             .field("genres", &self.genres)
             .field("content_rating", &self.content_rating)
             .field("show_id", &self.show_id)
+            .field("ids", &self.ids)
+            .field("show_ids", &self.show_ids)
             .finish()
     }
 }
@@ -2429,6 +2450,22 @@ impl ::buffa::Message for Title {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.ids {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.show_ids {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2475,6 +2512,22 @@ impl ::buffa::Message for Title {
                 buf,
             );
             self.show_id.write_to(__cache, buf);
+        }
+        for v in &self.ids {
+            ::buffa::types::put_len_delimited_header(
+                10u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.show_ids {
+            ::buffa::types::put_len_delimited_header(
+                11u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2578,6 +2631,30 @@ impl ::buffa::Message for Title {
                     ctx,
                 )?;
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.ids.push(elem);
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.show_ids.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2595,6 +2672,8 @@ impl ::buffa::Message for Title {
         self.genres.clear();
         self.content_rating = ::core::option::Option::None;
         self.show_id = ::buffa::MessageField::none();
+        self.ids.clear();
+        self.show_ids.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

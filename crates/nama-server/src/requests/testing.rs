@@ -402,11 +402,14 @@ pub(super) fn ada(permissions: Permissions) -> User {
     }
 }
 
-/// What the next event `published` lets through says happened, waiting a second at most.
+/// What the next event `published` lets through says happened, waiting 30 seconds at most.
+///
+/// The ceiling is generous because only a missing event reaches it: a loaded full-suite run
+/// can take over a second to publish one (#1721).
 pub(super) async fn next_happened(
     published: &mut (impl Stream<Item = SubscribeResponse> + Unpin),
 ) -> Happened {
-    let response = tokio::time::timeout(Duration::from_secs(1), published.next())
+    let response = tokio::time::timeout(Duration::from_secs(30), published.next())
         .await
         .expect("nothing was published")
         .expect("the bus closed");

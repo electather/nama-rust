@@ -65,6 +65,13 @@ fn tmdb(request: &HttpRequest) -> Response {
             (27, "Horror"),
         ]),
         "/3/genre/tv/list" => genres(&[(35, "Comedy"), (18, "Drama"), (10765, "Sci-Fi & Fantasy")]),
+        "/3/discover/movie"
+            if url
+                .query_pairs()
+                .any(|(name, _)| name.starts_with("with_c")) =>
+        {
+            answer(200, &movies_of(&url))
+        }
         "/3/discover/movie" | "/3/discover/tv" => {
             let asked = |name: &str| {
                 url.query_pairs()
@@ -83,9 +90,98 @@ fn tmdb(request: &HttpRequest) -> Response {
         }
         path => match path.split('/').collect::<Vec<_>>()[..] {
             ["", "3", "movie" | "tv", id, "recommendations"] => page_after(id),
+            ["", "3", media @ ("movie" | "tv"), id] => match credits(media, id) {
+                Some(credits) => answer(200, &credits),
+                None => answer(404, &json!({ "status_code": 34 })),
+            },
+            ["", "3", "person", id, "tv_credits"] => answer(200, &shows_of(id)),
             _ => answer(404, &json!({ "status_code": 34 })),
         },
     }
+}
+
+const KEANU: u64 = 6384;
+/// Billed 6th in each of The Matrix films.
+const AGENT: u64 = 77;
+const LANA: u64 = 9340;
+const BRYAN: u64 = 17419;
+const VINCE: u64 = 66633;
+
+fn name(person: u64) -> String {
+    match person {
+        KEANU => "Keanu Reeves".to_owned(),
+        AGENT => "Agent Brown".to_owned(),
+        LANA => "Lana Wachowski".to_owned(),
+        BRYAN => "Bryan Cranston".to_owned(),
+        VINCE => "Vince Gilligan, who made Breaking Bad and more".to_owned(),
+        _ => format!("Person {person}"),
+    }
+}
+
+/// TMDB's answer for a Movie's or Show's details with its Cast and Crew: its Cast in order,
+/// a producer, its Directors, and a Show's Creators; `None` for a title TMDB doesn't have.
+fn credits(media: &str, title: &str) -> Option<Value> {
+    let (cast, directors, creators): (&[u64], &[u64], &[u64]) = match (media, title) {
+        ("movie", "603") => (&[KEANU, 1, 2, 3, 4, AGENT], &[LANA], &[]),
+        ("movie", "604") => (&[KEANU, 5, 6, 7, 8, AGENT], &[LANA], &[]),
+        ("movie", "605") => (&[9, 10, 11, 12, 13, AGENT], &[14], &[]),
+        ("tv", "1396") => (&[BRYAN, 15], &[], &[VINCE]),
+        _ => return None,
+    };
+    let person = |id: &u64| json!({ "id": id, "name": name(*id) });
+    let cast: Vec<_> = (cast.iter().enumerate())
+        .map(|(order, id)| json!({ "id": id, "name": name(*id), "character": "", "order": order }))
+        .collect();
+    let crew: Vec<_> = (directors.iter())
+        .map(|id| json!({ "id": id, "name": name(*id), "job": "Director" }))
+        .chain([json!({ "id": 99, "name": "A Producer", "job": "Producer" })])
+        .collect();
+    let mut details = json!({ "id": title, "credits": { "cast": cast, "crew": crew } });
+    if media == "tv" {
+        details["created_by"] = creators.iter().map(person).collect();
+    }
+    Some(details)
+}
+
+/// TMDB's answer to a search for the Movies a Person is in, by `with_cast` or `with_crew`.
+fn movies_of(url: &Url) -> Value {
+    let ids: &[u64] = match url
+        .query_pairs()
+        .find(|(name, _)| name.starts_with("with_"))
+    {
+        Some((role, id)) => match (role.as_ref(), id.as_ref()) {
+            ("with_cast", "6384") => &[603, 624],
+            ("with_crew", "9340") => &[604, 2000],
+            _ => &[],
+        },
+        None => &[],
+    };
+    let results: Vec<_> = ids.iter().map(|id| json!({ "id": id })).collect();
+    json!({ "page": 1, "results": results })
+}
+
+/// A talk show, on which a guest appears as themself.
+const TALK_SHOW: u64 = 22980;
+
+/// Shows by TMDB id, each with how many Episodes a Person has a Role in.
+type Shows<'a> = &'a [(u64, u32)];
+
+/// TMDB's answer for the Shows a Person is in the Cast or Crew of, with how many Episodes.
+fn shows_of(person: &str) -> Value {
+    let (cast, crew): (Shows<'_>, Shows<'_>) = match person {
+        "6384" => (&[(TALK_SHOW, 9), (1400, 2), (1396, 1), (2100, 10)], &[]),
+        "9340" => (&[], &[(70523, 8)]),
+        _ => (&[], &[]),
+    };
+    let shows = |shows: Shows<'_>| -> Vec<_> {
+        (shows.iter())
+            .map(|&(id, episodes)| {
+                let genres: &[u64] = if id == TALK_SHOW { &[10767, 35] } else { &[18] };
+                json!({ "id": id, "genre_ids": genres, "episode_count": episodes })
+            })
+            .collect()
+    };
+    json!({ "cast": shows(cast), "crew": shows(crew) })
 }
 
 /// A page of two titles, numbered `id` with a 1 and then a 2 after it, without their media as
@@ -679,6 +775,22 @@ fn episode(value: &str, show: &str, genres: &[&str]) -> Title {
     }
 }
 
+fn tvdb_id(value: &str) -> TitleId {
+    TitleId {
+        namespace: "tvdb".to_owned(),
+        ..tmdb_id(value)
+    }
+}
+
+/// An Episode in Library 1 of the Show listed under `show`, which also has the id `also`.
+fn episode_also_known_as(value: &str, show: TitleId, also: TitleId) -> Title {
+    Title {
+        show_ids: vec![show.clone(), also],
+        show_id: show.into(),
+        ..episode(value, "", &[])
+    }
+}
+
 fn watchlisted(kind: TitleKind, value: &str) -> WatchlistTitle {
     WatchlistTitle {
         kind: kind.into(),
@@ -780,6 +892,54 @@ fn your_watchlist_keeps_a_title_the_server_lacks_for_the_kernel_to_offer_as_requ
     assert_eq!(
         summary(&rows)[0].3,
         [(Some(TitleKind::TITLE_KIND_SHOW), "1396")]
+    );
+}
+
+#[test]
+fn your_watchlist_leaves_out_a_started_show_whichever_of_its_ids_names_it() {
+    let titles = [
+        episode_also_known_as("10", tvdb_id("334824"), tmdb_id("70523")),
+        episode_also_known_as("20", tmdb_id("1396"), tvdb_id("81189")),
+        movie("1", &[]),
+    ];
+    let by_tvdb = WatchlistTitle {
+        id: tvdb_id("81189").into(),
+        ..watchlisted(TitleKind::TITLE_KIND_SHOW, "")
+    };
+    let kernel = user_kernel(&["watchlist"], &titles).watchlist(
+        ADA,
+        [
+            watchlisted(TitleKind::TITLE_KIND_SHOW, "70523"),
+            by_tvdb,
+            watchlisted(TitleKind::TITLE_KIND_MOVIE, "1"),
+        ],
+    );
+    let kernel = watching(kernel, &titles[0], ADA, STARTED, days_ago(1));
+    let mut kernel = watching(kernel, &titles[1], ADA, PLAYED, days_ago(1));
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    assert_eq!(
+        summary(&rows)[0].3,
+        [(Some(TitleKind::TITLE_KIND_MOVIE), "1")]
+    );
+}
+
+#[test]
+fn watch_it_again_names_a_show_whose_episodes_list_it_under_two_ids_once_by_its_tmdb_id() {
+    let titles = [
+        episode_also_known_as("10", tvdb_id("334824"), tmdb_id("70523")),
+        episode("11", "70523", &[]),
+    ];
+    let kernel = user_kernel(&["watch-again"], &titles);
+    let kernel = watching(kernel, &titles[0], ADA, PLAYED, days_ago(400));
+    let mut kernel = watching(kernel, &titles[1], ADA, PLAYED, days_ago(400));
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    assert_eq!(
+        summary(&rows)[0].3,
+        [(Some(TitleKind::TITLE_KIND_SHOW), "70523")]
     );
 }
 
@@ -1114,4 +1274,144 @@ fn more_genre_of_a_genre_tmdb_has_only_for_shows_holds_shows() {
             vec![(show, "107651"), (show, "107652")]
         )]
     );
+}
+
+/// A Kernel holding `titles` in Library 1, the fake's API key and an empty Store, with Starring
+/// and From picked, whose requests the fake TMDB answers.
+fn person_kernel(titles: &[Title]) -> Kernel {
+    user_kernel(&["starring", "from"], titles)
+        .setting(API_KEY, VALID_KEY)
+        .store()
+        .http(|request, _body| Ok(tmdb(request)))
+}
+
+/// `kernel` with Ada having played each of `titles`.
+fn played(mut kernel: Kernel, titles: &[&Title]) -> Kernel {
+    for title in titles {
+        kernel = watching(kernel, title, ADA, PLAYED, days_ago(1));
+    }
+    kernel
+}
+
+/// The paths of the titles whose credits the Plugin asked TMDB for, in `sent`.
+fn credits_asked(sent: &[nama_pdk::testing::Sent]) -> Vec<String> {
+    (sent.iter())
+        .map(|sent| Url::parse(&sent.request.url).unwrap())
+        .filter(|url| {
+            url.query_pairs()
+                .any(|(name, _)| name == "append_to_response")
+        })
+        .map(|url| url.path().to_owned())
+        .collect()
+}
+
+#[test]
+fn starring_and_from_follow_the_people_most_in_what_the_user_played_leaving_out_played_titles() {
+    let titles = [
+        movie("603", &[]),
+        movie("604", &[]),
+        episode("10", "1396", &[]),
+    ];
+    let kernel = person_kernel(&titles);
+    let mut kernel = played(kernel, &[&titles[0], &titles[1], &titles[2]]);
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    let movie = Some(TitleKind::TITLE_KIND_MOVIE);
+    let show = Some(TitleKind::TITLE_KIND_SHOW);
+    let ttl = 6 * 60 * 60;
+    assert_eq!(
+        summary(&rows),
+        [
+            (
+                "starring",
+                "Starring Keanu Reeves",
+                ttl,
+                vec![(movie, "624"), (show, "2100"), (show, "1400")]
+            ),
+            (
+                "from",
+                "From Lana Wachowski",
+                ttl,
+                vec![(movie, "2000"), (show, "70523")]
+            ),
+        ]
+    );
+}
+
+#[test]
+fn an_actor_billed_6th_never_gets_a_starring_row_however_often_they_appear() {
+    let titles = [movie("603", &[]), movie("604", &[]), movie("605", &[])];
+    let kernel = person_kernel(&titles);
+    let mut kernel = played(kernel, &[&titles[0], &titles[1], &titles[2]]);
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    let headings: Vec<_> = rows.rows.iter().map(|row| row.heading.as_str()).collect();
+    assert_eq!(headings, ["Starring Keanu Reeves", "From Lana Wachowski"]);
+}
+
+#[test]
+fn a_played_title_tmdb_lacks_counts_no_one_and_fails_no_refresh() {
+    let titles = [movie("603", &[]), movie("1", &[])];
+    let mut kernel = played(person_kernel(&titles), &[&titles[0], &titles[1]]);
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    let headings: Vec<_> = rows.rows.iter().map(|row| row.heading.as_str()).collect();
+    assert_eq!(headings, ["Starring Keanu Reeves", "From Lana Wachowski"]);
+}
+
+#[test]
+fn a_second_refresh_asks_tmdb_for_credits_only_of_titles_played_since_the_first() {
+    let titles = [movie("603", &[]), episode("10", "1396", &[])];
+    let mut kernel = played(person_kernel(&titles), &[&titles[0]]);
+    user_rows(&mut kernel, ADA).unwrap();
+    let mut kernel = played(kernel, &[&titles[1]]);
+    let first_refresh = kernel.sent().len();
+
+    user_rows(&mut kernel, ADA).unwrap();
+
+    assert_eq!(
+        credits_asked(&kernel.sent()[..first_refresh]),
+        ["/3/movie/603"]
+    );
+    assert_eq!(
+        credits_asked(&kernel.sent()[first_refresh..]),
+        ["/3/tv/1396"]
+    );
+}
+
+#[test]
+fn a_person_row_heading_past_40_characters_is_cut_with_an_ellipsis() {
+    let titles = [episode("10", "1396", &[])];
+    let mut kernel = played(person_kernel(&titles), &[&titles[0]]);
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    let headings: Vec<_> = rows.rows.iter().map(|row| row.heading.as_str()).collect();
+    assert_eq!(
+        headings,
+        [
+            "Starring Bryan Cranston",
+            "From Vince Gilligan, who made Breaking …"
+        ]
+    );
+}
+
+#[test]
+fn starring_and_from_are_no_rows_for_a_user_who_played_nothing() {
+    let titles = [movie("603", &[])];
+    let mut kernel = watching(
+        person_kernel(&titles),
+        &titles[0],
+        ADA,
+        STARTED,
+        days_ago(1),
+    );
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    assert_eq!(rows.rows, []);
+    assert_eq!(kernel.sent(), []);
 }
