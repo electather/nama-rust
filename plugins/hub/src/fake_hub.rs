@@ -1,6 +1,7 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
-//! one Server's device flow, Unlinking, its Users' Links, the Watch State it pushes, and a key set
-//! of one Ed25519 key it signs with, as the Hub's API (`proto/nama/hub/v1/link.proto`) says the Hub
+//! one Server's device flow, Unlinking, its Users' Links, its Server Addresses, the Watch State it
+//! pushes, and a key set of one Ed25519 key it signs with, as the Hub's API
+//! (`proto/nama/hub/v1/link.proto`) says the Hub
 //! does, and takes shared Diagnostics.
 
 use std::{
@@ -20,9 +21,9 @@ use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, Service
 use nama_hub_proto::nama::hub::v1::{
     GetUserLinkRequest, GetUserLinkResponse, LinkedServerService, PollServerLinkRequest,
     PollServerLinkResponse, PushWatchStatesRequest, PushWatchStatesResponse, ServerLinkService,
-    StartServerLinkRequest, StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse,
-    UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
-    WatchStateChange,
+    SetServerAddressesRequest, SetServerAddressesResponse, StartServerLinkRequest,
+    StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest,
+    UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse, WatchStateChange,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::{Value, json};
@@ -66,6 +67,10 @@ struct State {
     pushes: Vec<Vec<WatchStateChange>>,
     /// Why pushes fail, as if the Hub were down, while they do.
     push_failure: Option<&'static str>,
+    /// Each Server URL and LAN addresses the Server reported, in order.
+    reported_addresses: Vec<(String, Vec<String>)>,
+    /// How many of the next reports of Server Addresses fail.
+    addresses_failures: usize,
 }
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
@@ -175,6 +180,16 @@ impl FakeHub {
     /// Has pushes fail while `down`, as if the Hub were unreachable, and work again after.
     pub(super) fn set_down(&self, down: bool) {
         lock(&self.state).push_failure = down.then_some("the Hub is down");
+    }
+
+    /// Each Server URL and LAN addresses the Server reported, in order.
+    pub(super) fn reported_addresses(&self) -> Vec<(String, Vec<String>)> {
+        lock(&self.state).reported_addresses.clone()
+    }
+
+    /// Has the next report of Server Addresses fail, as if the Hub blinked.
+    pub(super) fn fail_next_addresses(&self) {
+        lock(&self.state).addresses_failures += 1;
     }
 
     /// Has the key set fail, as if the Hub went down right after handing out a credential.
@@ -362,6 +377,26 @@ impl LinkedServerService for Linked {
         }
         state.pushes.push(request.to_owned_message().changes);
         Response::ok(PushWatchStatesResponse::default())
+    }
+
+    async fn set_server_addresses(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetServerAddressesRequest>,
+    ) -> ServiceResult<SetServerAddressesResponse> {
+        let mut state = self.caller(&ctx)?;
+        if state.addresses_failures > 0 {
+            state.addresses_failures -= 1;
+            return Err(ConnectError::unavailable("the fake Hub blinked"));
+        }
+        let lan = request
+            .lan_addresses
+            .iter()
+            .map(|&address| address.to_owned());
+        state
+            .reported_addresses
+            .push((request.url.to_owned(), lan.collect()));
+        Response::ok(SetServerAddressesResponse::default())
     }
 }
 

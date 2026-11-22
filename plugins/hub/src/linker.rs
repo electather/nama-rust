@@ -1,7 +1,7 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
-//! keeps in the Plugin's Store once someone entered it, through which it shares what the Admin
-//! chooses with Nama's developers (ADR 0054). Its Users' Links are in `users.rs`, and syncing
-//! their Watch State in `watch_states.rs`.
+//! keeps in the Plugin's Store once someone entered it, the Server Addresses it tells the Hub, and
+//! through it shares what the Admin chooses with Nama's developers (ADR 0054). Its Users' Links are
+//! in `users.rs`, and syncing their Watch State in `watch_states.rs`.
 
 mod users;
 mod watch_states;
@@ -21,7 +21,7 @@ use nama_plugin_api::{
     },
     contract::{StoreEntry, StoreKey},
     diagnostics_sharer::{DiagnosticsSharer, Signal},
-    server_link::{Link, ServerLinker},
+    server_link::{Link, ServerAddresses, ServerLinker},
 };
 use ring::digest;
 use serde::{Deserialize, Serialize};
@@ -79,6 +79,9 @@ pub(crate) struct Linker {
     users: std::sync::Mutex<HashMap<i64, users::UserState>>,
     /// Held while the queue of Watch State changes is read and written, so none is lost.
     queue: Mutex<()>,
+    /// The Server Addresses the Hub has, with the [`Kept::id`] of the Link it got them through.
+    /// Held across telling the Hub, so a report never overtakes another.
+    reported: Mutex<Option<(String, ServerAddresses)>>,
 }
 
 impl Linker {
@@ -89,6 +92,7 @@ impl Linker {
             waiting: Mutex::default(),
             users: std::sync::Mutex::default(),
             queue: Mutex::default(),
+            reported: Mutex::default(),
         }
     }
 
@@ -177,6 +181,22 @@ impl Linker {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clear();
+        Ok(())
+    }
+
+    /// Tells the Hub `addresses`, unless the Server isn't Linked or the Hub has them already from
+    /// this Link. Forgotten on a restart, so the Hub hears them once more then.
+    async fn report(&self, addresses: ServerAddresses) -> Result<(), PluginError> {
+        let Some(kept) = self.kept().await? else {
+            return Ok(());
+        };
+        let mut reported = self.reported.lock().await;
+        let report = (kept.id(), addresses);
+        if reported.as_ref() == Some(&report) {
+            return Ok(());
+        }
+        self.hub.set_addresses(&kept.credential, &report.1).await?;
+        *reported = Some(report);
         Ok(())
     }
 
@@ -275,6 +295,10 @@ impl ServerLinker for Linker {
 
     fn unlink_user(&self, user_id: i64) -> BoxFuture<'_, Result<(), PluginError>> {
         Box::pin(self.forget_user_link(user_id))
+    }
+
+    fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
+        Box::pin(self.report(addresses))
     }
 }
 

@@ -15,7 +15,7 @@ use nama_plugin_api::{
     diagnostics_sharer::{DiagnosticsSharer, Signal},
     job::RunJob,
     points::{WatchStateChange, WatchStateChanges},
-    server_link::{Link, ServerLinker},
+    server_link::{Link, ServerAddresses, ServerLinker},
 };
 use serde_json::json;
 
@@ -505,6 +505,42 @@ async fn changes_made_while_the_hub_is_down_reach_it_in_order_once_it_is_back() 
     );
 }
 
+fn addresses(url: &str, lan: &[&str]) -> ServerAddresses {
+    ServerAddresses {
+        url: url.to_owned(),
+        lan: lan.iter().map(|&address| address.to_owned()).collect(),
+    }
+}
+
+#[tokio::test]
+async fn the_server_reports_its_addresses_once_linked_and_then_only_when_they_change() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
+    linker.set_addresses(lan_only.clone()).await.unwrap();
+    assert_eq!(hub.reported_addresses(), []);
+    link(&hub, linker.as_ref()).await;
+
+    linker.set_addresses(lan_only.clone()).await.unwrap();
+    linker.set_addresses(lan_only.clone()).await.unwrap();
+    linker
+        .set_addresses(addresses(
+            "https://nama.example.com",
+            &["http://192.168.1.10:7980"],
+        ))
+        .await
+        .unwrap();
+
+    let lan = vec!["http://192.168.1.10:7980".to_owned()];
+    assert_eq!(
+        hub.reported_addresses(),
+        [
+            (String::new(), lan.clone()),
+            ("https://nama.example.com".to_owned(), lan),
+        ]
+    );
+}
+
 #[tokio::test]
 async fn a_change_told_after_a_later_one_of_the_same_title_is_dropped() {
     let hub = FakeHub::start().await;
@@ -570,4 +606,33 @@ async fn ids_the_hub_wouldnt_take_are_left_out_and_a_change_with_none_stays_behi
     run_sync(jobs.as_ref()).await.unwrap();
 
     assert_eq!(pushed(&hub), [[("tmdb-348".to_owned(), 1000, 1_000)]]);
+}
+
+#[tokio::test]
+async fn a_server_linked_again_reports_its_addresses_again() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
+    link(&hub, linker.as_ref()).await;
+    linker.set_addresses(lan_only.clone()).await.unwrap();
+    linker.unlink().await.unwrap();
+    link(&hub, linker.as_ref()).await;
+
+    linker.set_addresses(lan_only).await.unwrap();
+
+    assert_eq!(hub.reported_addresses().len(), 2);
+}
+
+#[tokio::test]
+async fn addresses_the_hub_couldnt_take_are_reported_again() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
+    hub.fail_next_addresses();
+    assert!(linker.set_addresses(lan_only.clone()).await.is_err());
+
+    linker.set_addresses(lan_only).await.unwrap();
+
+    assert_eq!(hub.reported_addresses().len(), 1);
 }

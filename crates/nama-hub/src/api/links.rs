@@ -8,16 +8,17 @@ use nama_hub_proto::nama::hub::v1::{
     LinkedServerService, ListLinkedServersRequest, ListLinkedServersResponse,
     ListLinkedUsersRequest, ListLinkedUsersResponse, PollServerLinkRequest, PollServerLinkResponse,
     PushWatchStatesRequest, PushWatchStatesResponse, RefusalReason, ServerLinkService,
-    StartServerLinkRequest, StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse,
-    UnlinkLinkedUserRequest, UnlinkLinkedUserResponse, UnlinkServerRequest, UnlinkServerResponse,
-    UnlinkUserRequest, UnlinkUserResponse,
+    SetServerAddressesRequest, SetServerAddressesResponse, StartServerLinkRequest,
+    StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkLinkedUserRequest,
+    UnlinkLinkedUserResponse, UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest,
+    UnlinkUserResponse,
 };
 
 use super::{accounts::signed_in, hub_failed, refuse};
 use crate::{
     links::{
-        self, CODE_LIFETIME_MINS, LinkId, LinkedServer, Links, ListedServer, ListedUser,
-        POLL_INTERVAL_SECS, Polled,
+        self, ADDRESS_LENGTH, CODE_LIFETIME_MINS, LinkId, LinkedServer, Links, ListedServer,
+        ListedUser, MAX_LAN_ADDRESSES, POLL_INTERVAL_SECS, Polled,
     },
     sync::{MAX_CHANGED_AT_MS, MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, WatchStateChange, WatchStates},
 };
@@ -246,6 +247,23 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .map_err(|err| hub_failed(&err))?;
         Response::ok(PushWatchStatesResponse::default())
     }
+
+    async fn set_server_addresses(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetServerAddressesRequest>,
+    ) -> ServiceResult<SetServerAddressesResponse> {
+        let lan_addresses: Vec<String> = request
+            .lan_addresses
+            .iter()
+            .map(|&address| address.to_owned())
+            .collect();
+        self.links
+            .set_addresses(linked_server(&ctx)?, request.url, &lan_addresses)
+            .await
+            .map_err(refused)?;
+        Response::ok(SetServerAddressesResponse::default())
+    }
 }
 
 /// The Linked Server whose credential the request carried, which the auth layer found.
@@ -264,6 +282,8 @@ fn server_to_proto(server: ListedServer) -> proto::LinkedServer {
         id: server.id.to_string(),
         name: server.name,
         linked_at: server.linked_at,
+        url: server.url,
+        addresses: server.addresses,
         ..Default::default()
     }
 }
@@ -295,6 +315,9 @@ fn refused(err: links::Error) -> ConnectError {
         E::CodeNotFound => refuse(R::REFUSAL_REASON_LINK_CODE_NOT_FOUND, message).field("code"),
         E::Expired => refuse(R::REFUSAL_REASON_LINK_EXPIRED, message).field("device_code"),
         E::UserLinked => refuse(R::REFUSAL_REASON_USER_LINKED, message),
+        E::AddressInvalid => refuse(R::REFUSAL_REASON_SERVER_ADDRESS_INVALID, message)
+            .param("maxLength", &ADDRESS_LENGTH)
+            .param("maxLanAddresses", &MAX_LAN_ADDRESSES),
         E::Random(_) | E::Database(_) => return hub_failed(&err),
     };
     refused.into()

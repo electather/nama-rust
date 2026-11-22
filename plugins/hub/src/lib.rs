@@ -2,7 +2,8 @@
 //! Hub-facing. It Links the Server to an Account, through a code an Admin enters on the Hub (ADR
 //! 0011), keeps the credential the Server presents to the Hub from then on in its Store, and sends
 //! the Hub the Diagnostics and Usage Analytics the Admin shares (ADR 0054). Its Users then Link to
-//! their own Accounts the same way, and their Watch State syncs to the Hub.
+//! their own Accounts the same way, their Watch State syncs to the Hub, and the Hub lists the
+//! Server, with its Server Addresses, to every Account it has a User on.
 
 mod hub;
 mod linker;
@@ -69,7 +70,9 @@ impl Plugin for Hub {
             setup_markdown: "Enable it, then Link the Server under Settings, Server. The Server \
                              shows a code to enter on the Hub while signed in to your Account. \
                              Once it is Linked, each User can Link to their own Account the same \
-                             way, from their own Settings."
+                             way, from their own Settings. The Hub then lists the Server's Server \
+                             URL and LAN address to the Accounts its Users Linked to, so their \
+                             apps can find it."
                 .to_owned(),
             extension_points: vec![
                 PointKey::provide::<dyn ServerLinker>(),

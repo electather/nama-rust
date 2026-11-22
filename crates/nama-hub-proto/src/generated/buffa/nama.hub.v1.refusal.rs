@@ -45,10 +45,14 @@ pub enum RefusalReason {
     /// `already_exists`: the User is Linked to an Account already, and a User Links to one only.
     /// Unlink them first.
     REFUSAL_REASON_USER_LINKED = 14i32,
+    /// `invalid_argument`: a Server Address isn't an `http` or `https` URL of at most `maxLength`
+    /// characters, or the Server reported more than `maxLanAddresses` LAN addresses. Params:
+    /// `maxLength` and `maxLanAddresses`.
+    REFUSAL_REASON_SERVER_ADDRESS_INVALID = 15i32,
     /// `invalid_argument`: a Watch State change breaks a limit `PushWatchStatesRequest` sets, such as
     /// too many changes, an id too long, a position past the duration, or a time out of range. `field` names it. Params:
     /// `maxChanges`, `maxIds` and `maxIdLength`.
-    REFUSAL_REASON_WATCH_STATE_INVALID = 15i32,
+    REFUSAL_REASON_WATCH_STATE_INVALID = 16i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -96,6 +100,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_USER_LINKED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const UserLinked: Self = Self::REFUSAL_REASON_USER_LINKED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_SERVER_ADDRESS_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ServerAddressInvalid: Self = Self::REFUSAL_REASON_SERVER_ADDRESS_INVALID;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_WATCH_STATE_INVALID`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const WatchStateInvalid: Self = Self::REFUSAL_REASON_WATCH_STATE_INVALID;
@@ -222,6 +229,9 @@ impl ::buffa::Enumeration for RefusalReason {
             13i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_SERVER_NOT_LINKED),
             14i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_USER_LINKED),
             15i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SERVER_ADDRESS_INVALID)
+            }
+            16i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_WATCH_STATE_INVALID)
             }
             _ => ::core::option::Option::None,
@@ -255,6 +265,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_LINK_EXPIRED => "REFUSAL_REASON_LINK_EXPIRED",
             Self::REFUSAL_REASON_SERVER_NOT_LINKED => "REFUSAL_REASON_SERVER_NOT_LINKED",
             Self::REFUSAL_REASON_USER_LINKED => "REFUSAL_REASON_USER_LINKED",
+            Self::REFUSAL_REASON_SERVER_ADDRESS_INVALID => {
+                "REFUSAL_REASON_SERVER_ADDRESS_INVALID"
+            }
             Self::REFUSAL_REASON_WATCH_STATE_INVALID => {
                 "REFUSAL_REASON_WATCH_STATE_INVALID"
             }
@@ -311,6 +324,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_USER_LINKED" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_USER_LINKED)
             }
+            "REFUSAL_REASON_SERVER_ADDRESS_INVALID" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SERVER_ADDRESS_INVALID)
+            }
             "REFUSAL_REASON_WATCH_STATE_INVALID" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_WATCH_STATE_INVALID)
             }
@@ -334,6 +350,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_LINK_EXPIRED,
             Self::REFUSAL_REASON_SERVER_NOT_LINKED,
             Self::REFUSAL_REASON_USER_LINKED,
+            Self::REFUSAL_REASON_SERVER_ADDRESS_INVALID,
             Self::REFUSAL_REASON_WATCH_STATE_INVALID,
         ]
     }

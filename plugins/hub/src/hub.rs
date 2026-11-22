@@ -18,11 +18,11 @@ use hyper_util::{
 };
 use nama_hub_proto::nama::hub::v1::{
     GetUserLinkRequest, LinkedServerServiceClient, PollServerLinkRequest, PollServerLinkResponse,
-    PushWatchStatesRequest, ServerLinkServiceClient, StartServerLinkRequest,
-    StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest,
-    UnlinkUserRequest, WatchStateChange,
+    PushWatchStatesRequest, ServerLinkServiceClient, SetServerAddressesRequest,
+    StartServerLinkRequest, StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse,
+    UnlinkServerRequest, UnlinkUserRequest, WatchStateChange,
 };
-use nama_plugin_api::{PluginError, diagnostics_sharer::Signal};
+use nama_plugin_api::{PluginError, diagnostics_sharer::Signal, server_link::ServerAddresses};
 
 const TIMEOUT: Duration = Duration::from_secs(20);
 
@@ -177,6 +177,23 @@ impl Hub {
         self.linked_server(credential)?
             .push_watch_states(PushWatchStatesRequest {
                 changes,
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
+    }
+
+    /// Tells the Hub `addresses` are where clients reach the Server whose credential is
+    /// `credential`.
+    pub(crate) async fn set_addresses(
+        &self,
+        credential: &str,
+        addresses: &ServerAddresses,
+    ) -> Result<(), PluginError> {
+        self.linked_server(credential)?
+            .set_server_addresses(SetServerAddressesRequest {
+                url: addresses.url.clone(),
+                lan_addresses: addresses.lan.clone(),
                 ..Default::default()
             })
             .await?;
