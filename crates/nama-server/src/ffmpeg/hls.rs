@@ -2,15 +2,36 @@
 
 use std::{fs::File, io, io::Read, path::Path, process::Stdio};
 
-use super::{Hardware, finding::is_release_before};
+use super::{Hardware, finding::is_release_before, hardware::Decode};
 
-/// The software filters a Transcode tone-maps HDR to SDR with: to linear light, to BT.709's
-/// primaries, Hable's curve from HDR's brightness to SDR's 100 nits, then back to BT.709 video.
+/// The filter that tags HDR10 and HLG frames for a tone-map in software, before any scaling.
 // HDR10 and HLG are always BT.2020, but probing calls a file HDR by its transfer alone, and
 // zscale fails the whole Transcode with "no path between colorspaces" on untagged primaries.
-const TONE_MAP: &str = "setparams=color_primaries=bt2020:colorspace=bt2020nc,\
-                        zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,\
-                        tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p";
+const HDR_TAGS: &str = "setparams=color_primaries=bt2020:colorspace=bt2020nc";
+
+/// The filter that tags Dolby Vision frames with no Base Layer as BT.2020 PQ, which `tonemapx`
+/// reads, before any scaling.
+// ffmpeg tags them IPTPQc2, which no scaler takes ("Impossible to convert between the formats").
+const DOLBY_VISION_TAGS: &str =
+    "setparams=range=tv:color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc";
+
+/// The filters that tone-map tagged HDR to SDR with zscale: to linear light, to BT.709's
+/// primaries, Hable's curve from HDR's brightness to SDR's 100 nits, then back to BT.709 video.
+const ZSCALE_TONE_MAP: &str = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,\
+                               tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,\
+                               format=yuv420p";
+
+/// The filters that tone-map tagged HDR to SDR with jellyfin-ffmpeg's `tonemapx`, its source's
+/// peak pinned at 1000 nits, as Silo does (ADR 0102), applying Dolby Vision's RPU if
+/// `apply_dovi`.
+// Read from the RPU, a 4000-nit master comes out about a third darker in the midtones.
+fn tonemapx(apply_dovi: bool) -> String {
+    format!(
+        "tonemapx=tonemap=bt2390:peak=100:apply_dovi={},\
+         zscale=p=bt709:t=bt709:m=bt709:r=tv,format=yuv420p",
+        u8::from(apply_dovi)
+    )
+}
 
 /// The name of the init segment a Remux or Transcode started at file `n` writes beside its files. Every
 /// run's is the same, but each writes its own, since ffmpeg writes it from empty as a run goes.
@@ -36,8 +57,17 @@ pub(crate) fn hls_run_from(name: &str) -> Option<usize> {
 pub(crate) struct Remux {
     /// The audio Track it plays, or `None` when the Version has none.
     pub(crate) audio: Option<RemuxAudio>,
-    /// Whether the video it copies is HEVC, so it's tagged `hvc1` for Apple's players.
-    pub(crate) hevc: bool,
+    /// What the video it copies is tagged for Apple's players, if anything.
+    pub(crate) video_tag: Option<VideoTag>,
+}
+
+/// What a Remux tags the HEVC it copies, which Apple's players take in fMP4 only as one of these,
+/// where ffmpeg writes `hev1` unless told.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum VideoTag {
+    Hvc1,
+    /// For Dolby Vision 5, as Apple's HLS authoring spec has it (rule 1.10).
+    Dvh1,
 }
 
 /// The audio Track a Remux plays.
@@ -301,7 +331,12 @@ pub(crate) struct VideoConversion {
 impl VideoConversion {
     /// Whether it works the CPU hard: it runs in software, or tone-maps there.
     pub(crate) fn cpu_bound(&self) -> bool {
-        self.hardware.is_none() || self.tone_map == Some(ToneMapper::Software)
+        self.hardware.is_none() || self.tone_maps_in_software()
+    }
+
+    fn tone_maps_in_software(&self) -> bool {
+        self.tone_map
+            .is_some_and(|tone_map| tone_map != ToneMapper::Hardware)
     }
 }
 
@@ -310,6 +345,9 @@ impl VideoConversion {
 pub(crate) enum ToneMapper {
     /// ffmpeg's zscale, which [`super::CanDo::zscale`] says it has.
     Software,
+    /// jellyfin-ffmpeg's `tonemapx`, in software, which [`super::CanDo::tonemapx`] says it has,
+    /// reshaping a Dolby Vision picture with no Base Layer by its RPU first if `dolby_vision`.
+    Tonemapx { dolby_vision: bool },
     /// The GPU of [`VideoConversion::hardware`], which [`Hardware::tone_maps`] says it can, while
     /// nothing is burned in.
     Hardware,
@@ -349,22 +387,31 @@ pub(super) fn video_args(path: &str, video: &VideoConversion, seeks: bool) -> Vi
         // segment's, which a player fetched once, from whichever encoder wrote it.
         codec.extend(["-bsf:v", "dump_extra=freq=keyframe", "-tag:v", "avc3"].map(str::to_owned));
     }
-    // zscale and subtitles work on frames in memory, so with either the GPU only decodes and
-    // encodes.
+    // Tone-mapping in software and subtitles work on frames in memory, so with either the GPU
+    // only decodes and encodes.
     let on_gpu = accel
-        .filter(|_| video.tone_map != Some(ToneMapper::Software) && video.burn_in.is_none())
+        .filter(|_| !video.tone_maps_in_software() && video.burn_in.is_none())
         .and_then(|api| {
             let tone_map = video.tone_map == Some(ToneMapper::Hardware);
             Some((api, api.gpu_filters(tone_map, size)?))
         });
     if let Some((api, filters)) = on_gpu {
         return VideoArgs {
-            input: api.input(gpu, true),
+            input: api.input(gpu, Decode::OnGpu),
             video: ["-map", "0:V:0", "-vf", &filters].map(str::to_owned).into(),
             codec,
         };
     }
-    let tone_map = (video.tone_map.is_some()).then(|| TONE_MAP.to_owned());
+    let dolby_vision = video.tone_map == Some(ToneMapper::Tonemapx { dolby_vision: true });
+    // `hevc_qsv` and `hevc_cuvid` drop the RPU that `tonemapx` reshapes by.
+    // ponytail: decoding 4K HEVC in software caps how many run at once; decode with `-hwaccel
+    // vaapi`, `cuda` or `videotoolbox`, which keep the RPU, once that's measured too slow.
+    let decode = if dolby_vision {
+        Decode::InSoftware
+    } else {
+        Decode::ToMemory
+    };
+    let (tags, tone_map) = video.tone_map.map(software_tone_map).unzip();
     // ponytail: the size is from the stored picture, so a rotated phone clip is stretched; swap
     // its sides once probing reads rotation.
     let scale = size.map(|(width, height)| format!("scale={width}:{height}"));
@@ -373,13 +420,34 @@ pub(super) fn video_args(path: &str, video: &VideoConversion, seeks: bool) -> Vi
     // tone-mapping, which would dim it, and before scaling, so it shrinks with the picture and an
     // image subtitle still fits the source size `overlay_graph` is given.
     let (before, after) = match video.burn_in {
-        None => (filter_chain([scale, tone_map, upload]), None),
-        Some(_) => (tone_map, filter_chain([scale, upload])),
+        None => (filter_chain([tags, scale, tone_map, upload]), None),
+        Some(_) => (
+            filter_chain([tags, tone_map]),
+            filter_chain([scale, upload]),
+        ),
     };
     VideoArgs {
-        input: accel.map_or_default(|accel| accel.input(gpu, false)),
+        input: accel.map_or_default(|accel| accel.input(gpu, decode)),
         video: transcoded_video(path, before, video.burn_in.as_ref(), after, seeks),
         codec,
+    }
+}
+
+/// The filter that tags the frames `tone_map` reads, and the filters that then tone-map them in
+/// software.
+fn software_tone_map(tone_map: ToneMapper) -> (String, String) {
+    match tone_map {
+        ToneMapper::Tonemapx { dolby_vision: true } => {
+            (DOLBY_VISION_TAGS.to_owned(), tonemapx(true))
+        }
+        ToneMapper::Tonemapx {
+            dolby_vision: false,
+        } => (HDR_TAGS.to_owned(), tonemapx(false)),
+        // The GPU's filter reaches here only when its frames can't stay on it, so zscale stands
+        // in.
+        ToneMapper::Software | ToneMapper::Hardware => {
+            (HDR_TAGS.to_owned(), ZSCALE_TONE_MAP.to_owned())
+        }
     }
 }
 

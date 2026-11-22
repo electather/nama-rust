@@ -39,6 +39,14 @@ const AUDIO_CODECS: Record<Named<typeof AudioCodec>, string> = {
   [AudioCodec.DTS]: 'audio/mp4; codecs="dtsc"',
   [AudioCodec.TRUEHD]: 'audio/mp4; codecs="mlpa"',
 };
+/**
+ * What to ask `canPlayType` about each Dolby Vision profile, as Silo and jellyfin-web do: Safari's
+ * `decodingInfo` says no to profile 8 it plays (WebKit bug 262539).
+ */
+const DOLBY_VISION_PROFILES: [profile: number, type: string][] = [
+  [5, 'video/mp4; codecs="dvh1.05.06"'],
+  [8, 'video/mp4; codecs="dvh1.08.06"'],
+];
 /** A 1080p film's video, which `decodingInfo` needs to judge a video codec. */
 const FILM = { width: 1920, height: 1080, bitrate: 10_000_000, framerate: 24 };
 
@@ -73,6 +81,10 @@ export async function findDeviceDecoding() {
     videoCodecs,
     audioCodecs,
     hdr: matchMedia("(dynamic-range: high)").matches,
+    // Only Safari is sure; Chrome and Firefox say "maybe" or "" to Dolby Vision.
+    dolbyVisionProfiles: DOLBY_VISION_PROFILES.filter(
+      ([, type]) => video.canPlayType(type) === "probably",
+    ).map(([profile]) => profile),
     h26410bit,
     nativeHls,
     mse,

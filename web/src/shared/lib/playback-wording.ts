@@ -77,6 +77,8 @@ const wordings: Record<PlaybackReasonKind, Wording | undefined> = {
     `This Device can’t decode ${param.codec()} audio, so it can’t be Direct Played.`,
   [PlaybackReasonKind.DEVICE_CANT_SHOW_HDR]: (param) =>
     `This Device can’t show ${param.hdr()}, so it can’t be Direct Played or Remuxed.`,
+  [PlaybackReasonKind.DEVICE_CANT_SHOW_DOLBY_VISION]: (param) =>
+    `This Device can’t show Dolby Vision profile ${param.count("profile")}, which has no Base Layer, so it can’t be Direct Played or Remuxed.`,
   [PlaybackReasonKind.DEVICE_CANT_PLAY_HLS]: () =>
     "This Device can’t play the stream a Remux or a Transcode sends.",
   [PlaybackReasonKind.SERVER_LACKS_FFMPEG]: () =>
@@ -84,7 +86,7 @@ const wordings: Record<PlaybackReasonKind, Wording | undefined> = {
   [PlaybackReasonKind.SERVER_CANT_ENCODE_VIDEO]: () =>
     "The Server’s ffmpeg lacks libx264, so it can’t Transcode.",
   [PlaybackReasonKind.DOLBY_VISION_NEEDS_BASE_LAYER]: () =>
-    "The Server can’t Transcode Dolby Vision with no Base Layer, as in profile 5.",
+    "The Server’s ffmpeg lacks jellyfin-ffmpeg’s tonemapx, so it can’t Transcode Dolby Vision with no Base Layer, as in profile 5.",
   [PlaybackReasonKind.METHOD_FAILED_ON_DEVICE]: (param) =>
     `${param.method()} failed on this Device.`,
   [PlaybackReasonKind.SERVER_BUSY]: (param) =>

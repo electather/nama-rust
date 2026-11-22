@@ -436,7 +436,7 @@ EOF
 "#;
     let ffmpeg = format!(
         "#!/bin/sh\ncase \"$*\" in *-encoders*) echo ' V....D {encoder}  H.264' ;; \
-         *-filters*) ;; *) exec sleep 600 ;; esac\n"
+         *-filters*|*filter=*) ;; *) exec sleep 600 ;; esac\n"
     );
     Ffmpeg {
         ffmpeg: Ok(script(bin, "ffmpeg", &ffmpeg)),
@@ -661,8 +661,7 @@ async fn an_unprobed_version_whose_direct_play_failed_cant_be_played_and_starts_
     let bin = tempfile::tempdir().unwrap();
     // With ffmpeg, the Server's own step would allow a Remux, so only the Tracks' step keeps it
     // out. Its filters and encoders are listed at once, as empty, so planning needn't wait.
-    let ffmpeg_script =
-        "#!/bin/sh\ncase \"$*\" in *-filters*|*-encoders*) ;; *) exec sleep 600 ;; esac\n";
+    let ffmpeg_script = "#!/bin/sh\ncase \"$*\" in *-filters*|*filter=*|*-encoders*) ;; *) exec sleep 600 ;; esac\n";
     let ffmpeg = Ffmpeg {
         ffmpeg: Ok(script(bin.path(), "ffmpeg", ffmpeg_script)),
         ffprobe: Ok(script(bin.path(), "ffprobe", "#!/bin/sh\nexit 1\n")),
@@ -1949,7 +1948,7 @@ impl Fixture {
             ffmpeg: Ok(script(
                 bin,
                 "ffmpeg",
-                "#!/bin/sh\ncase \"$*\" in *-encoders*|*-filters*) ;; *) exec sleep 600 ;; esac\n",
+                "#!/bin/sh\ncase \"$*\" in *-encoders*|*-filters*|*filter=*) ;; *) exec sleep 600 ;; esac\n",
             )),
             ..ffprobe_reading_english_and_german_tracks(bin)
         };
