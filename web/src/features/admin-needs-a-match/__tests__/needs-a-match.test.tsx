@@ -11,7 +11,8 @@ import {
   type UnmatchedItemSchema,
   UnmatchedReason,
 } from "@/gen/nama/v1/match_pb";
-import { admin, eventFeed, fakeServer, openApp } from "@/test-app";
+import { admin, eventFeed, fakeServer } from "@/test-app";
+import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
 
@@ -38,8 +39,8 @@ test("setting a Match takes the Item off Needs a Match", async () => {
     year: 1979,
   };
   let items: MessageInitShape<typeof UnmatchedItemSchema>[] = [alien];
-  openApp(
-    "/admin/needs-a-match",
+  openSettings(
+    "needs-a-match",
     adminServer(events.stream, (router) => {
       router.service(MatchService, {
         listUnmatchedItems: () => ({ items }),
@@ -104,8 +105,8 @@ test.each([
   ],
 ])("%s on Needs a Match", async (_, why, shown) => {
   const item = { itemId: 7n, path: "/srv/shows/The Office/S01E01.mkv", kind: TitleKind.SHOW };
-  openApp(
-    "/admin/needs-a-match",
+  openSettings(
+    "needs-a-match",
     adminServer(new ReadableStream(), (router) => {
       router.service(MatchService, {
         listUnmatchedItems: () => ({ items: [{ ...item, title: "The Office", ...why }] }),
@@ -125,8 +126,8 @@ test("needs a Match names an Item parsed as Season 0 a Special", async () => {
     season: 0,
     episode: 2,
   };
-  openApp(
-    "/admin/needs-a-match",
+  openSettings(
+    "needs-a-match",
     adminServer(new ReadableStream(), (router) => {
       router.service(MatchService, { listUnmatchedItems: () => ({ items: [item] }) });
     }),
@@ -142,8 +143,8 @@ test("needs a Match shows why once Matching finishes", async () => {
   const item = { itemId: 7n, path: "/srv/films/Alien.1979.mkv", kind: TitleKind.MOVIE };
   let reason: UnmatchedReason = UnmatchedReason.UNSPECIFIED;
   let listed = 0;
-  openApp(
-    "/admin/needs-a-match",
+  openSettings(
+    "needs-a-match",
     adminServer(events.stream, (router) => {
       router.service(MatchService, {
         listUnmatchedItems: () => {
@@ -175,8 +176,8 @@ test("an Item Matched elsewhere leaves Needs a Match when its Event arrives", as
     { itemId: 7n, path: "/srv/films/Alien.1979.mkv", kind: TitleKind.MOVIE, title: "Alien" },
   ];
   let unmatched = (): object => ({ items });
-  openApp(
-    "/admin/needs-a-match",
+  openSettings(
+    "needs-a-match",
     adminServer(events.stream, (router) => {
       router.service(MatchService, {
         listUnmatchedItems: () => unmatched(),
@@ -197,24 +198,12 @@ test("an Item Matched elsewhere leaves Needs a Match when its Event arrives", as
 });
 
 test("needs a Match says when everything is Matched", async () => {
-  openApp(
-    "/admin/needs-a-match",
+  openSettings(
+    "needs-a-match",
     adminServer(new ReadableStream(), (router) => {
       router.service(MatchService, { listUnmatchedItems: () => ({}) });
     }),
   );
 
   await expect(screen.findByText("Everything is Matched.")).resolves.toBeDefined();
-});
-
-test("needs a Match says when the picked Library isn't on the Server", async () => {
-  openApp(
-    "/admin/needs-a-match?library=9",
-    adminServer(new ReadableStream(), (router) => {
-      router.service(MatchService, { listUnmatchedItems: () => ({}) });
-    }),
-  );
-
-  await expect(screen.findByText("That Library isn’t on the Server.")).resolves.toBeDefined();
-  expect(screen.queryByText("Everything is Matched.")).toBeNull();
 });

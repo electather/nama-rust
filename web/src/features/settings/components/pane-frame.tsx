@@ -17,13 +17,13 @@ export function PaneFrame({
 }) {
   const titleId = useId();
   return (
-    <section aria-labelledby={titleId} className="flex flex-col gap-6 p-4 md:px-6 md:pt-2 md:pb-6">
+    <section aria-labelledby={titleId} className="flex flex-col gap-4 p-4 md:px-5 md:pt-2 md:pb-6">
       <h3 id={titleId} className="sr-only">
         {sectionTitles[section]}
       </h3>
       <div className="flex justify-end empty:hidden">{action}</div>
       {/* Apart from the action, so a row that comes first has no hairline over it. */}
-      <div className="flex flex-col gap-6">{children}</div>
+      <div className="flex flex-col gap-4">{children}</div>
     </section>
   );
 }

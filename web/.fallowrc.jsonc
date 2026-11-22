@@ -15,14 +15,14 @@
   "workspaces": { "settings": { "ui": { "includeEntryExports": true } } },
   // Run by `buf generate` in proto/, never imported.
   "ignoreDependencies": ["@bufbuild/protoc-gen-es"],
-  // web/src/AGENTS.md, "File size". Fallow sets limits by glob, not by zone.
+  // web/AGENTS.md, "File size". Fallow sets limits by glob, not by zone.
   "health": {
     "maxCyclomatic": 15,
     "maxCognitive": 15,
     "maxFileLines": 200,
     "thresholdOverrides": [
       {
-        "files": ["src/**/__tests__/**"],
+        "files": ["**/__tests__/**"],
         "maxFileLines": 400,
         "reason": "A test file holds a feature's cases and the fixtures they share.",
       },
@@ -139,12 +139,13 @@
       },
       {
         "from": "action-bar",
-        "allow": ["action-bar", "shared-components", "shared-hooks", "shared-lib"],
+        // Its Settings and Admin pages open Settings at a section.
+        "allow": ["action-bar", "settings", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "settings",
         // Its Plugins, Default Home and Users panes render the admin features' parts (Users also renders Invites'); its Backups pane renders Backups' parts,
-        // and each Backup's row says when it was written as a Job's Run does. Its Devices pane signs in another Device with the Sign-in Code parts of `/code`.
+        // and each Backup's row says when it was written as a Job's Run does. Its Libraries, Needs a Match, Now Playing and Jobs panes render those features' parts. Its Devices pane signs in another Device with the Sign-in Code parts of `/code`.
         "allow": [
           "settings",
           "admin-plugins",
@@ -154,6 +155,9 @@
           "admin-playback",
           "admin-backups",
           "admin-jobs",
+          "admin-needs-a-match",
+          "admin-now-playing",
+          "admin-libraries",
           "auth",
           "shared-components",
           "shared-hooks",
@@ -193,11 +197,7 @@
         "allow": [
           "app",
           "auth",
-          "admin-libraries",
-          "admin-needs-a-match",
           "admin-playback",
-          "admin-jobs",
-          "admin-now-playing",
           "invites",
           "requests",
           "action-bar",

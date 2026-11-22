@@ -2,15 +2,15 @@ import { Copy } from "lucide-react";
 import { Button } from "nama-ui/components/button";
 import { useState } from "react";
 
-/** Copies `url`, then says it did. */
-export function CopyLinkButton({ url }: { url: string }) {
+/** Copies `url`, or a command in its place, then says it did. `label` says what it copies. */
+export function CopyLinkButton({ url, label = "Copy link" }: { url: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   async function copy() {
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
     } catch {
-      // Unable to copy, the link can still be selected in the field.
+      // Unable to copy, the text can still be selected where it shows.
     }
   }
   return (
@@ -21,7 +21,7 @@ export function CopyLinkButton({ url }: { url: string }) {
       }}
     >
       <Copy aria-hidden className="size-4" />
-      {copied ? "Copied" : "Copy link"}
+      {copied ? "Copied" : label}
     </Button>
   );
 }

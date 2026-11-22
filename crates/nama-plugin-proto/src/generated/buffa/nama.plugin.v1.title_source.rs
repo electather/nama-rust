@@ -3291,6 +3291,15 @@ pub struct Movie {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub crew: ::buffa::alloc::vec::Vec<Role>,
+    /// The Box Set it belongs to, unset if none. A Movie belongs to at most one per source.
+    ///
+    /// Field 17: `box_set`
+    #[serde(
+        rename = "boxSet",
+        alias = "box_set",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub box_set: ::buffa::MessageField<BoxSet, ::buffa::Inline<BoxSet>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3313,6 +3322,7 @@ impl ::core::fmt::Debug for Movie {
             .field("trailers", &self.trailers)
             .field("cast", &self.cast)
             .field("crew", &self.crew)
+            .field("box_set", &self.box_set)
             .finish()
     }
 }
@@ -3494,6 +3504,14 @@ impl ::buffa::Message for Movie {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.box_set.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.box_set.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3568,6 +3586,14 @@ impl ::buffa::Message for Movie {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if self.box_set.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                17u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.box_set.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3748,6 +3774,17 @@ impl ::buffa::Message for Movie {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.crew.push(elem);
             }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.box_set.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3771,6 +3808,7 @@ impl ::buffa::Message for Movie {
         self.trailers.clear();
         self.cast.clear();
         self.crew.clear();
+        self.box_set = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3801,6 +3839,324 @@ pub const __MOVIE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type
     type_url: "type.googleapis.com/nama.plugin.v1.Movie",
     to_json: ::buffa::type_registry::any_to_json::<Movie>,
     from_json: ::buffa::type_registry::any_from_json::<Movie>,
+    is_wkt: false,
+};
+/// A group of Movies the source says belong together, such as the Alien films. It is a grouping,
+/// not a title: the Kernel never Matches a file to it.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct BoxSet {
+    /// Its id, in the namespace the source keeps titles under.
+    ///
+    /// Field 1: `id`
+    #[serde(
+        rename = "id",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub id: ::buffa::MessageField<TitleId, ::buffa::Inline<TitleId>>,
+    /// Its name, in the source's language.
+    ///
+    /// Field 2: `name`
+    #[serde(
+        rename = "name",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub name: ::buffa::alloc::string::String,
+    /// A summary.
+    ///
+    /// Field 3: `overview`
+    #[serde(
+        rename = "overview",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub overview: ::core::option::Option<::buffa::alloc::string::String>,
+    /// The poster, as a path for the `title_image` export.
+    ///
+    /// Field 4: `poster`
+    #[serde(rename = "poster", skip_serializing_if = "::core::option::Option::is_none")]
+    pub poster: ::core::option::Option<::buffa::alloc::string::String>,
+    /// The backdrop, as a path for the `title_image` export.
+    ///
+    /// Field 5: `backdrop`
+    #[serde(
+        rename = "backdrop",
+        skip_serializing_if = "::core::option::Option::is_none"
+    )]
+    pub backdrop: ::core::option::Option<::buffa::alloc::string::String>,
+    /// Its Movies' ids in release order, those without a release date last. Empty when the source
+    /// doesn't list them: the Kernel then groups only the Movies it has that name the Box Set.
+    ///
+    /// Field 6: `movies`
+    #[serde(
+        rename = "movies",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub movies: ::buffa::alloc::vec::Vec<TitleId>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for BoxSet {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("BoxSet")
+            .field("id", &self.id)
+            .field("name", &self.name)
+            .field("overview", &self.overview)
+            .field("poster", &self.poster)
+            .field("backdrop", &self.backdrop)
+            .field("movies", &self.movies)
+            .finish()
+    }
+}
+impl BoxSet {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.BoxSet";
+}
+impl BoxSet {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::overview`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_overview(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.overview = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::poster`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_poster(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.poster = Some(value.into());
+        self
+    }
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::backdrop`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_backdrop(
+        mut self,
+        value: impl Into<::buffa::alloc::string::String>,
+    ) -> Self {
+        self.backdrop = Some(value.into());
+        self
+    }
+}
+::buffa::impl_default_instance!(BoxSet);
+impl ::buffa::MessageName for BoxSet {
+    const PACKAGE: &'static str = "nama.plugin.v1";
+    const NAME: &'static str = "BoxSet";
+    const FULL_NAME: &'static str = "nama.plugin.v1.BoxSet";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.plugin.v1.BoxSet";
+}
+impl ::buffa::Message for BoxSet {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if !self.name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
+        }
+        if let Some(ref v) = self.overview {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.poster {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if let Some(ref v) = self.backdrop {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        for v in &self.movies {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.id.write_to(__cache, buf);
+        }
+        if !self.name.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.name, buf);
+        }
+        if let Some(ref v) = self.overview {
+            ::buffa::types::put_string_field(3u32, v, buf);
+        }
+        if let Some(ref v) = self.poster {
+            ::buffa::types::put_string_field(4u32, v, buf);
+        }
+        if let Some(ref v) = self.backdrop {
+            ::buffa::types::put_string_field(5u32, v, buf);
+        }
+        for v in &self.movies {
+            ::buffa::types::put_len_delimited_header(
+                6u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.id.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.name, buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .overview
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self.poster.get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(
+                    self
+                        .backdrop
+                        .get_or_insert_with(::buffa::alloc::string::String::new),
+                    buf,
+                )?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.movies.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.id = ::buffa::MessageField::none();
+        self.name.clear();
+        self.overview = ::core::option::Option::None;
+        self.poster = ::core::option::Option::None;
+        self.backdrop = ::core::option::Option::None;
+        self.movies.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for BoxSet {
+    const PROTO_FQN: &'static str = "nama.plugin.v1.BoxSet";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for BoxSet {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __BOX_SET_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.plugin.v1.BoxSet",
+    to_json: ::buffa::type_registry::any_to_json::<BoxSet>,
+    from_json: ::buffa::type_registry::any_from_json::<BoxSet>,
     is_wkt: false,
 };
 /// A Show's details.

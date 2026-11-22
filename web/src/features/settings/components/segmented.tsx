@@ -17,7 +17,7 @@ export function Segmented<Value extends string>({
   "aria-describedby"?: string;
 }) {
   return (
-    <div role="radiogroup" {...group} className="flex h-11 rounded-lg bg-muted p-0.75 md:h-8">
+    <div role="radiogroup" {...group} className="flex h-11 rounded-lg bg-muted p-0.75 md:h-7">
       {options.map(([each, label]) => (
         <label
           key={each}

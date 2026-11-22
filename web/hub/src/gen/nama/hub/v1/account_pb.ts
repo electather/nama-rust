@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/hub/v1/account.proto.
  */
 export const file_nama_hub_v1_account: GenFile = /*@__PURE__*/
-  fileDesc("ChluYW1hL2h1Yi92MS9hY2NvdW50LnByb3RvEgtuYW1hLmh1Yi52MSIkCgdBY2NvdW50EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJIjcKFENyZWF0ZUFjY291bnRSZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIj4KFUNyZWF0ZUFjY291bnRSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudCIwCg1TaWduSW5SZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIjcKDlNpZ25JblJlc3BvbnNlEiUKB2FjY291bnQYASABKAsyFC5uYW1hLmh1Yi52MS5BY2NvdW50IjsKFVNlbmRTaWduSW5MaW5rUmVxdWVzdBINCgVlbWFpbBgBIAEoCRITCgtjb250aW51ZV90bxgCIAEoCSIYChZTZW5kU2lnbkluTGlua1Jlc3BvbnNlIiUKFEdldFNpZ25JbkxpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFUdldFNpZ25JbkxpbmtSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudBIUCgxlbWFpbF9wcm92ZW4YAiABKAgiJgoVU2lnbkluV2l0aExpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFlNpZ25JbldpdGhMaW5rUmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQSEwoLY29udGludWVfdG8YAiABKAkiEAoOU2lnbk91dFJlcXVlc3QiEQoPU2lnbk91dFJlc3BvbnNlIhMKEUdldEFjY291bnRSZXF1ZXN0IjsKEkdldEFjY291bnRSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudDLTBAoOQWNjb3VudFNlcnZpY2USVgoNQ3JlYXRlQWNjb3VudBIhLm5hbWEuaHViLnYxLkNyZWF0ZUFjY291bnRSZXF1ZXN0GiIubmFtYS5odWIudjEuQ3JlYXRlQWNjb3VudFJlc3BvbnNlEkEKBlNpZ25JbhIaLm5hbWEuaHViLnYxLlNpZ25JblJlcXVlc3QaGy5uYW1hLmh1Yi52MS5TaWduSW5SZXNwb25zZRJZCg5TZW5kU2lnbkluTGluaxIiLm5hbWEuaHViLnYxLlNlbmRTaWduSW5MaW5rUmVxdWVzdBojLm5hbWEuaHViLnYxLlNlbmRTaWduSW5MaW5rUmVzcG9uc2USVgoNR2V0U2lnbkluTGluaxIhLm5hbWEuaHViLnYxLkdldFNpZ25JbkxpbmtSZXF1ZXN0GiIubmFtYS5odWIudjEuR2V0U2lnbkluTGlua1Jlc3BvbnNlElkKDlNpZ25JbldpdGhMaW5rEiIubmFtYS5odWIudjEuU2lnbkluV2l0aExpbmtSZXF1ZXN0GiMubmFtYS5odWIudjEuU2lnbkluV2l0aExpbmtSZXNwb25zZRJECgdTaWduT3V0EhsubmFtYS5odWIudjEuU2lnbk91dFJlcXVlc3QaHC5uYW1hLmh1Yi52MS5TaWduT3V0UmVzcG9uc2USUgoKR2V0QWNjb3VudBIeLm5hbWEuaHViLnYxLkdldEFjY291bnRSZXF1ZXN0Gh8ubmFtYS5odWIudjEuR2V0QWNjb3VudFJlc3BvbnNlIgOQAgFiBnByb3RvMw");
+  fileDesc("ChluYW1hL2h1Yi92MS9hY2NvdW50LnByb3RvEgtuYW1hLmh1Yi52MSIkCgdBY2NvdW50EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJIjcKFENyZWF0ZUFjY291bnRSZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIj4KFUNyZWF0ZUFjY291bnRSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudCIwCg1TaWduSW5SZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIjcKDlNpZ25JblJlc3BvbnNlEiUKB2FjY291bnQYASABKAsyFC5uYW1hLmh1Yi52MS5BY2NvdW50IjsKFVNlbmRTaWduSW5MaW5rUmVxdWVzdBINCgVlbWFpbBgBIAEoCRITCgtjb250aW51ZV90bxgCIAEoCSIYChZTZW5kU2lnbkluTGlua1Jlc3BvbnNlIiUKFEdldFNpZ25JbkxpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFUdldFNpZ25JbkxpbmtSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudBIUCgxlbWFpbF9wcm92ZW4YAiABKAgiJgoVU2lnbkluV2l0aExpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFlNpZ25JbldpdGhMaW5rUmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQSEwoLY29udGludWVfdG8YAiABKAkiJgoSU2V0UGFzc3dvcmRSZXF1ZXN0EhAKCHBhc3N3b3JkGAEgASgJIhUKE1NldFBhc3N3b3JkUmVzcG9uc2UiEAoOU2lnbk91dFJlcXVlc3QiEQoPU2lnbk91dFJlc3BvbnNlIhMKEUdldEFjY291bnRSZXF1ZXN0IlEKEkdldEFjY291bnRSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudBIUCgxoYXNfcGFzc3dvcmQYAiABKAgypQUKDkFjY291bnRTZXJ2aWNlElYKDUNyZWF0ZUFjY291bnQSIS5uYW1hLmh1Yi52MS5DcmVhdGVBY2NvdW50UmVxdWVzdBoiLm5hbWEuaHViLnYxLkNyZWF0ZUFjY291bnRSZXNwb25zZRJBCgZTaWduSW4SGi5uYW1hLmh1Yi52MS5TaWduSW5SZXF1ZXN0GhsubmFtYS5odWIudjEuU2lnbkluUmVzcG9uc2USWQoOU2VuZFNpZ25JbkxpbmsSIi5uYW1hLmh1Yi52MS5TZW5kU2lnbkluTGlua1JlcXVlc3QaIy5uYW1hLmh1Yi52MS5TZW5kU2lnbkluTGlua1Jlc3BvbnNlElYKDUdldFNpZ25JbkxpbmsSIS5uYW1hLmh1Yi52MS5HZXRTaWduSW5MaW5rUmVxdWVzdBoiLm5hbWEuaHViLnYxLkdldFNpZ25JbkxpbmtSZXNwb25zZRJZCg5TaWduSW5XaXRoTGluaxIiLm5hbWEuaHViLnYxLlNpZ25JbldpdGhMaW5rUmVxdWVzdBojLm5hbWEuaHViLnYxLlNpZ25JbldpdGhMaW5rUmVzcG9uc2USUAoLU2V0UGFzc3dvcmQSHy5uYW1hLmh1Yi52MS5TZXRQYXNzd29yZFJlcXVlc3QaIC5uYW1hLmh1Yi52MS5TZXRQYXNzd29yZFJlc3BvbnNlEkQKB1NpZ25PdXQSGy5uYW1hLmh1Yi52MS5TaWduT3V0UmVxdWVzdBocLm5hbWEuaHViLnYxLlNpZ25PdXRSZXNwb25zZRJSCgpHZXRBY2NvdW50Eh4ubmFtYS5odWIudjEuR2V0QWNjb3VudFJlcXVlc3QaHy5uYW1hLmh1Yi52MS5HZXRBY2NvdW50UmVzcG9uc2UiA5ACAWIGcHJvdG8z");
 
 /**
  * A person's identity on the Hub.
@@ -253,6 +253,38 @@ export const SignInWithLinkResponseSchema: GenMessage<SignInWithLinkResponse> = 
   messageDesc(file_nama_hub_v1_account, 10);
 
 /**
+ * @generated from message nama.hub.v1.SetPasswordRequest
+ */
+export type SetPasswordRequest = Message<"nama.hub.v1.SetPasswordRequest"> & {
+  /**
+   * 8 to 1024 characters.
+   *
+   * @generated from field: string password = 1;
+   */
+  password: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.SetPasswordRequest.
+ * Use `create(SetPasswordRequestSchema)` to create a new message.
+ */
+export const SetPasswordRequestSchema: GenMessage<SetPasswordRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 11);
+
+/**
+ * @generated from message nama.hub.v1.SetPasswordResponse
+ */
+export type SetPasswordResponse = Message<"nama.hub.v1.SetPasswordResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.SetPasswordResponse.
+ * Use `create(SetPasswordResponseSchema)` to create a new message.
+ */
+export const SetPasswordResponseSchema: GenMessage<SetPasswordResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 12);
+
+/**
  * @generated from message nama.hub.v1.SignOutRequest
  */
 export type SignOutRequest = Message<"nama.hub.v1.SignOutRequest"> & {
@@ -263,7 +295,7 @@ export type SignOutRequest = Message<"nama.hub.v1.SignOutRequest"> & {
  * Use `create(SignOutRequestSchema)` to create a new message.
  */
 export const SignOutRequestSchema: GenMessage<SignOutRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_account, 11);
+  messageDesc(file_nama_hub_v1_account, 13);
 
 /**
  * @generated from message nama.hub.v1.SignOutResponse
@@ -276,7 +308,7 @@ export type SignOutResponse = Message<"nama.hub.v1.SignOutResponse"> & {
  * Use `create(SignOutResponseSchema)` to create a new message.
  */
 export const SignOutResponseSchema: GenMessage<SignOutResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_account, 12);
+  messageDesc(file_nama_hub_v1_account, 14);
 
 /**
  * @generated from message nama.hub.v1.GetAccountRequest
@@ -289,7 +321,7 @@ export type GetAccountRequest = Message<"nama.hub.v1.GetAccountRequest"> & {
  * Use `create(GetAccountRequestSchema)` to create a new message.
  */
 export const GetAccountRequestSchema: GenMessage<GetAccountRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_account, 13);
+  messageDesc(file_nama_hub_v1_account, 15);
 
 /**
  * @generated from message nama.hub.v1.GetAccountResponse
@@ -299,6 +331,13 @@ export type GetAccountResponse = Message<"nama.hub.v1.GetAccountResponse"> & {
    * @generated from field: nama.hub.v1.Account account = 1;
    */
   account?: Account | undefined;
+
+  /**
+   * Whether the Account has a password. One a Sign-in Link took over has none (ADR 0100).
+   *
+   * @generated from field: bool has_password = 2;
+   */
+  hasPassword: boolean;
 };
 
 /**
@@ -306,7 +345,7 @@ export type GetAccountResponse = Message<"nama.hub.v1.GetAccountResponse"> & {
  * Use `create(GetAccountResponseSchema)` to create a new message.
  */
 export const GetAccountResponseSchema: GenMessage<GetAccountResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_account, 14);
+  messageDesc(file_nama_hub_v1_account, 16);
 
 /**
  * Creating an Account, and signing it in and out, for the Hub's web pages. A session is an
@@ -377,6 +416,20 @@ export const AccountService: GenService<{
     methodKind: "unary";
     input: typeof SignInWithLinkRequestSchema;
     output: typeof SignInWithLinkResponseSchema;
+  },
+  /**
+   * Sets the signed-in Account's password, replacing any it has, and ends the Account's other
+   * sessions. Needs Recent Authentication: the calling session signed in, with any Sign-in Method,
+   * in the last 10 minutes. Fails with `REFUSAL_REASON_SIGN_IN_REQUIRED` without a session,
+   * `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` before the password is checked, and
+   * `REFUSAL_REASON_PASSWORD_LENGTH`.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.SetPassword
+   */
+  setPassword: {
+    methodKind: "unary";
+    input: typeof SetPasswordRequestSchema;
+    output: typeof SetPasswordResponseSchema;
   },
   /**
    * Ends the calling session and clears its cookie. Fails with `REFUSAL_REASON_SIGN_IN_REQUIRED`

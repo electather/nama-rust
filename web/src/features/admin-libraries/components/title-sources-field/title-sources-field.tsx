@@ -4,34 +4,27 @@ import { AddSources } from "@/features/admin-libraries/components/title-sources-
 import { NoSourceSearches } from "@/features/admin-libraries/components/title-sources-field/no-source-searches";
 import { SourceRow } from "@/features/admin-libraries/components/title-sources-field/source-row";
 import { useTitleSources } from "@/features/admin-libraries/data/use-title-sources";
-import { useOrderResetWithForm } from "@/features/admin-libraries/hooks/use-order-reset-with-form";
 import { sourceName, unusable } from "@/features/admin-libraries/lib/title-sources";
 
-/** A new Library's title sources, as the Server would set them. */
-const tmdbAlone = ["tmdb"];
-
 /**
- * The Library's title sources in order, which an Admin reorders, adds to and removes from, sent as
- * one `titleSources` form value per source. At least one always stays.
+ * The Library's title sources in their `order`, which an Admin reorders, adds to and removes from,
+ * each change handed to `setOrder`. At least one always stays.
  */
 export function TitleSourcesField({
-  initial = tmdbAlone,
+  order,
+  setOrder,
   error,
 }: {
-  initial?: string[] | undefined;
+  order: string[];
+  setOrder: (order: string[]) => void;
   error?: string | undefined;
 }) {
   const id = useId();
-  const [order, setOrder, fieldset] = useOrderResetWithForm(initial);
   const data = useTitleSources();
   const listed = data?.titleSources ?? [];
 
   return (
-    <fieldset
-      ref={fieldset}
-      className="flex flex-col gap-2"
-      aria-describedby={`${id}-hint ${id}-error`}
-    >
+    <fieldset className="flex flex-col gap-2" aria-describedby={`${id}-hint ${id}-error`}>
       <legend className="mb-2 text-sm font-medium">Title sources</legend>
       <ol aria-label="Title sources" className="flex flex-col gap-1">
         {order.map((namespace, index) => {

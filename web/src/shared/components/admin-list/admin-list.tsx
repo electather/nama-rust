@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-/** The list on an admin page, such as its Plugins, Libraries or Users. */
+/** The list in an admin section of Settings, such as its Plugins, Libraries or Users. */
 export function AdminList({ children }: { children: ReactNode }) {
   return (
     // Pulled out by the rows' own padding, so what starts each row lines up with the heading.

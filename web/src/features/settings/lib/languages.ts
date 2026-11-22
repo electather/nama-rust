@@ -16,11 +16,17 @@ export interface Language {
   name: string;
 }
 
-/** Every language a User can pick, by name. */
+/**
+ * Every language a User can pick, by name. A code the browser can't name is left out rather than
+ * listed as itself, and so is a second code it gives the same name, such as Twi, which Chrome calls
+ * Akan: which codes those are depends on the browser.
+ */
 export const languages: Language[] = codes
   .map((code) => ({ code, name: names.of(code) ?? code }))
+  .filter(({ code, name }) => name !== code)
   // oxlint-disable-next-line unicorn/no-array-sort -- sorts the array just built, and the lib target has no toSorted
-  .sort((a, b) => a.name.localeCompare(b.name));
+  .sort((a, b) => a.name.localeCompare(b.name))
+  .filter(({ name }, index, all) => all[index - 1]?.name !== name);
 
 /** The name of the language `code` names, or `code` itself if it names none on the list. */
 export function languageName(code: string) {

@@ -129,6 +129,7 @@ pub fn vaapi_on_two_gpus_at(root: &Path, nodes: [&str; 2]) -> Vec<super::Hardwar
                 gpu
             }),
             tone_maps: false,
+            hevc: false,
         })
         .collect()
 }

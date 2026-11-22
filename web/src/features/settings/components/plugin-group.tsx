@@ -14,7 +14,7 @@ export function PluginGroup({
 }) {
   return (
     <SettingGroup title={title}>
-      <ul aria-label={title} className="-mb-2.5 flex flex-col">
+      <ul aria-label={title} className="-mb-1.5 flex flex-col">
         {plugins.map((plugin) => (
           <PluginItem key={plugin.id} plugin={plugin} onFlip={onFlip} />
         ))}

@@ -1,5 +1,5 @@
 import { Code } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
@@ -47,17 +47,12 @@ async function submitSetup(setupCode: string) {
   fireEvent.click(screen.getByRole("button", { name: "Set up" }));
 }
 
-test.each(["/", "/libraries/1", "/sign-in", "/admin/jobs"])(
-  "a fresh Server sends %s to /setup",
-  async (path) => {
-    const router = openApp(path, fakeServer({ setupRequired: true }));
+test.each(["/", "/libraries/1", "/sign-in"])("a fresh Server sends %s to /setup", async (path) => {
+  const router = openApp(path, fakeServer({ setupRequired: true }));
 
-    await expect(
-      screen.findByRole("heading", { name: "Set up Living Room" }),
-    ).resolves.toBeDefined();
-    expect(router.state.location.pathname).toBe("/setup");
-  },
-);
+  await expect(screen.findByRole("heading", { name: "Set up Living Room" })).resolves.toBeDefined();
+  expect(router.state.location.pathname).toBe("/setup");
+});
 
 test("setting up creates the first Admin and lands on the home page", async () => {
   const state: ServerState = { setupRequired: true };
@@ -71,7 +66,7 @@ test("setting up creates the first Admin and lands on the home page", async () =
   const router = openApp("/setup", transport);
 
   await submitSetup("ABCD-EFGH");
-  await expect(screen.findByRole("link", { name: "Admin" })).resolves.toBeDefined();
+  await expect(screen.findByRole("button", { name: /’s menu$/u })).resolves.toBeDefined();
   expect(router.state.location.pathname).toBe("/");
 });
 
@@ -186,55 +181,42 @@ test("signing in never redirects to another site", async () => {
   expect(router.state.location.href).toBe("/");
 });
 
-test("a User who manages nothing opening an Admin page is told they can't, and has no Admin link", async () => {
-  openApp("/admin/jobs", fakeServer({ signedIn: newUser }));
+test("a User who manages nothing has no Admin link, and /admin is a page not found", async () => {
+  openApp("/admin", fakeServer({ signedIn: newUser }));
 
-  await expect(
-    screen.findByRole("heading", { name: "You can’t open this page" }),
-  ).resolves.toBeDefined();
+  await expect(screen.findByRole("heading", { name: "Page not found" })).resolves.toBeDefined();
   expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
 });
 
+test("a Library manager's Admin link opens Settings at Libraries, and Back closes it", async () => {
+  const router = openApp("/requests", fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }));
+
+  fireEvent.click(await screen.findByRole("link", { name: "Admin" }));
+
+  await screen.findByRole("dialog", { name: "Settings" });
+  expect(router.state.location.search.settings).toBe("libraries");
+  router.history.back();
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog", { name: "Settings" })).toBeNull();
+  });
+});
+
 test.each([
-  {
-    name: "Manage Libraries",
-    permission: Permission.MANAGE_LIBRARIES,
-    landing: "/admin/libraries",
-    pages: ["Libraries", "Needs a Match"],
-  },
-  {
-    name: "Admin",
-    permission: Permission.ADMIN,
-    landing: "/admin/libraries",
-    pages: ["Libraries", "Needs a Match", "Now Playing", "Jobs"],
-  },
+  { who: "an Admin", permissions: admin, section: "libraries" },
+  { who: "a Settings manager", permissions: [Permission.MANAGE_SETTINGS], section: "server" },
+  { who: "a User manager", permissions: [Permission.MANAGE_USERS], section: "users" },
 ])(
-  "with only the $name Permission, Admin opens on $landing and lists only the pages it allows",
-  async ({ permission, landing, pages }) => {
-    const router = openApp(
-      "/admin",
-      fakeServer({ signedIn: [permission] }, {}, { listUsers: () => ({}) }),
-    );
+  "$who's G then A opens Settings at $section, over the page",
+  async ({ permissions, section }) => {
+    const router = openApp("/requests", fakeServer({ signedIn: permissions }));
+    await screen.findByRole("link", { name: "Admin" });
 
-    const nav = await screen.findByRole("navigation", { name: "Admin" });
-    expect(
-      within(nav)
-        .getAllByRole("link")
-        .map((link) => link.textContent),
-    ).toStrictEqual(pages);
-    expect(router.state.location.pathname).toBe(landing);
-  },
-);
+    fireEvent.keyDown(document.body, { key: "g" });
+    fireEvent.keyDown(document.body, { key: "a" });
 
-test.each(["/admin/jobs", "/admin/now-playing"])(
-  "a User with only Manage Libraries opening %s is told they can't",
-  async (path) => {
-    openApp(path, fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }));
-
-    await expect(
-      screen.findByRole("heading", { name: "You can’t open this page" }),
-    ).resolves.toBeDefined();
-    expect(screen.getByRole("link", { name: "Admin" })).toBeDefined();
+    await screen.findByRole("dialog", { name: "Settings" });
+    expect(router.state.location.pathname).toBe("/requests");
+    expect(router.state.location.search.settings).toBe(section);
   },
 );
 

@@ -30,3 +30,9 @@ export async function offered(label: string) {
   fireEvent.keyDown(options[0] ?? document.body, { key: "Escape" });
   return names;
 }
+
+/** Opens Settings' Libraries on their list, or on what `library` opens: an id, or `new`. */
+export function openLibraries(transport: ReturnType<typeof fakeServer>, library?: string) {
+  const open = library === undefined ? "" : `&library=${library}`;
+  return openApp(`/code?settings=libraries${open}`, transport);
+}

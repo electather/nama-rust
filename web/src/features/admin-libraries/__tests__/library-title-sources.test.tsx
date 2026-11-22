@@ -1,12 +1,14 @@
+import type { MessageInitShape } from "@bufbuild/protobuf";
 import { Code } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { LibraryKind } from "@/gen/nama/v1/library_pb";
+import { LibraryKind, type LibrarySchema } from "@/gen/nama/v1/library_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { admin, fakeServer, fill, openApp } from "@/test-app";
+import { admin, fakeServer, fill } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { openLibraries } from "@/test-settings";
 
 afterEach(cleanup);
 
@@ -49,7 +51,7 @@ function titleSourcesServer(
     signedIn?: Permission[];
   } = {},
 ) {
-  const library = {
+  let library = {
     id: 1n,
     name: "Films",
     kind: LibraryKind.MOVIES,
@@ -59,13 +61,14 @@ function titleSourcesServer(
   return fakeServer({
     signedIn,
     events: new ReadableStream(),
-    libraries: [library],
     libraryService: {
+      listLibraries: () => ({ libraries: [library] }),
       getLibrary: () => ({ library }),
       listTitleSources: () => ({ titleSources: listed }),
       updateLibrary: (request) => {
         saved(request.titleSources);
-        return { library: { ...library, titleSources: request.titleSources } };
+        library = { ...library, titleSources: request.titleSources };
+        return { library };
       },
       createLibrary: () => {
         throw refused(Code.InvalidArgument, "tmdb is named twice", {
@@ -84,44 +87,45 @@ function titleSourcesShown() {
     .map((item) => item.textContent);
 }
 
-test("a Library's title sources show in its order, and save unchanged", async () => {
+test("a Library's title sources show in its order, and removing one saves the rest as they are", async () => {
   let saved: string[] = [];
-  openApp(
-    "/admin/libraries/1",
+  openLibraries(
     titleSourcesServer(["tvdb", "imdb", "tmdb"], {
       saved: (sources) => {
         saved = sources;
       },
     }),
+    "1",
   );
   await screen.findByRole("button", { name: "Remove TVDB" });
 
   expect(titleSourcesShown()).toStrictEqual(["TVDB", "imdb · not available", "TMDB"]);
-  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
-  await screen.findByText("Saved. Scan the Library to pick up new folders.");
-  expect(saved).toStrictEqual(["tvdb", "imdb", "tmdb"]);
+  fireEvent.click(screen.getByRole("button", { name: "Remove TVDB" }));
+  await waitFor(() => {
+    expect(saved).toStrictEqual(["imdb", "tmdb"]);
+  });
 });
 
 test("moving a title source up saves the new order", async () => {
   let saved: string[] = [];
-  openApp(
-    "/admin/libraries/1",
+  openLibraries(
     titleSourcesServer(["tmdb"], {
       saved: (sources) => {
         saved = sources;
       },
     }),
+    "1",
   );
   fireEvent.click(await screen.findByRole("button", { name: "Add TVDB" }));
-  fireEvent.click(screen.getByRole("button", { name: "Move TVDB up" }));
-  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Move TVDB up" }));
 
-  await screen.findByText("Saved. Scan the Library to pick up new folders.");
-  expect(saved).toStrictEqual(["tvdb", "tmdb"]);
+  await waitFor(() => {
+    expect(saved).toStrictEqual(["tvdb", "tmdb"]);
+  });
 });
 
 test("the last title source can't be removed", async () => {
-  openApp("/admin/libraries/1", titleSourcesServer(["tvdb", "tmdb"]));
+  openLibraries(titleSourcesServer(["tvdb", "tmdb"]), "1");
   fireEvent.click(await screen.findByRole("button", { name: "Remove TVDB" }));
 
   expect(titleSourcesShown()).toStrictEqual(["TMDB"]);
@@ -129,12 +133,10 @@ test("the last title source can't be removed", async () => {
 });
 
 test("a refused title source order shows under the field", async () => {
-  openApp("/admin/libraries", titleSourcesServer(["tmdb"]));
+  openLibraries(titleSourcesServer(["tmdb"]), "new");
   await screen.findByRole("button", { name: "Create Library" });
   fill("Name", "Films");
-  fireEvent.change(screen.getByRole("textbox", { name: "Folders" }), {
-    target: { value: "/srv/films" },
-  });
+  fill("Folders", "/srv/films");
   fireEvent.click(screen.getByRole("button", { name: "Create Library" }));
 
   const error = await screen.findByText("Tmdb is named twice.");
@@ -142,35 +144,37 @@ test("a refused title source order shows under the field", async () => {
   expect(field.getAttribute("aria-describedby")).toContain(error.id);
 });
 
-test("creating a Library puts the title sources back to TMDB alone", async () => {
-  openApp(
-    "/admin/libraries",
+test("a new Library starts with TMDB alone, and creating it opens it", async () => {
+  const libraries: MessageInitShape<typeof LibrarySchema>[] = [];
+  openLibraries(
     fakeServer({
       signedIn: admin,
       events: new ReadableStream(),
-      libraries: [],
+      libraries,
       libraryService: {
         listTitleSources: () => ({ titleSources: [tmdb, tvdb] }),
-        createLibrary: (request) => ({
-          library: { id: 1n, name: request.name, kind: request.kind, folders: request.folders },
-        }),
+        createLibrary: ({ name, kind, folders }) => {
+          libraries.push({ id: 1n, name, kind, folders });
+          return { library: libraries[0] };
+        },
+        getLibrary: () => ({ library: libraries[0] }),
       },
     }),
+    "new",
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Add TVDB" }));
-  fireEvent.click(screen.getByRole("button", { name: "Move TVDB up" }));
+  await screen.findByRole("button", { name: "Add TVDB" });
+  expect(titleSourcesShown()).toStrictEqual(["TMDB"]);
   fill("Name", "Shows");
-  fireEvent.change(screen.getByRole("textbox", { name: "Folders" }), {
-    target: { value: "/srv/shows" },
-  });
+  fill("Folders", "/srv/shows");
   fireEvent.click(screen.getByRole("button", { name: "Create Library" }));
 
-  await screen.findByText("Shows is ready. Scan it to fill it.");
-  expect(titleSourcesShown()).toStrictEqual(["TMDB"]);
+  await expect(screen.findByRole("heading", { name: "Shows" })).resolves.toBeDefined();
+  const crumbs = screen.getByRole("navigation", { name: "Breadcrumbs" });
+  expect(crumbs.textContent).toBe("LibrariesShows");
 });
 
 test("a source that doesn't search shows as artwork only, in its row and on its add button", async () => {
-  openApp("/admin/libraries/1", titleSourcesServer(["tmdb"]));
+  openLibraries(titleSourcesServer(["tmdb"]), "1");
   const add = await screen.findByRole("button", { name: "Add fanart.tv · Artwork only" });
   fireEvent.click(add);
 
@@ -179,7 +183,7 @@ test("a source that doesn't search shows as artwork only, in its row and on its 
 });
 
 test("an order where no running source searches names why each can't, and links to the Plugins", async () => {
-  openApp("/admin/libraries/1", titleSourcesServer(["tvdb", "fanart"], { listed: [tmdb, fanart] }));
+  openLibraries(titleSourcesServer(["tvdb", "fanart"], { listed: [tmdb, fanart] }), "1");
   await screen.findByRole("button", { name: "Remove fanart.tv" });
 
   const note = await screen.findByText(/no source above can search for titles/iu);
@@ -187,13 +191,13 @@ test("an order where no running source searches names why each can't, and links 
     "No source above can search for titles: tvdb isn’t running and fanart.tv only adds artwork.",
   );
   const plugins = within(note).getByRole("link", { name: "Plugins" });
-  expect(plugins.getAttribute("href")).toBe("/admin/libraries/1?settings=plugins");
+  expect(plugins.getAttribute("href")).toBe("/code?settings=plugins");
 });
 
 test("the note names the Plugins without a link for a User who can't manage them", async () => {
-  openApp(
-    "/admin/libraries/1",
+  openLibraries(
     titleSourcesServer(["tvdb"], { listed: [tmdb], signedIn: [Permission.MANAGE_LIBRARIES] }),
+    "1",
   );
 
   const note = await screen.findByText(/no source above can search for titles/iu);
@@ -202,16 +206,16 @@ test("the note names the Plugins without a link for a User who can't manage them
 });
 
 test("an order with a running source that searches says nothing of it", async () => {
-  openApp("/admin/libraries/1", titleSourcesServer(["fanart", "tmdb"]));
+  openLibraries(titleSourcesServer(["fanart", "tmdb"]), "1");
   await screen.findByRole("button", { name: "Remove TMDB" });
 
   expect(screen.queryByText(/no source above can search for titles/iu)).toBeNull();
 });
 
 test("a stored source whose Plugin isn't running shows by the Plugin's name", async () => {
-  openApp(
-    "/admin/libraries/1",
+  openLibraries(
     titleSourcesServer(["tmdb", "tvdb", "imdb"], { listed: [tmdb, tvdbDisabled] }),
+    "1",
   );
   await screen.findByRole("button", { name: "Remove TVDB" });
 
@@ -220,14 +224,14 @@ test("a stored source whose Plugin isn't running shows by the Plugin's name", as
 });
 
 test("a source that isn't running can't be added", async () => {
-  openApp("/admin/libraries/1", titleSourcesServer(["tmdb"], { listed: [tmdb, tvdbDisabled] }));
+  openLibraries(titleSourcesServer(["tmdb"], { listed: [tmdb, tvdbDisabled] }), "1");
   await screen.findByRole("button", { name: "Remove TMDB" });
 
   expect(screen.queryByRole("button", { name: /^Add/u })).toBeNull();
 });
 
 test("a searching source that isn't running doesn't count as one that searches", async () => {
-  openApp("/admin/libraries/1", titleSourcesServer(["tvdb"], { listed: [tmdb, tvdbDisabled] }));
+  openLibraries(titleSourcesServer(["tvdb"], { listed: [tmdb, tvdbDisabled] }), "1");
 
   const note = await screen.findByText(/no source above can search for titles/iu);
   expect(note.textContent).toContain("No source above can search for titles: TVDB isn’t running.");

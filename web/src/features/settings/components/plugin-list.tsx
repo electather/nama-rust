@@ -23,7 +23,7 @@ export function PluginList({ summaries }: { summaries: PluginSummary[] }) {
   const { refused, dismiss, flip } = usePluginSwitch();
   const groups = pluginGroups(matchingPlugins(summaries, typed, kind));
   const listed = (
-    <div className="flex flex-col gap-6 px-4 pt-3 pb-4 md:px-6 md:pb-6">
+    <div className="flex flex-col gap-4 px-4 pt-3 pb-4 md:px-5 md:pb-6">
       {groups.map((group) => (
         <PluginGroup key={group.title} {...group} onFlip={flip} />
       ))}
