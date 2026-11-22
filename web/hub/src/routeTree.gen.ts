@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CreateAccountRouteImport } from './routes/create-account'
+import { Route as HistoryRouteImport } from './routes/history'
 import { Route as SendSignInLinkRouteImport } from './routes/send-sign-in-link'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as SignInLinkRouteImport } from './routes/sign-in-link'
@@ -23,6 +24,11 @@ const IndexRoute = IndexRouteImport.update({
 const CreateAccountRoute = CreateAccountRouteImport.update({
   id: '/create-account',
   path: '/create-account',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HistoryRoute = HistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SendSignInLinkRoute = SendSignInLinkRouteImport.update({
@@ -44,6 +50,7 @@ const SignInLinkRoute = SignInLinkRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/create-account': typeof CreateAccountRoute
+  '/history': typeof HistoryRoute
   '/send-sign-in-link': typeof SendSignInLinkRoute
   '/sign-in': typeof SignInRoute
   '/sign-in-link': typeof SignInLinkRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/create-account': typeof CreateAccountRoute
+  '/history': typeof HistoryRoute
   '/send-sign-in-link': typeof SendSignInLinkRoute
   '/sign-in': typeof SignInRoute
   '/sign-in-link': typeof SignInLinkRoute
@@ -59,6 +67,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/create-account': typeof CreateAccountRoute
+  '/history': typeof HistoryRoute
   '/send-sign-in-link': typeof SendSignInLinkRoute
   '/sign-in': typeof SignInRoute
   '/sign-in-link': typeof SignInLinkRoute
@@ -68,6 +77,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/create-account'
+    | '/history'
     | '/send-sign-in-link'
     | '/sign-in'
     | '/sign-in-link'
@@ -75,6 +85,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/create-account'
+    | '/history'
     | '/send-sign-in-link'
     | '/sign-in'
     | '/sign-in-link'
@@ -82,6 +93,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/create-account'
+    | '/history'
     | '/send-sign-in-link'
     | '/sign-in'
     | '/sign-in-link'
@@ -90,6 +102,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CreateAccountRoute: typeof CreateAccountRoute
+  HistoryRoute: typeof HistoryRoute
   SendSignInLinkRoute: typeof SendSignInLinkRoute
   SignInRoute: typeof SignInRoute
   SignInLinkRoute: typeof SignInLinkRoute
@@ -109,6 +122,13 @@ declare module '@tanstack/react-router' {
       path: '/create-account'
       fullPath: '/create-account'
       preLoaderRoute: typeof CreateAccountRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/history': {
+      id: '/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof HistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/send-sign-in-link': {
@@ -138,6 +158,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CreateAccountRoute: CreateAccountRoute,
+  HistoryRoute: HistoryRoute,
   SendSignInLinkRoute: SendSignInLinkRoute,
   SignInRoute: SignInRoute,
   SignInLinkRoute: SignInLinkRoute,
