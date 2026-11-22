@@ -2849,6 +2849,17 @@ pub struct TitleView<'a> {
     ///
     /// Field 9: `show_id`
     pub show_id: ::buffa::MessageFieldView<super::super::__buffa::view::TitleIdView<'a>>,
+    /// Every id of the Movie or the Episode, `title_ref.id` among them, any of which identifies it.
+    ///
+    /// Field 10: `ids`
+    pub ids: ::buffa::RepeatedView<'a, super::super::__buffa::view::TitleIdView<'a>>,
+    /// Every id of the Episode's Show, `show_id` among them. Empty for a Movie.
+    ///
+    /// Field 11: `show_ids`
+    pub show_ids: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::TitleIdView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for TitleView<'a> {
@@ -2976,6 +2987,42 @@ impl<'a> ::buffa::MessageView<'a> for TitleView<'a> {
                 )?;
                 view.genres.push(__elem);
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TitleIdView>(),
+                )?;
+                view.ids
+                    .push(
+                        <super::super::__buffa::view::TitleIdView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TitleIdView>(),
+                )?;
+                view.show_ids
+                    .push(
+                        <super::super::__buffa::view::TitleIdView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -3023,6 +3070,16 @@ impl<'a> ::buffa::MessageView<'a> for TitleView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            ids: self
+                .ids
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            show_ids: self
+                .show_ids
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -3066,6 +3123,22 @@ impl<'a> ::buffa::ViewEncode<'a> for TitleView<'a> {
         if self.show_id.is_set() {
             let __slot = __cache.reserve();
             let inner_size = self.show_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.ids {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.show_ids {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
@@ -3118,6 +3191,22 @@ impl<'a> ::buffa::ViewEncode<'a> for TitleView<'a> {
                 buf,
             );
             self.show_id.write_to(__cache, buf);
+        }
+        for v in &self.ids {
+            ::buffa::types::put_len_delimited_header(
+                10u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.show_ids {
+            ::buffa::types::put_len_delimited_header(
+                11u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3182,6 +3271,12 @@ impl<'__a> ::serde::Serialize for TitleView<'__a> {
             if let ::core::option::Option::Some(__v) = self.show_id.as_option() {
                 __map.serialize_entry("showId", __v)?;
             }
+        }
+        if !self.ids.is_empty() {
+            __map.serialize_entry("ids", &*self.ids)?;
+        }
+        if !self.show_ids.is_empty() {
+            __map.serialize_entry("showIds", &*self.show_ids)?;
         }
         __map.end()
     }
@@ -3337,6 +3432,24 @@ impl TitleOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::TitleIdView<'_>> {
         &self.0.reborrow().show_id
+    }
+    /// Every id of the Movie or the Episode, `title_ref.id` among them, any of which identifies it.
+    ///
+    /// Field 10: `ids`
+    #[must_use]
+    pub fn ids(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleIdView<'_>> {
+        &self.0.reborrow().ids
+    }
+    /// Every id of the Episode's Show, `show_id` among them. Empty for a Movie.
+    ///
+    /// Field 11: `show_ids`
+    #[must_use]
+    pub fn show_ids(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleIdView<'_>> {
+        &self.0.reborrow().show_ids
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<TitleView<'static>>> for TitleOwnedView {

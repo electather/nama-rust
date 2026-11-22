@@ -164,6 +164,10 @@ message Title {
   optional string content_rating = 8;
   // The id of the Episode's Show, picked as `title_ref.id` is. Unset for a Movie.
   TitleId show_id = 9;
+  // Every id of the Movie or the Episode, `title_ref.id` among them, any of which identifies it.
+  repeated TitleId ids = 10;
+  // Every id of the Episode's Show, `show_id` among them. Empty for a Movie.
+  repeated TitleId show_ids = 11;
 }
 
 // Which Movie or Episode, in which Library.

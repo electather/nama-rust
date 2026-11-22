@@ -314,6 +314,8 @@ impl Caller {
                 genres: listed.genres,
                 content_rating: listed.content_rating,
                 show_id: listed.show_id.as_ref().map(title_id).into(),
+                ids: listed.ids.iter().map(|id| title_id(&id)).collect(),
+                show_ids: listed.show_ids.iter().map(|id| title_id(&id)).collect(),
                 ..Title::default()
             })
             .collect();
