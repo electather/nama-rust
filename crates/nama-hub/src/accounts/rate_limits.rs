@@ -98,8 +98,7 @@ impl SignInLimits {
     }
 
     fn lock(&self) -> MutexGuard<'_, Failures> {
-        // Every change leaves the counts consistent, so a panic elsewhere doesn't spoil them.
-        self.failures.lock().unwrap_or_else(PoisonError::into_inner)
+        lock(&self.failures)
     }
 }
 
@@ -108,20 +107,18 @@ impl CreationLimits {
     /// recently, and counts it.
     pub(super) fn admit(&self, ip: IpAddr, now: Instant) -> Result<(), Blocked> {
         let ip = counted_ip(ip);
-        let mut creations = self.lock();
+        let mut creations = lock(&self.creations);
         if let Some(retry_after) = creations.wait(&ip, CREATIONS_PER_IP, now) {
             return Err(Blocked { retry_after });
         }
         creations.record(ip, now);
         Ok(())
     }
+}
 
-    fn lock(&self) -> MutexGuard<'_, Window<IpAddr>> {
-        // As for sign-ins, every change leaves the counts consistent.
-        self.creations
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-    }
+fn lock<T>(counts: &Mutex<T>) -> MutexGuard<'_, T> {
+    // Every change leaves the counts consistent, so a panic elsewhere doesn't spoil them.
+    counts.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// What failures for `email` are counted under: lowercased, as emails are compared, and cut short
