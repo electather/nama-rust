@@ -105,3 +105,46 @@ test("a sign-in the Hub didn't approve says so, with the way back", async () => 
     "/sign-in",
   );
 });
+
+test("back from the Hub, “Confirm it’s you” finishes and goes back to the change", async () => {
+  keepAccountSignIn("secret");
+  const proofs: unknown[] = [];
+  const transport = fakeServer(
+    { signedIn: newUser },
+    {
+      reauthenticate: ({ proof }) => {
+        proofs.push(proof);
+        return {};
+      },
+    },
+  );
+  const router = openApp("/reauthenticate/account?redirect=%2Fcode", transport);
+
+  await vi.waitFor(() => {
+    expect(router.state.location.pathname).toBe("/code");
+  });
+  expect(proofs).toStrictEqual([{ case: "accountSignInHandle", value: "secret" }]);
+  expect(sessionStorage.getItem("nama.account-sign-in")).toBeNull();
+});
+
+test("an approval by an Account not Linked to you says so, with the way back", async () => {
+  const transport = fakeServer(
+    { signedIn: newUser },
+    {
+      reauthenticate: () => {
+        throw refused(Code.Unauthenticated, "the Account that approved isn't yours", {
+          reason: RefusalReason.WRONG_ACCOUNT,
+          field: "account_sign_in_handle",
+        });
+      },
+    },
+  );
+  openApp("/reauthenticate/account?redirect=%2Fcode", transport);
+
+  await expect(
+    screen.findByText(
+      "Another Account approved this. Sign in to the Hub with the Account Linked to you, and try again.",
+    ),
+  ).resolves.toBeDefined();
+  expect(screen.getByRole("link", { name: "Go back" }).getAttribute("href")).toBe("/code");
+});

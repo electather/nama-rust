@@ -1,13 +1,17 @@
 import { Code } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { admin, fakeServer, fill, newUser, openApp } from "@/test-app";
 import { confirmItsYou, recentAuthenticationRequired, refused } from "@/test-refusal";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  sessionStorage.clear();
+});
 
 async function submitPasswordChange() {
   await screen.findByRole("button", { name: "Change password" });
@@ -192,4 +196,47 @@ test("changes refused together wait for one “Confirm it’s you”, then all g
     expect(promoted).toStrictEqual([[2n, [...newUser, Permission.ADMIN]]]);
   });
   expect(resets).toStrictEqual([[2n, "battery staple"]]);
+});
+
+test("on a Server Linked to the Hub, “Confirm it’s you” offers your Account, which comes back here", async () => {
+  // Going to another site would end the test's page, so where it went is only noted.
+  const went: string[] = [];
+  vi.spyOn(globalThis.location, "assign").mockImplementation((url) => {
+    went.push(String(url));
+  });
+  const returnsTo: URL[] = [];
+  openApp(
+    "/code?settings=signin",
+    fakeServer(
+      {
+        signedIn: newUser,
+        serverService: { getServerInfo: () => ({ name: "Living Room", accountSignIn: true }) },
+      },
+      {
+        // The pane's own, with the current password, which isn't enough here.
+        reauthenticate: () => ({}),
+        startAccountSignIn: ({ returnUrl }) => {
+          returnsTo.push(new URL(returnUrl));
+          return { url: "https://hub.example/server-sign-in/1", handle: "secret" };
+        },
+      },
+      {
+        changePassword: () => {
+          throw recentAuthenticationRequired();
+        },
+      },
+    ),
+  );
+
+  await submitPasswordChange();
+  const dialog = await screen.findByRole("alertdialog", { name: "Confirm it’s you" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Sign in with your Account" }));
+
+  await waitFor(() => {
+    expect(went).toStrictEqual(["https://hub.example/server-sign-in/1"]);
+  });
+  expect(returnsTo.map((url) => [url.pathname, url.searchParams.get("redirect")])).toStrictEqual([
+    ["/reauthenticate/account", "/code?settings=signin"],
+  ]);
+  expect(sessionStorage.getItem("nama.account-sign-in")).toBe("secret");
 });
