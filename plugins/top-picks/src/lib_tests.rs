@@ -313,8 +313,8 @@ fn a_title_played_in_two_libraries_counts_its_genres_once() {
         movie("6", &["Comedy"]),
     ];
     let mut states: Vec<_> = titles.iter().map(unwatched).collect();
-    for played in 0..4 {
-        states[played] = watched(&titles[played], true, 0);
+    for first_four in 0..4 {
+        states[first_four] = watched(&titles[first_four], true, 0);
     }
 
     assert_eq!(top_picks(&titles, &states, &[]), ["6", "4"]);
