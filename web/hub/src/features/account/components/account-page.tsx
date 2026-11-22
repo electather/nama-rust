@@ -4,12 +4,13 @@ import { useSignOut } from "@hub/features/account/data/sessions";
 import { LinkServerForm } from "@hub/features/links/components/link-server-form";
 import { LinkUserForm } from "@hub/features/links/components/link-user-form";
 import { ServerList } from "@hub/features/links/components/server-list";
+import { UserInvites } from "@hub/features/links/components/user-invites";
 import { UserList } from "@hub/features/links/components/user-list";
 import { Button } from "nama-ui/components/button";
 
 /**
- * The signed-in Account's email, its password, Linking a Server and the Servers it Linked, Linking a User
- * and the Users it Linked, and signing out.
+ * The signed-in Account's email, the Users created from it waiting for it, its password, Linking a
+ * Server and the Servers it Linked, Linking a User and the Users it Linked, and signing out.
  */
 export function AccountPage() {
   const account = useAccount();
@@ -21,6 +22,7 @@ export function AccountPage() {
         <dt className="text-xs text-muted-foreground">Email</dt>
         <dd className="text-base break-all">{account?.email}</dd>
       </dl>
+      <UserInvites />
       <PasswordForm />
       <LinkServerForm />
       <ServerList />

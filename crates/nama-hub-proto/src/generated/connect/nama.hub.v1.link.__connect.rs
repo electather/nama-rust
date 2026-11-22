@@ -54,6 +54,42 @@ pub type OwnedUnlinkLinkedUserRequestView = ::buffa::view::OwnedView<
 pub type OwnedUnlinkLinkedUserResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::UnlinkLinkedUserResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListUserInvitesRequestView<'static>>`.
+pub type OwnedListUserInvitesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListUserInvitesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListUserInvitesResponseView<'static>>`.
+pub type OwnedListUserInvitesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListUserInvitesResponseView<'static>,
+>;
+///Shorthand for `OwnedView<AcceptUserInviteRequestView<'static>>`.
+pub type OwnedAcceptUserInviteRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::AcceptUserInviteRequestView<'static>,
+>;
+///Shorthand for `OwnedView<AcceptUserInviteResponseView<'static>>`.
+pub type OwnedAcceptUserInviteResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::AcceptUserInviteResponseView<'static>,
+>;
+///Shorthand for `OwnedView<GetServerSignInRequestView<'static>>`.
+pub type OwnedGetServerSignInRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::GetServerSignInRequestView<'static>,
+>;
+///Shorthand for `OwnedView<GetServerSignInResponseView<'static>>`.
+pub type OwnedGetServerSignInResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::GetServerSignInResponseView<'static>,
+>;
+///Shorthand for `OwnedView<ApproveServerSignInRequestView<'static>>`.
+pub type OwnedApproveServerSignInRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ApproveServerSignInRequestView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<ApproveServerSignInResponseView<'static>>`.
+pub type OwnedApproveServerSignInResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ApproveServerSignInResponseView<
+        'static,
+    >,
+>;
 ///Shorthand for `OwnedView<UnlinkServerRequestView<'static>>`.
 pub type OwnedUnlinkServerRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::UnlinkServerRequestView<'static>,
@@ -61,6 +97,14 @@ pub type OwnedUnlinkServerRequestView = ::buffa::view::OwnedView<
 ///Shorthand for `OwnedView<UnlinkServerResponseView<'static>>`.
 pub type OwnedUnlinkServerResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::UnlinkServerResponseView<'static>,
+>;
+///Shorthand for `OwnedView<ListSimilarTitlesRequestView<'static>>`.
+pub type OwnedListSimilarTitlesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListSimilarTitlesResponseView<'static>>`.
+pub type OwnedListSimilarTitlesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesResponseView<'static>,
 >;
 ///Shorthand for `OwnedView<StartUserLinkRequestView<'static>>`.
 pub type OwnedStartUserLinkRequestView = ::buffa::view::OwnedView<
@@ -85,6 +129,40 @@ pub type OwnedUnlinkUserRequestView = ::buffa::view::OwnedView<
 ///Shorthand for `OwnedView<UnlinkUserResponseView<'static>>`.
 pub type OwnedUnlinkUserResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::UnlinkUserResponseView<'static>,
+>;
+///Shorthand for `OwnedView<InviteUserRequestView<'static>>`.
+pub type OwnedInviteUserRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::InviteUserRequestView<'static>,
+>;
+///Shorthand for `OwnedView<InviteUserResponseView<'static>>`.
+pub type OwnedInviteUserResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::InviteUserResponseView<'static>,
+>;
+///Shorthand for `OwnedView<StartServerSignInRequestView<'static>>`.
+pub type OwnedStartServerSignInRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::StartServerSignInRequestView<'static>,
+>;
+///Shorthand for `OwnedView<StartServerSignInResponseView<'static>>`.
+pub type OwnedStartServerSignInResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::StartServerSignInResponseView<'static>,
+>;
+///Shorthand for `OwnedView<PollServerSignInRequestView<'static>>`.
+pub type OwnedPollServerSignInRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PollServerSignInRequestView<'static>,
+>;
+///Shorthand for `OwnedView<PollServerSignInResponseView<'static>>`.
+pub type OwnedPollServerSignInResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PollServerSignInResponseView<'static>,
+>;
+///Shorthand for `OwnedView<SetServerAddressesRequestView<'static>>`.
+pub type OwnedSetServerAddressesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetServerAddressesResponseView<'static>>`.
+pub type OwnedSetServerAddressesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseView<
+        'static,
+    >,
 >;
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::StartServerLinkResponse>
 for crate::messages::nama::hub::v1::__buffa::view::StartServerLinkResponseView<'_> {
@@ -324,6 +402,144 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::ListUserInvitesResponse>
+for crate::messages::nama::hub::v1::__buffa::view::ListUserInvitesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::ListUserInvitesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListUserInvitesResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::AcceptUserInviteResponse>
+for crate::messages::nama::hub::v1::__buffa::view::AcceptUserInviteResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::AcceptUserInviteResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::AcceptUserInviteResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::GetServerSignInResponse>
+for crate::messages::nama::hub::v1::__buffa::view::GetServerSignInResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::GetServerSignInResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::GetServerSignInResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::ApproveServerSignInResponse>
+for crate::messages::nama::hub::v1::__buffa::view::ApproveServerSignInResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::ApproveServerSignInResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ApproveServerSignInResponseView<
+        'static,
+    >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::UnlinkServerResponse>
 for crate::messages::nama::hub::v1::__buffa::view::UnlinkServerResponseView<'_> {
     fn encode(
@@ -336,6 +552,40 @@ for crate::messages::nama::hub::v1::__buffa::view::UnlinkServerResponseView<'_> 
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::UnlinkServerResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::UnlinkServerResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::ListSimilarTitlesResponse>
+for crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::ListSimilarTitlesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -438,6 +688,144 @@ for crate::messages::nama::hub::v1::__buffa::view::UnlinkUserResponseView<'_> {
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::UnlinkUserResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::UnlinkUserResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::InviteUserResponse>
+for crate::messages::nama::hub::v1::__buffa::view::InviteUserResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::InviteUserResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::InviteUserResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::StartServerSignInResponse>
+for crate::messages::nama::hub::v1::__buffa::view::StartServerSignInResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::StartServerSignInResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::StartServerSignInResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::PollServerSignInResponse>
+for crate::messages::nama::hub::v1::__buffa::view::PollServerSignInResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::PollServerSignInResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PollServerSignInResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SetServerAddressesResponse>
+for crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SetServerAddressesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseView<
+        'static,
+    >,
 > {
     fn encode(
         &self,
@@ -1042,6 +1430,30 @@ pub const LINK_SERVICE_UNLINK_LINKED_USER_SPEC: ::connectrpc::Spec = ::connectrp
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListUserInvites` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINK_SERVICE_LIST_USER_INVITES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkService/ListUserInvites",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `AcceptUserInvite` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINK_SERVICE_ACCEPT_USER_INVITE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkService/AcceptUserInvite",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `GetServerSignIn` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINK_SERVICE_GET_SERVER_SIGN_IN_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkService/GetServerSignIn",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `ApproveServerSignIn` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINK_SERVICE_APPROVE_SERVER_SIGN_IN_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkService/ApproveServerSignIn",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Linking a Server to the signed-in Account, and listing the Servers it owns, for the Hub's web
 /// pages. Every call fails with `REFUSAL_REASON_SIGN_IN_REQUIRED` without a session.
 ///
@@ -1121,7 +1533,9 @@ pub trait LinkService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Returns the signed-in Account's Linked Servers, oldest first.
+    /// Returns the Linked Servers the signed-in Account owns or has a User on, oldest first, each
+    /// with the Server Addresses a client tries. A client reaches a Server at those itself: the Hub
+    /// never carries its calls or media (ADR 0094).
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1212,6 +1626,106 @@ pub trait LinkService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::hub::v1::UnlinkLinkedUserResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Returns the Users Admins created from the signed-in Account that it hasn't accepted yet,
+    /// oldest first (ADR 0092).
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_user_invites<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::ListUserInvitesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::ListUserInvitesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Accepts a User created from the signed-in Account, which Links them to it, so they can sign in
+    /// with it. Fails like `ApproveServerLink`, with `REFUSAL_REASON_USER_INVITE_NOT_FOUND` for an id
+    /// none of its invites has, and with `REFUSAL_REASON_USER_LINKED` if the User Linked meanwhile.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn accept_user_invite<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::AcceptUserInviteRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::AcceptUserInviteResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Names the Server a sign-in with the Account was started on, and the signed-in Account's User
+    /// there, so the person can check them before approving. Fails with
+    /// `REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND` for a sign-in that expired, was approved, or never
+    /// existed.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn get_server_sign_in<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::GetServerSignInRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::GetServerSignInResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Approves a sign-in with the signed-in Account, as its User on that Server, and returns where to
+    /// go back to. Fails like `GetServerSignIn`, and with `REFUSAL_REASON_NO_USER_ON_SERVER` if the
+    /// Account has no User Linked on that Server.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn approve_server_sign_in<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::ApproveServerSignInRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::ApproveServerSignInResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1392,6 +1906,122 @@ impl<S: LinkService> LinkServiceExt for S {
                 },
             )
             .with_spec(LINK_SERVICE_UNLINK_LINKED_USER_SPEC)
+            .route_view_idempotent(
+                LINK_SERVICE_SERVICE_NAME,
+                "ListUserInvites",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::ListUserInvitesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::ListUserInvitesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_user_invites(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::ListUserInvitesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINK_SERVICE_LIST_USER_INVITES_SPEC)
+            .route_view(
+                LINK_SERVICE_SERVICE_NAME,
+                "AcceptUserInvite",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::AcceptUserInviteRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::AcceptUserInviteRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.accept_user_invite(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::AcceptUserInviteResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINK_SERVICE_ACCEPT_USER_INVITE_SPEC)
+            .route_view_idempotent(
+                LINK_SERVICE_SERVICE_NAME,
+                "GetServerSignIn",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::GetServerSignInRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::GetServerSignInRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.get_server_sign_in(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::GetServerSignInResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINK_SERVICE_GET_SERVER_SIGN_IN_SPEC)
+            .route_view(
+                LINK_SERVICE_SERVICE_NAME,
+                "ApproveServerSignIn",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::ApproveServerSignInRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::ApproveServerSignInRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.approve_server_sign_in(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::ApproveServerSignInResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINK_SERVICE_APPROVE_SERVER_SIGN_IN_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -1474,6 +2104,30 @@ impl<T: LinkService> ::connectrpc::Dispatcher for LinkServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(LINK_SERVICE_UNLINK_LINKED_USER_SPEC),
+                )
+            }
+            "ListUserInvites" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(LINK_SERVICE_LIST_USER_INVITES_SPEC),
+                )
+            }
+            "AcceptUserInvite" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(LINK_SERVICE_ACCEPT_USER_INVITE_SPEC),
+                )
+            }
+            "GetServerSignIn" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(LINK_SERVICE_GET_SERVER_SIGN_IN_SPEC),
+                )
+            }
+            "ApproveServerSignIn" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(LINK_SERVICE_APPROVE_SERVER_SIGN_IN_SPEC),
                 )
             }
             _ => None,
@@ -1598,6 +2252,94 @@ impl<T: LinkService> ::connectrpc::Dispatcher for LinkServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::hub::v1::UnlinkLinkedUserResponse,
+                        >(format)
+                })
+            }
+            "ListUserInvites" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::ListUserInvitesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::ListUserInvitesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::ListUserInvitesRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_user_invites(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::ListUserInvitesResponse,
+                        >(format)
+                })
+            }
+            "AcceptUserInvite" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::AcceptUserInviteRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::AcceptUserInviteRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::AcceptUserInviteRequest,
+                    >::from_parts(&req, &body);
+                    svc.accept_user_invite(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::AcceptUserInviteResponse,
+                        >(format)
+                })
+            }
+            "GetServerSignIn" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::GetServerSignInRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::GetServerSignInRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::GetServerSignInRequest,
+                    >::from_parts(&req, &body);
+                    svc.get_server_sign_in(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::GetServerSignInResponse,
+                        >(format)
+                })
+            }
+            "ApproveServerSignIn" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::ApproveServerSignInRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::ApproveServerSignInRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::ApproveServerSignInRequest,
+                    >::from_parts(&req, &body);
+                    svc.approve_server_sign_in(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::ApproveServerSignInResponse,
                         >(format)
                 })
             }
@@ -1954,6 +2696,186 @@ where
             )
             .await
     }
+    /// Call the ListUserInvites RPC. Sends a request to /nama.hub.v1.LinkService/ListUserInvites.
+    pub async fn list_user_invites(
+        &self,
+        request: crate::messages::nama::hub::v1::ListUserInvitesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::ListUserInvitesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_user_invites_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListUserInvites RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_user_invites_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::ListUserInvitesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::ListUserInvitesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINK_SERVICE_LIST_USER_INVITES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the AcceptUserInvite RPC. Sends a request to /nama.hub.v1.LinkService/AcceptUserInvite.
+    pub async fn accept_user_invite(
+        &self,
+        request: crate::messages::nama::hub::v1::AcceptUserInviteRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::AcceptUserInviteResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.accept_user_invite_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the AcceptUserInvite RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn accept_user_invite_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::AcceptUserInviteRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::AcceptUserInviteResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINK_SERVICE_ACCEPT_USER_INVITE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetServerSignIn RPC. Sends a request to /nama.hub.v1.LinkService/GetServerSignIn.
+    pub async fn get_server_sign_in(
+        &self,
+        request: crate::messages::nama::hub::v1::GetServerSignInRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::GetServerSignInResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_server_sign_in_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the GetServerSignIn RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_server_sign_in_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::GetServerSignInRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::GetServerSignInResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINK_SERVICE_GET_SERVER_SIGN_IN_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ApproveServerSignIn RPC. Sends a request to /nama.hub.v1.LinkService/ApproveServerSignIn.
+    pub async fn approve_server_sign_in(
+        &self,
+        request: crate::messages::nama::hub::v1::ApproveServerSignInRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::ApproveServerSignInResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.approve_server_sign_in_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ApproveServerSignIn RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn approve_server_sign_in_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::ApproveServerSignInRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::ApproveServerSignInResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINK_SERVICE_APPROVE_SERVER_SIGN_IN_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
 }
 /// Full service name for this service.
 pub const LINKED_SERVER_SERVICE_SERVICE_NAME: &str = "nama.hub.v1.LinkedServerService";
@@ -1963,6 +2885,12 @@ pub const LINKED_SERVER_SERVICE_UNLINK_SERVER_SPEC: ::connectrpc::Spec = ::conne
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListSimilarTitles` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_LIST_SIMILAR_TITLES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/ListSimilarTitles",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
 /// Static [`Spec`](::connectrpc::Spec) for the `StartUserLink` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const LINKED_SERVER_SERVICE_START_USER_LINK_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.hub.v1.LinkedServerService/StartUserLink",
@@ -1978,6 +2906,30 @@ pub const LINKED_SERVER_SERVICE_GET_USER_LINK_SPEC: ::connectrpc::Spec = ::conne
 /// Static [`Spec`](::connectrpc::Spec) for the `UnlinkUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const LINKED_SERVER_SERVICE_UNLINK_USER_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.hub.v1.LinkedServerService/UnlinkUser",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `InviteUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_INVITE_USER_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/InviteUser",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `StartServerSignIn` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_START_SERVER_SIGN_IN_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/StartServerSignIn",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `PollServerSignIn` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_POLL_SERVER_SIGN_IN_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/PollServerSignIn",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetServerAddresses` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/SetServerAddresses",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
@@ -2058,6 +3010,31 @@ pub trait LinkedServerService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// The titles most like one title, of its kind, by the vectors the Hub builds from Wikidata's
+    /// facts (ADR 0095): at most 100, most alike first. Empty when Wikidata lacks the title or the
+    /// kind is unspecified, which isn't a failure: the Server's other Similar sources cover it.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_similar_titles<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::ListSimilarTitlesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::ListSimilarTitlesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
     /// Starts Linking one of the Server's Users: the code they enter on the Hub, which replaces any
     /// code they were waiting on and stops working after `expires_in_seconds`. Fails with
     /// `REFUSAL_REASON_USER_LINKED` for a User Linked already, since a User Links to one Account.
@@ -2131,6 +3108,107 @@ pub trait LinkedServerService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Asks the Account with `email`, if there is one, to accept one of the Server's Users created
+    /// from it (ADR 0092). It answers the same whether or not there is, so it reveals nothing about
+    /// which emails have Accounts. Asking again for the same User replaces the request.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn invite_user<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::InviteUserRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::InviteUserResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Starts someone signing in to the Server with their Account, as an OAuth device flow: the
+    /// person approves it on the Hub's page for `id`, which then sends them to `return_url`, and the
+    /// Server collects the sign-in with `PollServerSignIn`. Both stop working after
+    /// `expires_in_seconds`.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn start_server_sign_in<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::StartServerSignInRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::StartServerSignInResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Whether the sign-in was approved. Once it is, the first poll gets the token naming the User
+    /// and every later one fails. Fails with `REFUSAL_REASON_LINK_EXPIRED` for a device code that
+    /// expired, was used, or never existed.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn poll_server_sign_in<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::PollServerSignInRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::PollServerSignInResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Replaces the Server Addresses the calling Server reported before. The Server reports them
+    /// whenever they change. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an
+    /// `http` or `https` URL, or for too many.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_server_addresses<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::SetServerAddressesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::SetServerAddressesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -2192,6 +3270,35 @@ impl<S: LinkedServerService> LinkedServerServiceExt for S {
                 },
             )
             .with_spec(LINKED_SERVER_SERVICE_UNLINK_SERVER_SPEC)
+            .route_view_idempotent(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "ListSimilarTitles",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::ListSimilarTitlesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_similar_titles(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::ListSimilarTitlesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_LIST_SIMILAR_TITLES_SPEC)
             .route_view(
                 LINKED_SERVER_SERVICE_SERVICE_NAME,
                 "StartUserLink",
@@ -2279,6 +3386,122 @@ impl<S: LinkedServerService> LinkedServerServiceExt for S {
                 },
             )
             .with_spec(LINKED_SERVER_SERVICE_UNLINK_USER_SPEC)
+            .route_view(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "InviteUser",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::InviteUserRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::InviteUserRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.invite_user(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::InviteUserResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_INVITE_USER_SPEC)
+            .route_view(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "StartServerSignIn",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::StartServerSignInRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::StartServerSignInRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.start_server_sign_in(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::StartServerSignInResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_START_SERVER_SIGN_IN_SPEC)
+            .route_view(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "PollServerSignIn",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::PollServerSignInRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::PollServerSignInRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.poll_server_sign_in(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::PollServerSignInResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_POLL_SERVER_SIGN_IN_SPEC)
+            .route_view(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "SetServerAddresses",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::SetServerAddressesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_server_addresses(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::SetServerAddressesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -2341,6 +3564,12 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .with_spec(LINKED_SERVER_SERVICE_UNLINK_SERVER_SPEC),
                 )
             }
+            "ListSimilarTitles" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(LINKED_SERVER_SERVICE_LIST_SIMILAR_TITLES_SPEC),
+                )
+            }
             "StartUserLink" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -2357,6 +3586,30 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(LINKED_SERVER_SERVICE_UNLINK_USER_SPEC),
+                )
+            }
+            "InviteUser" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(LINKED_SERVER_SERVICE_INVITE_USER_SPEC),
+                )
+            }
+            "StartServerSignIn" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(LINKED_SERVER_SERVICE_START_SERVER_SIGN_IN_SPEC),
+                )
+            }
+            "PollServerSignIn" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(LINKED_SERVER_SERVICE_POLL_SERVER_SIGN_IN_SPEC),
+                )
+            }
+            "SetServerAddresses" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC),
                 )
             }
             _ => None,
@@ -2393,6 +3646,28 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .await?
                         .encode::<
                             crate::messages::nama::hub::v1::UnlinkServerResponse,
+                        >(format)
+                })
+            }
+            "ListSimilarTitles" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::ListSimilarTitlesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::ListSimilarTitlesRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_similar_titles(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::ListSimilarTitlesResponse,
                         >(format)
                 })
             }
@@ -2459,6 +3734,94 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .await?
                         .encode::<
                             crate::messages::nama::hub::v1::UnlinkUserResponse,
+                        >(format)
+                })
+            }
+            "InviteUser" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::InviteUserRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::InviteUserRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::InviteUserRequest,
+                    >::from_parts(&req, &body);
+                    svc.invite_user(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::InviteUserResponse,
+                        >(format)
+                })
+            }
+            "StartServerSignIn" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::StartServerSignInRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::StartServerSignInRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::StartServerSignInRequest,
+                    >::from_parts(&req, &body);
+                    svc.start_server_sign_in(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::StartServerSignInResponse,
+                        >(format)
+                })
+            }
+            "PollServerSignIn" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::PollServerSignInRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::PollServerSignInRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::PollServerSignInRequest,
+                    >::from_parts(&req, &body);
+                    svc.poll_server_sign_in(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::PollServerSignInResponse,
+                        >(format)
+                })
+            }
+            "SetServerAddresses" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::SetServerAddressesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::SetServerAddressesRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_server_addresses(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::SetServerAddressesResponse,
                         >(format)
                 })
             }
@@ -2635,6 +3998,51 @@ where
             )
             .await
     }
+    /// Call the ListSimilarTitles RPC. Sends a request to /nama.hub.v1.LinkedServerService/ListSimilarTitles.
+    pub async fn list_similar_titles(
+        &self,
+        request: crate::messages::nama::hub::v1::ListSimilarTitlesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_similar_titles_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListSimilarTitles RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_similar_titles_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::ListSimilarTitlesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_LIST_SIMILAR_TITLES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
     /// Call the StartUserLink RPC. Sends a request to /nama.hub.v1.LinkedServerService/StartUserLink.
     pub async fn start_user_link(
         &self,
@@ -2764,6 +4172,186 @@ where
                 &self.transport,
                 &self.config,
                 LINKED_SERVER_SERVICE_UNLINK_USER_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the InviteUser RPC. Sends a request to /nama.hub.v1.LinkedServerService/InviteUser.
+    pub async fn invite_user(
+        &self,
+        request: crate::messages::nama::hub::v1::InviteUserRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::InviteUserResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.invite_user_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the InviteUser RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn invite_user_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::InviteUserRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::InviteUserResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_INVITE_USER_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the StartServerSignIn RPC. Sends a request to /nama.hub.v1.LinkedServerService/StartServerSignIn.
+    pub async fn start_server_sign_in(
+        &self,
+        request: crate::messages::nama::hub::v1::StartServerSignInRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::StartServerSignInResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.start_server_sign_in_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the StartServerSignIn RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn start_server_sign_in_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::StartServerSignInRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::StartServerSignInResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_START_SERVER_SIGN_IN_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the PollServerSignIn RPC. Sends a request to /nama.hub.v1.LinkedServerService/PollServerSignIn.
+    pub async fn poll_server_sign_in(
+        &self,
+        request: crate::messages::nama::hub::v1::PollServerSignInRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::PollServerSignInResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.poll_server_sign_in_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the PollServerSignIn RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn poll_server_sign_in_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::PollServerSignInRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::PollServerSignInResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_POLL_SERVER_SIGN_IN_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetServerAddresses RPC. Sends a request to /nama.hub.v1.LinkedServerService/SetServerAddresses.
+    pub async fn set_server_addresses(
+        &self,
+        request: crate::messages::nama::hub::v1::SetServerAddressesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_server_addresses_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetServerAddresses RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_server_addresses_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::SetServerAddressesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

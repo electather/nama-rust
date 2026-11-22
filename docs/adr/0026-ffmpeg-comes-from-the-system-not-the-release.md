@@ -10,5 +10,5 @@ The Server Remuxes, Transcodes and probes Versions with ffmpeg and ffprobe, but 
 
 ## Consequences
 
-- Which hardware acceleration works depends on the admin's ffmpeg build, so the Server finds out what its ffmpeg can actually do instead of assuming. So does converting Dolby Vision 5, which needs jellyfin-ffmpeg's `tonemapx` ([ADR 0102](0102-dolby-vision-5-converts-through-jellyfin-ffmpegs-tonemapx.md)).
+- Which hardware acceleration works depends on the admin's ffmpeg build, so the Server finds out what its ffmpeg can actually do instead of assuming. So does converting Dolby Vision 5, which needs jellyfin-ffmpeg's `tonemapx` ([ADR 0102](0102-dolby-vision-5-converts-through-jellyfin-ffmpegs-tonemapx.md)), and burning a text subtitle into HDR, which needs its `alphasrc` ([ADR 0103](0103-a-burn-in-keeps-hdr-and-draws-its-subtitle-at-reference-white.md)).
 - Probing needs ffprobe too, so a Server without it stores no Tracks and offers Direct Play only.

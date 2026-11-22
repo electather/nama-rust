@@ -10,9 +10,9 @@ export function useCreateAccount() {
   return useMutation(AccountService.method.createAccount, { onSuccess: useGoAfterSession("/") });
 }
 
-/** Signs an Account in, then opens the Account page. */
-export function useSignIn() {
-  return useMutation(AccountService.method.signIn, { onSuccess: useGoAfterSession("/") });
+/** Signs an Account in, then goes on to the Hub path `continueTo`. */
+export function useSignIn(continueTo: string) {
+  return useMutation(AccountService.method.signIn, { onSuccess: useGoAfterSession(continueTo) });
 }
 
 /** Signs this browser out, then opens the sign-in page. */
@@ -30,11 +30,11 @@ export function useSignOut() {
 }
 
 /** Once the session changed: forgets what was cached for whoever was signed in, and goes `to`. */
-function useGoAfterSession(to: "/" | "/sign-in") {
+function useGoAfterSession(to: string) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   return async () => {
     queryClient.clear();
-    await navigate({ to });
+    await navigate({ href: to });
   };
 }

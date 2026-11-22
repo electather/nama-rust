@@ -496,7 +496,7 @@ impl Cache {
     /// `file`.
     pub(super) fn burning_in(&self, file: Stored, attempt: &Transcode) -> Transcode {
         let mut attempt = attempt.clone();
-        if let Some(BurnIn::Text { subtitle }) = &mut attempt.video.burn_in
+        if let Some(BurnIn::Text { subtitle, .. }) = &mut attempt.video.burn_in
             && let Some(cached) = self.cached_burn_in(file, subtitle)
         {
             *subtitle = cached;

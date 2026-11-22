@@ -42,6 +42,7 @@ pub(super) const SOFTWARE: VideoConversion = VideoConversion {
     tone_map: None,
     limit: None,
     burn_in: None,
+    subtitle_white: None,
     in_band_headers: false,
     hevc: false,
 };
@@ -407,6 +408,7 @@ fn a_limited_tone_map_with_a_burn_in_scales_down_after_the_subtitle() {
             track: 4,
             fonts: 1,
         },
+        layer: None,
     }));
 
     let graph = format!(
@@ -491,6 +493,7 @@ fn a_text_subtitle_is_burned_in_from_the_file_by_libass() {
                 track: 4,
                 fonts: 1,
             },
+            layer: None,
         }),
         ..SOFTWARE
     };
@@ -511,6 +514,7 @@ fn a_sidecar_text_subtitle_is_burned_in_from_its_own_file_by_libass() {
                 path: "Alien.en.ass".to_owned(),
                 charset: None,
             },
+            layer: None,
         }),
         ..SOFTWARE
     };
@@ -533,6 +537,7 @@ async fn sidecar_burn_in_filters(bytes: &[u8]) -> String {
     let burned = VideoConversion {
         burn_in: Some(BurnIn::Text {
             subtitle: TextSubtitle::Sidecar { path, charset },
+            layer: None,
         }),
         ..SOFTWARE
     };
@@ -568,6 +573,7 @@ fn a_cached_text_subtitle_is_burned_in_from_its_ass_with_its_fonts_by_libass() {
                 ass: "cache/4.ass".to_owned(),
                 fonts: "cache/fonts".to_owned(),
             },
+            layer: None,
         }),
         ..SOFTWARE
     };
@@ -658,3 +664,6 @@ mod sidecar;
 
 #[path = "hls_hardware_tests.rs"]
 mod hardware;
+
+#[path = "hls_hdr_burn_in_tests.rs"]
+mod hdr_burn_in;

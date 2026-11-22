@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT title_id AS \"title_id!\", array_agg(property || ':' || item) AS \"facts!\",\n                  array_agg(sharing) AS \"sharing!\"\n           FROM (SELECT title_id, property, item,\n                        count(*) OVER (PARTITION BY property, item) AS sharing\n                 FROM title_facts) AS facts\n           WHERE sharing > 1\n           GROUP BY title_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "title_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "title_facts",
+            "name": "title_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "facts!",
+        "type_info": "TextArray",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "sharing!",
+        "type_info": "Int8Array",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "f0df4c234bfe40e51867a365145c6c203b66e6015fcfb3256bf849b9e22e9cd2"
+}

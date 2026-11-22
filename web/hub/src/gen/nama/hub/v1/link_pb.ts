@@ -2,15 +2,15 @@
 // @generated from file nama/hub/v1/link.proto (package nama.hub.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { Message } from "@bufbuild/protobuf";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { Message, UnknownEnum } from "@bufbuild/protobuf";
 
 /**
  * Describes the file nama/hub/v1/link.proto.
  */
 export const file_nama_hub_v1_link: GenFile = /*@__PURE__*/
-  fileDesc("ChZuYW1hL2h1Yi92MS9saW5rLnByb3RvEgtuYW1hLmh1Yi52MSI7CgxMaW5rZWRTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglsaW5rZWRfYXQYAyABKAMiJgoWU3RhcnRTZXJ2ZXJMaW5rUmVxdWVzdBIMCgRuYW1lGAEgASgJIncKF1N0YXJ0U2VydmVyTGlua1Jlc3BvbnNlEhMKC2RldmljZV9jb2RlGAEgASgJEhEKCXVzZXJfY29kZRgCIAEoCRIaChJleHBpcmVzX2luX3NlY29uZHMYAyABKAUSGAoQaW50ZXJ2YWxfc2Vjb25kcxgEIAEoBSIsChVQb2xsU2VydmVyTGlua1JlcXVlc3QSEwoLZGV2aWNlX2NvZGUYASABKAkiSwoWUG9sbFNlcnZlckxpbmtSZXNwb25zZRIOCgZsaW5rZWQYASABKAgSEgoKY3JlZGVudGlhbBgCIAEoCRINCgV0b2tlbhgDIAEoCSIoChhBcHByb3ZlU2VydmVyTGlua1JlcXVlc3QSDAoEY29kZRgBIAEoCSJGChlBcHByb3ZlU2VydmVyTGlua1Jlc3BvbnNlEikKBnNlcnZlchgBIAEoCzIZLm5hbWEuaHViLnYxLkxpbmtlZFNlcnZlciIaChhMaXN0TGlua2VkU2VydmVyc1JlcXVlc3QiRwoZTGlzdExpbmtlZFNlcnZlcnNSZXNwb25zZRIqCgdzZXJ2ZXJzGAEgAygLMhkubmFtYS5odWIudjEuTGlua2VkU2VydmVyIhUKE1VubGlua1NlcnZlclJlcXVlc3QiFgoUVW5saW5rU2VydmVyUmVzcG9uc2UiTgoKTGlua2VkVXNlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhMKC3NlcnZlcl9uYW1lGAMgASgJEhEKCWxpbmtlZF9hdBgEIAEoAyImChZBcHByb3ZlVXNlckxpbmtSZXF1ZXN0EgwKBGNvZGUYASABKAkiQAoXQXBwcm92ZVVzZXJMaW5rUmVzcG9uc2USJQoEdXNlchgBIAEoCzIXLm5hbWEuaHViLnYxLkxpbmtlZFVzZXIiGAoWTGlzdExpbmtlZFVzZXJzUmVxdWVzdCJBChdMaXN0TGlua2VkVXNlcnNSZXNwb25zZRImCgV1c2VycxgBIAMoCzIXLm5hbWEuaHViLnYxLkxpbmtlZFVzZXIiJQoXVW5saW5rTGlua2VkVXNlclJlcXVlc3QSCgoCaWQYASABKAkiGgoYVW5saW5rTGlua2VkVXNlclJlc3BvbnNlIjUKFFN0YXJ0VXNlckxpbmtSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSDAoEbmFtZRgCIAEoCSJGChVTdGFydFVzZXJMaW5rUmVzcG9uc2USEQoJdXNlcl9jb2RlGAEgASgJEhoKEmV4cGlyZXNfaW5fc2Vjb25kcxgCIAEoBSIlChJHZXRVc2VyTGlua1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyImChNHZXRVc2VyTGlua1Jlc3BvbnNlEg8KB2FjY291bnQYASABKAkiJAoRVW5saW5rVXNlclJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyIUChJVbmxpbmtVc2VyUmVzcG9uc2UyzAEKEVNlcnZlckxpbmtTZXJ2aWNlElwKD1N0YXJ0U2VydmVyTGluaxIjLm5hbWEuaHViLnYxLlN0YXJ0U2VydmVyTGlua1JlcXVlc3QaJC5uYW1hLmh1Yi52MS5TdGFydFNlcnZlckxpbmtSZXNwb25zZRJZCg5Qb2xsU2VydmVyTGluaxIiLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVxdWVzdBojLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVzcG9uc2UygQQKC0xpbmtTZXJ2aWNlEmIKEUFwcHJvdmVTZXJ2ZXJMaW5rEiUubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXF1ZXN0GiYubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXNwb25zZRJnChFMaXN0TGlua2VkU2VydmVycxIlLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVxdWVzdBomLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVzcG9uc2UiA5ACARJcCg9BcHByb3ZlVXNlckxpbmsSIy5uYW1hLmh1Yi52MS5BcHByb3ZlVXNlckxpbmtSZXF1ZXN0GiQubmFtYS5odWIudjEuQXBwcm92ZVVzZXJMaW5rUmVzcG9uc2USYQoPTGlzdExpbmtlZFVzZXJzEiMubmFtYS5odWIudjEuTGlzdExpbmtlZFVzZXJzUmVxdWVzdBokLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRVc2Vyc1Jlc3BvbnNlIgOQAgESZAoQVW5saW5rTGlua2VkVXNlchIkLm5hbWEuaHViLnYxLlVubGlua0xpbmtlZFVzZXJSZXF1ZXN0GiUubmFtYS5odWIudjEuVW5saW5rTGlua2VkVXNlclJlc3BvbnNlIgOQAgIy7QIKE0xpbmtlZFNlcnZlclNlcnZpY2USUwoMVW5saW5rU2VydmVyEiAubmFtYS5odWIudjEuVW5saW5rU2VydmVyUmVxdWVzdBohLm5hbWEuaHViLnYxLlVubGlua1NlcnZlclJlc3BvbnNlElYKDVN0YXJ0VXNlckxpbmsSIS5uYW1hLmh1Yi52MS5TdGFydFVzZXJMaW5rUmVxdWVzdBoiLm5hbWEuaHViLnYxLlN0YXJ0VXNlckxpbmtSZXNwb25zZRJVCgtHZXRVc2VyTGluaxIfLm5hbWEuaHViLnYxLkdldFVzZXJMaW5rUmVxdWVzdBogLm5hbWEuaHViLnYxLkdldFVzZXJMaW5rUmVzcG9uc2UiA5ACARJSCgpVbmxpbmtVc2VyEh4ubmFtYS5odWIudjEuVW5saW5rVXNlclJlcXVlc3QaHy5uYW1hLmh1Yi52MS5VbmxpbmtVc2VyUmVzcG9uc2UiA5ACAmIGcHJvdG8z");
+  fileDesc("ChZuYW1hL2h1Yi92MS9saW5rLnByb3RvEgtuYW1hLmh1Yi52MSJbCgxMaW5rZWRTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglsaW5rZWRfYXQYAyABKAMSCwoDdXJsGAQgASgJEhEKCWFkZHJlc3NlcxgFIAMoCSImChZTdGFydFNlcnZlckxpbmtSZXF1ZXN0EgwKBG5hbWUYASABKAkidwoXU3RhcnRTZXJ2ZXJMaW5rUmVzcG9uc2USEwoLZGV2aWNlX2NvZGUYASABKAkSEQoJdXNlcl9jb2RlGAIgASgJEhoKEmV4cGlyZXNfaW5fc2Vjb25kcxgDIAEoBRIYChBpbnRlcnZhbF9zZWNvbmRzGAQgASgFIiwKFVBvbGxTZXJ2ZXJMaW5rUmVxdWVzdBITCgtkZXZpY2VfY29kZRgBIAEoCSJLChZQb2xsU2VydmVyTGlua1Jlc3BvbnNlEg4KBmxpbmtlZBgBIAEoCBISCgpjcmVkZW50aWFsGAIgASgJEg0KBXRva2VuGAMgASgJIigKGEFwcHJvdmVTZXJ2ZXJMaW5rUmVxdWVzdBIMCgRjb2RlGAEgASgJIkYKGUFwcHJvdmVTZXJ2ZXJMaW5rUmVzcG9uc2USKQoGc2VydmVyGAEgASgLMhkubmFtYS5odWIudjEuTGlua2VkU2VydmVyIhoKGExpc3RMaW5rZWRTZXJ2ZXJzUmVxdWVzdCJHChlMaXN0TGlua2VkU2VydmVyc1Jlc3BvbnNlEioKB3NlcnZlcnMYASADKAsyGS5uYW1hLmh1Yi52MS5MaW5rZWRTZXJ2ZXIiFQoTVW5saW5rU2VydmVyUmVxdWVzdCIWChRVbmxpbmtTZXJ2ZXJSZXNwb25zZSIuCgpFeHRlcm5hbElkEhEKCW5hbWVzcGFjZRgBIAEoCRINCgV2YWx1ZRgCIAEoCSJmChhMaXN0U2ltaWxhclRpdGxlc1JlcXVlc3QSJAoEa2luZBgBIAEoDjIWLm5hbWEuaHViLnYxLlRpdGxlS2luZBIkCgNpZHMYAiADKAsyFy5uYW1hLmh1Yi52MS5FeHRlcm5hbElkIkYKGUxpc3RTaW1pbGFyVGl0bGVzUmVzcG9uc2USKQoGdGl0bGVzGAEgAygLMhkubmFtYS5odWIudjEuU2ltaWxhclRpdGxlIkMKDFNpbWlsYXJUaXRsZRIjCgJpZBgBIAEoCzIXLm5hbWEuaHViLnYxLkV4dGVybmFsSWQSDgoGd2VpZ2h0GAIgASgCIk4KCkxpbmtlZFVzZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRITCgtzZXJ2ZXJfbmFtZRgDIAEoCRIRCglsaW5rZWRfYXQYBCABKAMiJgoWQXBwcm92ZVVzZXJMaW5rUmVxdWVzdBIMCgRjb2RlGAEgASgJIkAKF0FwcHJvdmVVc2VyTGlua1Jlc3BvbnNlEiUKBHVzZXIYASABKAsyFy5uYW1hLmh1Yi52MS5MaW5rZWRVc2VyIhgKFkxpc3RMaW5rZWRVc2Vyc1JlcXVlc3QiQQoXTGlzdExpbmtlZFVzZXJzUmVzcG9uc2USJgoFdXNlcnMYASADKAsyFy5uYW1hLmh1Yi52MS5MaW5rZWRVc2VyIiUKF1VubGlua0xpbmtlZFVzZXJSZXF1ZXN0EgoKAmlkGAEgASgJIhoKGFVubGlua0xpbmtlZFVzZXJSZXNwb25zZSI1ChRTdGFydFVzZXJMaW5rUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkiRgoVU3RhcnRVc2VyTGlua1Jlc3BvbnNlEhEKCXVzZXJfY29kZRgBIAEoCRIaChJleHBpcmVzX2luX3NlY29uZHMYAiABKAUiJQoSR2V0VXNlckxpbmtSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiJgoTR2V0VXNlckxpbmtSZXNwb25zZRIPCgdhY2NvdW50GAEgASgJIiQKEVVubGlua1VzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiFAoSVW5saW5rVXNlclJlc3BvbnNlIk8KClVzZXJJbnZpdGUSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRITCgtzZXJ2ZXJfbmFtZRgDIAEoCRISCgppbnZpdGVkX2F0GAQgASgDIhgKFkxpc3RVc2VySW52aXRlc1JlcXVlc3QiQwoXTGlzdFVzZXJJbnZpdGVzUmVzcG9uc2USKAoHaW52aXRlcxgBIAMoCzIXLm5hbWEuaHViLnYxLlVzZXJJbnZpdGUiJQoXQWNjZXB0VXNlckludml0ZVJlcXVlc3QSCgoCaWQYASABKAkiQQoYQWNjZXB0VXNlckludml0ZVJlc3BvbnNlEiUKBHVzZXIYASABKAsyFy5uYW1hLmh1Yi52MS5MaW5rZWRVc2VyIiQKFkdldFNlcnZlclNpZ25JblJlcXVlc3QSCgoCaWQYASABKAkiQQoXR2V0U2VydmVyU2lnbkluUmVzcG9uc2USEwoLc2VydmVyX25hbWUYASABKAkSEQoJdXNlcl9uYW1lGAIgASgJIigKGkFwcHJvdmVTZXJ2ZXJTaWduSW5SZXF1ZXN0EgoKAmlkGAEgASgJIjEKG0FwcHJvdmVTZXJ2ZXJTaWduSW5SZXNwb25zZRISCgpyZXR1cm5fdXJsGAEgASgJIkEKEUludml0ZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSDAoEbmFtZRgCIAEoCRINCgVlbWFpbBgDIAEoCSIUChJJbnZpdGVVc2VyUmVzcG9uc2UiLgoYU3RhcnRTZXJ2ZXJTaWduSW5SZXF1ZXN0EhIKCnJldHVybl91cmwYASABKAkiWAoZU3RhcnRTZXJ2ZXJTaWduSW5SZXNwb25zZRITCgtkZXZpY2VfY29kZRgBIAEoCRIKCgJpZBgCIAEoCRIaChJleHBpcmVzX2luX3NlY29uZHMYAyABKAUiLgoXUG9sbFNlcnZlclNpZ25JblJlcXVlc3QSEwoLZGV2aWNlX2NvZGUYASABKAkiKQoYUG9sbFNlcnZlclNpZ25JblJlc3BvbnNlEg0KBXRva2VuGAEgASgJIj8KGVNldFNlcnZlckFkZHJlc3Nlc1JlcXVlc3QSCwoDdXJsGAEgASgJEhUKDWxhbl9hZGRyZXNzZXMYAiADKAkiHAoaU2V0U2VydmVyQWRkcmVzc2VzUmVzcG9uc2UqUgoJVGl0bGVLaW5kEhoKFlRJVExFX0tJTkRfVU5TUEVDSUZJRUQQABIUChBUSVRMRV9LSU5EX01PVklFEAESEwoPVElUTEVfS0lORF9TSE9XEAIyzAEKEVNlcnZlckxpbmtTZXJ2aWNlElwKD1N0YXJ0U2VydmVyTGluaxIjLm5hbWEuaHViLnYxLlN0YXJ0U2VydmVyTGlua1JlcXVlc3QaJC5uYW1hLmh1Yi52MS5TdGFydFNlcnZlckxpbmtSZXNwb25zZRJZCg5Qb2xsU2VydmVyTGluaxIiLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVxdWVzdBojLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVzcG9uc2UykgcKC0xpbmtTZXJ2aWNlEmIKEUFwcHJvdmVTZXJ2ZXJMaW5rEiUubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXF1ZXN0GiYubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXNwb25zZRJnChFMaXN0TGlua2VkU2VydmVycxIlLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVxdWVzdBomLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVzcG9uc2UiA5ACARJcCg9BcHByb3ZlVXNlckxpbmsSIy5uYW1hLmh1Yi52MS5BcHByb3ZlVXNlckxpbmtSZXF1ZXN0GiQubmFtYS5odWIudjEuQXBwcm92ZVVzZXJMaW5rUmVzcG9uc2USYQoPTGlzdExpbmtlZFVzZXJzEiMubmFtYS5odWIudjEuTGlzdExpbmtlZFVzZXJzUmVxdWVzdBokLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRVc2Vyc1Jlc3BvbnNlIgOQAgESZAoQVW5saW5rTGlua2VkVXNlchIkLm5hbWEuaHViLnYxLlVubGlua0xpbmtlZFVzZXJSZXF1ZXN0GiUubmFtYS5odWIudjEuVW5saW5rTGlua2VkVXNlclJlc3BvbnNlIgOQAgISYQoPTGlzdFVzZXJJbnZpdGVzEiMubmFtYS5odWIudjEuTGlzdFVzZXJJbnZpdGVzUmVxdWVzdBokLm5hbWEuaHViLnYxLkxpc3RVc2VySW52aXRlc1Jlc3BvbnNlIgOQAgESXwoQQWNjZXB0VXNlckludml0ZRIkLm5hbWEuaHViLnYxLkFjY2VwdFVzZXJJbnZpdGVSZXF1ZXN0GiUubmFtYS5odWIudjEuQWNjZXB0VXNlckludml0ZVJlc3BvbnNlEmEKD0dldFNlcnZlclNpZ25JbhIjLm5hbWEuaHViLnYxLkdldFNlcnZlclNpZ25JblJlcXVlc3QaJC5uYW1hLmh1Yi52MS5HZXRTZXJ2ZXJTaWduSW5SZXNwb25zZSIDkAIBEmgKE0FwcHJvdmVTZXJ2ZXJTaWduSW4SJy5uYW1hLmh1Yi52MS5BcHByb3ZlU2VydmVyU2lnbkluUmVxdWVzdBooLm5hbWEuaHViLnYxLkFwcHJvdmVTZXJ2ZXJTaWduSW5SZXNwb25zZTLWBgoTTGlua2VkU2VydmVyU2VydmljZRJTCgxVbmxpbmtTZXJ2ZXISIC5uYW1hLmh1Yi52MS5VbmxpbmtTZXJ2ZXJSZXF1ZXN0GiEubmFtYS5odWIudjEuVW5saW5rU2VydmVyUmVzcG9uc2USZwoRTGlzdFNpbWlsYXJUaXRsZXMSJS5uYW1hLmh1Yi52MS5MaXN0U2ltaWxhclRpdGxlc1JlcXVlc3QaJi5uYW1hLmh1Yi52MS5MaXN0U2ltaWxhclRpdGxlc1Jlc3BvbnNlIgOQAgESVgoNU3RhcnRVc2VyTGluaxIhLm5hbWEuaHViLnYxLlN0YXJ0VXNlckxpbmtSZXF1ZXN0GiIubmFtYS5odWIudjEuU3RhcnRVc2VyTGlua1Jlc3BvbnNlElUKC0dldFVzZXJMaW5rEh8ubmFtYS5odWIudjEuR2V0VXNlckxpbmtSZXF1ZXN0GiAubmFtYS5odWIudjEuR2V0VXNlckxpbmtSZXNwb25zZSIDkAIBElIKClVubGlua1VzZXISHi5uYW1hLmh1Yi52MS5VbmxpbmtVc2VyUmVxdWVzdBofLm5hbWEuaHViLnYxLlVubGlua1VzZXJSZXNwb25zZSIDkAICEk0KCkludml0ZVVzZXISHi5uYW1hLmh1Yi52MS5JbnZpdGVVc2VyUmVxdWVzdBofLm5hbWEuaHViLnYxLkludml0ZVVzZXJSZXNwb25zZRJiChFTdGFydFNlcnZlclNpZ25JbhIlLm5hbWEuaHViLnYxLlN0YXJ0U2VydmVyU2lnbkluUmVxdWVzdBomLm5hbWEuaHViLnYxLlN0YXJ0U2VydmVyU2lnbkluUmVzcG9uc2USXwoQUG9sbFNlcnZlclNpZ25JbhIkLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJTaWduSW5SZXF1ZXN0GiUubmFtYS5odWIudjEuUG9sbFNlcnZlclNpZ25JblJlc3BvbnNlEmoKElNldFNlcnZlckFkZHJlc3NlcxImLm5hbWEuaHViLnYxLlNldFNlcnZlckFkZHJlc3Nlc1JlcXVlc3QaJy5uYW1hLmh1Yi52MS5TZXRTZXJ2ZXJBZGRyZXNzZXNSZXNwb25zZSIDkAICYgZwcm90bzM");
 
 /**
  * A Server registered with the Hub, owned by an Account.
@@ -38,6 +38,21 @@ export type LinkedServer = Message<"nama.hub.v1.LinkedServer"> & {
    * @generated from field: int64 linked_at = 3;
    */
   linkedAt: bigint;
+
+  /**
+   * The Server URL its Admin set, where people open its web app (ADR 0010), or empty for none.
+   *
+   * @generated from field: string url = 4;
+   */
+  url: string;
+
+  /**
+   * The Server Addresses a client tries, as the Server last reported them: its Server URL first,
+   * then its LAN addresses.
+   *
+   * @generated from field: repeated string addresses = 5;
+   */
+  addresses: string[];
 };
 
 /**
@@ -255,6 +270,105 @@ export const UnlinkServerResponseSchema: GenMessage<UnlinkServerResponse> = /*@_
   messageDesc(file_nama_hub_v1_link, 10);
 
 /**
+ * A title's id at a metadata source (ADR 0042).
+ *
+ * @generated from message nama.hub.v1.ExternalId
+ */
+export type ExternalId = Message<"nama.hub.v1.ExternalId"> & {
+  /**
+   * The metadata source, such as `tmdb`, `imdb` or `tvdb`.
+   *
+   * @generated from field: string namespace = 1;
+   */
+  namespace: string;
+
+  /**
+   * The title's id there, such as `603`.
+   *
+   * @generated from field: string value = 2;
+   */
+  value: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.ExternalId.
+ * Use `create(ExternalIdSchema)` to create a new message.
+ */
+export const ExternalIdSchema: GenMessage<ExternalId> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 11);
+
+/**
+ * @generated from message nama.hub.v1.ListSimilarTitlesRequest
+ */
+export type ListSimilarTitlesRequest = Message<"nama.hub.v1.ListSimilarTitlesRequest"> & {
+  /**
+   * @generated from field: nama.hub.v1.TitleKind kind = 1;
+   */
+  kind: TitleKind;
+
+  /**
+   * The title's External IDs, at most one per namespace, in the order the Server prefers its
+   * answers' namespaces.
+   *
+   * @generated from field: repeated nama.hub.v1.ExternalId ids = 2;
+   */
+  ids: ExternalId[];
+};
+
+/**
+ * Describes the message nama.hub.v1.ListSimilarTitlesRequest.
+ * Use `create(ListSimilarTitlesRequestSchema)` to create a new message.
+ */
+export const ListSimilarTitlesRequestSchema: GenMessage<ListSimilarTitlesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 12);
+
+/**
+ * @generated from message nama.hub.v1.ListSimilarTitlesResponse
+ */
+export type ListSimilarTitlesResponse = Message<"nama.hub.v1.ListSimilarTitlesResponse"> & {
+  /**
+   * @generated from field: repeated nama.hub.v1.SimilarTitle titles = 1;
+   */
+  titles: SimilarTitle[];
+};
+
+/**
+ * Describes the message nama.hub.v1.ListSimilarTitlesResponse.
+ * Use `create(ListSimilarTitlesResponseSchema)` to create a new message.
+ */
+export const ListSimilarTitlesResponseSchema: GenMessage<ListSimilarTitlesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 13);
+
+/**
+ * A title like the one asked about.
+ *
+ * @generated from message nama.hub.v1.SimilarTitle
+ */
+export type SimilarTitle = Message<"nama.hub.v1.SimilarTitle"> & {
+  /**
+   * Its id in the first namespace of the request's `ids` that the Hub knows it by. A title the Hub
+   * knows by none of them isn't answered.
+   *
+   * @generated from field: nama.hub.v1.ExternalId id = 1;
+   */
+  id?: ExternalId | undefined;
+
+  /**
+   * How alike, from 0.0 to 1.0.
+   *
+   * @generated from field: float weight = 2;
+   */
+  weight: number;
+};
+
+/**
+ * Describes the message nama.hub.v1.SimilarTitle.
+ * Use `create(SimilarTitleSchema)` to create a new message.
+ */
+export const SimilarTitleSchema: GenMessage<SimilarTitle> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 14);
+
+/**
  * A User on a Linked Server, Linked to an Account.
  *
  * @generated from message nama.hub.v1.LinkedUser
@@ -294,7 +408,7 @@ export type LinkedUser = Message<"nama.hub.v1.LinkedUser"> & {
  * Use `create(LinkedUserSchema)` to create a new message.
  */
 export const LinkedUserSchema: GenMessage<LinkedUser> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 11);
+  messageDesc(file_nama_hub_v1_link, 15);
 
 /**
  * @generated from message nama.hub.v1.ApproveUserLinkRequest
@@ -313,7 +427,7 @@ export type ApproveUserLinkRequest = Message<"nama.hub.v1.ApproveUserLinkRequest
  * Use `create(ApproveUserLinkRequestSchema)` to create a new message.
  */
 export const ApproveUserLinkRequestSchema: GenMessage<ApproveUserLinkRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 12);
+  messageDesc(file_nama_hub_v1_link, 16);
 
 /**
  * @generated from message nama.hub.v1.ApproveUserLinkResponse
@@ -332,7 +446,7 @@ export type ApproveUserLinkResponse = Message<"nama.hub.v1.ApproveUserLinkRespon
  * Use `create(ApproveUserLinkResponseSchema)` to create a new message.
  */
 export const ApproveUserLinkResponseSchema: GenMessage<ApproveUserLinkResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 13);
+  messageDesc(file_nama_hub_v1_link, 17);
 
 /**
  * @generated from message nama.hub.v1.ListLinkedUsersRequest
@@ -345,7 +459,7 @@ export type ListLinkedUsersRequest = Message<"nama.hub.v1.ListLinkedUsersRequest
  * Use `create(ListLinkedUsersRequestSchema)` to create a new message.
  */
 export const ListLinkedUsersRequestSchema: GenMessage<ListLinkedUsersRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 14);
+  messageDesc(file_nama_hub_v1_link, 18);
 
 /**
  * @generated from message nama.hub.v1.ListLinkedUsersResponse
@@ -362,7 +476,7 @@ export type ListLinkedUsersResponse = Message<"nama.hub.v1.ListLinkedUsersRespon
  * Use `create(ListLinkedUsersResponseSchema)` to create a new message.
  */
 export const ListLinkedUsersResponseSchema: GenMessage<ListLinkedUsersResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 15);
+  messageDesc(file_nama_hub_v1_link, 19);
 
 /**
  * @generated from message nama.hub.v1.UnlinkLinkedUserRequest
@@ -381,7 +495,7 @@ export type UnlinkLinkedUserRequest = Message<"nama.hub.v1.UnlinkLinkedUserReque
  * Use `create(UnlinkLinkedUserRequestSchema)` to create a new message.
  */
 export const UnlinkLinkedUserRequestSchema: GenMessage<UnlinkLinkedUserRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 16);
+  messageDesc(file_nama_hub_v1_link, 20);
 
 /**
  * @generated from message nama.hub.v1.UnlinkLinkedUserResponse
@@ -394,7 +508,7 @@ export type UnlinkLinkedUserResponse = Message<"nama.hub.v1.UnlinkLinkedUserResp
  * Use `create(UnlinkLinkedUserResponseSchema)` to create a new message.
  */
 export const UnlinkLinkedUserResponseSchema: GenMessage<UnlinkLinkedUserResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 17);
+  messageDesc(file_nama_hub_v1_link, 21);
 
 /**
  * @generated from message nama.hub.v1.StartUserLinkRequest
@@ -421,7 +535,7 @@ export type StartUserLinkRequest = Message<"nama.hub.v1.StartUserLinkRequest"> &
  * Use `create(StartUserLinkRequestSchema)` to create a new message.
  */
 export const StartUserLinkRequestSchema: GenMessage<StartUserLinkRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 18);
+  messageDesc(file_nama_hub_v1_link, 22);
 
 /**
  * @generated from message nama.hub.v1.StartUserLinkResponse
@@ -447,7 +561,7 @@ export type StartUserLinkResponse = Message<"nama.hub.v1.StartUserLinkResponse">
  * Use `create(StartUserLinkResponseSchema)` to create a new message.
  */
 export const StartUserLinkResponseSchema: GenMessage<StartUserLinkResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 19);
+  messageDesc(file_nama_hub_v1_link, 23);
 
 /**
  * @generated from message nama.hub.v1.GetUserLinkRequest
@@ -466,7 +580,7 @@ export type GetUserLinkRequest = Message<"nama.hub.v1.GetUserLinkRequest"> & {
  * Use `create(GetUserLinkRequestSchema)` to create a new message.
  */
 export const GetUserLinkRequestSchema: GenMessage<GetUserLinkRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 20);
+  messageDesc(file_nama_hub_v1_link, 24);
 
 /**
  * @generated from message nama.hub.v1.GetUserLinkResponse
@@ -485,7 +599,7 @@ export type GetUserLinkResponse = Message<"nama.hub.v1.GetUserLinkResponse"> & {
  * Use `create(GetUserLinkResponseSchema)` to create a new message.
  */
 export const GetUserLinkResponseSchema: GenMessage<GetUserLinkResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 21);
+  messageDesc(file_nama_hub_v1_link, 25);
 
 /**
  * @generated from message nama.hub.v1.UnlinkUserRequest
@@ -504,7 +618,7 @@ export type UnlinkUserRequest = Message<"nama.hub.v1.UnlinkUserRequest"> & {
  * Use `create(UnlinkUserRequestSchema)` to create a new message.
  */
 export const UnlinkUserRequestSchema: GenMessage<UnlinkUserRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 22);
+  messageDesc(file_nama_hub_v1_link, 26);
 
 /**
  * @generated from message nama.hub.v1.UnlinkUserResponse
@@ -517,7 +631,412 @@ export type UnlinkUserResponse = Message<"nama.hub.v1.UnlinkUserResponse"> & {
  * Use `create(UnlinkUserResponseSchema)` to create a new message.
  */
 export const UnlinkUserResponseSchema: GenMessage<UnlinkUserResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 23);
+  messageDesc(file_nama_hub_v1_link, 27);
+
+/**
+ * A User an Admin created from an Account, waiting for it to accept them.
+ *
+ * @generated from message nama.hub.v1.UserInvite
+ */
+export type UserInvite = Message<"nama.hub.v1.UserInvite"> & {
+  /**
+   * The invite's id, a UUID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The User's name on their Server.
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * The name of the Linked Server the User is on.
+   *
+   * @generated from field: string server_name = 3;
+   */
+  serverName: string;
+
+  /**
+   * When the Admin created them, in seconds since the Unix epoch.
+   *
+   * @generated from field: int64 invited_at = 4;
+   */
+  invitedAt: bigint;
+};
+
+/**
+ * Describes the message nama.hub.v1.UserInvite.
+ * Use `create(UserInviteSchema)` to create a new message.
+ */
+export const UserInviteSchema: GenMessage<UserInvite> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 28);
+
+/**
+ * @generated from message nama.hub.v1.ListUserInvitesRequest
+ */
+export type ListUserInvitesRequest = Message<"nama.hub.v1.ListUserInvitesRequest"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.ListUserInvitesRequest.
+ * Use `create(ListUserInvitesRequestSchema)` to create a new message.
+ */
+export const ListUserInvitesRequestSchema: GenMessage<ListUserInvitesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 29);
+
+/**
+ * @generated from message nama.hub.v1.ListUserInvitesResponse
+ */
+export type ListUserInvitesResponse = Message<"nama.hub.v1.ListUserInvitesResponse"> & {
+  /**
+   * @generated from field: repeated nama.hub.v1.UserInvite invites = 1;
+   */
+  invites: UserInvite[];
+};
+
+/**
+ * Describes the message nama.hub.v1.ListUserInvitesResponse.
+ * Use `create(ListUserInvitesResponseSchema)` to create a new message.
+ */
+export const ListUserInvitesResponseSchema: GenMessage<ListUserInvitesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 30);
+
+/**
+ * @generated from message nama.hub.v1.AcceptUserInviteRequest
+ */
+export type AcceptUserInviteRequest = Message<"nama.hub.v1.AcceptUserInviteRequest"> & {
+  /**
+   * The invite's id, as `UserInvite.id`.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.AcceptUserInviteRequest.
+ * Use `create(AcceptUserInviteRequestSchema)` to create a new message.
+ */
+export const AcceptUserInviteRequestSchema: GenMessage<AcceptUserInviteRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 31);
+
+/**
+ * @generated from message nama.hub.v1.AcceptUserInviteResponse
+ */
+export type AcceptUserInviteResponse = Message<"nama.hub.v1.AcceptUserInviteResponse"> & {
+  /**
+   * The User just Linked.
+   *
+   * @generated from field: nama.hub.v1.LinkedUser user = 1;
+   */
+  user?: LinkedUser | undefined;
+};
+
+/**
+ * Describes the message nama.hub.v1.AcceptUserInviteResponse.
+ * Use `create(AcceptUserInviteResponseSchema)` to create a new message.
+ */
+export const AcceptUserInviteResponseSchema: GenMessage<AcceptUserInviteResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 32);
+
+/**
+ * @generated from message nama.hub.v1.GetServerSignInRequest
+ */
+export type GetServerSignInRequest = Message<"nama.hub.v1.GetServerSignInRequest"> & {
+  /**
+   * The sign-in's id, from the page's address.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.GetServerSignInRequest.
+ * Use `create(GetServerSignInRequestSchema)` to create a new message.
+ */
+export const GetServerSignInRequestSchema: GenMessage<GetServerSignInRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 33);
+
+/**
+ * @generated from message nama.hub.v1.GetServerSignInResponse
+ */
+export type GetServerSignInResponse = Message<"nama.hub.v1.GetServerSignInResponse"> & {
+  /**
+   * The name of the Linked Server it signs in to.
+   *
+   * @generated from field: string server_name = 1;
+   */
+  serverName: string;
+
+  /**
+   * The name of the signed-in Account's User on that Server, or empty if it has none there.
+   *
+   * @generated from field: string user_name = 2;
+   */
+  userName: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.GetServerSignInResponse.
+ * Use `create(GetServerSignInResponseSchema)` to create a new message.
+ */
+export const GetServerSignInResponseSchema: GenMessage<GetServerSignInResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 34);
+
+/**
+ * @generated from message nama.hub.v1.ApproveServerSignInRequest
+ */
+export type ApproveServerSignInRequest = Message<"nama.hub.v1.ApproveServerSignInRequest"> & {
+  /**
+   * The sign-in's id, from the page's address.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.ApproveServerSignInRequest.
+ * Use `create(ApproveServerSignInRequestSchema)` to create a new message.
+ */
+export const ApproveServerSignInRequestSchema: GenMessage<ApproveServerSignInRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 35);
+
+/**
+ * @generated from message nama.hub.v1.ApproveServerSignInResponse
+ */
+export type ApproveServerSignInResponse = Message<"nama.hub.v1.ApproveServerSignInResponse"> & {
+  /**
+   * Where to send the person back to, on the Server.
+   *
+   * @generated from field: string return_url = 1;
+   */
+  returnUrl: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.ApproveServerSignInResponse.
+ * Use `create(ApproveServerSignInResponseSchema)` to create a new message.
+ */
+export const ApproveServerSignInResponseSchema: GenMessage<ApproveServerSignInResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 36);
+
+/**
+ * @generated from message nama.hub.v1.InviteUserRequest
+ */
+export type InviteUserRequest = Message<"nama.hub.v1.InviteUserRequest"> & {
+  /**
+   * The User's id on the Server.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+
+  /**
+   * The User's name, which the Account's list of invites shows: up to 100 characters, cut there if
+   * longer.
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * The email of the Account to ask, in any case.
+   *
+   * @generated from field: string email = 3;
+   */
+  email: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.InviteUserRequest.
+ * Use `create(InviteUserRequestSchema)` to create a new message.
+ */
+export const InviteUserRequestSchema: GenMessage<InviteUserRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 37);
+
+/**
+ * @generated from message nama.hub.v1.InviteUserResponse
+ */
+export type InviteUserResponse = Message<"nama.hub.v1.InviteUserResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.InviteUserResponse.
+ * Use `create(InviteUserResponseSchema)` to create a new message.
+ */
+export const InviteUserResponseSchema: GenMessage<InviteUserResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 38);
+
+/**
+ * @generated from message nama.hub.v1.StartServerSignInRequest
+ */
+export type StartServerSignInRequest = Message<"nama.hub.v1.StartServerSignInRequest"> & {
+  /**
+   * Where the Hub's page sends the person once they approve: an `http` or `https` address on the
+   * Server. Fails with `invalid_argument` for any other.
+   *
+   * @generated from field: string return_url = 1;
+   */
+  returnUrl: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.StartServerSignInRequest.
+ * Use `create(StartServerSignInRequestSchema)` to create a new message.
+ */
+export const StartServerSignInRequestSchema: GenMessage<StartServerSignInRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 39);
+
+/**
+ * @generated from message nama.hub.v1.StartServerSignInResponse
+ */
+export type StartServerSignInResponse = Message<"nama.hub.v1.StartServerSignInResponse"> & {
+  /**
+   * What the Server polls with. A secret: only the Server and the browser that started see it.
+   *
+   * @generated from field: string device_code = 1;
+   */
+  deviceCode: string;
+
+  /**
+   * The sign-in's id: the Hub's page for it is `/server-sign-in/<id>`.
+   *
+   * @generated from field: string id = 2;
+   */
+  id: string;
+
+  /**
+   * How long both work.
+   *
+   * @generated from field: int32 expires_in_seconds = 3;
+   */
+  expiresInSeconds: number;
+};
+
+/**
+ * Describes the message nama.hub.v1.StartServerSignInResponse.
+ * Use `create(StartServerSignInResponseSchema)` to create a new message.
+ */
+export const StartServerSignInResponseSchema: GenMessage<StartServerSignInResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 40);
+
+/**
+ * @generated from message nama.hub.v1.PollServerSignInRequest
+ */
+export type PollServerSignInRequest = Message<"nama.hub.v1.PollServerSignInRequest"> & {
+  /**
+   * @generated from field: string device_code = 1;
+   */
+  deviceCode: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.PollServerSignInRequest.
+ * Use `create(PollServerSignInRequestSchema)` to create a new message.
+ */
+export const PollServerSignInRequestSchema: GenMessage<PollServerSignInRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 41);
+
+/**
+ * @generated from message nama.hub.v1.PollServerSignInResponse
+ */
+export type PollServerSignInResponse = Message<"nama.hub.v1.PollServerSignInResponse"> & {
+  /**
+   * Empty until the sign-in is approved. Then a JWT the Hub signed as `PollServerLinkResponse`'s
+   * is: `sub` is the User's id on the Server, `aud` the Linked Server's id, and it expires 5
+   * minutes after it was made.
+   *
+   * @generated from field: string token = 1;
+   */
+  token: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.PollServerSignInResponse.
+ * Use `create(PollServerSignInResponseSchema)` to create a new message.
+ */
+export const PollServerSignInResponseSchema: GenMessage<PollServerSignInResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 42);
+
+/**
+ * @generated from message nama.hub.v1.SetServerAddressesRequest
+ */
+export type SetServerAddressesRequest = Message<"nama.hub.v1.SetServerAddressesRequest"> & {
+  /**
+   * The Server URL its Admin set, such as `https://nama.example.com`, or empty for none.
+   *
+   * @generated from field: string url = 1;
+   */
+  url: string;
+
+  /**
+   * The Server's LAN addresses, such as `http://192.168.1.10:7980`: at most 16.
+   *
+   * @generated from field: repeated string lan_addresses = 2;
+   */
+  lanAddresses: string[];
+};
+
+/**
+ * Describes the message nama.hub.v1.SetServerAddressesRequest.
+ * Use `create(SetServerAddressesRequestSchema)` to create a new message.
+ */
+export const SetServerAddressesRequestSchema: GenMessage<SetServerAddressesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 43);
+
+/**
+ * @generated from message nama.hub.v1.SetServerAddressesResponse
+ */
+export type SetServerAddressesResponse = Message<"nama.hub.v1.SetServerAddressesResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.SetServerAddressesResponse.
+ * Use `create(SetServerAddressesResponseSchema)` to create a new message.
+ */
+export const SetServerAddressesResponseSchema: GenMessage<SetServerAddressesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 44);
+
+/**
+ * Whether a title is a Movie or a Show, whose External IDs are separate id spaces (ADR 0042).
+ *
+ * @generated from enum nama.hub.v1.TitleKind
+ */
+export const TitleKind = {
+  /**
+   * @generated from enum value: TITLE_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * @generated from enum value: TITLE_KIND_MOVIE = 1;
+   */
+  MOVIE: 1,
+
+  /**
+   * @generated from enum value: TITLE_KIND_SHOW = 2;
+   */
+  SHOW: 2,
+} as const;
+
+/**
+ * Whether a title is a Movie or a Show, whose External IDs are separate id spaces (ADR 0042).
+ *
+ * @generated from enum nama.hub.v1.TitleKind
+ */
+export type TitleKind = (typeof TitleKind)[keyof typeof TitleKind] | UnknownEnum;
+
+/**
+ * Describes the enum nama.hub.v1.TitleKind.
+ */
+export const TitleKindSchema: GenEnum<TitleKind> = /*@__PURE__*/
+  enumDesc(file_nama_hub_v1_link, 0);
 
 /**
  * Registering a Server with the Hub, as an OAuth device flow (RFC 8628, ADR 0011): the Server
@@ -575,7 +1094,9 @@ export const LinkService: GenService<{
     output: typeof ApproveServerLinkResponseSchema;
   },
   /**
-   * Returns the signed-in Account's Linked Servers, oldest first.
+   * Returns the Linked Servers the signed-in Account owns or has a User on, oldest first, each
+   * with the Server Addresses a client tries. A client reaches a Server at those itself: the Hub
+   * never carries its calls or media (ADR 0094).
    *
    * @generated from rpc nama.hub.v1.LinkService.ListLinkedServers
    */
@@ -616,6 +1137,54 @@ export const LinkService: GenService<{
     input: typeof UnlinkLinkedUserRequestSchema;
     output: typeof UnlinkLinkedUserResponseSchema;
   },
+  /**
+   * Returns the Users Admins created from the signed-in Account that it hasn't accepted yet,
+   * oldest first (ADR 0092).
+   *
+   * @generated from rpc nama.hub.v1.LinkService.ListUserInvites
+   */
+  listUserInvites: {
+    methodKind: "unary";
+    input: typeof ListUserInvitesRequestSchema;
+    output: typeof ListUserInvitesResponseSchema;
+  },
+  /**
+   * Accepts a User created from the signed-in Account, which Links them to it, so they can sign in
+   * with it. Fails like `ApproveServerLink`, with `REFUSAL_REASON_USER_INVITE_NOT_FOUND` for an id
+   * none of its invites has, and with `REFUSAL_REASON_USER_LINKED` if the User Linked meanwhile.
+   *
+   * @generated from rpc nama.hub.v1.LinkService.AcceptUserInvite
+   */
+  acceptUserInvite: {
+    methodKind: "unary";
+    input: typeof AcceptUserInviteRequestSchema;
+    output: typeof AcceptUserInviteResponseSchema;
+  },
+  /**
+   * Names the Server a sign-in with the Account was started on, and the signed-in Account's User
+   * there, so the person can check them before approving. Fails with
+   * `REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND` for a sign-in that expired, was approved, or never
+   * existed.
+   *
+   * @generated from rpc nama.hub.v1.LinkService.GetServerSignIn
+   */
+  getServerSignIn: {
+    methodKind: "unary";
+    input: typeof GetServerSignInRequestSchema;
+    output: typeof GetServerSignInResponseSchema;
+  },
+  /**
+   * Approves a sign-in with the signed-in Account, as its User on that Server, and returns where to
+   * go back to. Fails like `GetServerSignIn`, and with `REFUSAL_REASON_NO_USER_ON_SERVER` if the
+   * Account has no User Linked on that Server.
+   *
+   * @generated from rpc nama.hub.v1.LinkService.ApproveServerSignIn
+   */
+  approveServerSignIn: {
+    methodKind: "unary";
+    input: typeof ApproveServerSignInRequestSchema;
+    output: typeof ApproveServerSignInResponseSchema;
+  },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_hub_v1_link, 1);
 
@@ -637,6 +1206,18 @@ export const LinkedServerService: GenService<{
     methodKind: "unary";
     input: typeof UnlinkServerRequestSchema;
     output: typeof UnlinkServerResponseSchema;
+  },
+  /**
+   * The titles most like one title, of its kind, by the vectors the Hub builds from Wikidata's
+   * facts (ADR 0095): at most 100, most alike first. Empty when Wikidata lacks the title or the
+   * kind is unspecified, which isn't a failure: the Server's other Similar sources cover it.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.ListSimilarTitles
+   */
+  listSimilarTitles: {
+    methodKind: "unary";
+    input: typeof ListSimilarTitlesRequestSchema;
+    output: typeof ListSimilarTitlesResponseSchema;
   },
   /**
    * Starts Linking one of the Server's Users: the code they enter on the Hub, which replaces any
@@ -671,6 +1252,55 @@ export const LinkedServerService: GenService<{
     methodKind: "unary";
     input: typeof UnlinkUserRequestSchema;
     output: typeof UnlinkUserResponseSchema;
+  },
+  /**
+   * Asks the Account with `email`, if there is one, to accept one of the Server's Users created
+   * from it (ADR 0092). It answers the same whether or not there is, so it reveals nothing about
+   * which emails have Accounts. Asking again for the same User replaces the request.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.InviteUser
+   */
+  inviteUser: {
+    methodKind: "unary";
+    input: typeof InviteUserRequestSchema;
+    output: typeof InviteUserResponseSchema;
+  },
+  /**
+   * Starts someone signing in to the Server with their Account, as an OAuth device flow: the
+   * person approves it on the Hub's page for `id`, which then sends them to `return_url`, and the
+   * Server collects the sign-in with `PollServerSignIn`. Both stop working after
+   * `expires_in_seconds`.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.StartServerSignIn
+   */
+  startServerSignIn: {
+    methodKind: "unary";
+    input: typeof StartServerSignInRequestSchema;
+    output: typeof StartServerSignInResponseSchema;
+  },
+  /**
+   * Whether the sign-in was approved. Once it is, the first poll gets the token naming the User
+   * and every later one fails. Fails with `REFUSAL_REASON_LINK_EXPIRED` for a device code that
+   * expired, was used, or never existed.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.PollServerSignIn
+   */
+  pollServerSignIn: {
+    methodKind: "unary";
+    input: typeof PollServerSignInRequestSchema;
+    output: typeof PollServerSignInResponseSchema;
+  },
+  /**
+   * Replaces the Server Addresses the calling Server reported before. The Server reports them
+   * whenever they change. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an
+   * `http` or `https` URL, or for too many.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.SetServerAddresses
+   */
+  setServerAddresses: {
+    methodKind: "unary";
+    input: typeof SetServerAddressesRequestSchema;
+    output: typeof SetServerAddressesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_hub_v1_link, 2);

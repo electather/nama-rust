@@ -224,6 +224,9 @@ async fn demoting_two_admins_at_once_leaves_exactly_one() {
     let users = Users::new(Arc::clone(&db), ExtensionPoints::default());
     let ada = create_user(&db, "Ada").await.unwrap().id;
     let grace = create_user(&db, "Grace").await.unwrap().id;
+    // Each can sign in without the Hub, so either may be the Admin left (ADR 0092).
+    add_other_sign_in_method(&users, ada).await;
+    add_other_sign_in_method(&users, grace).await;
     users
         .set_permissions(&admin(), ada, Permissions::ADMIN)
         .await
@@ -371,6 +374,7 @@ async fn sign_in_details(
 
 /// Gives the User `user` a Sign-in Method that isn't a password, and returns its id.
 async fn add_other_sign_in_method(users: &Users, user: i64) -> i64 {
+    let subject = format!("their-id-{user}");
     users
         .db
         .write(move |tx| {
@@ -379,9 +383,10 @@ async fn add_other_sign_in_method(users: &Users, user: i64) -> i64 {
                     r#"INSERT INTO sign_in_methods
                                (user_id, provider_id, subject, credential, name, created_at,
                                 updated_at)
-                           VALUES (?, 'test', 'their-id', '', 'Test', 0, 0)
+                           VALUES (?, 'test', ?, '', 'Test', 0, 0)
                            RETURNING id AS "id!""#,
-                    user
+                    user,
+                    subject
                 )
                 .fetch_one(&mut **tx)
                 .await

@@ -760,6 +760,7 @@ impl Plan {
 async fn in_sidecar_charset(mut transcode: Transcode) -> Transcode {
     if let Some(BurnIn::Text {
         subtitle: TextSubtitle::Sidecar { path, charset },
+        ..
     }) = &mut transcode.video.burn_in
     {
         *charset = sidecar_charset(path).await;

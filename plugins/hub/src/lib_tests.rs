@@ -6,19 +6,23 @@ use std::{
 
 use buffa::Message as _;
 use nama_plugin_api::{
-    BoxFuture, Registrar,
+    BoxFuture, Registrar, Registration,
     automation::{
         Kernel, KernelFunction as _, KernelRefused,
         functions::{StoreDelete, StoreGet, StorePut},
     },
-    contract::{StoreEntry, StoreKey, StoreValue, Stored},
+    contract::{
+        SimilarAsked, SimilarTitle, SimilarTitles, StoreEntry, StoreKey, StoreValue, Stored,
+        TitleId, TitleKind,
+    },
     diagnostics_sharer::{DiagnosticsSharer, Signal},
-    server_link::{Link, ServerLinker},
+    server_link::{Link, ServerAddresses, ServerLinker},
+    similar_source::SimilarSource,
 };
 use serde_json::json;
 
 use super::*;
-use crate::fake_hub::{EMAIL, FakeHub, USER_CODE, USER_LINK_CODE};
+use crate::fake_hub::{EMAIL, FakeHub, SIGN_IN_ID, USER_CODE, USER_LINK_CODE};
 
 /// A Kernel whose only functions are the Plugin's Store, kept in memory.
 fn store() -> Arc<dyn Kernel> {
@@ -53,11 +57,45 @@ fn store() -> Arc<dyn Kernel> {
 
 /// The Plugin enabled against `hub`, keeping its Store in `kernel`.
 fn enabled(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Arc<dyn ServerLinker> {
+    provided(hub, kernel)
+}
+
+/// What the Plugin enabled against `hub`, keeping its Store in `kernel`, provides as `T`.
+fn provided<T: ?Sized + Send + Sync + 'static>(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Arc<T> {
     let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
     Hub::at(hub.url()).register(&mut registrar).unwrap();
-    registrar.into_registrations()[0]
-        .provider::<dyn ServerLinker>()
+    (registrar.into_registrations().iter())
+        .find_map(Registration::provider::<T>)
         .unwrap()
+}
+
+/// What a Similar source is asked about a Movie known by `ids`.
+fn movie(ids: &[(&str, &str)]) -> SimilarAsked {
+    SimilarAsked {
+        kind: TitleKind::TITLE_KIND_MOVIE.into(),
+        ids: ids
+            .iter()
+            .map(|&(namespace, value)| TitleId {
+                namespace: namespace.to_owned(),
+                value: value.to_owned(),
+                ..Default::default()
+            })
+            .collect(),
+        ..Default::default()
+    }
+}
+
+/// `similar`'s titles, each as its id's namespace and value and its weight.
+fn answered(similar: &SimilarTitles) -> Vec<(&str, &str, f32)> {
+    (similar.titles.iter())
+        .map(|title: &SimilarTitle| {
+            (
+                title.id.namespace.as_str(),
+                title.id.value.as_str(),
+                title.weight,
+            )
+        })
+        .collect()
 }
 
 /// Links the Server through `linker` to [`EMAIL`]'s Account on `hub`.
@@ -203,13 +241,7 @@ async fn a_hub_signed_token_verifies_against_the_kept_key_set_while_the_hub_is_u
 
 /// The Plugin's sharer, enabled against `hub` with the Store in `kernel`.
 fn sharer(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Arc<dyn DiagnosticsSharer> {
-    let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
-    Hub::at(hub.url()).register(&mut registrar).unwrap();
-    registrar
-        .into_registrations()
-        .iter()
-        .find_map(nama_plugin_api::Registration::provider::<dyn DiagnosticsSharer>)
-        .unwrap()
+    provided(hub, kernel)
 }
 
 #[tokio::test]
@@ -254,6 +286,24 @@ fn without_the_hubs_address_the_plugin_refuses_to_start() {
     let refused = Hub { url: None }.register(&mut registrar).unwrap_err();
 
     assert!(refused.to_string().contains("NAMA_HUB_URL"), "{refused}");
+}
+
+#[tokio::test]
+async fn a_linked_server_gets_the_titles_the_hub_finds_alike() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    let similar = provided::<dyn SimilarSource>(&hub, &kernel);
+
+    let the_matrix = similar
+        .similar(&movie(&[("imdb", "tt0133093"), ("tmdb", "603")]))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        answered(&the_matrix),
+        [("imdb", "tt0234215", 0.9), ("imdb", "tt0078748", 0.35)]
+    );
 }
 
 #[tokio::test]
@@ -309,6 +359,59 @@ async fn a_linked_user_shows_linked_while_the_hub_is_unreachable() {
             account: EMAIL.to_owned()
         })
     );
+}
+
+#[tokio::test]
+async fn a_title_the_hub_doesnt_know_gets_no_similar_titles() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+
+    let unknown = provided::<dyn SimilarSource>(&hub, &kernel)
+        .similar(&movie(&[("tmdb", "1")]))
+        .await;
+
+    assert_eq!(answered(&unknown.unwrap()), []);
+}
+
+#[tokio::test]
+async fn a_server_that_isnt_linked_gets_no_similar_titles_and_asks_the_hub_nothing() {
+    let hub = FakeHub::start().await;
+    hub.stop();
+
+    let similar = provided::<dyn SimilarSource>(&hub, &store())
+        .similar(&movie(&[("tmdb", "603")]))
+        .await;
+
+    assert_eq!(answered(&similar.unwrap()), []);
+}
+
+#[tokio::test]
+async fn a_server_whose_credential_the_hub_forgot_gets_no_similar_titles() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.forget_server();
+
+    let similar = provided::<dyn SimilarSource>(&hub, &kernel)
+        .similar(&movie(&[("tmdb", "603")]))
+        .await;
+
+    assert_eq!(answered(&similar.unwrap()), []);
+}
+
+#[tokio::test]
+async fn similar_titles_fail_while_the_hub_is_unreachable_so_the_last_answer_stays() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.stop();
+
+    let similar = provided::<dyn SimilarSource>(&hub, &kernel)
+        .similar(&movie(&[("tmdb", "603")]))
+        .await;
+
+    similar.unwrap_err();
 }
 
 #[tokio::test]
@@ -408,4 +511,159 @@ async fn a_server_linked_again_doesnt_show_its_users_old_links() {
 
     assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
     assert_eq!(linker.user_link(8).await.unwrap(), Some(Link::NotLinked));
+}
+
+#[tokio::test]
+async fn an_account_approving_on_the_hub_signs_in_as_its_user() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+
+    let started = linker
+        .start_account_sign_in("https://nama.example/sign-in")
+        .await
+        .unwrap();
+
+    assert_eq!(
+        started.url,
+        format!("{}/server-sign-in/{SIGN_IN_ID}", hub.url())
+    );
+    assert_eq!(
+        hub.sign_in_returns_to().as_deref(),
+        Some("https://nama.example/sign-in")
+    );
+    assert_eq!(
+        linker
+            .finish_account_sign_in(&started.handle)
+            .await
+            .unwrap(),
+        None
+    );
+    hub.approve_sign_in(7);
+    assert_eq!(
+        linker
+            .finish_account_sign_in(&started.handle)
+            .await
+            .unwrap(),
+        Some(7)
+    );
+    assert_eq!(
+        linker
+            .finish_account_sign_in(&started.handle)
+            .await
+            .unwrap(),
+        None
+    );
+}
+
+fn addresses(url: &str, lan: &[&str]) -> ServerAddresses {
+    ServerAddresses {
+        url: url.to_owned(),
+        lan: lan.iter().map(|&address| address.to_owned()).collect(),
+    }
+}
+
+#[tokio::test]
+async fn the_server_reports_its_addresses_once_linked_and_then_only_when_they_change() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
+    linker.set_addresses(lan_only.clone()).await.unwrap();
+    assert_eq!(hub.reported_addresses(), []);
+    link(&hub, linker.as_ref()).await;
+
+    linker.set_addresses(lan_only.clone()).await.unwrap();
+    linker.set_addresses(lan_only.clone()).await.unwrap();
+    linker
+        .set_addresses(addresses(
+            "https://nama.example.com",
+            &["http://192.168.1.10:7980"],
+        ))
+        .await
+        .unwrap();
+
+    let lan = vec!["http://192.168.1.10:7980".to_owned()];
+    assert_eq!(
+        hub.reported_addresses(),
+        [
+            (String::new(), lan.clone()),
+            ("https://nama.example.com".to_owned(), lan),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn signing_in_with_an_account_fails_while_the_hub_is_unreachable() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+
+    hub.stop();
+
+    let started = linker
+        .start_account_sign_in("https://nama.example/sign-in")
+        .await;
+    assert!(started.is_err());
+}
+
+#[tokio::test]
+async fn a_server_that_isnt_linked_cant_sign_in_with_accounts_or_invite() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+
+    let started = linker
+        .start_account_sign_in("https://nama.example/sign-in")
+        .await;
+    assert!(started.is_err());
+    linker
+        .invite_user(7, "Grace", "grace@example.com")
+        .await
+        .unwrap_err();
+    assert_eq!(hub.invite(7), None);
+}
+
+#[tokio::test]
+async fn a_user_created_from_an_account_is_invited_on_the_hub() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+
+    linker
+        .invite_user(7, "Grace", "grace@example.com")
+        .await
+        .unwrap();
+
+    assert_eq!(
+        hub.invite(7),
+        Some(("Grace".to_owned(), "grace@example.com".to_owned()))
+    );
+}
+
+#[tokio::test]
+async fn a_server_linked_again_reports_its_addresses_again() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
+    link(&hub, linker.as_ref()).await;
+    linker.set_addresses(lan_only.clone()).await.unwrap();
+    linker.unlink().await.unwrap();
+    link(&hub, linker.as_ref()).await;
+
+    linker.set_addresses(lan_only).await.unwrap();
+
+    assert_eq!(hub.reported_addresses().len(), 2);
+}
+
+#[tokio::test]
+async fn addresses_the_hub_couldnt_take_are_reported_again() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
+    hub.fail_next_addresses();
+    assert!(linker.set_addresses(lan_only.clone()).await.is_err());
+
+    linker.set_addresses(lan_only).await.unwrap();
+
+    assert_eq!(hub.reported_addresses().len(), 1);
 }

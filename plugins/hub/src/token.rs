@@ -10,7 +10,11 @@ const LEEWAY_SECS: u64 = 60;
 /// What a token the Hub signed for a Linked Server says.
 #[derive(Debug, Deserialize)]
 pub(crate) struct Claims {
-    /// Its Account's email.
+    /// Whom it names: the Linked Server, or for a sign-in the User's id on the Server.
+    #[serde(default)]
+    pub(crate) sub: String,
+    /// Its Account's email, in the token a newly Linked Server gets.
+    #[serde(default)]
     pub(crate) email: String,
     exp: u64,
 }

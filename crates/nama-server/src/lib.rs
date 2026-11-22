@@ -23,6 +23,7 @@ pub mod plugin_settings;
 pub mod plugins;
 mod requests;
 mod scanner;
+mod server_addresses;
 mod server_settings;
 pub mod users;
 mod watchlist;
@@ -74,6 +75,8 @@ use crate::{
 /// While the Server has no Users, `Setup` creates the first Admin for whoever gives `setup_code`.
 /// Admins see the `ffmpeg` found at startup with `GetPlaybackStatus`. Plans running when
 /// `shutdown` resolves are stopped and their segment files deleted.
+///
+/// The enabled Plugin that links the Server, if any, is told its Server Addresses every minute.
 ///
 /// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, unless the
 /// peer is in [`Config::trusted_proxies`], whose `X-Forwarded-For` names the client.
@@ -170,6 +173,9 @@ pub fn serve(
         Backups::new(&config.data_dir, &config.file, settings.clone()),
     );
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
+    let server_url = settings.server_url();
+    // `listen` differs from the bound address only when it asks for port 0.
+    let listening = listener.local_addr().unwrap_or(config.listen);
     let load_settings = load_settings(
         settings.clone(),
         images.clone(),
@@ -220,6 +226,8 @@ pub fn serve(
         // Every minute, as Seerr asks how its Requests are progressing (ADR 0012).
         let came_up = home_rows.refresh_as_plugins_come_up(plugins.take_came_up());
         requests.start(came_up, Duration::from_mins(1));
+        let telling_addresses =
+            server_addresses::tell_every_minute(plugins.extension_points(), server_url, listening);
         let served = axum::serve(
             listener,
             // The peer's address decides whose rate limit counts and which proxies are trusted.
@@ -247,6 +255,9 @@ pub fn serve(
         // Before the Plugin settings, which save a Plugin that crashes as it is asked about progress.
         requests.shutdown().await;
         home_rows.shutdown().await;
+        // Its calls run in the Plugin's scope, which shutting the Plugins down joins; telling it
+        // again at the next start loses nothing.
+        telling_addresses.abort();
         plugins.shutdown().await;
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
         drop(automation);

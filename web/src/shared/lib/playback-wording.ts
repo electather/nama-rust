@@ -117,6 +117,10 @@ const wordings: Record<PlaybackReasonKind, Wording | undefined> = {
     `Its ${param.hdr()} picture is converted to SDR, which this Device shows.`,
   [PlaybackReasonKind.HDR_NOT_TONE_MAPPED]: (param) =>
     `Nothing on the Server converts its ${param.hdr()} picture to SDR, so its colours look washed out.`,
+  [PlaybackReasonKind.HDR_TONE_MAPPED_FOR_BURN_IN]: (param) =>
+    `Its ${param.hdr()} picture is converted to SDR to burn in its subtitles, which the Server’s ffmpeg can’t draw over HDR.`,
+  [PlaybackReasonKind.HDR_TONE_MAPPED_FOR_ENCODER]: (param) =>
+    `Its ${param.hdr()} picture is converted to SDR, as this Server can’t Transcode it to HEVC for this Device.`,
   [PlaybackReasonKind.REMOTE_DEFAULT_LIMIT]: (param) =>
     `This Device is outside the local network, so it asks for the default Playback Limit for remote playback, ${param.limit()}.`,
   [PlaybackReasonKind.PICTURE_SIZE_UNKNOWN]: (param) =>
