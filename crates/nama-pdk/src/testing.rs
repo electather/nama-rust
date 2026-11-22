@@ -116,6 +116,21 @@ impl Kernel {
         self
     }
 
+    /// The Kernel, with the `SETTING_KIND_CHOICES` setting `key` holding `values` picked, as
+    /// [`crate::setting_picked`] reads them.
+    #[must_use]
+    pub fn setting_picked(
+        self,
+        key: &str,
+        values: impl IntoIterator<Item = impl AsRef<str>>,
+    ) -> Self {
+        let values: Vec<_> = values
+            .into_iter()
+            .map(|value| value.as_ref().into())
+            .collect();
+        self.setting(key, &::extism_pdk::json::Value::Array(values).to_string())
+    }
+
     /// The Kernel, answering each HTTP request with `handler`, which is given its body (empty for
     /// none). An `Err` reaches the Plugin as a host that can't be reached does: the request fails
     /// with the Plugin's own words for that.
@@ -679,6 +694,16 @@ mod tests {
 
     fn get(url: &str) -> Result<Response, Error> {
         crate::http_request(&HttpRequest::new(url), None::<String>, "nothing answered")
+    }
+
+    #[test]
+    fn picked_values_given_reach_the_plugin_as_given() {
+        let values = ["PG-13", "a, b", r#"say "hi""#];
+        let mut kernel = Kernel::new().setting_picked("ratings", values);
+
+        let picked = with(&mut kernel, || crate::setting_picked("ratings")).unwrap();
+
+        assert_eq!(picked, values);
     }
 
     #[test]

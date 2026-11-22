@@ -1,9 +1,8 @@
 use nama_pdk::{
-    FeaturedSuggestions, HomeRowSource, HomeRows, Library, Permission, Title, TitleId, TitleKind,
-    TitleRef, TitleRefKind, TitleWatchStates, UserFeaturedAsked, UserRowsAsked, WatchState,
-    WatchlistTitle,
+    FeaturedSuggestions, HomeRowSource, HomeRows, Library, Permission, SettingKind, Title, TitleId,
+    TitleKind, TitleRef, TitleRefKind, TitleWatchStates, UserFeaturedAsked, UserRowsAsked,
+    WatchState, WatchlistTitle,
     extism_pdk::Error,
-    nama_plugin_proto::nama::plugin::v1::{SettingKind, Texts, setting_value::Value},
     services,
     testing::{Kernel, with},
 };
@@ -273,13 +272,8 @@ fn manifest_is_a_home_row_source_with_the_permissions_and_family_content_ratings
         .map(|rating| (rating, rating))
     );
     assert_eq!(
-        field.default_value.value,
-        Some(Value::Texts(Box::new(Texts {
-            values: ["G", "PG", "PG-13", "TV-Y", "TV-G", "TV-PG"]
-                .map(str::to_owned)
-                .into(),
-            ..Texts::default()
-        })))
+        field.default_value,
+        nama_pdk::picked_default(["G", "PG", "PG-13", "TV-Y", "TV-G", "TV-PG"])
     );
 }
 
@@ -291,10 +285,7 @@ fn refusing_watchlists(titles: &[Title]) -> Kernel {
         ..Library::default()
     };
     Kernel::new()
-        .setting(
-            FAMILY_RATINGS,
-            &nama_pdk::extism_pdk::json::to_string(&DEFAULT_FAMILY_RATINGS).unwrap(),
-        )
+        .setting_picked(FAMILY_RATINGS, DEFAULT_FAMILY_RATINGS)
         .libraries([library])
         .titles(1, titles.iter().cloned())
         .watch_states(&TitleRef::default(), [])
@@ -416,7 +407,7 @@ fn user_rows_family_night_holds_only_titles_rated_in_the_setting() {
         rated("4", Some("tv-pg")),
         rated("5", Some("TV-MA")),
     ];
-    let mut by_admin = granting_watchlists(&titles).setting(FAMILY_RATINGS, r#"["R","TV-MA"]"#);
+    let mut by_admin = granting_watchlists(&titles).setting_picked(FAMILY_RATINGS, ["R", "TV-MA"]);
 
     let by_default = user_rows(&mut granting_watchlists(&titles), ADA).unwrap();
     let by_admin = user_rows(&mut by_admin, ADA).unwrap();

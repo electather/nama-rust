@@ -127,7 +127,7 @@ pub use notification_text::what_happened;
 
 use ::extism_pdk::{Error, FromBytesOwned, HttpRequest, ToBytes};
 use buffa::{Inline, MessageField};
-use nama_plugin_proto::nama::plugin::v1::{Choice, SettingChoices};
+use nama_plugin_proto::nama::plugin::v1::{Choice, SettingChoices, Texts};
 
 /// The value of the id in `namespace` among a title's `ids`, such as its `tmdb` id, if it has one.
 #[must_use]
@@ -880,7 +880,8 @@ pub fn setting_field(
 
 /// A Manifest's `SETTING_KIND_CHOICES` setting `key`, as [`setting_field`] makes one, offering
 /// `choices` as `(value, label)` pairs in the order a form shows them, as [`checked_settings`]
-/// takes them. Its value is read with [`setting_picked`].
+/// takes them. Its default is built with [`picked_default`] and its value read with
+/// [`setting_picked`].
 #[must_use]
 pub fn choices_setting_field<V: Into<String>, L: Into<String>>(
     key: &str,
@@ -905,6 +906,17 @@ pub fn setting_default(
         ..SettingValue::default()
     }
     .into()
+}
+
+/// A `SETTING_KIND_CHOICES` [`SettingField`]'s `default_value` picking `values`, in order.
+#[must_use]
+pub fn picked_default(
+    values: impl IntoIterator<Item = impl Into<String>>,
+) -> MessageField<SettingValue, Inline<SettingValue>> {
+    setting_default(setting_value::Value::Texts(Box::new(Texts {
+        values: values.into_iter().map(Into::into).collect(),
+        ..Texts::default()
+    })))
 }
 
 /// The Library ids the `SETTING_KIND_LIBRARIES` setting `key` holds, in the order the admin gave
@@ -1168,7 +1180,9 @@ mod tests {
         Choice, SearchQuery, SearchResults, SettingField, SettingKind, SettingValue, TitleSource,
         choices_setting_field,
         extism_pdk::Error,
-        library_ids, picked, setting_default, setting_field, setting_value,
+        library_ids,
+        nama_plugin_proto::nama::plugin::v1::Texts,
+        picked, picked_default, setting_default, setting_field, setting_value,
         testing::{Kernel, with},
     };
 
@@ -1232,6 +1246,20 @@ mod tests {
         let values = with(&mut kernel, || crate::setting_picked("ratings").unwrap());
 
         assert_eq!(values, Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_picked_default_holds_its_values_in_order() {
+        assert_eq!(
+            picked_default(["PG", "G"]).into_option(),
+            Some(SettingValue {
+                value: Some(setting_value::Value::Texts(Box::new(Texts {
+                    values: vec!["PG".to_owned(), "G".to_owned()],
+                    ..Texts::default()
+                }))),
+                ..SettingValue::default()
+            })
+        );
     }
 
     #[test]
