@@ -41,9 +41,13 @@ const pilot = create(ViewingEventSchema, {
   durationMs: 4_500_000n,
 });
 
-/** Opens `path` signed in as Ada, whose history holds `events`, or with `listFails` can't be read. */
+/**
+ * Opens `path` signed in as Ada, whose history holds `events`, or with `listFails` can't be read.
+ * Ada pools until she turns it off.
+ */
 function open(path: string, { events = [matrix, pilot], listFails = false } = {}) {
   let history = events;
+  let pooling = true;
   const transport = createRouterTransport(({ service }) => {
     service(AccountService, { getAccount: () => ({ account: ada }) });
     service(LinkService, {
@@ -59,6 +63,11 @@ function open(path: string, { events = [matrix, pilot], listFails = false } = {}
       },
       deleteViewingEvent: ({ id }) => {
         history = history.filter((event) => event.id !== id);
+        return {};
+      },
+      getPooling: () => ({ pooling }),
+      setPooling: (request) => {
+        ({ pooling } = request);
         return {};
       },
     });
@@ -153,6 +162,30 @@ describe("viewing history", () => {
           durationMs: "4500000",
         },
       ],
+    });
+  });
+
+  test("linking a User shows the pooling switch, on, with what turning it off can’t undo", async () => {
+    open("/");
+
+    const toggle = await screen.findByRole("switch", { name: "Count the Movies you finish" });
+
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    const notice = screen.getByText(/already counted can’t be taken out\.$/u);
+    expect(toggle.getAttribute("aria-describedby")).toBe(notice.id);
+  });
+
+  test("turning pooling off on the history page keeps it off", async () => {
+    open("/history");
+    const toggle = await screen.findByRole("switch", { name: "Count the Movies you finish" });
+    await vi.waitFor(() => {
+      expect(toggle.getAttribute("aria-disabled")).toBeNull();
+    });
+
+    fireEvent.click(toggle);
+
+    await vi.waitFor(() => {
+      expect(toggle.getAttribute("aria-checked")).toBe("false");
     });
   });
 

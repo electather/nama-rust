@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pooling_settings (account_id, pooling) VALUES ($1, $2)\n             ON CONFLICT (account_id) DO UPDATE SET pooling = excluded.pooling",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1b27a986fa9c82cfc4d445ac948ba4c8f2c2fe868587f973de8ffb7a90db4880"
+}

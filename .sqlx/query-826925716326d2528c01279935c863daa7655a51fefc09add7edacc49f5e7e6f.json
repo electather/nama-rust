@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO pooled_counts (title_a, title_b)\n         SELECT least($2::text, external_id), greatest($2::text, external_id)\n         FROM viewing_events WHERE account_id = $1 AND pooled\n         ON CONFLICT (title_a, title_b) DO UPDATE SET accounts = pooled_counts.accounts + 1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "826925716326d2528c01279935c863daa7655a51fefc09add7edacc49f5e7e6f"
+}
