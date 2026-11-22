@@ -15,7 +15,7 @@ const inlineRun =
 
 /**
  * `href` as an absolute http or https URL, or `undefined` for any other scheme or none: the only
- * links a Plugin's page renders (`src/features/admin-plugins/AGENTS.md`).
+ * links a Plugin's view renders (`src/features/admin-plugins/AGENTS.md`).
  */
 export function webUrl(href: string): string | undefined {
   const url = URL.parse(href);
@@ -23,8 +23,8 @@ export function webUrl(href: string): string | undefined {
 }
 
 /**
- * A Plugin's setup steps, read as the small Markdown subset its page shows: paragraphs, lists,
- * bold, inline code and links. Anything else, raw HTML included, stays text, since the page puts
+ * A Plugin's setup steps, read as the small Markdown subset its view shows: paragraphs, lists,
+ * bold, inline code and links. Anything else, raw HTML included, stays text, since the view puts
  * it in the DOM only as text (ADR 0058, `src/features/admin-plugins/AGENTS.md`).
  */
 export function parseSetupMarkdown(source: string): SetupBlock[] {

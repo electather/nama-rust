@@ -6,9 +6,9 @@ import { openPlugin, plugin } from "@/test-plugins";
 
 afterEach(cleanup);
 
-const noAbout = { setupMarkdown: "", homepageUrl: "", sourceUrl: "", license: "" };
+const noAbout = { setupMarkdown: "", license: "" };
 
-/** TMDB's page, its Plugin carrying `about`. */
+/** TMDB's view, its Plugin carrying `about`. */
 async function openTmdbWith(about: Partial<typeof noAbout>) {
   openPlugin("tmdb", {
     getPlugin: () => ({ plugin: { summary: { id: "tmdb", name: "TMDB" }, ...about } }),
@@ -22,11 +22,9 @@ function renderSetup(setupMarkdown: string) {
   return render(<PluginAbout plugin={{ ...noAbout, setupMarkdown }} />);
 }
 
-test("a Plugin's setup steps, links and licence show above the rest of its setup", async () => {
+test("a Plugin's setup steps and licence show in its About section", async () => {
   const page = await openTmdbWith({
     setupMarkdown: "Get an API key:\n\n1. Sign in to **TMDB**.\n2. Copy the `API key`.",
-    homepageUrl: "https://www.themoviedb.org/",
-    sourceUrl: "https://github.com/electather/nama-rust",
     license: "MIT",
   });
 
@@ -39,20 +37,10 @@ test("a Plugin's setup steps, links and licence show above the rest of its setup
   ).toStrictEqual(["Sign in to TMDB.", "Copy the API key."]);
   expect(page.getByText("TMDB", { selector: "strong" })).toBeDefined();
   expect(page.getByText("API key", { selector: "code" })).toBeDefined();
-  expect(page.getByRole("link", { name: "Homepage" }).getAttribute("href")).toBe(
-    "https://www.themoviedb.org/",
-  );
-  expect(page.getByRole("link", { name: "Source" }).getAttribute("rel")).toBe(
-    "noopener noreferrer",
-  );
   expect(page.getByText("MIT licence")).toBeDefined();
-  const logo = page.getByRole("region", { name: "Logo" });
-  // oxlint-disable-next-line no-bitwise -- `compareDocumentPosition` answers with a bit mask.
-  const following = about.compareDocumentPosition(logo) & Node.DOCUMENT_POSITION_FOLLOWING;
-  expect(following).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 });
 
-test("a Plugin without setup steps or links shows no About section", async () => {
+test("a Plugin without setup steps or a licence shows no About section", async () => {
   const page = await openTmdbWith({});
 
   expect(page.queryByRole("region", { name: "About" })).toBeNull();
@@ -68,7 +56,6 @@ test("a Plugin with only a licence shows just the licence", async () => {
   const page = await openTmdbWith({ license: "Apache-2.0" });
 
   expect(page.getByText("Apache-2.0 licence")).toBeDefined();
-  expect(page.queryByRole("link", { name: "Homepage" })).toBeNull();
 });
 
 test("raw HTML in setup steps reaches the page as text, never as an element", () => {
@@ -98,15 +85,6 @@ test("setup steps link only to http and https URLs, opening apart", () => {
     docs.getAttribute("target"),
   ]).toStrictEqual(["https://example.com/docs", "noopener noreferrer", "_blank"]);
   expect(screen.queryByRole("link", { name: "the FTP" })).toBeNull();
-});
-
-test("a homepage that isn't http or https isn't linked", () => {
-  const { container } = render(
-    // oxlint-disable-next-line no-script-url -- the URL is the hostile input under test
-    <PluginAbout plugin={{ ...noAbout, homepageUrl: "javascript:alert(1)" }} />,
-  );
-
-  expect(container.innerHTML).toBe("");
 });
 
 test("a numbered list with blank lines and CRLFs between its steps stays one list", () => {

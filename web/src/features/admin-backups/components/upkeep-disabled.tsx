@@ -11,7 +11,6 @@ export function UpkeepDisabled() {
       <Link
         to="."
         search={(rest) => ({ ...rest, settings: "plugins", plugin: UPKEEP })}
-        replace
         className={textLink}
       >
         Enable Upkeep

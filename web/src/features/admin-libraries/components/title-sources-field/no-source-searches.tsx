@@ -18,7 +18,7 @@ export function NoSourceSearches({ order, listed }: { order: string[]; listed: T
     return null;
   }
   const plugins = may(signedIn.user, Permission.MANAGE_SETTINGS) ? (
-    <Link to="/admin/plugins" className={textLink}>
+    <Link to="." search={(rest) => ({ ...rest, settings: "plugins" })} className={textLink}>
       Plugins
     </Link>
   ) : (

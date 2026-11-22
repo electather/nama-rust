@@ -48,8 +48,6 @@ test("the pencil on a Plugin's logo uploads an image to show in its place", asyn
   });
   const dialogOpened = vi.spyOn(HTMLInputElement.prototype, "click");
   const view = await openTmdbWithLogo(() => logo);
-  // The pencil stands in for the Logo card the Plugin's page has.
-  expect(view.queryByRole("heading", { name: "Logo" })).toBeNull();
 
   openLogoMenu(view);
   expect(screen.queryByRole("menuitem", { name: "Remove custom image" })).toBeNull();
@@ -85,13 +83,17 @@ test("the pencil removes a Plugin's Custom Image, which brings back its own logo
   expect(fetched).toHaveBeenCalledWith("/custom-images/plugin/tmdb/logo", { method: "DELETE" });
 });
 
-test("a logo the Server refuses says what was wrong, under the Plugin's name", async () => {
-  vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("refused", { status: 415 }));
-  const view = await openTmdbWithLogo(() => ({ logoUrl: tmdbLogo, customLogo: false }));
+test.each([
+  [413, "That file is too big: an SVG can be up to 64 KB, other images up to 20 MB."],
+  [415, "That isn’t a JPEG, PNG, WebP or SVG image."],
+])(
+  "a logo the Server refuses (%i) says what was wrong, under the Plugin's name",
+  async (status, message) => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("refused", { status }));
+    const view = await openTmdbWithLogo(() => ({ logoUrl: tmdbLogo, customLogo: false }));
 
-  pickLogo(new File(["text"], "logo.txt", { type: "text/plain" }));
+    pickLogo(new File(["text"], "logo.txt", { type: "text/plain" }));
 
-  await expect(
-    view.findByText("That isn’t a JPEG, PNG, WebP or SVG image."),
-  ).resolves.toBeDefined();
-});
+    await expect(view.findByText(message)).resolves.toBeDefined();
+  },
+);
