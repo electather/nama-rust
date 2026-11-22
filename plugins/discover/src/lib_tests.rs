@@ -1,5 +1,6 @@
 use nama_pdk::{
-    HomeRowSource, HomeRows, Permission, Response, SettingKind, TitleKind,
+    HomeRowSource, HomeRows, Library, Permission, Response, SettingKind, Title, TitleId, TitleKind,
+    TitleRef, TitleRefKind, UserRowsAsked, WatchState, WatchlistTitle,
     extism_pdk::{
         Error, HttpRequest,
         json::{self, Value, json},
@@ -10,7 +11,9 @@ use nama_pdk::{
 };
 use url::Url;
 
-use super::{API_KEY, Discover, REGION, SHARED, SHARED_ROWS, check_settings, manifest};
+use super::{
+    API_KEY, Discover, PER_USER, REGION, SHARED, SHARED_ROWS, USER_ROWS, check_settings, manifest,
+};
 
 /// The API key the fake TMDB takes.
 const VALID_KEY: &str = "fake-tmdb-key";
@@ -142,6 +145,26 @@ fn the_settings_check_refuses_21_shared_rows_without_asking_tmdb() {
 }
 
 #[test]
+fn the_settings_check_refuses_21_rows_for_each_user_without_asking_tmdb() {
+    let picked: Vec<_> = PER_USER
+        .iter()
+        .cycle()
+        .take(21)
+        .map(|(key, _)| *key)
+        .collect();
+    let mut kernel =
+        kernel(&["trending-week"]).setting(USER_ROWS, &json::to_string(&picked).unwrap());
+
+    let err = with(&mut kernel, check_settings).unwrap_err();
+
+    assert_eq!(
+        err.to_string(),
+        "pick at most 20 rows for each User, not 21"
+    );
+    assert_eq!(kernel.sent(), []);
+}
+
+#[test]
 fn the_settings_check_refuses_an_api_key_tmdb_rejects() {
     let mut kernel = kernel(&["trending-week"]).setting(API_KEY, "wrong");
 
@@ -164,7 +187,7 @@ fn the_settings_check_offers_tmdbs_countries_by_name_for_region() {
 }
 
 #[test]
-fn manifest_serves_home_rows_with_its_permissions_api_key_region_and_shared_rows() {
+fn manifest_serves_home_rows_with_its_permissions_api_key_region_shared_and_user_rows() {
     let manifest = manifest();
 
     let points: Vec<_> = manifest.points.iter().map(|point| &point.service).collect();
@@ -193,7 +216,15 @@ fn manifest_serves_home_rows_with_its_permissions_api_key_region_and_shared_rows
             )
         })
         .collect();
-    let picked = ["trending-week", "top-rated-movies", "top-rated-shows"].map(str::to_owned);
+    let picked = |values: [&str; 3]| {
+        Some(
+            Texts {
+                values: values.map(str::to_owned).to_vec(),
+                ..Texts::default()
+            }
+            .into(),
+        )
+    };
     assert_eq!(
         settings,
         [
@@ -213,13 +244,13 @@ fn manifest_serves_home_rows_with_its_permissions_api_key_region_and_shared_rows
                 "shared_rows",
                 Some(SettingKind::SETTING_KIND_CHOICES),
                 false,
-                Some(
-                    Texts {
-                        values: picked.to_vec(),
-                        ..Texts::default()
-                    }
-                    .into()
-                )
+                picked(["trending-week", "top-rated-movies", "top-rated-shows"])
+            ),
+            (
+                "user_rows",
+                Some(SettingKind::SETTING_KIND_CHOICES),
+                false,
+                picked(["because", "more-genre", "watchlist"])
             ),
         ]
     );
@@ -261,6 +292,29 @@ fn manifest_offers_every_shared_row_of_discover_by_its_heading() {
 }
 
 #[test]
+fn manifest_offers_every_row_for_each_user_by_its_heading() {
+    let manifest = manifest();
+
+    let user_rows = (manifest.settings.iter())
+        .find(|field| field.key == "user_rows")
+        .expect("the manifest has Your rows");
+    let labels: Vec<_> = (user_rows.choices.iter())
+        .map(|choice| choice.label.as_str())
+        .collect();
+    assert_eq!(
+        labels,
+        [
+            "Because you watched",
+            "More genre",
+            "Starring",
+            "From",
+            "Watch it again",
+            "Your Watchlist",
+        ]
+    );
+}
+
+#[test]
 fn manifest_says_where_to_get_a_tmdb_key_and_credits_tmdb() {
     let manifest = manifest();
 
@@ -281,5 +335,285 @@ fn manifest_says_where_to_get_a_tmdb_key_and_credits_tmdb() {
             "https://github.com/electather/nama-rust/tree/main/plugins/discover",
             "AGPL-3.0-only",
         ]
+    );
+}
+
+const ADA: i64 = 1;
+const BEN: i64 = 2;
+
+/// `days` days before now, in milliseconds since the Unix epoch, as a Watch State's time.
+fn days_ago(days: u64) -> i64 {
+    let then = nama_pdk::now() - std::time::Duration::from_hours(24 * days);
+    let since_epoch = then.duration_since(std::time::UNIX_EPOCH).unwrap();
+    i64::try_from(since_epoch.as_millis()).unwrap()
+}
+
+fn tmdb_id(value: &str) -> TitleId {
+    TitleId {
+        namespace: "tmdb".to_owned(),
+        value: value.to_owned(),
+        ..TitleId::default()
+    }
+}
+
+/// A Movie in Library 1, by its TMDB id.
+fn movie(value: &str, genres: &[&str]) -> Title {
+    Title {
+        title_ref: TitleRef {
+            library_id: 1,
+            kind: TitleRefKind::TITLE_REF_KIND_MOVIE.into(),
+            id: tmdb_id(value).into(),
+            ..TitleRef::default()
+        }
+        .into(),
+        genres: genres.iter().map(|&genre| genre.to_owned()).collect(),
+        ..Title::default()
+    }
+}
+
+/// An Episode in Library 1 of the Show with the TMDB id `show`.
+fn episode(value: &str, show: &str, genres: &[&str]) -> Title {
+    Title {
+        title_ref: TitleRef {
+            kind: TitleRefKind::TITLE_REF_KIND_EPISODE.into(),
+            ..(*movie(value, genres).title_ref).clone()
+        }
+        .into(),
+        show_id: tmdb_id(show).into(),
+        ..movie(value, genres)
+    }
+}
+
+fn watchlisted(kind: TitleKind, value: &str) -> WatchlistTitle {
+    WatchlistTitle {
+        kind: kind.into(),
+        id: tmdb_id(value).into(),
+        ..WatchlistTitle::default()
+    }
+}
+
+/// A Kernel holding `picked` as Your rows and `titles` in Library 1, granting Read Watch States
+/// and Read Watchlists, with no Watch State and every Watchlist empty yet.
+fn user_kernel(picked: &[&str], titles: &[Title]) -> Kernel {
+    let library = Library {
+        id: 1,
+        ..Library::default()
+    };
+    Kernel::new()
+        .setting(USER_ROWS, &json::to_string(picked).unwrap())
+        .libraries([library])
+        .titles(1, titles.iter().cloned())
+        .watch_states(&TitleRef::default(), [])
+        .watchlist(ADA, [])
+}
+
+/// `kernel` with the User `user_id`'s Watch State of `title`: `played`, or stopped `position_ms`
+/// in, last changed at `changed_at_ms`.
+fn watching(
+    kernel: Kernel,
+    title: &Title,
+    user_id: i64,
+    (played, position_ms): (bool, u64),
+    changed_at_ms: i64,
+) -> Kernel {
+    let state = WatchState {
+        user_id,
+        played,
+        position_ms,
+        updated_at_ms: changed_at_ms,
+        ..WatchState::default()
+    };
+    kernel.watch_states(&title.title_ref, [state])
+}
+
+const PLAYED: (bool, u64) = (true, 0);
+const STARTED: (bool, u64) = (false, 60_000);
+
+fn user_rows(kernel: &mut Kernel, user_id: i64) -> Result<HomeRows, Error> {
+    let asked = UserRowsAsked {
+        user_id,
+        ..UserRowsAsked::default()
+    };
+    with(kernel, || Discover::user_rows(asked))
+}
+
+#[test]
+fn your_watchlist_leaves_out_started_and_played_titles_newest_added_first() {
+    let titles = [
+        movie("1", &[]),
+        movie("2", &[]),
+        movie("3", &[]),
+        episode("10", "100", &[]),
+    ];
+    let kernel = user_kernel(&["watchlist"], &titles).watchlist(
+        ADA,
+        [
+            watchlisted(TitleKind::TITLE_KIND_MOVIE, "3"),
+            watchlisted(TitleKind::TITLE_KIND_MOVIE, "2"),
+            watchlisted(TitleKind::TITLE_KIND_SHOW, "100"),
+            watchlisted(TitleKind::TITLE_KIND_MOVIE, "1"),
+        ],
+    );
+    let kernel = watching(kernel, &titles[1], ADA, PLAYED, days_ago(2));
+    let mut kernel = watching(kernel, &titles[3], ADA, STARTED, days_ago(1));
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    assert_eq!(
+        summary(&rows),
+        [(
+            "watchlist",
+            "Your Watchlist",
+            6 * 60 * 60,
+            vec![
+                (Some(TitleKind::TITLE_KIND_MOVIE), "3"),
+                (Some(TitleKind::TITLE_KIND_MOVIE), "1"),
+            ]
+        )]
+    );
+}
+
+#[test]
+fn your_watchlist_keeps_a_title_the_server_lacks_for_the_kernel_to_offer_as_requestable() {
+    let mut kernel = user_kernel(&["watchlist"], &[])
+        .watchlist(ADA, [watchlisted(TitleKind::TITLE_KIND_SHOW, "1396")]);
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    assert_eq!(
+        summary(&rows)[0].3,
+        [(Some(TitleKind::TITLE_KIND_SHOW), "1396")]
+    );
+}
+
+#[test]
+fn watch_it_again_holds_only_titles_played_through_over_a_year_ago_most_played_genre_first() {
+    let titles = [
+        movie("1", &["Drama"]),
+        movie("2", &["Horror"]),
+        movie("3", &["Horror"]),
+        movie("4", &["Horror"]),
+        movie("5", &["Horror"]),
+        movie("6", &["Horror"]),
+        episode("10", "100", &["Comedy"]),
+        episode("11", "100", &["Comedy"]),
+        episode("20", "200", &["Comedy"]),
+        episode("21", "200", &["Comedy"]),
+    ];
+    let mut kernel = user_kernel(&["watch-again"], &titles);
+    for (title, watched, changed_at) in [
+        (&titles[0], PLAYED, days_ago(400)),
+        (&titles[1], PLAYED, days_ago(500)),
+        (&titles[2], PLAYED, days_ago(30)),
+        (&titles[3], STARTED, days_ago(400)),
+        (&titles[4], PLAYED, days_ago(400)),
+        (&titles[6], PLAYED, days_ago(400)),
+        (&titles[7], PLAYED, days_ago(400)),
+        (&titles[8], PLAYED, days_ago(400)),
+    ] {
+        kernel = watching(kernel, title, ADA, watched, changed_at);
+    }
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    assert_eq!(
+        summary(&rows),
+        [(
+            "watch-again",
+            "Watch it again",
+            6 * 60 * 60,
+            vec![
+                (Some(TitleKind::TITLE_KIND_MOVIE), "2"),
+                (Some(TitleKind::TITLE_KIND_MOVIE), "5"),
+                (Some(TitleKind::TITLE_KIND_SHOW), "100"),
+                (Some(TitleKind::TITLE_KIND_MOVIE), "1"),
+            ]
+        )]
+    );
+}
+
+#[test]
+fn watch_it_again_leaves_out_a_title_played_over_a_year_ago_and_again_since() {
+    let titles = [episode("10", "100", &[]), episode("11", "100", &[])];
+    let kernel = user_kernel(&["watch-again"], &titles);
+    let kernel = watching(kernel, &titles[0], ADA, PLAYED, days_ago(400));
+    let mut kernel = watching(kernel, &titles[1], ADA, PLAYED, days_ago(3));
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    assert_eq!(
+        summary(&rows),
+        [("watch-again", "Watch it again", 6 * 60 * 60, vec![])]
+    );
+}
+
+#[test]
+fn two_users_with_different_histories_get_different_rows() {
+    let titles = [movie("1", &[]), movie("2", &[])];
+    let kernel = user_kernel(&["watch-again", "watchlist"], &titles)
+        .watchlist(ADA, [watchlisted(TitleKind::TITLE_KIND_MOVIE, "2")])
+        .watchlist(BEN, [watchlisted(TitleKind::TITLE_KIND_MOVIE, "1")]);
+    let kernel = watching(kernel, &titles[0], ADA, PLAYED, days_ago(400));
+    let mut kernel = watching(kernel, &titles[1], BEN, PLAYED, days_ago(400));
+
+    let adas = user_rows(&mut kernel, ADA).unwrap();
+    let bens = user_rows(&mut kernel, BEN).unwrap();
+
+    let movie = Some(TitleKind::TITLE_KIND_MOVIE);
+    let ttl = 6 * 60 * 60;
+    assert_eq!(
+        summary(&adas),
+        [
+            ("watch-again", "Watch it again", ttl, vec![(movie, "1")]),
+            ("watchlist", "Your Watchlist", ttl, vec![(movie, "2")]),
+        ]
+    );
+    assert_eq!(
+        summary(&bens),
+        [
+            ("watch-again", "Watch it again", ttl, vec![(movie, "2")]),
+            ("watchlist", "Your Watchlist", ttl, vec![(movie, "1")]),
+        ]
+    );
+}
+
+#[test]
+fn rows_for_each_user_left_unpicked_are_not_answered() {
+    let titles = [movie("1", &[])];
+    let kernel = user_kernel(&["watchlist"], &titles)
+        .watchlist(ADA, [watchlisted(TitleKind::TITLE_KIND_MOVIE, "2")]);
+    let mut kernel = watching(kernel, &titles[0], ADA, PLAYED, days_ago(400));
+    let mut none_picked = user_kernel(&[], &titles);
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+    let no_rows = user_rows(&mut none_picked, ADA).unwrap();
+
+    let keys: Vec<_> = rows.rows.iter().map(|row| row.key.as_str()).collect();
+    assert_eq!(keys, ["watchlist"]);
+    assert_eq!(no_rows.rows, []);
+}
+
+#[test]
+fn watch_it_again_is_answered_without_your_watchlist_when_read_watchlists_is_not_granted() {
+    let titles = [movie("1", &[])];
+    let kernel = Kernel::new()
+        .setting(USER_ROWS, r#"["watch-again","watchlist"]"#)
+        .libraries([Library {
+            id: 1,
+            ..Library::default()
+        }])
+        .titles(1, titles.iter().cloned());
+    let mut kernel = watching(kernel, &titles[0], ADA, PLAYED, days_ago(400));
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    assert_eq!(
+        summary(&rows),
+        [(
+            "watch-again",
+            "Watch it again",
+            6 * 60 * 60,
+            vec![(Some(TitleKind::TITLE_KIND_MOVIE), "1")]
+        )]
     );
 }

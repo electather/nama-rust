@@ -171,8 +171,8 @@ pub mod kernel {
         Ok(call::<ListRequesters>(&asked)?.titles)
     }
 
-    /// The User `user`'s Watchlist, each title by the id it was added under, whether or not a
-    /// Library has it. Needs `PERMISSION_READ_WATCHLISTS`.
+    /// The User `user`'s Watchlist, newest added first, each title by the id it was added under,
+    /// whether or not a Library has it. Needs `PERMISSION_READ_WATCHLISTS`.
     ///
     /// # Errors
     ///

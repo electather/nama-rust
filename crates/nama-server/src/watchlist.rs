@@ -103,14 +103,17 @@ fn json_ids(ids: impl IntoIterator<Item = ExternalId>) -> String {
     serde_json::Value::from(ids).to_string()
 }
 
-/// The User `user`'s Watchlist, each title by the id it was added under. A row whose kind or id
-/// doesn't parse is skipped.
+/// The User `user`'s Watchlist, newest added first, each title by the id it was added under. A
+/// row whose kind or id doesn't parse is skipped.
 pub(crate) async fn list(
     db: &Database,
     user: i64,
 ) -> Result<Vec<(TitleKind, ExternalId)>, sqlx::Error> {
+    // A new row's rowid is one past the largest left, so it orders by when each was added. A
+    // Backup's VACUUM INTO may renumber rowids, but copies the rows in rowid order; a migration
+    // rebuilding the table must copy them `ORDER BY rowid` too, or the order is lost.
     let rows = sqlx::query!(
-        "SELECT kind, title_id FROM watchlist WHERE user_id = ?",
+        "SELECT kind, title_id FROM watchlist WHERE user_id = ? ORDER BY rowid DESC",
         user
     )
     .fetch_all(db.reader())
