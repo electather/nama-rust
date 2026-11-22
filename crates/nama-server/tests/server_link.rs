@@ -650,7 +650,7 @@ async fn the_last_admin_who_signs_in_with_a_password_cant_be_demoted_or_deleted(
 }
 
 #[tokio::test]
-async fn the_plugin_is_told_the_server_url_the_admin_set() {
+async fn the_plugin_is_told_the_server_url_and_port_the_admin_set() {
     let linker = Scripted::default();
     let server = with_linker(&linker).await;
     settings(&server)
@@ -666,55 +666,27 @@ async fn the_plugin_is_told_the_server_url_the_admin_set() {
         .unwrap();
 
     let _restarted = TestServer::builder()
-        .plugins(enabling(&linker))
-        .restart(server)
-        .await;
-
-    // The test Server listens on 127.0.0.1, which no other device on its LAN can reach, so it
-    // opens no port on the router either.
-    told(
-        &linker,
-        &ServerAddresses {
-            url: "https://nama.example.com/".to_owned(),
-            lan: vec![],
-            public_port: None,
-        },
-    )
-    .await;
-}
-
-/// Waits until `linker` was told `addresses`.
-async fn told(linker: &Scripted, addresses: &ServerAddresses) {
-    let waited = tokio::time::timeout(server::WAIT, async {
-        while linker.script().addresses.as_ref() != Some(addresses) {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-    })
-    .await;
-    assert!(waited.is_ok(), "told {:?}", linker.script().addresses);
-}
-
-#[tokio::test]
-async fn the_plugin_is_told_the_port_the_admin_forwarded() {
-    let linker = Scripted::default();
-
-    let _server = TestServer::builder()
         .config(Config {
             forwarded_port: NonZeroU16::new(7443),
             ..Config::default()
         })
         .plugins(enabling(&linker))
-        .start()
+        .restart(server)
         .await;
 
-    told(
-        &linker,
-        &ServerAddresses {
-            public_port: Some(7443),
-            ..ServerAddresses::default()
-        },
-    )
+    // The test Server listens on 127.0.0.1, which no other device on its LAN can reach.
+    let told = ServerAddresses {
+        url: "https://nama.example.com/".to_owned(),
+        lan: vec![],
+        public_port: Some(7443),
+    };
+    let waited = tokio::time::timeout(server::WAIT, async {
+        while linker.script().addresses.as_ref() != Some(&told) {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
     .await;
+    assert!(waited.is_ok(), "told {:?}", linker.script().addresses);
 }
 
 #[tokio::test]

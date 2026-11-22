@@ -47,8 +47,9 @@ export type LinkedServer = Message<"nama.hub.v1.LinkedServer"> & {
   url: string;
 
   /**
-   * The Server Addresses a client tries, as the Server last reported them: its Server URL first,
-   * then its LAN addresses.
+   * The Server Addresses a client tries, best first, as the Server last reported them: its Server
+   * URL, then its public address if the Hub reached it there from outside, then its LAN addresses,
+   * plain `http://<lan-ip>` (ADR 0057).
    *
    * @generated from field: repeated string addresses = 5;
    */
@@ -1078,6 +1079,15 @@ export type SetServerAddressesRequest = Message<"nama.hub.v1.SetServerAddressesR
    * @generated from field: repeated string lan_addresses = 2;
    */
   lanAddresses: string[];
+
+  /**
+   * The port on its router's public IP address that reaches it: one it opened with UPnP or
+   * NAT-PMP, or one its Admin forwarded. 0 for none. The Hub connects to it at the IP address the
+   * request came from, the only one it checks, so a Server can't have the Hub call anyone else.
+   *
+   * @generated from field: uint32 public_port = 3;
+   */
+  publicPort: number;
 };
 
 /**
@@ -1091,6 +1101,20 @@ export const SetServerAddressesRequestSchema: GenMessage<SetServerAddressesReque
  * @generated from message nama.hub.v1.SetServerAddressesResponse
  */
 export type SetServerAddressesResponse = Message<"nama.hub.v1.SetServerAddressesResponse"> & {
+  /**
+   * Where the Hub tried to reach the Server from outside, such as `http://203.0.113.7:7980`: the
+   * IP address the request came from, with `public_port`. Empty without one.
+   *
+   * @generated from field: string public_address = 1;
+   */
+  publicAddress: string;
+
+  /**
+   * Whether the Hub reached it there. Only then is it one of the Server's Server Addresses.
+   *
+   * @generated from field: bool reachable = 2;
+   */
+  reachable: boolean;
 };
 
 /**
@@ -1402,8 +1426,9 @@ export const LinkedServerService: GenService<{
   },
   /**
    * Replaces the Server Addresses the calling Server reported before. The Server reports them
-   * whenever they change. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an
-   * `http` or `https` URL, or for too many.
+   * whenever they change, and every half hour, since only then does the Hub check from outside
+   * whether its `public_port` can be reached. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID`
+   * for one that isn't an `http` or `https` URL, for too many, or for a port over 65535.
    *
    * @generated from rpc nama.hub.v1.LinkedServerService.SetServerAddresses
    */
