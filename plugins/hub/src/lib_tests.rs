@@ -305,3 +305,18 @@ async fn a_linked_users_settings_dont_ask_the_hub_each_time() {
 
     assert_eq!(hub.user_link_asks(), asks);
 }
+
+#[tokio::test]
+async fn a_server_linked_again_doesnt_show_its_users_old_links() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+    linker.start_user_link(8, "Ida").await.unwrap();
+
+    linker.unlink().await.unwrap();
+    link(&hub, linker.as_ref()).await;
+
+    assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
+    assert_eq!(linker.user_link(8).await.unwrap(), Some(Link::NotLinked));
+}

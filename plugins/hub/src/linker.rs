@@ -5,7 +5,7 @@ mod users;
 
 use std::{
     collections::HashMap,
-    sync::Arc,
+    sync::{Arc, PoisonError},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -153,6 +153,12 @@ impl Linker {
         };
         self.hub.unlink(&kept.credential).await?;
         self.kernel.ask::<StoreDelete>(store_key(LINK_KEY)).await?;
+        // The Hub Unlinked the Server's Users with it: their codes are gone, and once Linked again
+        // the Server asks the Hub before showing a User as Linked.
+        self.users
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
         Ok(())
     }
 

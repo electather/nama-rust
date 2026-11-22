@@ -138,7 +138,7 @@ describe("linking a Server", () => {
 
     await expect(
       screen.findByText(
-        "No Server is showing this code. Check it, or get a new one in the Server’s Settings.",
+        "Nothing is waiting on this code. Check it, or get a new one in the Server’s Settings.",
       ),
     ).resolves.toBeDefined();
   });

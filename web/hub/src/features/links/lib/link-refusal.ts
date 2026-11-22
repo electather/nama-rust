@@ -33,7 +33,7 @@ export function typedCode(form: HTMLFormElement) {
 /** What each reason a code can be refused for says. */
 const wording: Partial<Record<RefusalReason, LinkErrors>> = {
   [RefusalReason.LINK_CODE_NOT_FOUND]: {
-    code: "No Server is showing this code. Check it, or get a new one in the Server’s Settings.",
+    code: "Nothing is waiting on this code. Check it, or get a new one in the Server’s Settings.",
   },
   [RefusalReason.USER_LINKED]: {
     form: "This User is Linked to an Account already. Unlink them in their Server’s Settings first.",

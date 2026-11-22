@@ -18,7 +18,6 @@ export function LinkControls({
   /** Why the last change failed, if it did. */
   failure: string | undefined;
 } & Record<
-  // Starting a Link and Unlinking, each a mutation of an empty request.
   "start" | "unlink",
   { isPending: boolean; reset: () => void; mutate: (request: Record<string, never>) => void }
 >) {
