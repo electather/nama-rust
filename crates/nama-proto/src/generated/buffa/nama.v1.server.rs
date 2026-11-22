@@ -2325,7 +2325,8 @@ pub struct GetServerInfoResponse {
     /// signed-in web app record its own and POST them as OTLP/HTTP protobuf to
     /// `/diagnostics/v1/traces`, which the Server forwards unchanged to that endpoint and, while they
     /// are shared, to the Hub. That path answers 404 while this is false, refuses a body over 256 KiB
-    /// with HTTP 413, and refuses a Device posting too often with HTTP 429.
+    /// with HTTP 413, a Device posting too often with HTTP 429, and a body that isn't protobuf while
+    /// the Server only shares them with HTTP 415.
     ///
     /// Field 5: `exports_diagnostics`
     #[serde(

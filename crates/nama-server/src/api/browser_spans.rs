@@ -15,6 +15,7 @@ use axum::{
     routing::post,
 };
 use nama_plugin_api::diagnostics_sharer::Signal;
+use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use crate::{
     diagnostics::use_ring_for_tls,
@@ -62,13 +63,16 @@ async fn forward(
 /// Forwards the web app's spans, as OTLP/HTTP, to where the Server exports and shares its own,
 /// storing nothing (ADR 0054), and limits how often each Device may post them.
 #[derive(Clone)]
-pub(super) struct BrowserSpans {
+pub(crate) struct BrowserSpans {
     /// The admin's collector's traces URL, if they set an endpoint.
     collector: Option<String>,
     client: reqwest::Client,
     /// Read on every post, since the admin may turn sharing Diagnostics on or off at any time.
     settings: Settings,
     points: ExtensionPoints,
+    /// The shares in flight, which hold the Extension Points, and so the database, until they end.
+    shares: TaskTracker,
+    stop_sharing: CancellationToken,
     /// When each Device's current window started, and how many posts it has made in it.
     posts: Arc<Mutex<HashMap<i64, (Instant, u32)>>>,
 }
@@ -76,7 +80,7 @@ pub(super) struct BrowserSpans {
 impl BrowserSpans {
     /// Forwards to the OTLP `endpoint`'s traces path, if any, and to the sharer among `points`
     /// while `settings` share Diagnostics.
-    pub(super) fn new(endpoint: Option<&str>, settings: Settings, points: ExtensionPoints) -> Self {
+    pub(crate) fn new(endpoint: Option<&str>, settings: Settings, points: ExtensionPoints) -> Self {
         // ponytail: ignores `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS`,
         // which the Server's own exporter reads; read them once a collector needs a key.
         let collector =
@@ -87,13 +91,16 @@ impl BrowserSpans {
             client: reqwest::Client::new(),
             settings,
             points,
+            shares: TaskTracker::new(),
+            stop_sharing: CancellationToken::new(),
             posts: Arc::default(),
         }
     }
 
     /// Forwards `body`, of `content_type`, as it is, for the Device `device`, and answers with the
     /// collector's status, or 200 without one: 404 instead while it goes nowhere, 429 if that
-    /// Device posted too often lately, as of `now`, or 502 if the collector can't be reached.
+    /// Device posted too often lately, as of `now`, 415 if it isn't protobuf and would only be
+    /// shared, or 502 if the collector can't be reached.
     async fn forward(
         &self,
         device: i64,
@@ -107,11 +114,12 @@ impl BrowserSpans {
         if !self.admit(device, now) {
             return StatusCode::TOO_MANY_REQUESTS;
         }
-        if self.sharing() && content_type.as_ref().is_some_and(|t| t == OTLP_PROTOBUF) {
-            // Spawned: the Hub may take longer than the web's exporter waits, and a post it gave up
-            // on would never reach the collector.
-            let (points, batch) = (self.points.clone(), body.clone());
-            tokio::spawn(async move { share_diagnostics(&points, Signal::Traces, batch).await });
+        if self.sharing() {
+            if content_type.as_ref().is_some_and(|t| t == OTLP_PROTOBUF) {
+                self.share(body.clone());
+            } else if self.collector.is_none() {
+                return StatusCode::UNSUPPORTED_MEDIA_TYPE;
+            }
         }
         match &self.collector {
             Some(url) => self.post(url, content_type, body).await,
@@ -127,6 +135,23 @@ impl BrowserSpans {
 
     fn sharing(&self) -> bool {
         self.settings.now().sharing.diagnostics
+    }
+
+    /// Hands `batch` to the sharer in the background: the Hub may take longer than the web's
+    /// exporter waits, and a post it gave up on would never reach the collector.
+    fn share(&self, batch: Bytes) {
+        let points = self.points.clone();
+        let shared = async move { share_diagnostics(&points, Signal::Traces, batch).await };
+        self.shares
+            .spawn(self.stop_sharing.clone().run_until_cancelled_owned(shared));
+    }
+
+    /// Cancels the shares in flight and waits until each has ended: before the Plugins shut down,
+    /// as a share holds their Extension Points.
+    pub(crate) async fn shutdown(&self) {
+        self.stop_sharing.cancel();
+        self.shares.close();
+        self.shares.wait().await;
     }
 
     /// Posts `body`, of `content_type`, to the collector's traces `url`, answering with its status.

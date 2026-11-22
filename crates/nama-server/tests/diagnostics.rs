@@ -547,3 +547,15 @@ async fn a_sharer_that_never_answers_holds_neither_the_post_nor_the_collector() 
     assert_eq!(collector.received().len(), 1);
     assert_eq!(sharer.shared_once(1).await.len(), 1);
 }
+
+#[tokio::test]
+async fn while_only_sharing_a_batch_that_isn_t_protobuf_is_refused_and_not_shared() {
+    let sharer = RecordingSharer::default();
+    let server = with_sharer(&sharer, None).await;
+    set_sharing_diagnostics(&server, true).await;
+
+    let reply = post_traces(&server, Some(&server.admin_token), b"{}".to_vec()).await;
+
+    assert_eq!(reply.status, 415);
+    assert_eq!(sharer.shared(), []);
+}

@@ -147,6 +147,11 @@ pub fn serve(
     let requests = Requests::new(Arc::clone(&db), events.clone(), points.clone());
     let users = Users::new(Arc::clone(&db), points.clone());
     let home_rows = HomeRows::new(Arc::clone(&db), points.clone(), requests.clone());
+    let browser_spans = api::BrowserSpans::new(
+        config.otlp_endpoint.as_deref(),
+        settings.clone(),
+        points.clone(),
+    );
     let artwork = Artwork::new(images.clone(), points);
     let plugin_logos = PluginLogos::new(images.clone());
     let custom_images = CustomImages::new(Arc::clone(&db), images.clone());
@@ -196,6 +201,7 @@ pub fn serve(
         running.clone(),
         abilities.clone(),
         preview_frames.clone(),
+        browser_spans.clone(),
         setup_code,
         ffmpeg,
     );
@@ -247,6 +253,8 @@ pub fn serve(
         // Before the Plugin settings, which save a Plugin that crashes as it is asked about progress.
         requests.shutdown().await;
         home_rows.shutdown().await;
+        // Before the Plugin settings, as a share in flight holds the Extension Points.
+        browser_spans.shutdown().await;
         plugins.shutdown().await;
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
         drop(automation);

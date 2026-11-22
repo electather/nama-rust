@@ -57,7 +57,7 @@ mod watch_states;
 mod watchlist;
 
 use access::require_access;
-use browser_spans::BrowserSpans;
+pub(crate) use browser_spans::BrowserSpans;
 
 /// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers
 /// that identify the caller and refuse calls they may not make.
@@ -90,6 +90,7 @@ pub(crate) fn router(
     running: RunningPlans,
     abilities: Abilities,
     preview_frames: PreviewFrames,
+    browser_spans: BrowserSpans,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
 ) -> axum::Router {
@@ -115,11 +116,6 @@ pub(crate) fn router(
     let similar = SimilarSources::new(plugins.clone());
     let pages = TitlePages::new(Arc::clone(&db), requests.clone(), similar);
     let server_url = settings.server_url();
-    let browser_spans = BrowserSpans::new(
-        config.otlp_endpoint.as_deref(),
-        settings.clone(),
-        plugins.clone(),
-    );
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(server::ServerServiceHandler {
             name: config.name.clone(),
