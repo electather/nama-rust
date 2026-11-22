@@ -124,7 +124,7 @@ test("an enabled Plugin's view lists the Plugin Permissions granted it", async (
   );
 
   const found4 = await plugin("cleanup");
-  expect(found4.getByText("Granted: Read Watch State")).toBeDefined();
+  await expect(found4.findByText("Granted: Read Watch State")).resolves.toBeDefined();
 });
 
 test("a Built-in Plugin requesting Plugin Permissions enables without a dialog", async () => {
@@ -152,7 +152,7 @@ test.each([true, false])(
 
     const found6 = await plugin("cleanup");
     const held = "Always holds, as part of the Server: Keep its own data, Read Libraries";
-    expect(found6.getByText(held)).toBeDefined();
+    await expect(found6.findByText(held)).resolves.toBeDefined();
     expect(found6.queryByRole("checkbox")).toBeNull();
   },
 );

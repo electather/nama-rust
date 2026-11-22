@@ -184,7 +184,7 @@ test("a homepage that isn't http or https isn't linked from a Plugin's “…”
   });
   const view = await plugin("TMDB");
 
-  fireEvent.click(view.getByRole("button", { name: "More for TMDB" }));
+  fireEvent.click(await view.findByRole("button", { name: "More for TMDB" }));
 
   await screen.findByRole("menuitem", { name: "Disable" });
   expect(screen.queryByRole("menuitem", { name: "Homepage" })).toBeNull();
