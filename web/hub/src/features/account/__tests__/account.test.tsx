@@ -117,8 +117,10 @@ describe("an Account", () => {
     await screen.findByRole("heading", { name: heading });
 
     const email = screen.getByLabelText("Email");
-    expect(email.getAttribute("autocomplete")).toBe("username");
-    expect(email.getAttribute("type")).toBe("email");
+    expect({
+      autocomplete: email.getAttribute("autocomplete"),
+      type: email.getAttribute("type"),
+    }).toStrictEqual({ autocomplete: "username", type: "email" });
   });
 
   test("creating an Account opens its Account page", async () => {
