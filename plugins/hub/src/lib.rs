@@ -6,10 +6,12 @@
 //! to the Hub as a Viewing Event (ADR 0093), and the Hub lists the Server, with its Server
 //! Addresses, to every Account it has a User on.
 //! Once Linked, it is also a Similar source answering the titles the Hub finds alike (ADR 0084,
-//! 0095).
+//! 0095), and a Home row source giving each Linked User the titles the Hub recommends from what
+//! their Account finished, as a row and as Featured suggestions (ADR 0072).
 
 mod hub;
 mod linker;
+mod recommended;
 mod similar;
 mod token;
 
@@ -19,6 +21,7 @@ use nama_plugin_api::{
     Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     automation::Permission,
     diagnostics_sharer::DiagnosticsSharer,
+    home_row::HomeRowSource,
     job::JobRunner,
     points::{Events, WatchStatesChanged},
     server_link::ServerLinker,
@@ -28,6 +31,7 @@ use nama_plugin_api::{
 use crate::{
     hub::Hub as HubApi,
     linker::{Jobs, Linker, ViewingEvents, WatchStateSync, send_job, sync_job},
+    recommended::Recommended,
     similar::Similar,
 };
 
@@ -72,8 +76,10 @@ impl Plugin for Hub {
             name: "Hub".to_owned(),
             description: "Links the Server, and its Users, to Accounts on Nama's Hub, syncs \
                           Linked Users' Watch State there and sends it what they play, sends it \
-                          the Diagnostics and Usage Analytics you share in Settings, and adds the \
-                          titles the Hub finds alike to Similar titles."
+                          the Diagnostics and Usage Analytics you share in Settings, adds the \
+                          titles the Hub finds alike to Similar titles, and gives each Linked User \
+                          a Recommended for you row and Featured suggestions from what they \
+                          finished."
                 .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_markdown: "Enable it, then Link the Server under Settings, Server. The Server \
@@ -98,6 +104,7 @@ impl Plugin for Hub {
                 PointKey::observe::<Events>(),
                 PointKey::provide::<dyn JobRunner>(),
                 PointKey::provide::<dyn SimilarSource>(),
+                PointKey::provide::<dyn HomeRowSource>(),
             ],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
             permissions: vec![
@@ -121,6 +128,8 @@ impl Plugin for Hub {
         let hub = HubApi::new(url)?;
         let similar: Arc<dyn SimilarSource> =
             Arc::new(Similar::new(hub.clone(), Arc::clone(&kernel)));
+        let recommended: Arc<dyn HomeRowSource> =
+            Arc::new(Recommended::new(hub.clone(), Arc::clone(&kernel)));
         let linker = Arc::new(Linker::new(hub, kernel));
         let viewing = ViewingEvents::new(Arc::clone(&linker));
         let sharer: Arc<dyn DiagnosticsSharer> = Arc::<Linker>::clone(&linker);
@@ -131,6 +140,7 @@ impl Plugin for Hub {
         let jobs: Arc<dyn JobRunner> = Arc::new(Jobs { linker, viewing });
         registrar.provide::<dyn JobRunner>(Priority::DEFAULT, jobs);
         registrar.provide::<dyn SimilarSource>(Priority::DEFAULT, similar);
+        registrar.provide::<dyn HomeRowSource>(Priority::DEFAULT, recommended);
         Ok(())
     }
 }

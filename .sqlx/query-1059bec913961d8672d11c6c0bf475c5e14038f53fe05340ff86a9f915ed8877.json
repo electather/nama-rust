@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT title_vectors.title_id AS \"title_id!\",\n                  title_vectors.embedding::text AS \"embedding!\"\n           FROM UNNEST($1::text[], $2::text[], $3::text[]) AS finished (kind, namespace, value)\n           JOIN title_ids ON title_ids.namespace = finished.namespace\n               AND title_ids.value = finished.value\n           JOIN titles ON titles.id = title_ids.title_id AND titles.kind = finished.kind\n           JOIN title_vectors ON title_vectors.title_id = titles.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "title_id!",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "title_vectors",
+            "name": "title_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "embedding!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "1059bec913961d8672d11c6c0bf475c5e14038f53fe05340ff86a9f915ed8877"
+}

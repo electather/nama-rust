@@ -1,7 +1,8 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
 //! one Server's device flow, Unlinking, its Users' Links, Users created from Accounts, one sign-in
 //! with an Account at a time, its Server Addresses and whether its public port is reached, the
-//! Watch State it pushes, its Viewing Events, the titles like The Matrix, and a key set of one
+//! Watch State it pushes, its Viewing Events, the titles like The Matrix, two titles recommended
+//! to each Linked User, and a key set of one
 //! Ed25519 key it signs with, as the Hub's API (`proto/nama/hub/v1/`) says the Hub does, and takes
 //! shared Diagnostics.
 
@@ -23,15 +24,15 @@ use connectrpc::{
 };
 use nama_hub_proto::nama::hub::v1::{
     ExternalId, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest, InviteUserResponse,
-    LinkedServerService, ListSimilarTitlesRequest, ListSimilarTitlesResponse,
-    PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
-    PollServerSignInResponse, PushWatchStatesRequest, PushWatchStatesResponse,
-    RecordViewingEventsRequest, RecordViewingEventsResponse, ServerLinkService,
-    SetServerAddressesRequest, SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest,
-    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
-    StartUserLinkRequest, StartUserLinkResponse, TitleKind, UnlinkServerRequest,
-    UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse, UserViewingEvent,
-    WatchStateChange,
+    LinkedServerService, ListRecommendedTitlesRequest, ListRecommendedTitlesResponse,
+    ListSimilarTitlesRequest, ListSimilarTitlesResponse, PollServerLinkRequest,
+    PollServerLinkResponse, PollServerSignInRequest, PollServerSignInResponse,
+    PushWatchStatesRequest, PushWatchStatesResponse, RecommendedTitle, RecordViewingEventsRequest,
+    RecordViewingEventsResponse, ServerLinkService, SetServerAddressesRequest,
+    SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest, StartServerLinkResponse,
+    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
+    StartUserLinkResponse, TitleKind, UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest,
+    UnlinkUserResponse, UserViewingEvent, WatchStateChange,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::{Value, json};
@@ -558,6 +559,26 @@ impl LinkedServerService for Linked {
             ..Default::default()
         })
     }
+
+    async fn list_recommended_titles(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ListRecommendedTitlesRequest>,
+    ) -> ServiceResult<ListRecommendedTitlesResponse> {
+        let state = self.caller(&ctx)?;
+        let titles = if state.user_accounts.contains_key(&request.user_id) {
+            vec![
+                recommended(TitleKind::TITLE_KIND_MOVIE, "604", 0.9),
+                recommended(TitleKind::TITLE_KIND_SHOW, "1396", 0.4),
+            ]
+        } else {
+            vec![]
+        };
+        Response::ok(ListRecommendedTitlesResponse {
+            titles,
+            ..Default::default()
+        })
+    }
 }
 
 impl Linked {
@@ -581,6 +602,20 @@ fn imdb(value: &str, weight: f32) -> SimilarTitle {
         id: ExternalId {
             namespace: "imdb".to_owned(),
             value: value.to_owned(),
+            ..Default::default()
+        }
+        .into(),
+        weight,
+        ..Default::default()
+    }
+}
+
+fn recommended(kind: TitleKind, tmdb: &str, weight: f32) -> RecommendedTitle {
+    RecommendedTitle {
+        kind: kind.into(),
+        id: ExternalId {
+            namespace: "tmdb".to_owned(),
+            value: tmdb.to_owned(),
             ..Default::default()
         }
         .into(),

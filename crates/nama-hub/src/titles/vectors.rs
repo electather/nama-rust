@@ -20,8 +20,20 @@ const DIMENSIONS: u64 = 1_000_000_000;
 
 const VECTORS_PER_STATEMENT: usize = 1_000;
 
-/// The most titles a Similar answer holds: as many as the Server keeps of one (ADR 0084).
+/// The most titles a Similar or recommended answer holds: as many as the Server keeps of a
+/// Similar one (ADR 0084).
 const MOST_SIMILAR: i64 = 100;
+
+/// A title recommended to an Account, by its id in a namespace the asking Server uses.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RecommendedTitle {
+    /// Whether it is a Movie or a Show.
+    pub kind: TitleKind,
+    /// Its id in the first of the asked namespaces the Hub knows it by.
+    pub id: ExternalId,
+    /// How near the taste vector, above 0.0 and at most 1.0: their cosine similarity.
+    pub weight: f32,
+}
 
 /// A title like another, by its id in a namespace the asking Server uses.
 #[derive(Clone, Debug, PartialEq)]
@@ -206,6 +218,129 @@ pub async fn similar(
             weight: similar.weight,
         })
         .collect())
+}
+
+/// The titles nearest the taste vector of an Account that `finished` the titles these name, best
+/// first, leaving out those, each by its id in the first of `namespaces` it has (ADR 0042). Empty
+/// when none of `finished` has a vector. Only titles sharing a fact with one of them are answered.
+///
+/// ponytail: the taste vector is built on each call, never stored, so deleting a Viewing Event or
+/// a new training run changes the next answer; store it once building it is measured slow.
+///
+/// # Errors
+///
+/// If a query fails.
+pub async fn recommended(
+    db: &PgPool,
+    finished: &[(TitleKind, ExternalId)],
+    namespaces: &[String],
+) -> Result<Vec<RecommendedTitle>, sqlx::Error> {
+    let (kinds, (finished_namespaces, values)): (Vec<&str>, (Vec<&str>, Vec<&str>)) = finished
+        .iter()
+        .map(|(kind, id)| (kind.as_str(), (id.namespace.as_str(), id.value.as_str())))
+        .unzip();
+    let finished_vectors = sqlx::query!(
+        r#"SELECT DISTINCT title_vectors.title_id AS "title_id!",
+                  title_vectors.embedding::text AS "embedding!"
+           FROM UNNEST($1::text[], $2::text[], $3::text[]) AS finished (kind, namespace, value)
+           JOIN title_ids ON title_ids.namespace = finished.namespace
+               AND title_ids.value = finished.value
+           JOIN titles ON titles.id = title_ids.title_id AND titles.kind = finished.kind
+           JOIN title_vectors ON title_vectors.title_id = titles.id"#,
+        &kinds as _,
+        &finished_namespaces as _,
+        &values as _,
+    )
+    .fetch_all(db)
+    .await?;
+    let Some(taste) = taste(
+        finished_vectors
+            .iter()
+            .map(|title| title.embedding.as_str()),
+    ) else {
+        return Ok(Vec::new());
+    };
+    let finished_titles: Vec<Uuid> = finished_vectors
+        .iter()
+        .map(|title| title.title_id)
+        .collect();
+    let found = sqlx::query!(
+        r#"WITH nearest AS (
+               SELECT title_vectors.title_id, titles.kind,
+                      title_vectors.embedding <=> $1::text::sparsevec AS distance
+               FROM title_vectors
+               JOIN titles ON titles.id = title_vectors.title_id
+               WHERE title_vectors.title_id <> ALL($2)
+                   AND title_vectors.embedding <=> $1::text::sparsevec < $4
+                   AND EXISTS (SELECT 1 FROM title_ids
+                               WHERE title_ids.title_id = title_vectors.title_id
+                               AND title_ids.namespace = ANY($3))
+               ORDER BY distance, title_vectors.title_id LIMIT $5)
+           SELECT nearest.kind AS "kind!", id.namespace AS "namespace!", id.value AS "value!",
+                  (1 - nearest.distance)::real AS "weight!"
+           FROM nearest
+           CROSS JOIN LATERAL (
+               SELECT namespace, value FROM title_ids
+               WHERE title_ids.title_id = nearest.title_id AND namespace = ANY($3)
+               ORDER BY array_position($3, namespace) LIMIT 1) AS id
+           ORDER BY nearest.distance, nearest.title_id"#,
+        as_pgvector(&taste),
+        &finished_titles,
+        namespaces,
+        // Under 1: sharing at least one fact, as every value is positive.
+        1.0_f64,
+        MOST_SIMILAR,
+    )
+    .fetch_all(db)
+    .await?;
+    Ok(found
+        .into_iter()
+        .map(|recommended| RecommendedTitle {
+            kind: TitleKind::stored(&recommended.kind),
+            id: ExternalId {
+                namespace: recommended.namespace,
+                value: recommended.value,
+            },
+            weight: recommended.weight,
+        })
+        .collect())
+}
+
+/// The taste vector of an Account that finished titles whose vectors, in pgvector's `sparsevec`
+/// text form, are `finished`: their sum, each at length 1 so a title with many facts weighs no more
+/// than one with few. `None` without any.
+///
+/// ponytail: every finished title weighs the same, however often or long ago; weigh by recency
+/// once the offline evaluation (#1826) can measure it.
+pub(super) fn taste<'a>(finished: impl IntoIterator<Item = &'a str>) -> Option<BTreeMap<u64, f32>> {
+    let mut taste = BTreeMap::new();
+    for vector in finished {
+        let vector = from_pgvector(vector);
+        let length = vector
+            .iter()
+            .map(|(_, value)| value * value)
+            .sum::<f32>()
+            .sqrt();
+        for (dimension, value) in vector {
+            *taste.entry(dimension).or_insert(0.0) += value / length;
+        }
+    }
+    (!taste.is_empty()).then_some(taste)
+}
+
+/// The dimensions and values of `vector`, in the text form [`as_pgvector`] writes and pgvector
+/// prints.
+fn from_pgvector(vector: &str) -> Vec<(u64, f32)> {
+    let values = vector
+        .split_once('}')
+        .map_or("", |(values, _dimensions)| values.trim_start_matches('{'));
+    values
+        .split(',')
+        .filter_map(|entry| {
+            let (dimension, value) = entry.split_once(':')?;
+            Some((dimension.parse().ok()?, value.parse().ok()?))
+        })
+        .collect()
 }
 
 #[cfg(test)]

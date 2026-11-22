@@ -34,6 +34,7 @@ use crate::{
     diagnostics::{Backend, NotTaken, Shared, Signal},
     links::{LinkedServer, Links},
     mail::Mail,
+    recommendations::Recommendations,
     signing::Keys,
     sync::WatchStates,
     viewing::Viewing,
@@ -61,6 +62,7 @@ pub(crate) fn router(
     let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys));
     let viewing = Viewing::new(db.clone(), links.clone());
     let watch_states = WatchStates::new(db.clone(), links.clone());
+    let recommendations = Recommendations::new(db.clone(), links.clone(), viewing.clone());
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(HubServiceHandler {
             db: db.clone(),
@@ -79,6 +81,7 @@ pub(crate) fn router(
             links: links.clone(),
             watch_states,
             viewing: viewing.clone(),
+            recommendations,
             db,
         }))
         .add_service(Arc::new(ViewingEventServiceHandler { viewing }))

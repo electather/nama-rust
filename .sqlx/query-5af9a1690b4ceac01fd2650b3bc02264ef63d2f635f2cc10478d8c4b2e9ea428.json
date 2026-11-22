@@ -1,0 +1,63 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH nearest AS (\n               SELECT title_vectors.title_id, titles.kind,\n                      title_vectors.embedding <=> $1::text::sparsevec AS distance\n               FROM title_vectors\n               JOIN titles ON titles.id = title_vectors.title_id\n               WHERE title_vectors.title_id <> ALL($2)\n                   AND title_vectors.embedding <=> $1::text::sparsevec < $4\n                   AND EXISTS (SELECT 1 FROM title_ids\n                               WHERE title_ids.title_id = title_vectors.title_id\n                               AND title_ids.namespace = ANY($3))\n               ORDER BY distance, title_vectors.title_id LIMIT $5)\n           SELECT nearest.kind AS \"kind!\", id.namespace AS \"namespace!\", id.value AS \"value!\",\n                  (1 - nearest.distance)::real AS \"weight!\"\n           FROM nearest\n           CROSS JOIN LATERAL (\n               SELECT namespace, value FROM title_ids\n               WHERE title_ids.title_id = nearest.title_id AND namespace = ANY($3)\n               ORDER BY array_position($3, namespace) LIMIT 1) AS id\n           ORDER BY nearest.distance, nearest.title_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "kind!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "titles",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "namespace!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_ids",
+            "name": "namespace"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "value!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_ids",
+            "name": "value"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "weight!",
+        "type_info": "Float4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "UuidArray",
+        "TextArray",
+        "Float8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "5af9a1690b4ceac01fd2650b3bc02264ef63d2f635f2cc10478d8c4b2e9ea428"
+}

@@ -106,6 +106,18 @@ pub type OwnedListSimilarTitlesRequestView = ::buffa::view::OwnedView<
 pub type OwnedListSimilarTitlesResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListRecommendedTitlesRequestView<'static>>`.
+pub type OwnedListRecommendedTitlesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListRecommendedTitlesRequestView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<ListRecommendedTitlesResponseView<'static>>`.
+pub type OwnedListRecommendedTitlesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListRecommendedTitlesResponseView<
+        'static,
+    >,
+>;
 ///Shorthand for `OwnedView<StartUserLinkRequestView<'static>>`.
 pub type OwnedStartUserLinkRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::StartUserLinkRequestView<'static>,
@@ -606,6 +618,48 @@ for crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesResponseView
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::ListSimilarTitlesResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::messages::nama::hub::v1::ListRecommendedTitlesResponse,
+>
+for crate::messages::nama::hub::v1::__buffa::view::ListRecommendedTitlesResponseView<
+    '_,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::messages::nama::hub::v1::ListRecommendedTitlesResponse,
+>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListRecommendedTitlesResponseView<
+        'static,
+    >,
 > {
     fn encode(
         &self,
@@ -2981,6 +3035,12 @@ pub const LINKED_SERVER_SERVICE_LIST_SIMILAR_TITLES_SPEC: ::connectrpc::Spec = :
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListRecommendedTitles` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_LIST_RECOMMENDED_TITLES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/ListRecommendedTitles",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
 /// Static [`Spec`](::connectrpc::Spec) for the `StartUserLink` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const LINKED_SERVER_SERVICE_START_USER_LINK_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.hub.v1.LinkedServerService/StartUserLink",
@@ -3134,6 +3194,33 @@ pub trait LinkedServerService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::hub::v1::ListSimilarTitlesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// The titles to recommend to one of the Server's Users, for their Featured and Home rows (ADR
+    /// 0072): those nearest the taste vector of the Account they are Linked to, which the titles its
+    /// Viewing Events finished make (ADR 0093, 0095). At most 100, best first, leaving out every title
+    /// the Account finished. Empty for a User who isn't Linked, or whose Account finished no title the
+    /// Hub has a vector for.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_recommended_titles<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::ListRecommendedTitlesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::ListRecommendedTitlesResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -3454,6 +3541,35 @@ impl<S: LinkedServerService> LinkedServerServiceExt for S {
                 },
             )
             .with_spec(LINKED_SERVER_SERVICE_LIST_SIMILAR_TITLES_SPEC)
+            .route_view_idempotent(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "ListRecommendedTitles",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::ListRecommendedTitlesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::ListRecommendedTitlesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_recommended_titles(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::ListRecommendedTitlesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_LIST_RECOMMENDED_TITLES_SPEC)
             .route_view(
                 LINKED_SERVER_SERVICE_SERVICE_NAME,
                 "StartUserLink",
@@ -3783,6 +3899,12 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .with_spec(LINKED_SERVER_SERVICE_LIST_SIMILAR_TITLES_SPEC),
                 )
             }
+            "ListRecommendedTitles" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(LINKED_SERVER_SERVICE_LIST_RECOMMENDED_TITLES_SPEC),
+                )
+            }
             "StartUserLink" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -3893,6 +4015,28 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .await?
                         .encode::<
                             crate::messages::nama::hub::v1::ListSimilarTitlesResponse,
+                        >(format)
+                })
+            }
+            "ListRecommendedTitles" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::ListRecommendedTitlesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::ListRecommendedTitlesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::ListRecommendedTitlesRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_recommended_titles(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::ListRecommendedTitlesResponse,
                         >(format)
                 })
             }
@@ -4306,6 +4450,51 @@ where
                 &self.transport,
                 &self.config,
                 LINKED_SERVER_SERVICE_LIST_SIMILAR_TITLES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListRecommendedTitles RPC. Sends a request to /nama.hub.v1.LinkedServerService/ListRecommendedTitles.
+    pub async fn list_recommended_titles(
+        &self,
+        request: crate::messages::nama::hub::v1::ListRecommendedTitlesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::ListRecommendedTitlesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_recommended_titles_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListRecommendedTitles RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_recommended_titles_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::ListRecommendedTitlesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::ListRecommendedTitlesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_LIST_RECOMMENDED_TITLES_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

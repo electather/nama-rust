@@ -12,4 +12,4 @@ Films and series from Wikidata's weekly dump, the External ID crosswalk between 
 ### Neighbours
 
 - Uses: nothing but the database.
-- Used by: `main` (`import`, `train`), `api` (`similar`), and the `nama-hub-eval` crate (`train`, `similar`). `crosswalk` awaits the Hub Plugin's next RPCs (#1824).
+- Used by: `main` (`import`, `train`), `api` (`similar`), `recommendations` (`recommended`), and the `nama-hub-eval` crate (`train`, `similar`). `crosswalk` has no caller yet.

@@ -17,13 +17,13 @@ use hyper_util::{
     rt::TokioExecutor,
 };
 use nama_hub_proto::nama::hub::v1::{
-    GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient, ListSimilarTitlesRequest,
-    ListSimilarTitlesResponse, PollServerLinkRequest, PollServerLinkResponse,
-    PollServerSignInRequest, PushWatchStatesRequest, RecordViewingEventsRequest,
-    ServerLinkServiceClient, SetServerAddressesRequest, StartServerLinkRequest,
-    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
-    StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest, UnlinkUserRequest,
-    WatchStateChange,
+    GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient, ListRecommendedTitlesRequest,
+    ListSimilarTitlesRequest, ListSimilarTitlesResponse, PollServerLinkRequest,
+    PollServerLinkResponse, PollServerSignInRequest, PushWatchStatesRequest, RecommendedTitle,
+    RecordViewingEventsRequest, ServerLinkServiceClient, SetServerAddressesRequest,
+    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
+    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest,
+    UnlinkUserRequest, WatchStateChange,
 };
 use nama_plugin_api::{
     PluginError,
@@ -355,6 +355,24 @@ impl Hub {
             Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => {
                 Ok(ListSimilarTitlesResponse::default())
             }
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    /// The titles the Hub recommends to the User `request` names, asked as the Server whose
+    /// credential is `credential`. Empty if the Hub doesn't know the credential any more, as
+    /// [`Hub::similar`] takes it.
+    pub(crate) async fn recommended(
+        &self,
+        credential: &str,
+        request: ListRecommendedTitlesRequest,
+    ) -> Result<Vec<RecommendedTitle>, PluginError> {
+        match (self.linked_server(credential)?)
+            .list_recommended_titles(request)
+            .await
+        {
+            Ok(recommended) => Ok(recommended.into_owned().titles),
+            Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => Ok(Vec::new()),
             Err(err) => Err(err.into()),
         }
     }

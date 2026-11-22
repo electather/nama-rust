@@ -13,15 +13,15 @@ use nama_hub_proto::nama::hub::v1::{
     GetServerSignInResponse, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest,
     InviteUserResponse, LinkService, LinkedServerService, ListLinkedServersRequest,
     ListLinkedServersResponse, ListLinkedUsersRequest, ListLinkedUsersResponse,
-    ListSimilarTitlesRequest, ListSimilarTitlesResponse, ListUserInvitesRequest,
-    ListUserInvitesResponse, PollServerLinkRequest, PollServerLinkResponse,
-    PollServerSignInRequest, PollServerSignInResponse, PushWatchStatesRequest,
-    PushWatchStatesResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
-    RefusalReason, ServerLinkService, SetServerAddressesRequest, SetServerAddressesResponse,
-    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
-    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse,
-    UnlinkLinkedUserRequest, UnlinkLinkedUserResponse, UnlinkServerRequest, UnlinkServerResponse,
-    UnlinkUserRequest, UnlinkUserResponse,
+    ListRecommendedTitlesRequest, ListRecommendedTitlesResponse, ListSimilarTitlesRequest,
+    ListSimilarTitlesResponse, ListUserInvitesRequest, ListUserInvitesResponse,
+    PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
+    PollServerSignInResponse, PushWatchStatesRequest, PushWatchStatesResponse,
+    RecordViewingEventsRequest, RecordViewingEventsResponse, RefusalReason, ServerLinkService,
+    SetServerAddressesRequest, SetServerAddressesResponse, StartServerLinkRequest,
+    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
+    StartUserLinkRequest, StartUserLinkResponse, UnlinkLinkedUserRequest, UnlinkLinkedUserResponse,
+    UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
 };
 use sqlx::PgPool;
 
@@ -32,8 +32,9 @@ use crate::{
         ListedInvite, ListedServer, ListedUser, MAX_LAN_ADDRESSES, POLL_INTERVAL_SECS, Polled,
         SignInId,
     },
+    recommendations::Recommendations,
     sync::{MAX_CHANGED_AT_MS, MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, WatchStateChange, WatchStates},
-    titles::{self, ExternalId, SimilarTitle, TitleKind},
+    titles::{self, ExternalId, RecommendedTitle, SimilarTitle, TitleKind},
     viewing::Viewing,
 };
 
@@ -254,6 +255,7 @@ pub(super) struct LinkedServerServiceHandler {
     pub(super) watch_states: WatchStates,
     pub(super) db: PgPool,
     pub(super) viewing: Viewing,
+    pub(super) recommendations: Recommendations,
 }
 
 #[expect(
@@ -300,6 +302,24 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .map_err(|err| hub_failed(&err))?;
         Response::ok(ListSimilarTitlesResponse {
             titles: similar.into_iter().map(similar_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn list_recommended_titles(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ListRecommendedTitlesRequest>,
+    ) -> ServiceResult<ListRecommendedTitlesResponse> {
+        let namespaces: Vec<String> = (request.namespaces.iter())
+            .map(|&namespace| namespace.to_owned())
+            .collect();
+        let recommended = (self.recommendations)
+            .for_user(linked_server(&ctx)?, request.user_id, &namespaces)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(ListRecommendedTitlesResponse {
+            titles: recommended.into_iter().map(recommended_to_proto).collect(),
             ..Default::default()
         })
     }
@@ -502,6 +522,24 @@ fn similar_to_proto(similar: SimilarTitle) -> proto::SimilarTitle {
         }
         .into(),
         weight: similar.weight,
+        ..Default::default()
+    }
+}
+
+fn recommended_to_proto(recommended: RecommendedTitle) -> proto::RecommendedTitle {
+    let kind = match recommended.kind {
+        TitleKind::Movie => proto::TitleKind::TITLE_KIND_MOVIE,
+        TitleKind::Show => proto::TitleKind::TITLE_KIND_SHOW,
+    };
+    proto::RecommendedTitle {
+        kind: kind.into(),
+        id: proto::ExternalId {
+            namespace: recommended.id.namespace,
+            value: recommended.id.value,
+            ..Default::default()
+        }
+        .into(),
+        weight: recommended.weight,
         ..Default::default()
     }
 }

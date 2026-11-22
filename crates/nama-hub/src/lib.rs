@@ -7,6 +7,7 @@ pub mod db;
 pub mod diagnostics;
 mod links;
 pub mod mail;
+mod recommendations;
 pub mod signing;
 mod sync;
 pub mod titles;

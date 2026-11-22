@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::embed;
+use super::{embed, taste};
 
 /// The vector of a title with `facts`, each with how many titles share it.
 fn vector(facts: &[(&str, i64)]) -> BTreeMap<u64, f32> {
@@ -50,4 +50,26 @@ fn titles_sharing_no_fact_are_not_alike_at_all() {
 #[test]
 fn a_title_without_facts_has_no_vector() {
     assert_eq!(embed([]), None);
+}
+
+#[test]
+fn a_taste_vector_sums_the_finished_titles_vectors_each_at_length_one() {
+    // 3-4-5: the first is 5 long, the second 2.
+    let finished = ["{1:3,2:4}/1000000000", "{2:2}/1000000000"];
+
+    let taste = taste(finished).unwrap();
+
+    let expected = BTreeMap::from([(1, 0.6), (2, 1.8)]);
+    assert_eq!(
+        taste.keys().collect::<Vec<_>>(),
+        expected.keys().collect::<Vec<_>>()
+    );
+    for (dimension, value) in expected {
+        assert!((taste[&dimension] - value).abs() < 1e-6, "{taste:?}");
+    }
+}
+
+#[test]
+fn an_account_that_finished_nothing_has_no_taste_vector() {
+    assert_eq!(taste([]), None);
 }

@@ -79,6 +79,14 @@ service LinkedServerService {
   rpc ListSimilarTitles(ListSimilarTitlesRequest) returns (ListSimilarTitlesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // The titles to recommend to one of the Server's Users, for their Featured and Home rows (ADR
+  // 0072): those nearest the taste vector of the Account they are Linked to, which the titles its
+  // Viewing Events finished make (ADR 0093, 0095). At most 100, best first, leaving out every title
+  // the Account finished. Empty for a User who isn't Linked, or whose Account finished no title the
+  // Hub has a vector for.
+  rpc ListRecommendedTitles(ListRecommendedTitlesRequest) returns (ListRecommendedTitlesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
   // Starts Linking one of the Server's Users: the code they enter on the Hub, which replaces any
   // code they were waiting on and stops working after `expires_in_seconds`. Fails with
   // `REFUSAL_REASON_USER_LINKED` for a User Linked already, since a User Links to one Account.
@@ -232,6 +240,28 @@ message SimilarTitle {
   // How alike, from 0.0 to 1.0.
   float weight = 2;
 }
+message ListRecommendedTitlesRequest {
+  // The User's id on the Server.
+  int64 user_id = 1;
+  // The namespaces the Server knows titles by, such as `tmdb`, in the order it prefers its
+  // answers' ids.
+  repeated string namespaces = 2;
+}
+
+message ListRecommendedTitlesResponse {
+  repeated RecommendedTitle titles = 1;
+}
+
+// A title recommended to a User.
+message RecommendedTitle {
+  TitleKind kind = 1;
+  // Its id in the first of the request's `namespaces` that the Hub knows it by. A title the Hub
+  // knows by none of them isn't answered.
+  ExternalId id = 2;
+  // How near the taste vector, from 0.0 to 1.0.
+  float weight = 3;
+}
+
 // A User on a Linked Server, Linked to an Account.
 message LinkedUser {
   // The Link's id, a UUID.
