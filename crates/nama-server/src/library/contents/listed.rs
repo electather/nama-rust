@@ -96,12 +96,9 @@ impl Contents {
                 )
             };
         }
-        macro_rules! with_ids {
-            ($ids:literal) => {
-                matched_items!(select, $ids)
-            };
-        }
-        let rows = ids_sql!(with_ids).fetch_all(self.db.reader()).await?;
+        let rows = ids_sql!(matched_items, select)
+            .fetch_all(self.db.reader())
+            .await?;
         let mut listed = Vec::with_capacity(rows.len());
         for row in rows {
             let Ok(id) = ExternalId::new(&row.namespace, row.value) else {

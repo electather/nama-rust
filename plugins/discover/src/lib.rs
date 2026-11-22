@@ -308,7 +308,7 @@ fn row(
     })
 }
 
-/// A Movie, or a Show by its Episodes' `show_id`, as a row names it.
+/// A Movie or a Show by one of its ids, as a row, a Watchlist or the Kernel names it.
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct Key {
     kind: TitleKind,
@@ -325,37 +325,26 @@ impl Key {
         }
     }
 
-    /// The Movie `title` is, or the Show whose Episode it is; `None` for an Episode without its
-    /// Show's id.
-    fn of_title(title: &Title) -> Option<Self> {
-        let title_ref = title.title_ref.as_option()?;
-        match title_ref.kind.as_known()? {
-            TitleRefKind::TITLE_REF_KIND_MOVIE => Some(Self::of(
-                TitleKind::TITLE_KIND_MOVIE,
-                title_ref.id.as_option()?,
-            )),
-            TitleRefKind::TITLE_REF_KIND_EPISODE => Some(Self::of(
-                TitleKind::TITLE_KIND_SHOW,
-                title.show_id.as_option()?,
-            )),
-            TitleRefKind::TITLE_REF_KIND_UNSPECIFIED => None,
-        }
-    }
-
-    /// Every id of the Movie `title` is, or of the Show whose Episode it is, [`Self::of_title`]'s
-    /// first; none for an Episode without its Show's id.
+    /// Every id of the Movie `title` is, or of the Show whose Episode it is, the one the Kernel
+    /// prefers first; none for an Episode without its Show's id.
     fn every_of_title(title: &Title) -> Vec<Self> {
-        let Some(preferred) = Self::of_title(title) else {
+        let Some(title_ref) = title.title_ref.as_option() else {
             return Vec::new();
         };
-        let kind = preferred.kind;
-        let others = if kind == TitleKind::TITLE_KIND_MOVIE {
-            &title.ids
-        } else {
-            &title.show_ids
+        let (kind, preferred, others) = match title_ref.kind.as_known() {
+            Some(TitleRefKind::TITLE_REF_KIND_MOVIE) => {
+                (TitleKind::TITLE_KIND_MOVIE, &title_ref.id, &title.ids)
+            }
+            Some(TitleRefKind::TITLE_REF_KIND_EPISODE) => {
+                (TitleKind::TITLE_KIND_SHOW, &title.show_id, &title.show_ids)
+            }
+            Some(TitleRefKind::TITLE_REF_KIND_UNSPECIFIED) | None => return Vec::new(),
         };
-        iter::once(preferred)
-            .chain(others.iter().map(|id| Self::of(kind, id)))
+        let Some(preferred) = preferred.as_option() else {
+            return Vec::new();
+        };
+        (iter::once(preferred).chain(others))
+            .map(|id| Self::of(kind, id))
             .collect()
     }
 
@@ -420,7 +409,7 @@ impl History {
             if state.title_ref != title.title_ref {
                 continue;
             }
-            if let Some(watched) = history.watched(title) {
+            if let Some(watched) = history.entry(title) {
                 watched.add(&state.states);
             }
         }
@@ -429,9 +418,9 @@ impl History {
 
     /// The entry of the Movie `title` is, or of its Show, found by any of its ids or else added,
     /// now found by all of them; `None` for an Episode without its Show's id.
-    // shortcut: a title whose ids join two entries already apart joins the first only; merge
+    // ponytail: a title whose ids join two entries already apart joins the first only; merge
     // them if one Show's Episodes ever share no id with each other but each one with a third.
-    fn watched(&mut self, title: &Title) -> Option<&mut Watched> {
+    fn entry(&mut self, title: &Title) -> Option<&mut Watched> {
         let keys = Key::every_of_title(title);
         let first = keys.first()?;
         let found = keys.iter().find_map(|key| self.places.get(key)).copied();
