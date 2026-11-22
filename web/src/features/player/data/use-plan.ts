@@ -2,11 +2,10 @@ import { create } from "@bufbuild/protobuf";
 import { callUnaryMethod, useTransport } from "@connectrpc/connect-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
 
-import { useStopPlan } from "@/features/player/data/use-stop-plan";
+import { planKey, usePlanLifetime } from "@/features/player/data/use-plan-lifetime";
 import type { Asking } from "@/features/player/lib/asking";
 import { cantPlayBecause } from "@/features/player/lib/cant-play-plan";
 import { findDeviceDecoding } from "@/features/player/lib/device-decoding";
-import { stopPlan } from "@/features/player/lib/plan-lifetime";
 import {
   PlanPlaybackResponseSchema,
   PlaybackPlanSchema,
@@ -14,19 +13,16 @@ import {
 } from "@/gen/nama/v1/playback_pb";
 import { adminStopQuery } from "@/shared/hooks/admin-stop-query";
 
-/** What every plan's query key starts with. */
-export const planKey = ["planPlayback"] as const;
-
 /**
  * The plan for Version `versionId` as `asking` says, asked for once and never reused after, once
  * the Server is told the plan it replaces stopped, so that one's Transcode leaves room for it. Its
- * player forgets it on closing (`keepPlaying`). A Server too busy to Transcode it, or that fails to
- * plan it, gives a plan that can't play, saying so. With it come the title's other Versions that
- * play on this Device, by id, best first, when the plan can't play.
+ * player forgets it on closing (`usePlanLifetime`). A Server too busy to Transcode it, or that
+ * fails to plan it, gives a plan that can't play, saying so. With it come the title's other
+ * Versions that play on this Device, by id, best first, when the plan can't play.
  */
 export function usePlan(versionId: bigint, asking: Asking) {
   const transport = useTransport();
-  const tellStopped = useStopPlan();
+  const { stopReplaced } = usePlanLifetime();
   const { failedRecipes, startPositionMs, audioTrack, playbackLimit, subtitleTrack, noSubtitles } =
     asking;
   const { replacing } = asking;
@@ -44,7 +40,7 @@ export function usePlan(versionId: bigint, asking: Asking) {
     ],
     queryFn: async ({ client }) => {
       if (replacing !== undefined) {
-        await stopPlan(tellStopped, replacing);
+        await stopReplaced(replacing);
       }
       const deviceDecoding = await findDeviceDecoding();
       const input = {
@@ -75,7 +71,7 @@ export function usePlan(versionId: bigint, asking: Asking) {
       }
     },
     staleTime: "static",
-    // Suspense raises it to 1 s, so `keepPlaying` drops the plan.
+    // Suspense raises it to 1 s, so `usePlanLifetime` drops the plan.
     gcTime: 0,
   }).data;
   // Always set above: a message field is optional only in its type.
