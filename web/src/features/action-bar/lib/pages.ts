@@ -1,7 +1,7 @@
 import type { UseNavigateResult } from "@tanstack/react-router";
 
 import type { IconName } from "@/features/action-bar/lib/rows";
-import type { Section } from "@/features/settings/lib/sections";
+import { type Section, sectionSearch } from "@/features/settings/lib/sections";
 
 /** A page the action bar jumps to, with the key that, after G, goes there from anywhere. */
 export type Page = {
@@ -45,7 +45,7 @@ export function pagesFor(adminSection: Section | undefined): Page[] {
   const admin: Page = {
     settings: adminSection,
     label: "Admin",
-    hint: "Libraries, Jobs, Users and the Server",
+    hint: "What you manage on this Server",
     key: "A",
     icon: "admin",
   };
@@ -59,5 +59,5 @@ export function goTo(navigate: UseNavigateResult<string>, page: Page) {
     return;
   }
   const { settings } = page;
-  void navigate({ to: ".", search: (rest) => ({ ...rest, settings }) });
+  void navigate({ to: ".", search: (rest) => ({ ...rest, ...sectionSearch(settings) }) });
 }

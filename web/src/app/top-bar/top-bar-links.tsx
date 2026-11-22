@@ -1,7 +1,7 @@
 import { usePendingRequestCount } from "@/app/data/use-pending-request-count";
 import { PendingBadge } from "@/app/top-bar/pending-badge";
 import { TopBarLink } from "@/app/top-bar/top-bar-link";
-import type { Section } from "@/features/settings/lib/sections";
+import { type Section, sectionSearch } from "@/features/settings/lib/sections";
 
 /**
  * The top bar's links. Admin, which opens Settings at `adminSection`, shows only when there is one,
@@ -30,7 +30,7 @@ export function TopBarLinks({
       </TopBarLink>
       {adminSection !== undefined && (
         // Settings opens over this page, in a history entry of its own.
-        <TopBarLink to="." search={(rest) => ({ ...rest, settings: adminSection })}>
+        <TopBarLink to="." search={(rest) => ({ ...rest, ...sectionSearch(adminSection) })}>
           Admin
         </TopBarLink>
       )}
