@@ -155,6 +155,14 @@ export function groupsFor(user: User | undefined): SectionGroup[] {
   });
 }
 
+/** The groups every User has: the top bar's and action bar's "Admin" open the first past them. */
+const ownGroups = new Set(["You", "Preferences"]);
+
+/** Where "Admin" opens Settings for `user`: none for a User who may open no admin section. */
+export function adminSectionFor(user: User | undefined): Section | undefined {
+  return groupsFor(user).find(({ label }) => !ownGroups.has(label))?.items[0];
+}
+
 /** The groups with only the sections `keep` keeps, without the groups left empty. */
 function shownGroups(keep: (section: Section) => boolean): SectionGroup[] {
   return groups

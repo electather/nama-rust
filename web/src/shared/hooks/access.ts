@@ -3,9 +3,8 @@ import { callUnaryMethod, createQueryOptions } from "@connectrpc/connect-query";
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
 
 import { ServerService } from "@/gen/nama/v1/server_pb";
-import { type Permission, SignInService, type User } from "@/gen/nama/v1/sign_in_pb";
+import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 import { isCode } from "@/shared/lib/connect-errors";
-import { may } from "@/shared/lib/permissions";
 
 /** What every route's `beforeLoad` gets from the router. */
 export interface RouterContext {
@@ -52,13 +51,4 @@ export function signedInQuery(transport: Transport) {
       }
     },
   });
-}
-
-/** The Admin pages, in the order the Admin nav lists them, each with the Permission it needs. */
-// ponytail: empty since the last page moved into Settings; the Admin area itself goes with its own ticket.
-export const adminPages: readonly { to: string; label: string; permission: Permission }[] = [];
-
-/** The Admin pages `user` may open. */
-export function adminPagesFor(user: User | undefined) {
-  return adminPages.filter(({ permission }) => may(user, permission));
 }

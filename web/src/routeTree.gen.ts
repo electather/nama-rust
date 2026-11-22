@@ -13,7 +13,6 @@ import { Route as MemberRouteImport } from './routes/_member'
 import { Route as SignedOutRouteImport } from './routes/_signed-out'
 import { Route as MemberIndexRouteImport } from './routes/_member/index'
 import { Route as MemberSplatRouteImport } from './routes/_member/$'
-import { Route as MemberAdminRouteImport } from './routes/_member/_admin'
 import { Route as MemberCodeRouteImport } from './routes/_member/code'
 import { Route as MemberSearchRouteImport } from './routes/_member/search'
 import { Route as SignedOutSetupRouteImport } from './routes/_signed-out/setup'
@@ -28,7 +27,6 @@ import { Route as MemberRequestsRequestIdRouteImport } from './routes/_member/re
 import { Route as MemberShowsShowIdRouteImport } from './routes/_member/shows/$showId'
 import { Route as SignedOutInviteTokenRouteImport } from './routes/_signed-out/invite.$token'
 import { Route as SignedOutSignInIndexRouteImport } from './routes/_signed-out/sign-in.index'
-import { Route as MemberAdminAdminIndexRouteImport } from './routes/_member/_admin/admin/index'
 import { Route as MemberLibrariesLibraryIdIndexRouteImport } from './routes/_member/libraries/$libraryId/index'
 import { Route as SignedOutSignInCodeIndexRouteImport } from './routes/_signed-out/sign-in.code.index'
 import { Route as SignedOutSignInCodeWaitingRouteImport } from './routes/_signed-out/sign-in.code.waiting'
@@ -54,10 +52,6 @@ const MemberIndexRoute = MemberIndexRouteImport.update({
 const MemberSplatRoute = MemberSplatRouteImport.update({
   id: '/$',
   path: '/$',
-  getParentRoute: () => MemberRoute,
-} as any)
-const MemberAdminRoute = MemberAdminRouteImport.update({
-  id: '/_admin',
   getParentRoute: () => MemberRoute,
 } as any)
 const MemberCodeRoute = MemberCodeRouteImport.update({
@@ -130,11 +124,6 @@ const SignedOutSignInIndexRoute = SignedOutSignInIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SignedOutSignInRoute,
 } as any)
-const MemberAdminAdminIndexRoute = MemberAdminAdminIndexRouteImport.update({
-  id: '/admin/',
-  path: '/admin/',
-  getParentRoute: () => MemberAdminRoute,
-} as any)
 const MemberLibrariesLibraryIdIndexRoute =
   MemberLibrariesLibraryIdIndexRouteImport.update({
     id: '/libraries/$libraryId/',
@@ -204,7 +193,6 @@ export interface FileRoutesByFullPath {
   '/requests/': typeof MemberRequestsIndexRoute
   '/sign-in/': typeof SignedOutSignInIndexRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
-  '/admin/': typeof MemberAdminAdminIndexRoute
   '/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
   '/sign-in/code/': typeof SignedOutSignInCodeIndexRoute
   '/libraries/$libraryId/movies/$movieId/play': typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
@@ -229,7 +217,6 @@ export interface FileRoutesByTo {
   '/requests': typeof MemberRequestsIndexRoute
   '/sign-in': typeof SignedOutSignInIndexRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
-  '/admin': typeof MemberAdminAdminIndexRoute
   '/libraries/$libraryId': typeof MemberLibrariesLibraryIdIndexRoute
   '/sign-in/code': typeof SignedOutSignInCodeIndexRoute
   '/libraries/$libraryId/movies/$movieId/play': typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
@@ -243,7 +230,6 @@ export interface FileRoutesById {
   '/_member': typeof MemberRouteWithChildren
   '/_signed-out': typeof SignedOutRouteWithChildren
   '/_member/$': typeof MemberSplatRoute
-  '/_member/_admin': typeof MemberAdminRouteWithChildren
   '/_member/code': typeof MemberCodeRouteWithChildren
   '/_member/search': typeof MemberSearchRoute
   '/_signed-out/setup': typeof SignedOutSetupRoute
@@ -260,7 +246,6 @@ export interface FileRoutesById {
   '/_member/requests/': typeof MemberRequestsIndexRoute
   '/_signed-out/sign-in/': typeof SignedOutSignInIndexRoute
   '/_signed-out/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
-  '/_member/_admin/admin/': typeof MemberAdminAdminIndexRoute
   '/_member/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
   '/_signed-out/sign-in/code/': typeof SignedOutSignInCodeIndexRoute
   '/_member/libraries/$libraryId/movies/$movieId/play': typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
@@ -289,7 +274,6 @@ export interface FileRouteTypes {
     | '/requests/'
     | '/sign-in/'
     | '/sign-in/code/waiting'
-    | '/admin/'
     | '/libraries/$libraryId/'
     | '/sign-in/code/'
     | '/libraries/$libraryId/movies/$movieId/play'
@@ -314,7 +298,6 @@ export interface FileRouteTypes {
     | '/requests'
     | '/sign-in'
     | '/sign-in/code/waiting'
-    | '/admin'
     | '/libraries/$libraryId'
     | '/sign-in/code'
     | '/libraries/$libraryId/movies/$movieId/play'
@@ -327,7 +310,6 @@ export interface FileRouteTypes {
     | '/_member'
     | '/_signed-out'
     | '/_member/$'
-    | '/_member/_admin'
     | '/_member/code'
     | '/_member/search'
     | '/_signed-out/setup'
@@ -344,7 +326,6 @@ export interface FileRouteTypes {
     | '/_member/requests/'
     | '/_signed-out/sign-in/'
     | '/_signed-out/sign-in/code/waiting'
-    | '/_member/_admin/admin/'
     | '/_member/libraries/$libraryId/'
     | '/_signed-out/sign-in/code/'
     | '/_member/libraries/$libraryId/movies/$movieId/play'
@@ -387,13 +368,6 @@ declare module '@tanstack/react-router' {
       path: '/$'
       fullPath: '/$'
       preLoaderRoute: typeof MemberSplatRouteImport
-      parentRoute: typeof MemberRoute
-    }
-    '/_member/_admin': {
-      id: '/_member/_admin'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof MemberAdminRouteImport
       parentRoute: typeof MemberRoute
     }
     '/_member/code': {
@@ -494,13 +468,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedOutSignInIndexRouteImport
       parentRoute: typeof SignedOutSignInRoute
     }
-    '/_member/_admin/admin/': {
-      id: '/_member/_admin/admin/'
-      path: '/admin'
-      fullPath: '/admin/'
-      preLoaderRoute: typeof MemberAdminAdminIndexRouteImport
-      parentRoute: typeof MemberAdminRoute
-    }
     '/_member/libraries/$libraryId/': {
       id: '/_member/libraries/$libraryId/'
       path: '/libraries/$libraryId'
@@ -560,18 +527,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface MemberAdminRouteChildren {
-  MemberAdminAdminIndexRoute: typeof MemberAdminAdminIndexRoute
-}
-
-const MemberAdminRouteChildren: MemberAdminRouteChildren = {
-  MemberAdminAdminIndexRoute: MemberAdminAdminIndexRoute,
-}
-
-const MemberAdminRouteWithChildren = MemberAdminRoute._addFileChildren(
-  MemberAdminRouteChildren,
-)
-
 interface MemberCodeRouteChildren {
   MemberCodeApproveRoute: typeof MemberCodeApproveRoute
   MemberCodeDoneRoute: typeof MemberCodeDoneRoute
@@ -590,7 +545,6 @@ const MemberCodeRouteWithChildren = MemberCodeRoute._addFileChildren(
 
 interface MemberRouteChildren {
   MemberSplatRoute: typeof MemberSplatRoute
-  MemberAdminRoute: typeof MemberAdminRouteWithChildren
   MemberCodeRoute: typeof MemberCodeRouteWithChildren
   MemberSearchRoute: typeof MemberSearchRoute
   MemberIndexRoute: typeof MemberIndexRoute
@@ -609,7 +563,6 @@ interface MemberRouteChildren {
 
 const MemberRouteChildren: MemberRouteChildren = {
   MemberSplatRoute: MemberSplatRoute,
-  MemberAdminRoute: MemberAdminRouteWithChildren,
   MemberCodeRoute: MemberCodeRouteWithChildren,
   MemberSearchRoute: MemberSearchRoute,
   MemberIndexRoute: MemberIndexRoute,

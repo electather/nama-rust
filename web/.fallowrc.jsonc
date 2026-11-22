@@ -139,7 +139,8 @@
       },
       {
         "from": "action-bar",
-        "allow": ["action-bar", "shared-components", "shared-hooks", "shared-lib"],
+        // Its Settings and Admin pages open Settings at a section.
+        "allow": ["action-bar", "settings", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "settings",
