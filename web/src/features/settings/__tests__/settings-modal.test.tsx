@@ -42,8 +42,11 @@ test("closing Settings leaves the page it was over", async () => {
   expect(router.state.location.search.settings).toBeUndefined();
 });
 
-test("your menu opens Playback, closing a Job left open in the address", async () => {
-  const router = openApp("/code?job=7&plugin=tmdb&library=3", fakeServer({ signedIn: newUser }));
+test("your menu opens Playback, dropping a Job and other details left in the address", async () => {
+  const router = openApp(
+    "/code?job=7&plugin=tmdb&user=2&library=3&setting=quality",
+    fakeServer({ signedIn: newUser }),
+  );
 
   fireEvent.click(await screen.findByRole("button", { name: "Sam’s menu" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Settings" }));
@@ -52,9 +55,9 @@ test("your menu opens Playback, closing a Job left open in the address", async (
   expect(router.state.location.href).toBe("/code?settings=playback");
 });
 
-test("closing Settings over an open Job leaves none of Settings in the address", async () => {
+test("closing Settings with a Job in the address leaves none of Settings there", async () => {
   const router = openApp(
-    "/code?settings=jobs&job=7&plugin=tmdb&library=3&setting=quality",
+    "/code?settings=jobs&job=7&plugin=tmdb&user=2&library=3&setting=quality",
     fakeServer({ signedIn: newUser }),
   );
 
