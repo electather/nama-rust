@@ -38,6 +38,14 @@ pub type OwnedSignInWithLinkRequestView = ::buffa::view::OwnedView<
 pub type OwnedSignInWithLinkResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::SignInWithLinkResponseView<'static>,
 >;
+///Shorthand for `OwnedView<SetPasswordRequestView<'static>>`.
+pub type OwnedSetPasswordRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SetPasswordRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetPasswordResponseView<'static>>`.
+pub type OwnedSetPasswordResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SetPasswordResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<SignOutRequestView<'static>>`.
 pub type OwnedSignOutRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::SignOutRequestView<'static>,
@@ -224,6 +232,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SetPasswordResponse>
+for crate::messages::nama::hub::v1::__buffa::view::SetPasswordResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SetPasswordResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SetPasswordResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SignOutResponse>
 for crate::messages::nama::hub::v1::__buffa::view::SignOutResponseView<'_> {
     fn encode(
@@ -321,6 +363,12 @@ pub const ACCOUNT_SERVICE_GET_SIGN_IN_LINK_SPEC: ::connectrpc::Spec = ::connectr
 /// Static [`Spec`](::connectrpc::Spec) for the `SignInWithLink` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const ACCOUNT_SERVICE_SIGN_IN_WITH_LINK_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.hub.v1.AccountService/SignInWithLink",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetPassword` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const ACCOUNT_SERVICE_SET_PASSWORD_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.AccountService/SetPassword",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
@@ -513,6 +561,33 @@ pub trait AccountService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::hub::v1::SignInWithLinkResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Sets the signed-in Account's password, replacing any it has, and ends the Account's other
+    /// sessions. Needs Recent Authentication: the calling session signed in, with any Sign-in Method,
+    /// in the last 10 minutes. Fails with `REFUSAL_REASON_SIGN_IN_REQUIRED` without a session,
+    /// `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` before the password is checked, and
+    /// `REFUSAL_REASON_PASSWORD_LENGTH`.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_password<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::SetPasswordRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::SetPasswordResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -742,6 +817,35 @@ impl<S: AccountService> AccountServiceExt for S {
             .with_spec(ACCOUNT_SERVICE_SIGN_IN_WITH_LINK_SPEC)
             .route_view(
                 ACCOUNT_SERVICE_SERVICE_NAME,
+                "SetPassword",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::SetPasswordRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::SetPasswordRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_password(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::SetPasswordResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(ACCOUNT_SERVICE_SET_PASSWORD_SPEC)
+            .route_view(
+                ACCOUNT_SERVICE_SERVICE_NAME,
                 "SignOut",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
@@ -882,6 +986,12 @@ impl<T: AccountService> ::connectrpc::Dispatcher for AccountServiceServer<T> {
                         .with_spec(ACCOUNT_SERVICE_SIGN_IN_WITH_LINK_SPEC),
                 )
             }
+            "SetPassword" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(ACCOUNT_SERVICE_SET_PASSWORD_SPEC),
+                )
+            }
             "SignOut" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -1014,6 +1124,28 @@ impl<T: AccountService> ::connectrpc::Dispatcher for AccountServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::hub::v1::SignInWithLinkResponse,
+                        >(format)
+                })
+            }
+            "SetPassword" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::SetPasswordRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::SetPasswordRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::SetPasswordRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_password(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::SetPasswordResponse,
                         >(format)
                 })
             }
@@ -1405,6 +1537,51 @@ where
                 &self.transport,
                 &self.config,
                 ACCOUNT_SERVICE_SIGN_IN_WITH_LINK_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetPassword RPC. Sends a request to /nama.hub.v1.AccountService/SetPassword.
+    pub async fn set_password(
+        &self,
+        request: crate::messages::nama::hub::v1::SetPasswordRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SetPasswordResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_password_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetPassword RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_password_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::SetPasswordRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SetPasswordResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                ACCOUNT_SERVICE_SET_PASSWORD_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

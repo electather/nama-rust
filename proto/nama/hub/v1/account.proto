@@ -28,6 +28,12 @@ service AccountService {
   // first one used on an Account whose email isn't proven also ends its other sessions and removes
   // its password (ADR 0100). Fails as `GetSignInLink` does.
   rpc SignInWithLink(SignInWithLinkRequest) returns (SignInWithLinkResponse);
+  // Sets the signed-in Account's password, replacing any it has, and ends the Account's other
+  // sessions. Needs Recent Authentication: the calling session signed in, with any Sign-in Method,
+  // in the last 10 minutes. Fails with `REFUSAL_REASON_SIGN_IN_REQUIRED` without a session,
+  // `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` before the password is checked, and
+  // `REFUSAL_REASON_PASSWORD_LENGTH`.
+  rpc SetPassword(SetPasswordRequest) returns (SetPasswordResponse);
   // Ends the calling session and clears its cookie. Fails with `REFUSAL_REASON_SIGN_IN_REQUIRED`
   // without a session.
   rpc SignOut(SignOutRequest) returns (SignOutResponse);
@@ -99,6 +105,13 @@ message SignInWithLinkResponse {
   string continue_to = 2;
 }
 
+message SetPasswordRequest {
+  // 8 to 1024 characters.
+  string password = 1;
+}
+
+message SetPasswordResponse {}
+
 message SignOutRequest {}
 
 message SignOutResponse {}
@@ -107,4 +120,6 @@ message GetAccountRequest {}
 
 message GetAccountResponse {
   Account account = 1;
+  // Whether the Account has a password. One a Sign-in Link took over has none (ADR 0100).
+  bool has_password = 2;
 }

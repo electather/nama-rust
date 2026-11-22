@@ -17,8 +17,8 @@ use mail::{Inbox, fake_mail};
 use nama_hub_proto::nama::hub::v1::{
     AccountServiceClient, CreateAccountRequest, GetAccountRequest, GetHubInfoRequest,
     GetSignInLinkRequest, GetSignInLinkResponse, HubServiceClient, RefusalReason,
-    SendSignInLinkRequest, SignInRequest, SignInWithLinkRequest, SignInWithLinkResponse,
-    SignOutRequest,
+    SendSignInLinkRequest, SetPasswordRequest, SignInRequest, SignInWithLinkRequest,
+    SignInWithLinkResponse, SignOutRequest,
 };
 use refused::assert_refused;
 use sqlx::PgPool;
@@ -568,6 +568,108 @@ async fn the_first_link_used_on_an_unproven_account_takes_it_over_and_later_ones
         signed_in_email(&hub, &proven).await.unwrap(),
         "ada@example.com"
     );
+}
+
+const NEW_PASSWORD: &str = "staple battery horse";
+
+async fn set_password(hub: &TestHub, token: &str, password: &str) -> Result<(), ConnectError> {
+    accounts(hub, Some(token))
+        .set_password(SetPasswordRequest {
+            password: password.to_owned(),
+            ..Default::default()
+        })
+        .await?;
+    Ok(())
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn has_password(hub: &TestHub, token: &str) -> bool {
+    accounts(hub, Some(token))
+        .get_account(GetAccountRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .has_password
+}
+
+async fn sign_in(hub: &TestHub, email: &str, password: &str) -> Result<String, ConnectError> {
+    let signed_in = accounts(hub, None)
+        .sign_in(sign_in_request(email, password))
+        .await?;
+    Ok(session_cookie(&signed_in).0)
+}
+
+#[sqlx::test(migrations = false)]
+async fn an_account_a_link_took_over_sets_a_password_and_signs_in_with_it(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    create(&hub, "ada@example.com").await;
+    send_link(&hub, "ada@example.com", "/").await.unwrap();
+    let link = inbox.next_link("ada@example.com").await;
+    let (_, session) = use_link(&hub, &link, None).await.unwrap();
+    assert!(!has_password(&hub, &session).await);
+
+    set_password(&hub, &session, NEW_PASSWORD).await.unwrap();
+
+    assert!(has_password(&hub, &session).await);
+    sign_in(&hub, "ada@example.com", NEW_PASSWORD)
+        .await
+        .unwrap();
+}
+
+#[sqlx::test(migrations = false)]
+async fn changing_the_password_ends_only_the_accounts_other_sessions(db: PgPool) {
+    let hub = TestHub::start(db, None).await;
+    let changing = create(&hub, "ada@example.com").await;
+    let other = sign_in(&hub, "ada@example.com", PASSWORD).await.unwrap();
+    let bea = create(&hub, "bea@example.com").await;
+    assert!(has_password(&hub, &changing).await);
+
+    set_password(&hub, &changing, NEW_PASSWORD).await.unwrap();
+
+    assert_eq!(
+        signed_in_email(&hub, &changing).await.unwrap(),
+        "ada@example.com"
+    );
+    assert_refused(
+        signed_in_email(&hub, &other).await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
+    );
+    assert_refused(
+        sign_in(&hub, "ada@example.com", PASSWORD).await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD,
+    );
+    sign_in(&hub, "ada@example.com", NEW_PASSWORD)
+        .await
+        .unwrap();
+    assert_eq!(
+        signed_in_email(&hub, &bea).await.unwrap(),
+        "bea@example.com"
+    );
+    sign_in(&hub, "bea@example.com", PASSWORD).await.unwrap();
+}
+
+#[sqlx::test(migrations = false)]
+async fn setting_a_password_without_a_session_or_of_the_wrong_length_is_refused(db: PgPool) {
+    let hub = TestHub::start(db, None).await;
+    let session = create(&hub, "ada@example.com").await;
+
+    assert_refused(
+        set_password(&hub, "not-a-session", NEW_PASSWORD).await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
+    );
+    let refusal = assert_refused(
+        set_password(&hub, &session, "short").await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_PASSWORD_LENGTH,
+    );
+    assert_eq!(refusal.field, "password");
+    sign_in(&hub, "ada@example.com", PASSWORD).await.unwrap();
 }
 
 /// Asserts that `refused` was refused for too many attempts, saying how long to wait in both the

@@ -29,6 +29,9 @@ pub enum RefusalReason {
     REFUSAL_REASON_SIGN_IN_LINK_EXPIRED = 7i32,
     /// `failed_precondition`: the Hub has no mail set up, so it can't email Sign-in Links.
     REFUSAL_REASON_SIGN_IN_LINKS_OFF = 8i32,
+    /// `failed_precondition`: the call needs Recent Authentication, which the session hasn't had for
+    /// over 10 minutes. Signing in again gives it back.
+    REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED = 9i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -58,6 +61,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_SIGN_IN_LINKS_OFF`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const SignInLinksOff: Self = Self::REFUSAL_REASON_SIGN_IN_LINKS_OFF;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RecentAuthenticationRequired: Self = Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -168,6 +174,11 @@ impl ::buffa::Enumeration for RefusalReason {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED)
             }
             8i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_SIGN_IN_LINKS_OFF),
+            9i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -189,6 +200,9 @@ impl ::buffa::Enumeration for RefusalReason {
                 "REFUSAL_REASON_SIGN_IN_LINK_EXPIRED"
             }
             Self::REFUSAL_REASON_SIGN_IN_LINKS_OFF => "REFUSAL_REASON_SIGN_IN_LINKS_OFF",
+            Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED => {
+                "REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -222,6 +236,11 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_SIGN_IN_LINKS_OFF" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SIGN_IN_LINKS_OFF)
             }
+            "REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -236,6 +255,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_PASSWORD_LENGTH,
             Self::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED,
             Self::REFUSAL_REASON_SIGN_IN_LINKS_OFF,
+            Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
         ]
     }
 }

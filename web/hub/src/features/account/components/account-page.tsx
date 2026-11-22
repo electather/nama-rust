@@ -1,8 +1,9 @@
+import { PasswordForm } from "@hub/features/account/components/password-form";
 import { useAccount } from "@hub/features/account/data/account";
 import { useSignOut } from "@hub/features/account/data/sessions";
 import { Button } from "nama-ui/components/button";
 
-/** The signed-in Account's email, and signing out. */
+/** The signed-in Account's email, its password, and signing out. */
 export function AccountPage() {
   const account = useAccount();
   const signOut = useSignOut();
@@ -13,6 +14,7 @@ export function AccountPage() {
         <dt className="text-xs text-muted-foreground">Email</dt>
         <dd className="text-base break-all">{account?.email}</dd>
       </dl>
+      <PasswordForm />
       <p role="alert" className="text-sm text-destructive empty:hidden">
         {signOut.error ? "The Hub couldn’t sign you out just now. Try again." : undefined}
       </p>

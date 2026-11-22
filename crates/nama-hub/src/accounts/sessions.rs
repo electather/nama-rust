@@ -8,6 +8,10 @@ use super::{Account, AccountId, AccountSession, Error, new_token, token_hash};
 /// How many days a session lasts after it starts.
 pub(crate) const SESSION_DAYS: i32 = 30;
 
+/// How many minutes after signing in a session has Recent Authentication. Every session starts
+/// at a sign-in, so its age is how long ago it signed in.
+pub(super) const RECENT_MINUTES: i32 = 10;
+
 /// Starts a session for `account` and returns its token.
 pub(super) async fn start(conn: &mut PgConnection, account: AccountId) -> Result<String, Error> {
     let token = new_token()?;
@@ -26,11 +30,13 @@ pub(super) async fn start(conn: &mut PgConnection, account: AccountId) -> Result
 // periodic job runs in the Hub.
 pub(super) async fn find(db: &PgPool, token: &str) -> Result<Option<AccountSession>, sqlx::Error> {
     let found = sqlx::query!(
-        "SELECT account_sessions.id, accounts.id AS account_id, accounts.email
+        r#"SELECT account_sessions.id, accounts.id AS account_id, accounts.email,
+           account_sessions.created_at > now() - make_interval(mins => $3) AS "recent!"
          FROM account_sessions JOIN accounts ON accounts.id = account_sessions.account_id
-         WHERE token_hash = $1 AND account_sessions.created_at > now() - make_interval(days => $2)",
+         WHERE token_hash = $1 AND account_sessions.created_at > now() - make_interval(days => $2)"#,
         &token_hash(token)[..],
         SESSION_DAYS,
+        RECENT_MINUTES,
     )
     .fetch_optional(db)
     .await?;
@@ -40,6 +46,7 @@ pub(super) async fn find(db: &PgPool, token: &str) -> Result<Option<AccountSessi
             email: found.email,
         },
         id: found.id,
+        recent: found.recent,
     }))
 }
 
@@ -58,6 +65,21 @@ pub(super) async fn end(
     Ok(())
 }
 
+/// Ends every session of `session`'s Account but `session`.
+pub(super) async fn end_others(
+    conn: &mut PgConnection,
+    session: &AccountSession,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "DELETE FROM account_sessions WHERE account_id = $1 AND id <> $2",
+        session.account.id.0,
+        session.id,
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
 /// Ends every session of `account`.
 pub(super) async fn end_all(
     conn: &mut PgConnection,
@@ -71,3 +93,7 @@ pub(super) async fn end_all(
     .await?;
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "sessions_tests.rs"]
+mod tests;

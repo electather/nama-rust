@@ -178,7 +178,9 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
             ErrorCode::InvalidArgument
         }
         R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED => ErrorCode::NotFound,
-        R::REFUSAL_REASON_SIGN_IN_LINKS_OFF => ErrorCode::FailedPrecondition,
+        R::REFUSAL_REASON_SIGN_IN_LINKS_OFF | R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED => {
+            ErrorCode::FailedPrecondition
+        }
         // Never sent; a client sees it only for a reason it doesn't know.
         R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,
     }

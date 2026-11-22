@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT account_sessions.id, accounts.id AS account_id, accounts.email\n         FROM account_sessions JOIN accounts ON accounts.id = account_sessions.account_id\n         WHERE token_hash = $1 AND account_sessions.created_at > now() - make_interval(days => $2)",
+  "query": "SELECT account_sessions.id, accounts.id AS account_id, accounts.email,\n           account_sessions.created_at > now() - make_interval(mins => $3) AS \"recent!\"\n         FROM account_sessions JOIN accounts ON accounts.id = account_sessions.account_id\n         WHERE token_hash = $1 AND account_sessions.created_at > now() - make_interval(days => $2)",
   "describe": {
     "columns": [
       {
@@ -35,19 +35,27 @@
             "name": "email"
           }
         }
+      },
+      {
+        "ordinal": 3,
+        "name": "recent!",
+        "type_info": "Bool",
+        "origin": "Expression"
       }
     ],
     "parameters": {
       "Left": [
         "Bytea",
+        "Int4",
         "Int4"
       ]
     },
     "nullable": [
       false,
       false,
-      false
+      false,
+      null
     ]
   },
-  "hash": "7f7cb325b5a21cb7f36b057c59d4d33c03728de02052f4486a375d7dab16d5eb"
+  "hash": "3afd8da4bcc73d2fdae00c6f02614cd3429a8f9173069ee866c59ea25e021086"
 }
