@@ -237,7 +237,12 @@ fn refused(err: accounts::Error) -> ConnectError {
         E::SignInLinksOff => refuse(R::REFUSAL_REASON_SIGN_IN_LINKS_OFF, message),
         E::SignInLinkExpired => refuse(R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED, message),
         E::Blocked(ref blocked) => return too_many_attempts(blocked),
-        E::MailQueueFull | E::Password(_) | E::Random(_) | E::Database(_) => {
+        // ADR 0019: no Refusal, but `unavailable`, since the queue drains and a retry may work.
+        E::MailQueueFull => {
+            tracing::warn!("{message}");
+            return ConnectError::unavailable(message);
+        }
+        E::Password(_) | E::Random(_) | E::Database(_) => {
             return hub_failed(&err);
         }
     };

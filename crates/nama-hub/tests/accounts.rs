@@ -437,6 +437,28 @@ async fn asking_again_replaces_the_waiting_link(db: PgPool) {
 }
 
 #[sqlx::test(migrations = false)]
+async fn asking_for_and_taking_over_with_a_link_leave_another_accounts_link_and_session(
+    db: PgPool,
+) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    create(&hub, "ada@example.com").await;
+    let bea = create(&hub, "bea@example.com").await;
+    send_link(&hub, "bea@example.com", "/").await.unwrap();
+    let beas_link = inbox.next_link("bea@example.com").await;
+
+    send_link(&hub, "ada@example.com", "/").await.unwrap();
+    let adas_link = inbox.next_link("ada@example.com").await;
+    use_link(&hub, &adas_link, None).await.unwrap();
+
+    assert_eq!(
+        signed_in_email(&hub, &bea).await.unwrap(),
+        "bea@example.com"
+    );
+    let link = get_link(&hub, &beas_link).await.unwrap();
+    assert_eq!(link.account.unwrap().email, "bea@example.com");
+}
+
+#[sqlx::test(migrations = false)]
 async fn asking_for_a_link_for_an_email_without_an_account_answers_the_same_and_sends_nothing(
     db: PgPool,
 ) {
