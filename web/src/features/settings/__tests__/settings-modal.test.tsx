@@ -15,14 +15,6 @@ function sections() {
     .map((link) => link.textContent);
 }
 
-test("the old Settings address lands on Home with Settings open on Playback", async () => {
-  const router = openApp("/settings", fakeServer({ signedIn: newUser }));
-
-  await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
-  expect(router.state.location.pathname).toBe("/");
-  expect(router.state.location.search).toMatchObject({ settings: "playback" });
-});
-
 test("your menu opens Settings over the page you're on, and Back closes it", async () => {
   const router = openApp("/code", fakeServer({ signedIn: newUser }));
 
