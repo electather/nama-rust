@@ -7,10 +7,10 @@ use figment::{Figment, providers::Env};
 use serde::Deserialize;
 
 /// Prefix of the environment variables the config is read from, e.g. `NAMA_HUB_LISTEN`.
-pub const ENV_PREFIX: &str = "NAMA_HUB_";
+const ENV_PREFIX: &str = "NAMA_HUB_";
 
 /// Everything a Hub needs to know before it starts.
-#[derive(Clone, PartialEq, Eq, Deserialize)]
+#[derive(Deserialize)]
 pub struct Config {
     /// The PostgreSQL database the Hub keeps everything in, as a `postgres://` URL. Required.
     pub database_url: String,

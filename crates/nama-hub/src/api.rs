@@ -70,3 +70,7 @@ fn service_and_method(path: &str) -> Option<(&str, &str)> {
     let (service, method) = path.strip_prefix('/')?.split_once('/')?;
     (service.starts_with("nama.hub.") && !method.contains('/')).then_some((service, method))
 }
+
+#[cfg(test)]
+#[path = "api_tests.rs"]
+mod tests;

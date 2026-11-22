@@ -136,9 +136,9 @@ Building the Server builds the Plugins it bundles for wasm32 (`crates/nama-serve
 
 `buf breaking` fails a change that breaks the client API in `proto/nama/v1/` or the Hub API in `proto/nama/hub/v1/` against main, unless the change declares the break with a new entry in [`proto/BREAKING.md`](proto/BREAKING.md) ([`.github/scripts/buf-breaking.sh`](.github/scripts/buf-breaking.sh), ADR 0032). The Plugin contract in `proto/nama/plugin/` has its own version instead (ADR 0041).
 
-CI also checks that the generated code and the sqlx query data are current. If you change `proto/`, see [`crates/nama-proto/README.md`](crates/nama-proto/README.md). If you change a query or a migration, see [`crates/nama-server/README.md`](crates/nama-server/README.md).
+CI also checks that the generated code and the sqlx query data are current. If you change `proto/`, see [`crates/nama-proto/README.md`](crates/nama-proto/README.md). If you change a query or a migration, see [`crates/nama-server/README.md`](crates/nama-server/README.md), or the Hub's [`crates/nama-hub/README.md`](crates/nama-hub/README.md).
 
-Its jobs run side by side on GitHub-hosted runners: `lint`, `rust-check`, `test` (split in two, on Linux for a PR and also on macOS and Windows on main), the web app's checks in `web` ([`web/README.md`](web/README.md), "Checks"), and `web-test`, which builds the web app and runs `cargo nextest run -p nama-server --features web --test web` against it. On a PR, path filters skip the side it doesn't touch: a web-only PR skips the Rust checks and the workspace tests, a Rust-only one the web checks, and one that touches neither, such as docs or Markdown no check reads, runs nothing. A push to main runs everything. A PR merges into main only once `ci-ok` passes, which waits for all the others and passes when none failed.
+Its jobs run side by side on GitHub-hosted runners: `lint`, `rust-check`, `test` (split in two, on Linux for a PR and also on macOS and Windows on main), the web app's checks in `web` ([`web/README.md`](web/README.md), "Checks"), `web-test`, which builds the web app and runs `cargo nextest run -p nama-server --features web --test web` against it, and `hub`, which runs the Hub's tests against PostgreSQL in a service container, which only Linux runners have, so `test` leaves the Hub out. On a PR, path filters skip the side it doesn't touch: a web-only PR skips the Rust checks and the workspace tests, a Rust-only one the web checks, and one that touches neither, such as docs or Markdown no check reads, runs nothing. A push to main runs everything. A PR merges into main only once `ci-ok` passes, which waits for all the others and passes when none failed.
 
 ### Flaky and slow tests
 
@@ -151,7 +151,7 @@ git show ci/test-history:2026-11-20.jsonl | jq -c 'select(.outcome != "pass")'
 
 ## License
 
-The Server, Hub, `nama-plugin-api` and Built-in Plugins are AGPL-3.0-only ([`LICENSE`](LICENSE)). The contracts that others build against, `nama-proto`, `nama-plugin-proto`, `nama-pdk` and `proto/`, are MIT OR Apache-2.0 (ADR 0009). Each crate's `Cargo.toml` states its license.
+The Server, Hub, `nama-plugin-api` and Built-in Plugins are AGPL-3.0-only ([`LICENSE`](LICENSE)). The contracts that others build against, `nama-proto`, `nama-plugin-proto`, `nama-hub-proto`, `nama-pdk` and `proto/`, are MIT OR Apache-2.0 (ADR 0009). Each crate's `Cargo.toml` states its license.
 
 ## Attribution
 

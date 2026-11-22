@@ -1,5 +1,6 @@
 [package]
 name = "nama-hub"
+# The Server's version: see `crates/nama-server/Cargo.toml`.
 version = "0.1.0"
 description = "The Nama Hub: Accounts and Server discovery"
 license = "AGPL-3.0-only"
