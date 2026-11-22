@@ -191,7 +191,7 @@ async fn poll_sign_in(
     reason = "a test helper fails its test by panicking"
 )]
 fn code_in(back: &str) -> &str {
-    back.strip_prefix("https://nama.example/sign-in?code=")
+    back.strip_prefix(&format!("{SERVER_URL}/sign-in?code="))
         .unwrap()
 }
 
