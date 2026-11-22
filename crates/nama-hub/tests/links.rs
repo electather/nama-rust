@@ -20,11 +20,13 @@ use connectrpc::{
 };
 use hub::TestHub;
 use mail::{Inbox, fake_mail};
+use nama_hub::titles;
 use nama_hub_proto::nama::hub::v1::{
-    AccountServiceClient, ApproveServerLinkRequest, CreateAccountRequest, LinkServiceClient,
-    LinkedServerServiceClient, ListLinkedServersRequest, PollServerLinkRequest,
-    PollServerLinkResponse, RefusalReason, SendSignInLinkRequest, ServerLinkServiceClient,
-    SignInWithLinkRequest, StartServerLinkRequest, StartServerLinkResponse, UnlinkServerRequest,
+    AccountServiceClient, ApproveServerLinkRequest, CreateAccountRequest, ExternalId,
+    LinkServiceClient, LinkedServerServiceClient, ListLinkedServersRequest,
+    ListSimilarTitlesRequest, PollServerLinkRequest, PollServerLinkResponse, RefusalReason,
+    SendSignInLinkRequest, ServerLinkServiceClient, SignInWithLinkRequest, StartServerLinkRequest,
+    StartServerLinkResponse, TitleKind, UnlinkServerRequest,
 };
 use refused::assert_refused;
 use ring::signature::{ED25519, UnparsedPublicKey};
@@ -372,4 +374,44 @@ async fn a_credential_the_hub_cant_check_isnt_called_unlinked(db: PgPool) {
 
     // A Server that heard "not Linked" would forget its Link.
     assert_ne!(failed.code, ErrorCode::Unauthenticated, "{failed:?}");
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_linked_server_gets_the_titles_like_one_it_names(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db.clone()).await;
+    titles::import(&db, &include_bytes!("fixtures/wikidata-dump.json")[..])
+        .await
+        .unwrap();
+    titles::train(&db).await.unwrap();
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let started = start(&hub, "Living room").await;
+    approve(&hub, &ada, &started.user_code).await.unwrap();
+    let credential = poll(&hub, &started.device_code).await.unwrap().credential;
+    let the_matrix = ListSimilarTitlesRequest {
+        kind: TitleKind::TITLE_KIND_MOVIE.into(),
+        ids: vec![ExternalId {
+            namespace: "tmdb".to_owned(),
+            value: "603".to_owned(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let similar = linked_server(&hub, &credential)
+        .list_similar_titles(the_matrix.clone())
+        .await
+        .unwrap()
+        .into_owned();
+
+    let ids: Vec<&str> = (similar.titles.iter())
+        .map(|title| title.id.value.as_str())
+        .collect();
+    assert_eq!(ids, ["604", "348"]);
+    assert_refused(
+        linked_server(&hub, "not-a-credential")
+            .list_similar_titles(the_matrix)
+            .await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+    );
 }

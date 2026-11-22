@@ -1,10 +1,12 @@
-//! Films and series, loaded from Wikidata's weekly dump, and the External ID crosswalk between
-//! them (ADR 0095).
+//! Films and series, loaded from Wikidata's weekly dump, the External ID crosswalk between them,
+//! and the vectors that say which are alike (ADR 0095).
 
+mod vectors;
 mod wikidata;
 
 use sqlx::PgPool;
 
+pub use vectors::{SimilarTitle, similar, train};
 pub use wikidata::{ImportError, import};
 
 /// Whether a title is a Movie or a Show, whose External IDs are separate id spaces (ADR 0042).

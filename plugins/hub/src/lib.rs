@@ -1,19 +1,21 @@
 //! The Hub Plugin (ADR 0094): the Built-in Plugin through which a Server does everything
 //! Hub-facing. It Links the Server to an Account, through a code an Admin enters on the Hub (ADR
-//! 0011), and keeps the credential the Server presents to the Hub from then on in its Store.
+//! 0011), and keeps the credential the Server presents to the Hub from then on in its Store. Once
+//! Linked, it is a Similar source answering the titles the Hub finds alike (ADR 0084, 0095).
 
 mod hub;
 mod linker;
+mod similar;
 mod token;
 
 use std::{env, sync::Arc};
 
 use nama_plugin_api::{
     Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar, automation::Permission,
-    server_link::ServerLinker,
+    server_link::ServerLinker, similar_source::SimilarSource,
 };
 
-use crate::{hub::Hub as HubApi, linker::Linker};
+use crate::{hub::Hub as HubApi, linker::Linker, similar::Similar};
 
 /// The variable naming the Hub's address, such as `https://hub.example`.
 const HUB_URL_VARIABLE: &str = "NAMA_HUB_URL";
@@ -54,12 +56,17 @@ impl Plugin for Hub {
     fn manifest(&self) -> Manifest {
         Manifest {
             name: "Hub".to_owned(),
-            description: "Links the Server to an Account on Nama's Hub.".to_owned(),
+            description: "Links the Server to an Account on Nama's Hub, and adds the titles \
+                          the Hub finds alike to Similar titles."
+                .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_markdown: "Enable it, then Link the Server under Settings, Server. The Server \
                              shows a code to enter on the Hub while signed in to your Account."
                 .to_owned(),
-            extension_points: vec![PointKey::provide::<dyn ServerLinker>()],
+            extension_points: vec![
+                PointKey::provide::<dyn ServerLinker>(),
+                PointKey::provide::<dyn SimilarSource>(),
+            ],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
             permissions: vec![Permission::PERMISSION_STORE],
             ..Manifest::new(Self::ID)
@@ -73,8 +80,12 @@ impl Plugin for Hub {
         let kernel = registrar
             .kernel()
             .ok_or("the Kernel handed the Hub Plugin none of its functions")?;
-        let linker: Arc<dyn ServerLinker> = Arc::new(Linker::new(HubApi::new(url)?, kernel));
+        let hub = HubApi::new(url)?;
+        let similar: Arc<dyn SimilarSource> =
+            Arc::new(Similar::new(hub.clone(), Arc::clone(&kernel)));
+        let linker: Arc<dyn ServerLinker> = Arc::new(Linker::new(hub, kernel));
         registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, linker);
+        registrar.provide::<dyn SimilarSource>(Priority::DEFAULT, similar);
         Ok(())
     }
 }

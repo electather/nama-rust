@@ -14,8 +14,9 @@ use hyper_util::{
     rt::TokioExecutor,
 };
 use nama_hub_proto::nama::hub::v1::{
-    LinkedServerServiceClient, PollServerLinkRequest, PollServerLinkResponse,
-    ServerLinkServiceClient, StartServerLinkRequest, StartServerLinkResponse, UnlinkServerRequest,
+    LinkedServerServiceClient, ListSimilarTitlesRequest, ListSimilarTitlesResponse,
+    PollServerLinkRequest, PollServerLinkResponse, ServerLinkServiceClient, StartServerLinkRequest,
+    StartServerLinkResponse, UnlinkServerRequest,
 };
 use nama_plugin_api::PluginError;
 
@@ -27,6 +28,7 @@ const MAX_KEY_SET_BYTES: usize = 64 * 1024;
 type Transport = ServiceTransport<Client<HttpsConnector<HttpConnector>, ClientBody>>;
 
 /// The Hub at one address.
+#[derive(Clone)]
 pub(crate) struct Hub {
     url: String,
     transport: Transport,
@@ -100,15 +102,43 @@ impl Hub {
     /// Unlinks the Server whose credential is `credential`. One the Hub doesn't know any more is
     /// `REFUSAL_REASON_SERVER_NOT_LINKED`, the call's one `unauthenticated`, so Unlinked already.
     pub(crate) async fn unlink(&self, credential: &str) -> Result<(), PluginError> {
-        let config = self
-            .config()?
-            .with_default_header("authorization", format!("Bearer {credential}"));
-        let client = LinkedServerServiceClient::new(self.transport.clone(), config);
-        match client.unlink_server(UnlinkServerRequest::default()).await {
+        match self
+            .linked(credential)?
+            .unlink_server(UnlinkServerRequest::default())
+            .await
+        {
             Ok(_) => Ok(()),
             Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => Ok(()),
             Err(err) => Err(err.into()),
         }
+    }
+
+    /// The titles like the one `request` names, asked as the Server whose credential is
+    /// `credential`.
+    pub(crate) async fn similar(
+        &self,
+        credential: &str,
+        request: ListSimilarTitlesRequest,
+    ) -> Result<ListSimilarTitlesResponse, PluginError> {
+        let similar = self
+            .linked(credential)?
+            .list_similar_titles(request)
+            .await?;
+        Ok(similar.into_owned())
+    }
+
+    /// The Hub's API for Linked Servers, called as the one whose credential is `credential`.
+    fn linked(
+        &self,
+        credential: &str,
+    ) -> Result<LinkedServerServiceClient<Transport>, PluginError> {
+        let config = self
+            .config()?
+            .with_default_header("authorization", format!("Bearer {credential}"));
+        Ok(LinkedServerServiceClient::new(
+            self.transport.clone(),
+            config,
+        ))
     }
 
     /// The Hub's published key set, as JSON.

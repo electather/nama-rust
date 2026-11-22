@@ -1,4 +1,4 @@
-use super::{Title, parse_title};
+use super::{Fact, Title, parse_title};
 use crate::titles::{ExternalId, TitleKind};
 
 /// A line of the dump for item `id` with `claims`, each a property and its statements.
@@ -23,6 +23,18 @@ fn class(id: &str) -> String {
     format!(
         r#"{{"mainsnak":{{"snaktype":"value","datavalue":{{"value":{{"entity-type":"item","id":"{id}"}},"type":"wikibase-entityid"}}}},"type":"statement","rank":"normal"}}"#
     )
+}
+
+/// A statement naming item `id`, ranked `rank`.
+fn item(id: &str, rank: &str) -> String {
+    class(id).replace(r#""rank":"normal""#, &format!(r#""rank":"{rank}""#))
+}
+
+fn fact(property: &'static str, item: &str) -> Fact {
+    Fact {
+        property,
+        item: item.to_owned(),
+    }
 }
 
 fn id(namespace: &str, value: &str) -> ExternalId {
@@ -55,6 +67,7 @@ fn a_film_keeps_its_imdb_and_tmdb_ids() {
             wikidata_id: "Q83495".to_owned(),
             kind: TitleKind::Movie,
             ids: vec![id("imdb", "tt0133093"), id("tmdb", "603")],
+            facts: vec![],
         })
     );
 }
@@ -76,6 +89,7 @@ fn a_series_keeps_its_tmdb_series_and_tvdb_ids() {
             wikidata_id: "Q1079".to_owned(),
             kind: TitleKind::Show,
             ids: vec![id("tmdb", "1396"), id("tvdb", "81189")],
+            facts: vec![],
         })
     );
 }
@@ -232,6 +246,70 @@ fn a_deprecated_id_of_the_other_kind_leaves_the_kind_alone() {
             wikidata_id: "Q8".to_owned(),
             kind: TitleKind::Movie,
             ids: vec![id("tmdb", "8")],
+            facts: vec![],
         })
+    );
+}
+
+#[test]
+fn a_film_keeps_the_facts_its_vector_is_built_from() {
+    let line = entity(
+        "Q83495",
+        &[
+            ("P31", &[class("Q11424")]),
+            ("P4947", &[string("603", "normal")]),
+            (
+                "P161",
+                &[item("Q25089", "normal"), item("Q43416", "preferred")],
+            ),
+            ("P57", &[item("Q9545711", "normal")]),
+            ("P58", &[item("Q9545711", "normal")]),
+            ("P136", &[item("Q471839", "normal")]),
+            ("P921", &[item("Q1137820", "normal")]),
+            ("P166", &[item("Q103916", "normal")]),
+            ("P8345", &[item("Q1129400", "normal")]),
+            ("P179", &[item("Q1129400", "normal")]),
+            ("P495", &[item("Q30", "normal")]),
+            ("P364", &[item("Q1860", "normal")]),
+        ],
+    );
+
+    assert_eq!(
+        parsed(&line).map(|title| title.facts),
+        Some(vec![
+            fact("award", "Q103916"),
+            fact("cast", "Q25089"),
+            fact("cast", "Q43416"),
+            fact("country", "Q30"),
+            fact("director", "Q9545711"),
+            fact("franchise", "Q1129400"),
+            fact("genre", "Q471839"),
+            fact("subject", "Q1137820"),
+            fact("writer", "Q9545711"),
+        ])
+    );
+}
+
+#[test]
+fn a_deprecated_or_unknown_fact_is_left_out() {
+    let unknown = r#"{"mainsnak":{"snaktype":"somevalue"},"type":"statement","rank":"normal"}"#;
+    let line = entity(
+        "Q83495",
+        &[
+            ("P4947", &[string("603", "normal")]),
+            (
+                "P57",
+                &[
+                    item("Q1", "deprecated"),
+                    unknown.to_owned(),
+                    item("Q9545711", "normal"),
+                ],
+            ),
+        ],
+    );
+
+    assert_eq!(
+        parsed(&line).map(|title| title.facts),
+        Some(vec![fact("director", "Q9545711")])
     );
 }

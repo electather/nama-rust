@@ -46,7 +46,7 @@ pub(crate) fn router(
     let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys));
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(HubServiceHandler {
-            db,
+            db: db.clone(),
             sends_sign_in_links: accounts.sends_sign_in_links(),
         }))
         .add_service(Arc::new(AccountServiceHandler {
@@ -60,6 +60,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(LinkedServerServiceHandler {
             links: links.clone(),
+            db,
         }))
         .into_axum_service();
     let jwks = async move || {

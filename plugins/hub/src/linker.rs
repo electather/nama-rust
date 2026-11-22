@@ -183,10 +183,7 @@ impl Linker {
     }
 
     async fn kept(&self) -> Result<Option<Kept>, PluginError> {
-        let Some(kept) = self.stored(LINK_KEY).await? else {
-            return Ok(None);
-        };
-        Ok(Some(serde_json::from_slice(&kept)?))
+        kept(self.kernel.as_ref()).await
     }
 
     async fn keep(&self, kept: &Kept) -> Result<(), PluginError> {
@@ -220,6 +217,19 @@ impl ServerLinker for Linker {
     fn unlink(&self) -> BoxFuture<'_, Result<(), PluginError>> {
         Box::pin(self.forget_link())
     }
+}
+
+/// The credential the Server presents on every Hub call once it is Linked, as `kernel`'s Store
+/// keeps it; `None` while it isn't.
+pub(crate) async fn credential(kernel: &dyn Kernel) -> Result<Option<String>, PluginError> {
+    Ok(kept(kernel).await?.map(|kept| kept.credential))
+}
+
+async fn kept(kernel: &dyn Kernel) -> Result<Option<Kept>, PluginError> {
+    let Some(kept) = kernel.ask::<StoreGet>(store_key(LINK_KEY)).await?.value else {
+        return Ok(None);
+    };
+    Ok(Some(serde_json::from_slice(&kept)?))
 }
 
 fn store_key(key: &str) -> StoreKey {
