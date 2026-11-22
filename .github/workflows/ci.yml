@@ -346,10 +346,11 @@ jobs:
       - if: runner.os != 'Windows'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: v8.1.3-2
           BUILD: ${{ runner.os == 'macOS' && 'macarm64' || 'linux64' }}
         run: |
           mkdir "$RUNNER_TEMP/jellyfin-ffmpeg"
-          gh release download -R jellyfin/jellyfin-ffmpeg -p "*_portable_$BUILD-gpl.tar.xz" -O - \
+          gh release download "$TAG" -R jellyfin/jellyfin-ffmpeg -p "*_portable_$BUILD-gpl.tar.xz" -O - \
             | tar -xJ -C "$RUNNER_TEMP/jellyfin-ffmpeg"
           dirname "$(find "$RUNNER_TEMP/jellyfin-ffmpeg" -name ffmpeg -type f)" >> "$GITHUB_PATH"
       - if: runner.os == 'Windows'
