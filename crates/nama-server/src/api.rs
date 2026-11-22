@@ -154,6 +154,7 @@ pub(crate) fn router(
         .add_service(Arc::new(watch_states::WatchStateServiceHandler {
             browse: Browse::new(Arc::clone(&db)),
             running: running.clone(),
+            points: plugins.clone(),
         }))
         .add_service(Arc::new(watchlist::WatchlistServiceHandler {
             db: Arc::clone(&db),
