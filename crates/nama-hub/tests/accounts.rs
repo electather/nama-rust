@@ -201,6 +201,58 @@ async fn signing_in_with_the_password_starts_a_session_of_its_own(db: PgPool) {
         signed_in_email(&hub, &second).await.unwrap(),
         "ada@example.com"
     );
+    assert_eq!(
+        signed_in_email(&hub, &first).await.unwrap(),
+        "ada@example.com"
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn signing_in_with_the_password_ends_the_browsers_session_only_once_the_password_is_right(
+    db: PgPool,
+) {
+    let hub = TestHub::start(db, None).await;
+    let other = create(&hub, "ada@example.com").await;
+    let browser = session_cookie(
+        &accounts(&hub, None)
+            .sign_in(sign_in_request("ada@example.com", PASSWORD))
+            .await
+            .unwrap(),
+    )
+    .0;
+    let client = accounts(&hub, Some(&browser));
+
+    let refused = client
+        .sign_in(sign_in_request("ada@example.com", "not the password"))
+        .await;
+    assert_refused(
+        refused,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD,
+    );
+    assert_eq!(
+        signed_in_email(&hub, &browser).await.unwrap(),
+        "ada@example.com"
+    );
+
+    let signed_in = client
+        .sign_in(sign_in_request("ada@example.com", PASSWORD))
+        .await
+        .unwrap();
+    let (replacement, _) = session_cookie(&signed_in);
+    assert_eq!(
+        signed_in_email(&hub, &replacement).await.unwrap(),
+        "ada@example.com"
+    );
+    assert_refused(
+        signed_in_email(&hub, &browser).await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
+    );
+    assert_eq!(
+        signed_in_email(&hub, &other).await.unwrap(),
+        "ada@example.com"
+    );
 }
 
 #[sqlx::test(migrations = false)]

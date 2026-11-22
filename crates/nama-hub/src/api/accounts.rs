@@ -73,6 +73,7 @@ impl AccountService for AccountServiceHandler {
             .sign_in(
                 request.email,
                 request.password,
+                ctx.extensions().get::<AccountSession>(),
                 client_ip(&ctx)?,
                 Instant::now(),
             )
