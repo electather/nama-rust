@@ -53,8 +53,9 @@ const MANAGE_LIBRARIES: [&str; 11] = [
 ];
 
 /// Every RPC that manages Users, which needs `PERMISSION_MANAGE_USERS`.
-const MANAGE_USERS: [&str; 10] = [
+const MANAGE_USERS: [&str; 11] = [
     "/nama.v1.UserService/CreateUser",
+    "/nama.v1.UserService/CreateUserFromAccount",
     "/nama.v1.UserService/ListUsers",
     "/nama.v1.UserService/SetPermissions",
     "/nama.v1.UserService/DeleteUser",

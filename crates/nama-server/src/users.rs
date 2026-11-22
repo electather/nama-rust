@@ -265,8 +265,9 @@ pub enum Error {
     /// its Device in.
     #[error("the Device that approved this code has since signed out")]
     ApprovingDeviceSignedOut,
-    /// The change would leave the Server with no Admin.
-    #[error("the Server must keep at least one Admin")]
+    /// The change would leave the Server with no Admin who can sign in with a password, without
+    /// the Hub (ADR 0092).
+    #[error("the Server must keep at least one Admin who can sign in with a password")]
     LastAdmin,
     /// Only a User with `PERMISSION_ADMIN` may make the change.
     #[error("only an Admin may change an Admin, make an Admin or change their own Permissions")]
@@ -343,18 +344,31 @@ impl Users {
     pub(crate) async fn create(&self, by: &User, name: &str, password: &str) -> Result<i64, Error> {
         let name = checked_name("name", "a User's name", name)?;
         let credential = self.hash_password("password", password).await?;
+        self.insert_created(by, name, Some(credential)).await
+    }
+
+    /// Creates a User named `name` with the default Permissions and no Sign-in Method, as `by`
+    /// asks, and returns their ID. They sign in once an Account accepts them on the Hub, which
+    /// Links them to it (ADR 0092). Refused as [`Users::create`] refuses.
+    pub(crate) async fn create_from_account(&self, by: &User, name: &str) -> Result<i64, Error> {
+        let name = checked_name("name", "a User's name", name)?;
+        self.insert_created(by, name, None).await
+    }
+
+    /// Stores a User named `name`, checked, with the default Permissions and `credential` as their
+    /// password if any, as `by` asks.
+    async fn insert_created(
+        &self,
+        by: &User,
+        name: String,
+        credential: Option<Credential>,
+    ) -> Result<i64, Error> {
         let by = by.permissions;
         self.db
             .write(move |tx| {
-                Box::pin(async move {
-                    // Read in the write's transaction, so the default can't gain ADMIN after the
-                    // check.
-                    let permissions = default_permissions(tx).await?;
-                    ensure_may_grant(by, permissions)?;
-                    let user = insert_user(tx, &name, permissions).await?;
-                    set_password(tx, user.id, &credential).await?;
-                    Ok(user.id)
-                })
+                Box::pin(
+                    async move { insert_with_defaults(tx, by, &name, credential.as_ref()).await },
+                )
             })
             .await
     }
@@ -624,6 +638,24 @@ async fn insert_first_admin(
     Ok(Caller { user, device })
 }
 
+/// Stores a User named `name`, which has been checked, with the default Permissions, which a User
+/// holding `by` must be allowed to grant, and `credential` as their password if any.
+async fn insert_with_defaults(
+    conn: &mut SqliteConnection,
+    by: Permissions,
+    name: &str,
+    credential: Option<&Credential>,
+) -> Result<i64, Error> {
+    // Read in the write's transaction, so the default can't gain ADMIN after the check.
+    let permissions = default_permissions(conn).await?;
+    ensure_may_grant(by, permissions)?;
+    let user = insert_user(conn, name, permissions).await?;
+    if let Some(credential) = credential {
+        set_password(conn, user.id, credential).await?;
+    }
+    Ok(user.id)
+}
+
 /// Stores a User named `name`, which has been checked, with `permissions`, unless another has the
 /// name ignoring case.
 async fn insert_user(
@@ -658,7 +690,7 @@ async fn insert_user(
 }
 
 /// Stores `device`, whose name has been checked, signed in as the User `user` with the Sign-in
-/// Method `method`, or by a Sign-in Code, and the hash of its session token.
+/// Method `method`, or by a Sign-in Code or an Account, and the hash of its session token.
 async fn insert_device(
     conn: &mut SqliteConnection,
     user: i64,
@@ -668,7 +700,8 @@ async fn insert_device(
 ) -> Result<Device, sqlx::Error> {
     let now = now();
     let expires_at = now + DEVICE_LIFETIME;
-    // A Device signed in by a Sign-in Code never proved who it is itself (ADR 0014).
+    // A Device signed in by a Sign-in Code or an Account never proved who it is itself (ADR 0014):
+    // whoever approved on the other Device, or on the Hub, may not be the one holding it.
     let authenticated_at = if method.is_some() { now } else { 0 };
     let token_hash = token_hash.as_slice();
     let ip_address = device.ip_address.to_string();

@@ -6,6 +6,14 @@ pub type OwnedCreateUserRequestView = ::buffa::view::OwnedView<
 pub type OwnedCreateUserResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::CreateUserResponseView<'static>,
 >;
+///Shorthand for `OwnedView<CreateUserFromAccountRequestView<'static>>`.
+pub type OwnedCreateUserFromAccountRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CreateUserFromAccountRequestView<'static>,
+>;
+///Shorthand for `OwnedView<CreateUserFromAccountResponseView<'static>>`.
+pub type OwnedCreateUserFromAccountResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CreateUserFromAccountResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<ListUsersRequestView<'static>>`.
 pub type OwnedListUsersRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListUsersRequestView<'static>,
@@ -242,6 +250,40 @@ for crate::messages::nama::v1::__buffa::view::CreateUserResponseView<'_> {
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateUserResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::CreateUserResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateUserFromAccountResponse>
+for crate::messages::nama::v1::__buffa::view::CreateUserFromAccountResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateUserFromAccountResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::CreateUserFromAccountResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -1204,6 +1246,12 @@ pub const USER_SERVICE_CREATE_USER_SPEC: ::connectrpc::Spec = ::connectrpc::Spec
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `CreateUserFromAccount` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_CREATE_USER_FROM_ACCOUNT_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/CreateUserFromAccount",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `ListUsers` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const USER_SERVICE_LIST_USERS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.UserService/ListUsers",
@@ -1449,6 +1497,35 @@ pub trait UserService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::CreateUserResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Creates a User from a Hub Account, with the default Permissions as they are now, on a Server
+    /// Linked to the Hub (ADR 0092). They have no password: the Account with `email` accepts them on
+    /// the Hub, which Links them to it, and from then on they sign in with it. It answers the same
+    /// whether or not an Account has the email. Fails like `CreateUser` for the name, with
+    /// `failed_precondition` and `REFUSAL_REASON_NO_SERVER_LINKER`, creating no User, without an
+    /// enabled Plugin that links the Server, and with `unavailable`, creating no User, while the
+    /// Server isn't Linked or the Hub can't be reached.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn create_user_from_account<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::CreateUserFromAccountRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::CreateUserFromAccountResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -2203,6 +2280,35 @@ impl<S: UserService> UserServiceExt for S {
                 },
             )
             .with_spec(USER_SERVICE_CREATE_USER_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "CreateUserFromAccount",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::CreateUserFromAccountRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::CreateUserFromAccountRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.create_user_from_account(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::CreateUserFromAccountResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_CREATE_USER_FROM_ACCOUNT_SPEC)
             .route_view_idempotent(
                 USER_SERVICE_SERVICE_NAME,
                 "ListUsers",
@@ -3046,6 +3152,12 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .with_spec(USER_SERVICE_CREATE_USER_SPEC),
                 )
             }
+            "CreateUserFromAccount" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_CREATE_USER_FROM_ACCOUNT_SPEC),
+                )
+            }
             "ListUsers" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
@@ -3241,6 +3353,28 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                     svc.create_user(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::CreateUserResponse>(format)
+                })
+            }
+            "CreateUserFromAccount" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::CreateUserFromAccountRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::CreateUserFromAccountRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::CreateUserFromAccountRequest,
+                    >::from_parts(&req, &body);
+                    svc.create_user_from_account(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::CreateUserFromAccountResponse,
+                        >(format)
                 })
             }
             "ListUsers" => {
@@ -3988,6 +4122,51 @@ where
                 &self.transport,
                 &self.config,
                 USER_SERVICE_CREATE_USER_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the CreateUserFromAccount RPC. Sends a request to /nama.v1.UserService/CreateUserFromAccount.
+    pub async fn create_user_from_account(
+        &self,
+        request: crate::messages::nama::v1::CreateUserFromAccountRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::CreateUserFromAccountResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.create_user_from_account_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the CreateUserFromAccount RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn create_user_from_account_with_options(
+        &self,
+        request: crate::messages::nama::v1::CreateUserFromAccountRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::CreateUserFromAccountResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_CREATE_USER_FROM_ACCOUNT_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

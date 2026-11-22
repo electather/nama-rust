@@ -8,7 +8,8 @@ use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, Service
 use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::{
     self as proto, ChangePasswordRequest, ChangePasswordResponse, CreateInviteRequest,
-    CreateInviteResponse, CreateUserRequest, CreateUserResponse, DeletePersonalSettingsRequest,
+    CreateInviteResponse, CreateUserFromAccountRequest, CreateUserFromAccountResponse,
+    CreateUserRequest, CreateUserResponse, DeletePersonalSettingsRequest,
     DeletePersonalSettingsResponse, DeletePluginConnectionRequest, DeletePluginConnectionResponse,
     DeleteUserRequest, DeleteUserResponse, GetDefaultPermissionsRequest,
     GetDefaultPermissionsResponse, GetHomeLayoutRequest, GetHomeLayoutResponse, GetUserLinkRequest,
@@ -95,6 +96,22 @@ impl UserService for UserServiceHandler {
             id,
             ..Default::default()
         })
+    }
+
+    async fn create_user_from_account(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, CreateUserFromAccountRequest>,
+    ) -> ServiceResult<CreateUserFromAccountResponse> {
+        let by = &caller(&ctx)?.user;
+        server_link::create_user_from_account(
+            &self.points,
+            &self.users,
+            by,
+            request.name,
+            request.email,
+        )
+        .await
     }
 
     async fn list_users(

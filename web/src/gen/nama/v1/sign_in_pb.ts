@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/sign_in.proto.
  */
 export const file_nama_v1_sign_in: GenFile = /*@__PURE__*/
-  fileDesc("ChVuYW1hL3YxL3NpZ25faW4ucHJvdG8SB25hbWEudjEiagoEVXNlchIKCgJpZBgBIAEoAxIMCgRuYW1lGAIgASgJEhIKCmNyZWF0ZWRfYXQYBCABKAMSKAoLcGVybWlzc2lvbnMYBSADKA4yEy5uYW1hLnYxLlBlcm1pc3Npb25KBAgDEARSBHJvbGUiYAoGRGV2aWNlEgoKAmlkGAEgASgDEgwKBG5hbWUYAiABKAkSEgoKY3JlYXRlZF9hdBgDIAEoAxIUCgxsYXN0X3NlZW5fYXQYBCABKAMSEgoKaXNfY3VycmVudBgFIAEoCCKDAQoMU2V0dXBSZXF1ZXN0EhIKCnNldHVwX2NvZGUYASABKAkSDAoEbmFtZRgCIAEoCRIQCghwYXNzd29yZBgDIAEoCRITCgtkZXZpY2VfbmFtZRgEIAEoCRIqCghkZWxpdmVyeRgFIAEoDjIYLm5hbWEudjEuU2Vzc2lvbkRlbGl2ZXJ5IlwKDVNldHVwUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLm5hbWEudjEuVXNlchIfCgZkZXZpY2UYAiABKAsyDy5uYW1hLnYxLkRldmljZRINCgV0b2tlbhgDIAEoCSJwCg1TaWduSW5SZXF1ZXN0EgwKBG5hbWUYASABKAkSEAoIcGFzc3dvcmQYAiABKAkSEwoLZGV2aWNlX25hbWUYAyABKAkSKgoIZGVsaXZlcnkYBCABKA4yGC5uYW1hLnYxLlNlc3Npb25EZWxpdmVyeSJdCg5TaWduSW5SZXNwb25zZRIbCgR1c2VyGAEgASgLMg0ubmFtYS52MS5Vc2VyEh8KBmRldmljZRgCIAEoCzIPLm5hbWEudjEuRGV2aWNlEg0KBXRva2VuGAMgASgJIhAKDlNpZ25PdXRSZXF1ZXN0IhEKD1NpZ25PdXRSZXNwb25zZSIPCg1XaG9BbUlSZXF1ZXN0Ik4KDldob0FtSVJlc3BvbnNlEhsKBHVzZXIYASABKAsyDS5uYW1hLnYxLlVzZXISHwoGZGV2aWNlGAIgASgLMg8ubmFtYS52MS5EZXZpY2UiNAoVUmVhdXRoZW50aWNhdGVSZXF1ZXN0EhIKCHBhc3N3b3JkGAEgASgJSABCBwoFcHJvb2YiGAoWUmVhdXRoZW50aWNhdGVSZXNwb25zZSJZChZTdGFydFNpZ25JbkNvZGVSZXF1ZXN0EhMKC2RldmljZV9uYW1lGAEgASgJEioKCGRlbGl2ZXJ5GAIgASgOMhgubmFtYS52MS5TZXNzaW9uRGVsaXZlcnkiNwoXU3RhcnRTaWduSW5Db2RlUmVzcG9uc2USDAoEY29kZRgBIAEoCRIOCgZoYW5kbGUYAiABKAkiJwoXTG9va1VwU2lnbkluQ29kZVJlcXVlc3QSDAoEY29kZRgBIAEoCSIvChhMb29rVXBTaWduSW5Db2RlUmVzcG9uc2USEwoLZGV2aWNlX25hbWUYASABKAkiKAoYQXBwcm92ZVNpZ25JbkNvZGVSZXF1ZXN0EgwKBGNvZGUYASABKAkiGwoZQXBwcm92ZVNpZ25JbkNvZGVSZXNwb25zZSKFAQoTQWNjZXB0SW52aXRlUmVxdWVzdBINCgV0b2tlbhgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHBhc3N3b3JkGAMgASgJEhMKC2RldmljZV9uYW1lGAQgASgJEioKCGRlbGl2ZXJ5GAUgASgOMhgubmFtYS52MS5TZXNzaW9uRGVsaXZlcnkiYwoUQWNjZXB0SW52aXRlUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLm5hbWEudjEuVXNlchIfCgZkZXZpY2UYAiABKAsyDy5uYW1hLnYxLkRldmljZRINCgV0b2tlbhgDIAEoCSInChVQb2xsU2lnbkluQ29kZVJlcXVlc3QSDgoGaGFuZGxlGAEgASgJIpABChZQb2xsU2lnbkluQ29kZVJlc3BvbnNlEikKBnN0YXR1cxgBIAEoDjIZLm5hbWEudjEuU2lnbkluQ29kZVN0YXR1cxIbCgR1c2VyGAIgASgLMg0ubmFtYS52MS5Vc2VyEh8KBmRldmljZRgDIAEoCzIPLm5hbWEudjEuRGV2aWNlEg0KBXRva2VuGAQgASgJKmwKD1Nlc3Npb25EZWxpdmVyeRIgChxTRVNTSU9OX0RFTElWRVJZX1VOU1BFQ0lGSUVEEAASGwoXU0VTU0lPTl9ERUxJVkVSWV9DT09LSUUQARIaChZTRVNTSU9OX0RFTElWRVJZX1RPS0VOEAIq6gMKClBlcm1pc3Npb24SGgoWUEVSTUlTU0lPTl9VTlNQRUNJRklFRBAAEhQKEFBFUk1JU1NJT05fQURNSU4QARIbChdQRVJNSVNTSU9OX01BTkFHRV9VU0VSUxACEh8KG1BFUk1JU1NJT05fTUFOQUdFX0xJQlJBUklFUxADEh4KGlBFUk1JU1NJT05fTUFOQUdFX1NFVFRJTkdTEAQSHgoaUEVSTUlTU0lPTl9NQU5BR0VfUkVRVUVTVFMQBRIWChJQRVJNSVNTSU9OX1JFUVVFU1QQBhIcChhQRVJNSVNTSU9OX1JFUVVFU1RfTU9WSUUQBxIZChVQRVJNSVNTSU9OX1JFUVVFU1RfVFYQCBIbChdQRVJNSVNTSU9OX0FVVE9fQVBQUk9WRRAJEiEKHVBFUk1JU1NJT05fQVVUT19BUFBST1ZFX01PVklFEAoSHgoaUEVSTUlTU0lPTl9BVVRPX0FQUFJPVkVfVFYQCxIcChhQRVJNSVNTSU9OX1ZJRVdfUkVRVUVTVFMQDBIdChlQRVJNSVNTSU9OX0NIT09TRV9RVUFMSVRZEA0SGwoXUEVSTUlTU0lPTl9ERUxFVEVfTUVESUEQDhIhCh1QRVJNSVNTSU9OX0RPV05MT0FEX1NVQlRJVExFUxAPKpwBChBTaWduSW5Db2RlU3RhdHVzEiMKH1NJR05fSU5fQ09ERV9TVEFUVVNfVU5TUEVDSUZJRUQQABIfChtTSUdOX0lOX0NPREVfU1RBVFVTX1dBSVRJTkcQARIfChtTSUdOX0lOX0NPREVfU1RBVFVTX0VYUElSRUQQAhIhCh1TSUdOX0lOX0NPREVfU1RBVFVTX1NJR05FRF9JThADMv4FCg1TaWduSW5TZXJ2aWNlEjYKBVNldHVwEhUubmFtYS52MS5TZXR1cFJlcXVlc3QaFi5uYW1hLnYxLlNldHVwUmVzcG9uc2USOQoGU2lnbkluEhYubmFtYS52MS5TaWduSW5SZXF1ZXN0GhcubmFtYS52MS5TaWduSW5SZXNwb25zZRI8CgdTaWduT3V0EhcubmFtYS52MS5TaWduT3V0UmVxdWVzdBoYLm5hbWEudjEuU2lnbk91dFJlc3BvbnNlEj4KBldob0FtSRIWLm5hbWEudjEuV2hvQW1JUmVxdWVzdBoXLm5hbWEudjEuV2hvQW1JUmVzcG9uc2UiA5ACARJRCg5SZWF1dGhlbnRpY2F0ZRIeLm5hbWEudjEuUmVhdXRoZW50aWNhdGVSZXF1ZXN0Gh8ubmFtYS52MS5SZWF1dGhlbnRpY2F0ZVJlc3BvbnNlElQKD1N0YXJ0U2lnbkluQ29kZRIfLm5hbWEudjEuU3RhcnRTaWduSW5Db2RlUmVxdWVzdBogLm5hbWEudjEuU3RhcnRTaWduSW5Db2RlUmVzcG9uc2USVwoQTG9va1VwU2lnbkluQ29kZRIgLm5hbWEudjEuTG9va1VwU2lnbkluQ29kZVJlcXVlc3QaIS5uYW1hLnYxLkxvb2tVcFNpZ25JbkNvZGVSZXNwb25zZRJaChFBcHByb3ZlU2lnbkluQ29kZRIhLm5hbWEudjEuQXBwcm92ZVNpZ25JbkNvZGVSZXF1ZXN0GiIubmFtYS52MS5BcHByb3ZlU2lnbkluQ29kZVJlc3BvbnNlElEKDlBvbGxTaWduSW5Db2RlEh4ubmFtYS52MS5Qb2xsU2lnbkluQ29kZVJlcXVlc3QaHy5uYW1hLnYxLlBvbGxTaWduSW5Db2RlUmVzcG9uc2USSwoMQWNjZXB0SW52aXRlEhwubmFtYS52MS5BY2NlcHRJbnZpdGVSZXF1ZXN0Gh0ubmFtYS52MS5BY2NlcHRJbnZpdGVSZXNwb25zZWIGcHJvdG8z");
+  fileDesc("ChVuYW1hL3YxL3NpZ25faW4ucHJvdG8SB25hbWEudjEiagoEVXNlchIKCgJpZBgBIAEoAxIMCgRuYW1lGAIgASgJEhIKCmNyZWF0ZWRfYXQYBCABKAMSKAoLcGVybWlzc2lvbnMYBSADKA4yEy5uYW1hLnYxLlBlcm1pc3Npb25KBAgDEARSBHJvbGUiYAoGRGV2aWNlEgoKAmlkGAEgASgDEgwKBG5hbWUYAiABKAkSEgoKY3JlYXRlZF9hdBgDIAEoAxIUCgxsYXN0X3NlZW5fYXQYBCABKAMSEgoKaXNfY3VycmVudBgFIAEoCCKDAQoMU2V0dXBSZXF1ZXN0EhIKCnNldHVwX2NvZGUYASABKAkSDAoEbmFtZRgCIAEoCRIQCghwYXNzd29yZBgDIAEoCRITCgtkZXZpY2VfbmFtZRgEIAEoCRIqCghkZWxpdmVyeRgFIAEoDjIYLm5hbWEudjEuU2Vzc2lvbkRlbGl2ZXJ5IlwKDVNldHVwUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLm5hbWEudjEuVXNlchIfCgZkZXZpY2UYAiABKAsyDy5uYW1hLnYxLkRldmljZRINCgV0b2tlbhgDIAEoCSJwCg1TaWduSW5SZXF1ZXN0EgwKBG5hbWUYASABKAkSEAoIcGFzc3dvcmQYAiABKAkSEwoLZGV2aWNlX25hbWUYAyABKAkSKgoIZGVsaXZlcnkYBCABKA4yGC5uYW1hLnYxLlNlc3Npb25EZWxpdmVyeSJdCg5TaWduSW5SZXNwb25zZRIbCgR1c2VyGAEgASgLMg0ubmFtYS52MS5Vc2VyEh8KBmRldmljZRgCIAEoCzIPLm5hbWEudjEuRGV2aWNlEg0KBXRva2VuGAMgASgJIhAKDlNpZ25PdXRSZXF1ZXN0IhEKD1NpZ25PdXRSZXNwb25zZSIPCg1XaG9BbUlSZXF1ZXN0Ik4KDldob0FtSVJlc3BvbnNlEhsKBHVzZXIYASABKAsyDS5uYW1hLnYxLlVzZXISHwoGZGV2aWNlGAIgASgLMg8ubmFtYS52MS5EZXZpY2UiNAoVUmVhdXRoZW50aWNhdGVSZXF1ZXN0EhIKCHBhc3N3b3JkGAEgASgJSABCBwoFcHJvb2YiGAoWUmVhdXRoZW50aWNhdGVSZXNwb25zZSJZChZTdGFydFNpZ25JbkNvZGVSZXF1ZXN0EhMKC2RldmljZV9uYW1lGAEgASgJEioKCGRlbGl2ZXJ5GAIgASgOMhgubmFtYS52MS5TZXNzaW9uRGVsaXZlcnkiNwoXU3RhcnRTaWduSW5Db2RlUmVzcG9uc2USDAoEY29kZRgBIAEoCRIOCgZoYW5kbGUYAiABKAkiJwoXTG9va1VwU2lnbkluQ29kZVJlcXVlc3QSDAoEY29kZRgBIAEoCSIvChhMb29rVXBTaWduSW5Db2RlUmVzcG9uc2USEwoLZGV2aWNlX25hbWUYASABKAkiKAoYQXBwcm92ZVNpZ25JbkNvZGVSZXF1ZXN0EgwKBGNvZGUYASABKAkiGwoZQXBwcm92ZVNpZ25JbkNvZGVSZXNwb25zZSKFAQoTQWNjZXB0SW52aXRlUmVxdWVzdBINCgV0b2tlbhgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHBhc3N3b3JkGAMgASgJEhMKC2RldmljZV9uYW1lGAQgASgJEioKCGRlbGl2ZXJ5GAUgASgOMhgubmFtYS52MS5TZXNzaW9uRGVsaXZlcnkiYwoUQWNjZXB0SW52aXRlUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLm5hbWEudjEuVXNlchIfCgZkZXZpY2UYAiABKAsyDy5uYW1hLnYxLkRldmljZRINCgV0b2tlbhgDIAEoCSInChVQb2xsU2lnbkluQ29kZVJlcXVlc3QSDgoGaGFuZGxlGAEgASgJIpABChZQb2xsU2lnbkluQ29kZVJlc3BvbnNlEikKBnN0YXR1cxgBIAEoDjIZLm5hbWEudjEuU2lnbkluQ29kZVN0YXR1cxIbCgR1c2VyGAIgASgLMg0ubmFtYS52MS5Vc2VyEh8KBmRldmljZRgDIAEoCzIPLm5hbWEudjEuRGV2aWNlEg0KBXRva2VuGAQgASgJIi8KGVN0YXJ0QWNjb3VudFNpZ25JblJlcXVlc3QSEgoKcmV0dXJuX3VybBgBIAEoCSI5ChpTdGFydEFjY291bnRTaWduSW5SZXNwb25zZRILCgN1cmwYASABKAkSDgoGaGFuZGxlGAIgASgJImsKGFNpZ25JbldpdGhBY2NvdW50UmVxdWVzdBIOCgZoYW5kbGUYASABKAkSEwoLZGV2aWNlX25hbWUYAiABKAkSKgoIZGVsaXZlcnkYAyABKA4yGC5uYW1hLnYxLlNlc3Npb25EZWxpdmVyeSJoChlTaWduSW5XaXRoQWNjb3VudFJlc3BvbnNlEhsKBHVzZXIYASABKAsyDS5uYW1hLnYxLlVzZXISHwoGZGV2aWNlGAIgASgLMg8ubmFtYS52MS5EZXZpY2USDQoFdG9rZW4YAyABKAkqbAoPU2Vzc2lvbkRlbGl2ZXJ5EiAKHFNFU1NJT05fREVMSVZFUllfVU5TUEVDSUZJRUQQABIbChdTRVNTSU9OX0RFTElWRVJZX0NPT0tJRRABEhoKFlNFU1NJT05fREVMSVZFUllfVE9LRU4QAirqAwoKUGVybWlzc2lvbhIaChZQRVJNSVNTSU9OX1VOU1BFQ0lGSUVEEAASFAoQUEVSTUlTU0lPTl9BRE1JThABEhsKF1BFUk1JU1NJT05fTUFOQUdFX1VTRVJTEAISHwobUEVSTUlTU0lPTl9NQU5BR0VfTElCUkFSSUVTEAMSHgoaUEVSTUlTU0lPTl9NQU5BR0VfU0VUVElOR1MQBBIeChpQRVJNSVNTSU9OX01BTkFHRV9SRVFVRVNUUxAFEhYKElBFUk1JU1NJT05fUkVRVUVTVBAGEhwKGFBFUk1JU1NJT05fUkVRVUVTVF9NT1ZJRRAHEhkKFVBFUk1JU1NJT05fUkVRVUVTVF9UVhAIEhsKF1BFUk1JU1NJT05fQVVUT19BUFBST1ZFEAkSIQodUEVSTUlTU0lPTl9BVVRPX0FQUFJPVkVfTU9WSUUQChIeChpQRVJNSVNTSU9OX0FVVE9fQVBQUk9WRV9UVhALEhwKGFBFUk1JU1NJT05fVklFV19SRVFVRVNUUxAMEh0KGVBFUk1JU1NJT05fQ0hPT1NFX1FVQUxJVFkQDRIbChdQRVJNSVNTSU9OX0RFTEVURV9NRURJQRAOEiEKHVBFUk1JU1NJT05fRE9XTkxPQURfU1VCVElUTEVTEA8qnAEKEFNpZ25JbkNvZGVTdGF0dXMSIwofU0lHTl9JTl9DT0RFX1NUQVRVU19VTlNQRUNJRklFRBAAEh8KG1NJR05fSU5fQ09ERV9TVEFUVVNfV0FJVElORxABEh8KG1NJR05fSU5fQ09ERV9TVEFUVVNfRVhQSVJFRBACEiEKHVNJR05fSU5fQ09ERV9TVEFUVVNfU0lHTkVEX0lOEAMyuQcKDVNpZ25JblNlcnZpY2USNgoFU2V0dXASFS5uYW1hLnYxLlNldHVwUmVxdWVzdBoWLm5hbWEudjEuU2V0dXBSZXNwb25zZRI5CgZTaWduSW4SFi5uYW1hLnYxLlNpZ25JblJlcXVlc3QaFy5uYW1hLnYxLlNpZ25JblJlc3BvbnNlEjwKB1NpZ25PdXQSFy5uYW1hLnYxLlNpZ25PdXRSZXF1ZXN0GhgubmFtYS52MS5TaWduT3V0UmVzcG9uc2USPgoGV2hvQW1JEhYubmFtYS52MS5XaG9BbUlSZXF1ZXN0GhcubmFtYS52MS5XaG9BbUlSZXNwb25zZSIDkAIBElEKDlJlYXV0aGVudGljYXRlEh4ubmFtYS52MS5SZWF1dGhlbnRpY2F0ZVJlcXVlc3QaHy5uYW1hLnYxLlJlYXV0aGVudGljYXRlUmVzcG9uc2USVAoPU3RhcnRTaWduSW5Db2RlEh8ubmFtYS52MS5TdGFydFNpZ25JbkNvZGVSZXF1ZXN0GiAubmFtYS52MS5TdGFydFNpZ25JbkNvZGVSZXNwb25zZRJXChBMb29rVXBTaWduSW5Db2RlEiAubmFtYS52MS5Mb29rVXBTaWduSW5Db2RlUmVxdWVzdBohLm5hbWEudjEuTG9va1VwU2lnbkluQ29kZVJlc3BvbnNlEloKEUFwcHJvdmVTaWduSW5Db2RlEiEubmFtYS52MS5BcHByb3ZlU2lnbkluQ29kZVJlcXVlc3QaIi5uYW1hLnYxLkFwcHJvdmVTaWduSW5Db2RlUmVzcG9uc2USUQoOUG9sbFNpZ25JbkNvZGUSHi5uYW1hLnYxLlBvbGxTaWduSW5Db2RlUmVxdWVzdBofLm5hbWEudjEuUG9sbFNpZ25JbkNvZGVSZXNwb25zZRJLCgxBY2NlcHRJbnZpdGUSHC5uYW1hLnYxLkFjY2VwdEludml0ZVJlcXVlc3QaHS5uYW1hLnYxLkFjY2VwdEludml0ZVJlc3BvbnNlEl0KElN0YXJ0QWNjb3VudFNpZ25JbhIiLm5hbWEudjEuU3RhcnRBY2NvdW50U2lnbkluUmVxdWVzdBojLm5hbWEudjEuU3RhcnRBY2NvdW50U2lnbkluUmVzcG9uc2USWgoRU2lnbkluV2l0aEFjY291bnQSIS5uYW1hLnYxLlNpZ25JbldpdGhBY2NvdW50UmVxdWVzdBoiLm5hbWEudjEuU2lnbkluV2l0aEFjY291bnRSZXNwb25zZWIGcHJvdG8z");
 
 /**
  * A person's identity on one Server.
@@ -623,6 +623,120 @@ export const PollSignInCodeResponseSchema: GenMessage<PollSignInCodeResponse> = 
   messageDesc(file_nama_v1_sign_in, 21);
 
 /**
+ * @generated from message nama.v1.StartAccountSignInRequest
+ */
+export type StartAccountSignInRequest = Message<"nama.v1.StartAccountSignInRequest"> & {
+  /**
+   * Where the Hub sends the person back to once they approve: an `http` or `https` address, such
+   * as the client's sign-in page.
+   *
+   * @generated from field: string return_url = 1;
+   */
+  returnUrl: string;
+};
+
+/**
+ * Describes the message nama.v1.StartAccountSignInRequest.
+ * Use `create(StartAccountSignInRequestSchema)` to create a new message.
+ */
+export const StartAccountSignInRequestSchema: GenMessage<StartAccountSignInRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 22);
+
+/**
+ * @generated from message nama.v1.StartAccountSignInResponse
+ */
+export type StartAccountSignInResponse = Message<"nama.v1.StartAccountSignInResponse"> & {
+  /**
+   * The Hub's page where the person approves signing in.
+   *
+   * @generated from field: string url = 1;
+   */
+  url: string;
+
+  /**
+   * What the client finishes with. Keep it secret: whoever holds it gets the session once the
+   * sign-in is approved.
+   *
+   * @generated from field: string handle = 2;
+   */
+  handle: string;
+};
+
+/**
+ * Describes the message nama.v1.StartAccountSignInResponse.
+ * Use `create(StartAccountSignInResponseSchema)` to create a new message.
+ */
+export const StartAccountSignInResponseSchema: GenMessage<StartAccountSignInResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 23);
+
+/**
+ * @generated from message nama.v1.SignInWithAccountRequest
+ */
+export type SignInWithAccountRequest = Message<"nama.v1.SignInWithAccountRequest"> & {
+  /**
+   * The handle `StartAccountSignIn` returned.
+   *
+   * @generated from field: string handle = 1;
+   */
+  handle: string;
+
+  /**
+   * The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+   * Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
+   *
+   * @generated from field: string device_name = 2;
+   */
+  deviceName: string;
+
+  /**
+   * How to hand out the session. Must be specified.
+   *
+   * @generated from field: nama.v1.SessionDelivery delivery = 3;
+   */
+  delivery: SessionDelivery;
+};
+
+/**
+ * Describes the message nama.v1.SignInWithAccountRequest.
+ * Use `create(SignInWithAccountRequestSchema)` to create a new message.
+ */
+export const SignInWithAccountRequestSchema: GenMessage<SignInWithAccountRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 24);
+
+/**
+ * @generated from message nama.v1.SignInWithAccountResponse
+ */
+export type SignInWithAccountResponse = Message<"nama.v1.SignInWithAccountResponse"> & {
+  /**
+   * The User signed in as.
+   *
+   * @generated from field: nama.v1.User user = 1;
+   */
+  user?: User | undefined;
+
+  /**
+   * The Device just signed in.
+   *
+   * @generated from field: nama.v1.Device device = 2;
+   */
+  device?: Device | undefined;
+
+  /**
+   * The session token, for `SESSION_DELIVERY_TOKEN` only. Empty for a cookie.
+   *
+   * @generated from field: string token = 3;
+   */
+  token: string;
+};
+
+/**
+ * Describes the message nama.v1.SignInWithAccountResponse.
+ * Use `create(SignInWithAccountResponseSchema)` to create a new message.
+ */
+export const SignInWithAccountResponseSchema: GenMessage<SignInWithAccountResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 25);
+
+/**
  * How a signed-in Device is given its session.
  *
  * @generated from enum nama.v1.SessionDelivery
@@ -866,7 +980,8 @@ export const SignInCodeStatusSchema: GenEnum<SignInCodeStatus> = /*@__PURE__*/
  * and `UserService`'s `ChangePassword`, `ResetPassword`, `SetPermissions`,
  * `SetDefaultPermissions` and `DeleteUser`.
  * Signing in with `Setup` or `SignIn` gives a Device Recent Authentication; signing in with a
- * Sign-in Code doesn't, since that Device proved nothing itself. Without it, those calls fail with
+ * Sign-in Code or an Account doesn't, since that Device proved nothing itself: whoever approved,
+ * on another Device or on the Hub, may not hold it. Without it, those calls fail with
  * `failed_precondition` and the `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` Refusal before
  * anything in the request is checked. `Reauthenticate` gives it back.
  *
@@ -1002,6 +1117,35 @@ export const SignInService: GenService<{
     methodKind: "unary";
     input: typeof AcceptInviteRequestSchema;
     output: typeof AcceptInviteResponseSchema;
+  },
+  /**
+   * Starts signing the calling Device in with a Hub Account, on a Server Linked to the Hub (ADR
+   * 0092). The client sends the person to `url`, where they approve it on the Hub, which then sends
+   * them to `return_url`; the client then finishes with `SignInWithAccount`. Fails with
+   * `failed_precondition` and `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled Plugin that
+   * links the Server, and with `unavailable` while the Server isn't Linked or the Hub can't be
+   * reached, which a Device already signed in never needs.
+   *
+   * @generated from rpc nama.v1.SignInService.StartAccountSignIn
+   */
+  startAccountSignIn: {
+    methodKind: "unary";
+    input: typeof StartAccountSignInRequestSchema;
+    output: typeof StartAccountSignInResponseSchema;
+  },
+  /**
+   * Signs the calling Device in as the User whose Account approved the sign-in `handle` stands
+   * for, the way `SignIn` does, without Recent Authentication. Fails with `not_found` and
+   * `REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND` if it wasn't approved, expired or was used, with
+   * `not_found` and `REFUSAL_REASON_USER_NOT_FOUND` if the User was deleted, and like
+   * `StartAccountSignIn` otherwise.
+   *
+   * @generated from rpc nama.v1.SignInService.SignInWithAccount
+   */
+  signInWithAccount: {
+    methodKind: "unary";
+    input: typeof SignInWithAccountRequestSchema;
+    output: typeof SignInWithAccountResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_sign_in, 0);

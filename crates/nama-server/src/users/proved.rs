@@ -11,6 +11,9 @@ pub(crate) enum Proved {
     Method { user: User, method: i64 },
     /// The User of the Device that approved a Sign-in Code.
     Code(ApprovingDevice),
+    /// The User by this id, whose Account the Hub vouches signed in (ADR 0092). Their Link isn't
+    /// a Sign-in Method the Kernel keeps (ADR 0014), so there is none to name.
+    Account(i64),
 }
 
 /// The User `proved` signs a Device in as, and the Sign-in Method it proved, if any. Read in the
@@ -26,6 +29,7 @@ pub(super) async fn proved_user(
             Ok((user, Some(method)))
         }
         Proved::Code(approving) => Ok((approving_user(conn, approving).await?, None)),
+        Proved::Account(user) => Ok((user_by_id(conn, user).await?, None)),
     }
 }
 
@@ -79,4 +83,18 @@ async fn approving_user(
         permissions: row.permissions,
         created_at: row.created_at,
     })
+}
+
+/// The User `id`, failing with [`Error::NoSuchUser`] if they were deleted.
+async fn user_by_id(conn: &mut SqliteConnection, id: i64) -> Result<User, Error> {
+    sqlx::query_as!(
+        User,
+        r#"SELECT id AS "id!", display_username AS name,
+                  permissions AS "permissions: Permissions", created_at
+           FROM users WHERE id = ?"#,
+        id
+    )
+    .fetch_optional(conn)
+    .await?
+    .ok_or(Error::NoSuchUser)
 }
