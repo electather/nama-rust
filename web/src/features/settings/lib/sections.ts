@@ -1,5 +1,6 @@
 import { Permission, type User } from "@/gen/nama/v1/sign_in_pb";
 import { may } from "@/shared/lib/permissions";
+import { settingsDetailParams } from "@/shared/lib/settings-detail-params";
 
 /** Each section of Settings, by the word `?settings=` opens it with. */
 const sections = [
@@ -44,15 +45,8 @@ export function idParam(value: unknown) {
   return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
 }
 
-/** The address with Settings closed: no section, and no Plugin, User, Job, Library or setting. */
-export const closedSearch = {
-  settings: undefined,
-  plugin: undefined,
-  user: undefined,
-  job: undefined,
-  library: undefined,
-  setting: undefined,
-};
+/** The address with Settings closed: no section, and no detail open in one. */
+export const closedSearch = { settings: undefined, ...settingsDetailParams };
 
 /**
  * The address of `section` in Settings, at its `setting` if one is asked for. A Plugin, User, Job or
