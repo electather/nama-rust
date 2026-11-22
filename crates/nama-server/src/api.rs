@@ -15,7 +15,7 @@ use crate::{
     config::Config,
     connections::Connections,
     db::Database,
-    diagnostics::{self, BrowserSpans, RecordFailures},
+    diagnostics::{self, RecordFailures},
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
     home_rows::HomeRows,
@@ -57,6 +57,7 @@ mod watch_states;
 mod watchlist;
 
 use access::require_access;
+use browser_spans::BrowserSpans;
 
 /// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers
 /// that identify the caller and refuse calls they may not make.
