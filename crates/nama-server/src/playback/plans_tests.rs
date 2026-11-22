@@ -17,8 +17,9 @@ use crate::{
         fixture::{MatchedMovie, tmdb_movie},
     },
     playback::{
-        Description, DeviceDecoding, PickedLimit, Plan, Planned, Preferred, PreviewFrames, Probing,
-        RunningPlans, StartedPlan, SubtitlePreference, subtitles,
+        Description, DeviceDecoding, PickedLimit, Plan, Planned, Preferred, PreviewFrames,
+        ProbePasses, Probing, RunningPlans, StartedPlan, SubtitlePreference, WholeFileReads,
+        subtitles,
     },
     plugins::{ExtensionPoints, Registry},
     server_settings::{ServerUrl, Settings},
@@ -62,8 +63,8 @@ impl Alien {
         let probing = Probing::new(
             Arc::clone(&db),
             Arc::new(ffprobe),
-            subtitles::Cache::new(data.path()),
-            images.clone(),
+            ProbePasses::default(),
+            WholeFileReads::default(),
         );
         let settings = Settings::new(Arc::clone(&db), data.path().join("transcodes"));
         let ffmpeg = Arc::new(Ffmpeg::default());
@@ -77,6 +78,7 @@ impl Alien {
             Arc::clone(&ffmpeg),
             Contents::new(Arc::clone(&db)),
             probing.clone(),
+            subtitles::Cache::new(data.path()),
             events,
         );
         let preview_frames = PreviewFrames::new(
@@ -84,7 +86,7 @@ impl Alien {
             images,
             Arc::clone(&ffmpeg),
             running.clone(),
-            probing.clone(),
+            Arc::default(),
         );
         let plans = Plans::new(
             probing,

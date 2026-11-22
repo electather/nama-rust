@@ -42,12 +42,12 @@ mod text_pass;
 pub(crate) use text_pass::TextPasses;
 
 use super::{
-    Probing, StoredTracks,
+    StoredTracks, WholeFileReads,
     tracks::{PROBE_VERSION, Probe, Track, TrackKind},
 };
 use crate::{
     db::Database,
-    ffmpeg::{Ffmpeg, RunError, TextSubtitle},
+    ffmpeg::{BurnIn, Ffmpeg, RunError, TextSubtitle, Transcode},
     images::write_atomically,
     library::{Contents, Stored},
 };
@@ -105,19 +105,24 @@ pub(super) struct Subtitles {
     pub(super) ffmpeg: Arc<Ffmpeg>,
     pub(super) cache: Cache,
     /// Runs text passes, which read whole files, in the background.
-    pub(super) probing: Probing,
+    pub(super) reads: WholeFileReads,
 }
 
 impl Subtitles {
-    /// Finds sources in `db`, reads them with `ffmpeg`, and caches them in `probing`'s subtitle
-    /// cache.
-    pub(super) fn new(db: &Arc<Database>, ffmpeg: Arc<Ffmpeg>, probing: Probing) -> Self {
+    /// Finds sources in `db`, reads them with `ffmpeg`, text passes on `reads`, and caches them
+    /// in `cache`.
+    pub(super) fn new(
+        db: &Arc<Database>,
+        ffmpeg: Arc<Ffmpeg>,
+        cache: Cache,
+        reads: WholeFileReads,
+    ) -> Self {
         Self {
             contents: Contents::new(Arc::clone(db)),
             tracks: StoredTracks::new(Arc::clone(db)),
             ffmpeg,
-            cache: probing.subtitle_cache(),
-            probing,
+            cache,
+            reads,
         }
     }
 }
@@ -436,7 +441,7 @@ impl Cache {
     }
 
     /// The folder the subtitles cached for the Version stored as `file` go in.
-    fn folder(&self, file: Stored) -> PathBuf {
+    pub(super) fn folder(&self, file: Stored) -> PathBuf {
         self.dir.join("versions").join(cache_folder(file))
     }
 
@@ -485,6 +490,18 @@ impl Cache {
             ass: ass.into_os_string().into_string().ok()?,
             fonts: fonts_dir.into_os_string().into_string().ok()?,
         })
+    }
+
+    /// `attempt`, burning its text subtitle in from here if it's cached for the Version stored as
+    /// `file`.
+    pub(super) fn burning_in(&self, file: Stored, attempt: &Transcode) -> Transcode {
+        let mut attempt = attempt.clone();
+        if let Some(BurnIn::Text { subtitle }) = &mut attempt.video.burn_in
+            && let Some(cached) = self.cached_burn_in(file, subtitle)
+        {
+            *subtitle = cached;
+        }
+        attempt
     }
 
     /// Throws away the subtitles cached for every Version but `stored`, at its file as stored

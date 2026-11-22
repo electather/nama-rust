@@ -2,11 +2,13 @@ use std::{fs, path::Path, process::Command, sync::Arc, time::Duration};
 
 use super::tests::{Fixture, system_ffmpeg};
 use super::{
-    Error, Keyframes, LISTING_WAIT, ListedKeyframes, Probe, ProbeError, WHOLE_FILE_READS_AT_ONCE,
-    ffprobe, plausible,
+    Error, Keyframes, LISTING_WAIT, ListedKeyframes, Probe, ProbeError, ffprobe, plausible,
     testing::{FakeReader, failed},
 };
-use crate::ffmpeg::{self, Program, RunError};
+use crate::{
+    ffmpeg::{self, Program, RunError},
+    playback::made_from_files::WHOLE_FILE_READS_AT_ONCE,
+};
 
 /// The file at `path` listing keyframes at 0 and at as many seconds as it has bytes, so a changed
 /// file lists differently.
@@ -303,7 +305,7 @@ async fn another_whole_file_read_waits_while_listings_fill_the_cap() {
     let (reading, mut was_read) = tokio::sync::oneshot::channel();
     let read = async move { reading.send(()).unwrap() };
 
-    let spawned = (media.probing).read_whole_file_in_background(tracing::Span::none(), read);
+    let spawned = media.reads.spawn(tracing::Span::none(), read);
     // On the test's one thread, the read's task runs until it waits for a slot before this goes on.
     tokio::task::yield_now().await;
     let while_full = was_read.try_recv();
@@ -325,7 +327,7 @@ async fn shutting_down_stops_a_listing_and_keeps_nothing() {
     let listing = media.plan(media.file_id(alien).await);
     reader.until_listed(1).await;
 
-    let stopped = tokio::time::timeout(Duration::from_secs(5), media.probing.shutdown()).await;
+    let stopped = tokio::time::timeout(Duration::from_secs(5), media.reads.shutdown()).await;
     let waited = tokio::time::timeout(Duration::from_secs(5), listing).await;
 
     assert!(stopped.is_ok(), "shutting down waited for the listing");

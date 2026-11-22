@@ -71,7 +71,7 @@ use crate::{
         LocalImages, NotFound, Recognisers, ScanLock, ScanLocks,
     },
     matching::{self, Matcher, Refreshed, count},
-    playback::{Probing, RunningPlans, Sidecars},
+    playback::{Leftovers, Probing, RunningPlans, Sidecars},
     plugin_settings::PluginSettings,
     plugins::ExtensionPoints,
     requests::{self, Requests},
@@ -180,8 +180,10 @@ struct Inner {
     /// Says which title sources and Recognisers a Library's orders may name.
     plugin_settings: PluginSettings,
     events: EventBus,
-    /// Told when a scan finishes and asked to clean subtitles, unless nothing probes.
+    /// Told when a scan finishes, unless nothing probes.
     probing: Option<Probing>,
+    /// Asked to delete what was made of Versions gone after a scan or delete.
+    leftovers: Leftovers,
     /// Asked what plays media about to be deleted, and to end it.
     running: RunningPlans,
     /// Asked which Requests a delete cancels, and to cancel them.
@@ -205,9 +207,9 @@ struct Inner {
 }
 
 impl Scanner {
-    /// Tells `probing` each Library whose scan finished and has it clean subtitles, or does
-    /// neither where nothing probes, has `running` end the plans playing media it deletes, and has
-    /// `requests` cancel the Requests still waiting on it.
+    /// Tells `probing` each Library whose scan finished, unless nothing probes, has `leftovers`
+    /// delete what was made of Versions a scan or delete took, has `running` end the plans playing
+    /// media it deletes, and has `requests` cancel the Requests still waiting on it.
     #[expect(
         clippy::too_many_arguments,
         reason = "each is a separate handle the Scanner is built from; a struct bundling them \
@@ -221,6 +223,7 @@ impl Scanner {
         local_images: LocalImages,
         events: EventBus,
         probing: Option<Probing>,
+        leftovers: Leftovers,
         running: RunningPlans,
         requests: Requests,
     ) -> Self {
@@ -244,6 +247,7 @@ impl Scanner {
                 plugin_settings,
                 events,
                 probing,
+                leftovers,
                 running,
                 requests,
                 contents: Contents::new(Arc::clone(&db)),
@@ -402,11 +406,9 @@ impl Scanner {
             .await?;
         self.store_nfo_hints(id, nfos, &cancel).await?;
         tracing::info!(library = id, ?summary, "scanned a Library");
-        if let Some(probing) = &self.inner.probing {
-            // Before `ScanFinished`, so a client that waited for the scan isn't served a gone or
-            // changed file's subtitles.
-            probing.clean_leftovers().await;
-        }
+        // Before `ScanFinished`, so a client that waited for the scan isn't served a gone or
+        // changed file's subtitles.
+        self.inner.leftovers.clean().await;
         let finished_at = db::now();
         self.inner.events.publish(vec![event(ScanFinished {
             library_id: id,

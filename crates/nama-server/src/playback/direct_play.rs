@@ -16,29 +16,29 @@ use axum::{
 use futures_util::StreamExt as _;
 use tower_http::services::ServeFile;
 
-use super::{Probing, running::RunningPlans, subtitles};
+use super::{WholeFileReads, running::RunningPlans, subtitles};
 use crate::{db::Database, ffmpeg::Ffmpeg, library::Contents, users::Caller};
 
 pub(super) fn direct_play_url(version: i64) -> String {
     format!("/media/versions/{version}")
 }
 
-/// Serves `GET /media/versions/<id>` with the file of the Version `id` in `contents`, and 404 if
+/// Serves `GET /media/versions/<id>` with the file of the Version `id` in `db`, and 404 if
 /// there is none, marking the caller's Direct Plays of it in `running` asked for as the request
 /// arrives and with each part of the file sent, and the subtitles plans offer, found in `db`, read
-/// with `ffmpeg`, a Version's text ones in a background pass on `probing`, and cached in its
-/// subtitle cache. Whether the caller has a session is up to the layers the router is put behind.
+/// with `ffmpeg`, a Version's text ones in a background pass on `reads`, and cached in `cache`.
+/// Whether the caller has a session is up to the layers the router is put behind.
 pub(crate) fn router(
-    contents: Contents,
     running: RunningPlans,
     db: &Arc<Database>,
     ffmpeg: Arc<Ffmpeg>,
-    probing: Probing,
+    cache: subtitles::Cache,
+    reads: WholeFileReads,
 ) -> Router {
-    let subtitles = subtitles::router(subtitles::Subtitles::new(db, ffmpeg, probing));
+    let subtitles = subtitles::router(subtitles::Subtitles::new(db, ffmpeg, cache, reads));
     Router::new()
         .route("/media/versions/{id}", get(serve))
-        .with_state((contents, running))
+        .with_state((Contents::new(Arc::clone(db)), running))
         .merge(subtitles)
 }
 

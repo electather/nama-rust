@@ -17,7 +17,7 @@ use crate::{
         fixture::{decide, tmdb_movie},
     },
     log_capture::CapturedLog,
-    playback::{Probing, RunningPlans, SubtitleCache},
+    playback::{Leftovers, ProbePasses, Probing, RunningPlans, SubtitleCache, WholeFileReads},
     plugin_settings::PluginSettings,
     plugins::{ExtensionPoints, Registry},
     requests::Requests,
@@ -77,9 +77,11 @@ impl Fixture {
         );
         let images = ImageStore::new(data.path(), Arc::clone(&db));
         let probing = ffmpeg.map(|ffmpeg| {
-            let subtitles = SubtitleCache::new(data.path());
-            Probing::new(Arc::clone(&db), Arc::new(ffmpeg), subtitles, images.clone())
+            let (passes, reads) = (ProbePasses::default(), WholeFileReads::default());
+            Probing::new(Arc::clone(&db), Arc::new(ffmpeg), passes, reads)
         });
+        let subtitles = SubtitleCache::new(data.path());
+        let leftovers = Leftovers::new(Arc::clone(&db), subtitles, images.clone());
         Self {
             scanner: Scanner::new(
                 Arc::clone(&db),
@@ -89,6 +91,7 @@ impl Fixture {
                 LocalImages::new(Arc::clone(&db), images),
                 events.clone(),
                 probing.clone(),
+                leftovers,
                 RunningPlans::for_tests(&db, events.clone(), data.path()),
                 Requests::new(Arc::clone(&db), events.clone(), ExtensionPoints::default()),
             ),
