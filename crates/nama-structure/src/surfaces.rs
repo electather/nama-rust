@@ -7,23 +7,13 @@ use std::{
 };
 
 use super::{
-    collect_agents_files,
+    MustFind, SourceFile, collect_agents_files,
     rows::{Import, area_of, code_only, crate_paths},
-    rust_files,
 };
 
 /// A module of an area that neighbours may reach by its path anyway: the area, the module, and
 /// why.
-type Exception = (&'static str, &'static str, &'static str);
-
-/// The modules neighbours reach inside an area anyway, each with why re-exporting it would be
-/// wrong. An entry no import uses fails.
-const SURFACE_EXCEPTIONS: &[Exception] = &[(
-    "ffmpeg",
-    "fake",
-    "the crate's Fake programs rule sends every test's fake program through ffmpeg::fake::script, \
-     and neighbours' tests share its two-GPU VAAPI fake",
-)];
+pub type Exception = (&'static str, &'static str, &'static str);
 
 /// The most lines an area's `AGENTS.md` holds: its invariants, then its Neighbours.
 const MAX_AGENTS_LINES: usize = 30;
@@ -140,24 +130,30 @@ fn stale_exceptions(exceptions: &[Exception], used: &[bool]) -> Vec<String> {
         .collect()
 }
 
-#[test]
-fn a_neighbour_imports_only_an_areas_root() {
-    let files = rust_files();
+/// Each path from outside an area into one of its modules that `exceptions` doesn't let
+/// through, and each entry of `exceptions` nothing uses.
+pub(super) fn deep_reach_problems(
+    files: &[SourceFile],
+    exceptions: &[Exception],
+    must_find: &MustFind,
+) -> Vec<String> {
     let sources: Vec<_> = files
         .iter()
         .filter(|file| file.path.starts_with("src/"))
         .collect();
     let paths: Vec<&str> = sources.iter().map(|file| file.path.as_str()).collect();
     let modules = area_modules(&paths);
-    assert!(
-        modules.contains(&("library", "contents")),
-        "found no src/library/contents/: the walk is checking nothing"
-    );
+    if let Some((area, module)) = must_find.area_module {
+        assert!(
+            modules.contains(&(area, module)),
+            "found no src/{area}/{module}/: the walk is checking nothing"
+        );
+    }
     let mut areas: Vec<&str> = modules.iter().map(|(area, _)| *area).collect();
     areas.dedup();
     let mut imports = 0;
     let mut problems = Vec::new();
-    let mut used = vec![false; SURFACE_EXCEPTIONS.len()];
+    let mut used = vec![false; exceptions.len()];
     for file in sources {
         let mut code = code_only(&file.text);
         if matches!(file.path.as_str(), "src/lib.rs" | "src/main.rs") {
@@ -169,95 +165,16 @@ fn a_neighbour_imports_only_an_areas_root() {
             &file.path,
             &file_imports,
             &modules,
-            SURFACE_EXCEPTIONS,
+            exceptions,
             &mut used,
         ));
     }
-    problems.extend(stale_exceptions(SURFACE_EXCEPTIONS, &used));
+    problems.extend(stale_exceptions(exceptions, &used));
     assert!(
-        imports > 100,
+        imports >= must_find.crate_paths,
         "read only {imports} crate:: paths: the parser is missing them"
     );
-    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
-}
-
-#[test]
-fn area_modules_names_files_and_folders_but_not_tests_or_root_files() {
-    let paths = [
-        "src/lib.rs",
-        "src/library.rs",
-        "src/library/artwork.rs",
-        "src/library/artwork_tests.rs",
-        "src/library/contents.rs",
-        "src/library/contents/ids.rs",
-        "src/library/contents/ids_tests.rs",
-        "src/scanner/scanner_tests.rs",
-    ];
-    assert_eq!(
-        area_modules(&paths),
-        [("library", "artwork"), ("library", "contents")]
-    );
-}
-
-#[test]
-fn rooted_prefixes_only_paths_the_crate_root_starts_at_an_area() {
-    let code = "pub use library::{Artwork};\nuse crate::{library::contents::X, config::Y};\n\
-                let a = crate::library::B; let b = nama_server::library::C; mod library;\n\
-                let c = my_library::D; $crate::library::E; playback::run();";
-    assert_eq!(
-        rooted(code, &["library", "playback"]),
-        "pub use crate::library::{Artwork};\nuse crate::{crate::library::contents::X, \
-         config::Y};\nlet a = crate::library::B; let b = nama_server::library::C; mod library;\n\
-         let c = my_library::D; $crate::library::E; crate::playback::run();"
-    );
-}
-
-#[test]
-fn deep_reaches_fails_a_path_into_another_areas_module_unless_excepted() {
-    let modules = [("near", "inner"), ("near", "open"), ("far", "part")];
-    let exceptions: &[Exception] = &[("near", "open", "why open"), ("far", "gone", "why gone")];
-    let mut used = vec![false; exceptions.len()];
-    let mut reaches = |path: &str, text: &str| {
-        let mut code = code_only(text);
-        if path == "src/lib.rs" {
-            code = rooted(&code, &["near", "far"]);
-        }
-        deep_reaches(path, &crate_paths(&code), &modules, exceptions, &mut used)
-    };
-    assert_eq!(
-        reaches(
-            "src/far/a.rs",
-            "use crate::near::{Root, open::Fake};\nlet x = crate::near::inner::Deep;"
-        ),
-        [
-            "src/far/a.rs:2: crate::near::inner::Deep reaches into near: import what near.rs \
-             re-exports\n    excepted only: crate::near::open (why open)"
-        ]
-    );
-    let none = Vec::<String>::new();
-    assert_eq!(
-        reaches("src/near/b_tests.rs", "use crate::near::inner::Deep;"),
-        none
-    );
-    assert_eq!(
-        reaches("src/far.rs", "use crate::{near::Root, far::part::P};"),
-        none
-    );
-    assert_eq!(
-        reaches("src/lib.rs", "pub use far::part::P;"),
-        [
-            "src/lib.rs:1: crate::far::part::P reaches into far: import what far.rs re-exports\n    \
-             excepted only: crate::far::gone (why gone)"
-        ]
-    );
-    assert_eq!(reaches("src/lib.rs", "use far::Root;"), none);
-    assert_eq!(
-        stale_exceptions(exceptions, &used),
-        [
-            "SURFACE_EXCEPTIONS lets neighbours reach crate::far::gone, but nothing does: \
-             remove the entry (why gone)"
-        ]
-    );
+    problems
 }
 
 /// What is wrong with the `AGENTS.md` at `path` holding `text`, if it is over
@@ -272,17 +189,21 @@ fn too_long(path: &str, text: &str) -> Option<String> {
     })
 }
 
-#[test]
-fn every_area_agents_md_is_30_lines_or_fewer() {
-    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+/// Each area's `AGENTS.md` under the crate at `root` that is over `MAX_AGENTS_LINES`. The walk
+/// must find the one of `area_module`'s area.
+#[expect(clippy::unwrap_used, reason = "an unreadable file fails the test")]
+pub(super) fn long_agents_files(root: &Path, area_module: Option<(&str, &str)>) -> Vec<String> {
+    let src = root.join("src");
     let mut agents_files = Vec::new();
     collect_agents_files(&src, &mut agents_files);
     agents_files.retain(|path| path.parent() != Some(src.as_path()));
-    assert!(
-        agents_files.contains(&src.join("library").join("AGENTS.md")),
-        "found no src/library/AGENTS.md: the walk is checking nothing"
-    );
-    let problems: Vec<String> = agents_files
+    if let Some((area, _)) = area_module {
+        assert!(
+            agents_files.contains(&src.join(area).join("AGENTS.md")),
+            "found no src/{area}/AGENTS.md: the walk is checking nothing"
+        );
+    }
+    agents_files
         .iter()
         .filter_map(|path| {
             let shown = path
@@ -292,16 +213,9 @@ fn every_area_agents_md_is_30_lines_or_fewer() {
                 .replace(MAIN_SEPARATOR, "/");
             too_long(&format!("src/{shown}"), &fs::read_to_string(path).unwrap())
         })
-        .collect();
-    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+        .collect()
 }
 
-#[test]
-fn too_long_names_a_file_over_30_lines_and_its_length() {
-    let thirty = "line\n".repeat(30);
-    assert_eq!(too_long("src/a/AGENTS.md", &thirty), None);
-    assert_eq!(
-        too_long("src/a/AGENTS.md", &format!("{thirty}one more\n")).as_deref(),
-        Some("src/a/AGENTS.md is 31 lines, over 30: keep its invariants, then its Neighbours")
-    );
-}
+#[cfg(test)]
+#[path = "surfaces_tests.rs"]
+mod tests;

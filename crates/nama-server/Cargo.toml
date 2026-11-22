@@ -102,6 +102,7 @@ hyper-util = { version = "0.1", features = ["tokio"] }
 jxl = "0.8"
 nama-server = { path = ".", features = ["testing"] }
 nama-plugin-tmdb = { version = "0.1.0", path = "../../plugins/tmdb", features = ["testing"] }
+nama-structure = { path = "../nama-structure" }
 opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["testing"] }
 tokio = { version = "1", features = ["test-util"] }
 

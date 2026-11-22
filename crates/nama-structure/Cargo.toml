@@ -1,0 +1,15 @@
+[package]
+name = "nama-structure"
+version = "0.1.0"
+description = "The structure checks the Server's and the Hub's tests hold their files to"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+publish = false
+
+# Test tooling, not part of a release.
+[package.metadata.dist]
+dist = false
+
+[lints]
+workspace = true

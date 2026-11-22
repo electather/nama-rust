@@ -2185,6 +2185,7 @@ dependencies = [
  "connectrpc",
  "figment",
  "nama-hub-proto",
+ "nama-structure",
  "opentelemetry",
  "opentelemetry-appender-tracing",
  "opentelemetry-otlp",
@@ -2487,6 +2488,7 @@ dependencies = [
  "nama-plugin-upkeep",
  "nama-proto",
  "nama-server",
+ "nama-structure",
  "notify",
  "opentelemetry",
  "opentelemetry-appender-tracing",
@@ -2518,6 +2520,10 @@ dependencies = [
  "walkdir",
  "wasmtime",
 ]
+
+[[package]]
+name = "nama-structure"
+version = "0.1.0"
 
 [[package]]
 name = "nama-test-plugin"
