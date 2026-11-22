@@ -28,6 +28,9 @@ const USER_ROWS: &str = "user_rows";
 /// The most rows the Kernel keeps from one answer (ADR 0091): picking more would lose some.
 const MOST_PICKS: usize = 20;
 
+/// The most characters of a heading the Kernel keeps (ADR 0058).
+const MOST_HEADING_CHARS: usize = 40;
+
 const TMDB: OutsideService = OutsideService::new("TMDB").credential("API key");
 
 /// Where TMDB's v3 API is.
@@ -61,14 +64,16 @@ const SHARED: [(&str, &str); 18] = [
 /// How long a shared row stays fresh: TMDB's charts move daily at most.
 const FRESH_FOR: Duration = Duration::from_hours(24);
 
+const BECAUSE: &str = "because";
+const MORE_GENRE: &str = "more-genre";
 const WATCH_AGAIN: &str = "watch-again";
 const WATCHLIST: &str = "watchlist";
 
 /// Every row Discover offers each User, by key and heading, as [`SHARED`] lists its rows. Because
 /// you watched and More genre each stand for several rows, headed by what they follow.
 const PER_USER: [(&str, &str); 6] = [
-    ("because", "Because you watched"),
-    ("more-genre", "More genre"),
+    (BECAUSE, "Because you watched"),
+    (MORE_GENRE, "More genre"),
     ("starring", "Starring"),
     ("from", "From"),
     (WATCH_AGAIN, "Watch it again"),
@@ -77,6 +82,16 @@ const PER_USER: [(&str, &str); 6] = [
 
 /// How long a User's row stays fresh. The Kernel asks again sooner once they play something.
 const USER_FRESH_FOR: Duration = Duration::from_hours(6);
+
+/// How many Because you watched rows a User gets, one for each title they played most recently.
+const BECAUSE_ROWS: usize = 3;
+
+/// How many More genre rows a User gets, one for each genre they played most.
+const GENRE_ROWS: usize = 2;
+
+/// The fewest votes a title needs on TMDB to be among a genre's top titles, so one a handful
+/// rated highly doesn't top the row.
+const TOP_VOTES_AT_LEAST: &str = "500";
 
 /// How long since the User last watched a title before Watch it again offers it: any change to
 /// its Watch State, or an Episode's, counts.
@@ -120,7 +135,8 @@ fn check_settings() -> Result<CheckedSettings, Error> {
             )));
         }
     }
-    let mut countries: Vec<Country> = Api::from_settings()?.get(&["configuration", "countries"])?;
+    let mut countries: Vec<Country> =
+        Api::from_settings()?.get(&["configuration", "countries"], &[])?;
     countries.sort_by(|a, b| a.english_name.cmp(&b.english_name));
     Ok(checked_settings([(
         REGION,
@@ -177,7 +193,7 @@ fn manifest() -> Manifest {
         )
     };
     let user_rows = SettingField {
-        default_value: setting_default(picked_choices(["because", "more-genre", WATCHLIST])),
+        default_value: setting_default(picked_choices([BECAUSE, MORE_GENRE, WATCHLIST])),
         ..choices_setting_field(
             USER_ROWS,
             "Your rows",
@@ -253,27 +269,36 @@ impl HomeRowSource for Discover {
     /// A row for each of the User's rows picked, in [`PER_USER`]'s order.
     ///
     /// # Errors
-    /// If the Kernel refuses to list the Libraries or the User's Watch States.
+    /// If the Kernel refuses to list the Libraries or the User's Watch States, or, for a row from
+    /// TMDB, the API key isn't set or TMDB can't answer, as for [`Self::shared_rows`].
     fn user_rows(asked: UserRowsAsked) -> Result<HomeRows, Error> {
         let picked = nama_pdk::setting_picked(USER_ROWS)?;
         let history = History::of(asked.user_id)?;
         let mut rows = Vec::new();
         for (key, heading) in picked_rows(&PER_USER, &picked) {
             // ponytail: a picked row Discover doesn't answer yet is left out until it's built.
-            let titles = match key {
-                WATCH_AGAIN => history.played_long_ago()?,
+            match key {
+                BECAUSE => rows.extend(history.because_you_watched(&Api::from_settings()?)?),
+                MORE_GENRE => rows.extend(history.more_genre(&Api::from_settings()?)?),
+                WATCH_AGAIN => rows.push(row(
+                    key,
+                    heading,
+                    USER_FRESH_FOR,
+                    history.played_long_ago()?,
+                )?),
                 // The Admin may grant the other Plugin Permissions alone (ADR 0071): answer the
                 // rows those allow.
                 WATCHLIST => match kernel::watchlist(asked.user_id) {
-                    Ok(watchlist) => history.unstarted(&watchlist),
-                    Err(err) => {
-                        nama_pdk::warn!("leaving out Your Watchlist: {err}");
-                        continue;
-                    }
+                    Ok(watchlist) => rows.push(row(
+                        key,
+                        heading,
+                        USER_FRESH_FOR,
+                        history.unstarted(&watchlist),
+                    )?),
+                    Err(err) => nama_pdk::warn!("leaving out Your Watchlist: {err}"),
                 },
-                _ => continue,
-            };
-            rows.push(row(key, heading, USER_FRESH_FOR, titles)?);
+                _ => {}
+            }
         }
         Ok(HomeRows {
             rows,
@@ -292,15 +317,23 @@ fn picked_rows<'a>(
     (offered.iter().copied()).filter(|(key, _)| picked.iter().any(|pick| pick == key))
 }
 
+/// The row `key` headed `heading`, cut to the Kernel's [`MOST_HEADING_CHARS`] with "…" ending it,
+/// since the Kernel cuts it without one.
 fn row(
     key: &str,
     heading: &str,
     fresh_for: Duration,
     titles: Vec<HomeRowTitle>,
 ) -> Result<HomeRow, Error> {
+    let heading = if heading.chars().count() > MOST_HEADING_CHARS {
+        let kept: String = heading.chars().take(MOST_HEADING_CHARS - 1).collect();
+        format!("{kept}…")
+    } else {
+        heading.to_owned()
+    };
     Ok(HomeRow {
         key: key.to_owned(),
-        heading: heading.to_owned(),
+        heading,
         ttl_seconds: fresh_for.as_secs().try_into()?,
         titles,
         ..HomeRow::default()
@@ -322,6 +355,21 @@ impl Key {
             namespace: id.namespace.clone(),
             value: id.value.clone(),
         }
+    }
+
+    /// The Movie or Show `kind` with the TMDB id `id`.
+    fn tmdb(kind: TitleKind, id: u64) -> Self {
+        Self {
+            kind,
+            namespace: "tmdb".to_owned(),
+            value: id.to_string(),
+        }
+    }
+
+    /// Where TMDB keeps the title, such as `["movie", "603"]`; `None` if it isn't named by its
+    /// TMDB id.
+    fn tmdb_path(&self) -> Option<[&str; 2]> {
+        (self.namespace == "tmdb").then_some([media(self.kind)?, self.value.as_str()])
     }
 
     /// The Movie `title` is, or the Show whose Episode it is; `None` for an Episode without its
@@ -363,11 +411,15 @@ struct History {
 /// One User's Watch State of a Movie, or of every Episode of a Show the Server has.
 struct Watched {
     key: Key,
+    /// The Movie's title, or the Show's.
+    name: String,
     genres: Vec<String>,
     /// The Movie's 1, or the Show's Episodes the Server has.
     episodes: usize,
     played_episodes: usize,
     started: bool,
+    /// Whether the User played the Movie, or an Episode, through or past halfway.
+    played: bool,
     /// When the Watch State, or any Episode's, last changed, in milliseconds since the Unix epoch.
     last_changed_ms: i64,
 }
@@ -397,10 +449,12 @@ impl History {
                 order.push(key.clone());
                 Watched {
                     key,
+                    name: (title.show_title.clone()).unwrap_or_else(|| title.title.clone()),
                     genres: title.genres.clone(),
                     episodes: 0,
                     played_episodes: 0,
                     started: false,
+                    played: false,
                     last_changed_ms: 0,
                 }
             });
@@ -418,14 +472,50 @@ impl History {
     /// ponytail: a Watchlist title matches only by the id the Kernel lists it under, so one added
     /// under another id shows even once started; match every id when the Kernel lists them.
     fn unstarted(&self, watchlist: &[WatchlistTitle]) -> Vec<HomeRowTitle> {
+        self.unstarted_of(
+            (watchlist.iter())
+                .filter_map(|title| Some(Key::of(title.kind.as_known()?, title.id.as_option()?))),
+        )
+    }
+
+    /// The titles of `keys` the User hasn't started or played, in their order.
+    fn unstarted_of(&self, keys: impl IntoIterator<Item = Key>) -> Vec<HomeRowTitle> {
         let started: HashSet<&Key> = (self.titles.iter())
             .filter(|title| title.started)
             .map(|title| &title.key)
             .collect();
-        (watchlist.iter())
-            .filter_map(|title| Some(Key::of(title.kind.as_known()?, title.id.as_option()?)))
+        (keys.into_iter())
             .filter(|key| !started.contains(key))
             .map(|key| key.row_title())
+            .collect()
+    }
+
+    /// A row of TMDB's recommendations for each of the [`BECAUSE_ROWS`] titles the User played
+    /// most recently, keyed by its place, `because-1` first, so a row keeps its place in the
+    /// User's Home layout as the title it follows changes.
+    ///
+    /// ponytail: a title the Kernel names by another id, such as a Show by its TVDB id, is
+    /// skipped; ask TMDB's `find` for its TMDB id if Libraries matched elsewhere miss the row.
+    ///
+    /// # Errors
+    /// If TMDB can't answer.
+    fn because_you_watched(&self, api: &Api) -> Result<Vec<HomeRow>, Error> {
+        let mut played: Vec<(&Watched, [&str; 2])> = (self.titles.iter())
+            .filter(|title| title.played)
+            .filter_map(|title| Some((title, title.key.tmdb_path()?)))
+            .collect();
+        played.sort_by_key(|(title, _)| Reverse(title.last_changed_ms));
+        (played.into_iter().take(BECAUSE_ROWS).enumerate())
+            .map(|(place, (title, [media, id]))| {
+                let recommended =
+                    api.titles_of(title.key.kind, &[media, id, "recommendations"], &[])?;
+                row(
+                    &format!("{BECAUSE}-{}", place + 1),
+                    &format!("Because you watched {}", title.name),
+                    USER_FRESH_FOR,
+                    self.unstarted_of(recommended),
+                )
+            })
             .collect()
     }
 
@@ -434,12 +524,7 @@ impl History {
     fn played_long_ago(&self) -> Result<Vec<HomeRowTitle>, Error> {
         let long_ago = nama_pdk::now() - WATCH_AGAIN_AFTER;
         let long_ago_ms = i64::try_from(long_ago.duration_since(UNIX_EPOCH)?.as_millis())?;
-        let mut genre_plays: HashMap<&str, usize> = HashMap::new();
-        for genre in (self.titles.iter().filter(|title| title.played_episodes > 0))
-            .flat_map(|title| &title.genres)
-        {
-            *genre_plays.entry(genre).or_default() += 1;
-        }
+        let genre_plays = self.genre_plays();
         let mut again: Vec<&Watched> = (self.titles.iter())
             .filter(|title| {
                 title.played_episodes == title.episodes && title.last_changed_ms < long_ago_ms
@@ -451,6 +536,58 @@ impl History {
         });
         Ok(again.iter().map(|title| title.key.row_title()).collect())
     }
+
+    /// How many titles of each genre the User played.
+    fn genre_plays(&self) -> HashMap<&str, usize> {
+        let mut plays = HashMap::new();
+        for genre in
+            (self.titles.iter().filter(|title| title.played)).flat_map(|title| &title.genres)
+        {
+            *plays.entry(genre.as_str()).or_default() += 1;
+        }
+        plays
+    }
+
+    /// A row of TMDB's top Movies and Shows in each of the [`GENRE_ROWS`] genres the User played
+    /// most, keyed by its place as [`Self::because_you_watched`]'s are. A genre TMDB has no
+    /// genre of that name for, Movie or Show, is passed over for the next.
+    ///
+    /// # Errors
+    /// If TMDB can't answer.
+    fn more_genre(&self, api: &Api) -> Result<Vec<HomeRow>, Error> {
+        let movie_genres = api.genres(TitleKind::TITLE_KIND_MOVIE)?;
+        let show_genres = api.genres(TitleKind::TITLE_KIND_SHOW)?;
+        let mut plays: Vec<_> = self.genre_plays().into_iter().collect();
+        plays.sort_by_key(|&(genre, plays)| (Reverse(plays), genre));
+        (plays.into_iter())
+            .map(|(genre, _)| (genre, movie_genres.get(genre), show_genres.get(genre)))
+            .filter(|(_, movie_genre, show_genre)| movie_genre.is_some() || show_genre.is_some())
+            .take(GENRE_ROWS)
+            .enumerate()
+            .map(|(place, (genre, movie_genre, show_genre))| {
+                let movies = api.top_in(TitleKind::TITLE_KIND_MOVIE, movie_genre)?;
+                let shows = api.top_in(TitleKind::TITLE_KIND_SHOW, show_genre)?;
+                row(
+                    &format!("{MORE_GENRE}-{}", place + 1),
+                    &format!("More {genre}"),
+                    USER_FRESH_FOR,
+                    self.unstarted_of(interleave(movies, shows)),
+                )
+            })
+            .collect()
+    }
+}
+
+/// `a`'s and `b`'s keys taking turns, `a`'s first, and the longer's rest after.
+fn interleave(a: Vec<Key>, b: Vec<Key>) -> Vec<Key> {
+    let (mut a, mut b) = (a.into_iter(), b.into_iter());
+    let mut both = Vec::new();
+    loop {
+        match (a.next(), b.next()) {
+            (None, None) => return both,
+            (from_a, from_b) => both.extend(from_a.into_iter().chain(from_b)),
+        }
+    }
 }
 
 impl Watched {
@@ -460,9 +597,21 @@ impl Watched {
         self.episodes += 1;
         self.played_episodes += usize::from(played);
         self.started |= played || states.iter().any(|state| state.position_ms > 0);
+        self.played |= played
+            || (states.iter())
+                .any(|state| state.duration_ms > 0 && state.position_ms > state.duration_ms / 2);
         self.last_changed_ms = (states.iter())
             .map(|state| state.updated_at_ms)
             .fold(self.last_changed_ms, i64::max);
+    }
+}
+
+/// How TMDB's paths name `kind`; `None` for neither a Movie nor a Show.
+fn media(kind: TitleKind) -> Option<&'static str> {
+    match kind {
+        TitleKind::TITLE_KIND_MOVIE => Some("movie"),
+        TitleKind::TITLE_KIND_SHOW => Some("tv"),
+        TitleKind::TITLE_KIND_UNSPECIFIED => None,
     }
 }
 
@@ -477,10 +626,24 @@ struct Page {
     results: Vec<Listing>,
 }
 
+/// TMDB's genres of Movies, or of Shows.
+#[derive(Deserialize)]
+struct GenreList {
+    genres: Vec<Genre>,
+}
+
+#[derive(Deserialize)]
+struct Genre {
+    id: u64,
+    name: String,
+}
+
 /// One title in a page, or a person in a trending one.
 #[derive(Deserialize)]
 struct Listing {
     id: u64,
+    /// Unset in a page of one media, such as a Movie's recommendations.
+    #[serde(default)]
     media_type: String,
 }
 
@@ -494,21 +657,64 @@ impl Api {
     /// The Movies and Shows in the first page at `path`, leaving out people.
     // ponytail: one page, TMDB's 20 titles; ask for more pages if a row of 20 feels short.
     fn titles(&self, path: &[&str]) -> Result<Vec<HomeRowTitle>, Error> {
-        let page: Page = self.get(path)?;
+        let page: Page = self.get(path, &[])?;
         Ok(page.results.iter().filter_map(title).collect())
     }
 
-    /// TMDB's answer at `path` under [`API_URL`].
+    /// The titles in the first page at `path` asked with `query`, a page of `kind` alone.
+    fn titles_of(
+        &self,
+        kind: TitleKind,
+        path: &[&str],
+        query: &[(&str, &str)],
+    ) -> Result<Vec<Key>, Error> {
+        let page: Page = self.get(path, query)?;
+        Ok((page.results.iter())
+            .map(|listing| Key::tmdb(kind, listing.id))
+            .collect())
+    }
+
+    /// TMDB's genres of `kind`, by name.
+    fn genres(&self, kind: TitleKind) -> Result<HashMap<String, u64>, Error> {
+        let list: GenreList = self.get(&["genre", media(kind).unwrap_or_default(), "list"], &[])?;
+        Ok((list.genres.into_iter())
+            .map(|genre| (genre.name, genre.id))
+            .collect())
+    }
+
+    /// TMDB's top rated titles of `kind` in its genre `genre`; none for no genre.
+    fn top_in(&self, kind: TitleKind, genre: Option<&u64>) -> Result<Vec<Key>, Error> {
+        let Some(genre) = genre else {
+            return Ok(Vec::new());
+        };
+        self.titles_of(
+            kind,
+            &["discover", media(kind).unwrap_or_default()],
+            &[
+                ("with_genres", &genre.to_string()),
+                ("sort_by", "vote_average.desc"),
+                ("vote_count.gte", TOP_VOTES_AT_LEAST),
+            ],
+        )
+    }
+
+    /// TMDB's answer at `path` under [`API_URL`], asked with `query`.
     ///
     /// # Errors
     /// If TMDB didn't answer, refused, or answered with something unexpected.
-    fn get<T: for<'de> Deserialize<'de>>(&self, path: &[&str]) -> Result<T, Error> {
+    fn get<T: for<'de> Deserialize<'de>>(
+        &self,
+        path: &[&str],
+        query: &[(&str, &str)],
+    ) -> Result<T, Error> {
         let mut url = Url::parse(API_URL)?;
         url.path_segments_mut()
             .map_err(|()| Error::msg("TMDB's API URL has no path"))?
             .pop_if_empty()
             .extend(path);
-        url.query_pairs_mut().append_pair("api_key", &self.key);
+        url.query_pairs_mut()
+            .extend_pairs(query)
+            .append_pair("api_key", &self.key);
         let response = TMDB.send(&HttpRequest::new(url.as_str()), None::<String>)?;
         json::from_slice(TMDB.accepted(response)?.body())
             .map_err(|err| Error::msg(format!("TMDB answered with something unexpected: {err}")))
@@ -522,16 +728,7 @@ fn title(listing: &Listing) -> Option<HomeRowTitle> {
         "tv" => TitleKind::TITLE_KIND_SHOW,
         _ => return None,
     };
-    Some(HomeRowTitle {
-        kind: kind.into(),
-        id: TitleId {
-            namespace: "tmdb".to_owned(),
-            value: listing.id.to_string(),
-            ..TitleId::default()
-        }
-        .into(),
-        ..HomeRowTitle::default()
-    })
+    Some(Key::tmdb(kind, listing.id).row_title())
 }
 
 #[cfg(test)]
