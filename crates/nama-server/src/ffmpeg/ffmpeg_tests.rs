@@ -316,6 +316,7 @@ async fn ffmpeg_can_do_what_it_lists_and_what_passes_its_test_encode() {
                 accel: Accel::Vaapi,
                 gpu: None,
                 tone_maps: false,
+                hevc: false,
             }],
             gpus: vec![],
         }
@@ -424,6 +425,7 @@ async fn hardware_ffmpeg_couldnt_list_is_tested_again() {
             accel: Accel::Vaapi,
             gpu: None,
             tone_maps: false,
+            hevc: false,
         }]
     );
 }
@@ -489,6 +491,7 @@ async fn only_hardware_ffmpeg_lists_and_that_passes_its_test_encode_is_found() {
             accel: Accel::Vaapi,
             gpu: None,
             tone_maps: false,
+            hevc: false,
         }])
     );
 }
@@ -511,8 +514,36 @@ async fn hardware_that_passes_its_tone_map_test_tone_maps() {
             accel: Accel::Qsv,
             gpu: None,
             tone_maps: true,
+            hevc: false,
         }])
     );
+}
+
+#[tokio::test]
+async fn hardware_whose_hevc_encoder_is_listed_is_tested_on_the_hevc_clip_piped_in() {
+    for (hevc_exits, passes) in [(0, true), (1, false)] {
+        let bin = tempfile::tempdir().unwrap();
+        let piped = bin.path().join("piped");
+        let ffmpeg = fake_ffmpeg(
+            bin.path(),
+            &format!(
+                "*-encoders*) echo ' V....D h264_vaapi  H.264/AVC (VAAPI)'; \
+                              echo ' V....D hevc_vaapi  H.265/HEVC (VAAPI)' ;;
+                 *-f\\ hevc\\ -i\\ pipe:0*hevc_vaapi\\ -profile:v\\ main10*) \
+                     cat > '{}'; exit {hevc_exits} ;;
+                 *tonemap_vaapi*) exit 1 ;;
+                 *h264_vaapi*) exit 0 ;;
+                 *) exit 1 ;;",
+                piped.display()
+            ),
+        );
+
+        let found = ffmpeg.find_hardware().await.unwrap();
+
+        let hevc: Vec<bool> = found.iter().map(|hardware| hardware.hevc).collect();
+        assert_eq!(hevc, [passes]);
+        assert_eq!(fs::read(&piped).unwrap(), super::hardware::TEST_HEVC_CLIP);
+    }
 }
 
 /// Where a Transcode on `hardware` opens its GPU: what follows each `-init_hw_device`.
@@ -523,6 +554,7 @@ fn opened(hardware: &Hardware) -> Vec<String> {
         limit: None,
         burn_in: None,
         in_band_headers: true,
+        hevc: false,
     };
     let input = video_args("alien.mkv", &video, false).input;
     (input.windows(2))

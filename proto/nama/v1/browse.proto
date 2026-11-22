@@ -115,6 +115,16 @@ service BrowseService {
   rpc ListHomeRowTitles(ListHomeRowTitlesRequest) returns (ListHomeRowTitlesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Returns one Box Set, with its Movies as the caller sees them. Fails with `not_found` if the
+  // caller can't see it: none of its Movies is in a Library, or they'd see fewer than two.
+  rpc GetBoxSet(GetBoxSetRequest) returns (GetBoxSetResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Lists a page of the Box Sets the caller can see that have a Movie in a Movies Library, by
+  // name. Fails like `ListMovies`.
+  rpc ListBoxSets(ListBoxSetsRequest) returns (ListBoxSetsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
 }
 
 // A Movie some items of a Library are Matched to, with the metadata its Match stores.
@@ -361,6 +371,9 @@ message GetMovieResponse {
   // set to the oldest Library it is in. The Similar sources name them (ADR 0084), and one in no
   // Library is left out.
   repeated MovieHit similar = 3;
+  // The Box Set it belongs to, the Movie among its `movies`, unset if it has none the caller can
+  // see.
+  BoxSet box_set = 4;
 }
 
 // A Show some items of a Library are Matched to Episodes of.
@@ -767,4 +780,52 @@ message HomeRowTitle {
     // A Show on no Library, which `RequestService.LookUpShow` opens by `id`.
     ShowHit missing_show = 4;
   }
+}
+
+// A group of Movies its title source says belong together, such as the Alien films. It is a
+// grouping, not a title.
+message BoxSet {
+  // Its id at its title source, such as `tmdb-8091`, which `GetBoxSet` opens it by.
+  ExternalId id = 1;
+  // Its name, in its title source's language.
+  string name = 2;
+  optional string overview = 3;
+  // The poster's URL on this Server.
+  optional string poster_url = 4;
+  // The backdrop's URL on this Server.
+  optional string backdrop_url = 5;
+  // Its Movies in release order, those without a release date last: each on the Server in the
+  // oldest Library that has it, or, for a caller with `PERMISSION_REQUEST_MOVIE`, missing as its
+  // title source had it when last fetched.
+  repeated HomeRowTitle movies = 6;
+}
+
+// A Box Set as the Box Sets of a Library list it.
+message BoxSetSummary {
+  // As `BoxSet.id`.
+  ExternalId id = 1;
+  string name = 2;
+  // As `BoxSet.poster_url`.
+  optional string poster_url = 3;
+}
+
+message GetBoxSetRequest {
+  // As `BoxSet.id`.
+  ExternalId box_set_id = 1;
+}
+
+message GetBoxSetResponse {
+  BoxSet box_set = 1;
+}
+
+message ListBoxSetsRequest {
+  // The Movies Library whose Box Sets to list.
+  int64 library_id = 1;
+  PageRequest page = 2;
+}
+
+message ListBoxSetsResponse {
+  repeated BoxSetSummary box_sets = 1;
+  // The next page's token, and on the first page how many Box Sets the Library has.
+  PageResponse page = 2;
 }

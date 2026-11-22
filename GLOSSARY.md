@@ -440,7 +440,7 @@ How the Server will play one Version on one Device: which Version, when the clie
 _Avoid_: decision, profile, stream info
 
 **Recipe**:
-What sets a Playback Plan apart from another by the same method: the container it serves, the video codec a Transcode makes, and the audio codec it sends, such as a Remux in fragmented MP4 sending E-AC-3, or a Transcode in fragmented MP4 making HEVC. A Device that fails to play a plan names its Recipe, so the next plan rules out only that Recipe and plays the method another way if it can.
+What sets a Playback Plan apart from another by the same method: the container it serves, for a Transcode the video codec it makes, and the audio codec it sends, such as a Remux in fragmented MP4 sending E-AC-3, or a Transcode in fragmented MP4 making HEVC and sending E-AC-3. A Device that fails to play a plan names its Recipe, so the next plan rules out only that Recipe and plays the method another way if it can.
 _Avoid_: attempt key, variant
 
 **Playback Reason**:

@@ -6,6 +6,8 @@ import { DefaultHomePane } from "@/features/settings/components/default-home-pan
 import { DevicesPane } from "@/features/settings/components/devices-pane";
 import { FoundSetting } from "@/features/settings/components/found-setting";
 import { HomePane } from "@/features/settings/components/home-pane";
+import { JobsPane } from "@/features/settings/components/jobs-pane";
+import { NowPlayingPane } from "@/features/settings/components/now-playing-pane";
 import { PaneBoundary } from "@/features/settings/components/pane-boundary";
 import { PlaybackPane } from "@/features/settings/components/playback-pane";
 import { PluginsPane } from "@/features/settings/components/plugins-pane";
@@ -24,6 +26,8 @@ const panes: Record<Section, ComponentType<{ user: User | undefined }>> = {
   home: HomePane,
   requests: RequestsPane,
   connections: ConnectionsPane,
+  "now-playing": NowPlayingPane,
+  jobs: JobsPane,
   server: ServerPane,
   users: UsersPane,
   "default-home": DefaultHomePane,

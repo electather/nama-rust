@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM linked_servers WHERE credential_hash IS NULL AND id NOT IN\n             (SELECT linked_server_id FROM server_link_codes WHERE linked_server_id IS NOT NULL)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "eb2c30c3ee1e8c29b43706fd36b534ab49983cd39ea7d299fa62c0dcf1d6bc35"
+}

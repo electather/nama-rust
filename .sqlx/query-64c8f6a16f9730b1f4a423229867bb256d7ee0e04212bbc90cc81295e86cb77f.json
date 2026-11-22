@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO title_details\n             (plugin, kind, namespace, value, score, trailers, box_set)\n         VALUES (?, ?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "64c8f6a16f9730b1f4a423229867bb256d7ee0e04212bbc90cc81295e86cb77f"
+}

@@ -38,6 +38,9 @@ pub(crate) enum NotFound {
     NoSuchEpisode,
     #[error("there is no such Version")]
     NoSuchVersion,
+    /// The Box Set isn't stored, or the User can't see it.
+    #[error("there is no such Box Set")]
+    NoSuchBoxSet,
 }
 
 /// A Library's titles, read whole, without Tracks.

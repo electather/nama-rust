@@ -30,6 +30,7 @@ export interface FormErrors {
   resizedCacheMib?: string;
   hardwareAcceleration?: string;
   language?: string;
+  schedule?: string;
 }
 
 /** The attribute `useAutoSubmit` marks a form with, which saves as each field is changed. */

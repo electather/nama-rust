@@ -247,6 +247,12 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_HOME_ROW_TITLES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_HOME_ROW_TITLES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__HOME_ROW_TITLE_JSON_ANY);
+        reg.register_json_any(super::__BOX_SET_JSON_ANY);
+        reg.register_json_any(super::__BOX_SET_SUMMARY_JSON_ANY);
+        reg.register_json_any(super::__GET_BOX_SET_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_BOX_SET_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_BOX_SETS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_BOX_SETS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SEARCH_SUBTITLES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SEARCH_SUBTITLES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__FOUND_SUBTITLE_JSON_ANY);
@@ -367,6 +373,13 @@ pub mod __buffa {
         reg.register_json_any(super::__HIT_JSON_ANY);
         reg.register_json_any(super::__EPISODE_HIT_JSON_ANY);
         reg.register_json_any(super::__DONE_JSON_ANY);
+        reg.register_json_any(super::__GET_SERVER_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_SERVER_LINK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SERVER_LINK_JSON_ANY);
+        reg.register_json_any(super::__START_SERVER_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__START_SERVER_LINK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UNLINK_SERVER_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UNLINK_SERVER_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_PLAYS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_PLAYS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PLAY_JSON_ANY);
@@ -1153,6 +1166,30 @@ pub use self::__buffa::view::HomeRowTitleView;
 #[doc(inline)]
 pub use self::__buffa::view::HomeRowTitleOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::BoxSetView;
+#[doc(inline)]
+pub use self::__buffa::view::BoxSetOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::BoxSetSummaryView;
+#[doc(inline)]
+pub use self::__buffa::view::BoxSetSummaryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetBoxSetRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetBoxSetRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetBoxSetResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetBoxSetResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListBoxSetsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListBoxSetsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListBoxSetsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListBoxSetsResponseOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::SearchSubtitlesRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::SearchSubtitlesRequestOwnedView;
@@ -1632,6 +1669,34 @@ pub use self::__buffa::view::EpisodeHitOwnedView;
 pub use self::__buffa::view::DoneView;
 #[doc(inline)]
 pub use self::__buffa::view::DoneOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetServerLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetServerLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetServerLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetServerLinkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ServerLinkView;
+#[doc(inline)]
+pub use self::__buffa::view::ServerLinkOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartServerLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StartServerLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartServerLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StartServerLinkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkServerRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkServerRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkServerResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkServerResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListPlaysRequestView;
 #[doc(inline)]

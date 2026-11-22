@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO box_sets\n             (namespace, value, plugin, name, overview, poster, backdrop, movies, looked_up)\n         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,\n                 coalesce(?9, (SELECT looked_up FROM box_sets WHERE namespace = ?1 AND value = ?2),\n                          '[]'))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "bfcc89ec79a21ce3cabbd5dc8ab076b3853c2deb907ecd4a98b76ed185b7c733"
+}

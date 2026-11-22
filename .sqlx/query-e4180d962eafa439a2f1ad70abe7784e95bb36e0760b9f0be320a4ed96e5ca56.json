@@ -1,0 +1,73 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT account_sessions.id, accounts.id AS account_id, accounts.email,\n             accounts.email_proven,\n             account_sessions.created_at > now() - make_interval(mins => $3)\n                 AS \"authenticated_recently!\"\n         FROM account_sessions JOIN accounts ON accounts.id = account_sessions.account_id\n         WHERE token_hash = $1 AND account_sessions.created_at > now() - make_interval(days => $2)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "account_sessions",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "account_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "accounts",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "accounts",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "email_proven",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "accounts",
+            "name": "email_proven"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "authenticated_recently!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "e4180d962eafa439a2f1ad70abe7784e95bb36e0760b9f0be320a4ed96e5ca56"
+}

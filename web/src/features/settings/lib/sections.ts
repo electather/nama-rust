@@ -9,6 +9,8 @@ const sections = [
   "home",
   "requests",
   "connections",
+  "now-playing",
+  "jobs",
   "server",
   "users",
   "backups",
@@ -31,15 +33,18 @@ export function sectionParam(value: unknown): Section | undefined {
   return sections.find((each) => each === value) ?? firstSection;
 }
 
-/** The Plugin `?plugin=` asks the Plugins section to open, or the setting `?setting=` asks for: none without it. */
+/**
+ * The Plugin `?plugin=` asks the Plugins section to open, the Job `?job=` asks the Jobs section to
+ * open, or the setting `?setting=` asks for: none without it.
+ */
 export function idParam(value: unknown) {
   // The router reads an id made of digits as a number.
   return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
 }
 
-/** The address of `section` in Settings, at its `setting` if one is asked for. A Plugin or User open in another Section closes. */
+/** The address of `section` in Settings, at its `setting` if one is asked for. A Plugin, User or Job open in another Section closes. */
 export function sectionSearch(section: Section, setting?: string) {
-  return { settings: section, plugin: undefined, user: undefined, setting };
+  return { settings: section, plugin: undefined, user: undefined, job: undefined, setting };
 }
 
 /** The User `?user=` asks the Users section to open: none without it. */
@@ -57,6 +62,8 @@ export const sectionTitles: Record<Section, string> = {
   home: "Home",
   requests: "Requests",
   connections: "Connections",
+  "now-playing": "Now Playing",
+  jobs: "Jobs",
   server: "Server",
   users: "Users",
   backups: "Backups",
@@ -73,12 +80,20 @@ export const loadNouns: Record<Section, string> = {
   home: "your Home layout",
   requests: "your Requests settings",
   connections: "your Connections",
+  "now-playing": "what’s playing",
+  jobs: "the Jobs",
   server: "the Server settings",
   users: "the Users",
   backups: "the Backups",
   "default-home": "the default Home layout",
   "server-playback": "the Server’s Playback settings",
   plugins: "the Plugins",
+};
+
+/** What else search finds a section by, past its name, for the sections that have such words. */
+export const sectionWords: Partial<Record<Section, string>> = {
+  "now-playing": "now playing watching streams sessions stop transcode",
+  jobs: "jobs schedule run tasks upkeep",
 };
 
 /** The sidebar's sections under a heading. */
@@ -90,6 +105,8 @@ export interface SectionGroup {
 /** The Permission a section needs, for the ones not every User sees. */
 const needs: Partial<Record<Section, Permission>> = {
   requests: Permission.CHOOSE_QUALITY,
+  "now-playing": Permission.ADMIN,
+  jobs: Permission.ADMIN,
   server: Permission.MANAGE_SETTINGS,
   users: Permission.MANAGE_USERS,
   backups: Permission.ADMIN,
@@ -101,6 +118,7 @@ const needs: Partial<Record<Section, Permission>> = {
 const groups: SectionGroup[] = [
   { label: "You", items: ["signin", "devices"] },
   { label: "Preferences", items: ["playback", "home", "requests", "connections"] },
+  { label: "Activity", items: ["now-playing", "jobs"] },
   {
     label: "Admin",
     items: ["server", "users", "backups", "default-home", "server-playback", "plugins"],

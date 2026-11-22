@@ -64,6 +64,9 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SERVER_SERVICE_UPDATE_BACKUP_SETTINGS_SPEC.procedure, ADMIN),
     (proto::SERVER_SERVICE_LIST_PLAYS_SPEC.procedure,             ADMIN),
     (proto::SERVER_SERVICE_STOP_PLAY_SPEC.procedure,              ADMIN),
+    (proto::SERVER_SERVICE_GET_SERVER_LINK_SPEC.procedure,        MANAGE_SETTINGS),
+    (proto::SERVER_SERVICE_START_SERVER_LINK_SPEC.procedure,      MANAGE_SETTINGS),
+    (proto::SERVER_SERVICE_UNLINK_SERVER_SPEC.procedure,          MANAGE_SETTINGS),
     (proto::SIGN_IN_SERVICE_SETUP_SPEC.procedure,                 Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,               Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_OUT_SPEC.procedure,              Access::SignedIn),
@@ -100,6 +103,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::BROWSE_SERVICE_LIST_FEATURED_SPEC.procedure,          Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_HOME_ROWS_SPEC.procedure,         Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_HOME_ROW_TITLES_SPEC.procedure,   Access::SignedIn),
+    (proto::BROWSE_SERVICE_GET_BOX_SET_SPEC.procedure,            Access::SignedIn),
+    (proto::BROWSE_SERVICE_LIST_BOX_SETS_SPEC.procedure,          Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_UNMATCHED_SPEC.procedure,         Access::SignedIn),
     (proto::BROWSE_SERVICE_GET_UNMATCHED_VERSION_SPEC.procedure,  Access::SignedIn),
     (proto::SEARCH_SERVICE_SEARCH_SPEC.procedure,                 Access::SignedIn),
@@ -235,7 +240,7 @@ pub(super) fn permission_required(needed: Permission) -> ConnectError {
 /// Authentication on top of their [`Access`] (ADR 0014, and see AGENTS.md). A list of its own, not
 /// an `Access` variant: `SetPermissions` needs a Permission as well, `ChangePassword` only a
 /// session.
-const NEEDS_RECENT_AUTHENTICATION: [&str; 7] = [
+const NEEDS_RECENT_AUTHENTICATION: [&str; 9] = [
     proto::USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_SET_PERMISSIONS_SPEC.procedure,
@@ -245,6 +250,9 @@ const NEEDS_RECENT_AUTHENTICATION: [&str; 7] = [
     proto::SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC.procedure,
     // Deleting can't be undone, so someone at an unlocked Device mustn't do it unasked (ADR 0038).
     proto::LIBRARY_SERVICE_DELETE_MEDIA_SPEC.procedure,
+    // Linking hands the Server to an Account, and Unlinking takes it back (ADR 0011).
+    proto::SERVER_SERVICE_START_SERVER_LINK_SPEC.procedure,
+    proto::SERVER_SERVICE_UNLINK_SERVER_SPEC.procedure,
 ];
 
 /// Why `caller` may not request `path` yet, if it needs Recent Authentication their Device lacks.

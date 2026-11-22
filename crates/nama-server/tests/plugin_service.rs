@@ -129,7 +129,7 @@ impl Started {
             .map(connectrpc::UnaryResponse::into_owned)
     }
 
-    /// What is stored for each Plugin but Upkeep, which each start stores with its grants.
+    /// What is stored for each Plugin but Upkeep and Hub, which each start stores with its grants.
     #[expect(
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
@@ -139,7 +139,7 @@ impl Started {
             .await
             .unwrap()
             .unwrap();
-        stored.remove("upkeep");
+        stored.retain(|id, _| !["upkeep", "hub"].contains(&id.as_str()));
         stored
     }
 
@@ -271,6 +271,7 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
     .unwrap();
     let mut expected = Vec::from_iter(bundled.iter().map(|id| (id.as_str(), Some(INSTALLED))));
     let built_ins = [
+        "hub",
         "local-auth",
         "log-events",
         test_choices::ID,
@@ -283,8 +284,8 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
     assert_eq!(Vec::from_iter(kinds), expected);
     assert!(listed.summaries.iter().all(|p| !p.version.is_empty()));
     assert!(plugin(&listed, "local-auth").enabled);
-    // TMDB can't run without an API key, and an Installed Plugin starts disabled.
-    assert!(!plugin(&listed, "tmdb").enabled);
+    // TMDB needs an API key, the Hub Plugin an Admin, and an Installed Plugin starts disabled.
+    assert!(!plugin(&listed, "tmdb").enabled && !plugin(&listed, "hub").enabled);
     for id in &bundled {
         assert!(!plugin(&listed, id).enabled, "{id}");
     }
@@ -370,8 +371,7 @@ async fn every_builtin_and_bundled_plugin_says_its_name_and_what_it_does() {
 async fn plugins_are_listed_without_their_settings() {
     let listed = list_plugins_with(tmdb_with_key()).await;
 
-    // Encoded again, the response holds everything the Server sent, fields this client doesn't
-    // know included.
+    // Encoded again, the response holds all the Server sent, fields this client doesn't know too.
     let sent = listed.encode_to_vec();
     assert!(
         !sent

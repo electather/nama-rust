@@ -1,0 +1,36 @@
+[package]
+name = "nama-plugin-hub"
+version = "0.1.0"
+description = "Built-in Plugin through which a Server does everything Hub-facing, starting with Linking it to an Account"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+
+# Built-in Plugins depend on no workspace crate but nama-plugin-api (ADR 0006), and this one on the
+# Hub API it calls too (`plugins/AGENTS.md`).
+[dependencies]
+base64 = "0.23"
+bytes = "1"
+connectrpc = "0.9.1"
+http = "1"
+http-body-util = "0.1"
+# ring, not rustls's default aws-lc-rs (OpenSSL license), and the OS's root certificates, as the
+# TMDB Plugin does: deny.toml allows neither of the others.
+hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "tls12", "ring", "native-tokio"] }
+hyper-util = { version = "0.1", features = ["client-legacy", "http1", "tokio"] }
+nama-hub-proto = { version = "0.1.0", path = "../../crates/nama-hub-proto" }
+nama-plugin-api = { version = "0.2.0", path = "../../crates/nama-plugin-api" }
+ring = "0.17"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["sync", "time"] }
+
+[dev-dependencies]
+buffa = "0.9.2"
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+connectrpc = { version = "0.9.1", features = ["axum"] }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
+
+[lints]
+workspace = true

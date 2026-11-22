@@ -1,13 +1,15 @@
+use std::collections::BTreeSet;
+
 use nama_proto::nama::v1::{AudioCodec, PlaybackReasonKind as Kind, VideoCodec};
 
 use crate::{
     ffmpeg::{Accel, Hardware, ToneMapper, VideoTag},
     playback::{
-        Facts, Method, Playing, build,
+        DeviceDecoding, Facts, Method, Plan, Playing, build,
         tests::{
             DOLBY_VISION_5, Given, MKV, MP4, audio, audio_with, decided, dolby_vision_8, facts,
             falls_back_to, firefox, given, hdr_video, in_container, kind_and_params, kinds,
-            reason_of, remuxing, subtitle, transcoded, video, video_hdr,
+            reason_of, remuxing, subtitle, track, transcoded, video, video_hdr,
         },
         tracks::{BaseLayer, Hdr, Track, TrackKind},
     },
@@ -473,6 +475,7 @@ fn with_tonemapx_a_dolby_vision_5_transcode_on_a_gpu_that_tone_maps_reshapes_in_
         accel: Accel::Qsv,
         gpu: None,
         tone_maps: true,
+        hevc: false,
     };
     facts.can_do.hardware = vec![qsv.clone()];
 
@@ -587,4 +590,151 @@ fn h264_of_unknown_or_8_bit_depth_isnt_ruled_out_for_its_depth() {
 
         assert_eq!(plan.method(), Some(Method::DirectPlay), "{bit_depth:?}");
     }
+}
+
+/// What Safari on an HDR display says it decodes: H.264 and HEVC, both up to 10 bits.
+fn safari_on_hdr() -> DeviceDecoding {
+    DeviceDecoding {
+        video_codecs: vec![VideoCodec::VIDEO_CODEC_H264, VideoCodec::VIDEO_CODEC_HEVC],
+        hdr: true,
+        h264_10bit: true,
+        hevc_10bit: true,
+        ..firefox()
+    }
+}
+
+/// AV1 `width` wide and HDR as `hdr` says, which [`safari_on_hdr`] decodes only Transcoded, on a
+/// Server whose VAAPI passed its HEVC test.
+fn av1_on_hevc_hardware(width: i64, hdr: Option<Hdr>) -> Facts {
+    let kind = TrackKind::Video {
+        width: Some(width),
+        height: Some(width * 9 / 16),
+        frame_rate: Some(24.0),
+        bit_depth: Some(10),
+        hdr,
+    };
+    let mut facts = in_container(
+        MKV,
+        Some(vec![track("av1", false, kind), audio("aac", true)]),
+    );
+    facts.device = safari_on_hdr();
+    facts.can_do.hardware = vec![Hardware {
+        accel: Accel::Vaapi,
+        gpu: None,
+        tone_maps: true,
+        hevc: true,
+    }];
+    facts
+}
+
+/// The codec, bit depth and HDR of the video `plan` sends, and its Recipe.
+fn video_made(plan: &Plan) -> (&str, Option<i64>, Option<Hdr>, String) {
+    let (codec, bit_depth, hdr) = (plan.tracks.iter())
+        .find_map(|track| match track.kind {
+            TrackKind::Video { bit_depth, hdr, .. } => Some((track.codec.as_str(), bit_depth, hdr)),
+            TrackKind::Audio { .. } | TrackKind::Subtitle { .. } => None,
+        })
+        .unwrap();
+    (codec, bit_depth, hdr, plan.recipe())
+}
+
+#[test]
+fn a_4k_or_hdr_transcode_makes_10_bit_hevc_on_hardware_keeping_its_hdr_with_no_fallback() {
+    let dolby_vision_7 = Hdr::DolbyVision {
+        profile: 7,
+        base_layer: Some(BaseLayer::Hdr10),
+    };
+    let cases = [
+        (3840, None, None),
+        (1920, Some(Hdr::Hdr10), Some(Hdr::Hdr10)),
+        (1920, Some(Hdr::Hlg), Some(Hdr::Hlg)),
+        (1920, Some(dolby_vision_7), Some(Hdr::Hdr10)),
+        (
+            1920,
+            Some(dolby_vision_8(Some(BaseLayer::Hlg))),
+            Some(Hdr::Hlg),
+        ),
+    ];
+    for (width, hdr, base_layer) in cases {
+        let plan = build(&mut av1_on_hevc_hardware(width, hdr));
+
+        let hevc = "transcode/fmp4/hevc/aac".to_owned();
+        assert_eq!(
+            video_made(&plan),
+            ("hevc", Some(10), base_layer, hevc),
+            "{width} {hdr:?}"
+        );
+        let video = transcoded(&plan).video;
+        assert!(video.hevc && !video.in_band_headers && video.tone_map.is_none());
+        assert_eq!(falls_back_to(&plan), None);
+    }
+}
+
+#[test]
+fn without_hevc_on_the_device_or_server_or_a_4k_or_hdr_picture_a_transcode_makes_h264() {
+    let sdr_1080p = av1_on_hevc_hardware(1920, None);
+    let mut no_hevc_10bit = av1_on_hevc_hardware(3840, Some(Hdr::Hdr10));
+    no_hevc_10bit.device.hevc_10bit = false;
+    let mut no_hevc = av1_on_hevc_hardware(3840, None);
+    no_hevc.device.video_codecs = vec![VideoCodec::VIDEO_CODEC_H264];
+    let mut no_hevc_hardware = av1_on_hevc_hardware(3840, None);
+    no_hevc_hardware.can_do.hardware[0].hevc = false;
+
+    for mut facts in [sdr_1080p, no_hevc_10bit, no_hevc, no_hevc_hardware] {
+        let plan = build(&mut facts);
+
+        let (codec, bit_depth, _, recipe) = video_made(&plan);
+        assert_eq!((codec, bit_depth), ("h264", Some(8)), "{:?}", facts.device);
+        assert_eq!(recipe, "transcode/fmp4/h264/aac");
+        assert!(falls_back_to(&plan).is_some());
+    }
+}
+
+#[test]
+fn hdr_the_device_cant_show_is_tone_mapped_to_h264_even_in_4k() {
+    let mut facts = av1_on_hevc_hardware(3840, Some(Hdr::Hdr10));
+    facts.device.hdr = false;
+
+    let plan = build(&mut facts);
+
+    assert_eq!(
+        video_made(&plan),
+        ("h264", Some(8), None, "transcode/fmp4/h264/aac".to_owned())
+    );
+}
+
+#[test]
+fn an_hevc_transcode_that_failed_on_the_device_or_server_transcodes_to_h264_instead() {
+    let failed = BTreeSet::from(["transcode/fmp4/hevc/aac".to_owned()]);
+    let mut on_device = av1_on_hevc_hardware(3840, None);
+    on_device.failed_recipes = failed.clone();
+    let mut on_server = av1_on_hevc_hardware(3840, None);
+    on_server.failed_on_server = failed;
+
+    for mut facts in [on_device, on_server] {
+        let plan = build(&mut facts);
+
+        assert_eq!(plan.method(), Some(Method::Transcode));
+        assert_eq!(plan.recipe(), "transcode/fmp4/h264/aac");
+        let failures = [
+            Kind::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_DEVICE,
+            Kind::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER,
+        ];
+        assert!(!kinds(&plan).iter().any(|kind| failures.contains(kind)));
+    }
+}
+
+#[test]
+fn an_h264_transcode_that_failed_on_the_server_is_ruled_out_and_the_plan_says_so() {
+    let mut facts = av1_on_hevc_hardware(1920, None);
+    facts.failed_on_server = BTreeSet::from(["transcode/fmp4/h264/aac".to_owned()]);
+
+    let plan = build(&mut facts);
+
+    assert_eq!(plan.method(), None);
+    let failed = reason_of(&plan, Kind::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER);
+    assert_eq!(
+        kind_and_params(failed).1,
+        [("method", "PLAYBACK_METHOD_TRANSCODE")]
+    );
 }

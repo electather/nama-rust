@@ -4,7 +4,12 @@ import { notificationLabels } from "@/features/settings/lib/notification-labels"
 import { deviceLabels, signinLabels, userLabels } from "@/features/settings/lib/pane-labels";
 import { playbackLabels } from "@/features/settings/lib/playback-values";
 import { answers, typedWords } from "@/features/settings/lib/search-words";
-import { type Section, type SectionGroup, sectionTitles } from "@/features/settings/lib/sections";
+import {
+  type Section,
+  type SectionGroup,
+  sectionTitles,
+  sectionWords,
+} from "@/features/settings/lib/sections";
 import { serverLabels } from "@/features/settings/lib/server-values";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { homeLabels } from "@/shared/lib/home-layout";
@@ -30,6 +35,8 @@ const builtIn: Record<Section, Record<string, SettingText>> = {
   home: homeLabels,
   requests: {},
   connections: notificationLabels,
+  "now-playing": {},
+  jobs: {},
   server: serverLabels,
   users: userLabels,
   backups: backupLabels,
@@ -63,7 +70,7 @@ function inSection(section: Section, user: User | undefined, serverDefined: Find
     .filter(([, text]) => text.needs === undefined || may(user, text.needs))
     .map(([key, text]): Findable => ({ section, key, text }));
   return [
-    { section, text: { label: sectionTitles[section] } },
+    { section, text: { label: sectionTitles[section], words: sectionWords[section] ?? "" } },
     ...builtInShown,
     ...serverDefined.filter((findable) => findable.section === section),
   ];

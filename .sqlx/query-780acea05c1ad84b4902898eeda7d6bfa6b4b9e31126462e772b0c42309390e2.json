@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT box_set FROM title_details\n             WHERE plugin = ? AND kind = 'movie' AND namespace = ? AND value = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "box_set",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_details",
+            "name": "box_set"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "780acea05c1ad84b4902898eeda7d6bfa6b4b9e31126462e772b0c42309390e2"
+}

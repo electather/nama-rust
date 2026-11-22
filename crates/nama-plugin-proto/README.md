@@ -110,6 +110,7 @@ The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move
   `HomeRowService` 1.5.0: the Kernel keeps the first 20 rows of a `shared_rows` or `user_rows` answer rather than 3 (ADR 0091). A Plugin built before still works, and one that answers more than 3 rows now shows up to 20.
   `CONTRACT_VERSION` 0.6.8: `list_watchlist` answers the Watchlist newest added first. A Plugin built before gets the same titles, now in that order.
   `CONTRACT_VERSION` 0.6.9: `Title` adds `ids`, every id of the Movie or Episode, and `show_ids`, every id of an Episode's Show, so a Plugin can match a title listed under one id to the same title named by another. A Plugin built before skips them.
+  `TitleSourceService` 1.9.0 adds `box_set` to `Movie`, with `BoxSet`: the Box Set the Movie belongs to, its id, name, overview, Poster, Backdrop and its Movies' ids in release order, empty where the source doesn't list them. A Plugin built before gives none.
 
 - **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`. `NotifierService` 1.1.0 adds `UserRecipient`, and the Manifest adds `personal_settings`.
 

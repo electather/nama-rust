@@ -1,12 +1,14 @@
 import { Link } from "@tanstack/react-router";
 import {
   Bell,
+  CalendarClock,
   Cpu,
   DatabaseBackup,
   Film,
   HardDrive,
   House,
   type LucideIcon,
+  MonitorPlay,
   Puzzle,
   Rows3,
   Shield,
@@ -25,6 +27,8 @@ const icons: Record<Section, LucideIcon> = {
   home: House,
   requests: Film,
   connections: Bell,
+  "now-playing": MonitorPlay,
+  jobs: CalendarClock,
   server: HardDrive,
   users: Users,
   "default-home": Rows3,

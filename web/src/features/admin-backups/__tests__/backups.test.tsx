@@ -92,6 +92,7 @@ function upkeepServer(backups: Backup[], lastRun?: JobRun) {
         listJobs: () => ({
           jobs: [{ pluginId: "upkeep", id: "back-up", name: "Back up", enabled: true, lastRun }],
         }),
+        listJobRuns: () => ({}),
       });
     },
   );
@@ -137,6 +138,15 @@ describe("backup status and restoring", () => {
     await expect(screen.findByText("The Server doesn’t back itself up")).resolves.toBeDefined();
     expect(screen.getByRole("link", { name: "Enable Upkeep" })).toBeDefined();
     expect(screen.queryByRole("button", { name: "Back up now" })).toBeNull();
+  });
+
+  test("the Back up Job's Change link opens it in Settings' Jobs section", async () => {
+    const router = openSettings("backups", upkeepServer([]));
+
+    fireEvent.click(await screen.findByRole("link", { name: "Change" }));
+
+    await expect(screen.findByRole("region", { name: "Back up" })).resolves.toBeDefined();
+    expect(router.state.location.search).toMatchObject({ settings: "jobs", job: "upkeep:back-up" });
   });
 });
 

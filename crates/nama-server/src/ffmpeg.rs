@@ -21,7 +21,6 @@ use std::{
 
 pub(crate) use self::abilities::{Abilities, CanDo};
 use self::finding::{find, not_on_path};
-use self::hardware::Decode;
 pub use self::hardware::{Accel, Gpu, Hardware, find_gpus};
 #[cfg(test)]
 use self::hls::filter_value;
@@ -80,17 +79,6 @@ const TRANSCODE_LATER_BY_MS: i64 = 1000;
 
 /// How long ffmpeg may take to list its filters or encoders.
 const LIST_TIMEOUT: Duration = Duration::from_secs(10);
-
-/// How long a test encode on hardware may take, opening the device included: a second or two
-/// where it works, and the first plan waits for every test.
-const HARDWARE_TEST_TIMEOUT: Duration = Duration::from_secs(10);
-
-/// A second of video a test encode on hardware converts, at 720p as a Transcode might get it.
-const TEST_CLIP: &str = "testsrc2=size=1280x720:rate=24:duration=1";
-
-/// [`TEST_CLIP`] as 10-bit HDR10, for a test tone-map on hardware.
-const TEST_HDR_CLIP: &str = "testsrc2=size=1280x720:rate=24:duration=1,format=yuv420p10le,\
-                             setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc";
 
 /// How long ffmpeg may take to read one subtitle, or a Version's Preview frames, out of a file.
 /// Matroska interleaves a subtitle with the video, so the whole file is read. Raised rather than
@@ -260,140 +248,6 @@ impl Ffmpeg {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     }
 
-    /// The hardware acceleration APIs that ffmpeg lists an encoder for and that pass a test
-    /// encode on each GPU they may run on, as a Transcode would run it, in the order Automatic
-    /// prefers them, each with whether it passes a test tone-map too, or why ffmpeg couldn't list
-    /// its encoders. Takes a few seconds while each opens its GPU.
-    async fn find_hardware(&self) -> Result<Vec<Hardware>, String> {
-        let encoders = self.listed("-encoders").await?;
-        let mut found = vec![];
-        for (accel, gpu) in self.pairs().await {
-            if !encoders.iter().any(|encoder| encoder == accel.encoder()) {
-                continue;
-            }
-            found.extend(self.test_hardware(accel, gpu).await);
-        }
-        Ok(found)
-    }
-
-    /// Each API on each GPU it may run on, in the order Automatic prefers them: NVENC, each GPU's
-    /// in [`Self::gpus`]' order, QSV before VAAPI, then `VideoToolbox`. NVIDIA's GPUs aren't told
-    /// apart, so NVENC runs on its first.
-    async fn pairs(&self) -> Vec<(Accel, Option<Gpu>)> {
-        let mut pairs = vec![(Accel::Nvenc, None)];
-        if self.gpus.is_empty() {
-            pairs.extend([(Accel::Qsv, None), (Accel::Vaapi, None)]);
-        }
-        for gpu in &self.gpus {
-            let gpu = self.named(gpu).await;
-            if gpu.is_intel() {
-                pairs.push((Accel::Qsv, Some(gpu.clone())));
-            }
-            pairs.push((Accel::Vaapi, Some(gpu)));
-        }
-        pairs.push((Accel::VideoToolbox, None));
-        pairs
-    }
-
-    /// `gpu` with the model its driver names when ffmpeg opens it with VAAPI, if it does.
-    #[tracing::instrument(name = "ffmpeg open GPU", skip_all)]
-    async fn named(&self, gpu: &Gpu) -> Gpu {
-        let Ok(ffmpeg) = &self.ffmpeg else {
-            return gpu.clone();
-        };
-        let input = Accel::Vaapi.input(Some(gpu), Decode::ToMemory);
-        // The test encode runs at `-v error`, which leaves out the line naming the driver.
-        let opened = tokio::process::Command::new(&ffmpeg.path)
-            .args(["-v", "verbose", "-nostdin"])
-            .args(input)
-            .args([
-                "-f",
-                "lavfi",
-                "-i",
-                "nullsrc",
-                "-frames:v",
-                "1",
-                "-f",
-                "null",
-                "-",
-            ])
-            .stdin(Stdio::null())
-            .kill_on_drop(true)
-            .output();
-        match tokio::time::timeout(HARDWARE_TEST_TIMEOUT, opened).await {
-            Ok(Ok(output)) => gpu
-                .clone()
-                .with_model(&String::from_utf8_lossy(&output.stderr)),
-            _ => gpu.clone(),
-        }
-    }
-
-    /// `accel` on `gpu`, if it passes a test encode, with whether it passes a test tone-map too.
-    async fn test_hardware(&self, accel: Accel, gpu: Option<Gpu>) -> Option<Hardware> {
-        let mut hardware = Hardware {
-            accel,
-            gpu,
-            tone_maps: false,
-        };
-        let scaled = VideoConversion {
-            hardware: Some(hardware.clone()),
-            tone_map: None,
-            limit: Some(VideoLimit {
-                size: Some((640, 360)),
-                bits_per_second: 1_000_000,
-            }),
-            burn_in: None,
-            in_band_headers: true,
-        };
-        if let Err(err) = self.test_encode(TEST_CLIP, &scaled).await {
-            tracing::info!("{} didn't pass its test encode: {err}", hardware.name());
-            return None;
-        }
-        let tone_mapped = VideoConversion {
-            tone_map: Some(ToneMapper::Hardware),
-            ..scaled
-        };
-        hardware.tone_maps = accel.has_tone_map_filter()
-            && (self.test_encode(TEST_HDR_CLIP, &tone_mapped).await)
-                .inspect_err(|err| {
-                    tracing::info!("{} didn't pass its test tone-map: {err}", hardware.name());
-                })
-                .is_ok();
-        Some(hardware)
-    }
-
-    /// Converts `clip`, a lavfi source, as `video` says, and throws it away, or says why it failed.
-    #[tracing::instrument(name = "ffmpeg test encode", skip_all)]
-    async fn test_encode(&self, clip: &str, video: &VideoConversion) -> Result<(), String> {
-        let ffmpeg = self.ffmpeg.as_ref().map_err(Clone::clone)?;
-        // The clip's path matters only to a subtitle burned in, which a test has none of.
-        let VideoArgs {
-            input,
-            video,
-            codec,
-        } = video_args(clip, video, false);
-        let output = tokio::process::Command::new(&ffmpeg.path)
-            .args(["-v", "error", "-nostdin"])
-            .args(input)
-            .args(["-f", "lavfi", "-i", clip])
-            .args(video)
-            .args(codec)
-            .args(["-force_key_frames", "0", "-f", "null", "-"])
-            .stdin(Stdio::null())
-            .kill_on_drop(true)
-            .output();
-        match tokio::time::timeout(HARDWARE_TEST_TIMEOUT, output).await {
-            Ok(Ok(output)) if output.status.success() => Ok(()),
-            Ok(Ok(output)) => Err(format!(
-                "ffmpeg exited with {}: {}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr).trim()
-            )),
-            Ok(Err(err)) => Err(err.to_string()),
-            Err(_) => Err(format!("it took over {HARDWARE_TEST_TIMEOUT:?}")),
-        }
-    }
-
     /// The run of ffmpeg that copies the first video of the file at `path`, and `remux`'s audio
     /// Track if any, untouched into fMP4 in `dir`, but for converting that audio as `remux`
     /// says, from the keyframe `from` to the end. It writes a file per keyframe of the file, listed
@@ -473,9 +327,9 @@ impl Ffmpeg {
         Ok(hls_output(command, &ffmpeg.version, dir, from.n))
     }
 
-    /// The run of ffmpeg that converts the first video of the file at `path` to 8-bit H.264, and
-    /// its audio Track if any, as `transcode` says, into fMP4 in `dir`, from the cut `from`
-    /// to the end. It cuts a file at each cut, which [`hls_playlist`] lists, and writes an init
+    /// The run of ffmpeg that converts the first video of the file at `path` to 8-bit H.264 or
+    /// 10-bit HEVC, and its audio Track if any, as `transcode` says, into fMP4 in `dir`, from the
+    /// cut `from` to the end. It cuts a file at each cut, which [`hls_playlist`] lists, and writes an init
     /// segment named by [`hls_init`] that's whole once the first file is. A run started at
     /// any cut writes the same files, so one can pick up where another stopped. Each file appears
     /// only once it's whole. Fails without ffmpeg, or if a PGS sidecar it burns in can't be read.

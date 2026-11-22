@@ -281,6 +281,12 @@ pub enum RefusalReason {
     /// none of its own to replace, as it runs only when an Admin starts it. The message says why.
     /// `field` is `schedule`. Params: `schedule`, as sent.
     REFUSAL_REASON_SCHEDULE_INVALID = 95i32,
+    /// `failed_precondition`: no enabled Plugin links the Server to an outside service, such as the
+    /// Hub Plugin, so it can't be Linked or Unlinked.
+    REFUSAL_REASON_NO_SERVER_LINKER = 96i32,
+    /// `not_found`: there is no Box Set with the ID, or none the caller may see. `field` is
+    /// `box_set_id`.
+    REFUSAL_REASON_BOX_SET_NOT_FOUND = 97i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -562,6 +568,12 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_SCHEDULE_INVALID`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ScheduleInvalid: Self = Self::REFUSAL_REASON_SCHEDULE_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_NO_SERVER_LINKER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const NoServerLinker: Self = Self::REFUSAL_REASON_NO_SERVER_LINKER;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_BOX_SET_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const BoxSetNotFound: Self = Self::REFUSAL_REASON_BOX_SET_NOT_FOUND;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -862,6 +874,8 @@ impl ::buffa::Enumeration for RefusalReason {
             93i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_JOB_RUNNING),
             94i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_JOB_NOT_FOUND),
             95i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_SCHEDULE_INVALID),
+            96i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NO_SERVER_LINKER),
+            97i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_BOX_SET_NOT_FOUND),
             _ => ::core::option::Option::None,
         }
     }
@@ -1049,6 +1063,8 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_JOB_RUNNING => "REFUSAL_REASON_JOB_RUNNING",
             Self::REFUSAL_REASON_JOB_NOT_FOUND => "REFUSAL_REASON_JOB_NOT_FOUND",
             Self::REFUSAL_REASON_SCHEDULE_INVALID => "REFUSAL_REASON_SCHEDULE_INVALID",
+            Self::REFUSAL_REASON_NO_SERVER_LINKER => "REFUSAL_REASON_NO_SERVER_LINKER",
+            Self::REFUSAL_REASON_BOX_SET_NOT_FOUND => "REFUSAL_REASON_BOX_SET_NOT_FOUND",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -1358,6 +1374,12 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_SCHEDULE_INVALID" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SCHEDULE_INVALID)
             }
+            "REFUSAL_REASON_NO_SERVER_LINKER" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_NO_SERVER_LINKER)
+            }
+            "REFUSAL_REASON_BOX_SET_NOT_FOUND" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_BOX_SET_NOT_FOUND)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1456,6 +1478,8 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_JOB_RUNNING,
             Self::REFUSAL_REASON_JOB_NOT_FOUND,
             Self::REFUSAL_REASON_SCHEDULE_INVALID,
+            Self::REFUSAL_REASON_NO_SERVER_LINKER,
+            Self::REFUSAL_REASON_BOX_SET_NOT_FOUND,
         ]
     }
 }
