@@ -1,5 +1,8 @@
 //! Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011), the Linked
 //! Server's opaque credential, Unlinking, and the token signed for a Server once it is Linked.
+//! Linking its Users to Accounts is in `users.rs`.
+
+mod users;
 
 use std::{
     fmt::{self, Write as _},
@@ -17,13 +20,15 @@ use crate::{
     signing::Keys,
 };
 
-/// How long a Server's codes work after it starts.
+pub(crate) use self::users::{LinkId, ListedUser};
+
+/// How long a Server's or a User's codes work after it starts.
 pub(crate) const CODE_LIFETIME_MINS: i32 = 10;
 
 /// How long a Server should wait between polls (RFC 8628 suggests 5 seconds).
 pub(crate) const POLL_INTERVAL_SECS: i32 = 5;
 
-/// How many characters of a Server's name are kept.
+/// How many characters of a Server's or a User's name are kept.
 const NAME_LENGTH: usize = 100;
 
 /// The letters a code is made of: consonants only, so a code never spells a word, and none that
@@ -81,12 +86,14 @@ pub(crate) enum Polled {
 /// Why a Link couldn't be made or polled.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
-    #[error("sign in again to Link a Server")]
+    #[error("sign in again to Link")]
     RecentAuthenticationRequired,
-    #[error("prove your email with a Sign-in Link before Linking a Server")]
+    #[error("prove your email with a Sign-in Link before Linking")]
     EmailNotProven,
-    #[error("no Server is waiting on this code")]
+    #[error("nothing is waiting on this code")]
     CodeNotFound,
+    #[error("the User is Linked already; Unlink them first")]
+    UserLinked,
     #[error("the code expired; start Linking again")]
     Expired,
     #[error("could not generate a code: {0}")]
@@ -120,7 +127,7 @@ impl Links {
     /// Starts registering a Server named `name`, forgetting every Server whose codes expired, and
     /// every Linked Server whose codes expired before it collected its credential.
     pub(crate) async fn start(&self, name: &str) -> Result<Started, Error> {
-        let name: String = name.trim().chars().take(NAME_LENGTH).collect();
+        let name = kept_name(name);
         let device_code = random_token()?;
         let user_code = random_code()?;
         let mut tx = self.db.begin().await?;
@@ -144,9 +151,8 @@ impl Links {
         .execute(&mut *tx)
         .await?;
         tx.commit().await?;
-        let (first, second) = user_code.split_at(CODE_LENGTH / 2);
         Ok(Started {
-            user_code: format!("{first}-{second}"),
+            user_code: shown_code(&user_code),
             device_code,
         })
     }
@@ -158,17 +164,8 @@ impl Links {
         session: &AccountSession,
         code: &str,
     ) -> Result<ListedServer, Error> {
-        if !session.email_proven {
-            return Err(Error::EmailNotProven);
-        }
-        if !session.authenticated_recently {
-            return Err(Error::RecentAuthenticationRequired);
-        }
-        let code: String = code
-            .chars()
-            .filter(char::is_ascii_alphabetic)
-            .map(|letter| letter.to_ascii_uppercase())
-            .collect();
+        may_link(session)?;
+        let code = typed_code(code);
         let mut tx = self.db.begin().await?;
         let waiting = sqlx::query!(
             "SELECT id, server_name FROM server_link_codes
@@ -297,6 +294,37 @@ impl Links {
             .await?;
         Ok(())
     }
+}
+
+/// Whether `session` may Link: with a proven email (ADR 0100), checked first since signing in again
+/// can't fix it, then Recent Authentication.
+fn may_link(session: &AccountSession) -> Result<(), Error> {
+    if !session.email_proven {
+        return Err(Error::EmailNotProven);
+    }
+    if !session.authenticated_recently {
+        return Err(Error::RecentAuthenticationRequired);
+    }
+    Ok(())
+}
+
+/// The part of `name` that is kept.
+fn kept_name(name: &str) -> String {
+    name.trim().chars().take(NAME_LENGTH).collect()
+}
+
+/// A code as typed, in any case and with or without its hyphen, as it is stored.
+fn typed_code(code: &str) -> String {
+    code.chars()
+        .filter(char::is_ascii_alphabetic)
+        .map(|letter| letter.to_ascii_uppercase())
+        .collect()
+}
+
+/// A code as stored, as it is shown, such as `BDFH-JKLM`.
+fn shown_code(code: &str) -> String {
+    let (first, second) = code.split_at(CODE_LENGTH / 2);
+    format!("{first}-{second}")
 }
 
 /// 32 random bytes in hex, for a device code or a credential.

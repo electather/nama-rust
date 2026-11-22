@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT user_links.id, user_links.user_name, linked_servers.name AS server_name,\n             extract(epoch FROM user_links.created_at)::bigint AS \"linked_at!\"\n             FROM user_links JOIN linked_servers ON linked_servers.id = user_links.linked_server_id\n             WHERE user_links.account_id = $1 ORDER BY user_links.created_at, user_links.id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "user_links",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "user_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "user_links",
+            "name": "user_name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "server_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "linked_servers",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "linked_at!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "79f1e443b832098b2ff97e7bc2da15627ef3fb16078a6f22e21c9af18dae6aa8"
+}
