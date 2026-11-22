@@ -340,29 +340,29 @@ jobs:
       - run: rm -rf target/nextest
       - uses: taiki-e/install-action@nextest
       # Tests make the media they probe with ffmpeg and probe it with ffprobe
-      # (crates/nama-server/README.md, "ffmpeg").
-      # On Linux setup-ffmpeg reads the version from johnvansickle.com, which at times answers
-      # runners without one and fails the step. BtbN's static builds are on GitHub Releases.
-      - if: runner.os == 'Linux'
+      # (crates/nama-server/README.md, "ffmpeg"). On Linux and macOS it's jellyfin-ffmpeg's
+      # portable build, the Docker image's ffmpeg, whose `tonemapx` alone converts Dolby Vision 5
+      # (ADR 0102). Its folder is found by its `ffmpeg`, wherever the tarball puts it.
+      - if: runner.os != 'Windows'
         env:
           GH_TOKEN: ${{ github.token }}
-          BUILD: ffmpeg-n8.1-latest-linux64-gpl-8.1
+          TAG: v8.1.3-2
+          BUILD: ${{ runner.os == 'macOS' && 'macarm64' || 'linux64' }}
         run: |
-          gh release download latest -R BtbN/FFmpeg-Builds -p "$BUILD.tar.xz" -O - \
-            | tar -xJ -C "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/$BUILD/bin" >> "$GITHUB_PATH"
+          mkdir "$RUNNER_TEMP/jellyfin-ffmpeg"
+          gh release download "$TAG" -R jellyfin/jellyfin-ffmpeg -p "*_portable_$BUILD-gpl.tar.xz" -O - \
+            | tar -xJ -C "$RUNNER_TEMP/jellyfin-ffmpeg"
+          dirname "$(find "$RUNNER_TEMP/jellyfin-ffmpeg" -name ffmpeg -type f)" >> "$GITHUB_PATH"
       - if: runner.os == 'Windows'
         uses: FedericoCarboni/setup-ffmpeg@37062fbf7149fc5578d6c57e08aed62458b375d6 # v3.1
-      # setup-ffmpeg has no macOS build for arm64, which `macos-latest` is.
-      # Homebrew's `ffmpeg` has no zscale, which the tests need (crates/nama-server/README.md,
-      # "ffmpeg"), so this installs the keg-only `ffmpeg-full`.
-      - if: runner.os == 'macOS'
+      # The test of converting Dolby Vision 5 skips itself without `tonemapx`, and PRs don't test
+      # on macOS, so a wrong install fails here, not as tests passing or failing on main.
+      - if: runner.os != 'Windows'
         run: |
-          brew install ffmpeg-full
-          echo "$(brew --prefix ffmpeg-full)/bin" >> "$GITHUB_PATH"
-      # PRs don't test on macOS, so a wrong install should fail here on main, not as test failures.
-      - if: runner.os == 'macOS'
-        run: ffmpeg -hide_banner -filters | grep -w zscale
+          ffmpeg -hide_banner -filters | grep -w zscale
+          ffmpeg -hide_banner -h filter=tonemapx | grep -w apply_dovi
+          ffmpeg -hide_banner -encoders | grep -w libx264
+          ffmpeg -hide_banner -encoders | grep -w libx265
       # The tests that load the test Plugin build it themselves into `CARGO_TARGET_TMPDIR`'s
       # `test-plugin` (crates/nama-server/tests/support/test_plugin.rs). Its dependencies take over
       # a minute to build in release on a runner, and the first test to need them would pay that

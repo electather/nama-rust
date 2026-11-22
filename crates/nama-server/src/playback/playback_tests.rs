@@ -49,6 +49,12 @@ pub(super) const fn dolby_vision_8(base_layer: Option<BaseLayer>) -> Hdr {
     }
 }
 
+/// Dolby Vision profile 5, which has no Base Layer.
+pub(super) const DOLBY_VISION_5: Hdr = Hdr::DolbyVision {
+    profile: 5,
+    base_layer: None,
+};
+
 /// How the video among `tracks` is HDR.
 pub(super) fn video_hdr(tracks: &[Track]) -> Option<Hdr> {
     tracks.iter().find_map(|track| match track.kind {
@@ -94,6 +100,7 @@ pub(super) fn firefox() -> DeviceDecoding {
             AudioCodec::AUDIO_CODEC_FLAC,
         ],
         hdr: false,
+        dolby_vision_profiles: vec![],
         h264_10bit: false,
         hevc_10bit: false,
         hls: true,
@@ -121,6 +128,7 @@ pub(super) fn in_container(container: &str, tracks: Option<Vec<Track>>) -> Facts
         can_do: CanDo {
             runs: true,
             zscale: true,
+            tonemapx: false,
             libx264: true,
             hardware: vec![],
             gpus: vec![],
@@ -169,7 +177,7 @@ pub(super) fn remuxing(track: usize, converted: Option<(AudioEncoder, i64)>) -> 
                 conversion: converted
                     .map(|(encoder, channels)| AudioConversion { encoder, channels }),
             }),
-            hevc: false,
+            video_tag: None,
         },
         duration_ms: LENGTH_MS,
     }
@@ -440,14 +448,11 @@ pub(super) fn without_ffmpeg(facts: &mut Facts) {
 
 /// A Dolby Vision profile 5 picture, which this Device shows, in place of the video.
 fn in_dolby_vision_5(facts: &mut Facts) {
-    let profile_5 = Hdr::DolbyVision {
-        profile: 5,
-        base_layer: None,
-    };
     if let Some(probe) = &mut facts.probe {
-        probe.tracks[0] = hdr_video("h264", Some(profile_5));
+        probe.tracks[0] = hdr_video("h264", Some(DOLBY_VISION_5));
     }
     facts.device.hdr = true;
+    facts.device.dolby_vision_profiles = vec![5];
 }
 
 fn after_a_failed_transcode(facts: &mut Facts) {

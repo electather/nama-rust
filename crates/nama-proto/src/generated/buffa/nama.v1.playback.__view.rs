@@ -8552,7 +8552,7 @@ pub struct DeviceDecodingView<'a> {
     /// Whether it decodes 10-bit HEVC (Main 10), which a Transcode of a 4K or HDR Version makes when
     /// it does and the Server's hardware encodes it.
     ///
-    /// Field 12: `hevc_10bit`
+    /// Field 13: `hevc_10bit`
     pub hevc_10bit: bool,
     /// Whether it plays HLS without a script's help.
     ///
@@ -8579,6 +8579,11 @@ pub struct DeviceDecodingView<'a> {
     ///
     /// Field 11: `evidence`
     pub evidence: ::buffa::EnumValue<super::super::DecodingEvidence>,
+    /// The Dolby Vision profiles it shows, such as 5 and 8. Direct Play and Remux of a Dolby Vision
+    /// Track with no Base Layer need its profile here.
+    ///
+    /// Field 12: `dolby_vision_profiles`
+    pub dolby_vision_profiles: ::buffa::RepeatedView<'a, i32>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
@@ -8625,7 +8630,7 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
                 )?;
                 view.h264_10bit = ::buffa::types::decode_bool(&mut cur)?;
             }
-            12u32 => {
+            13u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::Varint,
@@ -8779,6 +8784,26 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
                     );
                 }
             }
+            12u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    ::buffa::types::extend_packed_int32(
+                        payload,
+                        view.dolby_vision_profiles.as_mut_vec(),
+                        ::buffa::encoding::count_varints(payload),
+                    )?;
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.dolby_vision_profiles
+                        .push(::buffa::types::decode_int32(&mut cur)?);
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -8812,6 +8837,7 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
             audio_channels: self.audio_channels,
             subtitle_formats: self.subtitle_formats.to_vec(),
             evidence: self.evidence,
+            dolby_vision_profiles: self.dolby_vision_profiles.to_vec(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -8876,6 +8902,14 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
             if val != 0 {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
+        }
+        if !self.dolby_vision_profiles.is_empty() {
+            let payload: u64 = self
+                .dolby_vision_profiles
+                .iter()
+                .map(|&v| ::buffa::types::int32_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
         if self.hevc_10bit {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
@@ -8956,8 +8990,19 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
                 ::buffa::types::put_int32_field(11u32, val, buf);
             }
         }
+        if !self.dolby_vision_profiles.is_empty() {
+            let payload: u64 = self
+                .dolby_vision_profiles
+                .iter()
+                .map(|&v| ::buffa::types::int32_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(12u32, payload, buf);
+            for &v in &self.dolby_vision_profiles {
+                ::buffa::types::encode_int32(v, buf);
+            }
+        }
         if self.hevc_10bit {
-            ::buffa::types::put_bool_field(12u32, self.hevc_10bit, buf);
+            ::buffa::types::put_bool_field(13u32, self.hevc_10bit, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -9032,6 +9077,13 @@ impl<'__a> ::serde::Serialize for DeviceDecodingView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.evidence) {
             __map.serialize_entry("evidence", &self.evidence)?;
+        }
+        if !self.dolby_vision_profiles.is_empty() {
+            __map
+                .serialize_entry(
+                    "dolbyVisionProfiles",
+                    &::buffa::json_helpers::RepeatedJson(&self.dolby_vision_profiles),
+                )?;
         }
         __map.end()
     }
@@ -9170,7 +9222,7 @@ impl DeviceDecodingOwnedView {
     /// Whether it decodes 10-bit HEVC (Main 10), which a Transcode of a 4K or HDR Version makes when
     /// it does and the Server's hardware encodes it.
     ///
-    /// Field 12: `hevc_10bit`
+    /// Field 13: `hevc_10bit`
     #[must_use]
     pub fn hevc_10bit(&self) -> bool {
         self.0.reborrow().hevc_10bit
@@ -9213,6 +9265,14 @@ impl DeviceDecodingOwnedView {
     #[must_use]
     pub fn evidence(&self) -> ::buffa::EnumValue<super::super::DecodingEvidence> {
         self.0.reborrow().evidence
+    }
+    /// The Dolby Vision profiles it shows, such as 5 and 8. Direct Play and Remux of a Dolby Vision
+    /// Track with no Base Layer need its profile here.
+    ///
+    /// Field 12: `dolby_vision_profiles`
+    #[must_use]
+    pub fn dolby_vision_profiles(&self) -> &::buffa::RepeatedView<'_, i32> {
+        &self.0.reborrow().dolby_vision_profiles
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<DeviceDecodingView<'static>>>

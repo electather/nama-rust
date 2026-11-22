@@ -1,6 +1,6 @@
 # Dolby Vision 5 converts through jellyfin-ffmpeg's tonemapx
 
-A Dolby Vision 5 Track has no Base Layer, so only its RPU turns the picture into colours any other player can show. The Server Transcodes it with `tonemapx=tonemap=bt2390:peak=100:apply_dovi=1` on frames decoded in software, a filter only jellyfin-ffmpeg has. The Server finds it by `ffmpeg -h filter=tonemapx` listing `apply_dovi`. Without it, a Dolby Vision 5 Version is still refused a Transcode (`DOLBY_VISION_NEEDS_BASE_LAYER`), as ADR 0026 has the Server use whatever ffmpeg the admin's system has. Both CI test jobs run jellyfin-ffmpeg's portable builds, so CI tests the ffmpeg the Docker image ships (#1415, `docs/research/silo-comparison.md` §4).
+A Dolby Vision 5 Track has no Base Layer, so only its RPU turns the picture into colours any other player can show. The Server Transcodes it with `tonemapx=tonemap=bt2390:peak=100:apply_dovi=1` on frames decoded in software, a filter only jellyfin-ffmpeg has. The Server finds it by `ffmpeg -h filter=tonemapx` listing `apply_dovi`. Without it, a Dolby Vision 5 Version is still refused a Transcode (`DOLBY_VISION_NEEDS_BASE_LAYER`), as [ADR 0026](0026-ffmpeg-comes-from-the-system-not-the-release.md) has the Server use whatever ffmpeg the admin's system has. Both CI test jobs run jellyfin-ffmpeg's portable builds, so CI tests the ffmpeg the Docker image ships (#1415, `docs/research/silo-comparison.md` §4).
 
 ## Considered Options
 

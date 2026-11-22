@@ -3,8 +3,8 @@ use crate::ffmpeg::{Accel, ToneMapper, VideoConversion, VideoLimit};
 
 /// What a Transcode on `accel`, tone-mapping with `tone_map`, starts ffmpeg with up to the
 /// keyframes it forces, which the software tests pin from there on, as words split at spaces.
-/// `None` for tone-mapping on the GPU of an API with no filter for it, which the plan never
-/// asks for: only an API with one can pass its tone-map test at startup.
+/// `None` for what it doesn't pin: tone-mapping on the GPU of an API with no filter for it, which
+/// the plan never asks for, as only an API with one can pass its tone-map test at startup.
 fn pinned_hardware_args(accel: Accel, tone_map: Option<ToneMapper>) -> Option<String> {
     const IN_BAND_HEADERS: &str = "-bsf:v dump_extra=freq=keyframe -tag:v avc3";
     let args = match (accel, tone_map) {
@@ -77,7 +77,7 @@ fn pinned_hardware_args(accel: Accel, tone_map: Option<ToneMapper>) -> Option<St
              -vf {ZSCALE_TONE_MAP},format=nv12 \
              -c:v h264_videotoolbox -g 10000000 {IN_BAND_HEADERS}"
         ),
-        (Accel::Nvenc | Accel::VideoToolbox, Some(ToneMapper::Hardware)) => return None,
+        _ => return None,
     };
     Some(args)
 }

@@ -3,13 +3,13 @@ use std::collections::BTreeSet;
 use nama_proto::nama::v1::{AudioCodec, PlaybackReasonKind as Kind, VideoCodec};
 
 use crate::{
-    ffmpeg::{Accel, Hardware},
+    ffmpeg::{Accel, Hardware, ToneMapper, VideoTag},
     playback::{
-        DeviceDecoding, Facts, Method, Plan, build,
+        DeviceDecoding, Facts, Method, Plan, Playing, build,
         tests::{
-            Given, MKV, MP4, audio, audio_with, decided, dolby_vision_8, facts, falls_back_to,
-            firefox, given, hdr_video, in_container, kind_and_params, kinds, reason_of, remuxing,
-            subtitle, track, transcoded, video, video_hdr,
+            DOLBY_VISION_5, Given, MKV, MP4, audio, audio_with, decided, dolby_vision_8, facts,
+            falls_back_to, firefox, given, hdr_video, in_container, kind_and_params, kinds,
+            reason_of, remuxing, subtitle, track, transcoded, video, video_hdr,
         },
         tracks::{BaseLayer, Hdr, Track, TrackKind},
     },
@@ -390,6 +390,120 @@ fn dolby_vision_without_a_base_layer_isnt_transcoded_so_a_device_that_cant_decod
         ]
     );
     assert_eq!(decided(&plan), [true, true, true]);
+}
+
+/// Dolby Vision profile 5 in HEVC in `container`, for an HDR Device that decodes HEVC and shows
+/// the profiles `shown`.
+fn dolby_vision_5_for(container: &str, shown: Vec<i32>) -> Facts {
+    let mut facts = in_container(
+        container,
+        Some(vec![hdr_video("hevc", Some(DOLBY_VISION_5))]),
+    );
+    facts.device.video_codecs.push(VideoCodec::VIDEO_CODEC_HEVC);
+    facts.device.hdr = true;
+    facts.device.dolby_vision_profiles = shown;
+    facts
+}
+
+#[test]
+fn an_hdr_device_not_showing_dolby_vision_5_isnt_sent_it_by_direct_play_or_remux() {
+    let mut facts = dolby_vision_5_for(MP4, vec![8]);
+
+    let plan = build(&mut facts);
+
+    assert_ne!(plan.method(), Some(Method::DirectPlay));
+    assert_ne!(plan.method(), Some(Method::Remux));
+    let unshown = reason_of(
+        &plan,
+        Kind::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_DOLBY_VISION,
+    );
+    assert_eq!(kind_and_params(unshown).1, [("profile", "5")]);
+    assert!(unshown.decided);
+}
+
+#[test]
+fn a_device_showing_dolby_vision_5_direct_plays_it() {
+    let mut facts = dolby_vision_5_for(MP4, vec![5]);
+
+    let plan = build(&mut facts);
+
+    assert_eq!(plan.method(), Some(Method::DirectPlay));
+}
+
+#[test]
+fn a_device_showing_dolby_vision_5_is_sent_it_remuxed_from_mkv_as_dvh1() {
+    let mut facts = dolby_vision_5_for(MKV, vec![5]);
+
+    let plan = build(&mut facts);
+
+    let Some(Playing::Remux { remux, .. }) = plan.playing else {
+        panic!("{:?} isn't a Remux", plan.playing);
+    };
+    assert_eq!(remux.video_tag, Some(VideoTag::Dvh1));
+}
+
+/// Dolby Vision profile 5 for Firefox, which neither decodes HEVC nor shows HDR, on a Server
+/// whose ffmpeg has `tonemapx`.
+fn dolby_vision_5_with_tonemapx() -> Facts {
+    let mut facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(DOLBY_VISION_5))]));
+    facts.can_do.tonemapx = true;
+    facts
+}
+
+const RESHAPED: Option<ToneMapper> = Some(ToneMapper::Tonemapx { dolby_vision: true });
+
+#[test]
+fn with_tonemapx_dolby_vision_5_transcodes_to_sdr_reshaped_by_its_rpu_and_says_so() {
+    let mut facts = dolby_vision_5_with_tonemapx();
+
+    let plan = build(&mut facts);
+
+    assert_eq!(transcoded(&plan).video.tone_map, RESHAPED);
+    assert_eq!(video_hdr(&plan.tracks), None);
+    let tone_mapped = reason_of(&plan, Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED);
+    assert_eq!(
+        kind_and_params(tone_mapped).1,
+        [("hdrFormat", "HDR_FORMAT_DOLBY_VISION")]
+    );
+    assert!(!kinds(&plan).contains(&Kind::PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER));
+}
+
+#[test]
+fn with_tonemapx_a_dolby_vision_5_transcode_on_a_gpu_that_tone_maps_reshapes_in_software() {
+    let mut facts = dolby_vision_5_with_tonemapx();
+    let qsv = Hardware {
+        accel: Accel::Qsv,
+        gpu: None,
+        tone_maps: true,
+        hevc: false,
+    };
+    facts.can_do.hardware = vec![qsv.clone()];
+
+    let plan = build(&mut facts);
+
+    let video = transcoded(&plan).video;
+    assert_eq!((video.hardware, video.tone_map), (Some(qsv), RESHAPED));
+    let fallback = falls_back_to(&plan).unwrap().transcode.video;
+    assert_eq!((fallback.hardware, fallback.tone_map), (None, RESHAPED));
+}
+
+#[test]
+fn with_tonemapx_hdr10_and_hlg_tone_map_through_it_without_reshaping() {
+    for hdr in [Hdr::Hdr10, Hdr::Hlg] {
+        let mut facts = in_container(MP4, Some(vec![hdr_video("hevc", Some(hdr))]));
+        facts.can_do.tonemapx = true;
+
+        let plan = build(&mut facts);
+
+        let tone_map = transcoded(&plan).video.tone_map;
+        assert_eq!(
+            tone_map,
+            Some(ToneMapper::Tonemapx {
+                dolby_vision: false
+            }),
+            "{hdr:?}"
+        );
+    }
 }
 
 #[test]

@@ -5,7 +5,7 @@ use encoding_rs::{WINDOWS_1252, WINDOWS_1256};
 use super::{
     Accel, AudioConversion, AudioEncoder, BurnIn, FRENCH_SRT, Ffmpeg, FoundProgram, FromCut,
     Hardware, HlsRun, ImageSubtitle, Keyframe, PERSIAN_SRT, Remux, RemuxAudio, TextSubtitle,
-    ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit, sidecar_charset,
+    ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit, VideoTag, sidecar_charset,
 };
 
 /// An ffmpeg at `version` that isn't on this machine, which building arguments never runs.
@@ -37,7 +37,7 @@ const fn converted(encoder: AudioEncoder, channels: i64) -> AudioConversion {
 const ENCODERS: [AudioEncoder; 3] = [AudioEncoder::Aac, AudioEncoder::Ac3, AudioEncoder::Eac3];
 
 /// A Transcode's video converted in software, with nothing else asked of it.
-const SOFTWARE: VideoConversion = VideoConversion {
+pub(super) const SOFTWARE: VideoConversion = VideoConversion {
     hardware: None,
     tone_map: None,
     limit: None,
@@ -67,7 +67,7 @@ fn remux_args_starting_at(remux: Remux, from: Keyframe, file_start_ms: i64) -> V
 
 /// The arguments for a run of a silent Transcode of `alien.mkv` whose video `video` converts,
 /// from its first cut of three, with ffmpeg 7.1.1.
-fn transcode_args(video: VideoConversion) -> Vec<String> {
+pub(super) fn transcode_args(video: VideoConversion) -> Vec<String> {
     let transcode = Transcode { audio: None, video };
     let from = FromCut {
         n: 0,
@@ -78,7 +78,7 @@ fn transcode_args(video: VideoConversion) -> Vec<String> {
 }
 
 /// What `args` gives the first `option`, if anything.
-fn value_of<'a>(args: &'a [String], option: &str) -> Option<&'a str> {
+pub(super) fn value_of<'a>(args: &'a [String], option: &str) -> Option<&'a str> {
     let at = args.iter().position(|arg| arg == option)?;
     args.get(at + 1).map(String::as_str)
 }
@@ -105,7 +105,7 @@ fn a_remux_copies_the_video_and_converts_the_audio_from_its_keyframe_on() {
             track: 1,
             conversion: Some(converted(AudioEncoder::Aac, 2)),
         }),
-        hevc: false,
+        video_tag: None,
     };
 
     let args = remux_args(remux, keyframe(3, 6000, Some(4000)));
@@ -231,7 +231,7 @@ fn a_transcode_converts_the_video_and_audio_from_its_cut_on() {
 fn an_hevc_remux_tags_its_copied_video_hvc1() {
     let hevc = Remux {
         audio: None,
-        hevc: true,
+        video_tag: Some(VideoTag::Hvc1),
     };
 
     let args = remux_args(hevc, keyframe(0, 0, None));
@@ -247,7 +247,7 @@ fn a_remux_without_audio_seeks_halfway_back_to_the_keyframe_before_and_at_most_h
         input_seek(&remux_args(
             Remux {
                 audio: None,
-                hevc: false,
+                video_tag: None,
             },
             from,
         ))
@@ -276,7 +276,7 @@ fn a_remux_past_the_first_keyframe_starts_its_audio_at_the_keyframes_decode_time
             track: 0,
             conversion,
         }),
-        hevc: false,
+        video_tag: None,
     };
     let third = keyframe(3, 6000, Some(4000));
 
@@ -284,7 +284,7 @@ fn a_remux_past_the_first_keyframe_starts_its_audio_at_the_keyframes_decode_time
     let silent = remux_args(
         Remux {
             audio: None,
-            hevc: false,
+            video_tag: None,
         },
         third,
     );
@@ -310,11 +310,11 @@ fn a_remux_of_a_file_starting_late_seeks_by_the_files_own_times_only_to_cut_copi
             track: 0,
             conversion,
         }),
-        hevc: false,
+        video_tag: None,
     };
     let silent = Remux {
         audio: None,
-        hevc: false,
+        video_tag: None,
     };
     let third = keyframe(3, 6000, Some(4000));
     let late = |remux| remux_args_starting_at(remux, third, 1477);
@@ -340,7 +340,7 @@ fn a_remux_from_the_first_keyframe_keeps_the_audio_from_the_files_start() {
             track: 0,
             conversion: None,
         }),
-        hevc: false,
+        video_tag: None,
     };
 
     let args = remux_args(remux, keyframe(0, 0, None));
@@ -362,13 +362,13 @@ fn hdr_is_tone_mapped_to_sdr_in_software_with_zscale() {
 }
 
 /// A playback limit of 720p at 4 Mb/s.
-const LIMIT_720P: Option<VideoLimit> = Some(VideoLimit {
+pub(super) const LIMIT_720P: Option<VideoLimit> = Some(VideoLimit {
     size: Some((1280, 720)),
     bits_per_second: 4_000_000,
 });
 
 #[test]
-fn a_limited_tone_map_with_nothing_burned_in_scales_down_first() {
+fn a_limited_tone_map_with_nothing_burned_in_scales_down_once_tagged() {
     let tone_mapped = VideoConversion {
         tone_map: Some(ToneMapper::Software),
         limit: LIMIT_720P,
@@ -382,7 +382,7 @@ fn a_limited_tone_map_with_nothing_burned_in_scales_down_first() {
     let args = transcode_args(tone_mapped);
     let vaapi_args = transcode_args(on_vaapi);
 
-    let scaled_first = format!("scale=1280:720,{ZSCALE_TONE_MAP}");
+    let scaled_first = ZSCALE_TONE_MAP.replacen(',', ",scale=1280:720,", 1);
     assert_eq!(value_of(&args, "-vf"), Some(scaled_first.as_str()));
     let uploaded_last = format!("{scaled_first},format=nv12,hwupload");
     assert_eq!(value_of(&vaapi_args, "-vf"), Some(uploaded_last.as_str()));
@@ -587,7 +587,7 @@ fn audio_is_converted_to_its_codec_with_its_channels_or_else_copied() {
             track: 0,
             conversion,
         }),
-        hevc: false,
+        video_tag: None,
     };
     let first = keyframe(0, 0, None);
 
@@ -611,7 +611,7 @@ fn a_transcode_forces_a_keyframe_at_each_cut_from_its_first() {
 }
 
 /// `accel` on the GPU ffmpeg picks.
-const fn on_default_gpu(accel: Accel) -> Hardware {
+pub(super) const fn on_default_gpu(accel: Accel) -> Hardware {
     Hardware {
         accel,
         gpu: None,
@@ -625,7 +625,7 @@ fn ffmpeg_before_5_0_is_given_segment_options_by_their_old_name() {
     let segment_options = |version| {
         let silent = Remux {
             audio: None,
-            hevc: false,
+            video_tag: None,
         };
         let run = ffmpeg(version).remux("alien.mkv", &silent, &plan(), keyframe(0, 0, None), 0);
         let args = args(&run.unwrap());

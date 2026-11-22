@@ -213,6 +213,17 @@ fn mesa_model(log: &str) -> Option<String> {
     Some(model.rsplit_once(" (")?.0.to_owned())
 }
 
+/// Where a Transcode on hardware decodes its video.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Decode {
+    /// On the GPU, keeping the frames there for its filters.
+    OnGpu,
+    /// On the GPU, taking the frames to memory for filters in software.
+    ToMemory,
+    /// In software, so the GPU only encodes.
+    InSoftware,
+}
+
 /// What ffmpeg names the device it opens for a Transcode, so its filters can use it.
 const DEVICE: &str = "nama";
 
@@ -289,14 +300,14 @@ impl Accel {
             .is_some_and(|filters| filters.tone_map.is_some())
     }
 
-    /// The arguments before `-i` that open `gpu`, or ffmpeg's default without one, and decode on
-    /// it, keeping the frames on it if `on_gpu`. A codec it can't decode is decoded in software
-    /// instead.
-    pub(super) fn input(self, gpu: Option<&Gpu>, on_gpu: bool) -> Vec<String> {
+    /// The arguments before `-i` that open `gpu`, or ffmpeg's default without one, and decode
+    /// as `decode` says. A codec it can't decode is decoded in software instead.
+    pub(super) fn input(self, gpu: Option<&Gpu>, decode: Decode) -> Vec<String> {
         let device = match self {
             Self::Nvenc => "cuda",
             Self::Qsv => "qsv",
             Self::Vaapi => "vaapi",
+            Self::VideoToolbox if decode == Decode::InSoftware => return vec![],
             Self::VideoToolbox => return args(&["-hwaccel", "videotoolbox"]),
         };
         let mut input = match gpu.map(|gpu| gpu.node.display()) {
@@ -310,15 +321,12 @@ impl Accel {
             ]),
             Some(node) => args(&["-init_hw_device", &format!("{device}={DEVICE}:{node}")]),
         };
-        input.extend(args(&[
-            "-filter_hw_device",
-            DEVICE,
-            "-hwaccel",
-            device,
-            "-hwaccel_device",
-            DEVICE,
-        ]));
-        if let Some(filters) = self.filters().filter(|_| on_gpu) {
+        input.extend(args(&["-filter_hw_device", DEVICE]));
+        if decode == Decode::InSoftware {
+            return input;
+        }
+        input.extend(args(&["-hwaccel", device, "-hwaccel_device", DEVICE]));
+        if let Some(filters) = self.filters().filter(|_| decode == Decode::OnGpu) {
             input.extend(args(&["-hwaccel_output_format", filters.frames]));
         }
         input
@@ -447,7 +455,7 @@ impl Ffmpeg {
         let Ok(ffmpeg) = &self.ffmpeg else {
             return gpu.clone();
         };
-        let input = Accel::Vaapi.input(Some(gpu), false);
+        let input = Accel::Vaapi.input(Some(gpu), Decode::ToMemory);
         // The test encode runs at `-v error`, which leaves out the line naming the driver.
         let opened = tokio::process::Command::new(&ffmpeg.path)
             .args(["-v", "verbose", "-nostdin"])

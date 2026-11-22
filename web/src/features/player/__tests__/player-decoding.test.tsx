@@ -137,3 +137,26 @@ test("with native HLS, only files are asked about and MSE's refusals don't count
   expect(decoding?.h26410bit).toBe(true);
   expect(new Set(types)).toStrictEqual(new Set(["file"]));
 });
+
+/** A `canPlayType` sure of `type` alone, and saying "maybe" of the rest, as Chrome does of MP4. */
+function sureOnlyOf(type: string) {
+  return (asked: string): CanPlayTypeResult => (asked === type ? "probably" : "maybe");
+}
+
+test.each([
+  { probably: 'video/mp4; codecs="dvh1.05.06"', profiles: [5] },
+  { probably: 'video/mp4; codecs="dvh1.08.06"', profiles: [8] },
+  { probably: "nothing", profiles: [] },
+])(
+  "the plan request lists Dolby Vision profiles $profiles when canPlayType is sure only of $probably",
+  async ({ probably, profiles }) => {
+    vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockImplementation(sureOnlyOf(probably));
+    const asked: PlanPlaybackRequest[] = [];
+    openApp("/libraries/1/movies/tmdb-603/play", serverAsked(asked));
+
+    await screen.findByLabelText("The Matrix");
+
+    const [decoding] = asked.map((request) => request.deviceDecoding);
+    expect(decoding?.dolbyVisionProfiles).toStrictEqual(profiles);
+  },
+);

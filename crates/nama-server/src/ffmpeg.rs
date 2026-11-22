@@ -26,8 +26,8 @@ pub use self::hardware::{Accel, Gpu, Hardware, find_gpus};
 use self::hls::filter_value;
 pub(crate) use self::hls::{
     AudioConversion, AudioEncoder, BurnIn, FromCut, HlsRun, ImageSubtitle, Remux, RemuxAudio,
-    TextSubtitle, ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit, hls_init,
-    hls_playlist, hls_run_from,
+    TextSubtitle, ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit, VideoTag,
+    hls_init, hls_playlist, hls_run_from,
 };
 use self::hls::{
     VideoArgs, convert_audio, hls_output, map_audio, pgs_start_ms, seconds, video_args,
@@ -197,6 +197,17 @@ impl Ffmpeg {
             .contains(&"zscale".to_owned()))
     }
 
+    /// Whether ffmpeg has jellyfin-ffmpeg's `tonemapx` filter with its `apply_dovi` option, which
+    /// [`Self::transcode`] tone-maps and converts Dolby Vision with (ADR 0102), or why ffmpeg
+    /// couldn't say.
+    async fn has_tonemapx(&self) -> Result<bool, String> {
+        // Upstream's ffmpeg prints "Unknown filter 'tonemapx'." and exits 0.
+        Ok(self
+            .printed(&["-h", "filter=tonemapx"])
+            .await?
+            .contains("apply_dovi"))
+    }
+
     /// Whether ffmpeg has the libx264 encoder, which [`Self::transcode`] encodes with in software
     /// and a system ffmpeg may lack (ADR 0026), or why ffmpeg couldn't say.
     async fn has_libx264(&self) -> Result<bool, String> {
@@ -208,26 +219,33 @@ impl Ffmpeg {
 
     /// The names `ffmpeg -hide_banner <list>` lists, such as its filters for `-filters`, or why it
     /// couldn't say. Empty without ffmpeg.
-    #[tracing::instrument(name = "ffmpeg list", skip_all, fields(ffmpeg.list = list))]
     async fn listed(&self, list: &str) -> Result<Vec<String>, String> {
+        // Each is a line of flags, its name and what it is.
+        Ok((self.printed(&[list]).await?.lines())
+            .filter_map(|line| line.split_whitespace().nth(1))
+            .map(str::to_owned)
+            .collect())
+    }
+
+    /// What `ffmpeg -hide_banner <args>` prints, or why it couldn't say. Empty without ffmpeg.
+    #[tracing::instrument(name = "ffmpeg print", skip_all, fields(ffmpeg.args = %args.join(" ")))]
+    async fn printed(&self, args: &[&str]) -> Result<String, String> {
         let Ok(ffmpeg) = &self.ffmpeg else {
-            return Ok(vec![]);
+            return Ok(String::new());
         };
         let output = tokio::process::Command::new(&ffmpeg.path)
-            .args(["-hide_banner", list])
+            .arg("-hide_banner")
+            .args(args)
             .kill_on_drop(true)
             .output();
-        let output = match tokio::time::timeout(LIST_TIMEOUT, output).await {
+        // Boxed, or `Abilities::can_do`, joining four of these, makes too large a future.
+        let output = match tokio::time::timeout(LIST_TIMEOUT, Box::pin(output)).await {
             Ok(Ok(output)) if output.status.success() => output,
             Ok(Ok(output)) => return Err(format!("it exited with {}", output.status)),
             Ok(Err(err)) => return Err(err.to_string()),
             Err(_) => return Err(format!("it took over {LIST_TIMEOUT:?}")),
         };
-        // Each is a line of flags, its name and what it is.
-        Ok((String::from_utf8_lossy(&output.stdout).lines())
-            .filter_map(|line| line.split_whitespace().nth(1))
-            .map(str::to_owned)
-            .collect())
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     }
 
     /// The run of ffmpeg that copies the first video of the file at `path`, and `remux`'s audio
@@ -296,11 +314,12 @@ impl Ffmpeg {
         command.args(["-map", "0:V:0"]);
         map_audio(&mut command, remux.audio.map(|audio| audio.track));
         command.args(["-c", "copy"]);
-        if remux.hevc {
-            // Apple's players take HEVC in fMP4 only as `hvc1`, and ffmpeg writes `hev1` unless
-            // told. Only for HEVC: ffmpeg refuses the tag on any other codec.
-            command.args(["-tag:v", "hvc1"]);
-        }
+        match remux.video_tag {
+            Some(VideoTag::Hvc1) => command.args(["-tag:v", "hvc1"]),
+            // Without `-strict unofficial`, ffmpeg drops the `dvcC` record Dolby Vision needs.
+            Some(VideoTag::Dvh1) => command.args(["-tag:v", "dvh1", "-strict", "unofficial"]),
+            None => &mut command,
+        };
         convert_audio(&mut command, conversion);
         if let Some(audio_start_ms) = audio_start_ms {
             start_audio_at(&mut command, audio_start_ms, conversion.is_some());
@@ -622,3 +641,7 @@ mod hls_run_tests;
 #[cfg(test)]
 #[path = "ffmpeg/hls_tests.rs"]
 mod hls_tests;
+
+#[cfg(test)]
+#[path = "ffmpeg/dolby_vision_tests.rs"]
+mod dolby_vision_tests;

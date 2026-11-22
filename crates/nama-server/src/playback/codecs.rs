@@ -59,15 +59,7 @@ pub(super) fn undecodable(track: &Track, device: &DeviceDecoding) -> Vec<Reason>
             let video = undecodable_codec(codec, &VIDEO_CODECS, &device.video_codecs)
                 .map(|name| cant_decode_video(name, codec))
                 .or_else(|| undecodable_h264_depth(codec, bit_depth, device));
-            let hdr = hdr.filter(|_| !device.hdr).map(|hdr| {
-                let text = format!(
-                    "This Device can't show its {} picture, so it can't be Direct Played or \
-                     Remuxed",
-                    hdr_name(hdr)
-                );
-                hdr_reason(Kind::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_HDR, hdr, text)
-                    .ruling_out([Method::DirectPlay, Method::Remux])
-            });
+            let hdr = hdr.and_then(|hdr| unshown(hdr, device));
             video.into_iter().chain(hdr).collect()
         }
         TrackKind::Audio { .. } => {
@@ -86,6 +78,39 @@ pub(super) fn undecodable(track: &Track, device: &DeviceDecoding) -> Vec<Reason>
         // A plan plays only a video and an audio Track as Tracks of their own.
         TrackKind::Subtitle { .. } => vec![],
     }
+}
+
+/// Why `device` can't show a picture that's `hdr`, if it can't: it shows no HDR, or the picture
+/// is Dolby Vision with no Base Layer in a profile it doesn't list.
+fn unshown(hdr: Hdr, device: &DeviceDecoding) -> Option<Reason> {
+    if !device.hdr {
+        let text = format!(
+            "This Device can't show its {} picture, so it can't be Direct Played or Remuxed",
+            hdr_name(hdr)
+        );
+        let reason = hdr_reason(Kind::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_HDR, hdr, text);
+        return Some(reason.ruling_out([Method::DirectPlay, Method::Remux]));
+    }
+    let Hdr::DolbyVision {
+        profile,
+        base_layer: None,
+    } = hdr
+    else {
+        return None;
+    };
+    let shown = (device.dolby_vision_profiles.iter()).any(|&shown| i64::from(shown) == profile);
+    (!shown).then(|| {
+        let text = format!(
+            "This Device can't show Dolby Vision profile {profile}, which has no Base Layer, so \
+             it can't be Direct Played or Remuxed"
+        );
+        Reason::new(
+            Kind::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_DOLBY_VISION,
+            text,
+        )
+        .with("profile", &profile)
+        .ruling_out([Method::DirectPlay, Method::Remux])
+    })
 }
 
 /// Why `device` can't decode the H.264 video Track `codec` names at `bit_depth`, if it can't.

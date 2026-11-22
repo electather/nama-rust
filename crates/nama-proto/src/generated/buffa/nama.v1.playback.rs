@@ -2075,7 +2075,8 @@ pub enum PlaybackReasonKind {
     PLAYBACK_REASON_KIND_SERVER_LACKS_FFMPEG = 8i32,
     /// Rules out Transcode: the Server's ffmpeg lacks libx264.
     PLAYBACK_REASON_KIND_SERVER_CANT_ENCODE_VIDEO = 9i32,
-    /// Rules out Transcode: the picture is Dolby Vision with no Base Layer, as in profile 5.
+    /// Rules out Transcode: the picture is Dolby Vision with no Base Layer, as in profile 5, and
+    /// the Server's ffmpeg lacks jellyfin-ffmpeg's `tonemapx`, which converts it (ADR 0102).
     PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER = 10i32,
     /// Rules out the method in `method` (`PLAYBACK_METHOD_REMUX`): it just failed on the Device, or
     /// every Recipe of it did. One for each method that did.
@@ -2103,6 +2104,10 @@ pub enum PlaybackReasonKind {
     /// before writing anything for it, so the Server planned the next method instead. One for each
     /// method that did.
     PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER = 34i32,
+    /// Rules out Direct Play and Remux: the picture is Dolby Vision with no Base Layer, as in
+    /// profile 5, and the Device doesn't list its profile in `DeviceDecoding.dolby_vision_profiles`.
+    /// Params: `profile` (`5`).
+    PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_DOLBY_VISION = 36i32,
     /// The rest rule nothing out.
     ///
     /// The plan converts the audio to fewer channels because the Device says it plays fewer.
@@ -2210,6 +2215,9 @@ impl PlaybackReasonKind {
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const MethodFailedOnServer: Self = Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_DOLBY_VISION`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DeviceCantShowDolbyVision: Self = Self::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_DOLBY_VISION;
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const DevicePlaysFewerChannels: Self = Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS;
@@ -2443,6 +2451,11 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                     Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER,
                 )
             }
+            36i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_DOLBY_VISION,
+                )
+            }
             16i32 => {
                 ::core::option::Option::Some(
                     Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
@@ -2584,6 +2597,9 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             }
             Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER => {
                 "PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER"
+            }
+            Self::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_DOLBY_VISION => {
+                "PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_DOLBY_VISION"
             }
             Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS => {
                 "PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS"
@@ -2729,6 +2745,11 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                     Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER,
                 )
             }
+            "PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_DOLBY_VISION" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_DOLBY_VISION,
+                )
+            }
             "PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS" => {
                 ::core::option::Option::Some(
                     Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
@@ -2832,6 +2853,7 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             Self::PLAYBACK_REASON_KIND_SUBTITLES_TRACK_CARRIES_NO_PALETTE,
             Self::PLAYBACK_REASON_KIND_KEYFRAMES_UNLISTED,
             Self::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER,
+            Self::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_DOLBY_VISION,
             Self::PLAYBACK_REASON_KIND_DEVICE_PLAYS_FEWER_CHANNELS,
             Self::PLAYBACK_REASON_KIND_DEVICE_CHANNELS_UNKNOWN,
             Self::PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED,
@@ -7277,7 +7299,7 @@ pub struct DeviceDecoding {
     /// Whether it decodes 10-bit HEVC (Main 10), which a Transcode of a 4K or HDR Version makes when
     /// it does and the Server's hardware encodes it.
     ///
-    /// Field 12: `hevc_10bit`
+    /// Field 13: `hevc_10bit`
     #[serde(
         rename = "hevc10bit",
         alias = "hevc_10bit",
@@ -7335,6 +7357,17 @@ pub struct DeviceDecoding {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub evidence: ::buffa::EnumValue<DecodingEvidence>,
+    /// The Dolby Vision profiles it shows, such as 5 and 8. Direct Play and Remux of a Dolby Vision
+    /// Track with no Base Layer need its profile here.
+    ///
+    /// Field 12: `dolby_vision_profiles`
+    #[serde(
+        rename = "dolbyVisionProfiles",
+        alias = "dolby_vision_profiles",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub dolby_vision_profiles: ::buffa::alloc::vec::Vec<i32>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -7353,6 +7386,7 @@ impl ::core::fmt::Debug for DeviceDecoding {
             .field("audio_channels", &self.audio_channels)
             .field("subtitle_formats", &self.subtitle_formats)
             .field("evidence", &self.evidence)
+            .field("dolby_vision_profiles", &self.dolby_vision_profiles)
             .finish()
     }
 }
@@ -7437,6 +7471,14 @@ impl ::buffa::Message for DeviceDecoding {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if !self.dolby_vision_profiles.is_empty() {
+            let payload: u64 = self
+                .dolby_vision_profiles
+                .iter()
+                .map(|&v| ::buffa::types::int32_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         if self.hevc_10bit {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
@@ -7515,8 +7557,19 @@ impl ::buffa::Message for DeviceDecoding {
                 ::buffa::types::put_int32_field(11u32, val, buf);
             }
         }
+        if !self.dolby_vision_profiles.is_empty() {
+            let payload: u64 = self
+                .dolby_vision_profiles
+                .iter()
+                .map(|&v| ::buffa::types::int32_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(12u32, payload, buf);
+            for &v in &self.dolby_vision_profiles {
+                ::buffa::types::encode_int32(v, buf);
+            }
+        }
         if self.hevc_10bit {
-            ::buffa::types::put_bool_field(12u32, self.hevc_10bit, buf);
+            ::buffa::types::put_bool_field(13u32, self.hevc_10bit, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -7728,6 +7781,46 @@ impl ::buffa::Message for DeviceDecoding {
                 );
             }
             12u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    if buf.chunk().len() >= len {
+                        ::buffa::types::extend_packed_int32(
+                            &buf.chunk()[..len],
+                            &mut self.dolby_vision_profiles,
+                            len,
+                        )?;
+                        buf.advance(len);
+                    } else {
+                        self.dolby_vision_profiles.reserve(len);
+                        let mut limited = buf.take(len);
+                        while limited.has_remaining() {
+                            self.dolby_vision_profiles
+                                .push(::buffa::types::decode_int32_packed(&mut limited)?);
+                        }
+                        let leftover = limited.remaining();
+                        if leftover > 0 {
+                            limited.advance(leftover);
+                        }
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.dolby_vision_profiles.push(::buffa::types::decode_int32(buf)?);
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            13u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
                     ::buffa::encoding::WireType::Varint,
@@ -7753,6 +7846,7 @@ impl ::buffa::Message for DeviceDecoding {
         self.h264_10bit = false;
         self.evidence = ::buffa::EnumValue::from(0);
         self.hevc_10bit = false;
+        self.dolby_vision_profiles.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

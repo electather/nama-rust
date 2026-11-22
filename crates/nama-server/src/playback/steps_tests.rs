@@ -6,13 +6,13 @@ use super::{keyframes_unlisted, remux, too_busy_to_play};
 #[cfg(unix)]
 use crate::ffmpeg::fake::{vaapi_on_two_gpus, vaapi_on_two_gpus_at};
 use crate::{
-    ffmpeg::{Accel, Hardware, ToneMapper, Transcode, VideoConversion},
+    ffmpeg::{Accel, Hardware, ToneMapper, Transcode, VideoConversion, VideoTag},
     playback::{
         Facts, Method, Plan, RunningTranscodes, build,
         tests::{
-            Given, MKV, MP4, audio, decided, dolby_vision_8, facts, falls_back_to, given,
-            hdr_video, in_container, kind_and_params, kinds, reason_of, text_subtitle, transcoded,
-            video, video_hdr, while_busy, without_ffmpeg,
+            DOLBY_VISION_5, Given, MKV, MP4, audio, decided, dolby_vision_8, facts, falls_back_to,
+            given, hdr_video, in_container, kind_and_params, kinds, reason_of, text_subtitle,
+            transcoded, video, video_hdr, while_busy, without_ffmpeg,
         },
         tracks::{BaseLayer, Hdr},
     },
@@ -355,11 +355,13 @@ fn a_busy_server_remuxes_what_the_device_can_play_remuxed_and_says_so_as_context
 }
 
 #[test]
-fn a_remux_of_hevc_video_is_flagged_hevc_and_of_h264_isnt() {
-    let remux_of = |codec| remux(&in_container(MKV, Some(vec![video(codec)])), None).0;
+fn a_remux_tags_hevc_hvc1_and_dolby_vision_5_dvh1_but_not_h264() {
+    let remux_of = |track| remux(&in_container(MKV, Some(vec![track])), None).0;
 
-    assert!(remux_of("hevc").hevc);
-    assert!(!remux_of("h264").hevc);
+    let dolby_vision_5 = hdr_video("hevc", Some(DOLBY_VISION_5));
+    assert_eq!(remux_of(dolby_vision_5).video_tag, Some(VideoTag::Dvh1));
+    assert_eq!(remux_of(video("hevc")).video_tag, Some(VideoTag::Hvc1));
+    assert_eq!(remux_of(video("h264")).video_tag, None);
 }
 
 #[test]
