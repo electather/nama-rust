@@ -177,11 +177,11 @@ pub(super) fn fallback(
     })
 }
 
-/// What tone-maps the played video's HDR to SDR in a Transcode, when the Device can't show it: the
-/// GPU, if a Transcode runs on one that passed its tone-map test and burns nothing in, which
-/// takes the frames off it, or else software, if ffmpeg can. Dolby Vision with no Base Layer is
-/// always reshaped by `tonemapx`: into HDR10 if the Transcode makes `hevc`, which it does only
-/// for a Device showing HDR, and else tone-mapped to SDR.
+/// What converts the played video's HDR in a Transcode. HDR the Device can't show is tone-mapped
+/// to SDR by the GPU, if a Transcode runs on one that passed its tone-map test and burns nothing
+/// in, which takes the frames off it, or else by software, if ffmpeg can. Dolby Vision with no
+/// Base Layer is always reshaped by `tonemapx`: into HDR10 if the Transcode makes `hevc`, which it
+/// does only for a Device showing HDR, and else tone-mapped to SDR.
 fn tone_mapper(facts: &Facts, hevc: bool) -> Option<ToneMapper> {
     if needs_reshaping(facts) {
         let reshaped = if hevc {
@@ -292,7 +292,7 @@ fn fewer_channels(
 /// Dolby Vision picture reshaped to HDR10 is neither.
 fn tone_mapping(facts: &Facts, tone_map: Option<ToneMapper>) -> Option<Reason> {
     let hdr = played_hdr(facts)?;
-    if tone_map == Some(ToneMapper::DolbyVisionToHdr10) {
+    if tone_map.is_some_and(|tone_map| !tone_map.makes_sdr()) {
         return None;
     }
     if tone_map.is_none() {

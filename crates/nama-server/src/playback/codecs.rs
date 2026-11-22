@@ -302,8 +302,7 @@ fn converted_video(mut tracks: Vec<Track>, video: &VideoConversion) -> Vec<Track
         {
             video.codec().clone_into(&mut track.codec);
             *bit_depth = Some(if video.hevc { 10 } else { 8 });
-            let sdr =
-                (video.tone_map).is_some_and(|tone_map| tone_map != ToneMapper::DolbyVisionToHdr10);
+            let sdr = video.tone_map.is_some_and(ToneMapper::makes_sdr);
             *hdr = hdr.and_then(transcoded_hdr).filter(|_| !sdr);
             if let Some((scaled_width, scaled_height)) = video.limit.and_then(|limit| limit.size) {
                 (*width, *height) = (Some(scaled_width), Some(scaled_height));

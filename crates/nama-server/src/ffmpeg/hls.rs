@@ -21,23 +21,26 @@ const ZSCALE_TONE_MAP: &str = "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p
                                tonemap=tonemap=hable:desat=0,zscale=t=bt709:m=bt709:r=tv,\
                                format=yuv420p";
 
-/// The filters that tone-map tagged HDR to SDR with jellyfin-ffmpeg's `tonemapx`, its source's
-/// peak pinned at 1000 nits, as Silo does (ADR 0102), applying Dolby Vision's RPU if
-/// `apply_dovi`.
+/// jellyfin-ffmpeg's `tonemapx` with its source's peak pinned at 1000 nits, as Silo does (ADR
+/// 0102).
 // Read from the RPU, a 4000-nit master comes out about a third darker in the midtones.
+const TONEMAPX: &str = "tonemapx=tonemap=bt2390:peak=100";
+
+/// The filters that tone-map tagged HDR to SDR with [`TONEMAPX`], applying Dolby Vision's RPU if
+/// `apply_dovi`.
 fn tonemapx(apply_dovi: bool) -> String {
     format!(
-        "tonemapx=tonemap=bt2390:peak=100:apply_dovi={},\
-         zscale=p=bt709:t=bt709:m=bt709:r=tv,format=yuv420p",
+        "{TONEMAPX}:apply_dovi={},zscale=p=bt709:t=bt709:m=bt709:r=tv,format=yuv420p",
         u8::from(apply_dovi)
     )
 }
 
-/// The filter that reshapes tagged Dolby Vision with no Base Layer into HDR10 with `tonemapx`:
-/// BT.2020 PQ, limited range, its peak pinned as [`tonemapx`]'s, dropping its RPU.
+/// The filter that reshapes tagged Dolby Vision with no Base Layer by its RPU into HDR10 with
+/// [`TONEMAPX`]: BT.2020 PQ, limited range.
 // `tonemapx` refuses 8-bit PQ, so the frames stay 10-bit up to the upload.
-const TONEMAPX_TO_HDR10: &str = "tonemapx=tonemap=bt2390:peak=100:apply_dovi=1:t=smpte2084:\
-                                 m=bt2020:p=bt2020:r=tv:format=yuv420p10le";
+fn tonemapx_to_hdr10() -> String {
+    format!("{TONEMAPX}:apply_dovi=1:t=smpte2084:m=bt2020:p=bt2020:r=tv:format=yuv420p10le")
+}
 
 /// The name of the init segment a Remux or Transcode started at file `n` writes beside its files. Every
 /// run's is the same, but each writes its own, since ffmpeg writes it from empty as a run goes.
@@ -372,6 +375,13 @@ pub(crate) enum ToneMapper {
     Hardware,
 }
 
+impl ToneMapper {
+    /// Whether the picture it makes is SDR.
+    pub(crate) fn makes_sdr(self) -> bool {
+        self != Self::DolbyVisionToHdr10
+    }
+}
+
 /// The arguments for ffmpeg that convert video as a [`VideoConversion`] says.
 pub(super) struct VideoArgs {
     /// Before `-i`.
@@ -469,9 +479,7 @@ fn software_tone_map(tone_map: ToneMapper) -> (String, String) {
         ToneMapper::Tonemapx {
             dolby_vision: false,
         } => (HDR_TAGS.to_owned(), tonemapx(false)),
-        ToneMapper::DolbyVisionToHdr10 => {
-            (DOLBY_VISION_TAGS.to_owned(), TONEMAPX_TO_HDR10.to_owned())
-        }
+        ToneMapper::DolbyVisionToHdr10 => (DOLBY_VISION_TAGS.to_owned(), tonemapx_to_hdr10()),
         // The GPU's filter reaches here only when its frames can't stay on it, so zscale stands
         // in.
         ToneMapper::Software | ToneMapper::Hardware => {
