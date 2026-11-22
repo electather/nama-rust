@@ -6,6 +6,7 @@ import {
   House,
   type LucideIcon,
   Puzzle,
+  Rows3,
   Shield,
   SlidersHorizontal,
   Tv,
@@ -22,6 +23,7 @@ const icons: Record<Section, LucideIcon> = {
   requests: Film,
   connections: Bell,
   server: HardDrive,
+  "default-home": Rows3,
   plugins: Puzzle,
 };
 

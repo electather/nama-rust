@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 
 import { ConnectionsPane } from "@/features/settings/components/connections-pane";
+import { DefaultHomePane } from "@/features/settings/components/default-home-pane";
 import { DevicesPane } from "@/features/settings/components/devices-pane";
 import { HomePane } from "@/features/settings/components/home-pane";
 import { PaneBoundary } from "@/features/settings/components/pane-boundary";
@@ -20,6 +21,7 @@ const panes: Record<Section, ComponentType<{ user: User | undefined }>> = {
   requests: RequestsPane,
   connections: ConnectionsPane,
   server: ServerPane,
+  "default-home": DefaultHomePane,
   plugins: PluginsPane,
 };
 

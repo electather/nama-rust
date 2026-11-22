@@ -1,15 +1,19 @@
-import type { MessageInitShape } from "@bufbuild/protobuf";
-import { fireEvent, screen, within } from "@testing-library/react";
-import { expect, test, vi } from "vite-plus/test";
+import { type MessageInitShape, create } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { KernelHomeRow } from "@/gen/nama/v1/browse_pb";
 import { PluginService } from "@/gen/nama/v1/plugin_pb";
-import type {
-  HomeLayoutRowSchema,
+import {
+  type HomeLayoutRowSchema,
   HomeLayoutSchema,
-  SetDefaultHomeLayoutRequest,
+  type SetDefaultHomeLayoutRequest,
 } from "@/gen/nama/v1/server_pb";
-import { admin, fakeServer, openApp } from "@/test-app";
+import { admin, fakeServer, newUser, openApp } from "@/test-app";
+import { openSettings } from "@/test-settings";
+
+afterEach(cleanup);
 
 const continueWatching = {
   row: { case: "kernel", value: KernelHomeRow.CONTINUE_WATCHING },
@@ -21,35 +25,48 @@ const usersRows = {
   row: { case: "pluginUsersRows", value: "top-picks" },
 } as const satisfies MessageInitShape<typeof HomeLayoutRowSchema>;
 
-/** Opens the Home page with the default Home layout `layout`, and returns what it saves. */
-function openHomeLayout(layout: MessageInitShape<typeof HomeLayoutSchema>) {
+/**
+ * A fake Server keeping the default Home layout, from `layout`, for an Admin: it records each save,
+ * and refuses them while `refusing`.
+ */
+function defaultHomeServer(layout: MessageInitShape<typeof HomeLayoutSchema>, refusing = false) {
+  // The Server always sets Featured in a response.
+  let kept = create(HomeLayoutSchema, { featuredHidden: false, ...layout });
   const saves: SetDefaultHomeLayoutRequest[] = [];
-  openApp(
-    "/admin/home",
-    fakeServer(
-      {
-        signedIn: admin,
-        serverService: {
-          getDefaultHomeLayout: () => ({ layout }),
-          setDefaultHomeLayout: (request) => {
-            saves.push(request);
-            return { layout: request.layout };
-          },
+  const transport = fakeServer(
+    {
+      signedIn: admin,
+      serverService: {
+        getDefaultHomeLayout: () => ({ layout: kept }),
+        setDefaultHomeLayout: (request) => {
+          saves.push(request);
+          if (refusing) {
+            throw new ConnectError("disk full", Code.Internal);
+          }
+          kept = create(HomeLayoutSchema, request.layout);
+          return { layout: kept };
         },
       },
-      {},
-      {},
-      (router) => {
-        router.service(PluginService, {
-          listPlugins: () => ({ summaries: [{ id: "top-picks", name: "Top Picks" }] }),
-        });
-      },
-    ),
+    },
+    {},
+    {},
+    (router) => {
+      router.service(PluginService, {
+        listPlugins: () => ({ summaries: [{ id: "top-picks", name: "Top Picks" }] }),
+      });
+    },
   );
+  return { transport, saves };
+}
+
+/** Opens Settings on Default Home with the default Home layout `layout`, and returns what it saves. */
+function openDefaultHome(layout: MessageInitShape<typeof HomeLayoutSchema>, refusing = false) {
+  const { transport, saves } = defaultHomeServer(layout, refusing);
+  openSettings("default-home", transport);
   return saves;
 }
 
-/** The names of the rows the page lists, top to bottom, under Featured. */
+/** The names of the rows the pane lists, top to bottom, under Featured. */
 function rowNames() {
   return within(screen.getByRole("list"))
     .getAllByRole("listitem")
@@ -65,8 +82,8 @@ function dragHandle(name: string) {
   return handle;
 }
 
-test("an Admin reorders Home rows, hides one and Featured, and saves the default Home layout", async () => {
-  const saves = openHomeLayout({ rows: [continueWatching, picks, usersRows] });
+test("an Admin's each move and switch of a default Home row is saved as it's made", async () => {
+  const saves = openDefaultHome({ rows: [continueWatching, picks, usersRows] });
 
   await screen.findByText("Continue Watching");
   expect(rowNames()).toStrictEqual(["Continue Watching", "Top picks", "Each User’s own rows"]);
@@ -78,25 +95,32 @@ test("an Admin reorders Home rows, hides one and Featured, and saves the default
 
   expect(rowNames()).toStrictEqual(["Top picks", "Continue Watching", "Each User’s own rows"]);
   expect(screen.getByText("Top picks moved to place 1 of 3.")).toBeDefined();
-  fireEvent.click(screen.getByRole("button", { name: "Save Home layout" }));
-
-  await expect(screen.findByText("Saved.")).resolves.toBeDefined();
+  expect(screen.queryByRole("button", { name: /Save/u })).toBeNull();
+  await waitFor(() => {
+    expect(saves).toHaveLength(3);
+  });
+  const reordered = [
+    { ...picks, hidden: false },
+    { ...continueWatching, hidden: false },
+  ];
   expect(saves).toMatchObject([
-    {
-      layout: {
-        featuredHidden: true,
-        rows: [
-          { ...picks, hidden: false },
-          { ...continueWatching, hidden: false },
-          { ...usersRows, hidden: true },
-        ],
-      },
-    },
+    { layout: { featuredHidden: false, rows: [...reordered, { ...usersRows, hidden: false }] } },
+    { layout: { featuredHidden: true, rows: [...reordered, { ...usersRows, hidden: false }] } },
+    { layout: { featuredHidden: true, rows: [...reordered, { ...usersRows, hidden: true }] } },
   ]);
 });
 
+test("a change the Server refuses goes back, and says why", async () => {
+  openDefaultHome({ rows: [continueWatching, picks] }, true);
+
+  fireEvent.click(await screen.findByRole("button", { name: "Move Top picks up" }));
+
+  await expect(screen.findByText(/Couldn’t save the default Home/u)).resolves.toBeDefined();
+  expect(rowNames()).toStrictEqual(["Continue Watching", "Top picks"]);
+});
+
 test("the first row can't move up nor the last down", async () => {
-  openHomeLayout({ rows: [continueWatching, picks] });
+  openDefaultHome({ rows: [continueWatching, picks] });
 
   await screen.findByText("Continue Watching");
 
@@ -111,7 +135,7 @@ test("the first row can't move up nor the last down", async () => {
 });
 
 test("an Admin drags a Home row to the end", async () => {
-  openHomeLayout({ rows: [continueWatching, picks, usersRows] });
+  const saves = openDefaultHome({ rows: [continueWatching, picks, usersRows] });
 
   await screen.findByText("Continue Watching");
   const items = within(screen.getByRole("list")).getAllByRole("listitem");
@@ -127,4 +151,23 @@ test("an Admin drags a Home row to the end", async () => {
 
   expect(rowNames()).toStrictEqual(["Top picks", "Each User’s own rows", "Continue Watching"]);
   expect(screen.getByText("Continue Watching moved to place 3 of 3.")).toBeDefined();
+  await waitFor(() => {
+    expect(saves).toHaveLength(1);
+  });
+});
+
+test("the old default Home address lands on Home with Settings open on Default Home", async () => {
+  const router = openApp("/admin/home", defaultHomeServer({ rows: [continueWatching] }).transport);
+
+  await screen.findByText("Continue Watching");
+  expect(router.state.location.pathname).toBe("/");
+  expect(router.state.location.search).toMatchObject({ settings: "default-home" });
+});
+
+test("a User who doesn't manage settings has no Default Home section", async () => {
+  openSettings("default-home", fakeServer({ signedIn: newUser }));
+
+  await screen.findByRole("heading", { name: "Playback" });
+  const sections = within(screen.getByRole("navigation", { name: "Settings" }));
+  expect(sections.queryByRole("link", { name: "Default Home" })).toBeNull();
 });

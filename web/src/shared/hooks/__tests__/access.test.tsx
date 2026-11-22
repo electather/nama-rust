@@ -212,7 +212,7 @@ test.each([
     name: "Manage settings",
     permission: Permission.MANAGE_SETTINGS,
     landing: "/admin/plugins",
-    pages: ["Plugins", "Home"],
+    pages: ["Plugins"],
   },
   {
     name: "Admin",
@@ -223,7 +223,6 @@ test.each([
       "Needs a Match",
       "Users",
       "Plugins",
-      "Home",
       "Playback",
       "Now Playing",
       "Jobs",

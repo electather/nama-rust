@@ -172,10 +172,11 @@
       },
       {
         "from": "settings",
-        // Its Plugins pane lists the Plugins page's rows.
+        // Its Plugins and Default Home panes render the admin features' parts.
         "allow": [
           "settings",
           "admin-plugins",
+          "admin-home",
           "shared-components",
           "shared-ui",
           "shared-hooks",
@@ -223,7 +224,6 @@
           "admin-jobs",
           "admin-backups",
           "admin-now-playing",
-          "admin-home",
           "admin-users",
           "invites",
           "requests",
