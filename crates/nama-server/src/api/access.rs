@@ -187,12 +187,11 @@ const ACCESS: &[(&str, Access)] = &[
 ];
 
 /// Who may request paths under each prefix, which aren't RPCs: fetching media, which the media
-/// routes share, uploading or removing a Plugin's, a title's or a Library's Custom Image, and
+/// routes share, uploading or removing a title's or a Library's Custom Image, and
 /// posting the web app's Diagnostics. The first prefix a path starts with decides.
-const PREFIXES: [(&str, Access); 4] = [
+const PREFIXES: [(&str, Access); 3] = [
     ("/media/", Access::SignedIn),
     ("/diagnostics/", Access::SignedIn),
-    ("/custom-images/plugin/", MANAGE_SETTINGS),
     ("/custom-images/", MANAGE_LIBRARIES),
 ];
 

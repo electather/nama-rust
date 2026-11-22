@@ -553,33 +553,16 @@ async fn a_user_who_manages_libraries_may_manage_libraries_and_matches_but_not_u
 }
 
 /// Uploading or removing a Custom Image is plain HTTP, not an RPC, and needs a Permission all the
-/// same: a title's or Library's `PERMISSION_MANAGE_LIBRARIES`, and a Plugin's
-/// `PERMISSION_MANAGE_SETTINGS`.
+/// same: `PERMISSION_MANAGE_LIBRARIES`.
 #[tokio::test]
 async fn only_a_user_with_its_permission_may_upload_or_remove_a_custom_image() {
     let server = TestServer::builder().start().await;
     let ada = server.user("Ada", &[Permission::ManageLibraries]).await;
     let grace = server.user("Grace", &[Permission::ManageSettings]).await;
 
-    for (path, allowed, refused, needed) in [
-        (
-            "/custom-images/movie/tmdb-348/poster",
-            &ada,
-            &grace,
-            Permission::ManageLibraries,
-        ),
-        (
-            "/custom-images/library/1/backdrop",
-            &ada,
-            &grace,
-            Permission::ManageLibraries,
-        ),
-        (
-            "/custom-images/plugin/tmdb/logo",
-            &grace,
-            &ada,
-            Permission::ManageSettings,
-        ),
+    for path in [
+        "/custom-images/movie/tmdb-348/poster",
+        "/custom-images/library/1/backdrop",
     ] {
         for method in [Method::PUT, Method::DELETE] {
             let cookie = |token: &str| format!("nama_session={token}");
@@ -588,7 +571,7 @@ async fn only_a_user_with_its_permission_may_upload_or_remove_a_custom_image() {
                 &server,
                 method.clone(),
                 path,
-                &[("cookie", &cookie(&refused.token))],
+                &[("cookie", &cookie(&grace.token))],
                 String::new(),
             )
             .await;
@@ -596,13 +579,13 @@ async fn only_a_user_with_its_permission_may_upload_or_remove_a_custom_image() {
                 &server,
                 method.clone(),
                 path,
-                &[("cookie", &cookie(&allowed.token))],
+                &[("cookie", &cookie(&ada.token))],
                 String::new(),
             )
             .await;
 
             assert_eq!(anonymous.status, 401, "{method} {path}");
-            let needed = needed.proto_name().to_owned();
+            let needed = Permission::ManageLibraries.proto_name().to_owned();
             assert_eq!(
                 permission_refused(&refused),
                 Some(needed),

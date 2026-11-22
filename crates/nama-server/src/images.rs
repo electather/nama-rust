@@ -114,8 +114,7 @@ pub const SVG: &str = "image/svg+xml";
 pub struct Received {
     /// Taken from its bytes, and the last part of its key.
     pub version: String,
-    /// What it is, told from its bytes: `image/jpeg`, `image/png`, `image/webp`, or [`SVG`] where
-    /// one is accepted.
+    /// What it is, told from its bytes: `image/jpeg`, `image/png` or `image/webp`.
     pub content_type: &'static str,
 }
 
@@ -131,9 +130,6 @@ pub enum UploadError {
     /// Over [`MAX_PIXELS`].
     #[error("the image is over 12 megapixels")]
     TooManyPixels,
-    /// Not a JPEG, PNG or WebP, where an SVG is accepted, and over [`MAX_SVG_BYTES`] for one.
-    #[error("the image isn't a JPEG, PNG or WebP, and is over 64 KiB for an SVG")]
-    SvgTooBig,
     /// The body stopped arriving, such as when the client went away.
     #[error("the upload broke off: {0}")]
     BrokeOff(axum::Error),
@@ -266,20 +262,14 @@ impl ImageStore {
         blobs.put(&key, bytes.to_vec()).await
     }
 
-    /// Keeps `body`, a JPEG, PNG or WebP of at most [`MAX_UPLOAD_BYTES`] and [`MAX_PIXELS`], or
-    /// if `svg_accepted` an SVG of at most [`MAX_SVG_BYTES`], kept as [`clean_svg`] leaves it, in
+    /// Keeps `body`, a JPEG, PNG or WebP of at most [`MAX_UPLOAD_BYTES`] and [`MAX_PIXELS`], in
     /// `dir` under a version taken from its bytes, writing it as it arrives rather than holding it
     /// whole. A refused or broken-off upload leaves nothing behind.
     ///
     /// # Errors
     ///
     /// If the image is refused, the body breaks off, or the store can't be written.
-    pub async fn receive(
-        &self,
-        dir: &[&str],
-        body: Body,
-        svg_accepted: bool,
-    ) -> Result<Received, UploadError> {
+    pub async fn receive(&self, dir: &[&str], body: Body) -> Result<Received, UploadError> {
         let uploads = self.dir.join(UPLOADS_DIR);
         let partial = tokio::task::spawn_blocking(move || {
             std::fs::create_dir_all(&uploads)?;
@@ -290,10 +280,7 @@ impl ImageStore {
         .map_err(io::Error::from)??;
         let version = write_hashed(&partial, body).await?;
         let (partial, content_type) = tokio::task::spawn_blocking(move || {
-            let content_type = match content_type_of(partial.path()) {
-                Err(UploadError::NotAnImage) if svg_accepted => clean_svg_in(&partial)?,
-                other => other?,
-            };
+            let content_type = content_type_of(partial.path())?;
             // Synced before the rename, or a crash can leave a whole name over an empty file.
             partial.as_file().sync_all()?;
             Ok::<_, UploadError>((partial, content_type))
@@ -568,17 +555,6 @@ fn content_type_of(path: &Path) -> Result<&'static str, UploadError> {
         return Err(UploadError::TooManyPixels);
     }
     Ok(content_type)
-}
-
-/// Replaces the upload in `partial` with itself as [`clean_svg`] leaves it, and returns [`SVG`].
-fn clean_svg_in(partial: &NamedTempFile) -> Result<&'static str, UploadError> {
-    if partial.as_file().metadata()?.len() > MAX_SVG_BYTES as u64 {
-        return Err(UploadError::SvgTooBig);
-    }
-    let svg = std::fs::read(partial.path())?;
-    let cleaned = clean_svg(&svg).map_err(|_not_svg| UploadError::NotAnImage)?;
-    std::fs::write(partial.path(), cleaned)?;
-    Ok(SVG)
 }
 
 /// `svg` as `svg-hush` leaves it: only the elements and attributes on its allowlist, which run

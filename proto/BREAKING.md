@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>` heading, dated the
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own.
 
+## 2026-11-22, #1750
+
+- None that `buf breaking` reports: in `nama/v1/plugin.proto`, `PluginSummary.custom_logo` (12) is deleted with its number and name reserved.
+- A Plugin's logo is always its Manifest's: `PUT` and `DELETE /custom-images/plugin/<id>/logo` answer 404, and upgrading deletes the logos uploaded there, so `logo_url` is the Manifest's.
+- A client built before reads `custom_logo` as false, so it never offers to remove a logo, but may still offer an upload, which is refused. It must regenerate and offer neither. The web app is the only client.
+
 ## 2026-11-21, #1509
 
 - `FIELD_SAME_CARDINALITY`, `nama/v1/server.proto`: `HomeLayout.featured_hidden` is now `optional`. Its wire and JSON forms are unchanged.

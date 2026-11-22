@@ -43,7 +43,7 @@ use crate::{
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
     home_rows::HomeRows,
-    images::{ImageStore, PluginLogos},
+    images::{CUSTOM_IMAGES_DIR, ImageStore, PluginLogos},
     library::{Contents, CustomImages, LocalImages},
     playback::{
         Leftovers, PreviewFrames, ProbePasses, Probing, RunningPlans, Segments, SubtitleCache,
@@ -265,8 +265,8 @@ async fn fill_sort_titles(contents: &Contents) {
 
 /// Reads the Server settings, logging a failure and going on with the defaults, drops the rows of
 /// Plugins uninstalled since from the default Home layout and each User's in `db`, has `images`
-/// keep its originals in the store they name, then sweeps the segment files and uploads an earlier
-/// run left.
+/// keep its originals in the store they name, then sweeps the segment files, uploads and Plugins'
+/// Custom Images an earlier run left.
 async fn load_settings(
     settings: Settings,
     images: ImageStore,
@@ -301,5 +301,11 @@ async fn load_settings(
     playback::sweep_leftovers(&settings.playback()).await;
     if let Err(err) = images.sweep_uploads().await {
         tracing::warn!("could not delete the uploads an earlier run left: {err}");
+    }
+    // A Plugin's logo was a Custom Image before #1750, whose migration dropped the rows but can't
+    // reach the store, so this goes after `keep_in`.
+    // shortcut: lists the folder on every start; drop it once no Server upgrades from before #1750.
+    if let Err(err) = images.delete_dir(&[CUSTOM_IMAGES_DIR, "plugin"]).await {
+        tracing::warn!("could not delete the Plugins' former Custom Images: {err}");
     }
 }

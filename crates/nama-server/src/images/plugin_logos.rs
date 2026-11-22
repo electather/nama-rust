@@ -1,6 +1,5 @@
 //! The logos Plugins' Manifests give, kept in the [`ImageStore`] as the Server cleaned them and
-//! served by URL (ADR 0037). A Plugin's Custom Image, which stands in for its logo, is
-//! `CustomImages`'.
+//! served by URL (ADR 0037). A Plugin's logo is always its Manifest's.
 
 use std::io;
 

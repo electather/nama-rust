@@ -32,7 +32,6 @@ use crate::{
     db::Database,
     home_rows::HomeRows,
     images::PluginLogos,
-    library::{CustomImageUrls, CustomImages},
     plugin_settings::{Personal, PluginSettings},
     server_settings::{ServerUrl, Settings},
     users::{
@@ -60,8 +59,6 @@ pub(super) struct UserServiceHandler {
     pub(super) connections: Connections,
     /// The Plugins, and each User's Personal settings for them.
     pub(super) plugin_settings: PluginSettings,
-    /// The logos admins uploaded, shown in place of the Manifests'.
-    pub(super) custom_images: CustomImages,
     /// The Manifests' logos, stored as their URLs are handed out.
     pub(super) plugin_logos: PluginLogos,
     /// Where the notification preferences and Home layouts are stored.
@@ -375,10 +372,9 @@ impl UserService for UserServiceHandler {
             .list_personal(user)
             .await
             .map_err(list_failed)?;
-        let custom = self.custom_images.urls().await.map_err(database_failed)?;
         let mut plugins = Vec::new();
         for personal in listed {
-            plugins.push(self.personal_to_proto(personal, &custom).await);
+            plugins.push(self.personal_to_proto(personal).await);
         }
         Response::ok(ListPersonalSettingsResponse {
             plugins,
@@ -400,9 +396,8 @@ impl UserService for UserServiceHandler {
             .save_personal(user, &id, sent)
             .await
             .map_err(change_refused)?;
-        let custom = self.custom_images.urls().await.map_err(database_failed)?;
         Response::ok(UpdatePersonalSettingsResponse {
-            plugin: self.personal_to_proto(saved, &custom).await.into(),
+            plugin: self.personal_to_proto(saved).await.into(),
             ..Default::default()
         })
     }
@@ -542,12 +537,8 @@ impl UserServiceHandler {
         })
     }
 
-    /// A User's `personal` settings for a Plugin, its logo among `custom` or its Manifest's.
-    async fn personal_to_proto(
-        &self,
-        personal: Personal,
-        custom: &CustomImageUrls,
-    ) -> proto::PersonalSettings {
+    /// A User's `personal` settings for a Plugin, with its Manifest's logo.
+    async fn personal_to_proto(&self, personal: Personal) -> proto::PersonalSettings {
         let Personal {
             plugin,
             manifest,
@@ -555,7 +546,7 @@ impl UserServiceHandler {
         } = personal;
         proto::PersonalSettings {
             plugin_id: plugin.id.to_string(),
-            logo_url: logo(&self.plugin_logos, &plugin, custom).await.url,
+            logo_url: logo(&self.plugin_logos, &plugin).await,
             settings: manifest
                 .personal_settings
                 .fields

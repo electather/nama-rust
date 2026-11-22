@@ -4,14 +4,12 @@ use http_body_util::{BodyExt, Full};
 use hyper::{Method, body::Bytes, client::conn::http1};
 use hyper_util::rt::TokioIo;
 use image::{ImageFormat, RgbImage};
-use nama_plugin_api::{
-    PluginId,
-    metadata::{ExternalId, ExternalIds},
-};
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use sqlx::{Connection, SqliteConnection, sqlite::SqliteConnectOptions};
 
 use super::{CustomImages, Role, Slot, Subject, router};
 use crate::{
-    db::Database,
+    db::{self, Database},
     images::ImageStore,
     library::{
         Artwork, Metadata,
@@ -37,16 +35,6 @@ fn a_slot_for_an_id_holding_a_slash_or_percent_round_trips_through_its_path() {
     let kept = Slot::movie(&ExternalId::new("made", "a~b(c)").unwrap(), Role::Poster);
     assert_eq!(kept.0, "movie/made-a~b(c)/poster");
     assert_eq!(Slot::parse(&kept.0).map(|(parsed, _)| parsed), Some(kept));
-}
-
-#[test]
-fn a_slot_for_a_plugin_id_holding_a_space_or_slash_round_trips_through_its_path() {
-    let id = PluginId::from("My Plugin/x".to_owned());
-    let slot = Slot::plugin(&id);
-
-    assert_eq!(slot.0, "plugin/My%20Plugin%2Fx/logo");
-    assert_eq!(Slot::parse(&slot.0), Some((slot, Subject::Plugin(id))));
-    assert_eq!(Slot::parse("plugin/My Plugin%2Fx/logo"), None);
 }
 
 /// Sends `body` to `path` on the server at `addr` as `method`, and returns the status.
@@ -83,7 +71,7 @@ async fn an_image_for_an_id_holding_a_slash_is_uploaded_and_served_at_its_path()
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let artwork = Artwork::new(store.clone(), Registry::new().extension_points());
-    let app = router(custom_images.clone(), artwork, images, |_| true);
+    let app = router(custom_images.clone(), artwork, images);
     tokio::spawn(async move { axum::serve(listener, app).await });
     let mut png = Cursor::new(Vec::new());
     RgbImage::new(2, 3)
@@ -111,7 +99,6 @@ fn a_slot_is_named_by_one_path_only() {
         "movie/imdb-tt0078748/backdrop",
         "show/tvdb-81189/backdrop",
         "show/tmdb-1399/season/0/poster",
-        "plugin/sonarr/logo",
         "library/3/backdrop",
     ] {
         let slot = Slot::parse(path).map(|(slot, _)| slot);
@@ -126,8 +113,7 @@ fn a_slot_is_named_by_one_path_only() {
         "show/tmdb-1399/season/-1/poster",
         "movie/tmdb-348/poster/",
         "movie/../poster",
-        "plugin//logo",
-        "plugin/sonarr/poster",
+        "plugin/sonarr/logo",
         "library/03/backdrop",
         "library/-3/backdrop",
         "library/3/poster",
@@ -135,4 +121,38 @@ fn a_slot_is_named_by_one_path_only() {
     ] {
         assert_eq!(Slot::parse(path), None, "{path}");
     }
+}
+
+/// The version of the migration that deletes Plugins' Custom Images.
+const WITHOUT_PLUGINS: i64 = 20_261_122_084_039;
+
+#[tokio::test]
+async fn upgrading_deletes_a_plugins_custom_image_and_keeps_a_titles() {
+    let data = tempfile::tempdir().unwrap();
+    let options = SqliteConnectOptions::new()
+        .filename(data.path().join(db::FILE_NAME))
+        .create_if_missing(true);
+    let mut conn = SqliteConnection::connect_with(&options).await.unwrap();
+    let migrations = sqlx::migrate!();
+    let before = (migrations.iter().map(|migration| migration.version))
+        .filter(|&version| version < WITHOUT_PLUGINS)
+        .max();
+    migrations.run_to(before.unwrap(), &mut conn).await.unwrap();
+    sqlx::raw_sql(
+        "INSERT INTO custom_images (slot, version, content_type)
+         VALUES ('plugin/tmdb/logo', 'v1', 'image/svg+xml'),
+                ('movie/tmdb-348/poster', 'v2', 'image/png');",
+    )
+    .execute(&mut conn)
+    .await
+    .unwrap();
+    conn.close().await.unwrap();
+
+    let db = Database::open(data.path()).await.unwrap();
+
+    let slots: Vec<String> = sqlx::query_scalar("SELECT slot FROM custom_images")
+        .fetch_all(db.reader())
+        .await
+        .unwrap();
+    assert_eq!(slots, ["movie/tmdb-348/poster"]);
 }

@@ -281,14 +281,12 @@ message PluginSummary {
   // Held its logo's SVG text, which `logo_url` replaces.
   reserved 10;
   reserved "logo_svg";
-  // Its logo's URL on this Server, or empty if it has none: its Custom Image if it has one, else
-  // its Manifest's. An SVG may be one an Installed Plugin's author wrote, so show it only as an
-  // image, never inline in a page.
+  // Its logo's URL on this Server, or empty if it has none: its Manifest's. An SVG may be one an
+  // Installed Plugin's author wrote, so show it only as an image, never inline in a page.
   string logo_url = 11;
-  // Whether `logo_url` is a Custom Image, which `DELETE /custom-images/plugin/<id>/logo` removes.
-  // `PUT` there uploads one, a JPEG, PNG or WebP, or an SVG of at most 64 KiB, for a User with
-  // `PERMISSION_MANAGE_SETTINGS`.
-  bool custom_logo = 12;
+  // Said whether `logo_url` was a Custom Image, which a Plugin's logo no longer can be.
+  reserved 12;
+  reserved "custom_logo";
   // The Plugin Permissions it asks for, which an Admin grants an Installed Plugin some or all of
   // in `EnablePlugin`.
   repeated PluginPermission requested_permissions = 13;

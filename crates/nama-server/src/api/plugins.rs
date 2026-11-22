@@ -24,7 +24,6 @@ use crate::{
     db::Database,
     diagnostics::{self, PluginLine},
     images::PluginLogos,
-    library::{CustomImageUrls, CustomImages, Slot},
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
     plugins::{CheckError, EnableError, Listed},
     requests::{QUALITY_PROFILE, QUALITY_PROFILE_FIELD, QualitiesInvalid},
@@ -49,18 +48,8 @@ pub(super) struct PluginServiceHandler {
     pub(super) settings: server_settings::Settings,
     /// Holds each User's Home layout, whose rows of a Plugin uninstalled go with the default's.
     pub(super) db: Arc<Database>,
-    /// The logos admins uploaded, shown in place of the Manifests'.
-    pub(super) custom_images: CustomImages,
     /// The Manifests' logos, stored as their URLs are handed out.
     pub(super) plugin_logos: PluginLogos,
-}
-
-/// A Plugin's logo as clients fetch it.
-pub(super) struct Logo {
-    /// Empty if it has none.
-    pub(super) url: String,
-    /// Whether it is a Custom Image.
-    custom: bool,
 }
 
 #[expect(
@@ -85,7 +74,6 @@ impl PluginService for PluginServiceHandler {
                 "could not drop uninstalled Plugins' rows from Users' Home layouts: {err}"
             );
         }
-        let custom = self.custom_images.urls().await.map_err(database_failed)?;
         let mut summaries = Vec::with_capacity(listed.len());
         for StoredPlugin {
             plugin,
@@ -93,7 +81,7 @@ impl PluginService for PluginServiceHandler {
             granted,
         } in listed
         {
-            let logo = logo(&self.plugin_logos, &plugin, &custom).await;
+            let logo = logo(&self.plugin_logos, &plugin).await;
             summaries.push(plugin_summary_to_proto(
                 plugin,
                 stored.settings,
@@ -260,8 +248,7 @@ impl PluginServiceHandler {
 
     /// `stored` as `Plugin`, with its logo and each of its Extension Points whose last call failed.
     async fn plugin_with_logo(&self, stored: StoredPlugin) -> Result<proto::Plugin, ConnectError> {
-        let custom = self.custom_images.urls().await.map_err(database_failed)?;
-        let logo = logo(&self.plugin_logos, &stored.plugin, &custom).await;
+        let logo = logo(&self.plugin_logos, &stored.plugin).await;
         let failures = failures(&self.plugin_settings.extension_points(), &stored.plugin.id);
         Ok(proto::Plugin {
             failures,
@@ -270,23 +257,16 @@ impl PluginServiceHandler {
     }
 }
 
-/// `plugin`'s logo: its Custom Image, among `custom`, else its Manifest's, which is stored in
-/// `plugin_logos` first if it isn't. Without a URL if the store fails, which is logged: the Plugin
-/// is still listed.
-pub(super) async fn logo(
-    plugin_logos: &PluginLogos,
-    plugin: &Listed,
-    custom: &CustomImageUrls,
-) -> Logo {
-    if let Some(url) = custom.of(&Slot::plugin(&plugin.id)) {
-        return Logo { url, custom: true };
-    }
+/// Where clients fetch `plugin`'s logo, its Manifest's, which is stored in `plugin_logos` first if
+/// it isn't. Empty if it has none, or if the store fails, which is logged: the Plugin is still
+/// listed.
+pub(super) async fn logo(plugin_logos: &PluginLogos, plugin: &Listed) -> String {
     let manifest_logo = plugin
         .manifest
         .as_ref()
         .ok()
         .and_then(|it| it.logo_svg.as_deref());
-    let url = match manifest_logo {
+    match manifest_logo {
         Some(svg) => plugin_logos
             .stored_url(&plugin.id, svg)
             .await
@@ -295,8 +275,7 @@ pub(super) async fn logo(
                 String::new()
             }),
         None => String::new(),
-    };
-    Logo { url, custom: false }
+    }
 }
 
 /// The refusal of a Plugin change or settings check failing with `err`. A database failure is
@@ -470,7 +449,7 @@ fn plugin_summary_to_proto(
     plugin: Listed,
     stored: BTreeMap<String, settings::SettingValue>,
     granted: &HashSet<Permission>,
-    logo: Logo,
+    logo_url: String,
 ) -> proto::PluginSummary {
     let (manifest, refused_reason) = manifest_and_refusal(&plugin.id, plugin.manifest);
     // `EnablePlugin`'s own check, so the list offers Set up exactly where enabling would be refused
@@ -491,8 +470,7 @@ fn plugin_summary_to_proto(
         kind: plugin.kind.into(),
         enabled: plugin.enabled,
         refused_reason,
-        logo_url: logo.url,
-        custom_logo: logo.custom,
+        logo_url,
         ..Default::default()
     }
 }
@@ -501,7 +479,7 @@ fn plugin_to_proto(
     plugin: Listed,
     stored: BTreeMap<String, settings::SettingValue>,
     granted: &HashSet<Permission>,
-    logo: Logo,
+    logo_url: String,
 ) -> proto::Plugin {
     // A refused Plugin has no settings schema, so it comes with none.
     let settings = plugin
@@ -538,7 +516,7 @@ fn plugin_to_proto(
         source_url,
         license,
         jobs,
-        summary: plugin_summary_to_proto(plugin, stored, granted, logo).into(),
+        summary: plugin_summary_to_proto(plugin, stored, granted, logo_url).into(),
         ..Default::default()
     }
 }

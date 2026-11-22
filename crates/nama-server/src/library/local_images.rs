@@ -234,7 +234,7 @@ impl LocalImages {
         let file = tokio::fs::File::open(path).await?;
         let body = Body::from_stream(ReaderStream::new(file));
         let library = library.to_string();
-        let received = self.store.receive(&[DIR, &library], body, false).await?;
+        let received = self.store.receive(&[DIR, &library], body).await?;
         Ok((received.version, received.content_type.to_owned()))
     }
 

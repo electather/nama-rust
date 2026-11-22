@@ -1,11 +1,10 @@
 //! Custom Images: the Posters and Backdrops an admin uploads for a Movie, Show or Season, and the
-//! logos for a Plugin and a Backdrop for a Library, which everyone sees in place of the downloaded,
-//! newest title's or Manifest's ones until they are removed (ADR 0036).
+//! Backdrop for a Library, which everyone sees in place of the downloaded or newest title's ones
+//! until they are removed (ADR 0036).
 //!
 //! [`CustomImages`] owns `custom_images` (see `src/library/AGENTS.md`). It keeps a title's
 //! against the title's external id, as Watch State is (ADR 0013), never against an Item, so one
-//! outlives its title's files, and a Plugin's against the Plugin's id, so one outlives its
-//! Package. A Library's goes with the Library. The bytes are in the [`ImageStore`], under a
+//! outlives its title's files. A Library's goes with the Library. The bytes are in the [`ImageStore`], under a
 //! version taken from them.
 //!
 //! An image is the body of one plain HTTP request (ADR 0007): `PUT /custom-images/<slot>` uploads
@@ -14,9 +13,8 @@
 //! as if uploaded. Any offered image may go into any slot, not only one it was offered for: the
 //! same admin can upload any bytes there anyway, so binding offers to slots would stop nothing.
 //! `DELETE` there removes it.
-//! `PREFIXES` in `src/api/access.rs` lets only Users with Manage Libraries do either, or for a
-//! Plugin's, Manage Settings. Anyone with a session fetches it at its
-//! [`Urls`] entry, under `/media/`, resized by `?width=` as a downloaded image is
+//! `PREFIXES` in `src/api/access.rs` lets only Users with Manage Libraries do either. Anyone with
+//! a session fetches it at its [`Urls`] entry, under `/media/`, resized by `?width=` as a downloaded image is
 //! (`crate::library::artwork`).
 
 use std::{collections::HashMap, io, iter, sync::Arc};
@@ -29,18 +27,13 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, put},
 };
-use nama_plugin_api::{
-    PluginId,
-    metadata::{ExternalId, ExternalIds},
-};
+use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use serde::Deserialize;
 use sqlx::SqliteConnection;
 
 use crate::{
     db::Database,
-    images::{
-        Asked, CUSTOM_IMAGES_DIR, ImageStore, Received, Resize, SVG, UploadError, percent_decode,
-    },
+    images::{Asked, CUSTOM_IMAGES_DIR, ImageStore, Received, Resize, UploadError, percent_decode},
     library::{
         artwork::{Artwork, Error as ArtworkError},
         contents::{library_with_movie, library_with_show, matched_episodes, parse_hint},
@@ -65,10 +58,9 @@ pub(crate) enum Role {
     Backdrop,
 }
 
-/// Which image of which title, Plugin or Library a Custom Image stands in for, as its paths name
-/// it: `movie/tmdb-348/poster`, `show/tmdb-1399/backdrop`, `show/tmdb-1399/season/2/poster`,
-/// `plugin/sonarr/logo` or `library/3/backdrop`. A title's or Plugin's id is one segment encoded
-/// as `encodeURIComponent` does, since it may hold any character, `/` and `%` among them, and the
+/// Which image of which title or Library a Custom Image stands in for, as its paths name it:
+/// `movie/tmdb-348/poster`, `show/tmdb-1399/backdrop`, `show/tmdb-1399/season/2/poster` or
+/// `library/3/backdrop`. A title's id is one segment encoded as `encodeURIComponent` does, since it may hold any character, `/` and `%` among them, and the
 /// web builds these paths with it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Slot(String);
@@ -79,12 +71,8 @@ enum Subject {
     Movie(ExternalId),
     Show(ExternalId),
     Season(ExternalId, i64),
-    Plugin(PluginId),
     Library,
 }
-
-/// Whether the Server has the Plugin a [`Subject`] names, refused or not, as Plugin settings say.
-type HasPlugin = Arc<dyn Fn(&PluginId) -> bool + Send + Sync>;
 
 /// The URL of every Custom Image, by slot: see [`CustomImages::urls`].
 #[derive(Debug, Default)]
@@ -143,16 +131,6 @@ impl Slot {
         Self(format!("show/{}/season/{number}/poster", segment(show)))
     }
 
-    /// A Plugin has only a logo.
-    pub(crate) fn plugin(id: &PluginId) -> Self {
-        Self(format!("plugin/{}/logo", encode(id.as_str())))
-    }
-
-    /// Only a Plugin's logo may be an SVG.
-    fn accepts_svg(&self) -> bool {
-        self.0.starts_with("plugin/")
-    }
-
     /// A Library has only a Backdrop.
     pub(crate) fn library(id: i64) -> Self {
         Self(format!("library/{id}/backdrop"))
@@ -181,10 +159,6 @@ impl Slot {
             ["show", id, "season", number, "poster"] => {
                 let (id, number) = (title(id)?, number.parse::<u32>().ok()?.into());
                 (Self::season(&id, number), Subject::Season(id, number))
-            }
-            ["plugin", id, "logo"] if !id.is_empty() => {
-                let id = PluginId::from(percent_decode(id)?);
-                (Self::plugin(&id), Subject::Plugin(id))
             }
             ["library", id, "backdrop"] => (
                 Self::library(id.parse::<u32>().ok()?.into()),
@@ -296,9 +270,9 @@ impl CustomImages {
             .collect())
     }
 
-    /// Whether the Server has the Movie, Show, Season or Plugin `subject`, as `has_plugin` says of
-    /// a Plugin. A Library is always had here: the write that keeps its image checks it.
-    async fn server_has(&self, subject: &Subject, has_plugin: &HasPlugin) -> sqlx::Result<bool> {
+    /// Whether the Server has the Movie, Show or Season `subject`. A Library is always had here:
+    /// the write that keeps its image checks it.
+    async fn server_has(&self, subject: &Subject) -> sqlx::Result<bool> {
         let conn = &mut *self.db.reader().acquire().await?;
         Ok(match subject {
             Subject::Movie(id) => library_with_movie(conn, id).await?.is_some(),
@@ -306,17 +280,13 @@ impl CustomImages {
             Subject::Season(show, number) => {
                 !matched_episodes(conn, show, *number).await?.is_empty()
             }
-            Subject::Plugin(id) => has_plugin(id),
             Subject::Library => true,
         })
     }
 
     /// Keeps `body` as the Custom Image at `slot`, in place of any there before.
     async fn upload(&self, slot: Slot, body: Body) -> Result<(), Error> {
-        let received = self
-            .store
-            .receive(&slot.key(), body, slot.accepts_svg())
-            .await?;
+        let received = self.store.receive(&slot.key(), body).await?;
         let version = received.version.clone();
         let stored = slot.0.clone();
         let library = slot.library_id();
@@ -416,7 +386,6 @@ pub(super) fn served_type(content_type: &str) -> &'static str {
     match content_type {
         "image/png" => "image/png",
         "image/webp" => "image/webp",
-        SVG => SVG,
         _ => "image/jpeg",
     }
 }
@@ -470,23 +439,20 @@ fn url(slot: &str, version: &str) -> String {
 
 /// Serves uploads to and removals from `/custom-images/<slot>`, picks from `artwork`'s offered
 /// images, and the images under `/media/custom-images/<slot>/<version>`, resized as `images` says.
-/// An upload is only for a Plugin `has_plugin` says the Server has. Who may make each request is up
-/// to the layers the router is put behind.
+/// Who may make each request is up to the layers the router is put behind.
 pub(crate) fn router(
     custom_images: CustomImages,
     artwork: Artwork,
     images: ImageSettings,
-    has_plugin: impl Fn(&PluginId) -> bool + Send + Sync + 'static,
 ) -> Router {
-    let has_plugin: HasPlugin = Arc::new(has_plugin);
     Router::new()
         .route(&format!("{UPLOADS}{{*slot}}"), put(upload).delete(remove))
         .route(&format!("{IMAGES}{{*path}}"), get(serve))
-        .with_state((custom_images, artwork, images, has_plugin))
+        .with_state((custom_images, artwork, images))
 }
 
 /// What the router's handlers share.
-type Handles = (CustomImages, Artwork, ImageSettings, HasPlugin);
+type Handles = (CustomImages, Artwork, ImageSettings);
 
 /// An upload's query: the URL of an offered image to keep in place of the body.
 #[derive(Deserialize)]
@@ -504,7 +470,7 @@ fn raw_path<'a>(uri: &'a Uri, prefix: &str) -> &'a str {
 }
 
 async fn upload(
-    State((custom_images, artwork, _, has_plugin)): State<Handles>,
+    State((custom_images, artwork, _)): State<Handles>,
     uri: Uri,
     Query(picked): Query<UploadQuery>,
     body: Body,
@@ -514,14 +480,10 @@ async fn upload(
     };
     // Before the body is read, so a refusal costs no upload, and not in the write: a title that
     // leaves before it commits keeps its image, as one leaving after would (ADR 0036).
-    match custom_images.server_has(&subject, &has_plugin).await {
+    match custom_images.server_has(&subject).await {
         Ok(true) => {}
         Ok(false) => {
-            return (
-                StatusCode::NOT_FOUND,
-                "there is no such title, Season or Plugin",
-            )
-                .into_response();
+            return (StatusCode::NOT_FOUND, "there is no such title or Season").into_response();
         }
         Err(err) => return failed("keep", &err.into()),
     }
@@ -537,7 +499,7 @@ async fn upload(
     match uploaded.await.unwrap_or_else(|err| Err(err.into())) {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         // Each refusal has a status of its own, which the web app tells the admin.
-        Err(Error::Upload(refused @ (UploadError::TooBig | UploadError::SvgTooBig))) => {
+        Err(Error::Upload(refused @ UploadError::TooBig)) => {
             (StatusCode::PAYLOAD_TOO_LARGE, refused.to_string()).into_response()
         }
         Err(Error::Upload(refused @ UploadError::NotAnImage)) => {
@@ -573,7 +535,7 @@ async fn remove(State((custom_images, ..)): State<Handles>, uri: Uri) -> Respons
 }
 
 async fn serve(
-    State((custom_images, _, images, _)): State<Handles>,
+    State((custom_images, _, images)): State<Handles>,
     Query(asked): Query<Asked>,
     request: Request,
 ) -> Response {

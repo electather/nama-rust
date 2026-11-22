@@ -6598,18 +6598,11 @@ pub struct PluginSummaryView<'a> {
         'a,
         ::buffa::EnumValue<super::super::ExtensionPoint>,
     >,
-    /// Its logo's URL on this Server, or empty if it has none: its Custom Image if it has one, else
-    /// its Manifest's. An SVG may be one an Installed Plugin's author wrote, so show it only as an
-    /// image, never inline in a page.
+    /// Its logo's URL on this Server, or empty if it has none: its Manifest's. An SVG may be one an
+    /// Installed Plugin's author wrote, so show it only as an image, never inline in a page.
     ///
     /// Field 11: `logo_url`
     pub logo_url: &'a str,
-    /// Whether `logo_url` is a Custom Image, which `DELETE /custom-images/plugin/<id>/logo` removes.
-    /// `PUT` there uploads one, a JPEG, PNG or WebP, or an SVG of at most 64 KiB, for a User with
-    /// `PERMISSION_MANAGE_SETTINGS`.
-    ///
-    /// Field 12: `custom_logo`
-    pub custom_logo: bool,
     /// The Plugin Permissions it asks for, which an Admin grants an Installed Plugin some or all of
     /// in `EnablePlugin`.
     ///
@@ -6722,13 +6715,6 @@ impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
                     ::buffa::encoding::WireType::LengthDelimited,
                 )?;
                 view.logo_url = ::buffa::types::borrow_str(&mut cur)?;
-            }
-            12u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                view.custom_logo = ::buffa::types::decode_bool(&mut cur)?;
             }
             9u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
@@ -6852,7 +6838,6 @@ impl<'a> ::buffa::MessageView<'a> for PluginSummaryView<'a> {
             description: self.description.to_string(),
             extension_points: self.extension_points.to_vec(),
             logo_url: self.logo_url.to_string(),
-            custom_logo: self.custom_logo,
             requested_permissions: self.requested_permissions.to_vec(),
             granted_permissions: self.granted_permissions.to_vec(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
@@ -6905,9 +6890,6 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginSummaryView<'a> {
         }
         if !self.logo_url.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_url) as u64;
-        }
-        if self.custom_logo {
-            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         if !self.requested_permissions.is_empty() {
             let payload: u64 = self
@@ -6976,9 +6958,6 @@ impl<'a> ::buffa::ViewEncode<'a> for PluginSummaryView<'a> {
         }
         if !self.logo_url.is_empty() {
             ::buffa::types::put_string_field(11u32, &self.logo_url, buf);
-        }
-        if self.custom_logo {
-            ::buffa::types::put_bool_field(12u32, self.custom_logo, buf);
         }
         if !self.requested_permissions.is_empty() {
             let payload: u64 = self
@@ -7056,9 +7035,6 @@ impl<'__a> ::serde::Serialize for PluginSummaryView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.logo_url) {
             __map.serialize_entry("logoUrl", self.logo_url)?;
-        }
-        if self.custom_logo {
-            __map.serialize_entry("customLogo", &self.custom_logo)?;
         }
         if !self.requested_permissions.is_empty() {
             __map
@@ -7232,23 +7208,13 @@ impl PluginSummaryOwnedView {
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::ExtensionPoint>> {
         &self.0.reborrow().extension_points
     }
-    /// Its logo's URL on this Server, or empty if it has none: its Custom Image if it has one, else
-    /// its Manifest's. An SVG may be one an Installed Plugin's author wrote, so show it only as an
-    /// image, never inline in a page.
+    /// Its logo's URL on this Server, or empty if it has none: its Manifest's. An SVG may be one an
+    /// Installed Plugin's author wrote, so show it only as an image, never inline in a page.
     ///
     /// Field 11: `logo_url`
     #[must_use]
     pub fn logo_url(&self) -> &'_ str {
         self.0.reborrow().logo_url
-    }
-    /// Whether `logo_url` is a Custom Image, which `DELETE /custom-images/plugin/<id>/logo` removes.
-    /// `PUT` there uploads one, a JPEG, PNG or WebP, or an SVG of at most 64 KiB, for a User with
-    /// `PERMISSION_MANAGE_SETTINGS`.
-    ///
-    /// Field 12: `custom_logo`
-    #[must_use]
-    pub fn custom_logo(&self) -> bool {
-        self.0.reborrow().custom_logo
     }
     /// The Plugin Permissions it asks for, which an Admin grants an Installed Plugin some or all of
     /// in `EnablePlugin`.

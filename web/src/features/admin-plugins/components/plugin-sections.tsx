@@ -1,4 +1,3 @@
-import { LogoChoice } from "@/features/admin-plugins/components/logo-choice";
 import { PluginAbout } from "@/features/admin-plugins/components/plugin-about";
 import { PluginJobs } from "@/features/admin-plugins/components/plugin-jobs";
 import { PluginLog } from "@/features/admin-plugins/components/plugin-log";
@@ -7,9 +6,9 @@ import { PluginSettingsSection } from "@/features/admin-plugins/components/plugi
 import type { PluginDetails } from "@/shared/lib/plugins";
 
 /**
- * A section per part of a Plugin's setup: about, logo, settings, Qualities, Jobs and log. One the
- * Server refused has none of them, only why it can't run. A `headed` view gives the Plugin's links
- * and changes its logo in its own header, so About leaves the links out and there's no logo section.
+ * A section per part of a Plugin's setup: about, settings, Qualities, Jobs and log. One the Server
+ * refused has none of them, only why it can't run. A `headed` view gives the Plugin's links in its
+ * own header, so About leaves them out.
  */
 export function PluginSections({
   plugin,
@@ -29,7 +28,6 @@ export function PluginSections({
   return (
     <>
       <PluginAbout plugin={plugin} links={!headed} />
-      {!headed && <LogoChoice summary={summary} />}
       <PluginSettingsSection plugin={plugin} />
       <PluginQualities plugin={plugin} />
       <PluginJobs summary={summary} jobs={plugin.jobs} />

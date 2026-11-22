@@ -141,7 +141,6 @@ test("a Plugin without settings has no Settings section on its details page", as
   openPlugin("local-auth");
 
   const found12 = await plugin("local-auth");
-  expect(found12.getByRole("heading", { name: "Logo" })).toBeDefined();
   expect(found12.queryByRole("heading", { name: "Settings" })).toBeNull();
 });
 
