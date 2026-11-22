@@ -45,6 +45,9 @@ function openHub(path: string, signedIn = false) {
         return { account: ada };
       },
       signOut: () => {
+        if (!session) {
+          throw refused(Code.Unauthenticated, RefusalReason.SIGN_IN_REQUIRED);
+        }
         session = false;
         return {};
       },
@@ -52,6 +55,12 @@ function openHub(path: string, signedIn = false) {
   });
   globalThis.history.replaceState(null, "", path);
   render(<RouterProvider router={getRouter(transport)} />);
+  return {
+    /** Ends Ada's session on the Hub, as if it expired, without the page knowing. */
+    endSession: () => {
+      session = false;
+    },
+  };
 }
 
 function fillIn(email: string, password: string) {
@@ -127,6 +136,16 @@ describe("an Account", () => {
     openHub("/", true);
 
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
+
+    await expect(screen.findByRole("heading", { name: "Sign in" })).resolves.toBeDefined();
+  });
+
+  test("signing out of a session that already ended goes to the sign-in page too", async () => {
+    const hub = openHub("/", true);
+    const signOut = await screen.findByRole("button", { name: "Sign out" });
+
+    hub.endSession();
+    fireEvent.click(signOut);
 
     await expect(screen.findByRole("heading", { name: "Sign in" })).resolves.toBeDefined();
   });

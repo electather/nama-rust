@@ -87,7 +87,7 @@ fn forwarded_client(peer: IpAddr, headers: &HeaderMap, trusted: impl Fn(IpAddr) 
 }
 
 /// Whether a trusted proxy says the request reached it over HTTPS. Only the last
-/// `X-Forwarded-Proto` value counts: that is the one the proxy in front of the Server set.
+/// `X-Forwarded-Proto` value counts: that is the one the proxy in front of the Server or Hub set.
 fn forwarded_https(headers: &HeaderMap) -> bool {
     headers
         .get_all("x-forwarded-proto")

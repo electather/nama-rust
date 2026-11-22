@@ -82,7 +82,7 @@ impl SignInLimits {
     pub(super) fn succeeded(&self, attempt: &Attempt) {
         let mut failures = self.lock();
         failures.by_ip.forget(&attempt.ip, attempt.at);
-        failures.by_email.times.remove(&attempt.email);
+        failures.by_email.clear(&attempt.email);
     }
 
     fn lock(&self) -> MutexGuard<'_, Failures> {
@@ -158,6 +158,10 @@ impl<K: Hash + Eq> Window<K> {
             self.swept_at = Some(at);
         }
         self.times.entry(key).or_default().push_back(at);
+    }
+
+    fn clear(&mut self, key: &K) {
+        self.times.remove(key);
     }
 
     fn forget(&mut self, key: &K, at: Instant) {

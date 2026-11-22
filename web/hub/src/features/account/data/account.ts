@@ -1,15 +1,10 @@
 import type { Transport } from "@connectrpc/connect";
 import { callUnaryMethod, useTransport } from "@connectrpc/connect-query";
+import type { RouterContext } from "@hub/app/router-context";
 import { refusalReason } from "@hub/features/account/lib/refusals";
 import { AccountService } from "@hub/gen/nama/hub/v1/account_pb";
 import { RefusalReason } from "@hub/gen/nama/hub/v1/refusal_pb";
-import { type QueryClient, queryOptions, useSuspenseQuery } from "@tanstack/react-query";
-
-/** What every route's `beforeLoad` gets from the router. */
-export interface RouterContext {
-  queryClient: QueryClient;
-  transport: Transport;
-}
+import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 
 /**
  * The signed-in Account, or `null` when nobody is: being signed out isn't an error. It stays

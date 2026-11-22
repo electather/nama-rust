@@ -13,11 +13,11 @@
   "iconLibrary": "lucide",
   "rtl": true,
   "aliases": {
-    "components": "@/features",
-    "utils": "@/lib/utils",
+    "components": "@hub/features",
+    "utils": "@hub/lib/utils",
     "ui": "nama-ui/components",
-    "lib": "@/lib",
-    "hooks": "@/hooks"
+    "lib": "@hub/lib",
+    "hooks": "@hub/hooks"
   },
   "menuColor": "default",
   "menuAccent": "subtle",

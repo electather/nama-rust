@@ -11,4 +11,4 @@ Accounts (GLOSSARY.md): creating one with an email and a password, and signing i
 ### Neighbours
 
 - Uses: nothing but the database.
-- Used by: `api` (`Accounts`, `AccountSession`), whose auth layer turns a session cookie into an `AccountSession`.
+- Used by: `api`, whose auth layer turns a session cookie into an `AccountSession`, and which converts the rest of what `accounts.rs` re-exports: `Account`, `SignedIn`, `Error`, `Blocked` and the length and lifetime limits.

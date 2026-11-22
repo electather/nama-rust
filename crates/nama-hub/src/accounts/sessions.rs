@@ -30,7 +30,7 @@ pub(super) async fn start(conn: &mut PgConnection, account: AccountId) -> Result
 }
 
 /// The session `token` names, unless it has ended or is older than [`SESSION_DAYS`].
-// shortcut: an expired session's row stays until its Account is deleted; sweep them once a
+// ponytail: an expired session's row stays until its Account is deleted; sweep them once a
 // periodic job runs in the Hub.
 pub(super) async fn find(db: &PgPool, token: &str) -> Result<Option<AccountSession>, sqlx::Error> {
     let found = sqlx::query!(

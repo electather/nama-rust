@@ -128,11 +128,11 @@ fn hand_out_session<M>(
         .with_header(SET_COOKIE, cookie(&token, max_age, ctx.extensions()))
 }
 
-/// A session cookie holding `value` for `max_age` seconds. `Secure` only when the request
-/// arrived over HTTPS, since a browser drops a `Secure` cookie sent over plain HTTP, as the Hub is
-/// reached while developing it (ADR 0015, ADR 0018).
-fn cookie(value: &str, max_age: i64, request: &Extensions) -> String {
-    let secure = request
+/// A session cookie holding `value` for `max_age` seconds. `Secure` only when the request whose
+/// `extensions` these are arrived over HTTPS, since a browser drops a `Secure` cookie sent over
+/// plain HTTP, as the Hub is reached while developing it (ADR 0015, ADR 0018).
+fn cookie(value: &str, max_age: i64, extensions: &Extensions) -> String {
+    let secure = extensions
         .get::<RequestSource>()
         .is_some_and(|source| source.https);
     let secure = if secure { "; Secure" } else { "" };
