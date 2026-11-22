@@ -6,7 +6,7 @@ use std::{borrow::Cow, collections::HashMap};
 use nama_plugin_api::metadata::ExternalId;
 use sqlx::SqliteConnection;
 
-use super::{Contents, Item, ItemKind, ItemRow, parse_hint};
+use super::{Contents, Item, ItemKind, ItemRow, parse_hint, searched_ids, searched_ids_changed};
 
 /// An `.nfo` file as a scan found it, with the ID Hints it names, strongest first.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -192,6 +192,7 @@ async fn set_hints(conn: &mut SqliteConnection, changed: Vec<(i64, NfoHints)>) -
         // Kept when Matched to a title, and for an Episode an Episode, its new hints name, as on
         // the first scan to read an `.nfo` the name already Matched by. Run before the hints are
         // stored: an Episode whose own `.nfo` is gone falls back to its name, so it isn't kept.
+        let searched = searched_ids(&mut *conn, item).await?;
         sqlx::query!(
             "DELETE FROM item_matches
              WHERE item_id = ?1
@@ -227,6 +228,7 @@ async fn set_hints(conn: &mut SqliteConnection, changed: Vec<(i64, NfoHints)>) -
         )
         .execute(&mut *conn)
         .await?;
+        searched_ids_changed(&mut *conn, item, &searched).await?;
         sqlx::query!(
             "UPDATE library_items SET nfo_hints = ?, episode_nfo_hints = ? WHERE id = ?",
             title,

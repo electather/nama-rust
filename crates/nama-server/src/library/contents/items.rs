@@ -3,6 +3,7 @@
 use std::borrow::Cow;
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use sqlx::SqliteConnection;
 
 use crate::library::title_source::TitleKind;
 
@@ -181,7 +182,7 @@ impl Contents {
                        LEFT JOIN item_matches ON item_matches.item_id = library_items.id
                                              AND item_matches.state = 'matched'
                        WHERE library_files.id = ?
-                       ORDER BY library_items.season, library_items.episode
+                       ORDER BY library_items.season, library_items.episode, library_items.id
                        LIMIT 1"#,
                     version
                 )
@@ -195,5 +196,22 @@ impl Contents {
             episode: row.season.zip(row.episode),
             ids: ids_from_json(row.ids.as_deref()),
         }))
+    }
+
+    /// The Version whose [`FirstItem`] is the Item `item`, read on `conn` so a write can act on
+    /// it; `None` if it's not its file's first, or gone.
+    pub(crate) async fn version_first_holding(
+        conn: &mut SqliteConnection,
+        item: i64,
+    ) -> Result<Option<i64>, sqlx::Error> {
+        sqlx::query_scalar!(
+            r#"SELECT mine.file_id AS "file_id!" FROM library_items AS mine
+               WHERE mine.id = ?1
+                 AND mine.id = (SELECT id FROM library_items WHERE file_id = mine.file_id
+                                ORDER BY season, episode, id LIMIT 1)"#,
+            item
+        )
+        .fetch_optional(conn)
+        .await
     }
 }
