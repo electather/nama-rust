@@ -180,13 +180,11 @@ impl Pick {
     }
 }
 
-/// A Movie or Show on the Server: its genres and Content Rating, and whether the User started or
-/// played it, or any of the Show's Episodes.
-#[derive(Default)]
+/// A Movie or Show on the Server, as the first Library listing it names it: its genres and
+/// Content Rating, and whether the User started or played it, or any of the Show's Episodes, in
+/// any Library.
 struct Candidate {
-    /// Every id of the Movie, or of the Show by any of its Episodes, any of which a Watchlist
-    /// may name it by (ADR 0042).
-    ids: HashSet<Key>,
+    key: Key,
     genres: Vec<String>,
     content_rating: Option<String>,
     started: bool,
@@ -196,55 +194,61 @@ struct Candidate {
 /// The Movies and Shows of `titles` the User hasn't started or played, by `states`, their Watch
 /// States, ranked: those on their `watchlist` first, then by how often they played the titles'
 /// genres, then in the Kernel's order. A title whose Watch State isn't paired with it is left
-/// out, so a title the User started never shows.
+/// out, so a title the User started never shows. A title is one Movie or Show by any of its ids,
+/// as Libraries preferring different ones list it (ADR 0042).
 ///
 /// ponytail: a genre count and a Watchlist flag; weigh recent plays, or ratings, when Users ask
-/// for better picks.
+/// for better picks. A title whose ids join two candidates already apart joins the first only,
+/// as in Discover; merge them if one title's copies ever share no id but each one with a third.
 fn ranked(
     titles: &[Title],
     states: &[TitleWatchStates],
     watchlist: &[WatchlistTitle],
 ) -> Vec<Pick> {
-    let mut order = Vec::new();
-    let mut candidates: HashMap<Key, Candidate> = HashMap::new();
+    let mut candidates: Vec<Candidate> = Vec::new();
+    let mut places: HashMap<Key, usize> = HashMap::new();
     for (title, state) in titles.iter().zip(states) {
         let ids = Key::every_of_title(title);
         let Some(key) = ids.first().filter(|_| state.title_ref == title.title_ref) else {
             continue;
         };
-        let candidate = candidates.entry(key.clone()).or_insert_with(|| {
-            order.push(key.clone());
-            Candidate {
+        let found = ids.iter().find_map(|id| places.get(id)).copied();
+        let place = found.unwrap_or_else(|| {
+            candidates.push(Candidate {
+                key: key.clone(),
                 genres: title.genres.clone(),
                 content_rating: title.content_rating.clone(),
-                ..Candidate::default()
-            }
+                started: false,
+                played: false,
+            });
+            candidates.len() - 1
         });
-        candidate.ids.extend(ids);
+        for id in ids {
+            places.entry(id).or_insert(place);
+        }
+        let Some(candidate) = candidates.get_mut(place) else {
+            continue;
+        };
         candidate.started |= (state.states.iter()).any(|it| it.played || it.position_ms > 0);
         candidate.played |= (state.states.iter()).any(|it| it.played);
     }
     let mut genre_plays: HashMap<&str, usize> = HashMap::new();
-    for genre in (candidates.values().filter(|title| title.played)).flat_map(|title| &title.genres)
-    {
+    for genre in (candidates.iter().filter(|title| title.played)).flat_map(|title| &title.genres) {
         *genre_plays.entry(genre).or_default() += 1;
     }
-    let watchlist: HashSet<Key> = (watchlist.iter())
-        .filter_map(|title| Some(Key::of(title.kind.as_known()?, title.id.as_option()?)))
+    let watchlisted: HashSet<usize> = (watchlist.iter())
+        .filter_map(|title| places.get(&Key::of(title.kind.as_known()?, title.id.as_option()?)))
+        .copied()
         .collect();
-    let mut picks: Vec<Pick> = (order.into_iter())
-        .filter_map(|key| {
-            let candidate = candidates
-                .get(&key)
-                .filter(|candidate| !candidate.started)?;
-            Some(Pick {
-                on_watchlist: !candidate.ids.is_disjoint(&watchlist),
-                genre_plays: (candidate.genres.iter())
-                    .map(|genre| genre_plays.get(genre.as_str()).copied().unwrap_or_default())
-                    .sum(),
-                content_rating: candidate.content_rating.clone(),
-                key,
-            })
+    let mut picks: Vec<Pick> = (candidates.iter().enumerate())
+        .filter(|(_, candidate)| !candidate.started)
+        .map(|(place, candidate)| Pick {
+            on_watchlist: watchlisted.contains(&place),
+            genre_plays: (candidate.genres.iter())
+                .map(|genre| genre_plays.get(genre.as_str()).copied().unwrap_or_default())
+                .sum(),
+            content_rating: candidate.content_rating.clone(),
+            key: candidate.key.clone(),
         })
         .collect();
     picks.sort_by_key(|pick| std::cmp::Reverse((pick.on_watchlist, pick.genre_plays)));
