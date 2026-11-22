@@ -7,9 +7,7 @@ use nama_pdk::{
         Error, HttpRequest,
         json::{self, Value, json},
     },
-    kernel,
-    nama_plugin_proto::nama::plugin::v1::Texts,
-    services, setting_value,
+    kernel, services, setting_value,
     testing::{Kernel, with},
 };
 use url::Url;
@@ -126,7 +124,7 @@ fn answer(status: u16, body: &Value) -> Response {
 fn kernel(picked: &[&str]) -> Kernel {
     Kernel::new()
         .setting(API_KEY, VALID_KEY)
-        .setting(SHARED_ROWS, &json::to_string(picked).unwrap())
+        .setting_picked(SHARED_ROWS, picked)
         .store()
         .http(|request, _body| {
             let host = Url::parse(&request.url)
@@ -315,8 +313,7 @@ fn the_settings_check_refuses_21_rows_for_each_user_without_asking_tmdb() {
         .take(21)
         .map(|(key, _)| *key)
         .collect();
-    let mut kernel =
-        kernel(&["trending-week"]).setting(USER_ROWS, &json::to_string(&picked).unwrap());
+    let mut kernel = kernel(&["trending-week"]).setting_picked(USER_ROWS, picked);
 
     let err = with(&mut kernel, check_settings).unwrap_err();
 
@@ -382,15 +379,7 @@ fn manifest_serves_home_rows_with_its_permissions_api_key_region_shared_and_user
             )
         })
         .collect();
-    let picked = |values: [&str; 3]| {
-        Some(
-            Texts {
-                values: values.map(str::to_owned).to_vec(),
-                ..Texts::default()
-            }
-            .into(),
-        )
-    };
+    let picked = |values: [&str; 3]| nama_pdk::picked_default(values).into_option()?.value;
     assert_eq!(
         settings,
         [
@@ -569,7 +558,7 @@ fn user_kernel(picked: &[&str], titles: &[Title]) -> Kernel {
     };
     Kernel::new()
         .setting(API_KEY, VALID_KEY)
-        .setting(USER_ROWS, &json::to_string(picked).unwrap())
+        .setting_picked(USER_ROWS, picked)
         .http(|request, _body| Ok(tmdb(request)))
         .libraries([library])
         .titles(1, titles.iter().cloned())
