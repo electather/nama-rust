@@ -25,7 +25,7 @@ use nama_hub_proto::nama::hub::v1::{
 use sqlx::PgPool;
 use tracing::Instrument as _;
 
-use crate::{accounts::Accounts, db, links::Links, mail::Mail, signing::Keys};
+use crate::{accounts::Accounts, db, links::Links, mail::Mail, signing::Keys, sync::WatchStates};
 
 use self::{
     accounts::{AccountServiceHandler, COOKIE_NAME},
@@ -44,6 +44,7 @@ pub(crate) fn router(
 ) -> axum::Router {
     let accounts = Accounts::new(db.clone(), mail);
     let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys));
+    let watch_states = WatchStates::new(db.clone(), links.clone());
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(HubServiceHandler {
             db,
@@ -60,6 +61,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(LinkedServerServiceHandler {
             links: links.clone(),
+            watch_states,
         }))
         .into_axum_service();
     let jwks = async move || {
@@ -224,11 +226,11 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED => ErrorCode::NotFound,
         R::REFUSAL_REASON_TOO_MANY_ATTEMPTS => ErrorCode::ResourceExhausted,
         R::REFUSAL_REASON_EMAIL_TAKEN | R::REFUSAL_REASON_USER_LINKED => ErrorCode::AlreadyExists,
-        R::REFUSAL_REASON_EMAIL_INVALID | R::REFUSAL_REASON_PASSWORD_LENGTH => {
-            ErrorCode::InvalidArgument
-        }
+        R::REFUSAL_REASON_EMAIL_INVALID
+        | R::REFUSAL_REASON_PASSWORD_LENGTH
+        | R::REFUSAL_REASON_WATCH_STATE_INVALID
         // Never sent; a client sees it only for a reason it doesn't know.
-        R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,
     }
 }
 

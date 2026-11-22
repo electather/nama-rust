@@ -71,6 +71,9 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_USER_LINK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__UNLINK_USER_REQUEST_JSON_ANY);
         reg.register_json_any(super::__UNLINK_USER_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PUSH_WATCH_STATES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__PUSH_WATCH_STATES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__WATCH_STATE_CHANGE_JSON_ANY);
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
     }
 }
@@ -246,6 +249,18 @@ pub use self::__buffa::view::UnlinkUserRequestOwnedView;
 pub use self::__buffa::view::UnlinkUserResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::UnlinkUserResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PushWatchStatesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PushWatchStatesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PushWatchStatesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PushWatchStatesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchStateChangeView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchStateChangeOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RefusalView;
 #[doc(inline)]

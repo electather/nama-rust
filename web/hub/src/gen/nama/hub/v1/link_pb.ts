@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/hub/v1/link.proto.
  */
 export const file_nama_hub_v1_link: GenFile = /*@__PURE__*/
-  fileDesc("ChZuYW1hL2h1Yi92MS9saW5rLnByb3RvEgtuYW1hLmh1Yi52MSI7CgxMaW5rZWRTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglsaW5rZWRfYXQYAyABKAMiJgoWU3RhcnRTZXJ2ZXJMaW5rUmVxdWVzdBIMCgRuYW1lGAEgASgJIncKF1N0YXJ0U2VydmVyTGlua1Jlc3BvbnNlEhMKC2RldmljZV9jb2RlGAEgASgJEhEKCXVzZXJfY29kZRgCIAEoCRIaChJleHBpcmVzX2luX3NlY29uZHMYAyABKAUSGAoQaW50ZXJ2YWxfc2Vjb25kcxgEIAEoBSIsChVQb2xsU2VydmVyTGlua1JlcXVlc3QSEwoLZGV2aWNlX2NvZGUYASABKAkiSwoWUG9sbFNlcnZlckxpbmtSZXNwb25zZRIOCgZsaW5rZWQYASABKAgSEgoKY3JlZGVudGlhbBgCIAEoCRINCgV0b2tlbhgDIAEoCSIoChhBcHByb3ZlU2VydmVyTGlua1JlcXVlc3QSDAoEY29kZRgBIAEoCSJGChlBcHByb3ZlU2VydmVyTGlua1Jlc3BvbnNlEikKBnNlcnZlchgBIAEoCzIZLm5hbWEuaHViLnYxLkxpbmtlZFNlcnZlciIaChhMaXN0TGlua2VkU2VydmVyc1JlcXVlc3QiRwoZTGlzdExpbmtlZFNlcnZlcnNSZXNwb25zZRIqCgdzZXJ2ZXJzGAEgAygLMhkubmFtYS5odWIudjEuTGlua2VkU2VydmVyIhUKE1VubGlua1NlcnZlclJlcXVlc3QiFgoUVW5saW5rU2VydmVyUmVzcG9uc2UiTgoKTGlua2VkVXNlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhMKC3NlcnZlcl9uYW1lGAMgASgJEhEKCWxpbmtlZF9hdBgEIAEoAyImChZBcHByb3ZlVXNlckxpbmtSZXF1ZXN0EgwKBGNvZGUYASABKAkiQAoXQXBwcm92ZVVzZXJMaW5rUmVzcG9uc2USJQoEdXNlchgBIAEoCzIXLm5hbWEuaHViLnYxLkxpbmtlZFVzZXIiGAoWTGlzdExpbmtlZFVzZXJzUmVxdWVzdCJBChdMaXN0TGlua2VkVXNlcnNSZXNwb25zZRImCgV1c2VycxgBIAMoCzIXLm5hbWEuaHViLnYxLkxpbmtlZFVzZXIiJQoXVW5saW5rTGlua2VkVXNlclJlcXVlc3QSCgoCaWQYASABKAkiGgoYVW5saW5rTGlua2VkVXNlclJlc3BvbnNlIjUKFFN0YXJ0VXNlckxpbmtSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSDAoEbmFtZRgCIAEoCSJGChVTdGFydFVzZXJMaW5rUmVzcG9uc2USEQoJdXNlcl9jb2RlGAEgASgJEhoKEmV4cGlyZXNfaW5fc2Vjb25kcxgCIAEoBSIlChJHZXRVc2VyTGlua1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyImChNHZXRVc2VyTGlua1Jlc3BvbnNlEg8KB2FjY291bnQYASABKAkiJAoRVW5saW5rVXNlclJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyIUChJVbmxpbmtVc2VyUmVzcG9uc2UyzAEKEVNlcnZlckxpbmtTZXJ2aWNlElwKD1N0YXJ0U2VydmVyTGluaxIjLm5hbWEuaHViLnYxLlN0YXJ0U2VydmVyTGlua1JlcXVlc3QaJC5uYW1hLmh1Yi52MS5TdGFydFNlcnZlckxpbmtSZXNwb25zZRJZCg5Qb2xsU2VydmVyTGluaxIiLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVxdWVzdBojLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVzcG9uc2UygQQKC0xpbmtTZXJ2aWNlEmIKEUFwcHJvdmVTZXJ2ZXJMaW5rEiUubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXF1ZXN0GiYubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXNwb25zZRJnChFMaXN0TGlua2VkU2VydmVycxIlLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVxdWVzdBomLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVzcG9uc2UiA5ACARJcCg9BcHByb3ZlVXNlckxpbmsSIy5uYW1hLmh1Yi52MS5BcHByb3ZlVXNlckxpbmtSZXF1ZXN0GiQubmFtYS5odWIudjEuQXBwcm92ZVVzZXJMaW5rUmVzcG9uc2USYQoPTGlzdExpbmtlZFVzZXJzEiMubmFtYS5odWIudjEuTGlzdExpbmtlZFVzZXJzUmVxdWVzdBokLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRVc2Vyc1Jlc3BvbnNlIgOQAgESZAoQVW5saW5rTGlua2VkVXNlchIkLm5hbWEuaHViLnYxLlVubGlua0xpbmtlZFVzZXJSZXF1ZXN0GiUubmFtYS5odWIudjEuVW5saW5rTGlua2VkVXNlclJlc3BvbnNlIgOQAgIy7QIKE0xpbmtlZFNlcnZlclNlcnZpY2USUwoMVW5saW5rU2VydmVyEiAubmFtYS5odWIudjEuVW5saW5rU2VydmVyUmVxdWVzdBohLm5hbWEuaHViLnYxLlVubGlua1NlcnZlclJlc3BvbnNlElYKDVN0YXJ0VXNlckxpbmsSIS5uYW1hLmh1Yi52MS5TdGFydFVzZXJMaW5rUmVxdWVzdBoiLm5hbWEuaHViLnYxLlN0YXJ0VXNlckxpbmtSZXNwb25zZRJVCgtHZXRVc2VyTGluaxIfLm5hbWEuaHViLnYxLkdldFVzZXJMaW5rUmVxdWVzdBogLm5hbWEuaHViLnYxLkdldFVzZXJMaW5rUmVzcG9uc2UiA5ACARJSCgpVbmxpbmtVc2VyEh4ubmFtYS5odWIudjEuVW5saW5rVXNlclJlcXVlc3QaHy5uYW1hLmh1Yi52MS5VbmxpbmtVc2VyUmVzcG9uc2UiA5ACAmIGcHJvdG8z");
+  fileDesc("ChZuYW1hL2h1Yi92MS9saW5rLnByb3RvEgtuYW1hLmh1Yi52MSI7CgxMaW5rZWRTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglsaW5rZWRfYXQYAyABKAMiJgoWU3RhcnRTZXJ2ZXJMaW5rUmVxdWVzdBIMCgRuYW1lGAEgASgJIncKF1N0YXJ0U2VydmVyTGlua1Jlc3BvbnNlEhMKC2RldmljZV9jb2RlGAEgASgJEhEKCXVzZXJfY29kZRgCIAEoCRIaChJleHBpcmVzX2luX3NlY29uZHMYAyABKAUSGAoQaW50ZXJ2YWxfc2Vjb25kcxgEIAEoBSIsChVQb2xsU2VydmVyTGlua1JlcXVlc3QSEwoLZGV2aWNlX2NvZGUYASABKAkiSwoWUG9sbFNlcnZlckxpbmtSZXNwb25zZRIOCgZsaW5rZWQYASABKAgSEgoKY3JlZGVudGlhbBgCIAEoCRINCgV0b2tlbhgDIAEoCSIoChhBcHByb3ZlU2VydmVyTGlua1JlcXVlc3QSDAoEY29kZRgBIAEoCSJGChlBcHByb3ZlU2VydmVyTGlua1Jlc3BvbnNlEikKBnNlcnZlchgBIAEoCzIZLm5hbWEuaHViLnYxLkxpbmtlZFNlcnZlciIaChhMaXN0TGlua2VkU2VydmVyc1JlcXVlc3QiRwoZTGlzdExpbmtlZFNlcnZlcnNSZXNwb25zZRIqCgdzZXJ2ZXJzGAEgAygLMhkubmFtYS5odWIudjEuTGlua2VkU2VydmVyIhUKE1VubGlua1NlcnZlclJlcXVlc3QiFgoUVW5saW5rU2VydmVyUmVzcG9uc2UiTgoKTGlua2VkVXNlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhMKC3NlcnZlcl9uYW1lGAMgASgJEhEKCWxpbmtlZF9hdBgEIAEoAyImChZBcHByb3ZlVXNlckxpbmtSZXF1ZXN0EgwKBGNvZGUYASABKAkiQAoXQXBwcm92ZVVzZXJMaW5rUmVzcG9uc2USJQoEdXNlchgBIAEoCzIXLm5hbWEuaHViLnYxLkxpbmtlZFVzZXIiGAoWTGlzdExpbmtlZFVzZXJzUmVxdWVzdCJBChdMaXN0TGlua2VkVXNlcnNSZXNwb25zZRImCgV1c2VycxgBIAMoCzIXLm5hbWEuaHViLnYxLkxpbmtlZFVzZXIiJQoXVW5saW5rTGlua2VkVXNlclJlcXVlc3QSCgoCaWQYASABKAkiGgoYVW5saW5rTGlua2VkVXNlclJlc3BvbnNlIjUKFFN0YXJ0VXNlckxpbmtSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSDAoEbmFtZRgCIAEoCSJGChVTdGFydFVzZXJMaW5rUmVzcG9uc2USEQoJdXNlcl9jb2RlGAEgASgJEhoKEmV4cGlyZXNfaW5fc2Vjb25kcxgCIAEoBSIlChJHZXRVc2VyTGlua1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyImChNHZXRVc2VyTGlua1Jlc3BvbnNlEg8KB2FjY291bnQYASABKAkiJAoRVW5saW5rVXNlclJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyIUChJVbmxpbmtVc2VyUmVzcG9uc2UiSAoWUHVzaFdhdGNoU3RhdGVzUmVxdWVzdBIuCgdjaGFuZ2VzGAEgAygLMh0ubmFtYS5odWIudjEuV2F0Y2hTdGF0ZUNoYW5nZSIZChdQdXNoV2F0Y2hTdGF0ZXNSZXNwb25zZSKSAQoQV2F0Y2hTdGF0ZUNoYW5nZRIPCgd1c2VyX2lkGAEgASgDEg8KB2VwaXNvZGUYAiABKAgSCwoDaWRzGAMgAygJEg4KBnBsYXllZBgEIAEoCBITCgtwb3NpdGlvbl9tcxgFIAEoBBITCgtkdXJhdGlvbl9tcxgGIAEoBBIVCg1jaGFuZ2VkX2F0X21zGAcgASgDMswBChFTZXJ2ZXJMaW5rU2VydmljZRJcCg9TdGFydFNlcnZlckxpbmsSIy5uYW1hLmh1Yi52MS5TdGFydFNlcnZlckxpbmtSZXF1ZXN0GiQubmFtYS5odWIudjEuU3RhcnRTZXJ2ZXJMaW5rUmVzcG9uc2USWQoOUG9sbFNlcnZlckxpbmsSIi5uYW1hLmh1Yi52MS5Qb2xsU2VydmVyTGlua1JlcXVlc3QaIy5uYW1hLmh1Yi52MS5Qb2xsU2VydmVyTGlua1Jlc3BvbnNlMoEECgtMaW5rU2VydmljZRJiChFBcHByb3ZlU2VydmVyTGluaxIlLm5hbWEuaHViLnYxLkFwcHJvdmVTZXJ2ZXJMaW5rUmVxdWVzdBomLm5hbWEuaHViLnYxLkFwcHJvdmVTZXJ2ZXJMaW5rUmVzcG9uc2USZwoRTGlzdExpbmtlZFNlcnZlcnMSJS5uYW1hLmh1Yi52MS5MaXN0TGlua2VkU2VydmVyc1JlcXVlc3QaJi5uYW1hLmh1Yi52MS5MaXN0TGlua2VkU2VydmVyc1Jlc3BvbnNlIgOQAgESXAoPQXBwcm92ZVVzZXJMaW5rEiMubmFtYS5odWIudjEuQXBwcm92ZVVzZXJMaW5rUmVxdWVzdBokLm5hbWEuaHViLnYxLkFwcHJvdmVVc2VyTGlua1Jlc3BvbnNlEmEKD0xpc3RMaW5rZWRVc2VycxIjLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRVc2Vyc1JlcXVlc3QaJC5uYW1hLmh1Yi52MS5MaXN0TGlua2VkVXNlcnNSZXNwb25zZSIDkAIBEmQKEFVubGlua0xpbmtlZFVzZXISJC5uYW1hLmh1Yi52MS5VbmxpbmtMaW5rZWRVc2VyUmVxdWVzdBolLm5hbWEuaHViLnYxLlVubGlua0xpbmtlZFVzZXJSZXNwb25zZSIDkAICMtADChNMaW5rZWRTZXJ2ZXJTZXJ2aWNlElMKDFVubGlua1NlcnZlchIgLm5hbWEuaHViLnYxLlVubGlua1NlcnZlclJlcXVlc3QaIS5uYW1hLmh1Yi52MS5VbmxpbmtTZXJ2ZXJSZXNwb25zZRJWCg1TdGFydFVzZXJMaW5rEiEubmFtYS5odWIudjEuU3RhcnRVc2VyTGlua1JlcXVlc3QaIi5uYW1hLmh1Yi52MS5TdGFydFVzZXJMaW5rUmVzcG9uc2USVQoLR2V0VXNlckxpbmsSHy5uYW1hLmh1Yi52MS5HZXRVc2VyTGlua1JlcXVlc3QaIC5uYW1hLmh1Yi52MS5HZXRVc2VyTGlua1Jlc3BvbnNlIgOQAgESUgoKVW5saW5rVXNlchIeLm5hbWEuaHViLnYxLlVubGlua1VzZXJSZXF1ZXN0Gh8ubmFtYS5odWIudjEuVW5saW5rVXNlclJlc3BvbnNlIgOQAgISYQoPUHVzaFdhdGNoU3RhdGVzEiMubmFtYS5odWIudjEuUHVzaFdhdGNoU3RhdGVzUmVxdWVzdBokLm5hbWEuaHViLnYxLlB1c2hXYXRjaFN0YXRlc1Jlc3BvbnNlIgOQAgJiBnByb3RvMw");
 
 /**
  * A Server registered with the Hub, owned by an Account.
@@ -520,6 +520,102 @@ export const UnlinkUserResponseSchema: GenMessage<UnlinkUserResponse> = /*@__PUR
   messageDesc(file_nama_hub_v1_link, 23);
 
 /**
+ * @generated from message nama.hub.v1.PushWatchStatesRequest
+ */
+export type PushWatchStatesRequest = Message<"nama.hub.v1.PushWatchStatesRequest"> & {
+  /**
+   * In the order the Server made them: up to 500.
+   *
+   * @generated from field: repeated nama.hub.v1.WatchStateChange changes = 1;
+   */
+  changes: WatchStateChange[];
+};
+
+/**
+ * Describes the message nama.hub.v1.PushWatchStatesRequest.
+ * Use `create(PushWatchStatesRequestSchema)` to create a new message.
+ */
+export const PushWatchStatesRequestSchema: GenMessage<PushWatchStatesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 24);
+
+/**
+ * @generated from message nama.hub.v1.PushWatchStatesResponse
+ */
+export type PushWatchStatesResponse = Message<"nama.hub.v1.PushWatchStatesResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.PushWatchStatesResponse.
+ * Use `create(PushWatchStatesResponseSchema)` to create a new message.
+ */
+export const PushWatchStatesResponseSchema: GenMessage<PushWatchStatesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 25);
+
+/**
+ * One User's Watch State of a Movie or Episode, as a change on their Server left it.
+ *
+ * @generated from message nama.hub.v1.WatchStateChange
+ */
+export type WatchStateChange = Message<"nama.hub.v1.WatchStateChange"> & {
+  /**
+   * The User's id on the Server.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+
+  /**
+   * Whether it is an Episode rather than a Movie, whose TMDB ids are a separate id space.
+   *
+   * @generated from field: bool episode = 2;
+   */
+  episode: boolean;
+
+  /**
+   * Every External ID it is known by, such as `tmdb-348` (ADR 0013): 1 to 20, each up to 100
+   * characters. An Unmatched Item has none, so its Watch State never leaves its Server.
+   *
+   * @generated from field: repeated string ids = 3;
+   */
+  ids: string[];
+
+  /**
+   * Whether it was played. Marking it unplayed leaves it unplayed at 0 of 0 milliseconds.
+   *
+   * @generated from field: bool played = 4;
+   */
+  played: boolean;
+
+  /**
+   * How far in, in milliseconds, up to `duration_ms`.
+   *
+   * @generated from field: uint64 position_ms = 5;
+   */
+  positionMs: bigint;
+
+  /**
+   * How long it is, in milliseconds; 0 if no player said.
+   *
+   * @generated from field: uint64 duration_ms = 6;
+   */
+  durationMs: bigint;
+
+  /**
+   * When it changed on the Server, in milliseconds since the Unix epoch.
+   *
+   * @generated from field: int64 changed_at_ms = 7;
+   */
+  changedAtMs: bigint;
+};
+
+/**
+ * Describes the message nama.hub.v1.WatchStateChange.
+ * Use `create(WatchStateChangeSchema)` to create a new message.
+ */
+export const WatchStateChangeSchema: GenMessage<WatchStateChange> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 26);
+
+/**
  * Registering a Server with the Hub, as an OAuth device flow (RFC 8628, ADR 0011): the Server
  * starts it and polls, and the holder of an Account enters the code it shows on the Hub's pages.
  * The Hub never calls a Server. Anyone may call it, since a Server not yet Linked has no identity.
@@ -671,6 +767,19 @@ export const LinkedServerService: GenService<{
     methodKind: "unary";
     input: typeof UnlinkUserRequestSchema;
     output: typeof UnlinkUserResponseSchema;
+  },
+  /**
+   * Merges changes to the Server's Users' Watch State into their Accounts' (ADR 0008): per Account
+   * and title, the change made last wins, whichever Server sends it and whenever. A change of a User
+   * who isn't Linked is dropped. Fails with `REFUSAL_REASON_WATCH_STATE_INVALID` for a change it
+   * can't keep, keeping none of the call's.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.PushWatchStates
+   */
+  pushWatchStates: {
+    methodKind: "unary";
+    input: typeof PushWatchStatesRequestSchema;
+    output: typeof PushWatchStatesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_hub_v1_link, 2);

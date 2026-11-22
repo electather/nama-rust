@@ -130,6 +130,18 @@ impl Links {
         server: &LinkedServer,
         user_id: i64,
     ) -> Result<Option<String>, sqlx::Error> {
+        match self.linked_account(server, user_id).await? {
+            Some(account) => self.accounts.email(account).await,
+            None => Ok(None),
+        }
+    }
+
+    /// The Account `server`'s User `user_id` is Linked to, if they are.
+    pub(crate) async fn linked_account(
+        &self,
+        server: &LinkedServer,
+        user_id: i64,
+    ) -> Result<Option<AccountId>, sqlx::Error> {
         let account = sqlx::query_scalar!(
             "SELECT account_id FROM user_links WHERE linked_server_id = $1 AND server_user_id = $2",
             server.id.0,
@@ -137,10 +149,7 @@ impl Links {
         )
         .fetch_optional(&self.db)
         .await?;
-        match account {
-            Some(account) => self.accounts.email(AccountId(account)).await,
-            None => Ok(None),
-        }
+        Ok(account.map(AccountId))
     }
 
     /// Unlinks `server`'s User `user_id`, and forgets the code they wait on.

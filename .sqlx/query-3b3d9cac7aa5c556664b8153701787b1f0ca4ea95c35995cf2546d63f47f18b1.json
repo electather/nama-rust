@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO watch_states\n         (account_id, episode, title_id, played, position_ms, duration_ms, changed_at)\n         SELECT $1::uuid, $2::boolean, title_id, $4::boolean, $5::bigint, $6::bigint,\n         'epoch'::timestamptz + $7::bigint * interval '1 millisecond'\n         FROM (SELECT DISTINCT unnest($3::text[])) AS ids (title_id)\n         ON CONFLICT (account_id, episode, title_id) DO UPDATE\n         SET played = excluded.played, position_ms = excluded.position_ms,\n         duration_ms = excluded.duration_ms, changed_at = excluded.changed_at\n         WHERE excluded.changed_at >= watch_states.changed_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool",
+        "TextArray",
+        "Bool",
+        "Int8",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3b3d9cac7aa5c556664b8153701787b1f0ca4ea95c35995cf2546d63f47f18b1"
+}

@@ -1,5 +1,6 @@
 //! Registering a Server through the device flow, listing an Account's Servers and Unlinking one,
-//! and Linking a Linked Server's Users to Accounts, against a real PostgreSQL.
+//! Linking a Linked Server's Users to Accounts, and pushing their Watch State, against a real
+//! PostgreSQL.
 
 #[path = "support/hub.rs"]
 mod hub;
@@ -23,10 +24,10 @@ use mail::{Inbox, fake_mail};
 use nama_hub_proto::nama::hub::v1::{
     AccountServiceClient, ApproveServerLinkRequest, ApproveUserLinkRequest, CreateAccountRequest,
     GetUserLinkRequest, LinkServiceClient, LinkedServerServiceClient, ListLinkedServersRequest,
-    ListLinkedUsersRequest, PollServerLinkRequest, PollServerLinkResponse, RefusalReason,
-    SendSignInLinkRequest, ServerLinkServiceClient, SignInWithLinkRequest, StartServerLinkRequest,
-    StartServerLinkResponse, StartUserLinkRequest, UnlinkLinkedUserRequest, UnlinkServerRequest,
-    UnlinkUserRequest,
+    ListLinkedUsersRequest, PollServerLinkRequest, PollServerLinkResponse, PushWatchStatesRequest,
+    RefusalReason, SendSignInLinkRequest, ServerLinkServiceClient, SignInWithLinkRequest,
+    StartServerLinkRequest, StartServerLinkResponse, StartUserLinkRequest, UnlinkLinkedUserRequest,
+    UnlinkServerRequest, UnlinkUserRequest, WatchStateChange,
 };
 use refused::assert_refused;
 use ring::signature::{ED25519, UnparsedPublicKey};
@@ -602,6 +603,92 @@ async fn linking_a_user_needs_a_proven_email_and_a_linked_server(db: PgPool) {
     assert_eq!(user_account(&hub, &server, 7).await, "");
     assert_refused(
         start_user(&hub, "no such credential", 7).await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+    );
+}
+
+/// The User `user_id`'s Watch State of Alien at `position_ms` of 7000, changed at `changed_at_ms`.
+fn alien_at(user_id: i64, position_ms: u64, changed_at_ms: i64) -> WatchStateChange {
+    WatchStateChange {
+        user_id,
+        ids: vec!["tmdb-348".to_owned(), "imdb-tt0078748".to_owned()],
+        position_ms,
+        duration_ms: 7000,
+        changed_at_ms,
+        ..Default::default()
+    }
+}
+
+/// Pushes `changes` from the Server presenting `credential`.
+async fn push(
+    hub: &TestHub,
+    credential: &str,
+    changes: Vec<WatchStateChange>,
+) -> Result<(), connectrpc::ConnectError> {
+    linked_server(hub, credential)
+        .push_watch_states(PushWatchStatesRequest {
+            changes,
+            ..Default::default()
+        })
+        .await?;
+    Ok(())
+}
+
+// What the Hub keeps of a push is checked where it merges, in `src/sync/sync_tests.rs`, until a
+// Server can read it back through the API.
+#[sqlx::test(migrations = false)]
+async fn two_servers_push_conflicting_changes_of_one_accounts_users(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let first = linked(&hub, &ada, "Ada's").await;
+    let second = linked(&hub, &ada, "Ada's other").await;
+    for server in [&first, &second] {
+        let code = start_user(&hub, server, 7).await.unwrap();
+        approve_user(&hub, &ada, &code).await.unwrap();
+    }
+
+    push(&hub, &first, vec![alien_at(7, 3000, 2_000)])
+        .await
+        .unwrap();
+    push(
+        &hub,
+        &second,
+        vec![alien_at(7, 1000, 1_000), alien_at(8, 1000, 1_000)],
+    )
+    .await
+    .unwrap();
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_push_breaking_a_limit_or_from_no_linked_server_is_refused(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let unmatched = WatchStateChange {
+        ids: Vec::new(),
+        ..alien_at(7, 3000, 1_000)
+    };
+
+    let past_the_end = assert_refused(
+        push(
+            &hub,
+            &server,
+            vec![alien_at(7, 3000, 1_000), alien_at(7, 8000, 1_000)],
+        )
+        .await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WATCH_STATE_INVALID,
+    );
+    assert_eq!(past_the_end.field, "changes[1].position_ms");
+    let without_ids = assert_refused(
+        push(&hub, &server, vec![unmatched]).await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WATCH_STATE_INVALID,
+    );
+    assert_eq!(without_ids.field, "changes[0].ids");
+    assert_refused(
+        push(&hub, "no such credential", vec![alien_at(7, 3000, 1_000)]).await,
         ErrorCode::Unauthenticated,
         RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
     );
