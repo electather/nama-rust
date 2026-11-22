@@ -109,6 +109,18 @@ describe("an Account", () => {
     expect(password.getAttribute("aria-describedby")).toBe(error.id);
   });
 
+  test.each([
+    { path: "/sign-in", heading: "Sign in" },
+    { path: "/create-account", heading: "Create an Account" },
+  ])("$heading marks the email for password managers to pair", async ({ path, heading }) => {
+    openHub(path);
+    await screen.findByRole("heading", { name: heading });
+
+    const email = screen.getByLabelText("Email");
+    expect(email.getAttribute("autocomplete")).toBe("username");
+    expect(email.getAttribute("type")).toBe("email");
+  });
+
   test("creating an Account opens its Account page", async () => {
     openHub("/create-account");
     await screen.findByRole("heading", { name: "Create an Account" });
