@@ -592,3 +592,28 @@ fn rows_for_each_user_left_unpicked_are_not_answered() {
     assert_eq!(keys, ["watchlist"]);
     assert_eq!(no_rows.rows, []);
 }
+
+#[test]
+fn watch_it_again_is_answered_without_your_watchlist_when_read_watchlists_is_not_granted() {
+    let titles = [movie("1", &[])];
+    let kernel = Kernel::new()
+        .setting(USER_ROWS, r#"["watch-again","watchlist"]"#)
+        .libraries([Library {
+            id: 1,
+            ..Library::default()
+        }])
+        .titles(1, titles.iter().cloned());
+    let mut kernel = watching(kernel, &titles[0], ADA, PLAYED, days_ago(400));
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    assert_eq!(
+        summary(&rows),
+        [(
+            "watch-again",
+            "Watch it again",
+            6 * 60 * 60,
+            vec![(Some(TitleKind::TITLE_KIND_MOVIE), "1")]
+        )]
+    );
+}

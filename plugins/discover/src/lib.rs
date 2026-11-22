@@ -253,7 +253,7 @@ impl HomeRowSource for Discover {
     /// A row for each of the User's rows picked, in [`PER_USER`]'s order.
     ///
     /// # Errors
-    /// If the Kernel refuses to list the Libraries, the User's Watch States or their Watchlist.
+    /// If the Kernel refuses to list the Libraries or the User's Watch States.
     fn user_rows(asked: UserRowsAsked) -> Result<HomeRows, Error> {
         let picked = nama_pdk::setting_picked(USER_ROWS)?;
         let history = History::of(asked.user_id)?;
@@ -262,7 +262,15 @@ impl HomeRowSource for Discover {
             // ponytail: a picked row Discover doesn't answer yet is left out until it's built.
             let titles = match key {
                 WATCH_AGAIN => history.played_long_ago()?,
-                WATCHLIST => history.unstarted(&kernel::watchlist(asked.user_id)?),
+                // The Admin may grant the other Plugin Permissions alone (ADR 0071): answer the
+                // rows those allow.
+                WATCHLIST => match kernel::watchlist(asked.user_id) {
+                    Ok(watchlist) => history.unstarted(&watchlist),
+                    Err(err) => {
+                        nama_pdk::warn!("leaving out Your Watchlist: {err}");
+                        continue;
+                    }
+                },
                 _ => continue,
             };
             rows.push(row(key, heading, USER_FRESH_FOR, titles)?);
