@@ -32,3 +32,16 @@ fn a_server_listening_on_every_address_has_its_default_routes_or_none() {
         "{address:?}"
     );
 }
+
+#[test]
+fn the_server_url_is_sent_in_ascii_as_typed_otherwise() {
+    assert_eq!(
+        as_sent("https://médias.example.com"),
+        "https://xn--mdias-bsa.example.com/"
+    );
+    assert_eq!(
+        as_sent("https://example.com/my media"),
+        "https://example.com/my%20media"
+    );
+    assert_eq!(as_sent(""), "");
+}

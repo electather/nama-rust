@@ -3,11 +3,13 @@
 
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
+    sync::Arc,
     time::Duration,
 };
 
 use nama_plugin_api::server_link::{ServerAddresses, ServerLinker};
-use tokio::task::JoinHandle;
+use tokio::{sync::oneshot, task::JoinHandle};
+use url::Url;
 
 use crate::{plugins::ExtensionPoints, server_settings::ServerUrl};
 
@@ -16,7 +18,8 @@ use crate::{plugins::ExtensionPoints, server_settings::ServerUrl};
 const EVERY: Duration = Duration::from_mins(1);
 
 /// Tells the enabled Plugin that links the Server its Server Addresses now and every minute: the
-/// Server URL `url` holds, and the LAN address of `listening`. Runs until the task is aborted. A
+/// Server URL `url` holds, and the LAN address of `listening`. Runs until the task is aborted; each
+/// call runs in the Plugin's scope, so disabling it or shutting down cancels and joins the call. A
 /// Plugin that fails shows it on its page.
 pub(crate) fn tell_every_minute(
     points: ExtensionPoints,
@@ -28,22 +31,47 @@ pub(crate) fn tell_every_minute(
         loop {
             ticks.tick().await;
             let addresses = ServerAddresses {
-                url: url.url(),
+                url: as_sent(&url.url()),
                 lan: lan_address(listening).into_iter().collect(),
             };
-            points
-                .ask_first::<dyn ServerLinker, _, _, _, _>(async |linker| {
-                    linker.set_addresses(addresses.clone()).await
-                })
-                .await;
+            tell(&points, addresses).await;
         }
     })
 }
 
+/// Tells the first enabled Plugin that links the Server `addresses`, in its scope, and waits until
+/// it answered or its scope was cancelled.
+async fn tell(points: &ExtensionPoints, addresses: ServerAddresses) {
+    let Some(plugin) = points.ranked::<dyn ServerLinker>().into_iter().next() else {
+        return;
+    };
+    let (asking, telling) = (points.clone(), plugin.clone());
+    let (told, answered) = oneshot::channel();
+    let spawned = points.spawn_in(&plugin, async move {
+        asking
+            .ask(&telling, async |linker: Arc<dyn ServerLinker>| {
+                linker.set_addresses(addresses.clone()).await
+            })
+            .await;
+        let _: Result<(), ()> = told.send(());
+    });
+    if spawned {
+        // A cancelled scope drops the sender, which ends the wait as well.
+        let _: Result<(), _> = answered.await;
+    }
+}
+
+/// The Server URL `url` as `url` serialises it, or empty for none: ASCII throughout, so the service,
+/// which may parse URLs more strictly than the Server, takes every one the Server does.
+fn as_sent(url: &str) -> String {
+    Url::parse(url).map_or_else(|_none| String::new(), String::from)
+}
+
 /// Where other devices on the LAN reach the Server listening on `listening`: that address, or,
 /// listening on every address, the one its traffic to the internet leaves from. `None` on loopback.
-// shortcut: one IPv4 address, the default route's; list every interface's once a Server on several
-// networks needs them all.
+// ponytail: one IPv4 address, the default route's, which in a Docker bridge network is the
+// container's and unreachable from the LAN; list every interface's, or let the Admin name one,
+// once a Server needs it (#1831 ranks and checks what clients can reach).
 fn lan_address(listening: SocketAddr) -> Option<String> {
     let ip = if listening.ip().is_unspecified() {
         default_route_address()?

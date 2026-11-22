@@ -348,7 +348,7 @@ async fn the_plugin_is_told_the_server_url_the_admin_set() {
 
     // The test Server listens on 127.0.0.1, which no other device on its LAN can reach.
     let told = ServerAddresses {
-        url: "https://nama.example.com".to_owned(),
+        url: "https://nama.example.com/".to_owned(),
         lan: vec![],
     };
     let waited = tokio::time::timeout(server::WAIT, async {

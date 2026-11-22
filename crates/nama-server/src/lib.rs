@@ -255,7 +255,7 @@ pub fn serve(
         // Before the Plugin settings, which save a Plugin that crashes as it is asked about progress.
         requests.shutdown().await;
         home_rows.shutdown().await;
-        // Before the Plugin settings, as it tells the Plugin that links the Server; telling it
+        // Its calls run in the Plugin's scope, which shutting the Plugins down joins; telling it
         // again at the next start loses nothing.
         telling_addresses.abort();
         plugins.shutdown().await;

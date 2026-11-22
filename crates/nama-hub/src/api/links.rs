@@ -15,8 +15,8 @@ use nama_hub_proto::nama::hub::v1::{
 
 use super::{accounts::signed_in, hub_failed, refuse};
 use crate::links::{
-    self, ADDRESS_LENGTH, CODE_LIFETIME_MINS, LAN_ADDRESSES, LinkId, LinkedServer, Links,
-    ListedServer, ListedUser, POLL_INTERVAL_SECS, Polled,
+    self, ADDRESS_LENGTH, CODE_LIFETIME_MINS, LinkId, LinkedServer, Links, ListedServer,
+    ListedUser, MAX_LAN_ADDRESSES, POLL_INTERVAL_SECS, Polled,
 };
 
 /// `nama.hub.v1.ServerLinkService`: a Server not yet Linked, so anyone.
@@ -298,7 +298,7 @@ fn refused(err: links::Error) -> ConnectError {
         E::UserLinked => refuse(R::REFUSAL_REASON_USER_LINKED, message),
         E::AddressInvalid => refuse(R::REFUSAL_REASON_SERVER_ADDRESS_INVALID, message)
             .param("maxLength", &ADDRESS_LENGTH)
-            .param("maxLanAddresses", &LAN_ADDRESSES),
+            .param("maxLanAddresses", &MAX_LAN_ADDRESSES),
         E::Random(_) | E::Database(_) => return hub_failed(&err),
     };
     refused.into()

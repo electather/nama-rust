@@ -43,7 +43,7 @@ const CODE_LENGTH: usize = 8;
 pub(crate) const ADDRESS_LENGTH: usize = 2000;
 
 /// The most LAN addresses a Server may report.
-pub(crate) const LAN_ADDRESSES: usize = 16;
+pub(crate) const MAX_LAN_ADDRESSES: usize = 16;
 
 /// How long the token a newly Linked Server gets stays valid.
 const TOKEN_LIFETIME_SECS: u64 = 5 * 60;
@@ -109,7 +109,7 @@ pub(crate) enum Error {
     Expired,
     #[error(
         "a Server Address must be an http or https URL of up to {ADDRESS_LENGTH} characters, \
-         and a Server has up to {LAN_ADDRESSES} LAN addresses"
+         and a Server has up to {MAX_LAN_ADDRESSES} LAN addresses"
     )]
     AddressInvalid,
     #[error("could not generate a code: {0}")]
@@ -306,7 +306,7 @@ impl Links {
         url: &str,
         lan_addresses: &[String],
     ) -> Result<(), Error> {
-        let addresses_valid = lan_addresses.len() <= LAN_ADDRESSES
+        let addresses_valid = lan_addresses.len() <= MAX_LAN_ADDRESSES
             && (url.is_empty() || is_address(url))
             && lan_addresses.iter().all(|address| is_address(address));
         if !addresses_valid {
