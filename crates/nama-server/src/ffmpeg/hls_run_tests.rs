@@ -43,6 +43,7 @@ const SOFTWARE: VideoConversion = VideoConversion {
     limit: None,
     burn_in: None,
     in_band_headers: false,
+    hevc: false,
 };
 
 /// The filters that tone-map HDR to SDR in software, pinned apart from the `TONE_MAP` they
@@ -615,6 +616,7 @@ const fn on_default_gpu(accel: Accel) -> Hardware {
         accel,
         gpu: None,
         tone_maps: false,
+        hevc: false,
     }
 }
 

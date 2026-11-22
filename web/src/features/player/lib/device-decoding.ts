@@ -28,6 +28,8 @@ const VIDEO_CODECS: Record<Named<typeof VideoCodec>, string> = {
 };
 /** H.264 High 10, asked about apart from High since most browsers decode only High. */
 const H264_10BIT = 'video/mp4; codecs="avc1.6E0028"';
+/** HEVC Main 10, which a Transcode of a 4K or HDR Version makes for a Device that decodes it. */
+const HEVC_10BIT = 'video/mp4; codecs="hvc1.2.4.L153.B0"';
 const AUDIO_CODECS: Record<Named<typeof AudioCodec>, string> = {
   [AudioCodec.AAC]: 'audio/mp4; codecs="mp4a.40.2"',
   [AudioCodec.MP3]: "audio/mpeg",
@@ -41,6 +43,7 @@ const AUDIO_CODECS: Record<Named<typeof AudioCodec>, string> = {
 };
 /** A 1080p film's video, which `decodingInfo` needs to judge a video codec. */
 const FILM = { width: 1920, height: 1080, bitrate: 10_000_000, framerate: 24 };
+const FILM_4K = { ...FILM, width: 3840, height: 2160 };
 
 /** The subtitle formats whose renderer failed on this page, which it no longer draws until a reload. */
 const failedRenderers = new Set<SubtitleFormat>();
@@ -61,10 +64,11 @@ export async function findDeviceDecoding() {
   // hls.js plays a Remux or Transcode through MSE, which may refuse a codec the browser decodes
   // from a file, as E-AC-3 and AC-3 can be. Native HLS doesn't use MSE.
   const types: MediaDecodingType[] = !nativeHls && mse ? ["file", "media-source"] : ["file"];
-  const [videoCodecs, audioCodecs, h26410bit] = await Promise.all([
+  const [videoCodecs, audioCodecs, h26410bit, hevc10bit] = await Promise.all([
     decodable(VIDEO_CODECS, types, (contentType) => ({ video: { contentType, ...FILM } })),
     decodable(AUDIO_CODECS, types, (contentType) => ({ audio: { contentType } })),
     decodes(types, { video: { contentType: H264_10BIT, ...FILM } }),
+    decodes(types, { video: { contentType: HEVC_10BIT, ...FILM_4K } }),
   ]);
   return {
     containers: keysOf(CONTAINERS).filter(
@@ -74,6 +78,7 @@ export async function findDeviceDecoding() {
     audioCodecs,
     hdr: matchMedia("(dynamic-range: high)").matches,
     h26410bit,
+    hevc10bit,
     nativeHls,
     mse,
     audioChannels: audioChannels(),

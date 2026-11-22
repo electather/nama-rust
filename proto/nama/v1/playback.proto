@@ -355,6 +355,9 @@ message DeviceDecoding {
   bool hdr = 2;
   // Whether it decodes 10-bit H.264 (High 10), which most browsers don't.
   bool h264_10bit = 10;
+  // Whether it decodes 10-bit HEVC (Main 10), which a Transcode of a 4K or HDR Version makes when
+  // it does and the Server's hardware encodes it.
+  bool hevc_10bit = 12;
   // Whether it plays HLS without a script's help.
   bool native_hls = 3;
   // Whether it has Media Source Extensions, through which a script can play HLS.
@@ -517,7 +520,8 @@ message PlaybackPlan {
   // says nothing of `PERMISSION_DOWNLOAD_SUBTITLES`. Set on every plan, also one that can't play.
   bool can_search_subtitles = 18;
   // Its Recipe, what sets it apart from another plan by the same method: the method, the
-  // container it serves and the audio codec it sends, such as `remux/fmp4/eac3`. A client that
+  // container it serves, for a Transcode the video codec it makes, and the audio codec it sends,
+  // such as `remux/fmp4/eac3` or `transcode/fmp4/hevc/eac3`. A client that
   // fails to play it sends it back as it is in `PlanPlaybackRequest.failed_recipes`; its form
   // isn't API contract. Empty when it can't be played.
   string recipe = 19;

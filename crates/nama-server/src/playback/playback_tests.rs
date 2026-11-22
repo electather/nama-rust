@@ -95,6 +95,7 @@ pub(super) fn firefox() -> DeviceDecoding {
         ],
         hdr: false,
         h264_10bit: false,
+        hevc_10bit: false,
         hls: true,
         audio_channels: 2,
         subtitle_formats: vec![],

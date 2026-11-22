@@ -145,3 +145,37 @@ fn a_playback_limit_on_hardware_scales_the_picture_on_its_gpu_if_it_can() {
         assert_eq!(value_of(&args, "-vf"), Some(filters), "{accel:?}");
     }
 }
+
+#[test]
+fn an_hevc_transcode_encodes_main_10_on_its_gpu_tagged_hvc1_with_headers_in_its_init_segment() {
+    for accel in Accel::ALL {
+        let hevc = VideoConversion {
+            hardware: Some(on_default_gpu(accel)),
+            hevc: true,
+            ..SOFTWARE
+        };
+
+        let args = transcode_args(hevc);
+
+        let (filters, encoder) = match accel {
+            Accel::Nvenc => (
+                "format=nv12|p010le|cuda,hwupload,scale_cuda=format=p010",
+                "hevc_nvenc",
+            ),
+            Accel::Qsv => (
+                "format=nv12|p010le|qsv,hwupload=extra_hw_frames=64,scale_qsv=format=p010",
+                "hevc_qsv",
+            ),
+            Accel::Vaapi => (
+                "format=nv12|p010le|vaapi,hwupload,scale_vaapi=format=p010",
+                "hevc_vaapi",
+            ),
+            Accel::VideoToolbox => ("format=p010", "hevc_videotoolbox"),
+        };
+        assert_eq!(value_of(&args, "-vf"), Some(filters), "{accel:?}");
+        assert_eq!(value_of(&args, "-c:v"), Some(encoder), "{accel:?}");
+        assert_eq!(value_of(&args, "-profile:v"), Some("main10"), "{accel:?}");
+        assert_eq!(value_of(&args, "-tag:v"), Some("hvc1"), "{accel:?}");
+        assert_eq!(value_of(&args, "-bsf:v"), None, "{accel:?}");
+    }
+}

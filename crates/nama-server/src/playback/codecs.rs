@@ -5,7 +5,7 @@ use nama_proto::nama::v1 as proto;
 use proto::PlaybackReasonKind as Kind;
 
 use super::{
-    Choice, DeviceDecoding, Facts, Method, Playing, Reason, recipe,
+    Choice, DeviceDecoding, Facts, Method, Playing, Reason, makes_hevc, recipe,
     steps::hdr_reason,
     tracks::{Hdr, Probe, Track, TrackKind},
 };
@@ -148,17 +148,19 @@ pub(super) fn played_by(playing: Option<&Playing>, tracks: Vec<Track>) -> Vec<Tr
                 Some(audio) => converted_audio(tracks, audio.conversion),
                 None => tracks,
             };
-            converted_to_h264(tracks, video)
+            converted_video(tracks, video)
         }
         None | Some(Playing::DirectPlay | Playing::Remux { .. }) => tracks,
     }
 }
 
-/// `facts.device` without each audio codec `method` would send `audio` as whose Recipe by it just
-/// failed on the Device, so it sends another if it can; and those codecs, as ffprobe names them.
+/// `facts.device` without each audio codec `method` would send `audio` as, beside `video` for a
+/// Transcode, whose Recipe by it just failed on the Device, so it sends another if it can; and
+/// those codecs, as ffprobe names them.
 pub(super) fn untried_by(
     method: Method,
     facts: &Facts,
+    video: Option<&str>,
     audio: &Track,
 ) -> (DeviceDecoding, Vec<String>) {
     let mut device = facts.device.clone();
@@ -177,7 +179,7 @@ pub(super) fn untried_by(
             .find(|(name, ..)| *name == sent)
             .map(|&(_, codec, _)| codec)
             .filter(|codec| device.audio_codecs.contains(codec))
-            .filter(|_| facts.failed_recipes.contains(&recipe(method, Some(sent))));
+            .filter(|_| (facts.failed_recipes).contains(&recipe(method, video, Some(sent))));
         let Some(failed) = failed else {
             passed_over.retain(|codec| codec != sent);
             return (device, passed_over);
@@ -255,13 +257,13 @@ fn converted_audio(mut tracks: Vec<Track>, conversion: AudioConversion) -> Vec<T
     tracks
 }
 
-/// `tracks` with their video converted to 8-bit H.264 as `video` says, keeping the HDR it decodes
-/// unless it tone-maps it.
-// ffmpeg tags the H.264 with the colours it decoded, so an HDR10 or HLG picture stays one at 8
-// bits.
-// ponytail: checked only for libx264; a GPU encoder that drops those tags sends an untagged
-// picture the Track calls HDR.
-fn converted_to_h264(mut tracks: Vec<Track>, video: &VideoConversion) -> Vec<Track> {
+/// `tracks` with their video converted to 8-bit H.264 or 10-bit HEVC as `video` says, keeping the
+/// HDR it decodes unless it tone-maps it.
+// ffmpeg tags what it encodes with the colours it decoded, so an HDR10 or HLG picture stays one,
+// even at 8 bits.
+// ponytail: checked only for libx264, and for HEVC on a GPU only by an ignored test run by hand;
+// a GPU encoder that drops those tags sends an untagged picture the Track calls HDR.
+fn converted_video(mut tracks: Vec<Track>, video: &VideoConversion) -> Vec<Track> {
     for track in &mut tracks {
         if let TrackKind::Video {
             bit_depth,
@@ -271,8 +273,8 @@ fn converted_to_h264(mut tracks: Vec<Track>, video: &VideoConversion) -> Vec<Tra
             ..
         } = &mut track.kind
         {
-            "h264".clone_into(&mut track.codec);
-            *bit_depth = Some(8);
+            video.codec().clone_into(&mut track.codec);
+            *bit_depth = Some(if video.hevc { 10 } else { 8 });
             *hdr = hdr
                 .and_then(transcoded_hdr)
                 .filter(|_| video.tone_map.is_none());
@@ -327,6 +329,33 @@ pub(super) fn played_hdr(facts: &Facts) -> Option<Hdr> {
         return None;
     };
     hdr
+}
+
+/// Whether a Transcode for `facts` would rather make 10-bit HEVC than H.264, on hardware that can:
+/// the Device decodes it, the picture is 4K, which H.264 sends larger, or HDR it shows, which
+/// H.264 bands, and no plan making HEVC just failed (#1415). An HDR picture the Device can't show
+/// is tone-mapped to H.264 instead.
+pub(super) fn wants_hevc(facts: &Facts) -> bool {
+    let device = &facts.device;
+    let decodes =
+        device.hevc_10bit && (device.video_codecs).contains(&proto::VideoCodec::VIDEO_CODEC_HEVC);
+    let Some(TrackKind::Video {
+        width, height, hdr, ..
+    }) = facts
+        .probe
+        .as_ref()
+        .and_then(played_video)
+        .map(|video| &video.kind)
+    else {
+        return false;
+    };
+    // The longer side, so a portrait 4K clip counts too.
+    let uhd = width.max(height).is_some_and(|side| side >= 3840);
+    let hdr = hdr.and_then(transcoded_hdr).is_some();
+    let failed = (facts.failed_recipes.iter())
+        .chain(&facts.failed_on_server)
+        .any(|recipe| makes_hevc(recipe));
+    decodes && (uhd || hdr) && (!hdr || device.hdr) && !failed
 }
 
 /// How the picture a Transcode decodes from video that's `hdr` is HDR, or `None` for SDR: a Dolby

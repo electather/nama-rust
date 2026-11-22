@@ -294,11 +294,20 @@ pub(crate) struct VideoConversion {
     /// The subtitle it draws into the picture, if any.
     pub(crate) burn_in: Option<BurnIn>,
     /// Whether each file carries the video's headers, so files written by another encoder, as
-    /// when hardware fails and software carries on, play after this one's init segment.
+    /// when hardware fails and software carries on, play after this one's init segment. Never with
+    /// `hevc`, which has no software to carry on in.
     pub(crate) in_band_headers: bool,
+    /// Whether it encodes 10-bit HEVC on `hardware`, keeping the colours it decodes, HDR's
+    /// included, rather than 8-bit H.264. Only on hardware that passed its HEVC test.
+    pub(crate) hevc: bool,
 }
 
 impl VideoConversion {
+    /// The codec it encodes, as ffprobe names it.
+    pub(crate) const fn codec(&self) -> &'static str {
+        if self.hevc { "hevc" } else { "h264" }
+    }
+
     /// Whether it works the CPU hard: it runs in software, or tone-maps there.
     pub(crate) fn cpu_bound(&self) -> bool {
         self.hardware.is_none() || self.tone_map == Some(ToneMapper::Software)
@@ -335,6 +344,7 @@ pub(super) fn video_args(path: &str, video: &VideoConversion, seeks: bool) -> Vi
         .hardware
         .as_ref()
         .and_then(|hardware| hardware.gpu.as_ref());
+    let pixel_format = if video.hevc { "p010" } else { "nv12" };
     let mut codec = match accel {
         None => ["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p"]
             .into_iter()
@@ -342,9 +352,12 @@ pub(super) fn video_args(path: &str, video: &VideoConversion, seeks: bool) -> Vi
             .chain(["-x264-params", "keyint=infinite:scenecut=0"])
             .map(str::to_owned)
             .collect(),
-        Some(accel) => accel.codec(),
+        Some(accel) => accel.codec(video.hevc),
     };
-    if video.in_band_headers {
+    if video.hevc {
+        // Safari and Chrome take HEVC in fMP4 only as `hvc1`, its headers in the init segment.
+        codec.extend(["-tag:v", "hvc1"].map(str::to_owned));
+    } else if video.in_band_headers {
         // `avc3` has decoders read the headers before each keyframe rather than the init
         // segment's, which a player fetched once, from whichever encoder wrote it.
         codec.extend(["-bsf:v", "dump_extra=freq=keyframe", "-tag:v", "avc3"].map(str::to_owned));
@@ -355,7 +368,7 @@ pub(super) fn video_args(path: &str, video: &VideoConversion, seeks: bool) -> Vi
         .filter(|_| video.tone_map != Some(ToneMapper::Software) && video.burn_in.is_none())
         .and_then(|api| {
             let tone_map = video.tone_map == Some(ToneMapper::Hardware);
-            Some((api, api.gpu_filters(tone_map, size)?))
+            Some((api, api.gpu_filters(tone_map, size, pixel_format)?))
         });
     if let Some((api, filters)) = on_gpu {
         return VideoArgs {
@@ -368,7 +381,7 @@ pub(super) fn video_args(path: &str, video: &VideoConversion, seeks: bool) -> Vi
     // ponytail: the size is from the stored picture, so a rotated phone clip is stretched; swap
     // its sides once probing reads rotation.
     let scale = size.map(|(width, height)| format!("scale={width}:{height}"));
-    let upload = accel.map(|accel| accel.upload().to_owned());
+    let upload = accel.map(|accel| accel.upload(pixel_format));
     // Scaling down first spares tone-mapping the pixels it drops. A subtitle instead goes after
     // tone-mapping, which would dim it, and before scaling, so it shrinks with the picture and an
     // image subtitle still fits the source size `overlay_graph` is given.

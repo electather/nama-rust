@@ -308,9 +308,9 @@ impl Ffmpeg {
         Ok(hls_output(command, &ffmpeg.version, dir, from.n))
     }
 
-    /// The run of ffmpeg that converts the first video of the file at `path` to 8-bit H.264, and
-    /// its audio Track if any, as `transcode` says, into fMP4 in `dir`, from the cut `from`
-    /// to the end. It cuts a file at each cut, which [`hls_playlist`] lists, and writes an init
+    /// The run of ffmpeg that converts the first video of the file at `path` to 8-bit H.264 or
+    /// 10-bit HEVC, and its audio Track if any, as `transcode` says, into fMP4 in `dir`, from the
+    /// cut `from` to the end. It cuts a file at each cut, which [`hls_playlist`] lists, and writes an init
     /// segment named by [`hls_init`] that's whole once the first file is. A run started at
     /// any cut writes the same files, so one can pick up where another stopped. Each file appears
     /// only once it's whole. Fails without ffmpeg, or if a PGS sidecar it burns in can't be read.

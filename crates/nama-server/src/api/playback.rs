@@ -76,6 +76,7 @@ impl PlaybackService for PlaybackServiceHandler {
                 audio_codecs: known(&decoding.audio_codecs),
                 hdr: decoding.hdr,
                 h264_10bit: decoding.h264_10bit,
+                hevc_10bit: decoding.hevc_10bit,
                 hls: decoding.native_hls || decoding.mse,
                 audio_channels: decoding.audio_channels,
                 subtitle_formats: known(&decoding.subtitle_formats),

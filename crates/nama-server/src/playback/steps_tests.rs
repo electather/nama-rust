@@ -398,6 +398,7 @@ fn automatic_transcodes_on_the_first_hardware_found_and_the_plan_says_so() {
             limit: None,
             burn_in: None,
             in_band_headers: true,
+            hevc: false,
         }
     );
 }
@@ -458,11 +459,13 @@ const VAAPI: Hardware = Hardware {
     accel: Accel::Vaapi,
     gpu: None,
     tone_maps: false,
+    hevc: false,
 };
 const QSV: Hardware = Hardware {
     accel: Accel::Qsv,
     gpu: None,
     tone_maps: true,
+    hevc: false,
 };
 
 #[cfg(unix)]

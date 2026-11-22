@@ -173,7 +173,7 @@ impl Plan {
     /// fails, as [`recipe`] says; empty when it can't be played.
     pub(crate) fn recipe(&self) -> String {
         self.method()
-            .map_or_default(|method| recipe(method, sent_audio_codec(&self.tracks)))
+            .map_or_default(|method| sent_recipe(method, &self.tracks))
     }
 }
 
@@ -342,6 +342,9 @@ pub(crate) struct DeviceDecoding {
     pub(crate) hdr: bool,
     /// Whether it decodes 10-bit H.264 (High 10), which most browsers don't.
     pub(crate) h264_10bit: bool,
+    /// Whether it decodes 10-bit HEVC (Main 10), which a Transcode of a 4K or HDR Version makes
+    /// for it on hardware that can.
+    pub(crate) hevc_10bit: bool,
     /// Whether it plays HLS, natively or through Media Source Extensions, which every method but
     /// Direct Play needs.
     pub(crate) hls: bool,
@@ -406,8 +409,9 @@ struct Facts {
     can_do: CanDo,
     /// The methods that just failed to play it on the Device. The Server never stores them.
     failed: BTreeSet<Method>,
-    /// The methods whose ffmpeg stopped before writing anything while it was planned just now.
-    failed_on_server: BTreeSet<Method>,
+    /// The Recipes of the plans whose ffmpeg stopped before writing anything while it was planned
+    /// just now, as [`recipe`] names them.
+    failed_on_server: BTreeSet<String>,
     /// The Recipes of the plans that just failed to play it on the Device, as [`recipe`] names
     /// them. The Server never stores them.
     failed_recipes: BTreeSet<String>,
@@ -613,25 +617,33 @@ fn playing_by(method: Method, facts: &Facts, candidates: Option<&Candidates>) ->
     }
 }
 
-/// A plan's Recipe: its method, the container it serves and the audio codec it sends, as ffprobe
-/// names it, which a Device reports when the plan fails so a new plan can play the method another
-/// way (#1416). Direct Play has one, the file as it is.
-fn recipe(method: Method, audio: Option<&str>) -> String {
+/// A plan's Recipe: its method, the container it serves, for a Transcode the video codec it makes,
+/// and the audio codec it sends, as ffprobe names them, which a Device reports when the plan fails
+/// so a new plan can play the method another way (#1416). Direct Play has one, the file as it is.
+fn recipe(method: Method, video: Option<&str>, audio: Option<&str>) -> String {
     let audio = audio.unwrap_or("none");
     match method {
         Method::DirectPlay => "direct-play".to_owned(),
         // Every Remux and Transcode serves HLS in fragmented MP4.
         Method::Remux => format!("remux/fmp4/{audio}"),
-        Method::Transcode => format!("transcode/fmp4/{audio}"),
+        Method::Transcode => format!("transcode/fmp4/{}/{audio}", video.unwrap_or("none")),
     }
 }
 
-/// The codec of the audio Track among `tracks`, if any.
-fn sent_audio_codec(tracks: &[Track]) -> Option<&str> {
-    tracks
-        .iter()
-        .find(|track| is_audio(track))
-        .map(|track| track.codec.as_str())
+/// Whether `recipe` is a Transcode's that makes HEVC, as [`recipe`] names it.
+fn makes_hevc(recipe: &str) -> bool {
+    recipe.starts_with("transcode/fmp4/hevc/")
+}
+
+/// The Recipe of a plan by `method` that sends `tracks`.
+fn sent_recipe(method: Method, tracks: &[Track]) -> String {
+    let codec = |is: fn(&Track) -> bool| {
+        (tracks.iter())
+            .find(|&track| is(track))
+            .map(|track| track.codec.as_str())
+    };
+    let is_video = |track: &Track| matches!(track.kind, TrackKind::Video { .. });
+    recipe(method, codec(is_video), codec(is_audio))
 }
 
 /// The Tracks the plan for `facts` sends by `method`, as the Device gets them, if it can play by
