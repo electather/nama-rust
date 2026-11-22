@@ -70,16 +70,16 @@ test("while the Hub is down, signing in with an Account says why and what to do"
   expect(screen.getByRole("button", { name: "Sign in" })).toBeDefined();
 });
 
-test("back from the Hub, the browser signs in and goes on", async () => {
+test("back from the Hub, the browser signs in with the Hub's code and goes on", async () => {
   keepAccountSignIn("secret");
   const { state, transport } = linkedServer(true, {
-    signInWithAccount: ({ handle }) => {
-      expect(handle).toBe("secret");
+    signInWithAccount: ({ handle, code }) => {
+      expect([handle, code]).toStrictEqual(["secret", "c0de"]);
       state.signedIn = newUser;
       return {};
     },
   });
-  const router = openApp("/sign-in/account?redirect=%2Frequests", transport);
+  const router = openApp("/sign-in/account?redirect=%2Frequests&code=c0de", transport);
 
   await vi.waitFor(() => {
     expect(router.state.location.pathname).toBe("/requests");

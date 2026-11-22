@@ -421,7 +421,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
     ) -> ServiceResult<PollServerSignInResponse> {
         let token = self
             .links
-            .poll_sign_in(linked_server(&ctx)?, request.device_code)
+            .poll_sign_in(linked_server(&ctx)?, request.device_code, request.code)
             .await
             .map_err(refused)?;
         Response::ok(PollServerSignInResponse {

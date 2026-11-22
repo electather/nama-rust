@@ -6021,7 +6021,8 @@ pub const __APPROVE_SERVER_SIGN_IN_REQUEST_JSON_ANY: ::buffa::type_registry::Jso
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ApproveServerSignInResponse {
-    /// Where to send the person back to, on the Server.
+    /// Where to send the person back to, on the Server: the sign-in's `return_url`, with the one-time
+    /// code the Server finishes with added to its query as `code`.
     ///
     /// Field 1: `return_url`
     #[serde(
@@ -6431,8 +6432,9 @@ pub const __INVITE_USER_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry 
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct StartServerSignInRequest {
-    /// Where the Hub's page sends the person once they approve: an `http` or `https` address on the
-    /// Server. Fails with `invalid_argument` for any other.
+    /// Where the Hub's page sends the person once they approve: an `http` or `https` address with the
+    /// scheme, host and port of one of the Server Addresses the Server reported. Fails with
+    /// `invalid_argument` and `REFUSAL_REASON_URL_INVALID` for any other.
     ///
     /// Field 1: `return_url`
     #[serde(
@@ -6749,6 +6751,15 @@ pub struct PollServerSignInRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub device_code: ::buffa::alloc::string::String,
+    /// The one-time code approving added to `return_url`, once the sign-in was approved.
+    ///
+    /// Field 2: `code`
+    #[serde(
+        rename = "code",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub code: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -6757,6 +6768,7 @@ impl ::core::fmt::Debug for PollServerSignInRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("PollServerSignInRequest")
             .field("device_code", &self.device_code)
+            .field("code", &self.code)
             .finish()
     }
 }
@@ -6790,6 +6802,9 @@ impl ::buffa::Message for PollServerSignInRequest {
         if !self.device_code.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.device_code) as u64;
         }
+        if !self.code.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.code) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -6802,6 +6817,9 @@ impl ::buffa::Message for PollServerSignInRequest {
         use ::buffa::Enumeration as _;
         if !self.device_code.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.device_code, buf);
+        }
+        if !self.code.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.code, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -6823,6 +6841,13 @@ impl ::buffa::Message for PollServerSignInRequest {
                 )?;
                 ::buffa::types::merge_string(&mut self.device_code, buf)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.code, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -6832,6 +6857,7 @@ impl ::buffa::Message for PollServerSignInRequest {
     }
     fn clear(&mut self) {
         self.device_code.clear();
+        self.code.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

@@ -650,22 +650,49 @@ async fn an_account_approving_on_the_hub_signs_in_as_its_user() {
     );
     assert_eq!(
         linker
-            .finish_account_sign_in(&started.handle)
+            .finish_account_sign_in(&started.handle, "")
             .await
             .unwrap(),
         None
     );
-    hub.approve_sign_in(7);
+    let code = hub.approve_sign_in(7);
     assert_eq!(
         linker
-            .finish_account_sign_in(&started.handle)
+            .finish_account_sign_in(&started.handle, &code)
             .await
             .unwrap(),
         Some(7)
     );
     assert_eq!(
         linker
-            .finish_account_sign_in(&started.handle)
+            .finish_account_sign_in(&started.handle, &code)
+            .await
+            .unwrap(),
+        None
+    );
+}
+
+#[tokio::test]
+async fn finishing_an_approved_sign_in_with_a_wrong_code_ends_it() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+    let started = linker
+        .start_account_sign_in("https://nama.example/sign-in")
+        .await
+        .unwrap();
+    let code = hub.approve_sign_in(7);
+
+    assert_eq!(
+        linker
+            .finish_account_sign_in(&started.handle, "wrong")
+            .await
+            .unwrap(),
+        None
+    );
+    assert_eq!(
+        linker
+            .finish_account_sign_in(&started.handle, &code)
             .await
             .unwrap(),
         None

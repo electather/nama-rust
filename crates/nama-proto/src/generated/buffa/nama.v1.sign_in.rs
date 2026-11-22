@@ -4331,8 +4331,9 @@ pub const __POLL_SIGN_IN_CODE_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAny
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct StartAccountSignInRequest {
-    /// Where the Hub sends the person back to once they approve: an `http` or `https` address, such
-    /// as the client's sign-in page.
+    /// Where the Hub sends the person back to once they approve, adding the one-time code
+    /// `SignInWithAccount` needs to its query as `code`: such as the client's sign-in page, on one of
+    /// the Server's Server Addresses, since the Hub refuses any other address.
     ///
     /// Field 1: `return_url`
     #[serde(
@@ -4643,6 +4644,15 @@ pub struct SignInWithAccountRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub delivery: ::buffa::EnumValue<SessionDelivery>,
+    /// The one-time code the Hub added to `return_url`'s query as `code`.
+    ///
+    /// Field 4: `code`
+    #[serde(
+        rename = "code",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub code: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -4653,6 +4663,7 @@ impl ::core::fmt::Debug for SignInWithAccountRequest {
             .field("handle", &self.handle)
             .field("device_name", &self.device_name)
             .field("delivery", &self.delivery)
+            .field("code", &self.code)
             .finish()
     }
 }
@@ -4695,6 +4706,9 @@ impl ::buffa::Message for SignInWithAccountRequest {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if !self.code.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.code) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4716,6 +4730,9 @@ impl ::buffa::Message for SignInWithAccountRequest {
             if val != 0 {
                 ::buffa::types::put_int32_field(3u32, val, buf);
             }
+        }
+        if !self.code.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.code, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4753,6 +4770,13 @@ impl ::buffa::Message for SignInWithAccountRequest {
                     ::buffa::types::decode_int32(buf)?,
                 );
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.code, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4764,6 +4788,7 @@ impl ::buffa::Message for SignInWithAccountRequest {
         self.handle.clear();
         self.device_name.clear();
         self.delivery = ::buffa::EnumValue::from(0);
+        self.code.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
