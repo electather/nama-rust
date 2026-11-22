@@ -19,7 +19,7 @@ use nama_hub_proto::nama::hub::v1::{
     DeleteViewingEventRequest, DeviceKind, LinkServiceClient, LinkedServerServiceClient,
     ListViewingEventsRequest, PollServerLinkRequest, RecordViewingEventsRequest, RefusalReason,
     SendSignInLinkRequest, ServerLinkServiceClient, SignInWithLinkRequest, StartServerLinkRequest,
-    StartUserLinkRequest, TitleKind, UserViewingEvent, ViewingEvent, ViewingEventServiceClient,
+    StartUserLinkRequest, UserViewingEvent, ViewingEvent, ViewingEventServiceClient,
 };
 use refused::assert_refused;
 use sqlx::PgPool;
@@ -155,7 +155,6 @@ fn played(user_id: i64, key: &str, external_id: &str) -> UserViewingEvent {
         user_id,
         key: key.to_owned(),
         event: ViewingEvent {
-            kind: TitleKind::TITLE_KIND_MOVIE.into(),
             external_id: external_id.to_owned(),
             started_at: 1_700_000_000,
             time_of_day_minutes: 1260,

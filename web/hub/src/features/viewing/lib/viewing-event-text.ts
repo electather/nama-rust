@@ -1,4 +1,3 @@
-import { TitleKind } from "@hub/gen/nama/hub/v1/title_pb";
 import { DeviceKind, type ViewingEvent } from "@hub/gen/nama/hub/v1/viewing_pb";
 
 const startedAt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
@@ -13,7 +12,7 @@ const devices: Record<DeviceKind, string | undefined> = {
 
 /** What a play played, such as "Movie tmdb-603": the Hub keeps no title's name (ADR 0094). */
 export function playedTitle(event: ViewingEvent) {
-  const kind = event.kind === TitleKind.EPISODE ? "Episode" : "Movie";
+  const kind = event.episode ? "Episode" : "Movie";
   return `${kind} ${event.externalId}`;
 }
 

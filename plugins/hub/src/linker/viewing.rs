@@ -11,8 +11,7 @@ use std::{
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use buffa::{EnumValue, Message as _};
 use nama_hub_proto::nama::hub::v1::{
-    DeviceKind as HubDeviceKind, RecordViewingEventsRequest, TitleKind, UserViewingEvent,
-    ViewingEvent,
+    DeviceKind as HubDeviceKind, RecordViewingEventsRequest, UserViewingEvent, ViewingEvent,
 };
 use nama_plugin_api::{
     BoxFuture, Observer, PluginError,
@@ -265,15 +264,15 @@ fn viewed(
     if external_id.chars().count() > MAX_EXTERNAL_ID_CHARS {
         return None;
     }
-    let kind = match title_ref.kind {
-        EnumValue::Known(TitleRefKind::TITLE_REF_KIND_MOVIE) => TitleKind::TITLE_KIND_MOVIE,
-        EnumValue::Known(TitleRefKind::TITLE_REF_KIND_EPISODE) => TitleKind::TITLE_KIND_EPISODE,
+    let episode = match title_ref.kind {
+        EnumValue::Known(TitleRefKind::TITLE_REF_KIND_MOVIE) => false,
+        EnumValue::Known(TitleRefKind::TITLE_REF_KIND_EPISODE) => true,
         EnumValue::Known(TitleRefKind::TITLE_REF_KIND_UNSPECIFIED) | EnumValue::Unknown(_) => {
             return None;
         }
     };
     Some(ViewingEvent {
-        kind: kind.into(),
+        episode,
         external_id,
         started_at: started.at,
         time_of_day_minutes: started.time_of_day_minutes,

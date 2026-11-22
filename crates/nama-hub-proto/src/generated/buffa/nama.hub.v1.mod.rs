@@ -2,7 +2,6 @@
 
 include!("nama.hub.v1.account.rs");
 include!("nama.hub.v1.hub.rs");
-include!("nama.hub.v1.title.rs");
 include!("nama.hub.v1.viewing.rs");
 include!("nama.hub.v1.link.rs");
 include!("nama.hub.v1.refusal.rs");

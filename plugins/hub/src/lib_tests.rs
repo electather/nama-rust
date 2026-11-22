@@ -7,9 +7,7 @@ use std::{
 
 use buffa::Message as _;
 use connectrpc::ErrorCode;
-use nama_hub_proto::nama::hub::v1::{
-    DeviceKind as HubDeviceKind, TitleKind as HubTitleKind, ViewingEvent,
-};
+use nama_hub_proto::nama::hub::v1::{DeviceKind as HubDeviceKind, ViewingEvent};
 use nama_plugin_api::{
     BoxFuture, Observer, Registrar, Registration,
     automation::{
@@ -1014,7 +1012,6 @@ async fn a_linked_users_play_of_a_matched_title_goes_to_the_hub() {
     assert_eq!(
         event,
         &ViewingEvent {
-            kind: HubTitleKind::TITLE_KIND_MOVIE.into(),
             external_id: "tmdb-603".to_owned(),
             started_at: event.started_at,
             time_of_day_minutes: event.time_of_day_minutes,

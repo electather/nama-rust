@@ -280,10 +280,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         let kind = match request.kind.as_known() {
             Some(proto::TitleKind::TITLE_KIND_MOVIE) => TitleKind::Movie,
             Some(proto::TitleKind::TITLE_KIND_SHOW) => TitleKind::Show,
-            Some(
-                proto::TitleKind::TITLE_KIND_UNSPECIFIED | proto::TitleKind::TITLE_KIND_EPISODE,
-            )
-            | None => {
+            Some(proto::TitleKind::TITLE_KIND_UNSPECIFIED) | None => {
                 return Response::ok(ListSimilarTitlesResponse::default());
             }
         };

@@ -185,15 +185,15 @@ pub struct ViewingEvent {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub id: ::buffa::alloc::string::String,
-    /// Whether it played a Movie or an Episode; any other kind is refused.
+    /// Whether it played an Episode rather than a Movie, whose External IDs are separate id spaces.
     ///
-    /// Field 2: `kind`
+    /// Field 2: `episode`
     #[serde(
-        rename = "kind",
-        with = "::buffa::json_helpers::proto_enum",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+        rename = "episode",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
-    pub kind: ::buffa::EnumValue<TitleKind>,
+    pub episode: bool,
     /// The Movie or Episode, by the External ID its Server keeps its Watch State under, such as
     /// `tmdb-603`: 1 to 100 characters.
     ///
@@ -272,7 +272,7 @@ impl ::core::fmt::Debug for ViewingEvent {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("ViewingEvent")
             .field("id", &self.id)
-            .field("kind", &self.kind)
+            .field("episode", &self.episode)
             .field("external_id", &self.external_id)
             .field("started_at", &self.started_at)
             .field("time_of_day_minutes", &self.time_of_day_minutes)
@@ -313,11 +313,8 @@ impl ::buffa::Message for ViewingEvent {
         if !self.id.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.id) as u64;
         }
-        {
-            let val = self.kind.to_i32();
-            if val != 0 {
-                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
-            }
+        if self.episode {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         if !self.external_id.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.external_id) as u64;
@@ -360,11 +357,8 @@ impl ::buffa::Message for ViewingEvent {
         if !self.id.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.id, buf);
         }
-        {
-            let val = self.kind.to_i32();
-            if val != 0 {
-                ::buffa::types::put_int32_field(2u32, val, buf);
-            }
+        if self.episode {
+            ::buffa::types::put_bool_field(2u32, self.episode, buf);
         }
         if !self.external_id.is_empty() {
             ::buffa::types::put_string_field(3u32, &self.external_id, buf);
@@ -415,7 +409,7 @@ impl ::buffa::Message for ViewingEvent {
                     tag,
                     ::buffa::encoding::WireType::Varint,
                 )?;
-                self.kind = ::buffa::EnumValue::from(::buffa::types::decode_int32(buf)?);
+                self.episode = ::buffa::types::decode_bool(buf)?;
             }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -477,7 +471,7 @@ impl ::buffa::Message for ViewingEvent {
     }
     fn clear(&mut self) {
         self.id.clear();
-        self.kind = ::buffa::EnumValue::from(0);
+        self.episode = false;
         self.external_id.clear();
         self.started_at = 0i64;
         self.time_of_day_minutes = 0i32;

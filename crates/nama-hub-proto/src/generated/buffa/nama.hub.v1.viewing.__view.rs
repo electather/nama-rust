@@ -9,10 +9,10 @@ pub struct ViewingEventView<'a> {
     ///
     /// Field 1: `id`
     pub id: &'a str,
-    /// Whether it played a Movie or an Episode; any other kind is refused.
+    /// Whether it played an Episode rather than a Movie, whose External IDs are separate id spaces.
     ///
-    /// Field 2: `kind`
-    pub kind: ::buffa::EnumValue<super::super::TitleKind>,
+    /// Field 2: `episode`
+    pub episode: bool,
     /// The Movie or Episode, by the External ID its Server keeps its Watch State under, such as
     /// `tmdb-603`: 1 to 100 characters.
     ///
@@ -86,9 +86,7 @@ impl<'a> ::buffa::MessageView<'a> for ViewingEventView<'a> {
                     tag,
                     ::buffa::encoding::WireType::Varint,
                 )?;
-                view.kind = ::buffa::EnumValue::from(
-                    ::buffa::types::decode_int32(&mut cur)?,
-                );
+                view.episode = ::buffa::types::decode_bool(&mut cur)?;
             }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -164,7 +162,7 @@ impl<'a> ::buffa::MessageView<'a> for ViewingEventView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::ViewingEvent {
             id: self.id.to_string(),
-            kind: self.kind,
+            episode: self.episode,
             external_id: self.external_id.to_string(),
             started_at: self.started_at,
             time_of_day_minutes: self.time_of_day_minutes,
@@ -186,11 +184,8 @@ impl<'a> ::buffa::ViewEncode<'a> for ViewingEventView<'a> {
         if !self.id.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.id) as u64;
         }
-        {
-            let val = self.kind.to_i32();
-            if val != 0 {
-                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
-            }
+        if self.episode {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         if !self.external_id.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.external_id) as u64;
@@ -234,11 +229,8 @@ impl<'a> ::buffa::ViewEncode<'a> for ViewingEventView<'a> {
         if !self.id.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.id, buf);
         }
-        {
-            let val = self.kind.to_i32();
-            if val != 0 {
-                ::buffa::types::put_int32_field(2u32, val, buf);
-            }
+        if self.episode {
+            ::buffa::types::put_bool_field(2u32, self.episode, buf);
         }
         if !self.external_id.is_empty() {
             ::buffa::types::put_string_field(3u32, &self.external_id, buf);
@@ -288,8 +280,8 @@ impl<'__a> ::serde::Serialize for ViewingEventView<'__a> {
         if !::buffa::json_helpers::skip_if::is_empty_str(self.id) {
             __map.serialize_entry("id", self.id)?;
         }
-        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.kind) {
-            __map.serialize_entry("kind", &self.kind)?;
+        if self.episode {
+            __map.serialize_entry("episode", &self.episode)?;
         }
         if !::buffa::json_helpers::skip_if::is_empty_str(self.external_id) {
             __map.serialize_entry("externalId", self.external_id)?;
@@ -426,12 +418,12 @@ impl ViewingEventOwnedView {
     pub fn id(&self) -> &'_ str {
         self.0.reborrow().id
     }
-    /// Whether it played a Movie or an Episode; any other kind is refused.
+    /// Whether it played an Episode rather than a Movie, whose External IDs are separate id spaces.
     ///
-    /// Field 2: `kind`
+    /// Field 2: `episode`
     #[must_use]
-    pub fn kind(&self) -> ::buffa::EnumValue<super::super::TitleKind> {
-        self.0.reborrow().kind
+    pub fn episode(&self) -> bool {
+        self.0.reborrow().episode
     }
     /// The Movie or Episode, by the External ID its Server keeps its Watch State under, such as
     /// `tmdb-603`: 1 to 100 characters.

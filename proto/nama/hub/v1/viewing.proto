@@ -2,8 +2,6 @@ syntax = "proto3";
 
 package nama.hub.v1;
 
-import "nama/hub/v1/title.proto";
-
 // An Account's Viewing Events, for the Hub's web pages (ADR 0093). A Linked Server records them
 // through `LinkedServerService.RecordViewingEvents`. Every call fails with
 // `REFUSAL_REASON_SIGN_IN_REQUIRED` without a session.
@@ -24,8 +22,8 @@ service ViewingEventService {
 message ViewingEvent {
   // The Viewing Event's id, a UUID. Ignored in what a Server records.
   string id = 1;
-  // Whether it played a Movie or an Episode; any other kind is refused.
-  TitleKind kind = 2;
+  // Whether it played an Episode rather than a Movie, whose External IDs are separate id spaces.
+  bool episode = 2;
   // The Movie or Episode, by the External ID its Server keeps its Watch State under, such as
   // `tmdb-603`: 1 to 100 characters.
   string external_id = 3;

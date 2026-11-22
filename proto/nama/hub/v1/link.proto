@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package nama.hub.v1;
 
-import "nama/hub/v1/title.proto";
 import "nama/hub/v1/viewing.proto";
 
 // Registering a Server with the Hub, as an OAuth device flow (RFC 8628, ADR 0011): the Server
@@ -76,8 +75,7 @@ service LinkedServerService {
   rpc UnlinkServer(UnlinkServerRequest) returns (UnlinkServerResponse);
   // The titles most like one title, of its kind, by the vectors the Hub builds from Wikidata's
   // facts (ADR 0095): at most 100, most alike first. Empty when Wikidata lacks the title or the
-  // kind isn't a Movie or a Show, which isn't a failure: the Server's other Similar sources cover
-  // it.
+  // kind is unspecified, which isn't a failure: the Server's other Similar sources cover it.
   rpc ListSimilarTitles(ListSimilarTitlesRequest) returns (ListSimilarTitlesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -197,6 +195,13 @@ message ListLinkedServersResponse {
 message UnlinkServerRequest {}
 
 message UnlinkServerResponse {}
+
+// Whether a title is a Movie or a Show, whose External IDs are separate id spaces (ADR 0042).
+enum TitleKind {
+  TITLE_KIND_UNSPECIFIED = 0;
+  TITLE_KIND_MOVIE = 1;
+  TITLE_KIND_SHOW = 2;
+}
 
 // A title's id at a metadata source (ADR 0042).
 message ExternalId {

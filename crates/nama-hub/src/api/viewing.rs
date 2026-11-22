@@ -6,7 +6,7 @@ use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, Service
 use nama_hub_proto::nama::hub::v1::{
     self as proto, DeleteViewingEventRequest, DeleteViewingEventResponse,
     DeviceKind as ProtoDevice, ListViewingEventsRequest, ListViewingEventsResponse, RefusalReason,
-    TitleKind, ViewingEventService,
+    ViewingEventService,
 };
 
 use super::{accounts::signed_in, hub_failed, refuse};
@@ -65,15 +65,10 @@ pub(super) fn recorded_from_proto(
         .into_iter()
         .map(|recorded| {
             let event = recorded.event.into_option().unwrap_or_default();
-            let kind = match event.kind {
-                EnumValue::Known(TitleKind::TITLE_KIND_MOVIE) => Kind::Movie,
-                EnumValue::Known(TitleKind::TITLE_KIND_EPISODE) => Kind::Episode,
-                EnumValue::Known(
-                    TitleKind::TITLE_KIND_UNSPECIFIED | TitleKind::TITLE_KIND_SHOW,
-                )
-                | EnumValue::Unknown(_) => {
-                    return Err(refused(&viewing::Error::Invalid));
-                }
+            let kind = if event.episode {
+                Kind::Episode
+            } else {
+                Kind::Movie
             };
             let device_kind = match event.device_kind {
                 EnumValue::Known(ProtoDevice::DEVICE_KIND_COMPUTER) => DeviceKind::Computer,
@@ -106,11 +101,7 @@ fn event_to_proto(listed: ListedViewingEvent) -> proto::ViewingEvent {
     let ListedViewingEvent { id, event } = listed;
     proto::ViewingEvent {
         id: id.to_string(),
-        kind: match event.kind {
-            Kind::Movie => TitleKind::TITLE_KIND_MOVIE,
-            Kind::Episode => TitleKind::TITLE_KIND_EPISODE,
-        }
-        .into(),
+        episode: event.kind == Kind::Episode,
         external_id: event.external_id,
         started_at: event.started_at,
         time_of_day_minutes: event.time_of_day_minutes,

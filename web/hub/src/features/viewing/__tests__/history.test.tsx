@@ -2,7 +2,6 @@ import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
 import { AccountSchema, AccountService } from "@hub/gen/nama/hub/v1/account_pb";
 import { LinkService } from "@hub/gen/nama/hub/v1/link_pb";
-import { TitleKind } from "@hub/gen/nama/hub/v1/title_pb";
 import {
   DeviceKind,
   ViewingEventSchema,
@@ -24,7 +23,6 @@ const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
 
 const matrix = create(ViewingEventSchema, {
   id: "0197-matrix",
-  kind: TitleKind.MOVIE,
   externalId: "tmdb-603",
   startedAt: 1_700_000_000n,
   timeOfDayMinutes: 1260,
@@ -36,7 +34,7 @@ const matrix = create(ViewingEventSchema, {
 
 const pilot = create(ViewingEventSchema, {
   id: "0198-pilot",
-  kind: TitleKind.EPISODE,
+  episode: true,
   externalId: "tvdb-349232",
   startedAt: 1_699_000_000n,
   stopPositionMs: 3_723_000n,
@@ -138,7 +136,6 @@ describe("viewing history", () => {
       events: [
         {
           id: "0197-matrix",
-          kind: "TITLE_KIND_MOVIE",
           externalId: "tmdb-603",
           startedAt: "1700000000",
           timeOfDayMinutes: 1260,
@@ -149,7 +146,7 @@ describe("viewing history", () => {
         },
         {
           id: "0198-pilot",
-          kind: "TITLE_KIND_EPISODE",
+          episode: true,
           externalId: "tvdb-349232",
           startedAt: "1699000000",
           stopPositionMs: "3723000",

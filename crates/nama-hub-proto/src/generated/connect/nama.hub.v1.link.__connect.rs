@@ -3114,8 +3114,7 @@ pub trait LinkedServerService: Send + Sync + 'static {
     > + Send;
     /// The titles most like one title, of its kind, by the vectors the Hub builds from Wikidata's
     /// facts (ADR 0095): at most 100, most alike first. Empty when Wikidata lacks the title or the
-    /// kind isn't a Movie or a Show, which isn't a failure: the Server's other Similar sources cover
-    /// it.
+    /// kind is unspecified, which isn't a failure: the Server's other Similar sources cover it.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
