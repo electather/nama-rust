@@ -4,8 +4,8 @@ import { createQueryOptions, useSuspenseQuery } from "@connectrpc/connect-query"
 import { LibraryService } from "@/gen/nama/v1/library_pb";
 import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
 
-/** The Server's Libraries, for a page's loader to load before it shows. */
-export function librariesQuery(transport: Transport) {
+/** The Server's Libraries, as `useLibraries` reads them. */
+function librariesQuery(transport: Transport) {
   return {
     ...createQueryOptions(LibraryService.method.listLibraries, {}, { transport }),
     staleTime: "static" as const,

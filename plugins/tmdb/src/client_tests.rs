@@ -13,7 +13,7 @@ fn unreachable() -> Client {
         api: "http://127.0.0.1:9/3".to_owned(),
         images: "http://127.0.0.1:9/t/p".to_owned(),
     };
-    Client::new(endpoints, "key", "en-US").unwrap()
+    Client::new(endpoints, "key", "en-US", true).unwrap()
 }
 
 fn asked(namespace: &str, value: &str) -> ArtworkAsked {

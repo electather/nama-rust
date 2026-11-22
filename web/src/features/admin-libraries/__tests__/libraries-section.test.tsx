@@ -52,7 +52,12 @@ describe("where Libraries is", () => {
     const nav = within(screen.getByRole("navigation", { name: "Settings" }));
     const headings = nav.getAllByRole("heading").map((heading) => heading.textContent);
     expect(headings).toStrictEqual(["You", "Preferences", "Media"]);
-    expect(nav.getAllByRole("link").at(-1)?.textContent).toBe("Libraries");
+    expect(
+      nav
+        .getAllByRole("link")
+        .slice(-2)
+        .map((link) => link.textContent),
+    ).toStrictEqual(["Libraries", "Needs a Match"]);
   });
 
   test("a User who doesn't manage Libraries has no Libraries section", async () => {

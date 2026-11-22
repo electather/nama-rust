@@ -29,7 +29,7 @@ const pages = [
   {
     to: "/admin",
     label: "Admin",
-    hint: "Needs a Match and Jobs",
+    hint: "Admin pages",
     key: "A",
     icon: "admin",
   },

@@ -316,4 +316,7 @@ enum RefusalReason {
   // `failed_precondition`: no enabled Plugin links the Server to an outside service, such as the
   // Hub Plugin, so it can't be Linked or Unlinked.
   REFUSAL_REASON_NO_SERVER_LINKER = 96;
+  // `not_found`: there is no Box Set with the ID, or none the caller may see. `field` is
+  // `box_set_id`.
+  REFUSAL_REASON_BOX_SET_NOT_FOUND = 97;
 }

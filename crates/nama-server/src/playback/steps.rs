@@ -11,10 +11,10 @@ use super::{
     codecs::{
         audio_codec_name, audio_conversion, channels_of, hdr_name, played_hdr, played_tracks,
         played_video, remux_audio_conversion, transcoded_hdr, undecodable, undecodable_container,
-        untried_by,
+        untried_by, wants_hevc,
     },
     limits::video_limit,
-    method_to_proto, recipe, sent_audio_codec, sent_by,
+    method_to_proto, sent_by, sent_recipe,
     tracks::{Hdr, Track, hdr_to_proto},
 };
 use crate::{
@@ -128,20 +128,22 @@ fn needs_reshaping(facts: &Facts) -> bool {
     )
 }
 
-/// What `transcode` goes on with in software if it runs on hardware: the same conversion,
-/// tone-mapping in software if it did on the GPU and ffmpeg can, with the plan's `reasons` but
-/// those that no longer hold, and why it fell back (ADR 0034).
+/// What `transcode` goes on with in software if it runs on hardware making H.264: the same
+/// conversion, tone-mapping in software if it did on the GPU and ffmpeg can, with the plan's
+/// `reasons` but those that no longer hold, and why it fell back (ADR 0034). HEVC has none, as its
+/// playlist can't change codec partway: failing ends the plan, and its Recipe with it.
 pub(super) fn fallback(
     facts: &Facts,
     transcode: &Transcode,
     reasons: &[Reason],
 ) -> Option<Fallback> {
-    let accel = transcode.video.hardware.as_ref()?.accel;
-    let tone_map = match transcode.video.tone_map {
+    let video = &transcode.video;
+    let accel = video.hardware.as_ref().filter(|_| !video.hevc)?.accel;
+    let tone_map = match video.tone_map {
         Some(ToneMapper::Hardware) => facts.can_do.tone_mapper(None),
         in_software => in_software,
     };
-    let stops_tone_mapping = tone_map.is_none() && transcode.video.tone_map.is_some();
+    let stops_tone_mapping = tone_map.is_none() && video.tone_map.is_some();
     let still_holds = |reason: &&Reason| {
         reason.kind != Kind::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE
             && (reason.kind != Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED || !stops_tone_mapping)
@@ -167,7 +169,7 @@ pub(super) fn fallback(
             video: VideoConversion {
                 hardware: None,
                 tone_map,
-                ..transcode.video.clone()
+                ..video.clone()
             },
             ..*transcode
         },
@@ -397,9 +399,11 @@ fn transcodes_full(facts: &Facts, video: Option<&VideoConversion>) -> Option<u32
 /// How a Transcode for `facts` converts the played video.
 fn video_conversion(facts: &Facts) -> VideoConversion {
     let hardware = transcodes_on(facts).ok();
+    let hevc = hardware.as_ref().is_some_and(|hardware| hardware.hevc) && wants_hevc(facts);
     VideoConversion {
-        // Hardware may fail, and software carry on after its init segment.
-        in_band_headers: hardware.is_some(),
+        // Hardware making H.264 may fail, and software carry on after its init segment.
+        in_band_headers: hardware.is_some() && !hevc,
+        hevc,
         hardware,
         tone_map: tone_mapper(facts),
         limit: video_limit(facts),
@@ -412,7 +416,7 @@ fn video_conversion(facts: &Facts) -> VideoConversion {
 pub(super) fn remux(facts: &Facts, audio: Option<(usize, &Track)>) -> (Remux, Vec<String>) {
     let mut passed_over = vec![];
     let audio = audio.map(|(track, played)| {
-        let (device, passed) = untried_by(Method::Remux, facts, played);
+        let (device, passed) = untried_by(Method::Remux, facts, None, played);
         passed_over = passed;
         RemuxAudio {
             track,
@@ -433,18 +437,16 @@ pub(super) fn remux(facts: &Facts, audio: Option<(usize, &Track)>) -> (Remux, Ve
 /// [`remux`] does.
 pub(super) fn transcode(facts: &Facts, audio: Option<(usize, &Track)>) -> (Transcode, Vec<String>) {
     let mut passed_over = vec![];
+    let video = video_conversion(facts);
     let audio = audio.map(|(track, played)| {
-        let (device, passed) = untried_by(Method::Transcode, facts, played);
+        let (device, passed) = untried_by(Method::Transcode, facts, Some(video.codec()), played);
         passed_over = passed;
         TranscodeAudio {
             track,
             conversion: audio_conversion(&device, played),
         }
     });
-    let transcode = Transcode {
-        audio,
-        video: video_conversion(facts),
-    };
+    let transcode = Transcode { audio, video };
     (transcode, passed_over)
 }
 
@@ -492,11 +494,7 @@ pub(super) fn too_busy_to_play(facts: Facts) -> Option<u32> {
 pub(super) fn failed_on_device(facts: &Facts, candidates: Option<&Candidates>) -> Vec<Reason> {
     // A candidate sends another codec than one whose Recipe failed if it can, so its own Recipe
     // failed only once every one it could send has.
-    let every_recipe_failed = Method::ALL.into_iter().filter(|&method| {
-        sent_by(method, facts, candidates).is_some_and(|tracks| {
-            (facts.failed_recipes).contains(&recipe(method, sent_audio_codec(&tracks)))
-        })
-    });
+    let every_recipe_failed = sending_recipes(&facts.failed_recipes, facts, candidates);
     failures(
         &facts
             .failed
@@ -532,14 +530,27 @@ fn passed_over_recipes(candidates: Option<&Candidates>, method: Method) -> Vec<R
         .collect()
 }
 
-/// The step for plans whose ffmpeg stopped before writing anything: it rules out each method that
-/// did, so planning goes on to the next.
-pub(super) fn failed_on_server(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
+/// The step for plans whose ffmpeg stopped before writing anything: it rules out each method whose
+/// plan would have the same Recipe, so planning goes on to the next, or to another way of playing
+/// it, such as H.264 once HEVC failed.
+pub(super) fn failed_on_server(facts: &Facts, candidates: Option<&Candidates>) -> Vec<Reason> {
     failures(
-        &facts.failed_on_server,
+        &sending_recipes(&facts.failed_on_server, facts, candidates).collect(),
         Kind::PLAYBACK_REASON_KIND_METHOD_FAILED_ON_SERVER,
         "on the Server, as its ffmpeg stopped before writing anything",
     )
+}
+
+/// The methods whose plan for `facts` would have one of `recipes`.
+fn sending_recipes(
+    recipes: &BTreeSet<String>,
+    facts: &Facts,
+    candidates: Option<&Candidates>,
+) -> impl Iterator<Item = Method> {
+    Method::ALL.into_iter().filter(move |&method| {
+        sent_by(method, facts, candidates)
+            .is_some_and(|tracks| recipes.contains(&sent_recipe(method, &tracks)))
+    })
 }
 
 /// A reason of `kind` for each of `methods`, ruling it out, saying it failed `where_`.

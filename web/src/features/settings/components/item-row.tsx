@@ -27,6 +27,7 @@ export function ItemRow({
   beside = false,
   linked = false,
   children,
+  under,
 }: {
   start: ReactNode;
   name: ReactNode;
@@ -37,6 +38,8 @@ export function ItemRow({
   /** `name` is a link stretched over the row (`after:absolute after:inset-0`), so all of it opens. */
   linked?: boolean;
   children?: ReactNode;
+  /** What opens under the row, past what `start` draws, such as a search for it. */
+  under?: ReactNode;
 }) {
   const look = LOOKS[linked ? "linked" : "plain"];
   const words = (
@@ -56,6 +59,7 @@ export function ItemRow({
       >
         {words}
         <div className={beside ? `${END} ms-auto` : `${END} max-md:basis-full`}>{children}</div>
+        <div className="basis-full empty:hidden">{under}</div>
       </div>
     </li>
   );

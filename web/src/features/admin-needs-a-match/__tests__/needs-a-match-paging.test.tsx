@@ -3,7 +3,8 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { type ListUnmatchedItemsRequest, MatchService, TitleKind } from "@/gen/nama/v1/match_pb";
-import { admin, fakeServer, openApp } from "@/test-app";
+import { admin, fakeServer } from "@/test-app";
+import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
 
@@ -35,7 +36,7 @@ function pagingServer(titles: string[], asked: ListUnmatchedItemsRequest[]) {
 
 test("needs a Match lists a Library's next page of Items with Show more", async () => {
   const asked: ListUnmatchedItemsRequest[] = [];
-  openApp("/admin/needs-a-match", pagingServer(["Alien", "Heat"], asked));
+  openSettings("needs-a-match", pagingServer(["Alien", "Heat"], asked));
 
   fireEvent.click(await screen.findByRole("button", { name: "Show more" }));
 

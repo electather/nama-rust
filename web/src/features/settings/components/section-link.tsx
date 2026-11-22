@@ -1,8 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import {
   Bell,
+  CalendarClock,
   Cpu,
   DatabaseBackup,
+  FileQuestionMark,
   Film,
   HardDrive,
   House,
@@ -28,7 +30,9 @@ const icons: Record<Section, LucideIcon> = {
   requests: Film,
   connections: Bell,
   libraries: Library,
+  "needs-a-match": FileQuestionMark,
   "now-playing": MonitorPlay,
+  jobs: CalendarClock,
   server: HardDrive,
   users: Users,
   "default-home": Rows3,

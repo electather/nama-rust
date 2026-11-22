@@ -3,14 +3,16 @@ import { Button } from "nama-ui/components/button";
 import { type ComponentType, Suspense } from "react";
 
 import { Crumbs } from "@/features/settings/components/crumbs";
+import { JobCrumbs } from "@/features/settings/components/job-crumbs";
 import { LibraryCrumbs } from "@/features/settings/components/library-crumbs";
 import { PluginCrumbs } from "@/features/settings/components/plugin-crumbs";
 import { type Section, sectionTitles } from "@/features/settings/lib/sections";
 
-// The sections whose list opens something in its place, which the crumbs then name.
-const openCrumbs: Partial<Record<Section, ComponentType>> = {
+// The sections that open one of their things in place of their list, whose crumbs then name it.
+const openedCrumbs: Partial<Record<Section, ComponentType>> = {
   plugins: PluginCrumbs,
   libraries: LibraryCrumbs,
+  jobs: JobCrumbs,
 };
 
 /** The top of the pane: where in Settings it is, and the button that closes it. */
@@ -24,10 +26,10 @@ export function SettingsHeader({
   onClose: () => void;
 }) {
   const plain = <Crumbs current={sectionTitles[section]} />;
-  const Open = openCrumbs[section];
-  const crumbs = Open ? (
+  const Opened = openedCrumbs[section];
+  const crumbs = Opened ? (
     <Suspense fallback={plain}>
-      <Open />
+      <Opened />
     </Suspense>
   ) : (
     plain

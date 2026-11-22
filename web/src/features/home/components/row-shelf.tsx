@@ -1,11 +1,11 @@
 import { RowFrame } from "@/features/home/components/row-frame";
-import { RowPoster } from "@/features/home/components/row-poster";
 import { VirtualShelf } from "@/features/home/components/virtual-shelf";
 import { useHomeRowTitles } from "@/features/home/data/use-home-row-titles";
-import { rowTile } from "@/features/home/lib/row-tiles";
-import { rowTitleKey, rowTitles } from "@/features/home/lib/row-titles";
 import { posterTile } from "@/features/home/lib/shelf-tiles";
 import type { PluginHomeRow } from "@/gen/nama/v1/browse_pb";
+import { RowPoster } from "@/shared/components/row-poster/row-poster";
+import { rowTile } from "@/shared/components/row-poster/row-tiles";
+import { rowTitleKey, rowTitles } from "@/shared/lib/row-titles";
 
 /** One Plugin's row of posters under its heading, or nothing if it has no titles. */
 export function RowShelf({ row, headingId }: { row: PluginHomeRow; headingId: string }) {

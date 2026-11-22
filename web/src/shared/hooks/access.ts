@@ -3,7 +3,7 @@ import { callUnaryMethod, createQueryOptions } from "@connectrpc/connect-query";
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
 
 import { ServerService } from "@/gen/nama/v1/server_pb";
-import { Permission, SignInService, type User } from "@/gen/nama/v1/sign_in_pb";
+import { type Permission, SignInService, type User } from "@/gen/nama/v1/sign_in_pb";
 import { isCode } from "@/shared/lib/connect-errors";
 import { may } from "@/shared/lib/permissions";
 
@@ -55,10 +55,8 @@ export function signedInQuery(transport: Transport) {
 }
 
 /** The Admin pages, in the order the Admin nav lists them, each with the Permission it needs. */
-export const adminPages = [
-  { to: "/admin/needs-a-match", label: "Needs a Match", permission: Permission.MANAGE_LIBRARIES },
-  { to: "/admin/jobs", label: "Jobs", permission: Permission.ADMIN },
-] as const;
+// ponytail: empty since the last page moved into Settings; the Admin area itself goes with its own ticket.
+export const adminPages: readonly { to: string; label: string; permission: Permission }[] = [];
 
 /** The Admin pages `user` may open. */
 export function adminPagesFor(user: User | undefined) {

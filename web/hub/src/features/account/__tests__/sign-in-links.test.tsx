@@ -82,13 +82,14 @@ describe("a Sign-in Link", () => {
     cleanup();
   });
 
-  test("the sign-in page offers one only when the Hub emails them", async () => {
+  test("the sign-in page offers one, for a forgotten password, only when the Hub emails them", async () => {
     const hub = openHub("/sign-in", false);
     await screen.findByRole("heading", { name: "Sign in" });
     await waitFor(() => {
       expect(hub.toldSignInLinks()).toBe(true);
     });
     expect(screen.queryByRole("link", { name: "Email me a Sign-in Link" })).toBeNull();
+    expect(screen.queryByText(/Forgot your password/u)).toBeNull();
     cleanup();
 
     openHub("/sign-in", true);
@@ -96,6 +97,7 @@ describe("a Sign-in Link", () => {
     await expect(
       screen.findByRole("link", { name: "Email me a Sign-in Link" }),
     ).resolves.toBeDefined();
+    expect(screen.getByText(/Forgot your password/u)).toBeDefined();
   });
 
   test("asking for one says to check the inbox, and sends where the sign-in continues", async () => {

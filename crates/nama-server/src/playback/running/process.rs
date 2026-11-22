@@ -1,9 +1,16 @@
 //! ffmpeg's process as a [`Run`].
 
-use tokio::{io::AsyncReadExt, process::Child};
+use tokio::{
+    io::{AsyncRead, AsyncReadExt},
+    process::Child,
+};
 use tokio_util::sync::CancellationToken;
 
 use super::run::{Outcome, Run};
+
+/// How much of the end of ffmpeg's stderr a run keeps, in bytes: a run that fails over and over,
+/// such as on every frame, would otherwise hold all it wrote in memory.
+pub(super) const KEPT_STDERR: usize = 64 * 1024;
 
 /// `child`, an ffmpeg started with its stderr piped and to be killed on drop, as a run, which
 /// kills it and waits for it to exit once `stop` is cancelled, and so stops it when dropped.
@@ -14,9 +21,8 @@ pub(super) fn run(mut child: Child, stop: CancellationToken) -> Run {
         let pipe = child.stderr.take();
         let mut stderr = vec![];
         let read_stderr = async {
-            if let Some(mut pipe) = pipe {
-                // What it wrote before a read failed is all there is to report.
-                let _: std::io::Result<usize> = pipe.read_to_end(&mut stderr).await;
+            if let Some(pipe) = pipe {
+                keep_tail(pipe, &mut stderr).await;
             }
         };
         let waited = tokio::select! {
@@ -34,6 +40,15 @@ pub(super) fn run(mut child: Child, stop: CancellationToken) -> Run {
             Err(err) => Outcome::Unwaited(err),
         }
     })
+}
+
+/// Reads `pipe` to its end, keeping the last [`KEPT_STDERR`] bytes of it in `tail`.
+async fn keep_tail(mut pipe: impl AsyncRead + Unpin, tail: &mut Vec<u8>) {
+    // What it wrote before a read failed is all there is to report.
+    while let Ok(1..) = pipe.read_buf(tail).await {
+        let over = tail.len().saturating_sub(KEPT_STDERR);
+        tail.drain(..over);
+    }
 }
 
 #[cfg(test)]

@@ -67,6 +67,48 @@ pub(super) async fn end(
     Ok(())
 }
 
+/// Locks `session`'s Account row until `conn`'s transaction ends, and says whether `session` still
+/// has Recent Authentication.
+// A Sign-in Link's takeover (ADR 0100) locks the same row before it ends the Account's sessions,
+// so a password set while it runs either commits first, and the takeover then removes it, or sees
+// `session` ended. The check is a second statement so it reads what committed while it waited.
+pub(super) async fn lock_while_recent(
+    conn: &mut PgConnection,
+    session: &AccountSession,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query!(
+        "SELECT id FROM accounts WHERE id = $1 FOR UPDATE",
+        session.account.id.0,
+    )
+    .fetch_optional(&mut *conn)
+    .await?;
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS (
+             SELECT 1 FROM account_sessions
+             WHERE id = $1 AND created_at > now() - make_interval(mins => $2)
+           ) AS "recent!""#,
+        session.id,
+        RECENT_AUTHENTICATION_MINS,
+    )
+    .fetch_one(conn)
+    .await
+}
+
+/// Ends every session of `session`'s Account but `session`.
+pub(super) async fn end_others(
+    conn: &mut PgConnection,
+    session: &AccountSession,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "DELETE FROM account_sessions WHERE account_id = $1 AND id <> $2",
+        session.account.id.0,
+        session.id,
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
 /// Ends every session of `account`.
 pub(super) async fn end_all(
     conn: &mut PgConnection,
@@ -80,3 +122,7 @@ pub(super) async fn end_all(
     .await?;
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "sessions_tests.rs"]
+mod tests;

@@ -110,6 +110,22 @@ pub type OwnedListHomeRowTitlesRequestView = ::buffa::view::OwnedView<
 pub type OwnedListHomeRowTitlesResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ListHomeRowTitlesResponseView<'static>,
 >;
+///Shorthand for `OwnedView<GetBoxSetRequestView<'static>>`.
+pub type OwnedGetBoxSetRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetBoxSetRequestView<'static>,
+>;
+///Shorthand for `OwnedView<GetBoxSetResponseView<'static>>`.
+pub type OwnedGetBoxSetResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetBoxSetResponseView<'static>,
+>;
+///Shorthand for `OwnedView<ListBoxSetsRequestView<'static>>`.
+pub type OwnedListBoxSetsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListBoxSetsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListBoxSetsResponseView<'static>>`.
+pub type OwnedListBoxSetsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListBoxSetsResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::ListMoviesResponse>
 for crate::messages::nama::v1::__buffa::view::ListMoviesResponseView<'_> {
     fn encode(
@@ -586,6 +602,74 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetBoxSetResponse>
+for crate::messages::nama::v1::__buffa::view::GetBoxSetResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetBoxSetResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetBoxSetResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListBoxSetsResponse>
+for crate::messages::nama::v1::__buffa::view::ListBoxSetsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ListBoxSetsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ListBoxSetsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const BROWSE_SERVICE_SERVICE_NAME: &str = "nama.v1.BrowseService";
 /// Static [`Spec`](::connectrpc::Spec) for the `ListMovies` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -669,6 +753,18 @@ pub const BROWSE_SERVICE_LIST_HOME_ROWS_SPEC: ::connectrpc::Spec = ::connectrpc:
 /// Static [`Spec`](::connectrpc::Spec) for the `ListHomeRowTitles` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const BROWSE_SERVICE_LIST_HOME_ROW_TITLES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.BrowseService/ListHomeRowTitles",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `GetBoxSet` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const BROWSE_SERVICE_GET_BOX_SET_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.BrowseService/GetBoxSet",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListBoxSets` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const BROWSE_SERVICE_LIST_BOX_SETS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.BrowseService/ListBoxSets",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
@@ -1092,6 +1188,54 @@ pub trait BrowseService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::ListHomeRowTitlesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Returns one Box Set, with its Movies as the caller sees them. Fails with `not_found` if the
+    /// caller can't see it: none of its Movies is in a Library, or they'd see fewer than two.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn get_box_set<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::GetBoxSetRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::GetBoxSetResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Lists a page of the Box Sets the caller can see that have a Movie in a Movies Library, by
+    /// name. Fails like `ListMovies`.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_box_sets<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ListBoxSetsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ListBoxSetsResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1533,6 +1677,64 @@ impl<S: BrowseService> BrowseServiceExt for S {
                 },
             )
             .with_spec(BROWSE_SERVICE_LIST_HOME_ROW_TITLES_SPEC)
+            .route_view_idempotent(
+                BROWSE_SERVICE_SERVICE_NAME,
+                "GetBoxSet",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::GetBoxSetRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::GetBoxSetRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.get_box_set(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::GetBoxSetResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(BROWSE_SERVICE_GET_BOX_SET_SPEC)
+            .route_view_idempotent(
+                BROWSE_SERVICE_SERVICE_NAME,
+                "ListBoxSets",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ListBoxSetsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ListBoxSetsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_box_sets(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ListBoxSetsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(BROWSE_SERVICE_LIST_BOX_SETS_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -1669,6 +1871,18 @@ impl<T: BrowseService> ::connectrpc::Dispatcher for BrowseServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
                         .with_spec(BROWSE_SERVICE_LIST_HOME_ROW_TITLES_SPEC),
+                )
+            }
+            "GetBoxSet" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(BROWSE_SERVICE_GET_BOX_SET_SPEC),
+                )
+            }
+            "ListBoxSets" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(BROWSE_SERVICE_LIST_BOX_SETS_SPEC),
                 )
             }
             _ => None,
@@ -1982,6 +2196,46 @@ impl<T: BrowseService> ::connectrpc::Dispatcher for BrowseServiceServer<T> {
                         .encode::<
                             crate::messages::nama::v1::ListHomeRowTitlesResponse,
                         >(format)
+                })
+            }
+            "GetBoxSet" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::GetBoxSetRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::GetBoxSetRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::GetBoxSetRequest,
+                    >::from_parts(&req, &body);
+                    svc.get_box_set(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::GetBoxSetResponse>(format)
+                })
+            }
+            "ListBoxSets" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ListBoxSetsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ListBoxSetsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ListBoxSetsRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_box_sets(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::ListBoxSetsResponse>(format)
                 })
             }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
@@ -2713,6 +2967,92 @@ where
                 &self.transport,
                 &self.config,
                 BROWSE_SERVICE_LIST_HOME_ROW_TITLES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetBoxSet RPC. Sends a request to /nama.v1.BrowseService/GetBoxSet.
+    pub async fn get_box_set(
+        &self,
+        request: crate::messages::nama::v1::GetBoxSetRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetBoxSetResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_box_set_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the GetBoxSet RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_box_set_with_options(
+        &self,
+        request: crate::messages::nama::v1::GetBoxSetRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetBoxSetResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                BROWSE_SERVICE_GET_BOX_SET_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListBoxSets RPC. Sends a request to /nama.v1.BrowseService/ListBoxSets.
+    pub async fn list_box_sets(
+        &self,
+        request: crate::messages::nama::v1::ListBoxSetsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListBoxSetsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_box_sets_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListBoxSets RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_box_sets_with_options(
+        &self,
+        request: crate::messages::nama::v1::ListBoxSetsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ListBoxSetsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                BROWSE_SERVICE_LIST_BOX_SETS_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
