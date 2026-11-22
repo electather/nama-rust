@@ -78,6 +78,68 @@ describe("back up now", () => {
   });
 });
 
+/** A fake Server with `backups` in `/data/backups` and Upkeep's Back up Job, last run as `lastRun` says. */
+function upkeepServer(backups: Backup[], lastRun?: JobRun) {
+  return fakeServer(
+    {
+      signedIn: admin,
+      serverService: { getBackups: () => ({ folder: "/data/backups", settings: {}, backups }) },
+    },
+    {},
+    {},
+    (router) => {
+      router.service(JobService, {
+        listJobs: () => ({
+          jobs: [{ pluginId: "upkeep", id: "back-up", name: "Back up", enabled: true, lastRun }],
+        }),
+      });
+    },
+  );
+}
+
+describe("backup status and restoring", () => {
+  test("restore under a Backup shows the command that restores that file from the folder", async () => {
+    const written = ["nama-20261122T030000Z.tar", "nama-20261121T030000Z.tar"].map((name) =>
+      create(BackupSchema, { name, sizeBytes: 5n, modifiedAtMs: START }),
+    );
+    openSettings("backups", upkeepServer(written));
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Restore nama-20261121T030000Z.tar" }),
+    );
+
+    expect(
+      screen.getByText("nama-server restore /data/backups/nama-20261121T030000Z.tar"),
+    ).toBeDefined();
+    expect(
+      screen
+        .getByRole("button", { name: "Close nama-20261121T030000Z.tar" })
+        .getAttribute("aria-expanded"),
+    ).toBe("true");
+  });
+
+  test("a failed last Backup says why at the top of the pane", async () => {
+    const failed = create(JobRunSchema, {
+      id: 2n,
+      outcome: JobRunOutcome.FAILED,
+      startedAtMs: START,
+      error: "No space left on device",
+    });
+    openSettings("backups", upkeepServer([], failed));
+
+    await expect(screen.findByText("No space left on device")).resolves.toBeDefined();
+    expect(screen.getByRole("button", { name: "Back up now" })).toBeDefined();
+  });
+
+  test("with Upkeep disabled, the pane says the Server doesn't back itself up", async () => {
+    openBackups({});
+
+    await expect(screen.findByText("The Server doesn’t back itself up")).resolves.toBeDefined();
+    expect(screen.getByRole("link", { name: "Enable Upkeep" })).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Back up now" })).toBeNull();
+  });
+});
+
 describe("backup settings", () => {
   test("the Backup folder is saved once its field is left, keeping how many are kept", async () => {
     const updates: UpdateBackupSettingsRequest[] = [];

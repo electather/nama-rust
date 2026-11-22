@@ -2,11 +2,11 @@ import { type LucideIcon, Monitor, Smartphone, Tv } from "lucide-react";
 import { Button } from "nama-ui/components/button";
 import { useRef } from "react";
 
-import { IconTile } from "@/features/settings/components/icon-tile";
 import { ItemRow } from "@/features/settings/components/item-row";
 import { lastUsed } from "@/features/settings/lib/last-used";
 import type { Device } from "@/gen/nama/v1/sign_in_pb";
 import { ConfirmDialog } from "@/shared/components/confirm-dialog/confirm-dialog";
+import { IconTile } from "@/shared/components/icon-tile";
 import { useRevokeDevice } from "@/shared/hooks/use-revoke-device";
 import { refusal } from "@/shared/lib/forms";
 import type { Opener } from "@/shared/lib/opener";

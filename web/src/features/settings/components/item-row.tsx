@@ -17,7 +17,7 @@ const LOOKS = {
  * One thing on a pane's list, such as a Device: what `start` draws, its `name` over a line about
  * it and why the last change to it failed, and at the end its state and buttons, if it has any,
  * which wrap under it when narrow. The hairline between two starts at the name, past what `start` draws. Its list
- * sets no gap, and pulls its ends in by the 10px each row keeps over and under itself.
+ * sets no gap, and pulls its ends in by the 6px each row keeps over and under itself.
  */
 export function ItemRow({
   start,
@@ -41,7 +41,7 @@ export function ItemRow({
   const look = LOOKS[linked ? "linked" : "plain"];
   const words = (
     <div className="flex min-w-0 flex-1 basis-50 flex-col gap-0.5">
-      <span className="truncate text-sm font-medium">{name}</span>
+      <span className="truncate text-sm">{name}</span>
       <span className="text-xs text-pretty text-muted-foreground">{meta}</span>
       <span role="alert" className="text-xs text-pretty text-destructive empty:hidden">
         {failed}
@@ -50,9 +50,9 @@ export function ItemRow({
   );
   return (
     <li className={`group relative flex gap-x-3 ${look.row}`}>
-      <span className="flex shrink-0 py-2.5">{start}</span>
+      <span className="flex shrink-0 self-center py-1.5">{start}</span>
       <div
-        className={`flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2 py-2.5 group-not-first:border-t ${look.lines}`}
+        className={`flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2 py-1.5 group-not-first:border-t ${look.lines}`}
       >
         {words}
         <div className={beside ? `${END} ms-auto` : `${END} max-md:basis-full`}>{children}</div>

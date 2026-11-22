@@ -9,27 +9,34 @@ function Tooltip(props: TooltipPrimitive.Root.Props) {
   return <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
 }
 
-/** What opens the tooltip on hover or focus: a button, focusable, ringed when focused. */
+/**
+ * What opens the tooltip on hover or focus: a button, focusable, ringed when focused. One `render`ed
+ * as another component, such as a Button, keeps that one's shape and ring.
+ */
 function TooltipTrigger({ className, ...props }: TooltipPrimitive.Trigger.Props) {
+  const look =
+    props.render === undefined &&
+    "cursor-default rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
   return (
     <TooltipPrimitive.Trigger
       data-slot="tooltip-trigger"
-      className={cn(
-        "cursor-default rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-        className,
-      )}
+      className={cn(look, className)}
       {...props}
     />
   );
 }
 
+/** The tooltip itself, in `container` when its trigger is in a modal dialog, as only that shows over it. */
 function TooltipContent({
   sideOffset = 4,
+  container,
   className,
   ...props
-}: TooltipPrimitive.Popup.Props & Pick<TooltipPrimitive.Positioner.Props, "sideOffset">) {
+}: TooltipPrimitive.Popup.Props &
+  Pick<TooltipPrimitive.Positioner.Props, "sideOffset"> &
+  Pick<TooltipPrimitive.Portal.Props, "container">) {
   return (
-    <TooltipPrimitive.Portal>
+    <TooltipPrimitive.Portal container={container}>
       <TooltipPrimitive.Positioner className="isolate z-50" sideOffset={sideOffset}>
         {/* Base UI gives the popup no role. */}
         <TooltipPrimitive.Popup
