@@ -79,7 +79,9 @@ function Library() {
         void navigate({ search: changed });
       }}
       switchView={(view) => {
-        void navigate({ search: view === "box-sets" ? { view } : {} });
+        // The Movies' sort and filter stay in the URL, so coming back to them finds them as left.
+        const listing = listingFromSearch(search);
+        void navigate({ search: view === "box-sets" ? { ...listing, view } : listing });
       }}
     />
   );

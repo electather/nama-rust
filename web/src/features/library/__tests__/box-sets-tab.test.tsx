@@ -54,3 +54,14 @@ test("a Shows Library has no Box Sets tab", async () => {
   await expect(screen.findByRole("heading", { level: 1, name: "TV" })).resolves.toBeDefined();
   expect(screen.queryByRole("tab", { name: "Box Sets" })).toBeNull();
 });
+
+test("going to a Library's Box Sets and back keeps its Movies' sort", async () => {
+  openApp("/libraries/1?sort=released", server());
+
+  fireEvent.click(await screen.findByRole("tab", { name: "Box Sets" }));
+  await screen.findByRole("link", { name: "Alien Collection" });
+  fireEvent.click(screen.getByRole("tab", { name: "Movies" }));
+
+  await screen.findByText("1 Movie");
+  expect(globalThis.location.search).toBe("?sort=released");
+});
