@@ -10,8 +10,8 @@ use std::{
 
 use nama_pdk::{
     CheckedSettings, HomeRow, HomeRowSource, HomeRowTitle, HomeRows, Manifest, OutsideService,
-    Permission, SettingField, SettingKind, Title, TitleId, TitleKind, TitleRefKind, UserRowsAsked,
-    WatchState, WatchlistTitle, checked_settings, choices_setting_field,
+    Permission, Refusal, SettingField, SettingKind, Title, TitleId, TitleKind, TitleRefKind,
+    UserRowsAsked, WatchState, WatchlistTitle, checked_settings, choices_setting_field,
     extism_pdk::{Error, HttpRequest, json},
     kernel,
     nama_plugin_proto::nama::plugin::v1::Texts,
@@ -29,6 +29,9 @@ const USER_ROWS: &str = "user_rows";
 const MOST_PICKS: usize = 20;
 
 const TMDB: OutsideService = OutsideService::new("TMDB").credential("API key");
+
+/// The namespace of TMDB's ids in a [`TitleId`].
+const TMDB_IDS: &str = "tmdb";
 
 /// Where TMDB's v3 API is.
 const API_URL: &str = "https://api.themoviedb.org/3/";
@@ -82,7 +85,7 @@ const USER_FRESH_FOR: Duration = Duration::from_hours(6);
 
 /// How many of a title's Cast, by billing, count towards a Starring row, so minor cast who
 /// happen to appear in several titles never get one.
-const TOP_BILLED: u32 = 5;
+const TOP_BILLED: usize = 5;
 
 /// The most characters the Kernel keeps of a heading (ADR 0058).
 const MOST_HEADING_CHARACTERS: usize = 40;
@@ -287,7 +290,11 @@ impl HomeRowSource for Discover {
                         continue;
                     }
                 },
-                STARRING | FROM => match people.row(key, heading, &history)? {
+                STARRING => match people.row(Role::Cast, heading, &history)? {
+                    Some(row) => row,
+                    None => continue,
+                },
+                FROM => match people.row(Role::Maker, heading, &history)? {
                     Some(row) => row,
                     None => continue,
                 },
@@ -357,7 +364,7 @@ impl Key {
     fn tmdb(kind: TitleKind, id: u64) -> Self {
         Self {
             kind,
-            namespace: "tmdb".to_owned(),
+            namespace: TMDB_IDS.to_owned(),
             value: id.to_string(),
         }
     }
@@ -542,7 +549,7 @@ impl People {
     fn of(history: &History) -> Result<Self, Error> {
         let api = Api::from_settings()?;
         let mut played: Vec<&Watched> = (history.played())
-            .filter(|title| title.key.namespace == "tmdb")
+            .filter(|title| title.key.namespace == TMDB_IDS)
             .collect();
         played.sort_by_key(|title| Reverse(title.last_changed_ms));
         let credits = (played.iter())
@@ -551,19 +558,14 @@ impl People {
         Ok(Self { credits })
     }
 
-    /// The heading and titles of the row `key`, Starring or From, its `heading` naming who it
-    /// follows; `None` if no title the User of `history` played credits anyone so.
+    /// The heading and titles of the row following the person most credited as `role`, its
+    /// `heading` naming them; `None` if no title the User of `history` played credits anyone so.
     fn row(
         &self,
-        key: &str,
+        role: Role,
         heading: &str,
         history: &History,
     ) -> Result<Option<(String, Vec<HomeRowTitle>)>, Error> {
-        let role = if key == STARRING {
-            Role::Cast
-        } else {
-            Role::Maker
-        };
         let Some(person) = self.most_credited(role) else {
             return Ok(None);
         };
@@ -592,7 +594,7 @@ impl People {
 }
 
 /// Who one title credits, each once, as the Store keeps them.
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 struct Credits {
     /// Its first [`TOP_BILLED`] Cast.
     cast: Vec<Person>,
@@ -651,9 +653,20 @@ impl Credits {
         {
             return Ok(kept);
         }
-        let details: Details =
-            api.get(&[media, &title.value], &[("append_to_response", "credits")])?;
-        let credits = Self::from(details);
+        let credits = match api
+            .get::<Details>(&[media, &title.value], &[("append_to_response", "credits")])
+        {
+            Ok(details) => Self::from(details),
+            // A title TMDB no longer has credits no one, kept so it fails no refresh.
+            Err(err)
+                if err
+                    .downcast_ref::<Refusal>()
+                    .is_some_and(|it| it.status() == 404) =>
+            {
+                Self::default()
+            }
+            Err(err) => return Err(err),
+        };
         let _not_kept: Result<(), Error> =
             kernel::store_put(&store_key, None, &json::to_vec(&credits)?);
         Ok(credits)
@@ -661,9 +674,11 @@ impl Credits {
 }
 
 impl From<Details> for Credits {
-    fn from(details: Details) -> Self {
+    fn from(mut details: Details) -> Self {
+        // By place, not `order`'s value, which skips numbers in a Show's credits.
+        details.credits.cast.sort_by_key(|billed| billed.order);
         let cast = (details.credits.cast.into_iter())
-            .filter(|billed| billed.order < TOP_BILLED)
+            .take(TOP_BILLED)
             .map(|billed| billed.person);
         let directors = (details.credits.crew.into_iter())
             .filter(|job| job.job == "Director")
@@ -684,9 +699,20 @@ fn each_once(people: impl Iterator<Item = Person>) -> Vec<Person> {
 /// The Shows a person is in the cast or crew of, as TMDB answers them.
 #[derive(Deserialize)]
 struct ShowCredits {
-    cast: Vec<Id>,
-    crew: Vec<Id>,
+    cast: Vec<ShowCredit>,
+    crew: Vec<ShowCredit>,
 }
+
+/// One of a person's credits on a Show.
+#[derive(Deserialize)]
+struct ShowCredit {
+    id: u64,
+    genre_ids: Vec<u64>,
+    episode_count: u32,
+}
+
+/// TMDB's Talk, News and Reality genres, whose Shows credit a guest as if they starred.
+const NOT_STARRING_GENRES: [u64; 3] = [10767, 10763, 10764];
 
 /// A title in a list that says what kind it is by where it is.
 #[derive(Deserialize)]
@@ -737,10 +763,18 @@ impl Api {
         };
         let movies: Page<Id> = self.get(&["discover", "movie"], &[(by, &id)])?;
         let shows: ShowCredits = self.get(&["person", &id, "tv_credits"], &[])?;
-        let shows = match role {
+        let mut shows = match role {
             Role::Cast => shows.cast,
             Role::Maker => shows.crew,
         };
+        shows.retain(|show| {
+            !show
+                .genre_ids
+                .iter()
+                .any(|genre| NOT_STARRING_GENRES.contains(genre))
+        });
+        // TMDB lists them in no order: the Shows they did most first.
+        shows.sort_by_key(|show| Reverse(show.episode_count));
         let movies =
             (movies.results.iter()).map(|movie| Key::tmdb(TitleKind::TITLE_KIND_MOVIE, movie.id));
         let shows = (shows.iter()).map(|show| Key::tmdb(TitleKind::TITLE_KIND_SHOW, show.id));

@@ -46,7 +46,10 @@ fn tmdb(request: &HttpRequest) -> Response {
             ]),
         ),
         path => match (path.split('/').collect::<Vec<_>>()).as_slice() {
-            ["", "3", media @ ("movie" | "tv"), id] => answer(200, &credits(media, id)),
+            ["", "3", media @ ("movie" | "tv"), id] => match credits(media, id) {
+                Some(credits) => answer(200, &credits),
+                None => answer(404, &json!({ "status_code": 34 })),
+            },
             ["", "3", "discover", "movie"] => answer(200, &movies_of(&url)),
             ["", "3", "person", id, "tv_credits"] => answer(200, &shows_of(id)),
             _ => answer(404, &json!({ "status_code": 34 })),
@@ -73,14 +76,14 @@ fn name(person: u64) -> String {
 }
 
 /// TMDB's answer for a Movie's or Show's details with its credits: its cast in billing order,
-/// a producer, its Directors, and a Show's Creators.
-fn credits(media: &str, title: &str) -> Value {
+/// a producer, its Directors, and a Show's Creators; `None` for a title TMDB doesn't have.
+fn credits(media: &str, title: &str) -> Option<Value> {
     let (cast, directors, creators): (&[u64], &[u64], &[u64]) = match (media, title) {
         ("movie", "603") => (&[KEANU, 1, 2, 3, 4, AGENT], &[LANA], &[]),
         ("movie", "604") => (&[KEANU, 5, 6, 7, 8, AGENT], &[LANA], &[]),
         ("movie", "605") => (&[9, 10, 11, 12, 13, AGENT], &[14], &[]),
         ("tv", "1396") => (&[BRYAN, 15], &[], &[VINCE]),
-        _ => (&[], &[], &[]),
+        _ => return None,
     };
     let person = |id: &u64| json!({ "id": id, "name": name(*id) });
     let cast: Vec<_> = (cast.iter().enumerate())
@@ -94,7 +97,7 @@ fn credits(media: &str, title: &str) -> Value {
     if media == "tv" {
         details["created_by"] = creators.iter().map(person).collect();
     }
-    details
+    Some(details)
 }
 
 /// TMDB's answer to a search for the Movies a person is in, by `with_cast` or `with_crew`.
@@ -114,15 +117,28 @@ fn movies_of(url: &Url) -> Value {
     json!({ "page": 1, "results": results })
 }
 
-/// TMDB's answer for the Shows a person is in the cast or crew of.
+/// A talk show, on which a guest appears as themself.
+const TALK_SHOW: u64 = 22980;
+
+/// Shows by TMDB id, each with how many Episodes a person is credited in.
+type Shows<'a> = &'a [(u64, u32)];
+
+/// TMDB's answer for the Shows a person is in the cast or crew of, with how many Episodes.
 fn shows_of(person: &str) -> Value {
-    let (cast, crew): (&[u64], &[u64]) = match person {
-        "6384" => (&[1396, 1400, 1400], &[]),
-        "9340" => (&[], &[70523]),
+    let (cast, crew): (Shows<'_>, Shows<'_>) = match person {
+        "6384" => (&[(TALK_SHOW, 9), (1400, 2), (1396, 1), (2100, 10)], &[]),
+        "9340" => (&[], &[(70523, 8)]),
         _ => (&[], &[]),
     };
-    let ids = |ids: &[u64]| -> Vec<_> { ids.iter().map(|id| json!({ "id": id })).collect() };
-    json!({ "cast": ids(cast), "crew": ids(crew) })
+    let shows = |shows: Shows<'_>| -> Vec<_> {
+        (shows.iter())
+            .map(|&(id, episodes)| {
+                let genres: &[u64] = if id == TALK_SHOW { &[10767, 35] } else { &[18] };
+                json!({ "id": id, "genre_ids": genres, "episode_count": episodes })
+            })
+            .collect()
+    };
+    json!({ "cast": shows(cast), "crew": shows(crew) })
 }
 
 fn answer(status: u16, body: &Value) -> Response {
@@ -745,7 +761,7 @@ fn starring_and_from_follow_the_people_most_in_what_the_user_played_leaving_out_
                 "starring",
                 "Starring Keanu Reeves",
                 ttl,
-                vec![(movie, "624"), (show, "1400")]
+                vec![(movie, "624"), (show, "2100"), (show, "1400")]
             ),
             (
                 "from",
@@ -765,7 +781,19 @@ fn an_actor_billed_6th_never_gets_a_starring_row_however_often_they_appear() {
 
     let rows = user_rows(&mut kernel, ADA).unwrap();
 
-    assert_eq!(rows.rows[0].heading, "Starring Keanu Reeves");
+    let headings: Vec<_> = rows.rows.iter().map(|row| row.heading.as_str()).collect();
+    assert_eq!(headings, ["Starring Keanu Reeves", "From Lana Wachowski"]);
+}
+
+#[test]
+fn a_played_title_tmdb_lacks_credits_no_one_and_fails_no_refresh() {
+    let titles = [movie("603", &[]), movie("1", &[])];
+    let mut kernel = played(person_kernel(&titles), &[&titles[0], &titles[1]]);
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    let headings: Vec<_> = rows.rows.iter().map(|row| row.heading.as_str()).collect();
+    assert_eq!(headings, ["Starring Keanu Reeves", "From Lana Wachowski"]);
 }
 
 #[test]
