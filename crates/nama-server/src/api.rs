@@ -10,7 +10,7 @@ use nama_proto::nama::v1::{self as proto, Refusal, RefusalReason};
 
 use crate::{
     backup::Backups,
-    browse::Browse,
+    browse::{Browse, TitlePages},
     config::Config,
     connections::Connections,
     db::Database,
@@ -110,6 +110,8 @@ pub(crate) fn router(
         settings: image_settings.clone(),
     };
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
+    let similar = SimilarSources::new(plugins.clone());
+    let pages = TitlePages::new(Arc::clone(&db), requests.clone(), similar);
     let server_url = settings.server_url();
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(server::ServerServiceHandler {
@@ -137,7 +139,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(browse::BrowseServiceHandler {
             browse: Browse::new(Arc::clone(&db)),
-            similar: SimilarSources::new(plugins.clone()),
+            pages: pages.clone(),
             home_rows: home_rows.clone(),
             settings: settings.clone(),
             images: images.clone(),
@@ -170,10 +172,8 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(requests::RequestServiceHandler {
             requests,
-            browse: Browse::new(Arc::clone(&db)),
-            similar: SimilarSources::new(plugins.clone()),
+            pages,
             images: images.clone(),
-            db: Arc::clone(&db),
         }))
         .add_service(Arc::new(jobs::JobServiceHandler {
             plugin_settings: plugin_settings.clone(),

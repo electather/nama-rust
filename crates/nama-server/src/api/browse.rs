@@ -12,18 +12,20 @@ use nama_proto::nama::v1::{
     ListEpisodesResponse, ListFeaturedRequest, ListFeaturedResponse, ListGenresRequest,
     ListGenresResponse, ListHomeRowTitlesRequest, ListHomeRowTitlesResponse, ListHomeRowsRequest,
     ListHomeRowsResponse, ListMoviesRequest, ListMoviesResponse, ListShowsRequest,
-    ListShowsResponse, ListUnmatchedRequest, ListUnmatchedResponse, MovieSort, Permission,
-    ShowSort, SortDirection, WatchedFilter, home_row::KernelOrPlugin,
+    ListShowsResponse, ListUnmatchedRequest, ListUnmatchedResponse, MovieSort, ShowSort,
+    SortDirection, WatchedFilter, home_row::KernelOrPlugin,
 };
 
 use crate::{
-    browse::{Browse, Episode, Featured, ListedShow, Movie, Show, Started, Version, season_count},
+    browse::{
+        Browse, Episode, Featured, ListedShow, Movie, Show, Started, TitlePages, Version,
+        season_count,
+    },
     db::Database,
     home_rows::{HomeRows, RowTitle},
     library::{
         Downloaded, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, OnServer, Role,
-        ShownImages, SimilarSources, TitleImage, TitleKind, TitleSort, Unmatched, WatchState,
-        Watched,
+        ShownImages, TitleImage, TitleKind, TitleSort, Unmatched, WatchState, Watched,
     },
     playback::track_to_proto,
     server_settings::{HomeRowId, Settings},
@@ -50,8 +52,8 @@ pub(super) use titles::{roles_to_proto, trailers_to_proto};
 /// [`require_access`](super::require_access) enforces.
 pub(super) struct BrowseServiceHandler {
     pub(super) browse: Browse,
-    /// Says which Similar sources' stored answers a title's page shows.
-    pub(super) similar: SimilarSources,
+    /// Reads a Movie's or Show's page.
+    pub(super) pages: TitlePages,
     pub(super) home_rows: HomeRows,
     /// Holds the default Home layout, which orders and hides the Home rows and Featured.
     pub(super) settings: Settings,
@@ -152,34 +154,23 @@ impl BrowseService for BrowseServiceHandler {
         let user = &caller(&ctx)?.user;
         let request = request.to_owned_message();
         let id = required_id(request.movie_id.into_option(), "movie_id", "Movie")?;
-        let found = self.browse.movie(user.id, request.library_id, &id).await;
-        let (movie, state, read_only_folder) = found.map_err(refused(Fields {
+        let page = self.pages.movie(user, request.library_id, &id).await;
+        let page = page.map_err(refused(Fields {
             title: "movie_id",
             ..Fields::LIBRARY
         }))?;
-        let on_watchlist = (self.on_watchlist(user.id, TitleKind::Movie, &movie.ids)).await?;
-        let similar = (self
-            .browse
-            .similar(TitleKind::Movie, &movie.ids, &self.similar))
-        .await;
-        let similar = similar.map_err(refused(Fields::LIBRARY))?;
-        let roles = self.browse.movie_roles(&movie).await;
-        let roles = roles.map_err(refused(Fields::LIBRARY))?;
         let images = self.images.shown().await.map_err(database_failed)?;
-        let (cast, crew) = roles_to_proto(roles, stored_by(&movie.plugin, &images));
+        let (cast, crew) = roles_to_proto(page.roles, stored_by(&page.movie.plugin, &images));
         Response::ok(GetMovieResponse {
-            similar: movie_hits(similar, &images),
+            similar: movie_hits(page.similar, &images),
             movie: proto::Movie {
-                on_watchlist,
+                on_watchlist: page.on_watchlist,
                 cast,
                 crew,
-                ..movie_to_proto(movie, state, &images)
+                ..movie_to_proto(page.movie, page.state, &images)
             }
             .into(),
-            // Where a Library lives is shown only to those who may delete what's in it (AGENTS.md,
-            // "Clients name ids"), not to every User who can browse it.
-            read_only_folder: read_only_folder
-                .filter(|_| user.permissions.allow(Permission::DeleteMedia)),
+            read_only_folder: page.read_only_folder,
             ..Default::default()
         })
     }
@@ -239,28 +230,19 @@ impl BrowseService for BrowseServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, GetShowRequest>,
     ) -> ServiceResult<GetShowResponse> {
-        let user = caller(&ctx)?.user.id;
+        let user = &caller(&ctx)?.user;
         let request = request.to_owned_message();
         let id = required_id(request.show_id.into_option(), "show_id", "Show")?;
-        let show = self.browse.show(request.library_id, &id).await;
-        let show = show.map_err(refused(Fields {
+        let page = self.pages.show(user, request.library_id, &id).await;
+        let page = page.map_err(refused(Fields {
             title: "show_id",
             ..Fields::LIBRARY
         }))?;
-        let on_watchlist = (self.on_watchlist(user, TitleKind::Show, &show.ids)).await?;
-        let roles = self.browse.show_roles(&show).await;
-        let roles = roles.map_err(refused(Fields::LIBRARY))?;
-        let aired = self.browse.aired_episodes(&show).await;
-        let aired_episode_count = aired.map_err(database_failed)?;
-        let similar = (self
-            .browse
-            .similar(TitleKind::Show, &show.ids, &self.similar))
-        .await;
-        let similar = similar.map_err(refused(Fields::LIBRARY))?;
+        let show = page.show;
         let images = self.images.shown().await.map_err(database_failed)?;
         // Without a Plugin it has no Episodes, so no Roles to show headshots of.
         let plugin = show.plugin().unwrap_or_default();
-        let (cast, crew) = roles_to_proto(roles, stored_by(plugin, &images));
+        let (cast, crew) = roles_to_proto(page.roles, stored_by(plugin, &images));
         let seasons = (show.seasons.iter())
             .map(|(&number, season)| {
                 let downloaded = season.poster.as_ref().map(Downloaded::stored);
@@ -277,15 +259,15 @@ impl BrowseService for BrowseServiceHandler {
             .collect();
         Response::ok(GetShowResponse {
             show: proto::Show {
-                on_watchlist,
+                on_watchlist: page.on_watchlist,
                 cast,
                 crew,
                 ..show_to_proto(&show, &images)
             }
             .into(),
             seasons,
-            aired_episode_count,
-            similar: show_hits(similar, &images),
+            aired_episode_count: page.aired_episodes,
+            similar: show_hits(page.similar, &images),
             ..Default::default()
         })
     }
