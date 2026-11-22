@@ -208,6 +208,14 @@ where
         .and_then(queries)
 }
 
+/// Makes ring rustls's process-wide crypto provider, before the Server builds a reqwest Client.
+pub fn use_ring_for_tls() {
+    // The Hub turns on reqwest's `rustls-no-provider`, and Cargo unifies it into this crate's
+    // reqwest whenever the workspace builds as one (`cargo test --workspace`): every Client build
+    // then panics without a process default. A provider already installed is fine.
+    let _: Result<(), _> = rustls::crypto::ring::default_provider().install_default();
+}
+
 /// What an admin shares with Nama's developers (ADR 0054): neither, by default.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Sharing {
@@ -714,6 +722,7 @@ impl BrowserSpans {
         // ponytail: ignores `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS`,
         // which the Server's own exporter reads; read them once a collector needs a key.
         let traces_url = format!("{}/v1/traces", endpoint.trim_end_matches('/'));
+        use_ring_for_tls();
         Self {
             traces_url,
             client: reqwest::Client::new(),

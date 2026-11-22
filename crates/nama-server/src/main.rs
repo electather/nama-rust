@@ -382,6 +382,7 @@ struct Exporting {
 impl Exporting {
     /// Exports to [`OTLP_ENDPOINT`] if `to_admin`, and what the admin shares through `sharing`.
     fn start(to_admin: bool, sharing: &ShareThroughPlugins) -> Result<Self, ExporterBuildError> {
+        diagnostics::use_ring_for_tls();
         let shared_spans = SpanExporter::builder()
             .with_http()
             .with_http_client(sharing.clone())
