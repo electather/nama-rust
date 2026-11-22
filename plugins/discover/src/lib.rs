@@ -5,7 +5,7 @@
 
 use std::{
     cmp::Reverse,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     iter,
     time::{Duration, UNIX_EPOCH},
 };
@@ -271,9 +271,9 @@ impl HomeRowSource for Discover {
         let mut rows = Vec::new();
         for (key, heading) in picked_rows(&SHARED, &picked) {
             // ponytail: a picked row Discover doesn't answer yet is left out until it's built.
-            let titles = match key {
-                TRENDING => api.titles(&["trending", "all", "week"])?,
-                _ => match award_query(key) {
+            let titles = match shared_titles(&api, key)? {
+                Some(titles) => titles,
+                None => match award_query(key) {
                     Some(query) => award_movies(key, &query)?,
                     None => continue,
                 },
@@ -696,6 +696,64 @@ impl Watched {
     }
 }
 
+/// The titles of the shared row `key` from TMDB, or `None` for a row Discover doesn't answer yet.
+///
+/// # Errors
+/// If TMDB can't answer, or the Region isn't set when the row needs it.
+fn shared_titles(api: &Api, key: &str) -> Result<Option<Vec<HomeRowTitle>>, Error> {
+    const MOVIES: Option<TitleKind> = Some(TitleKind::TITLE_KIND_MOVIE);
+    const SHOWS: Option<TitleKind> = Some(TitleKind::TITLE_KIND_SHOW);
+    let region = || nama_pdk::required_setting(REGION);
+    let titles = match key {
+        TRENDING => api.titles(&["trending", "all", "week"], &[], None)?,
+        "popular-movies" => api.titles(&["movie", "popular"], &[], MOVIES)?,
+        "popular-shows" => api.titles(&["tv", "popular"], &[], SHOWS)?,
+        "top-rated-movies" => api.titles(&["movie", "top_rated"], &[], MOVIES)?,
+        "top-rated-shows" => api.titles(&["tv", "top_rated"], &[], SHOWS)?,
+        "now-in-theaters" => {
+            api.titles(&["movie", "now_playing"], &[("region", &region()?)], MOVIES)?
+        }
+        "coming-soon" => api.titles(&["movie", "upcoming"], &[("region", &region()?)], MOVIES)?,
+        "on-the-air" => api.titles(&["tv", "on_the_air"], &[], SHOWS)?,
+        // Popular first, so it differs from Top rated movies, which sorts by rating.
+        "critically-acclaimed" => api.discover_movies(&[
+            ("sort_by", "popularity.desc"),
+            ("vote_average.gte", "8"),
+            ("vote_count.gte", "5000"),
+        ])?,
+        "80s" => api.discover_movies(&favourites_of("1980-01-01", "1989-12-31"))?,
+        "90s" => api.discover_movies(&favourites_of("1990-01-01", "1999-12-31"))?,
+        "2000s" => api.discover_movies(&favourites_of("2000-01-01", "2009-12-31"))?,
+        // At least an hour, leaving out short films.
+        "under-90-minutes" => api.discover_movies(&[
+            ("with_runtime.gte", "60"),
+            ("with_runtime.lte", "89"),
+            ("sort_by", "vote_average.desc"),
+            ("vote_count.gte", "1000"),
+        ])?,
+        // The vote floor keeps out titles a handful of fans rated 10.
+        "hidden-gems" => api.discover_movies(&[
+            ("vote_average.gte", "7.5"),
+            ("vote_count.gte", "200"),
+            ("vote_count.lte", "1000"),
+            ("sort_by", "vote_average.desc"),
+        ])?,
+        _ => return Ok(None),
+    };
+    Ok(Some(titles))
+}
+
+/// TMDB's search for the best-rated Movies released from `first` to `last`, both `YYYY-MM-DD`,
+/// the vote floor keeping out titles few rated.
+fn favourites_of<'a>(first: &'a str, last: &'a str) -> [(&'static str, &'a str); 4] {
+    [
+        ("primary_release_date.gte", first),
+        ("primary_release_date.lte", last),
+        ("sort_by", "vote_average.desc"),
+        ("vote_count.gte", "1000"),
+    ]
+}
+
 /// How TMDB's paths name `kind`; `None` for neither a Movie nor a Show.
 fn media(kind: TitleKind) -> Option<&'static str> {
     match kind {
@@ -920,7 +978,8 @@ struct Genre {
 #[derive(Deserialize)]
 struct Listing {
     id: u64,
-    /// Unset in a page of one media, such as a Movie's recommendations.
+    /// Unset in a page of one media, such as a Movie's recommendations; set in a page mixing
+    /// kinds, such as trending.
     #[serde(default)]
     media_type: String,
 }
@@ -932,11 +991,29 @@ impl Api {
         })
     }
 
-    /// The Movies and Shows in the first page at `path`, leaving out people.
+    /// The Movies and Shows in the first page at `path` asked with `query`, leaving out people.
+    /// `kind` is every title's when TMDB lists one kind there, or `None` where each title says its
+    /// own, as in trending.
     // ponytail: one page, TMDB's 20 titles; ask for more pages if a row of 20 feels short.
-    fn titles(&self, path: &[&str]) -> Result<Vec<HomeRowTitle>, Error> {
-        let page: Page = self.get(path, &[])?;
-        Ok(page.results.iter().filter_map(title).collect())
+    fn titles(
+        &self,
+        path: &[&str],
+        query: &[(&str, &str)],
+        kind: Option<TitleKind>,
+    ) -> Result<Vec<HomeRowTitle>, Error> {
+        let page: Page = self.get(path, query)?;
+        Ok((page.results.iter())
+            .filter_map(|listing| title(listing, kind))
+            .collect())
+    }
+
+    /// The Movies TMDB's search finds for `query`.
+    fn discover_movies(&self, query: &[(&str, &str)]) -> Result<Vec<HomeRowTitle>, Error> {
+        self.titles(
+            &["discover", "movie"],
+            query,
+            Some(TitleKind::TITLE_KIND_MOVIE),
+        )
     }
 
     /// The titles in the first page at `path` asked with `query`, a page of `kind` alone.
@@ -1027,12 +1104,13 @@ impl Api {
     }
 }
 
-/// The Home row title of `listing`, or `None` for a person.
-fn title(listing: &Listing) -> Option<HomeRowTitle> {
-    let kind = match listing.media_type.as_str() {
-        "movie" => TitleKind::TITLE_KIND_MOVIE,
-        "tv" => TitleKind::TITLE_KIND_SHOW,
-        _ => return None,
+/// The Home row title of `listing`, of `kind` or else its own, or `None` for a person.
+fn title(listing: &Listing, kind: Option<TitleKind>) -> Option<HomeRowTitle> {
+    let kind = match (kind, listing.media_type.as_str()) {
+        (Some(kind), _) => kind,
+        (None, "movie") => TitleKind::TITLE_KIND_MOVIE,
+        (None, "tv") => TitleKind::TITLE_KIND_SHOW,
+        (None, _) => return None,
     };
     Some(Key::tmdb(kind, listing.id).row_title())
 }
