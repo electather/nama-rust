@@ -9,7 +9,8 @@ import {
   type UnmatchedItemSchema,
   UnmatchedReason,
 } from "@/gen/nama/v1/match_pb";
-import { admin, fakeServer, openApp } from "@/test-app";
+import { admin, fakeServer } from "@/test-app";
+import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
 
@@ -36,8 +37,8 @@ test.each([
       season: 10,
       episode: 1,
     };
-    openApp(
-      "/admin/needs-a-match",
+    openSettings(
+      "needs-a-match",
       fakeServer({ signedIn: admin, libraries: [shows] }, {}, {}, (router) => {
         router.service(MatchService, {
           listUnmatchedItems: () => ({ items: [listed] }),

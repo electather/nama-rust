@@ -29,7 +29,6 @@ import { Route as MemberShowsShowIdRouteImport } from './routes/_member/shows/$s
 import { Route as SignedOutInviteTokenRouteImport } from './routes/_signed-out/invite.$token'
 import { Route as SignedOutSignInIndexRouteImport } from './routes/_signed-out/sign-in.index'
 import { Route as MemberAdminAdminIndexRouteImport } from './routes/_member/_admin/admin/index'
-import { Route as MemberAdminAdminNeedsAMatchRouteImport } from './routes/_member/_admin/admin/needs-a-match'
 import { Route as MemberLibrariesLibraryIdIndexRouteImport } from './routes/_member/libraries/$libraryId/index'
 import { Route as SignedOutSignInCodeIndexRouteImport } from './routes/_signed-out/sign-in.code.index'
 import { Route as SignedOutSignInCodeWaitingRouteImport } from './routes/_signed-out/sign-in.code.waiting'
@@ -138,12 +137,6 @@ const MemberAdminAdminIndexRoute = MemberAdminAdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => MemberAdminRoute,
 } as any)
-const MemberAdminAdminNeedsAMatchRoute =
-  MemberAdminAdminNeedsAMatchRouteImport.update({
-    id: '/admin/needs-a-match',
-    path: '/admin/needs-a-match',
-    getParentRoute: () => MemberAdminRoute,
-  } as any)
 const MemberLibrariesLibraryIdIndexRoute =
   MemberLibrariesLibraryIdIndexRouteImport.update({
     id: '/libraries/$libraryId/',
@@ -224,7 +217,6 @@ export interface FileRoutesByFullPath {
   '/code/': typeof MemberCodeIndexRoute
   '/requests/': typeof MemberRequestsIndexRoute
   '/sign-in/': typeof SignedOutSignInIndexRoute
-  '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/admin/': typeof MemberAdminAdminIndexRoute
   '/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
@@ -252,7 +244,6 @@ export interface FileRoutesByTo {
   '/code': typeof MemberCodeIndexRoute
   '/requests': typeof MemberRequestsIndexRoute
   '/sign-in': typeof SignedOutSignInIndexRoute
-  '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/admin': typeof MemberAdminAdminIndexRoute
   '/libraries/$libraryId': typeof MemberLibrariesLibraryIdIndexRoute
@@ -286,7 +277,6 @@ export interface FileRoutesById {
   '/_member/code/': typeof MemberCodeIndexRoute
   '/_member/requests/': typeof MemberRequestsIndexRoute
   '/_signed-out/sign-in/': typeof SignedOutSignInIndexRoute
-  '/_member/_admin/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/_signed-out/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/_member/_admin/admin/': typeof MemberAdminAdminIndexRoute
   '/_member/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
@@ -318,7 +308,6 @@ export interface FileRouteTypes {
     | '/code/'
     | '/requests/'
     | '/sign-in/'
-    | '/admin/needs-a-match'
     | '/sign-in/code/waiting'
     | '/admin/'
     | '/libraries/$libraryId/'
@@ -346,7 +335,6 @@ export interface FileRouteTypes {
     | '/code'
     | '/requests'
     | '/sign-in'
-    | '/admin/needs-a-match'
     | '/sign-in/code/waiting'
     | '/admin'
     | '/libraries/$libraryId'
@@ -379,7 +367,6 @@ export interface FileRouteTypes {
     | '/_member/code/'
     | '/_member/requests/'
     | '/_signed-out/sign-in/'
-    | '/_member/_admin/admin/needs-a-match'
     | '/_signed-out/sign-in/code/waiting'
     | '/_member/_admin/admin/'
     | '/_member/libraries/$libraryId/'
@@ -540,13 +527,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberAdminAdminIndexRouteImport
       parentRoute: typeof MemberAdminRoute
     }
-    '/_member/_admin/admin/needs-a-match': {
-      id: '/_member/_admin/admin/needs-a-match'
-      path: '/admin/needs-a-match'
-      fullPath: '/admin/needs-a-match'
-      preLoaderRoute: typeof MemberAdminAdminNeedsAMatchRouteImport
-      parentRoute: typeof MemberAdminRoute
-    }
     '/_member/libraries/$libraryId/': {
       id: '/_member/libraries/$libraryId/'
       path: '/libraries/$libraryId'
@@ -621,14 +601,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface MemberAdminRouteChildren {
-  MemberAdminAdminNeedsAMatchRoute: typeof MemberAdminAdminNeedsAMatchRoute
   MemberAdminAdminIndexRoute: typeof MemberAdminAdminIndexRoute
   MemberAdminAdminLibrariesLibraryIdRoute: typeof MemberAdminAdminLibrariesLibraryIdRoute
   MemberAdminAdminLibrariesIndexRoute: typeof MemberAdminAdminLibrariesIndexRoute
 }
 
 const MemberAdminRouteChildren: MemberAdminRouteChildren = {
-  MemberAdminAdminNeedsAMatchRoute: MemberAdminAdminNeedsAMatchRoute,
   MemberAdminAdminIndexRoute: MemberAdminAdminIndexRoute,
   MemberAdminAdminLibrariesLibraryIdRoute:
     MemberAdminAdminLibrariesLibraryIdRoute,
