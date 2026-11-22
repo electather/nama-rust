@@ -1,6 +1,7 @@
+import { Switch } from "nama-ui/components/switch";
+
 import type { Setting } from "@/gen/nama/v1/plugin_pb";
 import { SettingRow } from "@/shared/components/setting-row";
-import { Switch } from "@/shared/ui/switch";
 
 /** A bool setting's row: its label and description, with a switch at the end. */
 export function BoolInput({ setting }: { setting: Setting }) {

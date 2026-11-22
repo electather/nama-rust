@@ -1,8 +1,9 @@
+import { Button } from "nama-ui/components/button";
+
 import { GrantAndEnable } from "@/features/admin-plugins/components/grant-and-enable";
 import { asksWhichToGrant } from "@/features/admin-plugins/lib/plugin-permissions";
 import type { PluginSummary, Setting } from "@/gen/nama/v1/plugin_pb";
 import { pluginName } from "@/shared/lib/plugins";
-import { Button } from "@/shared/ui/button";
 
 /**
  * The button that enables a disabled Plugin, the one thing its view is waiting on. Where it

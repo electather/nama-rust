@@ -1,10 +1,10 @@
 import { Code } from "@connectrpc/connect";
 import { type ErrorComponentProps, useRouter } from "@tanstack/react-router";
+import { Button } from "nama-ui/components/button";
 
 import { NotAllowed } from "@/app/route-error/not-allowed";
 import { Page } from "@/shared/components/page";
 import { isCode } from "@/shared/lib/connect-errors";
-import { Button } from "@/shared/ui/button";
 
 /** What a page shows instead when it fails, in plain words and never an error code. */
 export function RouteError({ error }: ErrorComponentProps) {

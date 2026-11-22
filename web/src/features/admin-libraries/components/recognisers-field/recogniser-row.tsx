@@ -1,9 +1,9 @@
 import { ArrowDown, ArrowUp, X } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 
 import { RowNote } from "@/features/admin-libraries/components/recognisers-field/row-note";
 import { type Moves, labelOf } from "@/features/admin-libraries/lib/recognisers";
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
-import { Button } from "@/shared/ui/button";
 
 /** One Plugin in the order, sent as the form value `name`, with the buttons that move it or take it out. */
 export function RecogniserRow({

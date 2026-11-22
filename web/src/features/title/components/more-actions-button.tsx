@@ -1,7 +1,6 @@
 import { Ellipsis } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 import type { ComponentProps } from "react";
-
-import { Button } from "@/shared/ui/button";
 
 /**
  * The "…" that opens a menu of what else may be done, named `label`: round beside a title's Play,

@@ -1,8 +1,3 @@
-import { useState } from "react";
-import { flushSync } from "react-dom";
-
-import type { RowControl } from "@/shared/components/setting-row";
-import type { PickItem } from "@/shared/lib/pick-item";
 import {
   Combobox,
   ComboboxChip,
@@ -11,7 +6,12 @@ import {
   ComboboxContent,
   ComboboxItem,
   ComboboxValue,
-} from "@/shared/ui/combobox";
+} from "nama-ui/components/combobox";
+import { useState } from "react";
+import { flushSync } from "react-dom";
+
+import type { RowControl } from "@/shared/components/setting-row";
+import type { PickItem } from "@/shared/lib/pick-item";
 
 /**
  * The field of a `PickChips`: a chip per picked item, starting with the `held` values, and a list

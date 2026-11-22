@@ -1,6 +1,7 @@
+import { Button } from "nama-ui/components/button";
+
 import { QualityMenu } from "@/features/requests/components/quality-menu";
 import type { QualityTarget } from "@/features/requests/lib/quality-target";
-import { Button } from "@/shared/ui/button";
 
 /** A button that changes a Request at once, and says why if the Server refuses. */
 export function ChangeButton({

@@ -1,7 +1,8 @@
+import { Progress } from "nama-ui/components/progress";
+
 import { DownloadRow } from "@/features/requests/components/download-row";
 import type { Request } from "@/gen/nama/v1/request_pb";
 import { overallPercent } from "@/shared/lib/download-progress";
-import { Progress } from "@/shared/ui/progress";
 
 /**
  * How far a Request's downloads have got: one bar for them all, then each download.

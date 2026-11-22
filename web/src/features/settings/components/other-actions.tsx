@@ -1,8 +1,8 @@
 import { Plus } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 
 import { RevokeOthers } from "@/features/settings/components/revoke-others";
 import type { Device } from "@/gen/nama/v1/sign_in_pb";
-import { Button } from "@/shared/ui/button";
 
 /**
  * What acts on the User's `others` Devices: revoking them all, when there's more than one, and

@@ -1,6 +1,5 @@
 import { Plus } from "lucide-react";
-
-import { Button } from "@/shared/ui/button";
+import { Button } from "nama-ui/components/button";
 
 /** The main part of the split Request button, which asks for `what` at the User's Quality. */
 export function OneClickRequest({

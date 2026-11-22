@@ -3,6 +3,8 @@ import type { CSSProperties } from "react";
 
 declare module "react" {
   interface CSSProperties {
+    /** How much of a split slider track a section takes, against the others. */
+    "--grow"?: number;
     /** How far a section of a split slider track has played, as a width within it. */
     "--played"?: string;
     /** How far a section of a split slider track is loaded, as a width within it. */

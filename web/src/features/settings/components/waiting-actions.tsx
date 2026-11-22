@@ -1,9 +1,9 @@
 import { Clock } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 
 import type { useConnectionChanges } from "@/features/settings/hooks/use-connection-changes";
 import { ExternalTextLink } from "@/shared/components/external-text-link";
 import { StateLabel } from "@/shared/components/state-label";
-import { Button } from "@/shared/ui/button";
 
 /** While a connection's link waits for the User: that it does, Cancel, and the link again. */
 export function WaitingActions({

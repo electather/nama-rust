@@ -1,8 +1,8 @@
 import { TriangleAlert, X } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 import { useRef } from "react";
 
 import { StateLabel } from "@/shared/components/state-label";
-import { Button } from "@/shared/ui/button";
 
 /**
  * The toast over the foot of a pane that makes each change as it's asked, there only once the

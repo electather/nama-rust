@@ -1,7 +1,7 @@
 import { FlaskConical } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 
 import type { Plugin } from "@/gen/nama/v1/plugin_pb";
-import { Button } from "@/shared/ui/button";
 
 /**
  * The icon button that hands `onTest` the settings typed in its form, for a `plugin` with a check.

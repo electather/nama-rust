@@ -1,3 +1,5 @@
+import { Tabs, TabsPanel } from "nama-ui/components/tabs";
+
 import { SeasonTabs } from "@/features/player/components/season-tabs";
 import { VirtualEpisodes } from "@/features/player/components/virtual-episodes";
 import { useSeasons } from "@/features/player/data/use-seasons";
@@ -5,7 +7,6 @@ import { useShowEpisodes } from "@/features/player/data/use-show-episodes";
 import { useEpisodeScroll } from "@/features/player/hooks/use-episode-scroll";
 import { episodeItems, playsNow } from "@/features/player/lib/episode-items";
 import type { InShow } from "@/features/player/lib/in-show";
-import { Tabs, TabsPanel } from "@/shared/ui/tabs";
 
 /**
  * Every Episode of the Show in one list, starting on the one playing, with a tab for each Season

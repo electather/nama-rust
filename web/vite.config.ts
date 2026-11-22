@@ -13,8 +13,8 @@ const ci = Boolean(process.env["CI"]);
 // Written by `buf generate` and the router plugin, never by hand.
 const generated = ["src/gen/**", "src/routeTree.gen.ts"];
 
-// The feature layout's folders (web/src/AGENTS.md), where the strictest rules apply.
-const newFolders = ["src/app/**", "src/features/**", "src/shared/**"];
+// The feature layout's folders (web/src/AGENTS.md) and nama-ui, where the strictest rules apply.
+const newFolders = ["src/app/**", "src/features/**", "src/shared/**", "ui/src/**"];
 
 export default defineConfig({
   resolve: { tsconfigPaths: true },
@@ -63,7 +63,7 @@ export default defineConfig({
       // Runs inside oxlint, so it doesn't break "Only `vp`" (web/AGENTS.md).
       "eslint-plugin-better-tailwindcss",
       { name: "vite-plus", specifier: "vite-plus/oxlint-plugin" },
-      // Design-system rules, read from components.json and src/styles.css.
+      // Design-system rules, read from the nearest components.json and the stylesheet it names.
       { name: "shadcn", specifier: "@shadcn/lint" },
     ],
     // Nursery rules change between oxlint versions. vite-plus is pinned in the workspace catalog,
@@ -261,9 +261,9 @@ export default defineConfig({
         },
       },
       // shadcn generates a component with its sub-parts and variants in one file, and a re-run of
-      // `shadcn add` is diffed against ours (src/shared/ui/AGENTS.md).
+      // `shadcn add` is diffed against ours (ui/src/components/AGENTS.md).
       {
-        files: ["src/shared/ui/**"],
+        files: ["ui/src/components/**"],
         rules: {
           "react/no-multi-comp": "off",
           "react/only-export-components": "off",

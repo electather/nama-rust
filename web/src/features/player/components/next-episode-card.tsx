@@ -1,9 +1,10 @@
+import { Button } from "nama-ui/components/button";
+import { Progress } from "nama-ui/components/progress";
+
 import { NextEpisodeFacts } from "@/features/player/components/next-episode-facts";
 import { PlayNextButton } from "@/features/player/components/play-next-button";
 import { COUNTDOWN_SECONDS } from "@/features/player/lib/next-episode";
 import type { Episode } from "@/gen/nama/v1/browse_pb";
-import { Button } from "@/shared/ui/button";
-import { Progress } from "@/shared/ui/progress";
 
 /**
  * The countdown to `episode` near the end of this one, or from the start of its Credits while

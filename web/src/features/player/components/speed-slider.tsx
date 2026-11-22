@@ -1,8 +1,8 @@
 import { Minus, Plus } from "lucide-react";
+import { Button } from "nama-ui/components/button";
+import { Slider } from "nama-ui/components/slider";
 
 import { clampSpeed, FASTEST, SLOWEST, SPEED_STEP, speedValue } from "@/features/player/lib/speeds";
-import { Button } from "@/shared/ui/button";
-import { Slider } from "@/shared/ui/slider";
 
 /** A slider from `SLOWEST` to `FASTEST`, with − and + a step either side. */
 export function SpeedSlider({ rate, choose }: { rate: number; choose: (rate: number) => void }) {

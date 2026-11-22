@@ -1,6 +1,5 @@
+import { Switch } from "nama-ui/components/switch";
 import { useId } from "react";
-
-import { Switch } from "@/shared/ui/switch";
 
 /** Whether a Job runs on its schedule, sent with its form as `enabled`. */
 export function EnabledSwitch({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {

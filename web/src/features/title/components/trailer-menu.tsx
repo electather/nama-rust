@@ -1,9 +1,9 @@
 import { Share } from "lucide-react";
+import { DropdownMenuItem } from "nama-ui/components/dropdown-menu";
 
 import { CardMoreActions } from "@/features/title/components/card-more-actions";
 import type { Trailer } from "@/gen/nama/v1/request_pb";
 import { useShare } from "@/shared/hooks/use-share";
-import { DropdownMenuItem } from "@/shared/ui/dropdown-menu";
 
 /** A Trailer card's "…": Share its link, or copy it where the system can't share. */
 export function TrailerMenu({ trailer }: { trailer: Trailer }) {

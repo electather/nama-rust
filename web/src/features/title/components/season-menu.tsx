@@ -1,13 +1,13 @@
 import { ChevronDown } from "lucide-react";
-
-import { seasonName } from "@/shared/lib/title-facts";
-import { Button } from "@/shared/ui/button";
+import { Button } from "nama-ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/shared/ui/dropdown-menu";
+} from "nama-ui/components/dropdown-menu";
+
+import { seasonName } from "@/shared/lib/title-facts";
 
 /** The Season the row of Episodes is on, `current`, as a button whose menu scrolls it to another. */
 export function SeasonMenu({

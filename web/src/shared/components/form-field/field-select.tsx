@@ -1,10 +1,10 @@
+import { Select, SelectContent, SelectItem, SelectTrigger } from "nama-ui/components/select";
 import { useState } from "react";
 import { flushSync } from "react-dom";
 
 import type { FieldControl } from "@/shared/components/form-field/field";
 import { changed } from "@/shared/lib/forms";
 import type { SelectOption } from "@/shared/lib/select-option";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/shared/ui/select";
 
 /** What a `FormSelect` sends and starts on, and who hears it change. */
 export interface SelectChoice {

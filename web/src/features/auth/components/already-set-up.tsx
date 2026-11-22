@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
+import { buttonVariants } from "nama-ui/components/button";
 
 import { useSetupHeading } from "@/features/auth/hooks/use-setup-heading";
 import { Notice } from "@/shared/components/sign-in-layout/notice";
 import { SignInCard } from "@/shared/components/sign-in-layout/sign-in-card";
-import { buttonVariants } from "@/shared/ui/button";
 
 /** What setting up shows once another browser has set the Server up first. */
 export function AlreadySetUp() {

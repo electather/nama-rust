@@ -1,6 +1,7 @@
+import { Button } from "nama-ui/components/button";
+
 import { useScanLibrary } from "@/features/admin-libraries/data/use-scan-library";
 import type { Library } from "@/gen/nama/v1/library_pb";
-import { Button } from "@/shared/ui/button";
 
 /** Starts scanning `library`'s folders. Its progress arrives as Events. */
 export function ScanButton({ library }: { library: Library }) {

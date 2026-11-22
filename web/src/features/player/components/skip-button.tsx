@@ -1,7 +1,8 @@
+import { Button } from "nama-ui/components/button";
+
 import { SkipIcon } from "@/features/player/components/skip-icon";
 import type { Video } from "@/features/player/hooks/use-video";
 import { SEEK_STEP_SECONDS, seekBy } from "@/features/player/lib/video-actions";
-import { Button } from "@/shared/ui/button";
 
 /** Seeks 10 seconds back, or forward. */
 export function SkipButton({ video, forward }: { video: Video; forward: boolean }) {

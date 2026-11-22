@@ -1,16 +1,16 @@
 import { ArrowUpRight, Ellipsis } from "lucide-react";
-
-import { pluginLinks } from "@/features/admin-plugins/lib/plugin-links";
-import { useModalContainer } from "@/shared/hooks/use-modal-container";
-import { type PluginDetails, pluginName } from "@/shared/lib/plugins";
-import { Button } from "@/shared/ui/button";
+import { Button } from "nama-ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLinkItem,
   DropdownMenuTrigger,
-} from "@/shared/ui/dropdown-menu";
+} from "nama-ui/components/dropdown-menu";
+
+import { pluginLinks } from "@/features/admin-plugins/lib/plugin-links";
+import { useModalContainer } from "@/shared/hooks/use-modal-container";
+import { type PluginDetails, pluginName } from "@/shared/lib/plugins";
 
 /**
  * The "…" in a Plugin's header: its links out, each in a new tab that can't reach this one, and

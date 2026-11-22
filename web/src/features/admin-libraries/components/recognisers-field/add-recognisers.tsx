@@ -1,7 +1,8 @@
+import { Button } from "nama-ui/components/button";
+
 import { NotEnabled } from "@/features/admin-libraries/components/recognisers-field/not-enabled";
 import { labelOf } from "@/features/admin-libraries/lib/recognisers";
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
-import { Button } from "@/shared/ui/button";
 
 /** A button per Recogniser in `recognisers`, which `add`s it at the end of the order. */
 export function AddRecognisers({

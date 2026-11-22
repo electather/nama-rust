@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
+import { buttonVariants } from "nama-ui/components/button";
 import type { ReactNode } from "react";
 
 import { Page } from "@/shared/components/page";
-import { buttonVariants } from "@/shared/ui/button";
 
 /** The Request page's heading and the way back to all Requests, around `children`. */
 export function RequestLayout({ children }: { children: ReactNode }) {

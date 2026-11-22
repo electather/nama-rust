@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Play } from "lucide-react";
-
-import { buttonVariants } from "@/shared/ui/button";
+import { buttonVariants } from "nama-ui/components/button";
 
 /** Plays the Version `versionId` of the Library `libraryId`, which holds the Unmatched Item `name`. */
 export function PlayUnmatched({

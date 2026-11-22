@@ -1,9 +1,10 @@
+import { Button } from "nama-ui/components/button";
+
 import { CodeField } from "@/features/auth/components/code-field";
 import { codeErrors } from "@/features/auth/lib/sign-in-errors";
 import { useLookUpDevice } from "@/features/settings/data/use-look-up-device";
 import { FormNotices } from "@/shared/components/sign-in-layout/form-notices";
 import { type FormErrors, formText, onSubmitted } from "@/shared/lib/forms";
-import { Button } from "@/shared/ui/button";
 
 /**
  * The first step of signing in another Device from the Devices pane: the Sign-in Code it shows,

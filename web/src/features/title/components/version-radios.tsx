@@ -1,7 +1,8 @@
+import { DropdownMenuRadioGroup, DropdownMenuRadioItem } from "nama-ui/components/dropdown-menu";
+
 import type { Version } from "@/gen/nama/v1/browse_pb";
 import { metadataLine, sizeOf } from "@/shared/lib/title-facts";
 import { versionLine } from "@/shared/lib/version-facts";
-import { DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/shared/ui/dropdown-menu";
 
 /** Each of `versions` by its Edition, picture, sound and size, `version` checked. */
 export function VersionRadios({

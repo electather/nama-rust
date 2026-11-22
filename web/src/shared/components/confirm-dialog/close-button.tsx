@@ -1,6 +1,5 @@
 import { X } from "lucide-react";
-
-import { Button } from "@/shared/ui/button";
+import { Button } from "nama-ui/components/button";
 
 /** A dialog's ✕, in its top corner. */
 export function CloseButton({ disabled, onClose }: { disabled: boolean; onClose: () => void }) {

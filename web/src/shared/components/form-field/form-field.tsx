@@ -1,8 +1,8 @@
+import { Input } from "nama-ui/components/input";
 import type { ComponentProps } from "react";
 
 import { Field, type FieldText } from "@/shared/components/form-field/field";
 import { RowField } from "@/shared/components/form-field/row-field";
-import { Input } from "@/shared/ui/input";
 
 /**
  * A labelled text input in a native form, with its hint and the Server's error. It is required

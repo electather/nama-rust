@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
-
-import { buttonVariants } from "@/shared/ui/button";
+import { buttonVariants } from "nama-ui/components/button";
 
 /** Under a sign-in form: "Or", then the link to the other way to sign in. */
 export function SwitchSignInWay({

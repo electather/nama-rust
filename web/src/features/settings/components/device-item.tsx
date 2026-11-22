@@ -1,4 +1,5 @@
 import { type LucideIcon, Monitor, Smartphone, Tv } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 import { useRef } from "react";
 
 import { IconTile } from "@/features/settings/components/icon-tile";
@@ -9,7 +10,6 @@ import { ConfirmDialog } from "@/shared/components/confirm-dialog/confirm-dialog
 import { useRevokeDevice } from "@/shared/hooks/use-revoke-device";
 import { refusal } from "@/shared/lib/forms";
 import type { Opener } from "@/shared/lib/opener";
-import { Button } from "@/shared/ui/button";
 
 // ponytail: a Device says only its name, so its kind is guessed from that. Read a kind from the
 // Server if it ever sends one.

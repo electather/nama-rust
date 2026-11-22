@@ -1,7 +1,7 @@
 import { Minus, Plus } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 
 import { OFFSET_STEP_MS, offsetText } from "@/features/player/lib/subtitle-offset";
-import { Button } from "@/shared/ui/button";
 
 /** `offsetMs` between − and +, which `shift` it a step either way. */
 export function OffsetStepper({

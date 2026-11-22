@@ -1,8 +1,8 @@
+import { Button } from "nama-ui/components/button";
 import type { RefObject } from "react";
 
 import { ImageChoices } from "@/features/title/components/image-choices";
 import type { TitleImages } from "@/features/title/lib/title-images";
-import { Button } from "@/shared/ui/button";
 
 /** The Edit images dialog of the title `title`, which asks for each image's artwork anew each `opened`. */
 export function EditImagesDialog({

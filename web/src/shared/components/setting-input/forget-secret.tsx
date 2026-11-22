@@ -1,6 +1,5 @@
+import { Button } from "nama-ui/components/button";
 import { useEffect, useRef } from "react";
-
-import { Button } from "@/shared/ui/button";
 
 /**
  * Asks, in a set secret's field, whether to forget it, as it can't be had back: Forget, or Cancel.

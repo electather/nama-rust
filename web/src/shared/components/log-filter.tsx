@@ -1,6 +1,7 @@
+import { Button } from "nama-ui/components/button";
+
 import type { PluginLogLevel, PluginLogLine } from "@/gen/nama/v1/plugin_pb";
 import { levels } from "@/shared/lib/log-levels";
-import { Button } from "@/shared/ui/button";
 
 /**
  * What narrows a log: a button per level `lines` has, lit while its lines show, with how many it

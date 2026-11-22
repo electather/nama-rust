@@ -1,9 +1,9 @@
+import { ContextMenu, ContextMenuTrigger } from "nama-ui/components/context-menu";
 import type { ReactNode } from "react";
 
 import { CardCaption } from "@/shared/components/backdrop-card/card-caption";
 import { TileArt } from "@/shared/components/tile-art";
 import { backdropRadius } from "@/shared/lib/backdrop-card-classes";
-import { ContextMenu, ContextMenuTrigger } from "@/shared/ui/context-menu";
 
 /**
  * A card's box: its art, 4:3, or square when `tall`, with `caption` and `menu` at its bottom, over

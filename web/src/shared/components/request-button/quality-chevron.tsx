@@ -1,7 +1,6 @@
 import { ChevronDown } from "lucide-react";
+import { Button } from "nama-ui/components/button";
 import type { ComponentProps } from "react";
-
-import { Button } from "@/shared/ui/button";
 
 /**
  * The chevron of the split Request button, which opens the Qualities to Request `what` at. The

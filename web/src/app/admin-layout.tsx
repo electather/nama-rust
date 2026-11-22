@@ -1,7 +1,7 @@
 import { Link, Outlet } from "@tanstack/react-router";
+import { buttonVariants } from "nama-ui/components/button";
 
 import type { adminPagesFor } from "@/shared/hooks/access";
-import { buttonVariants } from "@/shared/ui/button";
 
 /** Admin pages, under a nav of the ones the User may open. */
 export function AdminLayout({

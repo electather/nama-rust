@@ -1,7 +1,7 @@
 import { cn } from "cn";
+import { buttonVariants } from "nama-ui/components/button";
 
 import { handPicked } from "@/shared/lib/picked-file";
-import { buttonVariants } from "@/shared/ui/button";
 
 /** A button that picks a file of a type in `accept` to upload as the image `name`. */
 export function UploadButton({
