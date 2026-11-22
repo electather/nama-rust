@@ -10,9 +10,9 @@ use nama_proto::nama::v1::{Request, RequestState, event::Event as Happened};
 use crate::requests::Requests;
 use crate::requests::asking::{WantedSeasons, ask_seasons};
 use crate::requests::testing::{
-    ADA, Asked, FulfillerPlugin, NeverAnswers, ada, ada_and_bob, approved_for, approved_on, ask_as,
-    come_up, dark, dark_season, downloading, insert_in_each_state, match_dark_episodes,
-    match_in_a_library, next_happened, scan_dark,
+    ADA, Asked, FulfillerPlugin, GIVE_UP_AFTER, NeverAnswers, ada, ada_and_bob, approved_for,
+    approved_on, ask_as, come_up, dark, dark_season, downloading, insert_in_each_state,
+    match_dark_episodes, match_in_a_library, next_happened, scan_dark,
 };
 use crate::{
     db::Database,
@@ -33,7 +33,7 @@ async fn until_asked_about(asked: &Asked, references: &[&str]) {
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
     };
-    tokio::time::timeout(Duration::from_secs(5), wait)
+    tokio::time::timeout(GIVE_UP_AFTER, wait)
         .await
         .expect("never asked about them in one batch");
 }
@@ -234,7 +234,7 @@ async fn disabling_the_fulfiller_ends_a_poll_waiting_on_it_at_once() {
     never.0.notified().await;
 
     plugins.disable(&PluginId::from_static("gated")).await;
-    let polled = tokio::time::timeout(Duration::from_secs(5), poll).await;
+    let polled = tokio::time::timeout(GIVE_UP_AFTER, poll).await;
 
     assert!(polled.expect("the poll waited on").unwrap());
 }
