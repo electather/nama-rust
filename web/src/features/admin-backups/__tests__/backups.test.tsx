@@ -78,6 +78,31 @@ describe("back up now", () => {
   });
 });
 
+test("the Back up Job's link opens it in Settings' Jobs section", async () => {
+  const server = fakeServer(
+    {
+      signedIn: admin,
+      serverService: { getBackups: () => ({ folder: "/data/backups", settings: {}, backups: [] }) },
+    },
+    {},
+    {},
+    (router) => {
+      router.service(JobService, {
+        listJobs: () => ({
+          jobs: [{ pluginId: "upkeep", id: "back-up", name: "Back up", enabled: true }],
+        }),
+        listJobRuns: () => ({}),
+      });
+    },
+  );
+  const router = openSettings("backups", server);
+
+  fireEvent.click(await screen.findByRole("link", { name: "Back up Job" }));
+
+  await expect(screen.findByRole("region", { name: "Back up" })).resolves.toBeDefined();
+  expect(router.state.location.search).toMatchObject({ settings: "jobs", job: "upkeep:back-up" });
+});
+
 describe("backup settings", () => {
   test("the Backup folder is saved once its field is left, keeping how many are kept", async () => {
     const updates: UpdateBackupSettingsRequest[] = [];

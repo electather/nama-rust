@@ -152,6 +152,7 @@ describe("where Now Playing is", () => {
     expect(links.slice(links.indexOf("Connections"), links.indexOf("Server") + 1)).toStrictEqual([
       "Connections",
       "Now Playing",
+      "Jobs",
       "Server",
     ]);
     fireEvent.change(screen.getByRole("combobox", { name: "Search settings" }), {

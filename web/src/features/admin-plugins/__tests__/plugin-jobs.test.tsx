@@ -26,7 +26,7 @@ async function openUpkeep(declared: typeof jobs, { asAdmin = true, enabled = tru
   return page;
 }
 
-test("a Plugin's Jobs show with their schedules, each linking to it on the Jobs page", async () => {
+test("a Plugin's Jobs show with their schedules, each linking to it in Settings' Jobs section", async () => {
   const page = await openUpkeep(jobs);
 
   const section = within(page.getByRole("region", { name: "Jobs" }));
@@ -35,7 +35,7 @@ test("a Plugin's Jobs show with their schedules, each linking to it on the Jobs 
     "TidyOnly when an Admin runs it",
   ]);
   expect(section.getByRole("link", { name: "Forget Home rows" }).getAttribute("href")).toBe(
-    "/admin/jobs#upkeep/forget-home-rows",
+    "/code?settings=jobs&job=upkeep%3Aforget-home-rows",
   );
 });
 
@@ -51,7 +51,7 @@ test("someone who manages settings but isn't an Admin sees no Jobs", async () =>
   expect(page.queryByRole("region", { name: "Jobs" })).toBeNull();
 });
 
-test("a disabled Plugin's Jobs show without links, as the Jobs page lists only enabled ones", async () => {
+test("a disabled Plugin's Jobs show without links, as Jobs lists only enabled ones", async () => {
   const page = await openUpkeep(jobs, { enabled: false });
 
   const section = within(page.getByRole("region", { name: "Jobs" }));
