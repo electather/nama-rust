@@ -20,7 +20,7 @@ afterEach(cleanup);
 /** Presses the test Plugin's Test button. */
 async function pressTest() {
   const found = await plugin("test-choices");
-  fireEvent.click(found.getByRole("button", { name: "Test the settings" }));
+  fireEvent.click(await found.findByRole("button", { name: "Test the settings" }));
 }
 
 /** A several-choices setting holding nothing, on a Plugin without a settings check. */
