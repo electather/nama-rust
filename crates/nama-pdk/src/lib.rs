@@ -1177,12 +1177,10 @@ fn clear_error() {
 #[cfg(test)]
 mod tests {
     use crate::{
-        Choice, SearchQuery, SearchResults, SettingField, SettingKind, SettingValue, TitleSource,
-        choices_setting_field,
+        Choice, SearchQuery, SearchResults, SettingField, SettingKind, SettingValue, Texts,
+        TitleSource, choices_setting_field,
         extism_pdk::Error,
-        library_ids,
-        nama_plugin_proto::nama::plugin::v1::Texts,
-        picked, picked_default, setting_default, setting_field, setting_value,
+        library_ids, picked, picked_default, setting_default, setting_field, setting_value,
         testing::{Kernel, with},
     };
 
