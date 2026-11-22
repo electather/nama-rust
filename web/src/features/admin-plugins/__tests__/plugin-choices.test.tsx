@@ -33,20 +33,22 @@ async function profile() {
 
 async function pressTest() {
   const found2 = await plugin("test-choices");
-  fireEvent.click(found2.getByRole("button", { name: "Test the settings" }));
+  fireEvent.click(await found2.findByRole("button", { name: "Test the settings" }));
 }
 
 test("a Plugin with a settings check has a Test button", async () => {
   openPlugin("test-choices");
 
   const found3 = await plugin("test-choices");
-  expect(found3.getByRole("button", { name: "Test the settings" })).toBeDefined();
+  await expect(found3.findByRole("button", { name: "Test the settings" })).resolves.toBeDefined();
 });
 
 test("a Plugin without a settings check has no Test button", async () => {
   openPlugin("tmdb");
 
   const found4 = await plugin("TMDB");
+  // The Test button would show beside this heading, which waits for the Plugin's details too.
+  await found4.findByRole("heading", { name: "Settings" });
   expect(found4.queryByRole("button", { name: "Test the settings" })).toBeNull();
 });
 
