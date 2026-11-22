@@ -133,6 +133,7 @@ test("an enabled Plugin's view has no state: its “…” holds its links and D
     "tmdb",
   );
   const opened = within(await screen.findByRole("region", { name: "TMDB" }));
+  await opened.findByRole("button", { name: "More for TMDB" });
   expect(opened.queryByText("Enabled")).toBeNull();
   expect(opened.queryByRole("button", { name: "Enable TMDB" })).toBeNull();
   // About keeps the licence and leaves the links to the “…”.
