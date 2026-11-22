@@ -85,6 +85,91 @@ fn a_dolby_vision_5_transcode_on_hardware_decodes_in_software_and_encodes_on_the
     }
 }
 
+/// A Dolby Vision 5 Transcode to HDR10 on `accel`'s HEVC encoder.
+fn to_hdr10_on(accel: Accel) -> VideoConversion {
+    VideoConversion {
+        hardware: Some(on_default_gpu(accel)),
+        tone_map: Some(ToneMapper::DolbyVisionToHdr10),
+        hevc: true,
+        ..SOFTWARE
+    }
+}
+
+#[test]
+fn dolby_vision_5_to_hdr10_is_reshaped_into_10_bit_pq_in_software_then_uploaded_as_p010() {
+    for accel in Accel::ALL {
+        let args = transcode_args(to_hdr10_on(accel));
+
+        assert!(
+            !args.iter().any(|arg| arg.starts_with("-hwaccel")),
+            "{args:?}"
+        );
+        let upload = accel.upload("p010");
+        assert_eq!(
+            value_of(&args, "-vf"),
+            Some(
+                format!(
+                    "setparams=range=tv:color_primaries=bt2020:color_trc=smpte2084:\
+                     colorspace=bt2020nc,tonemapx=tonemap=bt2390:peak=100:apply_dovi=1:\
+                     t=smpte2084:m=bt2020:p=bt2020:r=tv:format=yuv420p10le,{upload}"
+                )
+                .as_str()
+            ),
+            "{accel:?}"
+        );
+        assert_eq!(value_of(&args, "-c:v"), Some(accel.hevc_encoder()));
+    }
+}
+
+#[tokio::test]
+async fn dolby_vision_5_to_hdr10_is_10_bit_bt2020_pq_in_the_colours_its_rpu_reshapes_it_to() {
+    let ffmpeg = system_ffmpeg();
+    // CI's jellyfin-ffmpeg has it, and its job fails without it.
+    if !ffmpeg.has_tonemapx().await.unwrap() {
+        eprintln!("skipped: the ffmpeg on PATH lacks jellyfin-ffmpeg's tonemapx");
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("hdr10.mp4");
+    // VideoToolbox's frames stay in memory, so its filters run anywhere; libx265 stands in for the
+    // GPU's HEVC encoder, which CI lacks.
+    let video = super::video_args(CLIP, &to_hdr10_on(Accel::VideoToolbox), false).video;
+    let mut args: Vec<&str> = vec!["-v", "error", "-i", CLIP];
+    args.extend(video.iter().map(String::as_str));
+    args.extend(["-c:v", "libx265", "-tag:v", "hvc1", "-f", "mp4"]);
+    args.push(out.to_str().unwrap());
+
+    let encoded = ffmpeg.run(Program::Ffmpeg, &args, TIMEOUT, Priority::Normal);
+    encoded.await.unwrap();
+
+    let stream = probe(&ffmpeg, &out, &["-show_streams"]).await;
+    for tag in [
+        "pix_fmt=yuv420p10le",
+        "color_range=tv",
+        "color_space=bt2020nc",
+        "color_transfer=smpte2084",
+        "color_primaries=bt2020",
+    ] {
+        assert!(stream.contains(tag), "{tag}: {stream}");
+    }
+    let frame = probe(&ffmpeg, &out, &["-show_frames", "-read_intervals", "%+#1"]).await;
+    for side_data in ["Dolby Vision", "DOVI"] {
+        let probed = format!("{stream}{frame}");
+        assert!(!probed.contains(side_data), "{side_data}: {probed}");
+    }
+    // Read as plain PQ, without its RPU, its colours come out purple and green.
+    let unreshaped =
+        "setparams=range=tv:color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc";
+    let (reshaped, unreshaped) = (
+        first_frame_rgb(&ffmpeg, &out, None).await,
+        first_frame_rgb(&ffmpeg, Path::new(CLIP), Some(unreshaped)).await,
+    );
+    assert!(
+        mean_apart(&reshaped, &unreshaped) >= 8,
+        "the RPU barely moved its colours"
+    );
+}
+
 #[tokio::test]
 async fn a_dolby_vision_5_remux_is_tagged_dvh1_and_keeps_its_dolby_vision_record() {
     let ffmpeg = system_ffmpeg();
@@ -167,15 +252,20 @@ async fn a_dolby_vision_5_transcode_is_bt709_sdr_in_the_colours_its_rpu_reshapes
         first_frame_rgb(&ffmpeg, &whole, None).await,
         first_frame_rgb(&ffmpeg, Path::new(CLIP), Some(unreshaped)).await,
     );
-    assert_eq!(reshaped.len(), unreshaped.len());
-    let apart: u64 = (reshaped.iter().zip(&unreshaped))
-        .map(|(a, b)| u64::from(a.abs_diff(*b)))
-        .sum();
-    let mean_apart = apart / u64::try_from(reshaped.len()).unwrap();
+    let mean_apart = mean_apart(&reshaped, &unreshaped);
     assert!(
         mean_apart >= 8,
         "the RPU moved each colour by {mean_apart} on average"
     );
+}
+
+/// How far apart the same-sized pictures `a` and `b` are on average, per colour of each pixel.
+fn mean_apart(a: &[u8], b: &[u8]) -> u64 {
+    assert_eq!(a.len(), b.len());
+    let apart: u64 = (a.iter().zip(b))
+        .map(|(a, b)| u64::from(a.abs_diff(*b)))
+        .sum();
+    apart / u64::try_from(a.len()).unwrap()
 }
 
 /// What ffprobe prints of the file at `path` given `args`, in its default format.

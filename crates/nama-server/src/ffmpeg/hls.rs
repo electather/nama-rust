@@ -33,6 +33,12 @@ fn tonemapx(apply_dovi: bool) -> String {
     )
 }
 
+/// The filter that reshapes tagged Dolby Vision with no Base Layer into HDR10 with `tonemapx`:
+/// BT.2020 PQ, limited range, its peak pinned as [`tonemapx`]'s, dropping its RPU.
+// `tonemapx` refuses 8-bit PQ, so the frames stay 10-bit up to the upload.
+const TONEMAPX_TO_HDR10: &str = "tonemapx=tonemap=bt2390:peak=100:apply_dovi=1:t=smpte2084:\
+                                 m=bt2020:p=bt2020:r=tv:format=yuv420p10le";
+
 /// The name of the init segment a Remux or Transcode started at file `n` writes beside its files. Every
 /// run's is the same, but each writes its own, since ffmpeg writes it from empty as a run goes.
 pub(crate) fn hls_init(n: usize) -> String {
@@ -319,7 +325,7 @@ pub(super) fn filter_value(value: &str) -> String {
 pub(crate) struct VideoConversion {
     /// The API, on its GPU, it decodes, converts and encodes on, or `None` for software.
     pub(crate) hardware: Option<Hardware>,
-    /// What tone-maps its HDR to SDR, if anything does.
+    /// What tone-maps its HDR to SDR, or reshapes its Dolby Vision to HDR10, if anything does.
     pub(crate) tone_map: Option<ToneMapper>,
     pub(crate) limit: Option<VideoLimit>,
     /// The subtitle it draws into the picture, if any.
@@ -350,7 +356,7 @@ impl VideoConversion {
     }
 }
 
-/// What tone-maps a Transcode's HDR to SDR.
+/// What tone-maps a Transcode's HDR to SDR, or reshapes its Dolby Vision to HDR10.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ToneMapper {
     /// ffmpeg's zscale, which [`super::CanDo::zscale`] says it has.
@@ -358,6 +364,9 @@ pub(crate) enum ToneMapper {
     /// jellyfin-ffmpeg's `tonemapx`, in software, which [`super::CanDo::tonemapx`] says it has,
     /// reshaping a Dolby Vision picture with no Base Layer by its RPU first if `dolby_vision`.
     Tonemapx { dolby_vision: bool },
+    /// jellyfin-ffmpeg's `tonemapx`, in software, reshaping a Dolby Vision picture with no Base
+    /// Layer by its RPU into 10-bit HDR10 rather than SDR, for [`VideoConversion::hevc`].
+    DolbyVisionToHdr10,
     /// The GPU of [`VideoConversion::hardware`], which [`Hardware::tone_maps`] says it can, while
     /// nothing is burned in.
     Hardware,
@@ -416,7 +425,10 @@ pub(super) fn video_args(path: &str, video: &VideoConversion, seeks: bool) -> Vi
             codec,
         };
     }
-    let dolby_vision = video.tone_map == Some(ToneMapper::Tonemapx { dolby_vision: true });
+    let dolby_vision = matches!(
+        video.tone_map,
+        Some(ToneMapper::Tonemapx { dolby_vision: true } | ToneMapper::DolbyVisionToHdr10)
+    );
     // `hevc_qsv` and `hevc_cuvid` drop the RPU that `tonemapx` reshapes by.
     // ponytail: decoding 4K HEVC in software caps how many run at once; decode with `-hwaccel
     // vaapi`, `cuda` or `videotoolbox`, which keep the RPU, once that's measured too slow.
@@ -457,6 +469,9 @@ fn software_tone_map(tone_map: ToneMapper) -> (String, String) {
         ToneMapper::Tonemapx {
             dolby_vision: false,
         } => (HDR_TAGS.to_owned(), tonemapx(false)),
+        ToneMapper::DolbyVisionToHdr10 => {
+            (DOLBY_VISION_TAGS.to_owned(), TONEMAPX_TO_HDR10.to_owned())
+        }
         // The GPU's filter reaches here only when its frames can't stay on it, so zscale stands
         // in.
         ToneMapper::Software | ToneMapper::Hardware => {

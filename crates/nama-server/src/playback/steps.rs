@@ -180,11 +180,16 @@ pub(super) fn fallback(
 /// What tone-maps the played video's HDR to SDR in a Transcode, when the Device can't show it: the
 /// GPU, if a Transcode runs on one that passed its tone-map test and burns nothing in, which
 /// takes the frames off it, or else software, if ffmpeg can. Dolby Vision with no Base Layer is
-/// always reshaped and tone-mapped by `tonemapx`, whatever the Device shows.
-fn tone_mapper(facts: &Facts) -> Option<ToneMapper> {
+/// always reshaped by `tonemapx`: into HDR10 if the Transcode makes `hevc`, which it does only
+/// for a Device showing HDR, and else tone-mapped to SDR.
+fn tone_mapper(facts: &Facts, hevc: bool) -> Option<ToneMapper> {
     if needs_reshaping(facts) {
-        return (facts.can_do.converts_dolby_vision())
-            .then_some(ToneMapper::Tonemapx { dolby_vision: true });
+        let reshaped = if hevc {
+            ToneMapper::DolbyVisionToHdr10
+        } else {
+            ToneMapper::Tonemapx { dolby_vision: true }
+        };
+        return facts.can_do.converts_dolby_vision().then_some(reshaped);
     }
     if facts.device.hdr || played_hdr(facts).and_then(transcoded_hdr).is_none() {
         return None;
@@ -283,9 +288,13 @@ fn fewer_channels(
 }
 
 /// Whether a Transcode tone-maps the played picture to SDR with `tone_map`, which only
-/// [`tone_mapper`] sets, or not when it's HDR the Device can't show and the Transcode keeps.
+/// [`tone_mapper`] sets, or not when it's HDR the Device can't show and the Transcode keeps. A
+/// Dolby Vision picture reshaped to HDR10 is neither.
 fn tone_mapping(facts: &Facts, tone_map: Option<ToneMapper>) -> Option<Reason> {
     let hdr = played_hdr(facts)?;
+    if tone_map == Some(ToneMapper::DolbyVisionToHdr10) {
+        return None;
+    }
     if tone_map.is_none() {
         return (!facts.device.hdr && transcoded_hdr(hdr).is_some()).then(|| not_tone_mapped(hdr));
     }
@@ -405,7 +414,7 @@ fn video_conversion(facts: &Facts) -> VideoConversion {
         in_band_headers: hardware.is_some() && !hevc,
         hevc,
         hardware,
-        tone_map: tone_mapper(facts),
+        tone_map: tone_mapper(facts, hevc),
         limit: video_limit(facts),
         burn_in: burn_in(facts),
     }

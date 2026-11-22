@@ -749,8 +749,8 @@ const fn tone_mapping_to_proto(tone_mapper: Option<ToneMapper>) -> ToneMapping {
     match tone_mapper {
         None => ToneMapping::TONE_MAPPING_NONE,
         Some(ToneMapper::Hardware) => ToneMapping::TONE_MAPPING_GPU,
-        Some(ToneMapper::Software | ToneMapper::Tonemapx { .. }) => {
-            ToneMapping::TONE_MAPPING_SOFTWARE
-        }
+        Some(
+            ToneMapper::Software | ToneMapper::Tonemapx { .. } | ToneMapper::DolbyVisionToHdr10,
+        ) => ToneMapping::TONE_MAPPING_SOFTWARE,
     }
 }

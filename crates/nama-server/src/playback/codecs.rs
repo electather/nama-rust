@@ -9,7 +9,9 @@ use super::{
     steps::hdr_reason,
     tracks::{Hdr, Probe, Track, TrackKind},
 };
-use crate::ffmpeg::{AudioConversion, AudioEncoder, Remux, RemuxAudio, Transcode, VideoConversion};
+use crate::ffmpeg::{
+    AudioConversion, AudioEncoder, Remux, RemuxAudio, ToneMapper, Transcode, VideoConversion,
+};
 
 /// Each video codec a Device can say it decodes, as ffprobe names it, with its name in plain words.
 const VIDEO_CODECS: [(&str, proto::VideoCodec, &str); 5] = [
@@ -283,7 +285,7 @@ fn converted_audio(mut tracks: Vec<Track>, conversion: AudioConversion) -> Vec<T
 }
 
 /// `tracks` with their video converted to 8-bit H.264 or 10-bit HEVC as `video` says, keeping the
-/// HDR it decodes unless it tone-maps it.
+/// HDR it decodes unless it tone-maps it to SDR.
 // ffmpeg tags what it encodes with the colours it decoded, so an HDR10 or HLG picture stays one,
 // even at 8 bits.
 // ponytail: checked only for libx264, and for HEVC on a GPU only by an ignored test run by hand;
@@ -300,9 +302,9 @@ fn converted_video(mut tracks: Vec<Track>, video: &VideoConversion) -> Vec<Track
         {
             video.codec().clone_into(&mut track.codec);
             *bit_depth = Some(if video.hevc { 10 } else { 8 });
-            *hdr = hdr
-                .and_then(transcoded_hdr)
-                .filter(|_| video.tone_map.is_none());
+            let sdr =
+                (video.tone_map).is_some_and(|tone_map| tone_map != ToneMapper::DolbyVisionToHdr10);
+            *hdr = hdr.and_then(transcoded_hdr).filter(|_| !sdr);
             if let Some((scaled_width, scaled_height)) = video.limit.and_then(|limit| limit.size) {
                 (*width, *height) = (Some(scaled_width), Some(scaled_height));
             }
@@ -383,10 +385,14 @@ pub(super) fn wants_hevc(facts: &Facts) -> bool {
     decodes && (uhd || hdr) && (!hdr || device.hdr) && !failed
 }
 
-/// How the picture a Transcode decodes from video that's `hdr` is HDR, or `None` for SDR: a Dolby
-/// Vision Track's Base Layer, since re-encoding drops Dolby Vision, or else its own.
+/// How the picture a Transcode makes from video that's `hdr` is HDR, unless it tone-maps it, or
+/// `None` for SDR: a Dolby Vision Track's Base Layer, since re-encoding drops Dolby Vision, HDR10
+/// for one with none, which `tonemapx` reshapes it into, or else its own.
 pub(super) fn transcoded_hdr(hdr: Hdr) -> Option<Hdr> {
     match hdr {
+        Hdr::DolbyVision {
+            base_layer: None, ..
+        } => Some(Hdr::Hdr10),
         Hdr::DolbyVision { base_layer, .. } => base_layer?.hdr(),
         hdr @ (Hdr::Hdr10 | Hdr::Hlg) => Some(hdr),
     }
