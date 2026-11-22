@@ -143,9 +143,14 @@ fn every_tmdb_row_picked_is_answered_in_order_from_its_own_tmdb_list() {
     let movie = vec![(Some(TitleKind::TITLE_KIND_MOVIE), "550")];
     let show = vec![(Some(TitleKind::TITLE_KIND_SHOW), "1399")];
     let day = 24 * 60 * 60;
+    let trending = vec![
+        (Some(TitleKind::TITLE_KIND_MOVIE), "603"),
+        (Some(TitleKind::TITLE_KIND_SHOW), "1396"),
+    ];
     assert_eq!(
-        summary(&rows)[1..],
+        summary(&rows),
         [
+            ("trending-week", "Trending this week", day, trending),
             ("popular-movies", "Popular movies", day, movie.clone()),
             ("popular-shows", "Popular shows", day, show.clone()),
             ("top-rated-movies", "Top rated movies", day, movie.clone()),
