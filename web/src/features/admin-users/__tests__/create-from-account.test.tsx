@@ -3,6 +3,7 @@ import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { admin, fakeServer, openApp } from "@/test-app";
+import { confirmItsYou, recentAuthenticationRequired } from "@/test-refusal";
 
 afterEach(cleanup);
 
@@ -20,7 +21,7 @@ function openUsers(
         signedIn: admin,
         serverService: { getServerInfo: () => ({ name: "Living Room", accountSignIn: linked }) },
       },
-      {},
+      { reauthenticate: () => ({}) },
       { listUsers: () => ({}), createUserFromAccount: create },
     ),
   );
@@ -69,5 +70,28 @@ test("while the Hub is down, no User is created and the Server says so", async (
 
   await expect(
     screen.findByText("The Server couldn't ask the Hub, so no User was created; try again later."),
+  ).resolves.toBeDefined();
+});
+
+/** Creates a User from an Account once the Device has Recent Authentication, refusing the first time. */
+function oncePastRecentAuthentication() {
+  let asked = false;
+  return () => {
+    if (!asked) {
+      asked = true;
+      throw recentAuthenticationRequired();
+    }
+    return { id: 2n };
+  };
+}
+
+test("creating a User from an Account asks the Admin to confirm it's them first", async () => {
+  openUsers(true, oncePastRecentAuthentication());
+
+  await createFromAccount();
+  await confirmItsYou();
+
+  await expect(
+    screen.findByText("Grace can sign in once their Account accepts on the Hub."),
   ).resolves.toBeDefined();
 });
