@@ -1,8 +1,7 @@
 //! Linking the Server, and a User, through the enabled Plugin that links it (ADR 0011, ADR 0094),
 //! here an in-process one scripted by each test, and a Server without one, which has nothing to
-//! Link.
+//! Link. The Plugin is told the Server's Server Addresses.
 
-#[expect(dead_code, reason = "this binary only counts logged lines")]
 #[path = "support/log.rs"]
 mod log;
 #[path = "support/refused.rs"]
@@ -14,6 +13,7 @@ mod server;
 use std::{
     future,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
+    time::Duration,
 };
 
 use connectrpc::{
@@ -23,12 +23,13 @@ use connectrpc::{
 use log::Log;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    server_link::{Link, ServerLinker},
+    server_link::{Link, ServerAddresses, ServerLinker},
 };
 use nama_proto::nama::v1::{
     self as proto, DeleteUserRequest, GetServerLinkRequest, GetUserLinkRequest, ListUsersRequest,
-    Permission, RefusalReason, ServerServiceClient, StartServerLinkRequest, StartUserLinkRequest,
-    UnlinkServerRequest, UnlinkUserRequest, UserServiceClient,
+    Permission, RefusalReason, ServerServiceClient, ServerSettings, StartServerLinkRequest,
+    StartUserLinkRequest, UnlinkServerRequest, UnlinkUserRequest, UpdateServerSettingsRequest,
+    UserServiceClient,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -48,10 +49,14 @@ struct Script {
     user_link: Option<Link>,
     /// The User it was last asked to start Linking, by id and name.
     user_started: Option<(i64, String)>,
+    /// The Server Addresses it was last told.
+    addresses: Option<ServerAddresses>,
     /// The Users it was asked to Unlink, by id, in order.
     unlinked_users: Vec<i64>,
     /// Whether Unlinking a User fails, as with the service unreachable.
     unlink_user_fails: bool,
+    /// Whether Unlinking a User never answers, as with the service slow to time out.
+    unlink_user_hangs: bool,
 }
 
 impl Scripted {
@@ -128,22 +133,37 @@ impl ServerLinker for Scripted {
     fn unlink_user(&self, user_id: i64) -> BoxFuture<'_, Result<(), PluginError>> {
         let mut script = self.script();
         script.unlinked_users.push(user_id);
+        if script.unlink_user_hangs {
+            return Box::pin(future::pending());
+        }
         if script.unlink_user_fails {
             return Box::pin(future::ready(Err("the service is unreachable".into())));
         }
         script.user_link = Some(Link::NotLinked);
         Box::pin(future::ready(Ok(())))
     }
+
+    fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
+        self.script().addresses = Some(addresses);
+        Box::pin(future::ready(Ok(())))
+    }
+}
+
+async fn with_linker(linker: &Scripted) -> TestServer {
+    TestServer::builder()
+        .plugins(enabling(linker))
+        .start()
+        .await
 }
 
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn with_linker(linker: &Scripted) -> TestServer {
+fn enabling(linker: &Scripted) -> Registry {
     let plugins = Registry::new();
     plugins.enable(Arc::new(linker.clone())).unwrap();
-    TestServer::builder().plugins(plugins).start().await
+    plugins
 }
 
 fn settings(server: &TestServer) -> ServerServiceClient<HttpClient> {
@@ -176,6 +196,21 @@ async fn user_link(config: ClientConfig) -> Option<proto::UserLink> {
         .await
         .unwrap();
     got.into_owned().link.into_option()
+}
+
+/// Waits until `linker` was asked to Unlink exactly `expected`, since a delete doesn't wait for it.
+async fn until_unlinked(linker: &Scripted, expected: &[i64]) {
+    let waited = tokio::time::timeout(server::WAIT, async {
+        while linker.script().unlinked_users != expected {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await;
+    assert!(
+        waited.is_ok(),
+        "Unlinked {:?}, not {expected:?}",
+        linker.script().unlinked_users
+    );
 }
 
 /// Deletes the User `user_id`, calling as `who`.
@@ -335,6 +370,41 @@ async fn a_plugin_that_cant_reach_its_service_leaves_the_server_as_it_was() {
 }
 
 #[tokio::test]
+async fn the_plugin_is_told_the_server_url_the_admin_set() {
+    let linker = Scripted::default();
+    let server = with_linker(&linker).await;
+    settings(&server)
+        .update_server_settings(UpdateServerSettingsRequest {
+            settings: ServerSettings {
+                url: "https://nama.example.com".to_owned(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let _restarted = TestServer::builder()
+        .plugins(enabling(&linker))
+        .restart(server)
+        .await;
+
+    // The test Server listens on 127.0.0.1, which no other device on its LAN can reach.
+    let told = ServerAddresses {
+        url: "https://nama.example.com/".to_owned(),
+        lan: vec![],
+    };
+    let waited = tokio::time::timeout(server::WAIT, async {
+        while linker.script().addresses.as_ref() != Some(&told) {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await;
+    assert!(waited.is_ok(), "told {:?}", linker.script().addresses);
+}
+
+#[tokio::test]
 async fn deleting_a_user_unlinks_them_once() {
     let linker = Scripted::default();
     linker.script().user_link = Some(Link::Linked {
@@ -345,7 +415,21 @@ async fn deleting_a_user_unlinks_them_once() {
 
     delete(server.client_config(), grace.id).await.unwrap();
 
-    assert_eq!(linker.script().unlinked_users, [grace.id]);
+    until_unlinked(&linker, &[grace.id]).await;
+}
+
+#[tokio::test]
+async fn deleting_a_user_doesnt_wait_for_the_plugin_to_unlink_them() {
+    let linker = Scripted::default();
+    linker.script().unlink_user_hangs = true;
+    let server = with_linker(&linker).await;
+    let grace = server.user_with_default_permissions("Grace").await;
+
+    let deleted =
+        tokio::time::timeout(server::WAIT, delete(server.client_config(), grace.id)).await;
+
+    deleted.expect("the delete waited for the Plugin").unwrap();
+    until_unlinked(&linker, &[grace.id]).await;
 }
 
 #[tokio::test]
@@ -356,7 +440,7 @@ async fn an_admin_deleting_themselves_is_unlinked() {
 
     delete(ada.client_config(), ada.id).await.unwrap();
 
-    assert_eq!(linker.script().unlinked_users, [ada.id]);
+    until_unlinked(&linker, &[ada.id]).await;
 }
 
 #[tokio::test]
@@ -404,5 +488,9 @@ async fn a_plugin_that_cant_unlink_a_deleted_user_leaves_them_deleted_and_warns(
         .into_owned()
         .users;
     assert!(listed.iter().all(|user| user.id != grace.id));
-    assert_eq!(log.count(&["could not Unlink a deleted User", "linker"]), 1);
+    log.wait_for(
+        &["could not tell the service a User was deleted", "linker"],
+        1,
+    )
+    .await;
 }

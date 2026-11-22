@@ -57,7 +57,7 @@ pub(crate) fn router(
     let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys));
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(HubServiceHandler {
-            db,
+            db: db.clone(),
             sends_sign_in_links: accounts.sends_sign_in_links(),
         }))
         .add_service(Arc::new(AccountServiceHandler {
@@ -71,6 +71,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(LinkedServerServiceHandler {
             links: links.clone(),
+            db,
         }))
         .into_axum_service();
     let jwks = async move || {
@@ -268,11 +269,11 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED => ErrorCode::NotFound,
         R::REFUSAL_REASON_TOO_MANY_ATTEMPTS => ErrorCode::ResourceExhausted,
         R::REFUSAL_REASON_EMAIL_TAKEN | R::REFUSAL_REASON_USER_LINKED => ErrorCode::AlreadyExists,
-        R::REFUSAL_REASON_EMAIL_INVALID | R::REFUSAL_REASON_PASSWORD_LENGTH => {
-            ErrorCode::InvalidArgument
-        }
+        R::REFUSAL_REASON_EMAIL_INVALID
+        | R::REFUSAL_REASON_PASSWORD_LENGTH
+        | R::REFUSAL_REASON_SERVER_ADDRESS_INVALID
         // Never sent; a client sees it only for a reason it doesn't know.
-        R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,
     }
 }
 

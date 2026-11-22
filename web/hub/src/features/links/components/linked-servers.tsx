@@ -1,7 +1,7 @@
 import { LinkedServerItem } from "@hub/features/links/components/linked-server-item";
 import { useLinkedServers } from "@hub/features/links/data/servers";
 
-/** The signed-in Account's Linked Servers, or what stands in for them while they load or if they can't. */
+/** The Servers the signed-in Account owns or has a User on, or what stands in for them while they load or if they can't. */
 export function LinkedServers() {
   const servers = useLinkedServers();
   if (servers.isPending) {

@@ -1,21 +1,28 @@
 //! Registering a Server, Linking its Users, and Unlinking either: `nama.hub.v1.ServerLinkService`,
-//! `LinkService` and `LinkedServerService`, one for each kind of caller.
+//! `LinkService` and `LinkedServerService`, one for each kind of caller, and what a Linked Server
+//! asks of the Hub's titles.
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_hub_proto::nama::hub::v1::{
     self as proto, ApproveServerLinkRequest, ApproveServerLinkResponse, ApproveUserLinkRequest,
     ApproveUserLinkResponse, GetUserLinkRequest, GetUserLinkResponse, LinkService,
     LinkedServerService, ListLinkedServersRequest, ListLinkedServersResponse,
-    ListLinkedUsersRequest, ListLinkedUsersResponse, PollServerLinkRequest, PollServerLinkResponse,
-    RefusalReason, ServerLinkService, StartServerLinkRequest, StartServerLinkResponse,
-    StartUserLinkRequest, StartUserLinkResponse, UnlinkLinkedUserRequest, UnlinkLinkedUserResponse,
-    UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
+    ListLinkedUsersRequest, ListLinkedUsersResponse, ListSimilarTitlesRequest,
+    ListSimilarTitlesResponse, PollServerLinkRequest, PollServerLinkResponse, RefusalReason,
+    ServerLinkService, SetServerAddressesRequest, SetServerAddressesResponse,
+    StartServerLinkRequest, StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse,
+    UnlinkLinkedUserRequest, UnlinkLinkedUserResponse, UnlinkServerRequest, UnlinkServerResponse,
+    UnlinkUserRequest, UnlinkUserResponse,
 };
+use sqlx::PgPool;
 
 use super::{accounts::signed_in, hub_failed, refuse};
-use crate::links::{
-    self, CODE_LIFETIME_MINS, LinkId, LinkedServer, Links, ListedServer, ListedUser,
-    POLL_INTERVAL_SECS, Polled,
+use crate::{
+    links::{
+        self, ADDRESS_LENGTH, CODE_LIFETIME_MINS, LinkId, LinkedServer, Links, ListedServer,
+        ListedUser, MAX_LAN_ADDRESSES, POLL_INTERVAL_SECS, Polled,
+    },
+    titles::{self, ExternalId, SimilarTitle, TitleKind},
 };
 
 /// `nama.hub.v1.ServerLinkService`: a Server not yet Linked, so anyone.
@@ -163,6 +170,7 @@ impl LinkService for LinkServiceHandler {
 /// `nama.hub.v1.LinkedServerService`: a Linked Server, by its credential.
 pub(super) struct LinkedServerServiceHandler {
     pub(super) links: Links,
+    pub(super) db: PgPool,
 }
 
 #[expect(
@@ -181,6 +189,36 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(UnlinkServerResponse::default())
+    }
+
+    async fn list_similar_titles(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ListSimilarTitlesRequest>,
+    ) -> ServiceResult<ListSimilarTitlesResponse> {
+        linked_server(&ctx)?;
+        let kind = match request.kind.as_known() {
+            Some(proto::TitleKind::TITLE_KIND_MOVIE) => TitleKind::Movie,
+            Some(proto::TitleKind::TITLE_KIND_SHOW) => TitleKind::Show,
+            Some(proto::TitleKind::TITLE_KIND_UNSPECIFIED) | None => {
+                return Response::ok(ListSimilarTitlesResponse::default());
+            }
+        };
+        let ids: Vec<ExternalId> = request
+            .ids
+            .iter()
+            .map(|id| ExternalId {
+                namespace: id.namespace.to_owned(),
+                value: id.value.to_owned(),
+            })
+            .collect();
+        let similar = titles::similar(&self.db, kind, &ids)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(ListSimilarTitlesResponse {
+            titles: similar.into_iter().map(similar_to_proto).collect(),
+            ..Default::default()
+        })
     }
 
     async fn start_user_link(
@@ -227,6 +265,23 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .map_err(|err| hub_failed(&err))?;
         Response::ok(UnlinkUserResponse::default())
     }
+
+    async fn set_server_addresses(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetServerAddressesRequest>,
+    ) -> ServiceResult<SetServerAddressesResponse> {
+        let lan_addresses: Vec<String> = request
+            .lan_addresses
+            .iter()
+            .map(|&address| address.to_owned())
+            .collect();
+        self.links
+            .set_addresses(linked_server(&ctx)?, request.url, &lan_addresses)
+            .await
+            .map_err(refused)?;
+        Response::ok(SetServerAddressesResponse::default())
+    }
 }
 
 /// The Linked Server whose credential the request carried, which the auth layer found.
@@ -240,11 +295,26 @@ fn linked_server(ctx: &RequestContext) -> Result<&LinkedServer, ConnectError> {
     })
 }
 
+fn similar_to_proto(similar: SimilarTitle) -> proto::SimilarTitle {
+    proto::SimilarTitle {
+        id: proto::ExternalId {
+            namespace: similar.id.namespace,
+            value: similar.id.value,
+            ..Default::default()
+        }
+        .into(),
+        weight: similar.weight,
+        ..Default::default()
+    }
+}
+
 fn server_to_proto(server: ListedServer) -> proto::LinkedServer {
     proto::LinkedServer {
         id: server.id.to_string(),
         name: server.name,
         linked_at: server.linked_at,
+        url: server.url,
+        addresses: server.addresses,
         ..Default::default()
     }
 }
@@ -276,6 +346,9 @@ fn refused(err: links::Error) -> ConnectError {
         E::CodeNotFound => refuse(R::REFUSAL_REASON_LINK_CODE_NOT_FOUND, message).field("code"),
         E::Expired => refuse(R::REFUSAL_REASON_LINK_EXPIRED, message).field("device_code"),
         E::UserLinked => refuse(R::REFUSAL_REASON_USER_LINKED, message),
+        E::AddressInvalid => refuse(R::REFUSAL_REASON_SERVER_ADDRESS_INVALID, message)
+            .param("maxLength", &ADDRESS_LENGTH)
+            .param("maxLanAddresses", &MAX_LAN_ADDRESSES),
         E::Random(_) | E::Database(_) => return hub_failed(&err),
     };
     refused.into()

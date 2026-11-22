@@ -1,5 +1,5 @@
 import { Code } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
@@ -142,30 +142,44 @@ test("sharing starts off, and turning Usage Analytics on saves it with the Serve
     ]);
 });
 
-test("after turning Diagnostics sharing on, the next page asks the Server again whether it exports Diagnostics", async () => {
-  let infoReads = 0;
-  let settingsReads = 0;
-  openServer({
-    getServerInfo: () => {
-      infoReads += 1;
-      return { name: "Living Room" };
+test("once Share Diagnostics is turned on, the next navigation sends a traceparent without a reload", async () => {
+  let sharing = false;
+  let rereadAfterSave = false;
+  const traceparents: (string | null)[] = [];
+  const transport = fakeServer(
+    {
+      signedIn: manageSettings,
+      serverService: {
+        getServerInfo: () => ({ name: "Living Room", exportsDiagnostics: sharing }),
+        getServerSettings: () => {
+          rereadAfterSave = sharing;
+          return { settings: { shareDiagnostics: sharing } };
+        },
+        updateServerSettings: (request) => {
+          sharing = Boolean(request.settings?.shareDiagnostics);
+          return { settings: request.settings };
+        },
+      },
     },
-    getServerSettings: () => {
-      settingsReads += 1;
-      return { settings: { url: "http://nama.lan" } };
+    {},
+    {
+      listDevices: (_request, context) => {
+        traceparents.push(context.requestHeader.get("traceparent"));
+        return {};
+      },
     },
-    updateServerSettings: (request) => ({ settings: request.settings }),
+  );
+  const router = openSettings("server", transport);
+
+  fireEvent.click(await screen.findByRole("switch", { name: "Share Diagnostics" }));
+  // The save rereads the settings in the same step that resets the Server's info, so navigating
+  // any sooner could still read the old info.
+  await expect.poll(() => rereadAfterSave).toBe(true);
+  await act(async () => {
+    await router.navigate({ to: ".", search: { settings: "devices" } });
   });
 
-  const diagnostics = await screen.findByRole("switch", { name: "Share Diagnostics" });
-  const before = infoReads;
-  fireEvent.click(diagnostics);
-  // Saving rereads the settings once it's answered, as it resets the Server's info.
-  await expect.poll(() => settingsReads).toBe(2);
-  const sections = within(screen.getByRole("navigation", { name: "Settings" }));
-  fireEvent.click(sections.getByRole("link", { name: "Playback" }));
-
-  await expect.poll(() => infoReads).toBeGreaterThan(before);
+  await expect.poll(() => traceparents.at(-1)).toMatch(/^00-/u);
 });
 
 test("a saved space that isn't one of the sizes offered stays chosen", async () => {

@@ -62,6 +62,14 @@ pub type OwnedUnlinkServerRequestView = ::buffa::view::OwnedView<
 pub type OwnedUnlinkServerResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::UnlinkServerResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListSimilarTitlesRequestView<'static>>`.
+pub type OwnedListSimilarTitlesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListSimilarTitlesResponseView<'static>>`.
+pub type OwnedListSimilarTitlesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<StartUserLinkRequestView<'static>>`.
 pub type OwnedStartUserLinkRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::StartUserLinkRequestView<'static>,
@@ -85,6 +93,16 @@ pub type OwnedUnlinkUserRequestView = ::buffa::view::OwnedView<
 ///Shorthand for `OwnedView<UnlinkUserResponseView<'static>>`.
 pub type OwnedUnlinkUserResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::UnlinkUserResponseView<'static>,
+>;
+///Shorthand for `OwnedView<SetServerAddressesRequestView<'static>>`.
+pub type OwnedSetServerAddressesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetServerAddressesResponseView<'static>>`.
+pub type OwnedSetServerAddressesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseView<
+        'static,
+    >,
 >;
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::StartServerLinkResponse>
 for crate::messages::nama::hub::v1::__buffa::view::StartServerLinkResponseView<'_> {
@@ -358,6 +376,40 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::ListSimilarTitlesResponse>
+for crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::ListSimilarTitlesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::StartUserLinkResponse>
 for crate::messages::nama::hub::v1::__buffa::view::StartUserLinkResponseView<'_> {
     fn encode(
@@ -438,6 +490,42 @@ for crate::messages::nama::hub::v1::__buffa::view::UnlinkUserResponseView<'_> {
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::UnlinkUserResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::UnlinkUserResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SetServerAddressesResponse>
+for crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SetServerAddressesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseView<
+        'static,
+    >,
 > {
     fn encode(
         &self,
@@ -1121,7 +1209,9 @@ pub trait LinkService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Returns the signed-in Account's Linked Servers, oldest first.
+    /// Returns the Linked Servers the signed-in Account owns or has a User on, oldest first, each
+    /// with the Server Addresses a client tries. A client reaches a Server at those itself: the Hub
+    /// never carries its calls or media (ADR 0094).
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1963,6 +2053,12 @@ pub const LINKED_SERVER_SERVICE_UNLINK_SERVER_SPEC: ::connectrpc::Spec = ::conne
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListSimilarTitles` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_LIST_SIMILAR_TITLES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/ListSimilarTitles",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
 /// Static [`Spec`](::connectrpc::Spec) for the `StartUserLink` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const LINKED_SERVER_SERVICE_START_USER_LINK_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.hub.v1.LinkedServerService/StartUserLink",
@@ -1978,6 +2074,12 @@ pub const LINKED_SERVER_SERVICE_GET_USER_LINK_SPEC: ::connectrpc::Spec = ::conne
 /// Static [`Spec`](::connectrpc::Spec) for the `UnlinkUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const LINKED_SERVER_SERVICE_UNLINK_USER_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.hub.v1.LinkedServerService/UnlinkUser",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetServerAddresses` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/SetServerAddresses",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
@@ -2058,6 +2160,31 @@ pub trait LinkedServerService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// The titles most like one title, of its kind, by the vectors the Hub builds from Wikidata's
+    /// facts (ADR 0095): at most 100, most alike first. Empty when Wikidata lacks the title or the
+    /// kind is unspecified, which isn't a failure: the Server's other Similar sources cover it.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_similar_titles<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::ListSimilarTitlesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::ListSimilarTitlesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
     /// Starts Linking one of the Server's Users: the code they enter on the Hub, which replaces any
     /// code they were waiting on and stops working after `expires_in_seconds`. Fails with
     /// `REFUSAL_REASON_USER_LINKED` for a User Linked already, since a User Links to one Account.
@@ -2131,6 +2258,31 @@ pub trait LinkedServerService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Replaces the Server Addresses the calling Server reported before. The Server reports them
+    /// whenever they change. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an
+    /// `http` or `https` URL, or for too many.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_server_addresses<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::SetServerAddressesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::SetServerAddressesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -2192,6 +2344,35 @@ impl<S: LinkedServerService> LinkedServerServiceExt for S {
                 },
             )
             .with_spec(LINKED_SERVER_SERVICE_UNLINK_SERVER_SPEC)
+            .route_view_idempotent(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "ListSimilarTitles",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::ListSimilarTitlesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_similar_titles(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::ListSimilarTitlesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_LIST_SIMILAR_TITLES_SPEC)
             .route_view(
                 LINKED_SERVER_SERVICE_SERVICE_NAME,
                 "StartUserLink",
@@ -2279,6 +2460,35 @@ impl<S: LinkedServerService> LinkedServerServiceExt for S {
                 },
             )
             .with_spec(LINKED_SERVER_SERVICE_UNLINK_USER_SPEC)
+            .route_view(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "SetServerAddresses",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::SetServerAddressesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_server_addresses(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::SetServerAddressesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -2341,6 +2551,12 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .with_spec(LINKED_SERVER_SERVICE_UNLINK_SERVER_SPEC),
                 )
             }
+            "ListSimilarTitles" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(LINKED_SERVER_SERVICE_LIST_SIMILAR_TITLES_SPEC),
+                )
+            }
             "StartUserLink" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -2357,6 +2573,12 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(LINKED_SERVER_SERVICE_UNLINK_USER_SPEC),
+                )
+            }
+            "SetServerAddresses" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC),
                 )
             }
             _ => None,
@@ -2393,6 +2615,28 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .await?
                         .encode::<
                             crate::messages::nama::hub::v1::UnlinkServerResponse,
+                        >(format)
+                })
+            }
+            "ListSimilarTitles" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::ListSimilarTitlesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::ListSimilarTitlesRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_similar_titles(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::ListSimilarTitlesResponse,
                         >(format)
                 })
             }
@@ -2459,6 +2703,28 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .await?
                         .encode::<
                             crate::messages::nama::hub::v1::UnlinkUserResponse,
+                        >(format)
+                })
+            }
+            "SetServerAddresses" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::SetServerAddressesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::SetServerAddressesRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_server_addresses(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::SetServerAddressesResponse,
                         >(format)
                 })
             }
@@ -2635,6 +2901,51 @@ where
             )
             .await
     }
+    /// Call the ListSimilarTitles RPC. Sends a request to /nama.hub.v1.LinkedServerService/ListSimilarTitles.
+    pub async fn list_similar_titles(
+        &self,
+        request: crate::messages::nama::hub::v1::ListSimilarTitlesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_similar_titles_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListSimilarTitles RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_similar_titles_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::ListSimilarTitlesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::ListSimilarTitlesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_LIST_SIMILAR_TITLES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
     /// Call the StartUserLink RPC. Sends a request to /nama.hub.v1.LinkedServerService/StartUserLink.
     pub async fn start_user_link(
         &self,
@@ -2764,6 +3075,51 @@ where
                 &self.transport,
                 &self.config,
                 LINKED_SERVER_SERVICE_UNLINK_USER_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetServerAddresses RPC. Sends a request to /nama.hub.v1.LinkedServerService/SetServerAddresses.
+    pub async fn set_server_addresses(
+        &self,
+        request: crate::messages::nama::hub::v1::SetServerAddressesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_server_addresses_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetServerAddresses RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_server_addresses_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::SetServerAddressesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

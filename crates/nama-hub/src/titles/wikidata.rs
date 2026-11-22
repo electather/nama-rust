@@ -68,8 +68,11 @@ pub enum ImportError {
 /// If `dump` can't be read, holds a malformed entity or is cut short, or saving fails.
 pub async fn import(db: &PgPool, dump: impl AsyncBufRead + Unpin) -> Result<usize, ImportError> {
     let mut tx = db.begin().await?;
-    // Every title's ids are written again, so none the dump dropped are left.
+    // Every title's ids and facts are written again, so none the dump dropped are left.
     sqlx::query!("DELETE FROM title_ids")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query!("DELETE FROM title_facts")
         .execute(&mut *tx)
         .await?;
     let mut lines = dump.lines();
@@ -106,13 +109,25 @@ pub async fn import(db: &PgPool, dump: impl AsyncBufRead + Unpin) -> Result<usiz
     Ok(imported)
 }
 
-/// A film or series the dump holds, with its External IDs.
+/// A film or series the dump holds, with its External IDs and the facts its vector is built from.
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct Title {
     /// Its Wikidata item, such as `Q83495`.
     pub(super) wikidata_id: String,
     pub(super) kind: TitleKind,
     pub(super) ids: Vec<ExternalId>,
+    /// Sorted, each once.
+    pub(super) facts: Vec<Fact>,
+}
+
+/// Something Wikidata says about a title: an item, such as a person or a genre, and what it is to
+/// the title.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) struct Fact {
+    /// Such as `director`: `title_facts.property`.
+    pub(super) property: &'static str,
+    /// Its Wikidata item, such as `Q9545711`.
+    pub(super) item: String,
 }
 
 /// The title one line's entity is, or `None` if it's neither a film nor a series with an External
@@ -128,7 +143,7 @@ pub(super) fn parse_title(entity: &str) -> Result<Option<Title>, serde_json::Err
     Ok(entity.into_title())
 }
 
-/// Upserts `titles` and inserts their ids.
+/// Upserts `titles` and inserts their ids and facts.
 async fn save(tx: &mut PgConnection, titles: &[Title]) -> Result<(), sqlx::Error> {
     let (wikidata_ids, kinds): (Vec<&str>, Vec<&str>) = titles
         .iter()
@@ -165,6 +180,29 @@ async fn save(tx: &mut PgConnection, titles: &[Title]) -> Result<(), sqlx::Error
     )
     .execute(&mut *tx)
     .await?;
+
+    let ((holders, properties), items): ((Vec<&str>, Vec<&str>), Vec<&str>) = titles
+        .iter()
+        .flat_map(|title| {
+            title.facts.iter().map(|fact| {
+                (
+                    (title.wikidata_id.as_str(), fact.property),
+                    fact.item.as_str(),
+                )
+            })
+        })
+        .unzip();
+    sqlx::query!(
+        "INSERT INTO title_facts (title_id, property, item)
+         SELECT titles.id, facts.property, facts.item
+         FROM UNNEST($1::text[], $2::text[], $3::text[]) AS facts (wikidata_id, property, item)
+         JOIN titles USING (wikidata_id)",
+        &holders as _,
+        &properties as _,
+        &items as _,
+    )
+    .execute(&mut *tx)
+    .await?;
     Ok(())
 }
 
@@ -192,6 +230,25 @@ struct Claims {
     tvdb_movie: Vec<Statement<String>>,
     #[serde(rename = "P4835")]
     tvdb_series: Vec<Statement<String>>,
+    #[serde(rename = "P161")]
+    cast: Vec<Statement<ItemRef>>,
+    #[serde(rename = "P57")]
+    directors: Vec<Statement<ItemRef>>,
+    #[serde(rename = "P58")]
+    writers: Vec<Statement<ItemRef>>,
+    #[serde(rename = "P136")]
+    genres: Vec<Statement<ItemRef>>,
+    #[serde(rename = "P921")]
+    subjects: Vec<Statement<ItemRef>>,
+    #[serde(rename = "P166")]
+    awards: Vec<Statement<ItemRef>>,
+    #[serde(rename = "P8345")]
+    franchises: Vec<Statement<ItemRef>>,
+    /// "Part of the series", which is how most films name their franchise.
+    #[serde(rename = "P179")]
+    series: Vec<Statement<ItemRef>>,
+    #[serde(rename = "P495")]
+    countries: Vec<Statement<ItemRef>>,
 }
 
 #[derive(Deserialize)]
@@ -256,12 +313,42 @@ impl Entity {
             })
         })
         .collect();
-        (!ids.is_empty()).then_some(Title {
+        if ids.is_empty() {
+            return None;
+        }
+        let mut facts: Vec<Fact> = [
+            ("cast", claims.cast),
+            ("director", claims.directors),
+            ("writer", claims.writers),
+            ("genre", claims.genres),
+            ("subject", claims.subjects),
+            ("award", claims.awards),
+            ("franchise", claims.franchises),
+            ("franchise", claims.series),
+            ("country", claims.countries),
+        ]
+        .into_iter()
+        .flat_map(|(property, statements)| {
+            items(statements).map(move |item| Fact { property, item })
+        })
+        .collect();
+        facts.sort_unstable();
+        facts.dedup();
+        Some(Title {
             wikidata_id: self.id,
             kind,
             ids,
+            facts,
         })
     }
+}
+
+/// The items `statements` name, but those Wikidata deprecates.
+fn items(statements: Vec<Statement<ItemRef>>) -> impl Iterator<Item = String> {
+    statements
+        .into_iter()
+        .filter(|statement| statement.rank != Rank::Deprecated)
+        .filter_map(|statement| Some(statement.mainsnak.datavalue?.value.id))
 }
 
 fn is_instance_of(instance_of: &[Statement<ItemRef>], classes: &[&str]) -> bool {
