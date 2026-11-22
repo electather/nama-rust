@@ -25,9 +25,10 @@ function refused(code: Code, reason: RefusalReason) {
 
 /**
  * Opens the Account page, signed in as Ada, on a fake Hub where one Server, "Living room", shows
- * the code BDFH-JKLM, and entering it is refused for `refusing`, if given.
+ * the code BDFH-JKLM, and entering it is refused for `refusing`, if given. With `listFails`, the
+ * Hub fails to list the Account's Servers.
  */
-function openAccount(refusing?: RefusalReason) {
+function openAccount(refusing?: RefusalReason, { listFails = false } = {}) {
   let session = true;
   const servers = [attic];
   const transport = createRouterTransport(({ service }) => {
@@ -44,7 +45,12 @@ function openAccount(refusing?: RefusalReason) {
       },
     });
     service(LinkService, {
-      listLinkedServers: () => ({ servers }),
+      listLinkedServers: () => {
+        if (listFails) {
+          throw new ConnectError("the Hub failed", Code.Internal);
+        }
+        return { servers };
+      },
       approveServerLink: ({ code }) => {
         if (refusing !== undefined) {
           throw refused(Code.FailedPrecondition, refusing);
@@ -105,16 +111,29 @@ describe("linking a Server", () => {
     ).resolves.toBeDefined();
   });
 
-  test("an Account whose email isn't proven is told to prove it with a Sign-in Link", async () => {
+  test("an Account whose email isn't proven is offered a Sign-in Link to prove it", async () => {
     openAccount(RefusalReason.EMAIL_NOT_PROVEN);
-
     await enterCode("BDFH-JKLM");
-
     await expect(
       screen.findByText(
         "Linking needs your email proven first. Sign in with a Sign-in Link sent to it, then enter the code again.",
       ),
     ).resolves.toBeDefined();
+
+    fireEvent.click(screen.getByRole("link", { name: "Email me a Sign-in Link" }));
+
+    await expect(
+      screen.findByRole("heading", { name: "Email a Sign-in Link" }),
+    ).resolves.toBeDefined();
+  });
+
+  test("a Server list the Hub can't give says so and leaves the rest of the page", async () => {
+    openAccount(undefined, { listFails: true });
+
+    await expect(
+      screen.findByText("The Hub couldn’t list your Servers just now. Reload the page to try again."),
+    ).resolves.toBeDefined();
+    expect(screen.getByRole("button", { name: "Link Server" })).toBeDefined();
   });
 
   test("a sign-in over 10 minutes old is offered signing in again", async () => {

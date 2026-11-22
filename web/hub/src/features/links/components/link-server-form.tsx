@@ -13,7 +13,15 @@ export function LinkServerForm() {
       className="flex flex-col gap-3"
       onSubmit={(event) => {
         event.preventDefault();
-        approve.mutate({ code: typedCode(event.currentTarget) });
+        const form = event.currentTarget;
+        approve.mutate(
+          { code: typedCode(form) },
+          {
+            onSuccess: () => {
+              form.reset();
+            },
+          },
+        );
       }}
     >
       <h2 id="link-server" className="text-lg/6 font-medium">

@@ -22,6 +22,9 @@ export function useServerLink() {
     {
       refetchInterval: (query) =>
         (query.state.data?.link?.code ?? "") === "" ? false : WAITING_POLL_MS,
+      // The code is entered on the Hub, usually in another tab, and the Server collects its
+      // credential only when asked: waiting for this tab to come back could outlast the code.
+      refetchIntervalInBackground: true,
     },
   ).data.link;
 }
