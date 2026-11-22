@@ -1,5 +1,5 @@
-//! Viewing Events and pooling: `nama.hub.v1.ViewingEventService` for a signed-in Account, and the conversions
-//! `LinkedServerService.RecordViewingEvents` uses.
+//! Viewing Events and pooling: `nama.hub.v1.ViewingEventService` for a signed-in Account, and the
+//! conversions `LinkedServerService.RecordViewingEvents` uses.
 
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};

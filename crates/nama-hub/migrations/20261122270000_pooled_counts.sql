@@ -1,16 +1,18 @@
 -- How many Accounts finished each Movie and each pair of Movies, with nothing naming an Account
 -- (ADR 0093). What may be stored here: `src/viewing/AGENTS.md`.
 CREATE TABLE pooled_counts (
+    id uuid PRIMARY KEY DEFAULT uuidv7(),
     -- The pair's External IDs, the lesser first. A Movie's own count is its pair with itself.
     title_a text NOT NULL,
     title_b text NOT NULL CHECK (title_a <= title_b),
     accounts bigint NOT NULL DEFAULT 1,
-    PRIMARY KEY (title_a, title_b)
+    UNIQUE (title_a, title_b)
 );
 
 -- An Account's choice to pool; one with no row pools, as pooling is on by default (ADR 0093).
 CREATE TABLE pooling_settings (
-    account_id uuid PRIMARY KEY REFERENCES accounts (id) ON DELETE CASCADE,
+    id uuid PRIMARY KEY DEFAULT uuidv7(),
+    account_id uuid NOT NULL UNIQUE REFERENCES accounts (id) ON DELETE CASCADE,
     pooling boolean NOT NULL
 );
 

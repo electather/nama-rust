@@ -139,7 +139,7 @@ impl ViewingEvent {
             && (0..=self.duration_ms).contains(&self.stop_position_ms)
     }
 
-    /// Whether it is a play pooled counts count, if its Account pools.
+    /// Whether pooled counts take it in, when its Account pools.
     fn is_poolable(&self) -> bool {
         // ponytail: Movies only. An Episode isn't a title the Hub knows, and the Hub can't tell
         // its Show; pool Shows once it can.
