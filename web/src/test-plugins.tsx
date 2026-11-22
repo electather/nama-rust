@@ -60,13 +60,13 @@ export function openPlugin(
   openApp(`/code?settings=plugins&plugin=${id}`, pluginServer(listingToo(id, changes), library));
 }
 
-/** Opens the Plugin `id` as `openPlugin` does, signed in as an Admin. */
+/** Opens the Plugin `id` as `openPlugin` does, signed in as an Admin, returning the app's router. */
 export function openPluginAsAdmin(
   id: string,
   changes: Partial<ServiceImpl<typeof PluginService>> = {},
 ) {
   const server = pluginServer(listingToo(id, changes), {}, [Permission.ADMIN]);
-  openApp(`/code?settings=plugins&plugin=${id}`, server);
+  return openApp(`/code?settings=plugins&plugin=${id}`, server);
 }
 
 /**
