@@ -2,13 +2,12 @@ import { HardwareField } from "@/features/admin-playback/components/hardware-fie
 import { RemoteLimitField } from "@/features/admin-playback/components/remote-limit-field";
 import { SegmentFields } from "@/features/admin-playback/components/segment-fields";
 import { usePlaybackSettings } from "@/features/admin-playback/data/use-playback-settings";
-import {
-  playbackLabels,
-  type PlaybackValues,
-} from "@/features/admin-playback/lib/playback-settings-form";
+import { serverPlaybackLabels } from "@/features/admin-playback/lib/playback-labels";
+import type { PlaybackValues } from "@/features/admin-playback/lib/playback-settings-form";
 import { saveOnLeave } from "@/features/admin-playback/lib/save-on-leave";
 import { FormField } from "@/shared/components/form-field/form-field";
 import type { FormErrors } from "@/shared/lib/forms";
+import { rowText } from "@/shared/lib/setting-text";
 
 /**
  * The fields an Admin sets how the Server plays Versions it changes with: the folder Remuxes and
@@ -40,12 +39,11 @@ export function PlaybackSettingsFields({
       />
       <FormField
         row
-        label={playbackLabels.maxTranscodes}
+        {...rowText(serverPlaybackLabels, "maxTranscodes")}
         name="maxTranscodes"
         type="number"
         min={1}
         required={false}
-        hint="The most the Server runs at once. Remuxes don’t count. While that many run, a Device that can play a Remux gets one instead, and one that can’t is told the Server is busy. Leave it empty for at most 2 at once of those that run on the CPU, in software or tone-mapping HDR there, and no limit for those that run fully on a GPU."
         error={errors.maxTranscodes}
         {...saveOnLeave(values.maxTranscodes, (maxTranscodes) => {
           onEdit({ maxTranscodes });

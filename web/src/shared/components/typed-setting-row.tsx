@@ -9,6 +9,7 @@ import { SettingRow } from "@/shared/components/setting-row";
  * typed: what `check` finds before the Server is asked, or else the `error` it refused it with.
  */
 export function TypedSettingRow({
+  setting,
   label,
   hint,
   saved,
@@ -17,8 +18,9 @@ export function TypedSettingRow({
   input,
   onSave,
 }: {
+  setting: string;
   label: string;
-  hint: string;
+  hint: string | undefined;
   saved: string;
   /** Why the Server refused what was last sent, if it did. */
   error: string | undefined;
@@ -48,7 +50,7 @@ export function TypedSettingRow({
   }
 
   return (
-    <SettingRow label={label} hint={hint} error={shown}>
+    <SettingRow setting={setting} label={label} hint={hint} error={shown}>
       {(control) => (
         <span className="flex w-40 md:w-60">
           <Input

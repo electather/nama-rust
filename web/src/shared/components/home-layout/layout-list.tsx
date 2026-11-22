@@ -4,7 +4,7 @@ import type { HomeLayout, HomeLayoutRow } from "@/gen/nama/v1/server_pb";
 import { FeaturedRow } from "@/shared/components/home-layout/featured-row";
 import { LayoutRow } from "@/shared/components/home-layout/layout-row";
 import { useRowDrag } from "@/shared/hooks/use-row-drag";
-import { rowKey, rowName } from "@/shared/lib/home-layout";
+import { rowKey, rowName, rowSetting } from "@/shared/lib/home-layout";
 
 /** A Home layout as it's shown while it changes, and how its list asks for each change. */
 export interface LayoutChanges {
@@ -39,6 +39,7 @@ export function LayoutList({
         {layout.rows.map((row, index) => (
           <LayoutRow
             key={rowKey(row)}
+            setting={rowSetting(row)}
             name={rowName(row, names)}
             shown={!row.hidden}
             place={{ index, count: layout.rows.length }}

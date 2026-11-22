@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { HardwareAcceleration, ToneMapping } from "@/gen/nama/v1/server_pb";
@@ -313,17 +313,14 @@ test("a User who manages settings but isn’t an Admin gets their own Playback i
   expect(screen.queryByRole("link", { name: "Server Playback" })).toBeNull();
 });
 
-test("searching Settings for ffmpeg finds Server Playback", async () => {
+test("searching Settings for ffmpeg finds it in Server Playback", async () => {
   openSettings("playback", fakeServer({ signedIn: admin }));
 
-  fireEvent.change(await screen.findByRole("searchbox", { name: "Search settings" }), {
+  fireEvent.change(await screen.findByRole("combobox", { name: "Search settings" }), {
     target: { value: "ffmpeg" },
   });
 
-  const nav = screen.getByRole("navigation", { name: "Settings" });
-  expect(
-    within(nav)
-      .getAllByRole("link")
-      .map((link) => link.textContent),
-  ).toStrictEqual(["Server Playback"]);
+  expect(screen.getAllByRole("option").map((option) => option.textContent)).toStrictEqual([
+    "Server Playbackffmpeg and ffprobe",
+  ]);
 });

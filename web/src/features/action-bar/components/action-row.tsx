@@ -4,11 +4,7 @@ import { RowLead } from "@/features/action-bar/components/row-lead";
 import { RowText } from "@/features/action-bar/components/row-text";
 import type { Bar } from "@/features/action-bar/hooks/use-action-bar";
 import type { Row } from "@/features/action-bar/lib/rows";
-
-/** Scrolls the row that has just become the selected one into the list's view. */
-function keepInView(row: HTMLDivElement | null) {
-  row?.scrollIntoView({ block: "nearest" });
-}
+import { keepInView } from "@/shared/lib/keep-in-view";
 
 /**
  * One option of the action bar's list. Focus never comes here: the field keeps it and names the

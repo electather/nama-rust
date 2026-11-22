@@ -1,5 +1,6 @@
 import { SelectBox } from "@/features/settings/components/select-box";
 import { qualityLabel, removedFlag } from "@/features/settings/lib/default-quality";
+import { qualitySetting } from "@/features/settings/lib/server-defined";
 import { ExtensionPoint } from "@/gen/nama/v1/plugin_pb";
 import type { DefaultQuality } from "@/gen/nama/v1/request_pb";
 import { SettingRow } from "@/shared/components/setting-row";
@@ -24,7 +25,11 @@ export function QualityRow({
       ? "If someone else already Requested the Show, new Episodes come in the Quality they picked."
       : undefined);
   return (
-    <SettingRow label={qualityLabel(fulfiller)} hint={hint}>
+    <SettingRow
+      setting={qualitySetting(fulfiller.pluginId)}
+      label={qualityLabel(fulfiller)}
+      hint={hint}
+    >
       {(control) => (
         <SelectBox
           control={control}

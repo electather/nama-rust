@@ -9,13 +9,18 @@ import { SettingRow } from "@/shared/components/setting-row";
  * never a heading.
  */
 export function RowField({
+  setting,
   label,
   hint,
   error,
   children,
-}: Omit<FieldText, "name"> & { children: (control: FieldControl) => ReactNode }) {
+}: Omit<FieldText, "name"> & {
+  /** The key `?setting=` finds the row by. */
+  setting?: string | undefined;
+  children: (control: FieldControl) => ReactNode;
+}) {
   return (
-    <SettingRow label={label} hint={hint} error={error}>
+    <SettingRow setting={setting} label={label} hint={hint} error={error}>
       {(control) => (
         <span className="flex w-40 md:w-60">
           {children({

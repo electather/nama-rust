@@ -1,4 +1,10 @@
 import type { HomeLayoutRow } from "@/gen/nama/v1/server_pb";
+import type { SettingText } from "@/shared/lib/setting-text";
+
+/** What the built-in rows of a Home layout's list say, above its Home rows. */
+export const homeLabels = {
+  featured: { label: "Featured", hint: "Always at the top", words: "hero spotlight" },
+} satisfies Record<string, SettingText>;
 
 /** What a Home layout's list calls a row, and what it says under it, if anything. */
 export interface RowName {
@@ -15,6 +21,11 @@ export function rowKey({ row }: HomeLayoutRow) {
     return `users/${row.value}`;
   }
   return `kernel/${String(row.value)}`;
+}
+
+/** The key `?setting=` finds `row` by in a Home layout's list. */
+export function rowSetting(row: HomeLayoutRow) {
+  return `row.${rowKey(row)}`;
 }
 
 /**

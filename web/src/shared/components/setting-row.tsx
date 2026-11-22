@@ -16,12 +16,15 @@ const ROW = "flex items-center gap-x-5 gap-y-2.5 py-3.5 not-first:border-t";
  * on a phone.
  */
 export function SettingRow({
+  setting,
   label,
   hint,
   error,
   wide = false,
   children,
 }: {
+  /** The key `?setting=` finds the row by, from its Section's label map. */
+  setting?: string | undefined;
   label: string;
   hint?: ReactNode;
   /** What's wrong with the setting as it is, in red under its hint. */
@@ -31,7 +34,10 @@ export function SettingRow({
 }) {
   const id = useId();
   return (
-    <div className={wide ? `${ROW} max-md:flex-col max-md:items-stretch` : ROW}>
+    <div
+      data-setting={setting}
+      className={wide ? `${ROW} max-md:flex-col max-md:items-stretch` : ROW}
+    >
       <div className="min-w-0 flex-1">
         <label id={`${id}-label`} htmlFor={id} className="block text-sm">
           {label}

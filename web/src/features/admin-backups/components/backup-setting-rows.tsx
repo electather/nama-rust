@@ -5,6 +5,7 @@ import {
 } from "@/features/admin-backups/lib/backup-settings";
 import { TypedSettingRow } from "@/shared/components/typed-setting-row";
 import type { FormErrors } from "@/shared/lib/forms";
+import { rowText } from "@/shared/lib/setting-text";
 
 /** Where Backups go and how many are kept, each saved once its field is left. */
 export function BackupSettingRows({
@@ -20,8 +21,7 @@ export function BackupSettingRows({
   return (
     <>
       <TypedSettingRow
-        label={backupLabels.folder}
-        hint="Where Backups are written, such as a share mounted from another machine, so a copy survives this one’s disk. Saving creates it if it’s missing. Leave it empty for the backups folder in the Server’s data folder."
+        {...rowText(backupLabels, "folder")}
         saved={values.folder}
         error={refused.backupFolder}
         input={{ autoComplete: "off", spellCheck: false, placeholder: "/mnt/backups/nama" }}
@@ -30,8 +30,7 @@ export function BackupSettingRows({
         }}
       />
       <TypedSettingRow
-        label={backupLabels.keep}
-        hint="After each Backup, the oldest the Server wrote beyond this many are deleted. Other files in the folder, such as a Backup you wrote yourself under another name, are never deleted. Leave it empty for 7."
+        {...rowText(backupLabels, "keep")}
         saved={values.keep}
         error={refused.backupsKept}
         check={keepProblem}

@@ -45,9 +45,9 @@ export function SettingsModal({ section, user }: { section: Section; user: User 
           close();
         }
       }}
-      className="inset-0 m-auto size-auto max-h-none max-w-none flex-col overflow-hidden overscroll-contain bg-background text-foreground shadow-lg outline-none backdrop:overflow-hidden backdrop:overscroll-contain backdrop:bg-scrim open:flex md:inset-4 md:max-h-125 md:max-w-175 md:flex-row md:rounded-lg md:border lg:max-w-200"
+      className="group/settings inset-0 m-auto size-auto max-h-none max-w-none flex-col overflow-hidden overscroll-contain bg-background text-foreground shadow-lg outline-none backdrop:overflow-hidden backdrop:overscroll-contain backdrop:bg-scrim open:flex md:inset-4 md:max-h-125 md:max-w-175 md:flex-row md:rounded-lg md:border lg:max-w-200"
     >
-      <SettingsSide groups={groups} section={shown} />
+      <SettingsSide groups={groups} section={shown} user={user} />
       {/* Wider, the sections run the full height beside the title and the pane. A phone drops
           this box so its title can sit over the strip of sections. */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col max-md:contents">
