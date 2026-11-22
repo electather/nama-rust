@@ -13,9 +13,7 @@ use nama_pdk::{
     Permission, SettingField, SettingKind, Title, TitleId, TitleKind, TitleRefKind, UserRowsAsked,
     WatchState, WatchlistTitle, checked_settings, choices_setting_field,
     extism_pdk::{Error, HttpRequest, json},
-    kernel,
-    nama_plugin_proto::nama::plugin::v1::Texts,
-    services, setting_default, setting_field, setting_value,
+    kernel, services, setting_default, setting_field, setting_value,
 };
 use serde::Deserialize;
 use url::Url;
@@ -164,11 +162,7 @@ fn manifest() -> Manifest {
         )
     };
     let shared_rows = SettingField {
-        default_value: setting_default(picked_choices([
-            TRENDING,
-            "top-rated-movies",
-            "top-rated-shows",
-        ])),
+        default_value: nama_pdk::picked_default([TRENDING, "top-rated-movies", "top-rated-shows"]),
         ..choices_setting_field(
             SHARED_ROWS,
             "Shared rows",
@@ -177,7 +171,7 @@ fn manifest() -> Manifest {
         )
     };
     let user_rows = SettingField {
-        default_value: setting_default(picked_choices(["because", "more-genre", WATCHLIST])),
+        default_value: nama_pdk::picked_default(["because", "more-genre", WATCHLIST]),
         ..choices_setting_field(
             USER_ROWS,
             "Your rows",
@@ -212,15 +206,6 @@ fn manifest() -> Manifest {
         license: env!("CARGO_PKG_LICENSE").to_owned(),
         ..nama_pdk::manifest("discover", env!("CARGO_PKG_VERSION"))
     }
-}
-
-/// The picked choices `values`, as a several-choices setting holds them.
-fn picked_choices<const N: usize>(values: [&str; N]) -> setting_value::Value {
-    Texts {
-        values: values.map(str::to_owned).to_vec(),
-        ..Texts::default()
-    }
-    .into()
 }
 
 /// Serves the rows the Admin picks.
