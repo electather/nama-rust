@@ -71,6 +71,8 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_USER_LINK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__UNLINK_USER_REQUEST_JSON_ANY);
         reg.register_json_any(super::__UNLINK_USER_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_SERVER_ADDRESSES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_SERVER_ADDRESSES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
     }
 }
@@ -246,6 +248,14 @@ pub use self::__buffa::view::UnlinkUserRequestOwnedView;
 pub use self::__buffa::view::UnlinkUserResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::UnlinkUserResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetServerAddressesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetServerAddressesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetServerAddressesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetServerAddressesResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RefusalView;
 #[doc(inline)]

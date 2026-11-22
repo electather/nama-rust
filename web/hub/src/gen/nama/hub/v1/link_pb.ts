@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/hub/v1/link.proto.
  */
 export const file_nama_hub_v1_link: GenFile = /*@__PURE__*/
-  fileDesc("ChZuYW1hL2h1Yi92MS9saW5rLnByb3RvEgtuYW1hLmh1Yi52MSI7CgxMaW5rZWRTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglsaW5rZWRfYXQYAyABKAMiJgoWU3RhcnRTZXJ2ZXJMaW5rUmVxdWVzdBIMCgRuYW1lGAEgASgJIncKF1N0YXJ0U2VydmVyTGlua1Jlc3BvbnNlEhMKC2RldmljZV9jb2RlGAEgASgJEhEKCXVzZXJfY29kZRgCIAEoCRIaChJleHBpcmVzX2luX3NlY29uZHMYAyABKAUSGAoQaW50ZXJ2YWxfc2Vjb25kcxgEIAEoBSIsChVQb2xsU2VydmVyTGlua1JlcXVlc3QSEwoLZGV2aWNlX2NvZGUYASABKAkiSwoWUG9sbFNlcnZlckxpbmtSZXNwb25zZRIOCgZsaW5rZWQYASABKAgSEgoKY3JlZGVudGlhbBgCIAEoCRINCgV0b2tlbhgDIAEoCSIoChhBcHByb3ZlU2VydmVyTGlua1JlcXVlc3QSDAoEY29kZRgBIAEoCSJGChlBcHByb3ZlU2VydmVyTGlua1Jlc3BvbnNlEikKBnNlcnZlchgBIAEoCzIZLm5hbWEuaHViLnYxLkxpbmtlZFNlcnZlciIaChhMaXN0TGlua2VkU2VydmVyc1JlcXVlc3QiRwoZTGlzdExpbmtlZFNlcnZlcnNSZXNwb25zZRIqCgdzZXJ2ZXJzGAEgAygLMhkubmFtYS5odWIudjEuTGlua2VkU2VydmVyIhUKE1VubGlua1NlcnZlclJlcXVlc3QiFgoUVW5saW5rU2VydmVyUmVzcG9uc2UiTgoKTGlua2VkVXNlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhMKC3NlcnZlcl9uYW1lGAMgASgJEhEKCWxpbmtlZF9hdBgEIAEoAyImChZBcHByb3ZlVXNlckxpbmtSZXF1ZXN0EgwKBGNvZGUYASABKAkiQAoXQXBwcm92ZVVzZXJMaW5rUmVzcG9uc2USJQoEdXNlchgBIAEoCzIXLm5hbWEuaHViLnYxLkxpbmtlZFVzZXIiGAoWTGlzdExpbmtlZFVzZXJzUmVxdWVzdCJBChdMaXN0TGlua2VkVXNlcnNSZXNwb25zZRImCgV1c2VycxgBIAMoCzIXLm5hbWEuaHViLnYxLkxpbmtlZFVzZXIiJQoXVW5saW5rTGlua2VkVXNlclJlcXVlc3QSCgoCaWQYASABKAkiGgoYVW5saW5rTGlua2VkVXNlclJlc3BvbnNlIjUKFFN0YXJ0VXNlckxpbmtSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSDAoEbmFtZRgCIAEoCSJGChVTdGFydFVzZXJMaW5rUmVzcG9uc2USEQoJdXNlcl9jb2RlGAEgASgJEhoKEmV4cGlyZXNfaW5fc2Vjb25kcxgCIAEoBSIlChJHZXRVc2VyTGlua1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyImChNHZXRVc2VyTGlua1Jlc3BvbnNlEg8KB2FjY291bnQYASABKAkiJAoRVW5saW5rVXNlclJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyIUChJVbmxpbmtVc2VyUmVzcG9uc2UyzAEKEVNlcnZlckxpbmtTZXJ2aWNlElwKD1N0YXJ0U2VydmVyTGluaxIjLm5hbWEuaHViLnYxLlN0YXJ0U2VydmVyTGlua1JlcXVlc3QaJC5uYW1hLmh1Yi52MS5TdGFydFNlcnZlckxpbmtSZXNwb25zZRJZCg5Qb2xsU2VydmVyTGluaxIiLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVxdWVzdBojLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVzcG9uc2UygQQKC0xpbmtTZXJ2aWNlEmIKEUFwcHJvdmVTZXJ2ZXJMaW5rEiUubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXF1ZXN0GiYubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXNwb25zZRJnChFMaXN0TGlua2VkU2VydmVycxIlLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVxdWVzdBomLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVzcG9uc2UiA5ACARJcCg9BcHByb3ZlVXNlckxpbmsSIy5uYW1hLmh1Yi52MS5BcHByb3ZlVXNlckxpbmtSZXF1ZXN0GiQubmFtYS5odWIudjEuQXBwcm92ZVVzZXJMaW5rUmVzcG9uc2USYQoPTGlzdExpbmtlZFVzZXJzEiMubmFtYS5odWIudjEuTGlzdExpbmtlZFVzZXJzUmVxdWVzdBokLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRVc2Vyc1Jlc3BvbnNlIgOQAgESZAoQVW5saW5rTGlua2VkVXNlchIkLm5hbWEuaHViLnYxLlVubGlua0xpbmtlZFVzZXJSZXF1ZXN0GiUubmFtYS5odWIudjEuVW5saW5rTGlua2VkVXNlclJlc3BvbnNlIgOQAgIy7QIKE0xpbmtlZFNlcnZlclNlcnZpY2USUwoMVW5saW5rU2VydmVyEiAubmFtYS5odWIudjEuVW5saW5rU2VydmVyUmVxdWVzdBohLm5hbWEuaHViLnYxLlVubGlua1NlcnZlclJlc3BvbnNlElYKDVN0YXJ0VXNlckxpbmsSIS5uYW1hLmh1Yi52MS5TdGFydFVzZXJMaW5rUmVxdWVzdBoiLm5hbWEuaHViLnYxLlN0YXJ0VXNlckxpbmtSZXNwb25zZRJVCgtHZXRVc2VyTGluaxIfLm5hbWEuaHViLnYxLkdldFVzZXJMaW5rUmVxdWVzdBogLm5hbWEuaHViLnYxLkdldFVzZXJMaW5rUmVzcG9uc2UiA5ACARJSCgpVbmxpbmtVc2VyEh4ubmFtYS5odWIudjEuVW5saW5rVXNlclJlcXVlc3QaHy5uYW1hLmh1Yi52MS5VbmxpbmtVc2VyUmVzcG9uc2UiA5ACAmIGcHJvdG8z");
+  fileDesc("ChZuYW1hL2h1Yi92MS9saW5rLnByb3RvEgtuYW1hLmh1Yi52MSJbCgxMaW5rZWRTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglsaW5rZWRfYXQYAyABKAMSCwoDdXJsGAQgASgJEhEKCWFkZHJlc3NlcxgFIAMoCSImChZTdGFydFNlcnZlckxpbmtSZXF1ZXN0EgwKBG5hbWUYASABKAkidwoXU3RhcnRTZXJ2ZXJMaW5rUmVzcG9uc2USEwoLZGV2aWNlX2NvZGUYASABKAkSEQoJdXNlcl9jb2RlGAIgASgJEhoKEmV4cGlyZXNfaW5fc2Vjb25kcxgDIAEoBRIYChBpbnRlcnZhbF9zZWNvbmRzGAQgASgFIiwKFVBvbGxTZXJ2ZXJMaW5rUmVxdWVzdBITCgtkZXZpY2VfY29kZRgBIAEoCSJLChZQb2xsU2VydmVyTGlua1Jlc3BvbnNlEg4KBmxpbmtlZBgBIAEoCBISCgpjcmVkZW50aWFsGAIgASgJEg0KBXRva2VuGAMgASgJIigKGEFwcHJvdmVTZXJ2ZXJMaW5rUmVxdWVzdBIMCgRjb2RlGAEgASgJIkYKGUFwcHJvdmVTZXJ2ZXJMaW5rUmVzcG9uc2USKQoGc2VydmVyGAEgASgLMhkubmFtYS5odWIudjEuTGlua2VkU2VydmVyIhoKGExpc3RMaW5rZWRTZXJ2ZXJzUmVxdWVzdCJHChlMaXN0TGlua2VkU2VydmVyc1Jlc3BvbnNlEioKB3NlcnZlcnMYASADKAsyGS5uYW1hLmh1Yi52MS5MaW5rZWRTZXJ2ZXIiFQoTVW5saW5rU2VydmVyUmVxdWVzdCIWChRVbmxpbmtTZXJ2ZXJSZXNwb25zZSJOCgpMaW5rZWRVc2VyEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEwoLc2VydmVyX25hbWUYAyABKAkSEQoJbGlua2VkX2F0GAQgASgDIiYKFkFwcHJvdmVVc2VyTGlua1JlcXVlc3QSDAoEY29kZRgBIAEoCSJAChdBcHByb3ZlVXNlckxpbmtSZXNwb25zZRIlCgR1c2VyGAEgASgLMhcubmFtYS5odWIudjEuTGlua2VkVXNlciIYChZMaXN0TGlua2VkVXNlcnNSZXF1ZXN0IkEKF0xpc3RMaW5rZWRVc2Vyc1Jlc3BvbnNlEiYKBXVzZXJzGAEgAygLMhcubmFtYS5odWIudjEuTGlua2VkVXNlciIlChdVbmxpbmtMaW5rZWRVc2VyUmVxdWVzdBIKCgJpZBgBIAEoCSIaChhVbmxpbmtMaW5rZWRVc2VyUmVzcG9uc2UiNQoUU3RhcnRVc2VyTGlua1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIMCgRuYW1lGAIgASgJIkYKFVN0YXJ0VXNlckxpbmtSZXNwb25zZRIRCgl1c2VyX2NvZGUYASABKAkSGgoSZXhwaXJlc19pbl9zZWNvbmRzGAIgASgFIiUKEkdldFVzZXJMaW5rUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDIiYKE0dldFVzZXJMaW5rUmVzcG9uc2USDwoHYWNjb3VudBgBIAEoCSIkChFVbmxpbmtVc2VyUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDIhQKElVubGlua1VzZXJSZXNwb25zZSI/ChlTZXRTZXJ2ZXJBZGRyZXNzZXNSZXF1ZXN0EgsKA3VybBgBIAEoCRIVCg1sYW5fYWRkcmVzc2VzGAIgAygJIhwKGlNldFNlcnZlckFkZHJlc3Nlc1Jlc3BvbnNlMswBChFTZXJ2ZXJMaW5rU2VydmljZRJcCg9TdGFydFNlcnZlckxpbmsSIy5uYW1hLmh1Yi52MS5TdGFydFNlcnZlckxpbmtSZXF1ZXN0GiQubmFtYS5odWIudjEuU3RhcnRTZXJ2ZXJMaW5rUmVzcG9uc2USWQoOUG9sbFNlcnZlckxpbmsSIi5uYW1hLmh1Yi52MS5Qb2xsU2VydmVyTGlua1JlcXVlc3QaIy5uYW1hLmh1Yi52MS5Qb2xsU2VydmVyTGlua1Jlc3BvbnNlMoEECgtMaW5rU2VydmljZRJiChFBcHByb3ZlU2VydmVyTGluaxIlLm5hbWEuaHViLnYxLkFwcHJvdmVTZXJ2ZXJMaW5rUmVxdWVzdBomLm5hbWEuaHViLnYxLkFwcHJvdmVTZXJ2ZXJMaW5rUmVzcG9uc2USZwoRTGlzdExpbmtlZFNlcnZlcnMSJS5uYW1hLmh1Yi52MS5MaXN0TGlua2VkU2VydmVyc1JlcXVlc3QaJi5uYW1hLmh1Yi52MS5MaXN0TGlua2VkU2VydmVyc1Jlc3BvbnNlIgOQAgESXAoPQXBwcm92ZVVzZXJMaW5rEiMubmFtYS5odWIudjEuQXBwcm92ZVVzZXJMaW5rUmVxdWVzdBokLm5hbWEuaHViLnYxLkFwcHJvdmVVc2VyTGlua1Jlc3BvbnNlEmEKD0xpc3RMaW5rZWRVc2VycxIjLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRVc2Vyc1JlcXVlc3QaJC5uYW1hLmh1Yi52MS5MaXN0TGlua2VkVXNlcnNSZXNwb25zZSIDkAIBEmQKEFVubGlua0xpbmtlZFVzZXISJC5uYW1hLmh1Yi52MS5VbmxpbmtMaW5rZWRVc2VyUmVxdWVzdBolLm5hbWEuaHViLnYxLlVubGlua0xpbmtlZFVzZXJSZXNwb25zZSIDkAICMtkDChNMaW5rZWRTZXJ2ZXJTZXJ2aWNlElMKDFVubGlua1NlcnZlchIgLm5hbWEuaHViLnYxLlVubGlua1NlcnZlclJlcXVlc3QaIS5uYW1hLmh1Yi52MS5VbmxpbmtTZXJ2ZXJSZXNwb25zZRJWCg1TdGFydFVzZXJMaW5rEiEubmFtYS5odWIudjEuU3RhcnRVc2VyTGlua1JlcXVlc3QaIi5uYW1hLmh1Yi52MS5TdGFydFVzZXJMaW5rUmVzcG9uc2USVQoLR2V0VXNlckxpbmsSHy5uYW1hLmh1Yi52MS5HZXRVc2VyTGlua1JlcXVlc3QaIC5uYW1hLmh1Yi52MS5HZXRVc2VyTGlua1Jlc3BvbnNlIgOQAgESUgoKVW5saW5rVXNlchIeLm5hbWEuaHViLnYxLlVubGlua1VzZXJSZXF1ZXN0Gh8ubmFtYS5odWIudjEuVW5saW5rVXNlclJlc3BvbnNlIgOQAgISagoSU2V0U2VydmVyQWRkcmVzc2VzEiYubmFtYS5odWIudjEuU2V0U2VydmVyQWRkcmVzc2VzUmVxdWVzdBonLm5hbWEuaHViLnYxLlNldFNlcnZlckFkZHJlc3Nlc1Jlc3BvbnNlIgOQAgJiBnByb3RvMw");
 
 /**
  * A Server registered with the Hub, owned by an Account.
@@ -38,6 +38,21 @@ export type LinkedServer = Message<"nama.hub.v1.LinkedServer"> & {
    * @generated from field: int64 linked_at = 3;
    */
   linkedAt: bigint;
+
+  /**
+   * The Server URL its Admin set, where people open its web app (ADR 0010), or empty for none.
+   *
+   * @generated from field: string url = 4;
+   */
+  url: string;
+
+  /**
+   * The Server Addresses a client tries, as the Server last reported them: its Server URL first,
+   * then its LAN addresses.
+   *
+   * @generated from field: repeated string addresses = 5;
+   */
+  addresses: string[];
 };
 
 /**
@@ -520,6 +535,45 @@ export const UnlinkUserResponseSchema: GenMessage<UnlinkUserResponse> = /*@__PUR
   messageDesc(file_nama_hub_v1_link, 23);
 
 /**
+ * @generated from message nama.hub.v1.SetServerAddressesRequest
+ */
+export type SetServerAddressesRequest = Message<"nama.hub.v1.SetServerAddressesRequest"> & {
+  /**
+   * The Server URL its Admin set, such as `https://nama.example.com`, or empty for none.
+   *
+   * @generated from field: string url = 1;
+   */
+  url: string;
+
+  /**
+   * The Server's LAN addresses, such as `http://192.168.1.10:7980`: at most 16.
+   *
+   * @generated from field: repeated string lan_addresses = 2;
+   */
+  lanAddresses: string[];
+};
+
+/**
+ * Describes the message nama.hub.v1.SetServerAddressesRequest.
+ * Use `create(SetServerAddressesRequestSchema)` to create a new message.
+ */
+export const SetServerAddressesRequestSchema: GenMessage<SetServerAddressesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 24);
+
+/**
+ * @generated from message nama.hub.v1.SetServerAddressesResponse
+ */
+export type SetServerAddressesResponse = Message<"nama.hub.v1.SetServerAddressesResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.SetServerAddressesResponse.
+ * Use `create(SetServerAddressesResponseSchema)` to create a new message.
+ */
+export const SetServerAddressesResponseSchema: GenMessage<SetServerAddressesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 25);
+
+/**
  * Registering a Server with the Hub, as an OAuth device flow (RFC 8628, ADR 0011): the Server
  * starts it and polls, and the holder of an Account enters the code it shows on the Hub's pages.
  * The Hub never calls a Server. Anyone may call it, since a Server not yet Linked has no identity.
@@ -575,7 +629,9 @@ export const LinkService: GenService<{
     output: typeof ApproveServerLinkResponseSchema;
   },
   /**
-   * Returns the signed-in Account's Linked Servers, oldest first.
+   * Returns the Linked Servers the signed-in Account owns or has a User on, oldest first, each
+   * with the Server Addresses a client tries. A client reaches a Server at those itself: the Hub
+   * never carries its calls or media (ADR 0094).
    *
    * @generated from rpc nama.hub.v1.LinkService.ListLinkedServers
    */
@@ -671,6 +727,18 @@ export const LinkedServerService: GenService<{
     methodKind: "unary";
     input: typeof UnlinkUserRequestSchema;
     output: typeof UnlinkUserResponseSchema;
+  },
+  /**
+   * Replaces the Server Addresses the calling Server reported before. The Server reports them
+   * whenever they change. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an
+   * `http` or `https` URL, or for too many.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.SetServerAddresses
+   */
+  setServerAddresses: {
+    methodKind: "unary";
+    input: typeof SetServerAddressesRequestSchema;
+    output: typeof SetServerAddressesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_hub_v1_link, 2);

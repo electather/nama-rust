@@ -16,6 +16,14 @@ const attic = create(LinkedServerSchema, {
   linkedAt: 1_700_000_000n,
 });
 
+const cabin = create(LinkedServerSchema, {
+  id: "0193-cabin",
+  name: "Cabin",
+  linkedAt: 1_700_000_000n,
+  url: "https://nama.example.com",
+  addresses: ["https://nama.example.com", "http://192.168.1.10:7980"],
+});
+
 const grace = create(LinkedUserSchema, {
   id: "0195-grace",
   name: "Grace",
@@ -33,12 +41,12 @@ function refused(code: Code, reason: RefusalReason) {
 /**
  * Opens the Account page, signed in as Ada, on a fake Hub where one Server, "Living room", shows
  * the code BDFH-JKLM, and its User Ida the code CDFG-HJKL, and entering either is refused for
- * `refusing`, if given. Ada's Account has Grace on Cabin Linked. With `listFails`, the Hub fails to
- * list the Account's Servers.
+ * `refusing`, if given. Ada's Account has Attic Linked, and Grace on Cabin, whose Admin set its
+ * Server URL. With `listFails`, the Hub fails to list the Account's Servers.
  */
 function openAccount(refusing?: RefusalReason, { listFails = false } = {}) {
   let session = true;
-  const servers = [attic];
+  const servers = [attic, cabin];
   let users = [grace];
   const transport = createRouterTransport(({ service }) => {
     service(AccountService, {
@@ -129,6 +137,16 @@ describe("linking a Server", () => {
       screen.findByText("Living room is Linked to your Account."),
     ).resolves.toBeDefined();
     await expect(screen.findByText("Living room", { selector: "span" })).resolves.toBeDefined();
+  });
+
+  test("a Server's name links to its Server URL, if its Admin set one", async () => {
+    openAccount();
+
+    const servers = within(await screen.findByRole("region", { name: "Your Servers" }));
+    const cabinLink = await servers.findByRole("link", { name: "Cabin" });
+
+    expect(cabinLink.getAttribute("href")).toBe("https://nama.example.com");
+    expect(servers.getByText("Attic").closest("a")).toBeNull();
   });
 
   test("a code no Server shows is said under the field", async () => {
