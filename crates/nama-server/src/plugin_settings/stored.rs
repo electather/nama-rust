@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use nama_plugin_api::{automation::Permission, settings::SettingValue};
+use nama_plugin_api::{PluginId, automation::Permission, settings::SettingValue};
 use nama_proto::nama::v1::PluginKind;
 use sqlx::SqliteConnection;
 
@@ -13,7 +13,7 @@ use crate::{
     db::Database,
     library::Libraries,
     playback::make_segments_due,
-    plugins::{Listed, Registry},
+    plugins::{Listed, OFF_UNTIL_ENABLED, Registry},
 };
 
 /// The `schema_meta` key whose presence records that the config was imported.
@@ -225,20 +225,25 @@ pub(super) async fn save_builtin_grants(
     builtin: &Grants,
 ) -> Result<(), sqlx::Error> {
     let rows = (builtin.iter())
-        .map(|(plugin_id, granted)| Ok((plugin_id.clone(), granted_names(granted)?)))
+        .map(|(plugin_id, granted)| {
+            let id = PluginId::from(plugin_id.clone());
+            let enabled = never_stored(&id, PluginKind::PLUGIN_KIND_BUILT_IN).enabled;
+            Ok((plugin_id.clone(), enabled, granted_names(granted)?))
+        })
         .collect::<Result<Vec<_>, sqlx::Error>>()?;
     if rows.is_empty() {
         return Ok(());
     }
     db.write(move |tx| {
         Box::pin(async move {
-            for (plugin_id, names) in rows {
+            for (plugin_id, enabled, names) in rows {
                 sqlx::query!(
                     "INSERT INTO plugin_settings (plugin_id, enabled, settings, granted_permissions)
-                     VALUES (?, TRUE, '{}', ?)
+                     VALUES (?, ?, '{}', ?)
                      ON CONFLICT (plugin_id) DO UPDATE
                      SET granted_permissions = excluded.granted_permissions",
                     plugin_id,
+                    enabled,
                     names
                 )
                 .execute(&mut **tx)
@@ -265,7 +270,7 @@ pub(super) fn with_stored(
 ) -> StoredPlugin {
     let stored = settings
         .remove(plugin.id.as_str())
-        .unwrap_or_else(|| never_stored(plugin.kind));
+        .unwrap_or_else(|| never_stored(&plugin.id, plugin.kind));
     let granted = grants.remove(plugin.id.as_str()).unwrap_or_default();
     StoredPlugin {
         plugin,
@@ -274,11 +279,12 @@ pub(super) fn with_stored(
     }
 }
 
-/// What a Plugin of `kind` with nothing stored starts as: no settings, and enabled only if it is
-/// Built-in. An Installed Plugin waits for an admin to enable it.
-pub(super) fn never_stored(kind: PluginKind) -> PluginConfig {
+/// What the Plugin `id` of `kind` with nothing stored starts as: no settings, and enabled only if
+/// it is Built-in and not one of [`OFF_UNTIL_ENABLED`]. An Installed Plugin waits for an admin to
+/// enable it.
+pub(super) fn never_stored(id: &PluginId, kind: PluginKind) -> PluginConfig {
     PluginConfig {
-        enabled: kind == PluginKind::PLUGIN_KIND_BUILT_IN,
+        enabled: kind == PluginKind::PLUGIN_KIND_BUILT_IN && !OFF_UNTIL_ENABLED.contains(id),
         settings: BTreeMap::new(),
     }
 }

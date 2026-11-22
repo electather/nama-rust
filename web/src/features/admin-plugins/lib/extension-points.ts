@@ -105,6 +105,11 @@ export const points: Partial<Record<ExtensionPoint, Shown & { means: string }>> 
     Icon: Shapes,
     means: "Says which titles are like a title, for its Similar titles.",
   },
+  [ExtensionPoint.SERVER_LINKER]: {
+    label: "Server Link",
+    Icon: Link,
+    means: "Links the Server to your Account on the Hub, from Settings’ Server section.",
+  },
 };
 
 /** What a point's failing calls leave undone, for the points where that isn't plain. */

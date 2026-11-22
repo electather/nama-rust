@@ -99,6 +99,8 @@ export function fakeServer(
       getServerSettings: () => ({ settings: {} }),
       getPlaybackSettings: () => ({ settings: {} }),
       getImageSettings: () => ({ settings: { resizeImages: true } }),
+      // No Plugin links the Server.
+      getServerLink: () => ({}),
       ...state.serverService,
     });
     router.service(SignInService, {

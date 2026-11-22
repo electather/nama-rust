@@ -1,0 +1,46 @@
+import { ServerLinkState } from "@/features/settings/components/server-link-state";
+import { useServerLink } from "@/features/settings/data/use-server-link";
+import { useStartServerLink } from "@/features/settings/data/use-start-server-link";
+import { useUnlinkServer } from "@/features/settings/data/use-unlink-server";
+import { linkFailure } from "@/features/settings/lib/server-link";
+
+/**
+ * Whether the Server is Linked to an Account on the Hub, and Linking or Unlinking it. Shown only
+ * while a Plugin that links the Server, the Hub Plugin, is enabled.
+ */
+export function ServerLink() {
+  const link = useServerLink();
+  const start = useStartServerLink();
+  const unlink = useUnlinkServer();
+  if (link === undefined) {
+    return null;
+  }
+  return (
+    <section aria-labelledby="server-link" className="flex flex-col gap-3.5">
+      <div>
+        <h4 id="server-link" className="font-medium">
+          Hub
+        </h4>
+        <p className="text-xs text-pretty text-muted-foreground">
+          What the Hub adds needs the Server Linked to your Account there. Without it, the Server
+          works just the same.
+        </p>
+      </div>
+      <ServerLinkState
+        link={link}
+        pending={start.isPending || unlink.isPending}
+        onStart={() => {
+          unlink.reset();
+          start.mutate({});
+        }}
+        onUnlink={() => {
+          start.reset();
+          unlink.mutate({});
+        }}
+      />
+      <p role="alert" className="text-sm text-destructive empty:hidden">
+        {linkFailure(start.error ?? unlink.error)}
+      </p>
+    </section>
+  );
+}

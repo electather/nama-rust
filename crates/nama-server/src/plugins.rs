@@ -40,6 +40,7 @@ use crate::{
 };
 
 pub(crate) use blob_store::PluginBlobs;
+pub(crate) use builtin::OFF_UNTIL_ENABLED;
 pub(crate) use contract::{download, notification, observed, request};
 pub use failing::Failing;
 pub(crate) use fulfilling::{
