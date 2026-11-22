@@ -2092,9 +2092,9 @@ pub trait UserService: Send + Sync + 'static {
         >,
     > + Send;
     /// Starts Linking the caller to an Account, replacing a code they were showing, and returns the
-    /// new one. A User Links to one Account. Fails with `REFUSAL_REASON_NO_SERVER_LINKER` without an
-    /// enabled Plugin that links the Server, and with `unavailable` if the Plugin couldn't start, such
-    /// as with the Hub unreachable or the caller Linked already.
+    /// new one. A User Links to one Account, so a caller Linked already gets that Link back. Fails
+    /// with `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled Plugin that links the Server, and
+    /// with `unavailable` if the Plugin couldn't start, such as with the Hub unreachable.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

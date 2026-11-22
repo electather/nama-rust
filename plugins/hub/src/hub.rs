@@ -109,13 +109,13 @@ impl Hub {
     }
 
     /// Starts Linking the User `user_id`, named `name`, of the Server whose credential is
-    /// `credential`.
+    /// `credential`: `None` if they are Linked already, the Hub's one `already_exists`.
     pub(crate) async fn start_user(
         &self,
         credential: &str,
         user_id: i64,
         name: &str,
-    ) -> Result<StartUserLinkResponse, PluginError> {
+    ) -> Result<Option<StartUserLinkResponse>, PluginError> {
         let started = self
             .linked_server(credential)?
             .start_user_link(StartUserLinkRequest {
@@ -123,8 +123,12 @@ impl Hub {
                 name: name.to_owned(),
                 ..Default::default()
             })
-            .await?;
-        Ok(started.into_owned())
+            .await;
+        match started {
+            Ok(started) => Ok(Some(started.into_owned())),
+            Err(err) if err.code == connectrpc::ErrorCode::AlreadyExists => Ok(None),
+            Err(err) => Err(err.into()),
+        }
     }
 
     /// The email of the Account the User `user_id` is Linked to, empty while they aren't.

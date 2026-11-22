@@ -307,6 +307,39 @@ async fn a_linked_users_settings_dont_ask_the_hub_each_time() {
 }
 
 #[tokio::test]
+async fn a_user_linked_already_who_starts_linking_sees_their_link() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+    assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
+    hub.link_user_on_hub(7);
+
+    let started = linker.start_user_link(7, "Grace").await.unwrap();
+
+    let their_link = Link::Linked {
+        account: EMAIL.to_owned(),
+    };
+    assert_eq!(started, their_link);
+    assert_eq!(linker.user_link(7).await.unwrap(), Some(their_link));
+}
+
+#[tokio::test]
+async fn a_server_linked_again_doesnt_show_its_users_old_links_while_the_hub_is_unreachable() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    let linker = enabled(&hub, &kernel);
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+    linker.unlink().await.unwrap();
+    link(&hub, linker.as_ref()).await;
+    hub.stop();
+
+    let link = enabled(&hub, &kernel).user_link(7).await.unwrap();
+
+    assert_eq!(link, Some(Link::NotLinked));
+}
+
+#[tokio::test]
 async fn a_server_linked_again_doesnt_show_its_users_old_links() {
     let hub = FakeHub::start().await;
     let linker = enabled(&hub, &store());

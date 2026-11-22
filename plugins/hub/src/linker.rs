@@ -9,6 +9,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use nama_plugin_api::{
     BoxFuture, PluginError,
     automation::{
@@ -18,6 +19,7 @@ use nama_plugin_api::{
     contract::{StoreEntry, StoreKey},
     server_link::{Link, ServerLinker},
 };
+use ring::digest;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
@@ -49,6 +51,13 @@ struct Kept {
     /// The Account's email, as the Hub's signed token named it; `None` if the token couldn't be
     /// checked when the credential came.
     account: Option<String>,
+}
+
+impl Kept {
+    /// Names this Link apart from the Server's earlier ones, without holding its credential.
+    fn id(&self) -> String {
+        URL_SAFE_NO_PAD.encode(digest::digest(&digest::SHA256, self.credential.as_bytes()))
+    }
 }
 
 /// Who a Link whose token couldn't be checked belongs to, as Settings shows it.
@@ -153,8 +162,8 @@ impl Linker {
         };
         self.hub.unlink(&kept.credential).await?;
         self.kernel.ask::<StoreDelete>(store_key(LINK_KEY)).await?;
-        // The Hub Unlinked the Server's Users with it: their codes are gone, and once Linked again
-        // the Server asks the Hub before showing a User as Linked.
+        // The Hub Unlinked the Server's Users with it: their codes are gone, and what the Store
+        // keeps of their Links names this Link, so none shows once the Server is Linked again.
         self.users
             .lock()
             .unwrap_or_else(PoisonError::into_inner)

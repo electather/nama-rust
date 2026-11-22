@@ -31,9 +31,6 @@ pub(super) const USER_CODE: &str = "BDFH-JKLM";
 /// The one code the fake gives a User.
 pub(super) const USER_LINK_CODE: &str = "CDFG-HJKL";
 
-/// The credential the fake hands out once the code is entered.
-pub(super) const CREDENTIAL: &str = "the-credential";
-
 /// The email of the Account the code is entered by.
 pub(super) const EMAIL: &str = "ada@example.com";
 
@@ -45,6 +42,9 @@ struct State {
     entered: bool,
     /// Whether the Server holds a credential the fake knows.
     linked: bool,
+    /// How many credentials the fake handed out. Each Link gets a new one, as on the Hub, and only
+    /// the last works.
+    credentials: usize,
     key_set_fetches: usize,
     /// What the key set answers in place of the keys, if anything.
     key_set_failure: Option<StatusCode>,
@@ -117,6 +117,13 @@ impl FakeHub {
         if state.user_codes.remove(&user_id).is_some() {
             state.user_accounts.insert(user_id, EMAIL.to_owned());
         }
+    }
+
+    /// An Account Links the User `user_id` on the Hub, as through a code another Device showed.
+    pub(super) fn link_user_on_hub(&self, user_id: i64) {
+        let mut state = lock(&self.state);
+        state.user_codes.remove(&user_id);
+        state.user_accounts.insert(user_id, EMAIL.to_owned());
     }
 
     /// The Account Unlinks the User `user_id` on the Hub.
@@ -224,6 +231,7 @@ impl ServerLinkService for Starting {
         }
         state.starting = None;
         state.linked = true;
+        state.credentials += 1;
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -234,7 +242,7 @@ impl ServerLinkService for Starting {
         );
         Response::ok(PollServerLinkResponse {
             linked: true,
-            credential: CREDENTIAL.to_owned(),
+            credential: credential(state.credentials),
             token,
             ..Default::default()
         })
@@ -312,7 +320,7 @@ impl Linked {
     /// What the fake knows, if the call carries the credential of the Server it has Linked.
     fn caller(&self, ctx: &RequestContext) -> Result<MutexGuard<'_, State>, ConnectError> {
         let state = lock(&self.0.state);
-        let bearer = format!("Bearer {CREDENTIAL}");
+        let bearer = format!("Bearer {}", credential(state.credentials));
         if !state.linked
             || ctx
                 .header("authorization")
@@ -322,6 +330,11 @@ impl Linked {
         }
         Ok(state)
     }
+}
+
+/// The `nth` credential the fake hands out.
+fn credential(nth: usize) -> String {
+    format!("credential-{nth}")
 }
 
 fn lock(state: &Mutex<State>) -> MutexGuard<'_, State> {

@@ -62,11 +62,11 @@ pub trait ServerLinker: Send + Sync + 'static {
     fn user_link(&self, user_id: i64) -> BoxFuture<'_, Result<Option<Link>, PluginError>>;
 
     /// Starts Linking the User `user_id`, whom the service lists as `user_name`, replacing any
-    /// code they wait on, and answers the new code.
+    /// code they wait on, and answers the new code, or their Link if they are Linked already.
     ///
     /// # Errors
     ///
-    /// When the Server isn't Linked, the User is Linked already, or the service couldn't be asked.
+    /// When the Server isn't Linked, or the service couldn't be asked.
     fn start_user_link<'a>(
         &'a self,
         user_id: i64,
