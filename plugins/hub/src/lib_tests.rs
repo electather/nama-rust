@@ -711,10 +711,12 @@ async fn a_change_told_after_a_later_one_of_the_same_title_is_dropped() {
 async fn a_user_who_isnt_linked_keeps_their_watch_state_on_the_server() {
     let hub = FakeHub::start().await;
     let (observer, jobs) = syncing_user_7(&hub).await;
+    let asks = hub.user_link_asks();
 
     tell(observer.as_ref(), 8, vec![movie_at(348, 1000, 1_000)]).await;
     run_sync(jobs.as_ref()).await.unwrap();
 
+    assert_eq!(hub.user_link_asks(), asks + 1);
     assert_eq!(hub.pushes(), Vec::<Vec<HubChange>>::new());
 }
 
@@ -733,19 +735,21 @@ async fn a_user_linked_on_the_hub_has_their_changes_pushed_though_settings_never
 }
 
 #[tokio::test]
-async fn a_user_whose_link_the_hub_cant_be_asked_about_has_nothing_queued() {
+async fn a_user_whose_link_the_hub_cant_be_asked_about_has_nothing_queued_and_isnt_asked_again() {
     let hub = FakeHub::start().await;
     let kernel = store();
     link(&hub, enabled(&hub, &kernel).as_ref()).await;
     hub.link_user_on_hub(7);
-    hub.stop();
-    // Enabled again, so no connection made before the stop still reaches the Hub.
+    hub.fail_user_links();
     let (observer, jobs) = syncing(&hub, &kernel);
+    let asks = hub.user_link_asks();
 
     tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
-
-    // A queued change would fail to reach the unreachable Hub.
+    tell(observer.as_ref(), 7, vec![movie_at(348, 2000, 2_000)]).await;
     run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(hub.user_link_asks(), asks + 1);
+    assert_eq!(hub.pushes(), Vec::<Vec<HubChange>>::new());
 }
 
 #[tokio::test]

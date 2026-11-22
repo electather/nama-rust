@@ -17,8 +17,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{Kept, Linker, store_key};
 
-/// How long what the Hub last said of a User's Link stands before Settings asks it again, so
-/// opening Settings doesn't call the Hub every time (ADR 0094). While a code waits, it asks every
+/// How long after the Hub was last asked of a User's Link the Plugin asks it again, so opening
+/// Settings or changing Watch State doesn't call the Hub every time (ADR 0094). While a code waits, it asks every
 /// time, which is how the Plugin learns the code was entered.
 const ASK_AGAIN_AFTER: Duration = Duration::from_secs(60);
 
@@ -38,7 +38,7 @@ struct KeptUser {
 pub(super) struct UserState {
     /// The code they show, and when it stops working.
     code: Option<(String, Instant)>,
-    /// When the Hub last said whether they are Linked.
+    /// When the Hub was last asked whether they are Linked.
     asked: Option<Instant>,
 }
 
@@ -52,9 +52,11 @@ impl Linker {
             return Ok(None);
         };
         if self.asks_hub(user_id) {
-            // Unreachable, the Hub says nothing, and what it said last stands.
-            if let Ok(account) = self.hub.user_account(&kept.credential, user_id).await {
-                self.remember_account(user_id, &kept, &account).await?;
+            match self.hub.user_account(&kept.credential, user_id).await {
+                Ok(account) => self.remember_account(user_id, &kept, &account).await?,
+                // What it said last stands, and it isn't asked again until it's due, so an outage
+                // doesn't make every Watch State change call it.
+                Err(_) => self.with_user(user_id, |user| user.asked = Some(Instant::now())),
             }
         }
         Ok(Some(match self.kept_account(user_id, &kept).await? {
