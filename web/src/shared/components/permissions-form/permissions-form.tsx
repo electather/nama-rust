@@ -4,7 +4,7 @@ import type { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { FormEnd } from "@/shared/components/form-field/form-end";
 import { PermissionChoices } from "@/shared/components/permissions-form/permission-choices";
 import { onSubmitted } from "@/shared/lib/forms";
-import type { PermissionChoice } from "@/shared/lib/permissions";
+import { type PermissionChoice, toggledPermissions } from "@/shared/lib/permissions";
 
 /**
  * The Permissions of `offer` as checkboxes, with each one's children under it, after any other
@@ -25,7 +25,7 @@ export function PermissionsForm({
 }) {
   const [held, setHeld] = useState(initial);
   const toggle = (permission: Permission, checked: boolean) => {
-    setHeld(checked ? [...held, permission] : held.filter((each) => each !== permission));
+    setHeld(toggledPermissions(held, permission, checked));
   };
   return (
     <form

@@ -86,6 +86,11 @@ export function isCovered(held: Permission[], permission: Permission) {
   );
 }
 
+/** `held` with `permission` checked or unchecked. */
+export function toggledPermissions(held: Permission[], permission: Permission, checked: boolean) {
+  return checked ? [...held, permission] : held.filter((each) => each !== permission);
+}
+
 /** Whether `user` may do what `permission` allows, by holding it or one that covers it. */
 export function may(user: User | undefined, permission: Permission) {
   const held = user?.permissions ?? [];

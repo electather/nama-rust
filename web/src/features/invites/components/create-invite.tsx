@@ -15,7 +15,7 @@ export function CreateInvite({ you }: { you: User | undefined }) {
   const offer = permissionsToInvite(you);
   const errors = createInviteErrors(create.error);
   return (
-    <div className="mt-4">
+    <div className="mt-4 max-w-sm">
       <PermissionsForm
         initial={defaults.filter((held) => offer.some((choice) => choice.permission === held))}
         offer={offer}

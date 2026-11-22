@@ -1,5 +1,5 @@
 import { Code } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
@@ -8,6 +8,15 @@ import { admin, fakeServer, newUser, openApp, type ServerState } from "@/test-ap
 import { refused } from "@/test-refusal";
 
 afterEach(cleanup);
+
+/** Settings' Users section, the address a test opens it at. */
+const usersSection = "/code?settings=users";
+
+/** Opens `name`'s details from the list of Users, once they're in its place. */
+async function openUser(name: string) {
+  fireEvent.click(await screen.findByRole("link", { name }));
+  await screen.findByRole("region", { name });
+}
 
 /** A User the fake Server keeps, whose Permissions a test changes. */
 interface Holder {
@@ -29,16 +38,16 @@ test("saved Permissions are there after reloading", async () => {
       },
     },
   );
-  openApp("/admin/users", server);
+  openApp(usersSection, server);
 
-  fireEvent.click(await screen.findByText("Alex"));
+  await openUser("Alex");
   fireEvent.click(await screen.findByRole("checkbox", { name: "Manage Libraries" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "View Requests" }));
   fireEvent.click(screen.getByRole("button", { name: "Save Permissions" }));
   await screen.findByText("Permissions saved.");
   cleanup();
-  openApp("/admin/users", server);
-  fireEvent.click(await screen.findByText("Alex"));
+  openApp(usersSection, server);
+  await openUser("Alex");
 
   await expect(screen.findByRole("checkbox", { name: "Manage Libraries" })).resolves.toHaveProperty(
     "checked",
@@ -50,7 +59,7 @@ test("saved Permissions are there after reloading", async () => {
 
 test("a checked parent Permission shows its children as covered", async () => {
   openApp(
-    "/admin/users",
+    usersSection,
     fakeServer(
       { signedIn: admin },
       {},
@@ -58,7 +67,7 @@ test("a checked parent Permission shows its children as covered", async () => {
     ),
   );
 
-  fireEvent.click(await screen.findByText("Alex"));
+  await openUser("Alex");
   const movies = await screen.findByRole("checkbox", { name: "Request Movies" });
   expect(movies).toMatchObject({ checked: true, disabled: true });
 
@@ -82,7 +91,7 @@ test.each([
   ],
 ])("saving Permissions says why the Server refused %s", async (_, refusal, shown) => {
   openApp(
-    "/admin/users",
+    usersSection,
     fakeServer(
       { signedIn: admin },
       {},
@@ -95,14 +104,14 @@ test.each([
     ),
   );
 
-  fireEvent.click(await screen.findByText("Sam"));
+  await openUser("Sam");
   fireEvent.click(await screen.findByRole("checkbox", { name: "Admin" }));
   fireEvent.click(screen.getByRole("button", { name: "Save Permissions" }));
 
   await expect(screen.findByText(shown)).resolves.toBeDefined();
 });
 
-test("removing your own Admin Permission leaves the Admin pages", async () => {
+test("removing your own Admin Permission takes Users out of Settings", async () => {
   const state: ServerState = { signedIn: admin };
   const users = [
     { id: 1n, name: "Sam", permissions: admin },
@@ -110,7 +119,7 @@ test("removing your own Admin Permission leaves the Admin pages", async () => {
   ];
   let listUsers = () => ({ users });
   openApp(
-    "/admin/users",
+    usersSection,
     fakeServer(
       state,
       {},
@@ -131,21 +140,22 @@ test("removing your own Admin Permission leaves the Admin pages", async () => {
     ),
   );
 
-  fireEvent.click(await screen.findByText("Sam"));
+  await openUser("Sam");
   fireEvent.click(await screen.findByRole("checkbox", { name: "Admin" }));
   fireEvent.click(screen.getByRole("button", { name: "Save Permissions" }));
 
   await expect(
-    screen.findByRole("heading", { name: "You can’t open this page" }),
+    screen.findByRole("link", { name: "Playback", current: "page" }),
   ).resolves.toBeDefined();
+  expect(screen.queryByRole("link", { name: "Users" })).toBeNull();
   expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
 });
 
-test("removing your own Admin Permission but keeping Manage Users leaves only Users in the Admin nav", async () => {
+test("removing your own Admin Permission but keeping Manage Users leaves only Users in Settings' Admin group", async () => {
   const state: ServerState = { signedIn: admin };
   let sam: Holder = { id: 1n, name: "Sam", permissions: [...admin] };
   openApp(
-    "/admin/users",
+    usersSection,
     fakeServer(
       state,
       {},
@@ -160,48 +170,53 @@ test("removing your own Admin Permission but keeping Manage Users leaves only Us
     ),
   );
 
-  fireEvent.click(await screen.findByText("Sam"));
+  await openUser("Sam");
   fireEvent.click(await screen.findByRole("checkbox", { name: "Admin" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "Manage Users" }));
   fireEvent.click(screen.getByRole("button", { name: "Save Permissions" }));
 
-  const nav = await screen.findByRole("navigation", { name: "Admin" });
   await waitFor(() => {
-    expect(within(nav).queryByRole("link", { name: "Libraries" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Server" })).toBeNull();
   });
-  expect(within(nav).getByRole("link", { name: "Users" })).toBeDefined();
+  expect(screen.getByRole("region", { name: "Sam" })).toBeDefined();
+  expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
 });
 
-test("without the Admin Permission, only a non-Admin's Permissions can be changed, and never to Admin", async () => {
-  openApp(
-    "/admin/users",
-    fakeServer(
-      { signedIn: [Permission.MANAGE_USERS] },
-      {},
-      {
-        listUsers: () => ({
-          users: [
-            { id: 1n, name: "Sam", permissions: [Permission.MANAGE_USERS] },
-            { id: 2n, name: "Alex", permissions: newUser },
-            { id: 3n, name: "Pat", permissions: admin },
-          ],
-        }),
-      },
-    ),
-  );
+// Sam is you, and Pat is an Admin.
+test.each([
+  { name: "Sam", changeable: false },
+  { name: "Alex", changeable: true },
+  { name: "Pat", changeable: false },
+])(
+  "without the Admin Permission, whether $name's Permissions can be changed is $changeable, never to Admin",
+  async ({ name, changeable }) => {
+    openApp(
+      usersSection,
+      fakeServer(
+        { signedIn: [Permission.MANAGE_USERS] },
+        {},
+        {
+          listUsers: () => ({
+            users: [
+              { id: 1n, name: "Sam", permissions: [Permission.MANAGE_USERS] },
+              { id: 2n, name: "Alex", permissions: newUser },
+              { id: 3n, name: "Pat", permissions: admin },
+            ],
+          }),
+        },
+      ),
+    );
 
-  fireEvent.click(await screen.findByText("Sam"));
-  fireEvent.click(screen.getByText("Alex"));
-  fireEvent.click(screen.getByText("Pat"));
+    await openUser(name);
 
-  await expect(screen.findAllByRole("button", { name: "Save Permissions" })).resolves.toHaveLength(
-    1,
-  );
-  expect(screen.getByRole("checkbox", { name: "Request" })).toBeDefined();
-  expect(screen.queryByRole("checkbox", { name: "Admin" })).toBeNull();
-});
+    await screen.findByRole("button", { name: /^Delete /u });
+    expect(screen.queryByRole("button", { name: "Save Permissions" }) !== null).toBe(changeable);
+    expect(screen.queryByRole("checkbox", { name: "Request" }) !== null).toBe(changeable);
+    expect(screen.queryByRole("checkbox", { name: "Admin" })).toBeNull();
+  },
+);
 
-test("saved default Permissions are named on the Users page after reloading", async () => {
+test("default Permissions are saved as they're changed, and are there after reloading", async () => {
   let defaults: Permission[] = [...newUser];
   const server = fakeServer(
     { signedIn: admin },
@@ -215,35 +230,64 @@ test("saved default Permissions are named on the Users page after reloading", as
       },
     },
   );
-  openApp("/admin/users", server);
+  openApp(usersSection, server);
 
-  await expect(screen.findByText("Request · View Requests")).resolves.toBeDefined();
-  fireEvent.click(screen.getByRole("button", { name: "Change" }));
-  fireEvent.click(screen.getByRole("checkbox", { name: "Request" }));
+  fireEvent.click(await screen.findByRole("checkbox", { name: "Request" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "Request Movies" }));
-  fireEvent.click(screen.getByRole("button", { name: "Save default Permissions" }));
-  await screen.findByText("Default Permissions saved.");
+  await waitFor(() => {
+    expect(defaults).toStrictEqual([Permission.VIEW_REQUESTS, Permission.REQUEST_MOVIE]);
+  });
   cleanup();
-  openApp("/admin/users", server);
+  openApp(usersSection, server);
 
-  await expect(screen.findByText("Request Movies · View Requests")).resolves.toBeDefined();
-  expect(defaults).toStrictEqual([Permission.VIEW_REQUESTS, Permission.REQUEST_MOVIE]);
+  await expect(screen.findByRole("checkbox", { name: "Request Movies" })).resolves.toHaveProperty(
+    "checked",
+    true,
+  );
+  expect(screen.getByRole("checkbox", { name: "Request" })).toHaveProperty("checked", false);
+  expect(screen.queryByRole("button", { name: /Save/u })).toBeNull();
 });
 
-test("without the Admin Permission, default Permissions holding Admin can't be changed", async () => {
+test("a refused change to the default Permissions is undone, and says why", async () => {
   openApp(
-    "/admin/users",
+    usersSection,
+    fakeServer(
+      { signedIn: admin },
+      {},
+      {
+        listUsers: () => ({ users: [] }),
+        getDefaultPermissions: () => ({ permissions: newUser }),
+        setDefaultPermissions: () => {
+          throw refused(Code.PermissionDenied, "refused", {
+            reason: RefusalReason.PERMISSION_REQUIRED,
+            params: { permission: "PERMISSION_ADMIN" },
+          });
+        },
+      },
+    ),
+  );
+
+  const request = await screen.findByRole("checkbox", { name: "Request" });
+  fireEvent.click(request);
+
+  await expect(screen.findByText("This needs the Admin Permission.")).resolves.toBeDefined();
+  expect(request).toHaveProperty("checked", true);
+});
+
+test("without the Admin Permission, default Permissions holding Admin are named, not changed", async () => {
+  openApp(
+    usersSection,
     fakeServer(
       { signedIn: [Permission.MANAGE_USERS] },
       {},
       {
         listUsers: () => ({ users: [] }),
-        getDefaultPermissions: () => ({ permissions: admin }),
+        getDefaultPermissions: () => ({ permissions: [Permission.ADMIN, Permission.REQUEST] }),
       },
     ),
   );
 
-  const defaults = await screen.findByRole("region", { name: "Default Permissions" });
-  expect(within(defaults).getByText("Admin")).toBeDefined();
-  expect(within(defaults).queryByRole("button", { name: "Change" })).toBeNull();
+  await expect(screen.findByText("Admin · Request")).resolves.toBeDefined();
+  expect(screen.queryByRole("checkbox", { name: "Admin" })).toBeNull();
+  expect(screen.queryByRole("checkbox", { name: "Request" })).toBeNull();
 });

@@ -10,6 +10,7 @@ const sections = [
   "requests",
   "connections",
   "server",
+  "users",
   "plugins",
 ] as const;
 
@@ -27,8 +28,8 @@ export function sectionParam(value: unknown): Section | undefined {
   return sections.find((each) => each === value) ?? firstSection;
 }
 
-/** The Plugin `?plugin=` asks the Plugins section to open: none without it. */
-export function pluginParam(value: unknown) {
+/** The id `?plugin=` or `?user=` asks its section to open: none without it. */
+export function idParam(value: unknown) {
   // The router reads an id made of digits as a number.
   return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
 }
@@ -42,6 +43,7 @@ export const sectionTitles: Record<Section, string> = {
   requests: "Requests",
   connections: "Connections",
   server: "Server",
+  users: "Users",
   plugins: "Plugins",
 };
 
@@ -54,6 +56,7 @@ export const loadNouns: Record<Section, string> = {
   requests: "your Requests settings",
   connections: "your Connections",
   server: "the Server settings",
+  users: "the Users",
   plugins: "the Plugins",
 };
 
@@ -66,6 +69,7 @@ const searchWords: Record<Section, string> = {
   requests: "quality movies shows request",
   connections: "telegram plugin messages notifications personal",
   server: "server url address images resize space storage store",
+  users: "users people accounts invite invites permissions password",
   plugins: "plugin telegram install",
 };
 
@@ -79,13 +83,14 @@ export interface SectionGroup {
 const needs: Partial<Record<Section, Permission>> = {
   requests: Permission.CHOOSE_QUALITY,
   server: Permission.MANAGE_SETTINGS,
+  users: Permission.MANAGE_USERS,
   plugins: Permission.MANAGE_SETTINGS,
 };
 
 const groups: SectionGroup[] = [
   { label: "You", items: ["signin", "devices"] },
   { label: "Preferences", items: ["playback", "home", "requests", "connections"] },
-  { label: "Admin", items: ["server", "plugins"] },
+  { label: "Admin", items: ["server", "users", "plugins"] },
 ];
 
 /** The sections `user` may open, grouped as the sidebar lists them. */

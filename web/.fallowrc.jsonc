@@ -172,10 +172,12 @@
       },
       {
         "from": "settings",
-        // Its Plugins pane lists the Plugins page's rows.
+        // Its Plugins and Users panes render the Plugins and Users pages' parts.
         "allow": [
           "settings",
           "admin-plugins",
+          "admin-users",
+          "invites",
           "shared-components",
           "shared-ui",
           "shared-hooks",
