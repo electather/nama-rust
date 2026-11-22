@@ -1,6 +1,6 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { fireEvent, screen, within } from "@testing-library/react";
-import { describe, expect, test } from "vite-plus/test";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, test } from "vite-plus/test";
 
 import { PlaybackMethod, PlaybackReasonKind } from "@/gen/nama/v1/playback_pb";
 import {
@@ -11,6 +11,8 @@ import {
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { admin, eventFeed, fakeServer, fill } from "@/test-app";
 import { openSettings } from "@/test-settings";
+
+afterEach(cleanup);
 
 type Play = MessageInitShape<typeof PlaySchema>;
 

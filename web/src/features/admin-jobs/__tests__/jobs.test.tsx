@@ -1,6 +1,6 @@
 import { Code, ConnectError } from "@connectrpc/connect";
-import { fireEvent, screen, within } from "@testing-library/react";
-import { describe, expect, test, vi } from "vite-plus/test";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
 import { type ConfigureJobRequest, JobRunOutcome, JobService } from "@/gen/nama/v1/job_pb";
 import { PluginLogLevel } from "@/gen/nama/v1/plugin_pb";
@@ -9,6 +9,8 @@ import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { admin, fakeServer, openApp } from "@/test-app";
 import { refused } from "@/test-refusal";
 import { openSettings } from "@/test-settings";
+
+afterEach(cleanup);
 
 const HOUR = 3_600_000n;
 const DAY = 24n * HOUR;
