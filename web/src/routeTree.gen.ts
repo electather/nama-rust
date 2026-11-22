@@ -32,8 +32,6 @@ import { Route as MemberAdminAdminIndexRouteImport } from './routes/_member/_adm
 import { Route as MemberLibrariesLibraryIdIndexRouteImport } from './routes/_member/libraries/$libraryId/index'
 import { Route as SignedOutSignInCodeIndexRouteImport } from './routes/_signed-out/sign-in.code.index'
 import { Route as SignedOutSignInCodeWaitingRouteImport } from './routes/_signed-out/sign-in.code.waiting'
-import { Route as MemberAdminAdminLibrariesIndexRouteImport } from './routes/_member/_admin/admin/libraries/index'
-import { Route as MemberAdminAdminLibrariesLibraryIdRouteImport } from './routes/_member/_admin/admin/libraries/$libraryId'
 import { Route as MemberLibrariesLibraryIdMoviesMovieIdIndexRouteImport } from './routes/_member/libraries/$libraryId/movies/$movieId/index'
 import { Route as MemberLibrariesLibraryIdMoviesMovieIdPlayRouteImport } from './routes/_member/libraries/$libraryId/movies/$movieId/play'
 import { Route as MemberLibrariesLibraryIdShowsShowIdIndexRouteImport } from './routes/_member/libraries/$libraryId/shows/$showId/index'
@@ -155,18 +153,6 @@ const SignedOutSignInCodeWaitingRoute =
     path: '/code/waiting',
     getParentRoute: () => SignedOutSignInRoute,
   } as any)
-const MemberAdminAdminLibrariesIndexRoute =
-  MemberAdminAdminLibrariesIndexRouteImport.update({
-    id: '/admin/libraries/',
-    path: '/admin/libraries/',
-    getParentRoute: () => MemberAdminRoute,
-  } as any)
-const MemberAdminAdminLibrariesLibraryIdRoute =
-  MemberAdminAdminLibrariesLibraryIdRouteImport.update({
-    id: '/admin/libraries/$libraryId',
-    path: '/admin/libraries/$libraryId',
-    getParentRoute: () => MemberAdminRoute,
-  } as any)
 const MemberLibrariesLibraryIdMoviesMovieIdIndexRoute =
   MemberLibrariesLibraryIdMoviesMovieIdIndexRouteImport.update({
     id: '/libraries/$libraryId/movies/$movieId/',
@@ -221,8 +207,6 @@ export interface FileRoutesByFullPath {
   '/admin/': typeof MemberAdminAdminIndexRoute
   '/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
   '/sign-in/code/': typeof SignedOutSignInCodeIndexRoute
-  '/admin/libraries/$libraryId': typeof MemberAdminAdminLibrariesLibraryIdRoute
-  '/admin/libraries/': typeof MemberAdminAdminLibrariesIndexRoute
   '/libraries/$libraryId/movies/$movieId/play': typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
   '/libraries/$libraryId/unmatched/$versionId/play': typeof MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute
   '/libraries/$libraryId/movies/$movieId/': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
@@ -248,8 +232,6 @@ export interface FileRoutesByTo {
   '/admin': typeof MemberAdminAdminIndexRoute
   '/libraries/$libraryId': typeof MemberLibrariesLibraryIdIndexRoute
   '/sign-in/code': typeof SignedOutSignInCodeIndexRoute
-  '/admin/libraries/$libraryId': typeof MemberAdminAdminLibrariesLibraryIdRoute
-  '/admin/libraries': typeof MemberAdminAdminLibrariesIndexRoute
   '/libraries/$libraryId/movies/$movieId/play': typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
   '/libraries/$libraryId/unmatched/$versionId/play': typeof MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute
   '/libraries/$libraryId/movies/$movieId': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
@@ -281,8 +263,6 @@ export interface FileRoutesById {
   '/_member/_admin/admin/': typeof MemberAdminAdminIndexRoute
   '/_member/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
   '/_signed-out/sign-in/code/': typeof SignedOutSignInCodeIndexRoute
-  '/_member/_admin/admin/libraries/$libraryId': typeof MemberAdminAdminLibrariesLibraryIdRoute
-  '/_member/_admin/admin/libraries/': typeof MemberAdminAdminLibrariesIndexRoute
   '/_member/libraries/$libraryId/movies/$movieId/play': typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
   '/_member/libraries/$libraryId/unmatched/$versionId/play': typeof MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute
   '/_member/libraries/$libraryId/movies/$movieId/': typeof MemberLibrariesLibraryIdMoviesMovieIdIndexRoute
@@ -312,8 +292,6 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/libraries/$libraryId/'
     | '/sign-in/code/'
-    | '/admin/libraries/$libraryId'
-    | '/admin/libraries/'
     | '/libraries/$libraryId/movies/$movieId/play'
     | '/libraries/$libraryId/unmatched/$versionId/play'
     | '/libraries/$libraryId/movies/$movieId/'
@@ -339,8 +317,6 @@ export interface FileRouteTypes {
     | '/admin'
     | '/libraries/$libraryId'
     | '/sign-in/code'
-    | '/admin/libraries/$libraryId'
-    | '/admin/libraries'
     | '/libraries/$libraryId/movies/$movieId/play'
     | '/libraries/$libraryId/unmatched/$versionId/play'
     | '/libraries/$libraryId/movies/$movieId'
@@ -371,8 +347,6 @@ export interface FileRouteTypes {
     | '/_member/_admin/admin/'
     | '/_member/libraries/$libraryId/'
     | '/_signed-out/sign-in/code/'
-    | '/_member/_admin/admin/libraries/$libraryId'
-    | '/_member/_admin/admin/libraries/'
     | '/_member/libraries/$libraryId/movies/$movieId/play'
     | '/_member/libraries/$libraryId/unmatched/$versionId/play'
     | '/_member/libraries/$libraryId/movies/$movieId/'
@@ -548,20 +522,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedOutSignInCodeWaitingRouteImport
       parentRoute: typeof SignedOutSignInRoute
     }
-    '/_member/_admin/admin/libraries/': {
-      id: '/_member/_admin/admin/libraries/'
-      path: '/admin/libraries'
-      fullPath: '/admin/libraries/'
-      preLoaderRoute: typeof MemberAdminAdminLibrariesIndexRouteImport
-      parentRoute: typeof MemberAdminRoute
-    }
-    '/_member/_admin/admin/libraries/$libraryId': {
-      id: '/_member/_admin/admin/libraries/$libraryId'
-      path: '/admin/libraries/$libraryId'
-      fullPath: '/admin/libraries/$libraryId'
-      preLoaderRoute: typeof MemberAdminAdminLibrariesLibraryIdRouteImport
-      parentRoute: typeof MemberAdminRoute
-    }
     '/_member/libraries/$libraryId/movies/$movieId/': {
       id: '/_member/libraries/$libraryId/movies/$movieId/'
       path: '/libraries/$libraryId/movies/$movieId'
@@ -602,15 +562,10 @@ declare module '@tanstack/react-router' {
 
 interface MemberAdminRouteChildren {
   MemberAdminAdminIndexRoute: typeof MemberAdminAdminIndexRoute
-  MemberAdminAdminLibrariesLibraryIdRoute: typeof MemberAdminAdminLibrariesLibraryIdRoute
-  MemberAdminAdminLibrariesIndexRoute: typeof MemberAdminAdminLibrariesIndexRoute
 }
 
 const MemberAdminRouteChildren: MemberAdminRouteChildren = {
   MemberAdminAdminIndexRoute: MemberAdminAdminIndexRoute,
-  MemberAdminAdminLibrariesLibraryIdRoute:
-    MemberAdminAdminLibrariesLibraryIdRoute,
-  MemberAdminAdminLibrariesIndexRoute: MemberAdminAdminLibrariesIndexRoute,
 }
 
 const MemberAdminRouteWithChildren = MemberAdminRoute._addFileChildren(

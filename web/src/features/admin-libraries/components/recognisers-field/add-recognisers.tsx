@@ -13,7 +13,7 @@ export function AddRecognisers({
   add: (pluginId: string) => void;
 }) {
   return (
-    <div className="-ms-4 flex flex-wrap gap-1">
+    <div className="-ms-2.5 flex flex-wrap gap-1">
       {recognisers.map((plugin) => (
         <Button
           key={plugin.id}

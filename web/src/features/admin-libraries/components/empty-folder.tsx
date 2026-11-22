@@ -13,7 +13,7 @@ export function EmptyFolder({ libraryId, folder }: { libraryId: bigint; folder: 
         <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <EmptyFolderNote folder={folder} />
       </p>
-      <div className="-ms-4 sm:ms-0">
+      <div className="-ms-2.5 sm:ms-0">
         <Button
           variant="ghost"
           disabled={scan.isPending}
@@ -24,7 +24,7 @@ export function EmptyFolder({ libraryId, folder }: { libraryId: bigint; folder: 
           Remove missing items
         </Button>
         {scan.isError && (
-          <p role="alert" className="ms-4 text-destructive">
+          <p role="alert" className="ms-2.5 text-destructive">
             Couldn’t remove them. Try again in a moment.
           </p>
         )}
