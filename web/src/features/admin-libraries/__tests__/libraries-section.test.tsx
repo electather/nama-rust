@@ -104,6 +104,16 @@ test("a Library's row opens it in place of the list, under crumbs naming it", as
   expect(crumbs()).toBe("LibrariesFilms");
 });
 
+test("closing Settings with a Library open leaves no Library in the page's address", async () => {
+  const router = openLibraries(librariesServer([films]), "1");
+
+  fireEvent.click(await screen.findByRole("button", { name: "Close Settings" }));
+
+  await waitFor(() => {
+    expect(router.state.location.searchStr).toBe("");
+  });
+});
+
 test("once a change to the folders is saved, it says to scan, beside Scan", async () => {
   openLibraries(librariesServer([{ ...films }]), "1");
   const folders = await screen.findByRole("textbox", { name: "Folders" });
