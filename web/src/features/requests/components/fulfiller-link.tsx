@@ -17,7 +17,11 @@ export function FulfillerLink({
   return (
     pluginId !== undefined &&
     mayFix && (
-      <Link to="/admin/plugins/$pluginId" params={{ pluginId }} className={cn(textLink, "text-sm")}>
+      <Link
+        to="."
+        search={(rest) => ({ ...rest, settings: "plugins", plugin: pluginId })}
+        className={cn(textLink, "text-sm")}
+      >
         Fix it in the Plugin’s settings
       </Link>
     )

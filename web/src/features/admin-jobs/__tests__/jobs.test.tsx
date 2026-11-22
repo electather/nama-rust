@@ -116,7 +116,7 @@ describe("the Jobs page", () => {
     openJobs();
 
     const upkeep = await screen.findByRole("link", { name: "Upkeep" });
-    expect(upkeep.getAttribute("href")).toBe("/admin/plugins/upkeep");
+    expect(upkeep.getAttribute("href")).toBe("/admin/jobs?settings=plugins&plugin=upkeep");
     expect(screen.getByRole("link", { name: "Cleanup" })).toBeDefined();
     expect(screen.getByText("Every day at 04:00 Server time")).toBeDefined();
     expect(screen.getByText("Every day at 04:10 Server time")).toBeDefined();
@@ -128,7 +128,7 @@ describe("the Jobs page", () => {
     expect(screen.queryByRole("searchbox")).toBeNull();
   });
 
-  test("a Job's row is the target a Plugin's page links to", async () => {
+  test("a Job's row is the target a Plugin's view in Settings links to", async () => {
     openJobs();
 
     const job = await screen.findByRole("button", { name: "Forget Home rows" });

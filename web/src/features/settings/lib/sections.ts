@@ -10,6 +10,7 @@ const sections = [
   "requests",
   "connections",
   "server",
+  "backups",
   "plugins",
 ] as const;
 
@@ -42,6 +43,7 @@ export const sectionTitles: Record<Section, string> = {
   requests: "Requests",
   connections: "Connections",
   server: "Server",
+  backups: "Backups",
   plugins: "Plugins",
 };
 
@@ -54,6 +56,7 @@ export const loadNouns: Record<Section, string> = {
   requests: "your Requests settings",
   connections: "your Connections",
   server: "the Server settings",
+  backups: "the Backups",
   plugins: "the Plugins",
 };
 
@@ -66,6 +69,7 @@ const searchWords: Record<Section, string> = {
   requests: "quality movies shows request",
   connections: "telegram plugin messages notifications personal",
   server: "server url address images resize space storage store",
+  backups: "backup backups restore schedule database",
   plugins: "plugin telegram install",
 };
 
@@ -79,13 +83,14 @@ export interface SectionGroup {
 const needs: Partial<Record<Section, Permission>> = {
   requests: Permission.CHOOSE_QUALITY,
   server: Permission.MANAGE_SETTINGS,
+  backups: Permission.ADMIN,
   plugins: Permission.MANAGE_SETTINGS,
 };
 
 const groups: SectionGroup[] = [
   { label: "You", items: ["signin", "devices"] },
   { label: "Preferences", items: ["playback", "home", "requests", "connections"] },
-  { label: "Admin", items: ["server", "plugins"] },
+  { label: "Admin", items: ["server", "backups", "plugins"] },
 ];
 
 /** The sections `user` may open, grouped as the sidebar lists them. */
