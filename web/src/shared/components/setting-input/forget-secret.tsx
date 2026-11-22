@@ -20,7 +20,7 @@ export function ForgetSecret({
     cancel.current?.focus();
   }, []);
   return (
-    <span className="flex w-full items-center justify-end gap-1 md:w-60">
+    <span className="flex w-full items-center justify-end gap-1">
       {/* The row's label names it, so the question needn't, and fits beside its answers. The button
           says it, for whoever hears it alone. */}
       <span className="me-auto text-sm">Forget it?</span>

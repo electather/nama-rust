@@ -1,4 +1,7 @@
+import { cn } from "cn";
 import { type ReactNode, useId } from "react";
+
+import type { ControlSize } from "@/shared/lib/control-size";
 
 /** What a row hands its control, so the label and hint name and describe it. */
 export interface RowControl {
@@ -10,10 +13,17 @@ export interface RowControl {
 // A hairline between rows only: none over the first one, under a heading.
 const ROW = "flex items-center gap-x-5 gap-y-2.5 py-3.5 not-first:border-t";
 
+// Each `ControlSize`'s width.
+const SIZES: Record<ControlSize, string> = {
+  field: "w-40 md:w-60",
+  number: "w-36 md:w-32",
+  own: "",
+};
+
 /**
  * One setting, in Settings or in a Plugin's own settings: its `label` and `hint`, and at the end
- * the control `children` renders. A `wide` control, such as a row of choices, drops under its label
- * on a phone.
+ * the control `children` renders, as wide as its `size` says, at the row's end. A `wide` control,
+ * such as a row of choices, drops under its label on a phone, and a sized one then fills the row.
  */
 export function SettingRow({
   setting,
@@ -21,6 +31,7 @@ export function SettingRow({
   hint,
   error,
   wide = false,
+  size = "own",
   children,
 }: {
   /** The key `?setting=` finds the row by, from its Section's label map. */
@@ -30,6 +41,7 @@ export function SettingRow({
   /** What's wrong with the setting as it is, in red under its hint. */
   error?: string | undefined;
   wide?: boolean;
+  size?: ControlSize;
   children: (control: RowControl) => ReactNode;
 }) {
   const id = useId();
@@ -53,7 +65,13 @@ export function SettingRow({
           {error}
         </span>
       </div>
-      <div className="flex shrink-0 justify-end max-md:justify-start">
+      <div
+        className={cn(
+          "flex shrink-0 justify-end max-md:justify-start",
+          SIZES[size],
+          wide && size !== "own" && "max-md:w-full",
+        )}
+      >
         {children({
           id,
           "aria-labelledby": `${id}-label`,

@@ -21,7 +21,7 @@ export function ImageRows({
           onEdit({ resize });
         }}
       />
-      <SettingRow {...rowText(serverLabels, "space")}>
+      <SettingRow {...rowText(serverLabels, "space")} size="field">
         {(control) => (
           <SpaceSelect
             control={control}

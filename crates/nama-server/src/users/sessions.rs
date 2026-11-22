@@ -12,7 +12,7 @@ use axum::{
 };
 
 use super::{Caller, DEVICE_LIFETIME, Users};
-use crate::forwarded::RequestSource;
+use nama_forwarded::RequestSource;
 
 const COOKIE_NAME: &str = "nama_session";
 

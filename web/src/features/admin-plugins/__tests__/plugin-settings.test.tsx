@@ -72,7 +72,9 @@ test("the form checks the schema: a disabled Plugin's required setting may be bl
   const found7 = await input("log-events", "Path");
   expect(found7.required).toBe(false);
   const days = await input("log-events", "Keep for days");
-  expect([days.type, days.step]).toStrictEqual(["number", "1"]);
+  fireEvent.change(days, { target: { value: "7.5" } });
+  fireEvent.blur(days);
+  expect(days.value).toBe("8");
   const page = await plugin("log-events");
   const verbose = page.getByRole("switch", { name: "Verbose" });
   expect(verbose.getAttribute("aria-checked")).toBe("true");
@@ -100,7 +102,9 @@ test("the form checks the schema: a number takes only its bounds", async () => {
   openPlugin("cleanup");
 
   const days = await input("cleanup", "Days");
-  expect([days.min, days.max]).toStrictEqual(["0", ""]);
+  fireEvent.change(days, { target: { value: "-3" } });
+  fireEvent.blur(days);
+  expect(days.value).toBe("0");
 });
 
 test("a number out of its bounds is refused under it, saying the bound", async () => {

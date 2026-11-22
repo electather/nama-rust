@@ -41,7 +41,7 @@ export function SecretIsSet({
     </Button>
   );
   const set = (
-    <span className="flex w-full items-center gap-1 md:w-60">
+    <span className="flex w-full items-center gap-1">
       {masked}
       <Button
         type="button"
@@ -58,7 +58,7 @@ export function SecretIsSet({
     </span>
   );
   return (
-    <SettingRow wide label={setting.label} hint={setting.description}>
+    <SettingRow wide label={setting.label} hint={setting.description} size="field">
       {() =>
         confirming ? (
           <ForgetSecret

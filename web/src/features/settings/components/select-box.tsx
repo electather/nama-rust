@@ -22,7 +22,7 @@ export function SelectBox({
     </SelectItem>
   ));
   return (
-    <span ref={box} className="flex w-40 md:w-60">
+    <span ref={box} className="flex w-full">
       <Select
         items={options}
         value={value}

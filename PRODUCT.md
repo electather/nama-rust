@@ -41,6 +41,10 @@ Warm, quiet, confident. Like a good living room: it gets out of the way and lets
 4. **Admin power, member calm.** Advanced controls exist but are progressively disclosed; a member never trips over them.
 5. **Plain words.** Use the glossary's language, explain states in human terms, never expose internals.
 
+## The Hub
+
+The Hub's web pages are a second, small app with the same look (ADR 0010): a person creates an Account, signs in and out, and later Links Servers and sees their list. They never browse or play media, which stays on each Server. The pages are a single calm card each, in the Glossary's words: "Account", never "profile" or "login".
+
 ## Accessibility & Inclusion
 
 WCAG 2.2 AA. AA contrast everywhere, including text over artwork. Fully keyboard operable with visible focus. Captions and subtitle controls are first-class in the player. `prefers-reduced-motion` is respected for every transition. State is never conveyed by colour alone (Request states, Match status).

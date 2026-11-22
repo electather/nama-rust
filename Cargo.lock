@@ -2177,13 +2177,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 
 [[package]]
-name = "nama-hub"
+name = "nama-forwarded"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "schemars",
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "nama-hub"
+version = "0.1.0"
+dependencies = [
+ "argon2",
+ "axum",
+ "base64 0.23.1",
+ "buffa",
  "clap",
  "connectrpc",
  "figment",
+ "getrandom 0.4.3",
+ "nama-forwarded",
  "nama-hub-proto",
  "nama-structure",
  "opentelemetry",
@@ -2192,12 +2207,14 @@ dependencies = [
  "opentelemetry_sdk",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "sqlx",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -2479,6 +2496,7 @@ dependencies = [
  "jiff",
  "jixel",
  "jxl",
+ "nama-forwarded",
  "nama-plugin-api",
  "nama-plugin-local-auth",
  "nama-plugin-log-events",
@@ -3736,6 +3754,7 @@ dependencies = [
  "toml 0.8.23",
  "tracing",
  "url",
+ "uuid",
  "webpki-roots",
 ]
 
@@ -3769,6 +3788,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "sqlx-core",
+ "sqlx-mysql",
  "sqlx-postgres",
  "sqlx-sqlite",
  "syn 2.0.119",
@@ -3801,6 +3821,7 @@ dependencies = [
  "sqlx-core",
  "thiserror 2.0.21",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -3835,6 +3856,7 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.21",
  "tracing",
+ "uuid",
  "whoami",
 ]
 
@@ -3860,6 +3882,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tracing",
  "url",
+ "uuid",
 ]
 
 [[package]]

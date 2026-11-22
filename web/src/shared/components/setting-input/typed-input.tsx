@@ -1,5 +1,6 @@
 import { type Setting, SettingKind } from "@/gen/nama/v1/plugin_pb";
 import { FormField } from "@/shared/components/form-field/form-field";
+import { changed } from "@/shared/lib/forms";
 import { hint, valueText } from "@/shared/lib/setting-values";
 
 /** The input attributes of each kind of setting that isn't plain text or a bool. */
@@ -41,6 +42,10 @@ export function TypedInput({
       required={required}
       hint={hint(setting, forgetting ? "forget" : "keep")}
       error={error}
+      // A number's − and + don't leave the field, so each saves the form as a change would.
+      onStep={(_value, field) => {
+        changed(field);
+      }}
     />
   );
 }

@@ -17,7 +17,7 @@ export function SubtitleRows({
 }) {
   return (
     <>
-      <SettingRow {...rowText(playbackLabels, "subtitles")}>
+      <SettingRow {...rowText(playbackLabels, "subtitles")} size="field">
         {(control) => (
           <LanguageSelect
             control={control}

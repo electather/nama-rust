@@ -8,7 +8,7 @@ The Server stays one crate, regrouped into areas, one folder each, and a few sin
 4. `library`
 5. `events`, `connections`, `users`
 6. `plugins`
-7. `images`, `server_settings`, `ffmpeg`, `forwarded`, `web`, `db`, `config`
+7. `images`, `server_settings`, `ffmpeg`, `web`, `db`, `config`
 
 A module may call a lower row, or a module to its right in its own row. `lib` and `main` start the Server and call any row. The table lives once, as `ROWS` in `crates/nama-server/tests/structure.rs`, and a test there fails on a file directly under `src/` that has no place in it.
 
@@ -16,7 +16,7 @@ Ten top-level files had no row. Each goes where its imports put it, so that no u
 
 - **Into `playback/`:** `tracks`, `track_preferences` and `probing`, with `probing/`. Only playback, browse, scanner and api use them, all at or above playback's row, and probing needs `playback::subtitles`, which would be an upward call from any lower row. Playback's `AGENTS.md` takes their "One owner" rules.
 - **Into `users/`:** `codes`, `device_names`, `rate_limits`, `sessions`, `sign_in` and `sign_in_codes`. `rate_limits` and `users` import each other, `sign_in` needs `codes`, `device_names`, `rate_limits` and `sign_in_codes`, and `sessions` needs `users`, so they form one area. `connections`, left of `users` in its row, uses `codes`, which stays allowed.
-- **Single files in the bottom row:** `forwarded` reads only `config` and is used by api and sessions; `web` imports nothing from the crate.
+- **Single files in the bottom row:** `web` imports nothing from the crate. `forwarded` sat here too, until it moved into the `nama-forwarded` crate, which the Hub shares.
 
 `plugin_settings` stays a single file in the second row, as the design says: its folder holds only private helpers (`stored.rs`, `put_back.rs`, `running.rs`), and its one rule, "One owner for Plugin changes", stays in `crates/nama-server/AGENTS.md`, so it gets no `AGENTS.md` of its own.
 

@@ -7,17 +7,26 @@ license = "AGPL-3.0-only"
 edition.workspace = true
 repository.workspace = true
 
-# Linux only: the Hub ships as a Docker image. It has no `web` feature, which the workspace's
-# `features` would ask for.
+# Linux only: the Hub ships as a Docker image, serving its web pages (`.github/build-setup.yml`
+# builds them first).
 [package.metadata.dist]
 targets = ["aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"]
-features = []
+features = ["web"]
+
+[features]
+# Embeds the built Hub web app (`web/hub/dist`, from `vp -C hub build` in web/) and serves it. Off
+# by default so builds and tests need no Node; release builds turn it on.
+web = []
 
 [dependencies]
+argon2 = "0.6"
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "tokio"] }
+buffa = "0.9.2"
 clap = { version = "4", features = ["derive"] }
 connectrpc = { version = "0.9.1", features = ["axum"] }
 figment = { version = "0.10", features = ["env"] }
+getrandom = "0.4"
+nama-forwarded = { version = "0.1.0", path = "../nama-forwarded" }
 nama-hub-proto = { version = "0.1.0", path = "../nama-hub-proto" }
 # Diagnostics (ADR 0054), as the Server's: traces and logs exported over OTLP/HTTP only when an
 # endpoint is set.
@@ -27,14 +36,17 @@ opentelemetry-otlp = { version = "0.33.1", default-features = false, features = 
 opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["logs", "trace"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sqlx = { version = "0.9", default-features = false, features = ["macros", "migrate", "postgres", "runtime-tokio", "sqlx-toml", "tls-rustls-ring-webpki"] }
+sha2 = "0.11"
+sqlx = { version = "0.9", default-features = false, features = ["macros", "migrate", "postgres", "runtime-tokio", "sqlx-toml", "tls-rustls-ring-webpki", "uuid"] }
 thiserror = "2"
-tokio = { version = "1", features = ["io-std", "io-util", "macros", "net", "rt-multi-thread", "signal"] }
+tokio = { version = "1", features = ["io-std", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync"] }
 tracing = "0.1"
 tracing-opentelemetry = { version = "0.34.0", default-features = false }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = "1"
 
 [dev-dependencies]
+base64 = "0.23"
 connectrpc = { version = "0.9.1", features = ["client"] }
 figment = { version = "0.10", features = ["test"] }
 nama-structure = { path = "../nama-structure" }

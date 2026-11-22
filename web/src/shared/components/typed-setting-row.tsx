@@ -1,7 +1,9 @@
-import { Input } from "nama-ui/components/input";
+import type { Input } from "nama-ui/components/input";
 import { type ComponentProps, useState } from "react";
 
+import { RowInput } from "@/shared/components/row-input";
 import { SettingRow } from "@/shared/components/setting-row";
+import { inputSize } from "@/shared/lib/control-size";
 
 /**
  * A setting typed on its row, saved once the field is left or Enter is pressed in it, never while
@@ -39,39 +41,50 @@ export function TypedSettingRow({
   const problem = check?.(typed);
   const shown = left ? (problem ?? error) : undefined;
 
-  /** Saves what's typed, unless `check` finds it wrong or it's `already` the value to save. */
-  function commit(already: string) {
-    const value = typed.trim();
+  /**
+   * Saves what's typed, or `stepped` to by − and +, unless `check` finds it wrong or it's `already`
+   * the value to save.
+   */
+  function commit(already: string, stepped = typed) {
+    const value = stepped.trim();
     setLeft(true);
-    if (problem === undefined && value !== already) {
+    if (check?.(value) === undefined && value !== already) {
       setSent(value);
       onSave(value);
     }
   }
 
   return (
-    <SettingRow setting={setting} label={label} hint={hint} error={shown}>
+    <SettingRow
+      setting={setting}
+      label={label}
+      hint={hint}
+      error={shown}
+      size={inputSize(input.type)}
+    >
       {(control) => (
-        <span className="flex w-40 md:w-60">
-          <Input
-            {...input}
-            {...control}
-            aria-invalid={shown !== undefined}
-            value={typed}
-            onChange={(event) => {
-              setTyped(event.target.value);
-            }}
-            onBlur={() => {
+        <RowInput
+          input={input}
+          state={{
+            control,
+            value: typed,
+            invalid: shown !== undefined,
+            onType: setTyped,
+            onBlur: () => {
               commit(sent);
-            }}
-            onKeyDown={(event) => {
+            },
+            onKeyDown: (event) => {
               // Enter sends whatever the Server doesn't have, so it also tries a refused one again.
               if (event.key === "Enter") {
                 commit(saved);
               }
-            }}
-          />
-        </span>
+            },
+            onStep: (stepped) => {
+              setTyped(stepped);
+              commit(sent, stepped);
+            },
+          }}
+        />
       )}
     </SettingRow>
   );

@@ -32,8 +32,9 @@ const OTLP_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
     version,
     about,
     after_help = "Configured by environment variables only: NAMA_HUB_DATABASE_URL, the \
-                  PostgreSQL database as a postgres:// URL, and NAMA_HUB_LISTEN, the address to \
-                  listen on (0.0.0.0:7981 by default)."
+                  PostgreSQL database as a postgres:// URL, NAMA_HUB_LISTEN, the address to \
+                  listen on (0.0.0.0:7981 by default), and NAMA_HUB_TRUSTED_PROXIES, the \
+                  reverse proxies whose forwarded headers it believes, such as [\"10.0.0.0/8\"]."
 )]
 struct Args {
     /// Serves the Hub when none is given.
@@ -101,7 +102,7 @@ async fn run() -> ExitCode {
         shutdown.await;
         info!("shutting down");
     };
-    let served = nama_hub::serve(listener, db.clone(), shutdown).await;
+    let served = nama_hub::serve(listener, db.clone(), &config.trusted_proxies, shutdown).await;
     db.close().await;
     if let Err(err) = served {
         error!("hub failed: {err}");

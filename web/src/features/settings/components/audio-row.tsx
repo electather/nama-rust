@@ -12,7 +12,7 @@ export function AudioRow({
   onEdit: (edits: Partial<PlaybackValues>) => void;
 }) {
   return (
-    <SettingRow {...rowText(playbackLabels, "audio")}>
+    <SettingRow {...rowText(playbackLabels, "audio")} size="field">
       {(control) => (
         <LanguageSelect
           control={control}

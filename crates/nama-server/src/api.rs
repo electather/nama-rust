@@ -5,6 +5,7 @@ use std::sync::Arc;
 use axum::{http::header::SET_COOKIE, middleware};
 use buffa::{EnumValue, MessageName};
 use connectrpc::{ConnectError, ErrorCode, ErrorDetail, RequestContext, Response};
+use nama_forwarded::identify_source;
 use nama_plugin_api::metadata::ExternalId;
 use nama_proto::nama::v1::{self as proto, Refusal, RefusalReason};
 
@@ -17,7 +18,6 @@ use crate::{
     diagnostics::{self, BrowserSpans, RecordFailures},
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
-    forwarded::identify_source,
     home_rows::HomeRows,
     images::{ImageStore, PluginLogos, plugin_logos_router},
     library::{

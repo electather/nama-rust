@@ -23,7 +23,7 @@ export function SearchForm({
       <div className="min-w-48 flex-1">
         <FormField label="Title" name="title" autoComplete="off" defaultValue={item.title} />
       </div>
-      <div className="w-24">
+      <div className="w-36">
         <FormField
           label="Year"
           name="year"

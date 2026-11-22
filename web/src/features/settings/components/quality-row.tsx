@@ -29,6 +29,7 @@ export function QualityRow({
       setting={qualitySetting(fulfiller.pluginId)}
       label={qualityLabel(fulfiller)}
       hint={hint}
+      size="field"
     >
       {(control) => (
         <SelectBox
