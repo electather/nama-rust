@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT linked_server_id FROM server_link_codes\n             WHERE device_code_hash = $1 AND expires_at > now()\n             FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "linked_server_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "server_link_codes",
+            "name": "linked_server_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "b42f9c9c8d66f5ac3b4f6dfd962800e233c75b733120fee959738247b647a0f7"
+}

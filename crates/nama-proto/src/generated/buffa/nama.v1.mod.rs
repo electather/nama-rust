@@ -373,6 +373,13 @@ pub mod __buffa {
         reg.register_json_any(super::__HIT_JSON_ANY);
         reg.register_json_any(super::__EPISODE_HIT_JSON_ANY);
         reg.register_json_any(super::__DONE_JSON_ANY);
+        reg.register_json_any(super::__GET_SERVER_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_SERVER_LINK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SERVER_LINK_JSON_ANY);
+        reg.register_json_any(super::__START_SERVER_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__START_SERVER_LINK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UNLINK_SERVER_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UNLINK_SERVER_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_PLAYS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_PLAYS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PLAY_JSON_ANY);
@@ -1662,6 +1669,34 @@ pub use self::__buffa::view::EpisodeHitOwnedView;
 pub use self::__buffa::view::DoneView;
 #[doc(inline)]
 pub use self::__buffa::view::DoneOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetServerLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetServerLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetServerLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetServerLinkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ServerLinkView;
+#[doc(inline)]
+pub use self::__buffa::view::ServerLinkOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartServerLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StartServerLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartServerLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StartServerLinkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkServerRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkServerRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkServerResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkServerResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListPlaysRequestView;
 #[doc(inline)]

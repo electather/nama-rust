@@ -50,6 +50,7 @@ mod plugins;
 mod requests;
 mod search;
 mod server;
+mod server_link;
 mod sign_in;
 mod users;
 mod watch_states;
@@ -416,7 +417,8 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_FOLDER_OVERLAPS
         | R::REFUSAL_REASON_SEGMENT_FOLDER_UNWRITABLE
         | R::REFUSAL_REASON_SERVER_URL_REQUIRED
-        | R::REFUSAL_REASON_JOB_RUNNING => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_JOB_RUNNING
+        | R::REFUSAL_REASON_NO_SERVER_LINKER => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND

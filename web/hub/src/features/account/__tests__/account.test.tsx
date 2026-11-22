@@ -1,11 +1,12 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
 import { AccountSchema, AccountService } from "@hub/gen/nama/hub/v1/account_pb";
+import { LinkService } from "@hub/gen/nama/hub/v1/link_pb";
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
 import { cleanup, configure, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, test } from "vite-plus/test";
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
 const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
 
@@ -18,13 +19,18 @@ function refused(code: Code, reason: RefusalReason) {
 
 /**
  * Opens `path` on a fake Hub that has Ada's Account, with the password "correct horse", and
- * signs in or out as asked. Ada is signed in from the start when `signedIn` says so.
+ * signs in or out as asked. Ada is signed in from the start when `signedIn` says so, and every
+ * `GetAccount` fails as if the Hub were down while `down` says so.
  */
-function openHub(path: string, signedIn = false) {
+function openHub(path: string, { signedIn = false, down = false } = {}) {
   let session = signedIn;
+  let hubDown = down;
   const transport = createRouterTransport(({ service }) => {
     service(AccountService, {
       getAccount: () => {
+        if (hubDown) {
+          throw new ConnectError("Hub down", Code.Unavailable);
+        }
         if (!session) {
           throw refused(Code.Unauthenticated, RefusalReason.SIGN_IN_REQUIRED);
         }
@@ -52,6 +58,8 @@ function openHub(path: string, signedIn = false) {
         return {};
       },
     });
+    // The Account page lists the Account's Servers.
+    service(LinkService, { listLinkedServers: () => ({}) });
   });
   globalThis.history.replaceState(null, "", path);
   render(<RouterProvider router={getRouter(transport)} />);
@@ -59,6 +67,10 @@ function openHub(path: string, signedIn = false) {
     /** Ends Ada's session on the Hub, as if it expired, without the page knowing. */
     endSession: () => {
       session = false;
+    },
+    /** Brings the Hub back up after `down`. */
+    comeBackUp: () => {
+      hubDown = false;
     },
   };
 }
@@ -146,8 +158,42 @@ describe("an Account", () => {
     expect(screen.getByLabelText("Email").getAttribute("aria-invalid")).toBe("true");
   });
 
+  describe("while the Hub is down", () => {
+    beforeEach(() => {
+      // React logs the caught error with `%o`, and inspecting a ConnectError's happy-dom
+      // `Headers` throws inside Node's inspector.
+      vi.spyOn(console, "error").mockReturnValue();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    test("the Account page says it couldn’t load in plain words, without the error", async () => {
+      openHub("/", { signedIn: true, down: true });
+
+      await expect(
+        screen.findByText("This page couldn’t load. Check your connection, then try again."),
+      ).resolves.toBeDefined();
+      expect(screen.getByRole("button", { name: "Try again" })).toBeDefined();
+      // TanStack Router's own error page, which this replaces.
+      expect(screen.queryByText("Something went wrong!")).toBeNull();
+      expect(document.body.textContent).not.toMatch(/unavailable|Hub down/iu);
+    });
+
+    test("“Try again” opens the Account page once the Hub is back up", async () => {
+      const hub = openHub("/", { signedIn: true, down: true });
+      const tryAgain = await screen.findByRole("button", { name: "Try again" });
+
+      hub.comeBackUp();
+      fireEvent.click(tryAgain);
+
+      await expect(screen.findByRole("heading", { name: "Your Account" })).resolves.toBeDefined();
+    });
+  });
+
   test("signing out goes back to the sign-in page", async () => {
-    openHub("/", true);
+    openHub("/", { signedIn: true });
 
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }));
 
@@ -155,7 +201,7 @@ describe("an Account", () => {
   });
 
   test("signing out of a session that already ended goes to the sign-in page too", async () => {
-    const hub = openHub("/", true);
+    const hub = openHub("/", { signedIn: true });
     const signOut = await screen.findByRole("button", { name: "Sign out" });
 
     hub.endSession();
