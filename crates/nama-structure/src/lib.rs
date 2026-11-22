@@ -38,12 +38,15 @@ pub struct Structure {
     pub allowed_upward: &'static [Allowed],
     /// The modules neighbours reach inside an area anyway. An entry no import uses fails.
     pub surface_exceptions: &'static [Exception],
-    /// The crates only one area's files under `src/` may name: the crate as code names it, the
-    /// area, and why.
-    pub confined_crates: &'static [(&'static str, &'static str, &'static str)],
+    /// The crates only one area's files under `src/` may name.
+    pub confined_crates: &'static [Confined],
     /// What the walks must find.
     pub must_find: MustFind,
 }
+
+/// A crate only one area's files under `src/` may name: the crate as code names it, the area,
+/// and why.
+pub type Confined = (&'static str, &'static str, &'static str);
 
 /// What a crate's walks must find, so one that breaks fails instead of checking nothing.
 #[derive(Debug)]
@@ -523,7 +526,9 @@ fn stray_test_problems(files: &[SourceFile], nested_folder: &str) -> Vec<String>
 
 /// Each line of a file under `src/` outside its area that names one of `confined`, a crate only
 /// that area may name.
-fn confined_crate_problems(files: &[SourceFile], confined: &[(&str, &str, &str)]) -> Vec<String> {
+// ponytail: a word scan; a crate renamed in `Cargo.toml`, or its types re-exported through the
+// area, are not seen.
+fn confined_crate_problems(files: &[SourceFile], confined: &[Confined]) -> Vec<String> {
     let mut problems = Vec::new();
     for file in files {
         let Some(from) = area_of(&file.path) else {

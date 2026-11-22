@@ -1,7 +1,7 @@
 //! How the Hub crate's files are laid out. The rules are under "Structure" in
 //! `crates/nama-hub/AGENTS.md`; `nama-structure` checks them against the tables here.
 
-use nama_structure::{Allowed, Exception, MustFind, Structure};
+use nama_structure::{Allowed, Confined, Exception, MustFind, Structure};
 
 #[test]
 fn the_hub_keeps_its_structure() {
@@ -54,7 +54,7 @@ const ALLOWED_UPWARD: &[Allowed] = &[];
 const SURFACE_EXCEPTIONS: &[Exception] = &[];
 
 /// The crates only one area may name.
-const CONFINED_CRATES: &[(&str, &str, &str)] = &[(
+const CONFINED_CRATES: &[Confined] = &[(
     "nama_hub_proto",
     "api",
     "ADR 0099: areas take and return their own types, and api converts",
