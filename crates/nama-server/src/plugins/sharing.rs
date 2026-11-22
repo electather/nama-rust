@@ -1,10 +1,7 @@
 //! Where shared Diagnostics and Usage Analytics leave the Server: the enabled Plugin that provides
 //! [`DiagnosticsSharer`], such as the Hub Plugin (ADR 0054, ADR 0094).
 
-use std::{
-    fmt,
-    sync::{Arc, PoisonError, RwLock},
-};
+use std::{fmt, sync::Arc};
 
 use axum::{
     body::Bytes,
@@ -12,7 +9,10 @@ use axum::{
 };
 use nama_plugin_api::diagnostics_sharer::{DiagnosticsSharer, Signal};
 use opentelemetry_http::{HttpClient, HttpError};
-use tokio::runtime::Handle;
+use tokio::{
+    runtime::Handle,
+    sync::{OwnedRwLockReadGuard, RwLock},
+};
 use tracing::{instrument::WithSubscriber as _, subscriber::NoSubscriber};
 
 use super::ExtensionPoints;
@@ -23,7 +23,8 @@ use super::ExtensionPoints;
 pub struct ShareThroughPlugins {
     signal: Signal,
     /// Set while the Server serves: the exporters that post through this start before the Plugins
-    /// and stop after the database closes, which these would keep open.
+    /// and stop after the database closes, which these would keep open. A share holds it read
+    /// until it ends, so emptying it waits for those in flight.
     points: Arc<RwLock<Option<ExtensionPoints>>>,
     /// The Server's runtime, which the Plugins call out on: the exporter posts from a thread of its
     /// own.
@@ -52,9 +53,9 @@ impl ShareThroughPlugins {
     }
 
     /// Hands batches to the sharer among `points` from now on, or drops them for `None`, such as
-    /// once the Server stops serving.
-    pub fn serve(&self, points: Option<ExtensionPoints>) {
-        *self.points.write().unwrap_or_else(PoisonError::into_inner) = points;
+    /// once the Server stops serving, once the shares in flight have ended.
+    pub async fn serve(&self, points: Option<ExtensionPoints>) {
+        *self.points.write().await = points;
     }
 }
 
@@ -69,8 +70,8 @@ impl fmt::Debug for ShareThroughPlugins {
 #[connectrpc::async_trait]
 impl HttpClient for ShareThroughPlugins {
     async fn send_bytes(&self, request: Request<Bytes>) -> Result<Response<Bytes>, HttpError> {
-        let points = (self.points.read().unwrap_or_else(PoisonError::into_inner)).clone();
-        if let Some(points) = points {
+        let held = Arc::clone(&self.points).read_owned().await;
+        if let Ok(points) = OwnedRwLockReadGuard::try_map(held, Option::as_ref) {
             let (signal, batch) = (self.signal, request.into_body());
             let shared = async move {
                 // A failure shows on the Plugin's page, as any Provider's does.

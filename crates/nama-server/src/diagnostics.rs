@@ -255,9 +255,8 @@ impl SharingSwitches {
 /// The target Usage Analytics are recorded under, which stdout leaves out.
 pub const USAGE_TARGET: &str = "nama::usage";
 
-/// The log lines shared with Diagnostics, by the `name:` their call site gives them. Lines are
-/// written for stdout and quote paths and names, so one is shared only once a reviewer adds it
-/// here, having checked it holds only what a span may (ADR 0054).
+/// The log lines shared with Diagnostics, by their call site's `name:`
+/// (`crates/nama-server/AGENTS.md`).
 const SHARED_LINES: [&str; 2] = [
     // `db.rs`
     "database write panicked",
@@ -265,8 +264,7 @@ const SHARED_LINES: [&str; 2] = [
     "hardware acceleration failed partway",
 ];
 
-/// The Usage Analytics the Server records: a named list, so a new one is a reviewed change, not
-/// something a call site decides (ADR 0054).
+/// The Usage Analytics the Server records (`crates/nama-server/AGENTS.md`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Usage {
     /// A User made a Request.
@@ -365,14 +363,18 @@ pub fn shared_resource() -> Resource {
         .build()
 }
 
-/// What is exported: `info`, or whatever `RUST_LOG` asks for, never Extism's own Plugin logs.
+/// What is exported to the admin's endpoint: `info`, or whatever `RUST_LOG` asks for, never
+/// Extism's own Plugin logs nor Usage Analytics.
 #[must_use]
 pub fn exported_filter() -> EnvFilter {
     let asked = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_owned());
     // Extism logs an Installed Plugin's error, and the lines it writes through Extism's own log
     // functions, as they are, which may quote a secret setting; the Server logs both itself with
-    // secrets blanked (ADR 0061). Forced here, unlike stdout, since this leaves the machine.
-    EnvFilter::builder().parse_lossy(format!("{asked},extism::plugin=off,extism::pdk=off"))
+    // secrets blanked (ADR 0061). Forced here, unlike stdout, since this leaves the machine. Usage
+    // Analytics are for sharing only, and the admin's collector gets what stdout does (ADR 0054).
+    EnvFilter::builder().parse_lossy(format!(
+        "{asked},extism::plugin=off,extism::pdk=off,{USAGE_TARGET}=off"
+    ))
 }
 
 /// Runs a ConnectRPC call in a span named after its service and method, continuing the trace a

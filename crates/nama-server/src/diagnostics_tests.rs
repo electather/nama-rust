@@ -9,10 +9,10 @@ use tracing::Level;
 use tracing_subscriber::{Layer as _, layer::SubscriberExt as _};
 
 use super::{
-    MAX_PLUGIN_LINE_BYTES, PLUGIN_TARGET, PluginLine, SharedSpans, Sharing, SharingSwitches, Usage,
-    following_current, forget_plugin_lines, job_run_span, keep_plugin_lines, layer, plugin_lines,
-    plugin_lines_layer, push_plugin_line, record, service_and_method, shared_logs_filter,
-    sharing_layer,
+    MAX_PLUGIN_LINE_BYTES, PLUGIN_TARGET, PluginLine, SharedSpans, Sharing, SharingSwitches,
+    USAGE_TARGET, Usage, exported_filter, following_current, forget_plugin_lines, job_run_span,
+    keep_plugin_lines, layer, plugin_lines, plugin_lines_layer, push_plugin_line, record,
+    service_and_method, shared_logs_filter, sharing_layer,
 };
 
 /// The names of the spans and log records a Server sharing what `sharing` says shares of a span,
@@ -115,6 +115,29 @@ fn sharing_usage_analytics_shares_only_their_events() {
     };
 
     assert_eq!(shared(sharing), (vec![], vec!["request made".to_owned()]));
+}
+
+#[test]
+fn usage_analytics_never_reach_the_admins_own_collector() {
+    let lines = InMemoryLogExporter::default();
+    let logs = SdkLoggerProvider::builder()
+        .with_simple_exporter(lines.clone())
+        .build();
+    let admins = OpenTelemetryTracingBridge::new(&logs).with_filter(exported_filter());
+
+    tracing::subscriber::with_default(tracing_subscriber::registry().with(admins), || {
+        record(Usage::PlaybackStarted);
+        tracing::info!("scan finished");
+    });
+
+    let targets: Vec<String> = (lines.get_emitted_logs().unwrap().into_iter())
+        .filter_map(|line| Some(line.record.target()?.to_string()))
+        .collect();
+    assert_eq!(targets.len(), 1, "{targets:?}");
+    assert!(
+        !targets.iter().any(|target| target == USAGE_TARGET),
+        "{targets:?}"
+    );
 }
 
 #[test]

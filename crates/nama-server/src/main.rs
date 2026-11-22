@@ -161,7 +161,7 @@ async fn run(
         shutdown.await;
         info!("shutting down");
     };
-    sharing.serve(Some(points));
+    sharing.serve(Some(points)).await;
     let served = nama_server::serve(
         listener,
         &config,
@@ -172,7 +172,7 @@ async fn run(
         shutdown,
     )
     .await;
-    sharing.serve(None);
+    sharing.serve(None).await;
     // Serving has finished, so this is the last handle and the database can close cleanly.
     close(db).await;
     if let Err(err) = served {
