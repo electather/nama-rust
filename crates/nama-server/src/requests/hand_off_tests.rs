@@ -13,7 +13,8 @@ use crate::plugins::{Registry, ScriptedFulfiller};
 use crate::requests::Requests;
 use crate::requests::asking::{WantedSeasons, ask_seasons};
 use crate::requests::testing::{
-    ADA, FulfillerPlugin, NOTHING, ada, approved_for, approved_on, come_up, dark, read,
+    ADA, FulfillerPlugin, GIVE_UP_AFTER, NOTHING, ada, approved_for, approved_on, come_up, dark,
+    read,
 };
 use crate::users::Permissions;
 
@@ -108,10 +109,6 @@ async fn approved_for_gated(tmdb_ids: &[i64]) -> (tempfile::TempDir, Requests, A
     let (data, requests) = approved_for(tmdb_ids, fulfiller).await;
     (data, requests, gated)
 }
-
-/// How long a test waits on real SQLite work; long, since it only runs out on failure and a
-/// loaded full-suite run can spend seconds there.
-const GIVE_UP_AFTER: Duration = Duration::from_secs(30);
 
 #[tokio::test]
 async fn a_request_being_handed_off_is_not_handed_to_the_fulfiller_again() {

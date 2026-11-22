@@ -402,14 +402,15 @@ pub(super) fn ada(permissions: Permissions) -> User {
     }
 }
 
-/// What the next event `published` lets through says happened, waiting 30 seconds at most.
-///
-/// The ceiling is generous because only a missing event reaches it: a loaded full-suite run
-/// can take over a second to publish one (#1721).
+/// How long a test waits for what should happen; long, since only a failure runs it out and a
+/// loaded full-suite run can take seconds to publish an event or do SQLite work (#1721, #1733).
+pub(super) const GIVE_UP_AFTER: Duration = Duration::from_secs(30);
+
+/// What the next event `published` lets through says happened, waiting [`GIVE_UP_AFTER`] at most.
 pub(super) async fn next_happened(
     published: &mut (impl Stream<Item = SubscribeResponse> + Unpin),
 ) -> Happened {
-    let response = tokio::time::timeout(Duration::from_secs(30), published.next())
+    let response = tokio::time::timeout(GIVE_UP_AFTER, published.next())
         .await
         .expect("nothing was published")
         .expect("the bus closed");
