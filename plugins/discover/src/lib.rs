@@ -83,9 +83,9 @@ const PER_USER: [(&str, &str); 6] = [
 /// How long a User's row stays fresh. The Kernel asks again sooner once they play something.
 const USER_FRESH_FOR: Duration = Duration::from_hours(6);
 
-/// How many of a title's Cast, by billing, count towards a Starring row, so minor cast who
+/// How many of a title's Cast, in TMDB's order, count towards a Starring row, so minor Cast who
 /// happen to appear in several titles never get one.
-const TOP_BILLED: usize = 5;
+const TOP_CAST: usize = 5;
 
 /// The most characters the Kernel keeps of a heading (ADR 0058).
 const MOST_HEADING_CHARACTERS: usize = 40;
@@ -526,23 +526,24 @@ impl Watched {
     }
 }
 
-/// Who a User's played titles credit, most recently played first, and each in billing order.
+/// The Roles that count in a User's played titles, most recently played first, each in TMDB's
+/// order.
 #[derive(Default)]
 struct People {
-    credits: Vec<Credits>,
+    roles: Vec<Roles>,
 }
 
-/// What a person did on a title.
+/// Which of a title's Roles a person row follows.
 #[derive(Clone, Copy)]
 enum Role {
-    /// Billed in the first [`TOP_BILLED`] of its Cast.
+    /// In the first [`TOP_CAST`] of its Cast.
     Cast,
     /// Its Director, or a Show's Creator.
     Maker,
 }
 
 impl People {
-    /// The credits of every title the User of `history` played that has a TMDB id.
+    /// The Roles of every title the User of `history` played that has a TMDB id.
     ///
     /// ponytail: asks TMDB once per played title not yet in the Store, so a User's first refresh
     /// on a large Server makes many calls; count only their latest titles if that proves slow.
@@ -552,21 +553,21 @@ impl People {
             .filter(|title| title.key.namespace == TMDB_IDS)
             .collect();
         played.sort_by_key(|title| Reverse(title.last_changed_ms));
-        let credits = (played.iter())
-            .map(|title| Credits::of(&api, &title.key))
+        let roles = (played.iter())
+            .map(|title| Roles::of(&api, &title.key))
             .collect::<Result<_, _>>()?;
-        Ok(Self { credits })
+        Ok(Self { roles })
     }
 
-    /// The heading and titles of the row following the person most credited as `role`, its
-    /// `heading` naming them; `None` if no title the User of `history` played credits anyone so.
+    /// The heading and titles of the row following the Person seen most as `role`, its
+    /// `heading` naming them; `None` if no title the User of `history` played has anyone so.
     fn row(
         &self,
         role: Role,
         heading: &str,
         history: &History,
     ) -> Result<Option<(String, Vec<HomeRowTitle>)>, Error> {
-        let Some(person) = self.most_credited(role) else {
+        let Some(person) = self.most_seen(role) else {
             return Ok(None);
         };
         let titles = Api::from_settings()?.titles_of(person, role)?;
@@ -574,14 +575,14 @@ impl People {
         Ok(Some((heading, history.unplayed(titles))))
     }
 
-    /// The person credited as `role` in the most titles; of as many, the one credited first.
-    fn most_credited(&self, role: Role) -> Option<&Person> {
-        let credited = (self.credits.iter()).flat_map(|credits| match role {
-            Role::Cast => &credits.cast,
-            Role::Maker => &credits.makers,
+    /// The Person seen as `role` in the most titles; of as many, the one seen first.
+    fn most_seen(&self, role: Role) -> Option<&Person> {
+        let seen = (self.roles.iter()).flat_map(|roles| match role {
+            Role::Cast => &roles.cast,
+            Role::Maker => &roles.makers,
         });
         let mut tally: HashMap<u64, (usize, Reverse<usize>, &Person)> = HashMap::new();
-        for (first, person) in credited.enumerate() {
+        for (first, person) in seen.enumerate() {
             tally
                 .entry(person.id)
                 .or_insert((0, Reverse(first), person))
@@ -593,71 +594,71 @@ impl People {
     }
 }
 
-/// Who one title credits, each once, as the Store keeps them.
+/// One title's Roles that count, each Person once, as the Store keeps them.
 #[derive(Default, Serialize, Deserialize)]
-struct Credits {
-    /// Its first [`TOP_BILLED`] Cast.
+struct Roles {
+    /// Its first [`TOP_CAST`] Cast.
     cast: Vec<Person>,
     /// Its Directors and, for a Show, its Creators.
     makers: Vec<Person>,
 }
 
-/// A person, by TMDB's id.
+/// A Person, by TMDB's id.
 #[derive(Clone, Serialize, Deserialize)]
 struct Person {
     id: u64,
     name: String,
 }
 
-/// A Movie's or Show's details, with its credits, as TMDB answers them.
+/// A Movie's or Show's details, with its Cast and Crew, as TMDB answers them.
 #[derive(Deserialize)]
 struct Details {
     /// A Show's Creators; a Movie has none.
     #[serde(default)]
     created_by: Vec<Person>,
-    credits: CreditLists,
+    credits: CastAndCrew,
 }
 
 #[derive(Deserialize)]
-struct CreditLists {
-    cast: Vec<Billed>,
-    crew: Vec<Job>,
+struct CastAndCrew {
+    cast: Vec<CastRole>,
+    crew: Vec<CrewRole>,
 }
 
 #[derive(Deserialize)]
-struct Billed {
+struct CastRole {
     #[serde(flatten)]
     person: Person,
     order: u32,
 }
 
 #[derive(Deserialize)]
-struct Job {
+struct CrewRole {
     #[serde(flatten)]
     person: Person,
     job: String,
 }
 
-impl Credits {
-    /// `title`'s credits, from the Store, or else from TMDB and then kept in the Store, which
+impl Roles {
+    /// `title`'s Roles, from the Store, or else from TMDB and then kept in the Store, which
     /// every User shares, so a refresh asks only for titles played since.
     fn of(api: &Api, title: &Key) -> Result<Self, Error> {
         let media = match title.kind {
             TitleKind::TITLE_KIND_SHOW => "tv",
             TitleKind::TITLE_KIND_UNSPECIFIED | TitleKind::TITLE_KIND_MOVIE => "movie",
         };
-        let store_key = format!("credits/{media}/{}", title.value);
+        let store_key = format!("roles/{media}/{}", title.value);
         // A Store not granted only costs each refresh its calls.
         if let Some(kept) = (kernel::store_get(&store_key, None).ok().flatten())
             .and_then(|kept| json::from_slice(&kept).ok())
         {
             return Ok(kept);
         }
-        let credits = match api
+        let roles = match api
             .get::<Details>(&[media, &title.value], &[("append_to_response", "credits")])
         {
             Ok(details) => Self::from(details),
-            // A title TMDB no longer has credits no one, kept so it fails no refresh.
+            // A title TMDB no longer has counts no one, kept so it fails no refresh.
             Err(err)
                 if err
                     .downcast_ref::<Refusal>()
@@ -668,21 +669,21 @@ impl Credits {
             Err(err) => return Err(err),
         };
         let _not_kept: Result<(), Error> =
-            kernel::store_put(&store_key, None, &json::to_vec(&credits)?);
-        Ok(credits)
+            kernel::store_put(&store_key, None, &json::to_vec(&roles)?);
+        Ok(roles)
     }
 }
 
-impl From<Details> for Credits {
+impl From<Details> for Roles {
     fn from(mut details: Details) -> Self {
-        // By place, not `order`'s value, which skips numbers in a Show's credits.
-        details.credits.cast.sort_by_key(|billed| billed.order);
+        // By place, not `order`'s value, which skips numbers in a Show's Cast.
+        details.credits.cast.sort_by_key(|cast| cast.order);
         let cast = (details.credits.cast.into_iter())
-            .take(TOP_BILLED)
-            .map(|billed| billed.person);
+            .take(TOP_CAST)
+            .map(|cast| cast.person);
         let directors = (details.credits.crew.into_iter())
-            .filter(|job| job.job == "Director")
-            .map(|job| job.person);
+            .filter(|crew| crew.job == "Director")
+            .map(|crew| crew.person);
         Self {
             cast: each_once(cast),
             makers: each_once(directors.chain(details.created_by)),
@@ -690,28 +691,29 @@ impl From<Details> for Credits {
     }
 }
 
-/// `people`, each once, in their order: TMDB credits one person in several roles.
+/// `people`, each once, in their order: TMDB lists one Person in several Roles.
 fn each_once(people: impl Iterator<Item = Person>) -> Vec<Person> {
     let mut seen = HashSet::new();
     people.filter(|person| seen.insert(person.id)).collect()
 }
 
-/// The Shows a person is in the cast or crew of, as TMDB answers them.
+/// The Shows a Person is in the Cast or Crew of, as TMDB answers them.
 #[derive(Deserialize)]
-struct ShowCredits {
-    cast: Vec<ShowCredit>,
-    crew: Vec<ShowCredit>,
+struct ShowRoles {
+    cast: Vec<ShowRole>,
+    crew: Vec<ShowRole>,
 }
 
-/// One of a person's credits on a Show.
+/// A Show a Person has a Role in.
 #[derive(Deserialize)]
-struct ShowCredit {
+struct ShowRole {
     id: u64,
     genre_ids: Vec<u64>,
     episode_count: u32,
 }
 
-/// TMDB's Talk, News and Reality genres, whose Shows credit a guest as if they starred.
+/// TMDB's Talk, News and Reality genres, whose Shows list a guest in their Cast as if they
+/// starred.
 const NOT_STARRING_GENRES: [u64; 3] = [10767, 10763, 10764];
 
 /// A title in a list that says what kind it is by where it is.
@@ -752,7 +754,7 @@ impl Api {
         Ok(page.results.iter().filter_map(title).collect())
     }
 
-    /// The Movies TMDB finds `person` in as `role`, then the Shows of their TV credits as it.
+    /// The Movies TMDB finds `person` in as `role`, then the Shows TMDB lists them in as it.
     ///
     /// ponytail: one page of Movies, TMDB's 20 most popular, as [`Self::titles`] asks.
     fn titles_of(&self, person: &Person, role: Role) -> Result<Vec<Key>, Error> {
@@ -762,7 +764,7 @@ impl Api {
             Role::Maker => "with_crew",
         };
         let movies: Page<Id> = self.get(&["discover", "movie"], &[(by, &id)])?;
-        let shows: ShowCredits = self.get(&["person", &id, "tv_credits"], &[])?;
+        let shows: ShowRoles = self.get(&["person", &id, "tv_credits"], &[])?;
         let mut shows = match role {
             Role::Cast => shows.cast,
             Role::Maker => shows.crew,

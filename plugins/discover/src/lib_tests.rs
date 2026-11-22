@@ -75,7 +75,7 @@ fn name(person: u64) -> String {
     }
 }
 
-/// TMDB's answer for a Movie's or Show's details with its credits: its cast in billing order,
+/// TMDB's answer for a Movie's or Show's details with its Cast and Crew: its Cast in order,
 /// a producer, its Directors, and a Show's Creators; `None` for a title TMDB doesn't have.
 fn credits(media: &str, title: &str) -> Option<Value> {
     let (cast, directors, creators): (&[u64], &[u64], &[u64]) = match (media, title) {
@@ -100,7 +100,7 @@ fn credits(media: &str, title: &str) -> Option<Value> {
     Some(details)
 }
 
-/// TMDB's answer to a search for the Movies a person is in, by `with_cast` or `with_crew`.
+/// TMDB's answer to a search for the Movies a Person is in, by `with_cast` or `with_crew`.
 fn movies_of(url: &Url) -> Value {
     let ids: &[u64] = match url
         .query_pairs()
@@ -120,10 +120,10 @@ fn movies_of(url: &Url) -> Value {
 /// A talk show, on which a guest appears as themself.
 const TALK_SHOW: u64 = 22980;
 
-/// Shows by TMDB id, each with how many Episodes a person is credited in.
+/// Shows by TMDB id, each with how many Episodes a Person has a Role in.
 type Shows<'a> = &'a [(u64, u32)];
 
-/// TMDB's answer for the Shows a person is in the cast or crew of, with how many Episodes.
+/// TMDB's answer for the Shows a Person is in the Cast or Crew of, with how many Episodes.
 fn shows_of(person: &str) -> Value {
     let (cast, crew): (Shows<'_>, Shows<'_>) = match person {
         "6384" => (&[(TALK_SHOW, 9), (1400, 2), (1396, 1), (2100, 10)], &[]),
@@ -786,7 +786,7 @@ fn an_actor_billed_6th_never_gets_a_starring_row_however_often_they_appear() {
 }
 
 #[test]
-fn a_played_title_tmdb_lacks_credits_no_one_and_fails_no_refresh() {
+fn a_played_title_tmdb_lacks_counts_no_one_and_fails_no_refresh() {
     let titles = [movie("603", &[]), movie("1", &[])];
     let mut kernel = played(person_kernel(&titles), &[&titles[0], &titles[1]]);
 
