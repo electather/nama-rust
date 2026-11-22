@@ -158,6 +158,7 @@ test("playback info words every kind of reason the schema has, naming its params
     heightPixels: "534",
     channels: "6",
     hardwareAcceleration: "HARDWARE_ACCELERATION_NVENC",
+    profile: "5",
   };
   // The kinds that say what audio is converted to name an audio codec, not the video's.
   const audio = { codec: "eac3" };
@@ -185,6 +186,7 @@ test("playback info words every kind of reason the schema has, naming its params
       "This Device can’t open Matroska files, so it can’t be Direct Played.",
       "This Device can’t decode HEVC video, so it can’t be Direct Played or Remuxed.",
       "This Device can’t show Dolby Vision, so it can’t be Direct Played or Remuxed.",
+      "This Device can’t show Dolby Vision profile 5, which has no Base Layer, so it can’t be Direct Played or Remuxed.",
       "Direct Play failed on this Device.",
       "Its picture is larger than the 720p Playback Limit, so a Transcode scales it down to 1280×534.",
       "Its audio is converted to Dolby Digital Plus 5.1, the most a Remux or a Transcode makes.",

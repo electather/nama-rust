@@ -310,6 +310,7 @@ async fn ffmpeg_can_do_what_it_lists_and_what_passes_its_test_encode() {
         CanDo {
             runs: true,
             zscale: true,
+            tonemapx: false,
             libx264: true,
             hardware: vec![Hardware {
                 accel: Accel::Vaapi,
@@ -338,12 +339,37 @@ async fn ffmpeg_without_zscale_libx264_or_ffprobe_can_do_no_more_than_no_ffmpeg(
         CanDo {
             runs: false,
             zscale: false,
+            tonemapx: false,
             libx264: false,
             hardware: vec![],
             gpus: vec![],
         }
     );
     assert_eq!(can_do(Ffmpeg::default()).await, can);
+}
+
+#[tokio::test]
+async fn ffmpeg_has_tonemapx_only_if_it_applies_dolby_vision() {
+    let bin = tempfile::tempdir().unwrap();
+    let cases = [
+        // As jellyfin-ffmpeg 6.0.1-8 and later describe it.
+        (
+            "  apply_dovi        <boolean>    ..FV....... Apply Dolby Vision metadata",
+            true,
+        ),
+        // As a jellyfin-ffmpeg before it.
+        (
+            "  tonemap           <int>        ..FV....... Tonemap algorithm",
+            false,
+        ),
+        // As upstream ffmpeg says, exiting 0.
+        ("Unknown filter 'tonemapx'.", false),
+    ];
+    for (help, has) in cases {
+        let ffmpeg = fake_ffmpeg(bin.path(), &format!("*filter=tonemapx*) echo '{help}' ;;"));
+
+        assert_eq!(can_do(ffmpeg).await.tonemapx, has, "{help}");
+    }
 }
 
 #[tokio::test]

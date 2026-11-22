@@ -340,6 +340,8 @@ pub(crate) struct DeviceDecoding {
     pub(crate) audio_codecs: Vec<proto::AudioCodec>,
     /// Whether its display shows HDR.
     pub(crate) hdr: bool,
+    /// The Dolby Vision profiles it shows, such as 5.
+    pub(crate) dolby_vision_profiles: Vec<i32>,
     /// Whether it decodes 10-bit H.264 (High 10), which most browsers don't.
     pub(crate) h264_10bit: bool,
     /// Whether it plays HLS, natively or through Media Source Extensions, which every method but
