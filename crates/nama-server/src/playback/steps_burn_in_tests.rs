@@ -105,6 +105,28 @@ fn with_nothing_to_tone_map_a_text_burn_in_is_drawn_onto_hdr_as_before_without_a
 }
 
 #[test]
+fn a_text_burn_in_whose_picture_rate_isnt_known_keeps_hdr_drawn_as_before() {
+    let mut facts = burning_in(Hdr::Hdr10, "ass", false);
+    facts.can_do.subtitle_layer = true;
+    if let Some(TrackKind::Video { frame_rate, .. }) =
+        (facts.probe.as_mut()).map(|probe| &mut probe.tracks[0].kind)
+    {
+        *frame_rate = None;
+    }
+
+    let plan = build(&mut facts);
+
+    let video = transcoded(&plan).video;
+    assert_eq!(video.tone_map, None);
+    assert!(
+        matches!(video.burn_in, Some(BurnIn::Text { layer: None, .. })),
+        "{:?}",
+        video.burn_in
+    );
+    assert!(!kinds(&plan).contains(&Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN));
+}
+
+#[test]
 fn an_image_burn_in_keeps_hdr_at_its_transfers_reference_white_whatever_ffmpeg_lacks() {
     for (hdr, white) in [
         (Hdr::Hdr10, ReferenceWhite::Pq),

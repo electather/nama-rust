@@ -376,7 +376,7 @@ impl Ffmpeg {
                 ..
             }) => {
                 // `-start_at_zero` moves each input back by its own start, a `.sup`'s being its
-                // first picture's time, which `-itsoffset` undoes. No `-ss`: see `overlay_graph`'s
+                // first picture's time, which `-itsoffset` undoes. No `-ss`: see `transcoded_video`'s
                 // caller.
                 command
                     .arg("-itsoffset")

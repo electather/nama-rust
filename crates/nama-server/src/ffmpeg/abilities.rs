@@ -135,7 +135,7 @@ impl Abilities {
             answered_once(&self.inner.tonemapx, "tonemapx", ffmpeg.has_tonemapx()),
             answered_once(
                 &self.inner.subtitle_layer,
-                "alphasrc",
+                "a subtitle layer",
                 ffmpeg.has_subtitle_layer()
             ),
             answered_once(&self.inner.libx264, "libx264", ffmpeg.has_libx264()),

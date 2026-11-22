@@ -206,7 +206,9 @@ fn tone_mapper(facts: &Facts, hevc: bool) -> Option<ToneMapper> {
 /// Server's ffmpeg can't draw on a layer of its own, so it tone-maps the picture to SDR as for an
 /// SDR Device, and the subtitle doesn't glare (ADR 0103).
 fn burns_text_into_sdr(facts: &Facts) -> bool {
-    facts.device.hdr && matches!(burn_in(facts), Some(BurnIn::Text { layer: None, .. }))
+    facts.device.hdr
+        && !facts.can_do.subtitle_layer
+        && matches!(burn_in(facts), Some(BurnIn::Text { .. }))
 }
 
 /// The reference white a Transcode for `facts` that tone-maps with `tone_map` maps a subtitle it
@@ -322,8 +324,11 @@ fn tone_mapping(facts: &Facts, video: &VideoConversion) -> Option<Reason> {
     if !tone_map.makes_sdr() {
         return None;
     }
+    // On an HDR Device, only a text Burn-in ffmpeg can't draw over HDR tone-maps.
+    let burns_text = matches!(video.burn_in, Some(BurnIn::Text { .. }));
     // Dolby Vision with no Base Layer is tone-mapped anyway unless the Transcode makes HEVC.
-    if burns_text_into_sdr(facts) && (video.hevc || !needs_reshaping(facts)) {
+    let reshapes_anyway = !video.hevc && tone_map == (ToneMapper::Tonemapx { dolby_vision: true });
+    if facts.device.hdr && burns_text && !reshapes_anyway {
         let text = format!(
             "Its {} picture is converted to SDR to burn in its subtitles, which the Server's \
              ffmpeg can't draw over HDR",

@@ -568,7 +568,7 @@ pub(super) fn video_args(path: &str, video: &VideoConversion, start_ms: i64) -> 
     let upload = accel.map(|accel| accel.upload(pixel_format));
     // Scaling down first spares tone-mapping the pixels it drops. A subtitle instead goes after
     // tone-mapping, which would dim it, and before scaling, so it shrinks with the picture and an
-    // image subtitle still fits the source size `overlay_graph` is given.
+    // image subtitle still fits the source size `image_layer` is given.
     let (before, after) = match video.burn_in {
         None => (filter_chain([tags, scale, tone_map, upload]), None),
         Some(_) => (
