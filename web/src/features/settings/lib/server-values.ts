@@ -13,7 +13,7 @@ export interface ServerValues {
  * What each setting's row says, in the pane's order, the image store's included. The toast names a
  * refused change by its label.
  */
-export const serverLabels: Record<keyof ServerValues | "imageStore", SettingText> = {
+export const serverLabels: Record<keyof ServerValues | "imageStore" | "store", SettingText> = {
   url: {
     label: "Server URL",
     hint: "The address people reach this Server at. Links in messages and Invites start with it. Leave it empty for no links, and no Invites. It’s saved for everyone when you leave the field.",
@@ -32,7 +32,11 @@ export const serverLabels: Record<keyof ServerValues | "imageStore", SettingText
   imageStore: {
     label: "Image store",
     hint: "Where the Server keeps the images it fetched, Custom Images and Plugin logos. Resized copies always stay on local disk.",
-    words: "blob s3 storage",
+    words: "storage",
+  },
+  store: {
+    label: "Keep images on",
+    hint: "An enabled Blob store Plugin, such as S3, can keep them in place of local disk. Every image is copied across before the switch, and the old store keeps its copies.",
   },
 };
 

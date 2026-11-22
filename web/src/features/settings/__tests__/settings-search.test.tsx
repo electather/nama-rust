@@ -200,3 +200,16 @@ test("choosing the setting already open lands on it again", async () => {
     expect(focusedRow()).toBe("Subtitle background");
   });
 });
+
+test("the Image store's picker is found by its hint, and lands on its row", async () => {
+  const router = openSettings("devices", fakeServer({ signedIn: admin }));
+
+  await search("s3");
+  expect(results()).toStrictEqual(["ServerKeep images on"]);
+  fireEvent.click(screen.getByRole("option", { name: "Keep images on, Server" }));
+
+  await waitFor(() => {
+    expect(focusedRow()).toBe("Keep images on");
+  });
+  expect(router.state.location.search).toMatchObject({ settings: "server", setting: "store" });
+});

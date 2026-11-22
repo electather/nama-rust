@@ -15,8 +15,6 @@ const MARKED_MS = 1500;
  */
 export function useFoundSetting(pane: RefObject<HTMLElement | null>, section: Section) {
   const setting = useSearch({ strict: false, select: (search) => search.setting });
-  // shortcut: choosing the setting already in the address again changes nothing, so it isn't
-  // marked again. Key this on a count of choices if people do.
   useEffect(() => {
     const row =
       pane.current !== null && setting !== undefined ? rowOf(pane.current, section, setting) : null;

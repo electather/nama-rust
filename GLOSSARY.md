@@ -193,7 +193,7 @@ One part of Settings, such as Playback or Backups, listed down its side. A User 
 _Avoid_: tab, page
 
 **Setting**:
-One choice in a Section of Settings, such as the Subtitle language or a Personal setting, with its own row. Settings' search finds each one, and `?setting=` opens its row.
+One choice in a Section of Settings, such as the Subtitle language or a Personal setting, with its own row. Settings' search finds each one and opens its row.
 _Avoid_: option
 
 **Personal setting**:

@@ -25,15 +25,15 @@ export function useServerDefined(wanted: boolean, groups: SectionGroup[]): Finda
     {},
     { enabled: asks("connections") },
   );
-  // fallow-ignore-next-line policy-violation:feature-layout/suspense -- as above
+  // fallow-ignore-next-line policy-violation:feature-layout/suspense -- the default Qualities join the built-in results as they load
   const qualities = useQuery(
     RequestService.method.listDefaultQualities,
     {},
     { enabled: asks("requests") },
   );
-  // fallow-ignore-next-line policy-violation:feature-layout/suspense -- as above
+  // fallow-ignore-next-line policy-violation:feature-layout/suspense -- the Home rows join the built-in results as they load
   const home = useQuery(UserService.method.getHomeLayout, {}, { enabled: asks("home") });
-  // fallow-ignore-next-line policy-violation:feature-layout/suspense -- as above
+  // fallow-ignore-next-line policy-violation:feature-layout/suspense -- the Default Home rows join the built-in results as they load
   const defaultHome = useQuery(
     ServerService.method.getDefaultHomeLayout,
     {},
