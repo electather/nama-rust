@@ -238,7 +238,7 @@ fn a_watchlist_entry_of_another_kind_or_id_boosts_nothing() {
     assert_eq!(picks, ["3", "t2"]);
 }
 
-/// The Movie `tvdb_movie(tvdb_value, value)` is, as a Library preferring TMDB lists it.
+/// The Movie `tvdb_movie(tvdb_value, value)` as a Library preferring TMDB lists it, by `value`.
 fn tmdb_movie(value: &str, tvdb_value: &str, genres: &[&str]) -> Title {
     Title {
         ids: vec![id(value), tvdb(tvdb_value)],
@@ -313,8 +313,8 @@ fn a_title_played_in_two_libraries_counts_its_genres_once() {
         movie("6", &["Comedy"]),
     ];
     let mut states: Vec<_> = titles.iter().map(unwatched).collect();
-    for first_four in 0..4 {
-        states[first_four] = watched(&titles[first_four], true, 0);
+    for (state, title) in states.iter_mut().zip(&titles).take(4) {
+        *state = watched(title, true, 0);
     }
 
     assert_eq!(top_picks(&titles, &states, &[]), ["6", "4"]);
