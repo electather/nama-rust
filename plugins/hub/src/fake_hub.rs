@@ -58,6 +58,8 @@ struct State {
     user_link_asks: usize,
     /// Each Server URL and LAN addresses the Server reported, in order.
     reported_addresses: Vec<(String, Vec<String>)>,
+    /// How many of the next reports of Server Addresses fail.
+    addresses_failures: usize,
 }
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
@@ -153,6 +155,11 @@ impl FakeHub {
     /// Each Server URL and LAN addresses the Server reported, in order.
     pub(super) fn reported_addresses(&self) -> Vec<(String, Vec<String>)> {
         lock(&self.state).reported_addresses.clone()
+    }
+
+    /// Has the next report of Server Addresses fail, as if the Hub blinked.
+    pub(super) fn fail_next_addresses(&self) {
+        lock(&self.state).addresses_failures += 1;
     }
 
     /// Has the key set fail, as if the Hub went down right after handing out a credential.
@@ -330,6 +337,10 @@ impl LinkedServerService for Linked {
         request: ServiceRequest<'_, SetServerAddressesRequest>,
     ) -> ServiceResult<SetServerAddressesResponse> {
         let mut state = self.caller(&ctx)?;
+        if state.addresses_failures > 0 {
+            state.addresses_failures -= 1;
+            return Err(ConnectError::unavailable("the fake Hub blinked"));
+        }
         let lan = request
             .lan_addresses
             .iter()

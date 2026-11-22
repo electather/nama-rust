@@ -410,9 +410,11 @@ async fn addresses_the_hub_couldnt_take_are_reported_again() {
     let hub = FakeHub::start().await;
     let linker = enabled(&hub, &store());
     link(&hub, linker.as_ref()).await;
-    hub.stop();
+    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
+    hub.fail_next_addresses();
+    assert!(linker.set_addresses(lan_only.clone()).await.is_err());
 
-    let reported = linker.set_addresses(addresses("", &[])).await;
+    linker.set_addresses(lan_only).await.unwrap();
 
-    assert!(reported.is_err());
+    assert_eq!(hub.reported_addresses().len(), 1);
 }
