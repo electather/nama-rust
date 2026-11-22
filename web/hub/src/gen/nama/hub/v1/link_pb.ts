@@ -2,15 +2,15 @@
 // @generated from file nama/hub/v1/link.proto (package nama.hub.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
-import type { Message } from "@bufbuild/protobuf";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { Message, UnknownEnum } from "@bufbuild/protobuf";
 
 /**
  * Describes the file nama/hub/v1/link.proto.
  */
 export const file_nama_hub_v1_link: GenFile = /*@__PURE__*/
-  fileDesc("ChZuYW1hL2h1Yi92MS9saW5rLnByb3RvEgtuYW1hLmh1Yi52MSJbCgxMaW5rZWRTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglsaW5rZWRfYXQYAyABKAMSCwoDdXJsGAQgASgJEhEKCWFkZHJlc3NlcxgFIAMoCSImChZTdGFydFNlcnZlckxpbmtSZXF1ZXN0EgwKBG5hbWUYASABKAkidwoXU3RhcnRTZXJ2ZXJMaW5rUmVzcG9uc2USEwoLZGV2aWNlX2NvZGUYASABKAkSEQoJdXNlcl9jb2RlGAIgASgJEhoKEmV4cGlyZXNfaW5fc2Vjb25kcxgDIAEoBRIYChBpbnRlcnZhbF9zZWNvbmRzGAQgASgFIiwKFVBvbGxTZXJ2ZXJMaW5rUmVxdWVzdBITCgtkZXZpY2VfY29kZRgBIAEoCSJLChZQb2xsU2VydmVyTGlua1Jlc3BvbnNlEg4KBmxpbmtlZBgBIAEoCBISCgpjcmVkZW50aWFsGAIgASgJEg0KBXRva2VuGAMgASgJIigKGEFwcHJvdmVTZXJ2ZXJMaW5rUmVxdWVzdBIMCgRjb2RlGAEgASgJIkYKGUFwcHJvdmVTZXJ2ZXJMaW5rUmVzcG9uc2USKQoGc2VydmVyGAEgASgLMhkubmFtYS5odWIudjEuTGlua2VkU2VydmVyIhoKGExpc3RMaW5rZWRTZXJ2ZXJzUmVxdWVzdCJHChlMaXN0TGlua2VkU2VydmVyc1Jlc3BvbnNlEioKB3NlcnZlcnMYASADKAsyGS5uYW1hLmh1Yi52MS5MaW5rZWRTZXJ2ZXIiFQoTVW5saW5rU2VydmVyUmVxdWVzdCIWChRVbmxpbmtTZXJ2ZXJSZXNwb25zZSJOCgpMaW5rZWRVc2VyEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEwoLc2VydmVyX25hbWUYAyABKAkSEQoJbGlua2VkX2F0GAQgASgDIiYKFkFwcHJvdmVVc2VyTGlua1JlcXVlc3QSDAoEY29kZRgBIAEoCSJAChdBcHByb3ZlVXNlckxpbmtSZXNwb25zZRIlCgR1c2VyGAEgASgLMhcubmFtYS5odWIudjEuTGlua2VkVXNlciIYChZMaXN0TGlua2VkVXNlcnNSZXF1ZXN0IkEKF0xpc3RMaW5rZWRVc2Vyc1Jlc3BvbnNlEiYKBXVzZXJzGAEgAygLMhcubmFtYS5odWIudjEuTGlua2VkVXNlciIlChdVbmxpbmtMaW5rZWRVc2VyUmVxdWVzdBIKCgJpZBgBIAEoCSIaChhVbmxpbmtMaW5rZWRVc2VyUmVzcG9uc2UiNQoUU3RhcnRVc2VyTGlua1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIMCgRuYW1lGAIgASgJIkYKFVN0YXJ0VXNlckxpbmtSZXNwb25zZRIRCgl1c2VyX2NvZGUYASABKAkSGgoSZXhwaXJlc19pbl9zZWNvbmRzGAIgASgFIiUKEkdldFVzZXJMaW5rUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDIiYKE0dldFVzZXJMaW5rUmVzcG9uc2USDwoHYWNjb3VudBgBIAEoCSIkChFVbmxpbmtVc2VyUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDIhQKElVubGlua1VzZXJSZXNwb25zZSI/ChlTZXRTZXJ2ZXJBZGRyZXNzZXNSZXF1ZXN0EgsKA3VybBgBIAEoCRIVCg1sYW5fYWRkcmVzc2VzGAIgAygJIhwKGlNldFNlcnZlckFkZHJlc3Nlc1Jlc3BvbnNlMswBChFTZXJ2ZXJMaW5rU2VydmljZRJcCg9TdGFydFNlcnZlckxpbmsSIy5uYW1hLmh1Yi52MS5TdGFydFNlcnZlckxpbmtSZXF1ZXN0GiQubmFtYS5odWIudjEuU3RhcnRTZXJ2ZXJMaW5rUmVzcG9uc2USWQoOUG9sbFNlcnZlckxpbmsSIi5uYW1hLmh1Yi52MS5Qb2xsU2VydmVyTGlua1JlcXVlc3QaIy5uYW1hLmh1Yi52MS5Qb2xsU2VydmVyTGlua1Jlc3BvbnNlMoEECgtMaW5rU2VydmljZRJiChFBcHByb3ZlU2VydmVyTGluaxIlLm5hbWEuaHViLnYxLkFwcHJvdmVTZXJ2ZXJMaW5rUmVxdWVzdBomLm5hbWEuaHViLnYxLkFwcHJvdmVTZXJ2ZXJMaW5rUmVzcG9uc2USZwoRTGlzdExpbmtlZFNlcnZlcnMSJS5uYW1hLmh1Yi52MS5MaXN0TGlua2VkU2VydmVyc1JlcXVlc3QaJi5uYW1hLmh1Yi52MS5MaXN0TGlua2VkU2VydmVyc1Jlc3BvbnNlIgOQAgESXAoPQXBwcm92ZVVzZXJMaW5rEiMubmFtYS5odWIudjEuQXBwcm92ZVVzZXJMaW5rUmVxdWVzdBokLm5hbWEuaHViLnYxLkFwcHJvdmVVc2VyTGlua1Jlc3BvbnNlEmEKD0xpc3RMaW5rZWRVc2VycxIjLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRVc2Vyc1JlcXVlc3QaJC5uYW1hLmh1Yi52MS5MaXN0TGlua2VkVXNlcnNSZXNwb25zZSIDkAIBEmQKEFVubGlua0xpbmtlZFVzZXISJC5uYW1hLmh1Yi52MS5VbmxpbmtMaW5rZWRVc2VyUmVxdWVzdBolLm5hbWEuaHViLnYxLlVubGlua0xpbmtlZFVzZXJSZXNwb25zZSIDkAICMtkDChNMaW5rZWRTZXJ2ZXJTZXJ2aWNlElMKDFVubGlua1NlcnZlchIgLm5hbWEuaHViLnYxLlVubGlua1NlcnZlclJlcXVlc3QaIS5uYW1hLmh1Yi52MS5VbmxpbmtTZXJ2ZXJSZXNwb25zZRJWCg1TdGFydFVzZXJMaW5rEiEubmFtYS5odWIudjEuU3RhcnRVc2VyTGlua1JlcXVlc3QaIi5uYW1hLmh1Yi52MS5TdGFydFVzZXJMaW5rUmVzcG9uc2USVQoLR2V0VXNlckxpbmsSHy5uYW1hLmh1Yi52MS5HZXRVc2VyTGlua1JlcXVlc3QaIC5uYW1hLmh1Yi52MS5HZXRVc2VyTGlua1Jlc3BvbnNlIgOQAgESUgoKVW5saW5rVXNlchIeLm5hbWEuaHViLnYxLlVubGlua1VzZXJSZXF1ZXN0Gh8ubmFtYS5odWIudjEuVW5saW5rVXNlclJlc3BvbnNlIgOQAgISagoSU2V0U2VydmVyQWRkcmVzc2VzEiYubmFtYS5odWIudjEuU2V0U2VydmVyQWRkcmVzc2VzUmVxdWVzdBonLm5hbWEuaHViLnYxLlNldFNlcnZlckFkZHJlc3Nlc1Jlc3BvbnNlIgOQAgJiBnByb3RvMw");
+  fileDesc("ChZuYW1hL2h1Yi92MS9saW5rLnByb3RvEgtuYW1hLmh1Yi52MSJbCgxMaW5rZWRTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglsaW5rZWRfYXQYAyABKAMSCwoDdXJsGAQgASgJEhEKCWFkZHJlc3NlcxgFIAMoCSImChZTdGFydFNlcnZlckxpbmtSZXF1ZXN0EgwKBG5hbWUYASABKAkidwoXU3RhcnRTZXJ2ZXJMaW5rUmVzcG9uc2USEwoLZGV2aWNlX2NvZGUYASABKAkSEQoJdXNlcl9jb2RlGAIgASgJEhoKEmV4cGlyZXNfaW5fc2Vjb25kcxgDIAEoBRIYChBpbnRlcnZhbF9zZWNvbmRzGAQgASgFIiwKFVBvbGxTZXJ2ZXJMaW5rUmVxdWVzdBITCgtkZXZpY2VfY29kZRgBIAEoCSJLChZQb2xsU2VydmVyTGlua1Jlc3BvbnNlEg4KBmxpbmtlZBgBIAEoCBISCgpjcmVkZW50aWFsGAIgASgJEg0KBXRva2VuGAMgASgJIigKGEFwcHJvdmVTZXJ2ZXJMaW5rUmVxdWVzdBIMCgRjb2RlGAEgASgJIkYKGUFwcHJvdmVTZXJ2ZXJMaW5rUmVzcG9uc2USKQoGc2VydmVyGAEgASgLMhkubmFtYS5odWIudjEuTGlua2VkU2VydmVyIhoKGExpc3RMaW5rZWRTZXJ2ZXJzUmVxdWVzdCJHChlMaXN0TGlua2VkU2VydmVyc1Jlc3BvbnNlEioKB3NlcnZlcnMYASADKAsyGS5uYW1hLmh1Yi52MS5MaW5rZWRTZXJ2ZXIiFQoTVW5saW5rU2VydmVyUmVxdWVzdCIWChRVbmxpbmtTZXJ2ZXJSZXNwb25zZSIuCgpFeHRlcm5hbElkEhEKCW5hbWVzcGFjZRgBIAEoCRINCgV2YWx1ZRgCIAEoCSJmChhMaXN0U2ltaWxhclRpdGxlc1JlcXVlc3QSJAoEa2luZBgBIAEoDjIWLm5hbWEuaHViLnYxLlRpdGxlS2luZBIkCgNpZHMYAiADKAsyFy5uYW1hLmh1Yi52MS5FeHRlcm5hbElkIkYKGUxpc3RTaW1pbGFyVGl0bGVzUmVzcG9uc2USKQoGdGl0bGVzGAEgAygLMhkubmFtYS5odWIudjEuU2ltaWxhclRpdGxlIkMKDFNpbWlsYXJUaXRsZRIjCgJpZBgBIAEoCzIXLm5hbWEuaHViLnYxLkV4dGVybmFsSWQSDgoGd2VpZ2h0GAIgASgCIk4KCkxpbmtlZFVzZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRITCgtzZXJ2ZXJfbmFtZRgDIAEoCRIRCglsaW5rZWRfYXQYBCABKAMiJgoWQXBwcm92ZVVzZXJMaW5rUmVxdWVzdBIMCgRjb2RlGAEgASgJIkAKF0FwcHJvdmVVc2VyTGlua1Jlc3BvbnNlEiUKBHVzZXIYASABKAsyFy5uYW1hLmh1Yi52MS5MaW5rZWRVc2VyIhgKFkxpc3RMaW5rZWRVc2Vyc1JlcXVlc3QiQQoXTGlzdExpbmtlZFVzZXJzUmVzcG9uc2USJgoFdXNlcnMYASADKAsyFy5uYW1hLmh1Yi52MS5MaW5rZWRVc2VyIiUKF1VubGlua0xpbmtlZFVzZXJSZXF1ZXN0EgoKAmlkGAEgASgJIhoKGFVubGlua0xpbmtlZFVzZXJSZXNwb25zZSI1ChRTdGFydFVzZXJMaW5rUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkiRgoVU3RhcnRVc2VyTGlua1Jlc3BvbnNlEhEKCXVzZXJfY29kZRgBIAEoCRIaChJleHBpcmVzX2luX3NlY29uZHMYAiABKAUiJQoSR2V0VXNlckxpbmtSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiJgoTR2V0VXNlckxpbmtSZXNwb25zZRIPCgdhY2NvdW50GAEgASgJIiQKEVVubGlua1VzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiFAoSVW5saW5rVXNlclJlc3BvbnNlIj8KGVNldFNlcnZlckFkZHJlc3Nlc1JlcXVlc3QSCwoDdXJsGAEgASgJEhUKDWxhbl9hZGRyZXNzZXMYAiADKAkiHAoaU2V0U2VydmVyQWRkcmVzc2VzUmVzcG9uc2UqUgoJVGl0bGVLaW5kEhoKFlRJVExFX0tJTkRfVU5TUEVDSUZJRUQQABIUChBUSVRMRV9LSU5EX01PVklFEAESEwoPVElUTEVfS0lORF9TSE9XEAIyzAEKEVNlcnZlckxpbmtTZXJ2aWNlElwKD1N0YXJ0U2VydmVyTGluaxIjLm5hbWEuaHViLnYxLlN0YXJ0U2VydmVyTGlua1JlcXVlc3QaJC5uYW1hLmh1Yi52MS5TdGFydFNlcnZlckxpbmtSZXNwb25zZRJZCg5Qb2xsU2VydmVyTGluaxIiLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVxdWVzdBojLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVzcG9uc2UygQQKC0xpbmtTZXJ2aWNlEmIKEUFwcHJvdmVTZXJ2ZXJMaW5rEiUubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXF1ZXN0GiYubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXNwb25zZRJnChFMaXN0TGlua2VkU2VydmVycxIlLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVxdWVzdBomLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVzcG9uc2UiA5ACARJcCg9BcHByb3ZlVXNlckxpbmsSIy5uYW1hLmh1Yi52MS5BcHByb3ZlVXNlckxpbmtSZXF1ZXN0GiQubmFtYS5odWIudjEuQXBwcm92ZVVzZXJMaW5rUmVzcG9uc2USYQoPTGlzdExpbmtlZFVzZXJzEiMubmFtYS5odWIudjEuTGlzdExpbmtlZFVzZXJzUmVxdWVzdBokLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRVc2Vyc1Jlc3BvbnNlIgOQAgESZAoQVW5saW5rTGlua2VkVXNlchIkLm5hbWEuaHViLnYxLlVubGlua0xpbmtlZFVzZXJSZXF1ZXN0GiUubmFtYS5odWIudjEuVW5saW5rTGlua2VkVXNlclJlc3BvbnNlIgOQAgIywgQKE0xpbmtlZFNlcnZlclNlcnZpY2USUwoMVW5saW5rU2VydmVyEiAubmFtYS5odWIudjEuVW5saW5rU2VydmVyUmVxdWVzdBohLm5hbWEuaHViLnYxLlVubGlua1NlcnZlclJlc3BvbnNlEmcKEUxpc3RTaW1pbGFyVGl0bGVzEiUubmFtYS5odWIudjEuTGlzdFNpbWlsYXJUaXRsZXNSZXF1ZXN0GiYubmFtYS5odWIudjEuTGlzdFNpbWlsYXJUaXRsZXNSZXNwb25zZSIDkAIBElYKDVN0YXJ0VXNlckxpbmsSIS5uYW1hLmh1Yi52MS5TdGFydFVzZXJMaW5rUmVxdWVzdBoiLm5hbWEuaHViLnYxLlN0YXJ0VXNlckxpbmtSZXNwb25zZRJVCgtHZXRVc2VyTGluaxIfLm5hbWEuaHViLnYxLkdldFVzZXJMaW5rUmVxdWVzdBogLm5hbWEuaHViLnYxLkdldFVzZXJMaW5rUmVzcG9uc2UiA5ACARJSCgpVbmxpbmtVc2VyEh4ubmFtYS5odWIudjEuVW5saW5rVXNlclJlcXVlc3QaHy5uYW1hLmh1Yi52MS5VbmxpbmtVc2VyUmVzcG9uc2UiA5ACAhJqChJTZXRTZXJ2ZXJBZGRyZXNzZXMSJi5uYW1hLmh1Yi52MS5TZXRTZXJ2ZXJBZGRyZXNzZXNSZXF1ZXN0GicubmFtYS5odWIudjEuU2V0U2VydmVyQWRkcmVzc2VzUmVzcG9uc2UiA5ACAmIGcHJvdG8z");
 
 /**
  * A Server registered with the Hub, owned by an Account.
@@ -270,6 +270,105 @@ export const UnlinkServerResponseSchema: GenMessage<UnlinkServerResponse> = /*@_
   messageDesc(file_nama_hub_v1_link, 10);
 
 /**
+ * A title's id at a metadata source (ADR 0042).
+ *
+ * @generated from message nama.hub.v1.ExternalId
+ */
+export type ExternalId = Message<"nama.hub.v1.ExternalId"> & {
+  /**
+   * The metadata source, such as `tmdb`, `imdb` or `tvdb`.
+   *
+   * @generated from field: string namespace = 1;
+   */
+  namespace: string;
+
+  /**
+   * The title's id there, such as `603`.
+   *
+   * @generated from field: string value = 2;
+   */
+  value: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.ExternalId.
+ * Use `create(ExternalIdSchema)` to create a new message.
+ */
+export const ExternalIdSchema: GenMessage<ExternalId> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 11);
+
+/**
+ * @generated from message nama.hub.v1.ListSimilarTitlesRequest
+ */
+export type ListSimilarTitlesRequest = Message<"nama.hub.v1.ListSimilarTitlesRequest"> & {
+  /**
+   * @generated from field: nama.hub.v1.TitleKind kind = 1;
+   */
+  kind: TitleKind;
+
+  /**
+   * The title's External IDs, at most one per namespace, in the order the Server prefers its
+   * answers' namespaces.
+   *
+   * @generated from field: repeated nama.hub.v1.ExternalId ids = 2;
+   */
+  ids: ExternalId[];
+};
+
+/**
+ * Describes the message nama.hub.v1.ListSimilarTitlesRequest.
+ * Use `create(ListSimilarTitlesRequestSchema)` to create a new message.
+ */
+export const ListSimilarTitlesRequestSchema: GenMessage<ListSimilarTitlesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 12);
+
+/**
+ * @generated from message nama.hub.v1.ListSimilarTitlesResponse
+ */
+export type ListSimilarTitlesResponse = Message<"nama.hub.v1.ListSimilarTitlesResponse"> & {
+  /**
+   * @generated from field: repeated nama.hub.v1.SimilarTitle titles = 1;
+   */
+  titles: SimilarTitle[];
+};
+
+/**
+ * Describes the message nama.hub.v1.ListSimilarTitlesResponse.
+ * Use `create(ListSimilarTitlesResponseSchema)` to create a new message.
+ */
+export const ListSimilarTitlesResponseSchema: GenMessage<ListSimilarTitlesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 13);
+
+/**
+ * A title like the one asked about.
+ *
+ * @generated from message nama.hub.v1.SimilarTitle
+ */
+export type SimilarTitle = Message<"nama.hub.v1.SimilarTitle"> & {
+  /**
+   * Its id in the first namespace of the request's `ids` that the Hub knows it by. A title the Hub
+   * knows by none of them isn't answered.
+   *
+   * @generated from field: nama.hub.v1.ExternalId id = 1;
+   */
+  id?: ExternalId | undefined;
+
+  /**
+   * How alike, from 0.0 to 1.0.
+   *
+   * @generated from field: float weight = 2;
+   */
+  weight: number;
+};
+
+/**
+ * Describes the message nama.hub.v1.SimilarTitle.
+ * Use `create(SimilarTitleSchema)` to create a new message.
+ */
+export const SimilarTitleSchema: GenMessage<SimilarTitle> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 14);
+
+/**
  * A User on a Linked Server, Linked to an Account.
  *
  * @generated from message nama.hub.v1.LinkedUser
@@ -309,7 +408,7 @@ export type LinkedUser = Message<"nama.hub.v1.LinkedUser"> & {
  * Use `create(LinkedUserSchema)` to create a new message.
  */
 export const LinkedUserSchema: GenMessage<LinkedUser> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 11);
+  messageDesc(file_nama_hub_v1_link, 15);
 
 /**
  * @generated from message nama.hub.v1.ApproveUserLinkRequest
@@ -328,7 +427,7 @@ export type ApproveUserLinkRequest = Message<"nama.hub.v1.ApproveUserLinkRequest
  * Use `create(ApproveUserLinkRequestSchema)` to create a new message.
  */
 export const ApproveUserLinkRequestSchema: GenMessage<ApproveUserLinkRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 12);
+  messageDesc(file_nama_hub_v1_link, 16);
 
 /**
  * @generated from message nama.hub.v1.ApproveUserLinkResponse
@@ -347,7 +446,7 @@ export type ApproveUserLinkResponse = Message<"nama.hub.v1.ApproveUserLinkRespon
  * Use `create(ApproveUserLinkResponseSchema)` to create a new message.
  */
 export const ApproveUserLinkResponseSchema: GenMessage<ApproveUserLinkResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 13);
+  messageDesc(file_nama_hub_v1_link, 17);
 
 /**
  * @generated from message nama.hub.v1.ListLinkedUsersRequest
@@ -360,7 +459,7 @@ export type ListLinkedUsersRequest = Message<"nama.hub.v1.ListLinkedUsersRequest
  * Use `create(ListLinkedUsersRequestSchema)` to create a new message.
  */
 export const ListLinkedUsersRequestSchema: GenMessage<ListLinkedUsersRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 14);
+  messageDesc(file_nama_hub_v1_link, 18);
 
 /**
  * @generated from message nama.hub.v1.ListLinkedUsersResponse
@@ -377,7 +476,7 @@ export type ListLinkedUsersResponse = Message<"nama.hub.v1.ListLinkedUsersRespon
  * Use `create(ListLinkedUsersResponseSchema)` to create a new message.
  */
 export const ListLinkedUsersResponseSchema: GenMessage<ListLinkedUsersResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 15);
+  messageDesc(file_nama_hub_v1_link, 19);
 
 /**
  * @generated from message nama.hub.v1.UnlinkLinkedUserRequest
@@ -396,7 +495,7 @@ export type UnlinkLinkedUserRequest = Message<"nama.hub.v1.UnlinkLinkedUserReque
  * Use `create(UnlinkLinkedUserRequestSchema)` to create a new message.
  */
 export const UnlinkLinkedUserRequestSchema: GenMessage<UnlinkLinkedUserRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 16);
+  messageDesc(file_nama_hub_v1_link, 20);
 
 /**
  * @generated from message nama.hub.v1.UnlinkLinkedUserResponse
@@ -409,7 +508,7 @@ export type UnlinkLinkedUserResponse = Message<"nama.hub.v1.UnlinkLinkedUserResp
  * Use `create(UnlinkLinkedUserResponseSchema)` to create a new message.
  */
 export const UnlinkLinkedUserResponseSchema: GenMessage<UnlinkLinkedUserResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 17);
+  messageDesc(file_nama_hub_v1_link, 21);
 
 /**
  * @generated from message nama.hub.v1.StartUserLinkRequest
@@ -436,7 +535,7 @@ export type StartUserLinkRequest = Message<"nama.hub.v1.StartUserLinkRequest"> &
  * Use `create(StartUserLinkRequestSchema)` to create a new message.
  */
 export const StartUserLinkRequestSchema: GenMessage<StartUserLinkRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 18);
+  messageDesc(file_nama_hub_v1_link, 22);
 
 /**
  * @generated from message nama.hub.v1.StartUserLinkResponse
@@ -462,7 +561,7 @@ export type StartUserLinkResponse = Message<"nama.hub.v1.StartUserLinkResponse">
  * Use `create(StartUserLinkResponseSchema)` to create a new message.
  */
 export const StartUserLinkResponseSchema: GenMessage<StartUserLinkResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 19);
+  messageDesc(file_nama_hub_v1_link, 23);
 
 /**
  * @generated from message nama.hub.v1.GetUserLinkRequest
@@ -481,7 +580,7 @@ export type GetUserLinkRequest = Message<"nama.hub.v1.GetUserLinkRequest"> & {
  * Use `create(GetUserLinkRequestSchema)` to create a new message.
  */
 export const GetUserLinkRequestSchema: GenMessage<GetUserLinkRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 20);
+  messageDesc(file_nama_hub_v1_link, 24);
 
 /**
  * @generated from message nama.hub.v1.GetUserLinkResponse
@@ -500,7 +599,7 @@ export type GetUserLinkResponse = Message<"nama.hub.v1.GetUserLinkResponse"> & {
  * Use `create(GetUserLinkResponseSchema)` to create a new message.
  */
 export const GetUserLinkResponseSchema: GenMessage<GetUserLinkResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 21);
+  messageDesc(file_nama_hub_v1_link, 25);
 
 /**
  * @generated from message nama.hub.v1.UnlinkUserRequest
@@ -519,7 +618,7 @@ export type UnlinkUserRequest = Message<"nama.hub.v1.UnlinkUserRequest"> & {
  * Use `create(UnlinkUserRequestSchema)` to create a new message.
  */
 export const UnlinkUserRequestSchema: GenMessage<UnlinkUserRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 22);
+  messageDesc(file_nama_hub_v1_link, 26);
 
 /**
  * @generated from message nama.hub.v1.UnlinkUserResponse
@@ -532,7 +631,7 @@ export type UnlinkUserResponse = Message<"nama.hub.v1.UnlinkUserResponse"> & {
  * Use `create(UnlinkUserResponseSchema)` to create a new message.
  */
 export const UnlinkUserResponseSchema: GenMessage<UnlinkUserResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 23);
+  messageDesc(file_nama_hub_v1_link, 27);
 
 /**
  * @generated from message nama.hub.v1.SetServerAddressesRequest
@@ -558,7 +657,7 @@ export type SetServerAddressesRequest = Message<"nama.hub.v1.SetServerAddressesR
  * Use `create(SetServerAddressesRequestSchema)` to create a new message.
  */
 export const SetServerAddressesRequestSchema: GenMessage<SetServerAddressesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 24);
+  messageDesc(file_nama_hub_v1_link, 28);
 
 /**
  * @generated from message nama.hub.v1.SetServerAddressesResponse
@@ -571,7 +670,42 @@ export type SetServerAddressesResponse = Message<"nama.hub.v1.SetServerAddresses
  * Use `create(SetServerAddressesResponseSchema)` to create a new message.
  */
 export const SetServerAddressesResponseSchema: GenMessage<SetServerAddressesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 25);
+  messageDesc(file_nama_hub_v1_link, 29);
+
+/**
+ * Whether a title is a Movie or a Show, whose External IDs are separate id spaces (ADR 0042).
+ *
+ * @generated from enum nama.hub.v1.TitleKind
+ */
+export const TitleKind = {
+  /**
+   * @generated from enum value: TITLE_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED: 0,
+
+  /**
+   * @generated from enum value: TITLE_KIND_MOVIE = 1;
+   */
+  MOVIE: 1,
+
+  /**
+   * @generated from enum value: TITLE_KIND_SHOW = 2;
+   */
+  SHOW: 2,
+} as const;
+
+/**
+ * Whether a title is a Movie or a Show, whose External IDs are separate id spaces (ADR 0042).
+ *
+ * @generated from enum nama.hub.v1.TitleKind
+ */
+export type TitleKind = (typeof TitleKind)[keyof typeof TitleKind] | UnknownEnum;
+
+/**
+ * Describes the enum nama.hub.v1.TitleKind.
+ */
+export const TitleKindSchema: GenEnum<TitleKind> = /*@__PURE__*/
+  enumDesc(file_nama_hub_v1_link, 0);
 
 /**
  * Registering a Server with the Hub, as an OAuth device flow (RFC 8628, ADR 0011): the Server
@@ -693,6 +827,18 @@ export const LinkedServerService: GenService<{
     methodKind: "unary";
     input: typeof UnlinkServerRequestSchema;
     output: typeof UnlinkServerResponseSchema;
+  },
+  /**
+   * The titles most like one title, of its kind, by the vectors the Hub builds from Wikidata's
+   * facts (ADR 0095): at most 100, most alike first. Empty when Wikidata lacks the title or the
+   * kind is unspecified, which isn't a failure: the Server's other Similar sources cover it.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.ListSimilarTitles
+   */
+  listSimilarTitles: {
+    methodKind: "unary";
+    input: typeof ListSimilarTitlesRequestSchema;
+    output: typeof ListSimilarTitlesResponseSchema;
   },
   /**
    * Starts Linking one of the Server's Users: the code they enter on the Hub, which replaces any

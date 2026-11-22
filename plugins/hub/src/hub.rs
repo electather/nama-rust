@@ -17,7 +17,8 @@ use hyper_util::{
     rt::TokioExecutor,
 };
 use nama_hub_proto::nama::hub::v1::{
-    GetUserLinkRequest, LinkedServerServiceClient, PollServerLinkRequest, PollServerLinkResponse,
+    GetUserLinkRequest, LinkedServerServiceClient, ListSimilarTitlesRequest,
+    ListSimilarTitlesResponse, PollServerLinkRequest, PollServerLinkResponse,
     ServerLinkServiceClient, SetServerAddressesRequest, StartServerLinkRequest,
     StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest,
     UnlinkUserRequest,
@@ -32,6 +33,7 @@ const MAX_KEY_SET_BYTES: usize = 64 * 1024;
 type Transport = ServiceTransport<Client<HttpsConnector<HttpConnector>, ClientBody>>;
 
 /// The Hub at one address.
+#[derive(Clone)]
 pub(crate) struct Hub {
     url: String,
     transport: Transport,
@@ -217,6 +219,26 @@ impl Hub {
             return Err(format!("the Hub answered {status} for shared Diagnostics").into());
         }
         Ok(())
+    }
+
+    /// The titles like the one `request` names, asked as the Server whose credential is
+    /// `credential`. Empty if the Hub doesn't know the credential any more, as [`Hub::unlink`]
+    /// takes it: a Server no longer Linked has no answer, which isn't a failure.
+    pub(crate) async fn similar(
+        &self,
+        credential: &str,
+        request: ListSimilarTitlesRequest,
+    ) -> Result<ListSimilarTitlesResponse, PluginError> {
+        match (self.linked_server(credential)?)
+            .list_similar_titles(request)
+            .await
+        {
+            Ok(similar) => Ok(similar.into_owned()),
+            Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => {
+                Ok(ListSimilarTitlesResponse::default())
+            }
+            Err(err) => Err(err.into()),
+        }
     }
 
     /// The Hub's published key set, as JSON.

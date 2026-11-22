@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM title_vectors",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "9a07bb094c2d8ae8e84e5f623ddb015617f457bf2766d12c2d49205b0fe1e431"
+}

@@ -1,7 +1,7 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
-//! one Server's device flow, Unlinking, its Users' Links, its Server Addresses, and a key set of
-//! one Ed25519 key it signs with, as the Hub's API (`proto/nama/hub/v1/link.proto`) says the Hub
-//! does, and takes shared Diagnostics.
+//! one Server's device flow, Unlinking, its Users' Links, its Server Addresses, the titles like
+//! The Matrix, and a key set of one Ed25519 key it signs with, as the Hub's API
+//! (`proto/nama/hub/v1/link.proto`) says the Hub does, and takes shared Diagnostics.
 
 use std::{
     collections::HashMap,
@@ -18,11 +18,12 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_hub_proto::nama::hub::v1::{
-    GetUserLinkRequest, GetUserLinkResponse, LinkedServerService, PollServerLinkRequest,
+    ExternalId, GetUserLinkRequest, GetUserLinkResponse, LinkedServerService,
+    ListSimilarTitlesRequest, ListSimilarTitlesResponse, PollServerLinkRequest,
     PollServerLinkResponse, ServerLinkService, SetServerAddressesRequest,
-    SetServerAddressesResponse, StartServerLinkRequest, StartServerLinkResponse,
-    StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest, UnlinkServerResponse,
-    UnlinkUserRequest, UnlinkUserResponse,
+    SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest, StartServerLinkResponse,
+    StartUserLinkRequest, StartUserLinkResponse, TitleKind, UnlinkServerRequest,
+    UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::{Value, json};
@@ -130,6 +131,11 @@ impl FakeHub {
     /// Someone enters the code on the Hub.
     pub(super) fn enter_code(&self) {
         lock(&self.state).entered = true;
+    }
+
+    /// Forgets the Server's credential, as if it was Unlinked on the Hub's side.
+    pub(super) fn forget_server(&self) {
+        lock(&self.state).linked = false;
     }
 
     /// The User `user_id` enters their code on the Hub, signed in to [`EMAIL`]'s Account.
@@ -370,6 +376,27 @@ impl LinkedServerService for Linked {
             .push((request.url.to_owned(), lan.collect()));
         Response::ok(SetServerAddressesResponse::default())
     }
+
+    /// The Matrix's sequel and Alien, by IMDb id, for a Movie asked about by The Matrix's TMDB id;
+    /// nothing for any other title.
+    async fn list_similar_titles(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ListSimilarTitlesRequest>,
+    ) -> ServiceResult<ListSimilarTitlesResponse> {
+        drop(self.caller(&ctx)?);
+        let the_matrix = request.kind.as_known() == Some(TitleKind::TITLE_KIND_MOVIE)
+            && (request.ids.iter()).any(|id| id.namespace == "tmdb" && id.value == "603");
+        let titles = if the_matrix {
+            vec![imdb("tt0234215", 0.9), imdb("tt0078748", 0.35)]
+        } else {
+            vec![]
+        };
+        Response::ok(ListSimilarTitlesResponse {
+            titles,
+            ..Default::default()
+        })
+    }
 }
 
 impl Linked {
@@ -385,6 +412,19 @@ impl Linked {
             return Err(ConnectError::unauthenticated("no Linked Server has it"));
         }
         Ok(state)
+    }
+}
+
+fn imdb(value: &str, weight: f32) -> SimilarTitle {
+    SimilarTitle {
+        id: ExternalId {
+            namespace: "imdb".to_owned(),
+            value: value.to_owned(),
+            ..Default::default()
+        }
+        .into(),
+        weight,
+        ..Default::default()
     }
 }
 
