@@ -1,8 +1,9 @@
-use std::{fs, sync::Arc};
+use std::{fs, sync::Arc, time::Duration};
 
 use tempfile::TempDir;
+use tokio::sync::oneshot::{self, error::TryRecvError};
 
-use super::Leftovers;
+use super::{Leftovers, WholeFileReads};
 use crate::{
     db::Database,
     images::{DOWNLOADED_SUBTITLES_DIR, ImageStore, PREVIEW_FRAMES_DIR},
@@ -100,4 +101,37 @@ async fn cleaning_keeps_what_was_made_of_a_stored_version() {
     media.leftovers.clean().await;
 
     assert_eq!(media.has(media.kept).await, [true; 3]);
+}
+
+#[tokio::test]
+async fn shutting_down_stops_a_whole_file_read_running() {
+    let reads = WholeFileReads::default();
+    let (started, has_started) = oneshot::channel();
+    let (held, mut stopped) = oneshot::channel::<()>();
+    let read = async move {
+        let _held = held;
+        started.send(()).unwrap();
+        std::future::pending::<()>().await;
+    };
+    assert!(reads.spawn(tracing::Span::none(), read));
+    has_started.await.unwrap();
+
+    let shut = tokio::time::timeout(Duration::from_secs(5), reads.shutdown()).await;
+
+    assert!(shut.is_ok(), "shutting down waited for the read");
+    assert_eq!(
+        stopped.try_recv(),
+        Err(TryRecvError::Closed),
+        "the read was dropped"
+    );
+}
+
+#[tokio::test]
+async fn a_whole_file_read_asked_for_after_shutting_down_is_refused() {
+    let reads = WholeFileReads::default();
+    reads.shutdown().await;
+
+    let spawned = reads.spawn(tracing::Span::none(), async {});
+
+    assert!(!spawned);
 }

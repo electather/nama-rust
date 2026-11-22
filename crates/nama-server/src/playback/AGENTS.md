@@ -24,4 +24,4 @@ Planning how a Device plays a Version, running the plans, serving their files an
 ### Neighbours
 
 - Uses: `ffmpeg`, `library`, `server_settings` (its settings and `PlaybackLimit`), `events`, `images` (also keeping downloaded subtitles and Preview frames), `plugins` (`ExtensionPoints`, asking subtitle and Segment sources), `users`, `db`, `diagnostics` (the trace a probe pass joins), and `config` and `plugin_settings` (enabling a Plugin as an Admin does) in tests.
-- Used by: `api`, `browse`, `scanner`, `plugin_settings` and `library` (`make_segments_due`), and startup in `lib.rs`.
+- Used by: `api`, `browse`, `scanner`, `plugin_settings` and `library` (`make_segments_due`), `automation` in tests, and startup in `lib.rs`.
