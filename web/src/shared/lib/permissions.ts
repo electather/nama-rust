@@ -1,16 +1,16 @@
 import { Permission, PermissionSchema, type User } from "@/gen/nama/v1/sign_in_pb";
 
-/** A Permission as the Users page offers it. */
+/** A Permission as a Permissions form offers it. */
 export interface PermissionChoice {
   permission: Permission;
   label: string;
   /** What it lets a User do, beyond what its label says. */
   about?: string;
-  /** The Permission that covers this one, which the Users page shows it under. */
+  /** The Permission that covers this one, which a Permissions form shows it under. */
   parent?: Permission;
 }
 
-/** Every Permission, in the order the Users page lists them. */
+/** Every Permission, in the order a Permissions form lists them. */
 export const permissionChoices: PermissionChoice[] = [
   { permission: Permission.ADMIN, label: "Admin", about: "May do everything." },
   {
@@ -133,7 +133,7 @@ export function permissionsToInvite(you: User | undefined) {
   );
 }
 
-/** `permissions` by their labels, in the order the Users page lists them, or "None". */
+/** `permissions` by their labels, in the order a Permissions form lists them, or "None". */
 export function labelsOf(permissions: Permission[]) {
   const labels = permissionChoices
     .filter((choice) => permissions.includes(choice.permission))

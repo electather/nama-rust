@@ -66,8 +66,8 @@ const defaultPlayback: Partial<ServiceImpl<typeof PlaybackService>> = {
 };
 
 /**
- * How the fake Server answers `UserService` by default: Settings lists nothing of yours, and the
- * Users page the default Permissions and no Invites.
+ * How the fake Server answers `UserService` by default: Settings lists nothing of yours, and its
+ * Users section the default Permissions and no Invites.
  */
 const defaultUsers: Partial<ServiceImpl<typeof UserService>> = {
   listDevices: () => ({}),

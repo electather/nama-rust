@@ -172,7 +172,7 @@
       },
       {
         "from": "settings",
-        // Its Plugins and Users panes render the Plugins and Users pages' parts.
+        // Its Plugins and Users panes render parts of the Plugins, Users and Invites features.
         "allow": [
           "settings",
           "admin-plugins",
