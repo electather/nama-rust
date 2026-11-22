@@ -1,6 +1,7 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
-//! keeps in the Plugin's Store once someone entered it, and the Server Addresses it tells the Hub.
-//! Its Users' Links are in `users.rs`.
+//! keeps in the Plugin's Store once someone entered it, the Server Addresses it tells the Hub, and
+//! through it shares what the Admin chooses with Nama's developers (ADR 0054). Its Users' Links are
+//! in `users.rs`.
 
 mod users;
 
@@ -18,6 +19,7 @@ use nama_plugin_api::{
         functions::{StoreDelete, StoreGet, StorePut},
     },
     contract::{StoreEntry, StoreKey},
+    diagnostics_sharer::{DiagnosticsSharer, Signal},
     server_link::{Link, ServerAddresses, ServerLinker},
 };
 use ring::digest;
@@ -229,6 +231,14 @@ impl Linker {
         token::verify(&key_set, token, now).map_err(rejected)
     }
 
+    /// Sends `batch` to the Hub with the Link's credential, or drops it while not Linked.
+    async fn share_batch(&self, signal: Signal, batch: Vec<u8>) -> Result<(), PluginError> {
+        match self.kept().await? {
+            Some(kept) => self.hub.share(&kept.credential, signal, batch).await,
+            None => Ok(()),
+        }
+    }
+
     async fn kept(&self) -> Result<Option<Kept>, PluginError> {
         let Some(kept) = self.stored(LINK_KEY).await? else {
             return Ok(None);
@@ -283,6 +293,12 @@ impl ServerLinker for Linker {
 
     fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
         Box::pin(self.report(addresses))
+    }
+}
+
+impl DiagnosticsSharer for Linker {
+    fn share(&self, signal: Signal, batch: Vec<u8>) -> BoxFuture<'_, Result<(), PluginError>> {
+        Box::pin(self.share_batch(signal, batch))
     }
 }
 

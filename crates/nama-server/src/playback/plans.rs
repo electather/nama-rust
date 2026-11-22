@@ -15,6 +15,7 @@ use super::{
 };
 use crate::{
     db::{Database, detached},
+    diagnostics::{self, Usage},
     ffmpeg::{Abilities, RunError},
     server_settings::PlaybackSettings,
     users::Caller,
@@ -52,6 +53,18 @@ pub(crate) struct Asked {
     pub(crate) start_ms: i64,
     /// The Device's address, which says whether it's on the local network.
     pub(crate) client: IpAddr,
+}
+
+impl Asked {
+    /// Whether this is a player's first ask for the Version, so a play starting: that leaves every
+    /// choice to the Server, while asking again, for another Track or after a failure, carries
+    /// what the last plan played or what failed.
+    fn is_first(&self) -> bool {
+        self.audio.is_none()
+            && matches!(self.subtitle, AskedSubtitle::Preferred)
+            && self.failed.is_empty()
+            && self.failed_recipes.is_empty()
+    }
 }
 
 /// What a request for a plan asks of subtitles.
@@ -132,6 +145,7 @@ impl Plans {
         asked: Asked,
     ) -> Result<Option<Planned>, StartError> {
         let (user, version, start_ms) = (caller.user.id, asked.version, asked.start_ms);
+        let first = asked.is_first();
         // Read before anything starts, so a failed read leaves no Remux or Transcode running that
         // no Device was told about.
         let segments = segments_of(&self.db, version).await?;
@@ -147,6 +161,9 @@ impl Plans {
             plan.segments = segments;
             plan.preview_frames = preview_frames;
             plan.subtitle_offsets = subtitle_offsets;
+        }
+        if first && matches!(planned, Some(Planned::Started(_))) {
+            diagnostics::record(Usage::PlaybackStarted);
         }
         Ok(planned)
     }

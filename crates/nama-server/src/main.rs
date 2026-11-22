@@ -10,7 +10,10 @@ use std::{
 };
 
 use clap::{Parser, Subcommand};
-use nama_plugin_api::points::{ServerStarted, ServerStartedEvent};
+use nama_plugin_api::{
+    diagnostics_sharer::Signal,
+    points::{ServerStarted, ServerStartedEvent},
+};
 use nama_server::{
     backup,
     config::{self, Config},
@@ -18,13 +21,16 @@ use nama_server::{
     diagnostics,
     ffmpeg::Ffmpeg,
     plugin_settings::PluginSettings,
-    plugins::Registry,
+    plugins::{Registry, ShareThroughPlugins},
     users::{SetupCode, Users},
 };
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
-use opentelemetry_otlp::{ExporterBuildError, LogExporter, SpanExporter};
-use opentelemetry_sdk::{logs::SdkLoggerProvider, trace::SdkTracerProvider};
-use tokio::{net::TcpListener, task};
+use opentelemetry_otlp::{ExporterBuildError, LogExporter, SpanExporter, WithHttpConfig as _};
+use opentelemetry_sdk::{
+    logs::SdkLoggerProvider,
+    trace::{BatchSpanProcessor, SdkTracerProvider},
+};
+use tokio::{net::TcpListener, runtime::Handle, task};
 use tracing::{Subscriber, error, info, warn};
 use tracing_subscriber::{
     EnvFilter, Layer,
@@ -66,9 +72,12 @@ enum Command {
 #[tokio::main]
 async fn main() -> ExitCode {
     let args = Args::parse();
-    let exporting = init_tracing();
+    // The traces exporter's client; the logs exporter's is made from it.
+    let sharing = ShareThroughPlugins::new(Signal::Traces, Handle::current());
+    let exporting = init_tracing(&sharing);
+    let to_admin = exporting.as_ref().is_some_and(Exporting::to_admin);
     let exit = match args.command {
-        None => run(args.config.as_deref(), exporting.is_some()).await,
+        None => run(args.config.as_deref(), to_admin, &sharing).await,
         Some(command) => back_up_or_restore(args.config, command).await,
     };
     if let Some(exporting) = exporting {
@@ -77,8 +86,13 @@ async fn main() -> ExitCode {
     exit
 }
 
-/// Runs the Server until it is told to stop. `exporting` says whether Diagnostics are exported.
-async fn run(config_file: Option<&Path>, exporting: bool) -> ExitCode {
+/// Runs the Server until it is told to stop. `exporting` says whether Diagnostics are exported to
+/// the admin's endpoint; what they share goes out through `sharing`.
+async fn run(
+    config_file: Option<&Path>,
+    exporting: bool,
+    sharing: &ShareThroughPlugins,
+) -> ExitCode {
     let Some(mut config) = load_config(config_file) else {
         return ExitCode::FAILURE;
     };
@@ -137,17 +151,17 @@ async fn run(config_file: Option<&Path>, exporting: bool) -> ExitCode {
         }
     }
 
-    plugins
-        .extension_points()
-        .notify::<ServerStarted>(ServerStartedEvent {
-            name: config.name.clone(),
-            version: env!("CARGO_PKG_VERSION").to_owned(),
-        });
+    let points = plugins.extension_points();
+    points.notify::<ServerStarted>(ServerStartedEvent {
+        name: config.name.clone(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+    });
 
     let shutdown = async {
         shutdown.await;
         info!("shutting down");
     };
+    sharing.serve(Some(points)).await;
     let served = nama_server::serve(
         listener,
         &config,
@@ -158,6 +172,7 @@ async fn run(config_file: Option<&Path>, exporting: bool) -> ExitCode {
         shutdown,
     )
     .await;
+    sharing.serve(None).await;
     // Serving has finished, so this is the last handle and the database can close cleanly.
     close(db).await;
     if let Err(err) = served {
@@ -312,17 +327,19 @@ async fn close(db: Arc<Database>) {
 }
 
 /// Logs to stdout at `info`, or at whatever `RUST_LOG` asks for, and, only if
-/// [`OTLP_ENDPOINT`] is set, exports traces and logs there too. Returns what exports, to flush at
-/// shutdown.
-fn init_tracing() -> Option<Exporting> {
+/// [`OTLP_ENDPOINT`] is set, exports traces and logs there too. Shares what the admin shares
+/// through `sharing`. Returns what exports, to flush at shutdown.
+fn init_tracing(sharing: &ShareThroughPlugins) -> Option<Exporting> {
     // Extism logs an Installed Plugin's error or panic, and the lines it writes through Extism's
     // own log functions, as they are, which may quote a secret setting; the Server logs both
     // itself with secrets blanked (ADR 0061).
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("info,extism::plugin=off,extism::pdk=off"));
     // The Server's own spans are for exporting: on stdout they'd prefix each line logged in one.
+    // Usage Analytics are for sharing only.
     let not_own_span = filter_fn(|metadata| {
-        !(metadata.is_span() && metadata.target().starts_with(env!("CARGO_CRATE_NAME")))
+        !(metadata.is_span() && metadata.target().starts_with(env!("CARGO_CRATE_NAME"))
+            || metadata.target() == diagnostics::USAGE_TARGET)
     });
     // One filter for both, so the Plugins page keeps the Plugin Log lines stdout shows (ADR 0061).
     let stdout = tracing_subscriber::fmt::layer()
@@ -330,19 +347,17 @@ fn init_tracing() -> Option<Exporting> {
         .and_then(diagnostics::plugin_lines_layer())
         .with_filter(filter.and(not_own_span));
     // Empty counts as unset, as the OpenTelemetry spec says of every `OTEL_*` variable.
-    let endpoint = env::var_os(OTLP_ENDPOINT).filter(|endpoint| !endpoint.is_empty());
-    let exporting = endpoint.map(|_| Exporting::start());
-    let exported = match &exporting {
-        Some(Ok(exporting)) => Some(exporting.layer()),
-        Some(Err(_)) | None => None,
-    };
+    let to_admin = env::var_os(OTLP_ENDPOINT).is_some_and(|endpoint| !endpoint.is_empty());
+    let exporting = Exporting::start(to_admin, sharing);
     tracing_subscriber::registry()
         .with(stdout)
-        .with(exported)
+        .with(exporting.as_ref().ok().map(Exporting::layer))
         .init();
-    match exporting? {
+    match exporting {
         Ok(exporting) => {
-            warn_if_https();
+            if to_admin {
+                warn_if_https();
+            }
             Some(exporting)
         }
         Err(err) => {
@@ -353,31 +368,78 @@ fn init_tracing() -> Option<Exporting> {
 }
 
 /// The traces and logs exported over OTLP, each through a batch processor whose queue drops what
-/// doesn't fit rather than growing. Every `OTEL_*` variable configures them, such as the
-/// sampler, which keeps every trace unless `OTEL_TRACES_SAMPLER` says otherwise.
+/// doesn't fit rather than growing: to the admin's endpoint, if they set one, and what they share
+/// to Nama's developers. Every `OTEL_*` variable configures them, such as the sampler, which
+/// keeps every trace unless `OTEL_TRACES_SAMPLER` says otherwise.
 struct Exporting {
+    /// Both the admin's spans and the shared ones: one provider, since a span records once.
     traces: SdkTracerProvider,
-    logs: SdkLoggerProvider,
+    /// The admin's, while they set an endpoint.
+    logs: Option<SdkLoggerProvider>,
+    shared_logs: SdkLoggerProvider,
 }
 
 impl Exporting {
-    fn start() -> Result<Self, ExporterBuildError> {
-        let traces = SdkTracerProvider::builder()
-            .with_batch_exporter(SpanExporter::builder().with_http().build()?)
+    /// Exports to [`OTLP_ENDPOINT`] if `to_admin`, and what the admin shares through `sharing`.
+    fn start(to_admin: bool, sharing: &ShareThroughPlugins) -> Result<Self, ExporterBuildError> {
+        diagnostics::use_ring_for_tls();
+        let shared_spans = SpanExporter::builder()
+            .with_http()
+            .with_http_client(sharing.clone())
+            .build()?;
+        let mut traces =
+            SdkTracerProvider::builder().with_span_processor(diagnostics::SharedSpans::new(
+                BatchSpanProcessor::builder(shared_spans).build(),
+                &diagnostics::SHARING,
+            ));
+        let shared_logs = SdkLoggerProvider::builder()
+            .with_resource(diagnostics::shared_resource())
+            .with_batch_exporter(
+                LogExporter::builder()
+                    .with_http()
+                    .with_http_client(sharing.for_signal(Signal::Logs))
+                    .build()?,
+            )
             .build();
-        let logs = SdkLoggerProvider::builder()
-            .with_batch_exporter(LogExporter::builder().with_http().build()?)
-            .build();
-        Ok(Self { traces, logs })
+        let logs = if to_admin {
+            traces = traces.with_batch_exporter(SpanExporter::builder().with_http().build()?);
+            Some(
+                SdkLoggerProvider::builder()
+                    .with_batch_exporter(LogExporter::builder().with_http().build()?)
+                    .build(),
+            )
+        } else {
+            None
+        };
+        Ok(Self {
+            traces: traces.build(),
+            logs,
+            shared_logs,
+        })
+    }
+
+    /// Whether this exports to the admin's endpoint.
+    fn to_admin(&self) -> bool {
+        self.logs.is_some()
     }
 
     fn layer<S>(&self) -> impl Layer<S> + use<S>
     where
         S: Subscriber + for<'span> LookupSpan<'span>,
     {
-        let logs =
-            OpenTelemetryTracingBridge::new(&self.logs).with_filter(diagnostics::exported_filter());
-        diagnostics::layer(&self.traces).and_then(logs)
+        let spans = (self.to_admin()).then(|| diagnostics::layer(&self.traces));
+        // Without the admin's endpoint, spans record only while they are shared.
+        let shared_spans = (!self.to_admin())
+            .then(|| diagnostics::sharing_layer(&self.traces, &diagnostics::SHARING));
+        let logs = (self.logs.as_ref()).map(|logs| {
+            OpenTelemetryTracingBridge::new(logs).with_filter(diagnostics::exported_filter())
+        });
+        let shared_logs = OpenTelemetryTracingBridge::new(&self.shared_logs)
+            .with_filter(diagnostics::shared_logs_filter(&diagnostics::SHARING));
+        shared_logs
+            .and_then(logs)
+            .and_then(spans)
+            .and_then(shared_spans)
     }
 
     /// Exports what is still queued, then stops.
@@ -385,8 +447,10 @@ impl Exporting {
         if let Err(err) = self.traces.shutdown() {
             error!("could not flush the last traces: {err}");
         }
-        if let Err(err) = self.logs.shutdown() {
-            error!("could not flush the last logs: {err}");
+        for logs in self.logs.iter().chain([&self.shared_logs]) {
+            if let Err(err) = logs.shutdown() {
+                error!("could not flush the last logs: {err}");
+            }
         }
     }
 }

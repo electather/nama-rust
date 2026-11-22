@@ -49,8 +49,15 @@ pub(crate) const MAX_LAN_ADDRESSES: usize = 16;
 const TOKEN_LIFETIME_SECS: u64 = 5 * 60;
 
 /// A Linked Server's id.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct LinkedServerId(Uuid);
+
+#[cfg(test)]
+impl From<Uuid> for LinkedServerId {
+    fn from(id: Uuid) -> Self {
+        Self(id)
+    }
+}
 
 impl fmt::Display for LinkedServerId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

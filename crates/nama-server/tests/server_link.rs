@@ -2,6 +2,9 @@
 //! here an in-process one scripted by each test, and a Server without one, which has nothing to
 //! Link. The Plugin is told the Server's Server Addresses.
 
+#[expect(dead_code, reason = "this binary only counts logged lines")]
+#[path = "support/log.rs"]
+mod log;
 #[path = "support/refused.rs"]
 mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
@@ -15,17 +18,19 @@ use std::{
 };
 
 use connectrpc::{
-    ErrorCode,
+    ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient},
 };
+use log::Log;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     server_link::{Link, ServerAddresses, ServerLinker},
 };
 use nama_proto::nama::v1::{
-    self as proto, GetServerLinkRequest, GetUserLinkRequest, RefusalReason, ServerServiceClient,
-    ServerSettings, StartServerLinkRequest, StartUserLinkRequest, UnlinkServerRequest,
-    UnlinkUserRequest, UpdateServerSettingsRequest, UserServiceClient,
+    self as proto, DeleteUserRequest, GetServerLinkRequest, GetUserLinkRequest, ListUsersRequest,
+    Permission, RefusalReason, ServerServiceClient, ServerSettings, StartServerLinkRequest,
+    StartUserLinkRequest, UnlinkServerRequest, UnlinkUserRequest, UpdateServerSettingsRequest,
+    UserServiceClient,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -47,6 +52,10 @@ struct Script {
     user_started: Option<(i64, String)>,
     /// The Server Addresses it was last told.
     addresses: Option<ServerAddresses>,
+    /// The Users it was asked to Unlink, by id, in order.
+    unlinked_users: Vec<i64>,
+    /// Whether Unlinking a User fails, as with the service unreachable.
+    unlink_user_fails: bool,
 }
 
 impl Scripted {
@@ -120,8 +129,13 @@ impl ServerLinker for Scripted {
         Box::pin(future::ready(Ok(waiting)))
     }
 
-    fn unlink_user(&self, _user_id: i64) -> BoxFuture<'_, Result<(), PluginError>> {
-        self.script().user_link = Some(Link::NotLinked);
+    fn unlink_user(&self, user_id: i64) -> BoxFuture<'_, Result<(), PluginError>> {
+        let mut script = self.script();
+        script.unlinked_users.push(user_id);
+        if script.unlink_user_fails {
+            return Box::pin(future::ready(Err("the service is unreachable".into())));
+        }
+        script.user_link = Some(Link::NotLinked);
         Box::pin(future::ready(Ok(())))
     }
 
@@ -178,6 +192,17 @@ async fn user_link(config: ClientConfig) -> Option<proto::UserLink> {
         .await
         .unwrap();
     got.into_owned().link.into_option()
+}
+
+/// Deletes the User `user_id`, calling as `who`.
+async fn delete(who: ClientConfig, user_id: i64) -> Result<(), ConnectError> {
+    users(who)
+        .delete_user(DeleteUserRequest {
+            user_id,
+            ..Default::default()
+        })
+        .await
+        .map(drop)
 }
 
 #[tokio::test]
@@ -358,4 +383,77 @@ async fn the_plugin_is_told_the_server_url_the_admin_set() {
     })
     .await;
     assert!(waited.is_ok(), "told {:?}", linker.script().addresses);
+}
+
+#[tokio::test]
+async fn deleting_a_user_unlinks_them_once() {
+    let linker = Scripted::default();
+    linker.script().user_link = Some(Link::Linked {
+        account: "grace@example.com".to_owned(),
+    });
+    let server = with_linker(&linker).await;
+    let grace = server.user_with_default_permissions("Grace").await;
+
+    delete(server.client_config(), grace.id).await.unwrap();
+
+    assert_eq!(linker.script().unlinked_users, [grace.id]);
+}
+
+#[tokio::test]
+async fn an_admin_deleting_themselves_is_unlinked() {
+    let linker = Scripted::default();
+    let server = with_linker(&linker).await;
+    let ada = server.user("Ada", &[Permission::Admin]).await;
+
+    delete(ada.client_config(), ada.id).await.unwrap();
+
+    assert_eq!(linker.script().unlinked_users, [ada.id]);
+}
+
+#[tokio::test]
+async fn an_unlinked_user_is_deleted() {
+    let linker = Scripted::default();
+    linker.script().user_link = Some(Link::NotLinked);
+    let server = with_linker(&linker).await;
+    let grace = server.user_with_default_permissions("Grace").await;
+
+    delete(server.client_config(), grace.id).await.unwrap();
+}
+
+#[tokio::test]
+async fn a_refused_delete_unlinks_no_one() {
+    let linker = Scripted::default();
+    let server = with_linker(&linker).await;
+
+    delete(server.client_config(), 9999).await.unwrap_err();
+
+    assert_eq!(linker.script().unlinked_users, Vec::<i64>::new());
+}
+
+#[tokio::test]
+async fn a_user_is_deleted_without_a_plugin_that_links_the_server() {
+    let server = TestServer::builder().start().await;
+    let grace = server.user_with_default_permissions("Grace").await;
+
+    delete(server.client_config(), grace.id).await.unwrap();
+}
+
+#[tokio::test]
+async fn a_plugin_that_cant_unlink_a_deleted_user_leaves_them_deleted_and_warns() {
+    let log = Log::global();
+    let linker = Scripted::default();
+    linker.script().unlink_user_fails = true;
+    let server = with_linker(&linker).await;
+    let grace = server.user_with_default_permissions("Grace").await;
+
+    delete(server.client_config(), grace.id).await.unwrap();
+
+    let listed = users(server.client_config())
+        .list_users(ListUsersRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .users;
+    assert!(listed.iter().all(|user| user.id != grace.id));
+    assert_eq!(log.count(&["could not Unlink a deleted User", "linker"]), 1);
 }

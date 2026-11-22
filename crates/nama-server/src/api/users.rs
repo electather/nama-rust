@@ -71,7 +71,7 @@ pub(super) struct UserServiceHandler {
     pub(super) home_rows: HomeRows,
     /// Holds the default Home layout, which each User's follows but for what they change.
     pub(super) settings: Settings,
-    /// Asked to Link the caller to an Account.
+    /// Asked to Link the caller to an Account, and to Unlink a deleted User.
     pub(super) points: ExtensionPoints,
 }
 
@@ -129,6 +129,7 @@ impl UserService for UserServiceHandler {
     ) -> ServiceResult<DeleteUserResponse> {
         let caller = caller(&ctx)?;
         self.users.delete(&caller.user, request.user_id).await?;
+        server_link::unlink_deleted_user(&self.points, request.user_id).await;
         let response = DeleteUserResponse::default();
         Ok(if request.user_id == caller.user.id {
             signed_out(response, &ctx)
