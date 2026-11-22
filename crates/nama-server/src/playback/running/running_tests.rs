@@ -178,6 +178,7 @@ pub(super) fn vaapi() -> Hardware {
         accel: Accel::Vaapi,
         gpu: None,
         tone_maps: false,
+        hevc: false,
     }
 }
 

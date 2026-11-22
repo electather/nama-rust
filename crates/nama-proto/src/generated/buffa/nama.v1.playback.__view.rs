@@ -8549,6 +8549,11 @@ pub struct DeviceDecodingView<'a> {
     ///
     /// Field 10: `h264_10bit`
     pub h264_10bit: bool,
+    /// Whether it decodes 10-bit HEVC (Main 10), which a Transcode of a 4K or HDR Version makes when
+    /// it does and the Server's hardware encodes it.
+    ///
+    /// Field 13: `hevc_10bit`
+    pub hevc_10bit: bool,
     /// Whether it plays HLS without a script's help.
     ///
     /// Field 3: `native_hls`
@@ -8624,6 +8629,13 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.h264_10bit = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.hevc_10bit = ::buffa::types::decode_bool(&mut cur)?;
             }
             3u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -8819,6 +8831,7 @@ impl<'a> ::buffa::MessageView<'a> for DeviceDecodingView<'a> {
             audio_codecs: self.audio_codecs.to_vec(),
             hdr: self.hdr,
             h264_10bit: self.h264_10bit,
+            hevc_10bit: self.hevc_10bit,
             native_hls: self.native_hls,
             mse: self.mse,
             audio_channels: self.audio_channels,
@@ -8897,6 +8910,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
                 .map(|&v| ::buffa::types::int32_encoded_len(v) as u64)
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if self.hevc_10bit {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -8985,6 +9001,9 @@ impl<'a> ::buffa::ViewEncode<'a> for DeviceDecodingView<'a> {
                 ::buffa::types::encode_int32(v, buf);
             }
         }
+        if self.hevc_10bit {
+            ::buffa::types::put_bool_field(13u32, self.hevc_10bit, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -9032,6 +9051,9 @@ impl<'__a> ::serde::Serialize for DeviceDecodingView<'__a> {
         }
         if self.h264_10bit {
             __map.serialize_entry("h26410bit", &self.h264_10bit)?;
+        }
+        if self.hevc_10bit {
+            __map.serialize_entry("hevc10bit", &self.hevc_10bit)?;
         }
         if self.native_hls {
             __map.serialize_entry("nativeHls", &self.native_hls)?;
@@ -9196,6 +9218,14 @@ impl DeviceDecodingOwnedView {
     #[must_use]
     pub fn h264_10bit(&self) -> bool {
         self.0.reborrow().h264_10bit
+    }
+    /// Whether it decodes 10-bit HEVC (Main 10), which a Transcode of a 4K or HDR Version makes when
+    /// it does and the Server's hardware encodes it.
+    ///
+    /// Field 13: `hevc_10bit`
+    #[must_use]
+    pub fn hevc_10bit(&self) -> bool {
+        self.0.reborrow().hevc_10bit
     }
     /// Whether it plays HLS without a script's help.
     ///
@@ -9748,7 +9778,8 @@ pub struct PlaybackPlanView<'a> {
     /// Field 18: `can_search_subtitles`
     pub can_search_subtitles: bool,
     /// Its Recipe, what sets it apart from another plan by the same method: the method, the
-    /// container it serves and the audio codec it sends, such as `remux/fmp4/eac3`. A client that
+    /// container it serves, for a Transcode the video codec it makes, and the audio codec it sends,
+    /// such as `remux/fmp4/eac3` or `transcode/fmp4/hevc/eac3`. A client that
     /// fails to play it sends it back as it is in `PlanPlaybackRequest.failed_recipes`; its form
     /// isn't API contract. Empty when it can't be played.
     ///
@@ -10702,7 +10733,8 @@ impl PlaybackPlanOwnedView {
         self.0.reborrow().can_search_subtitles
     }
     /// Its Recipe, what sets it apart from another plan by the same method: the method, the
-    /// container it serves and the audio codec it sends, such as `remux/fmp4/eac3`. A client that
+    /// container it serves, for a Transcode the video codec it makes, and the audio codec it sends,
+    /// such as `remux/fmp4/eac3` or `transcode/fmp4/hevc/eac3`. A client that
     /// fails to play it sends it back as it is in `PlanPlaybackRequest.failed_recipes`; its form
     /// isn't API contract. Empty when it can't be played.
     ///

@@ -77,6 +77,7 @@ impl PlaybackService for PlaybackServiceHandler {
                 hdr: decoding.hdr,
                 dolby_vision_profiles: decoding.dolby_vision_profiles,
                 h264_10bit: decoding.h264_10bit,
+                hevc_10bit: decoding.hevc_10bit,
                 hls: decoding.native_hls || decoding.mse,
                 audio_channels: decoding.audio_channels,
                 subtitle_formats: known(&decoding.subtitle_formats),
