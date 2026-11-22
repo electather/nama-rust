@@ -12,9 +12,9 @@ import {
   SearchService,
   TitleStatus,
 } from "@/gen/nama/v1/search_pb";
-import type { Permission } from "@/gen/nama/v1/sign_in_pb";
+import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { modKey } from "@/shared/lib/mod-key";
-import { admin, fakeServer, newUser, openApp } from "@/test-app";
+import { fakeServer, newUser, openApp } from "@/test-app";
 
 afterEach(() => {
   cleanup();
@@ -151,12 +151,13 @@ test("⌘K opens the action bar on the pages a User may jump to, and closes it",
   });
 });
 
-test("an Admin has no Admin page to jump to, as none is left", async () => {
-  openApp("/code", serverToSearch(findsOffice, admin));
-
+test("a User Manager's Admin opens Settings at Users", async () => {
+  const router = openApp("/code", serverToSearch(findsOffice, [Permission.MANAGE_USERS]));
   await openActionBar();
+  fireEvent.click(screen.getByRole("option", { name: /^Admin/u }));
 
-  expect(screen.queryByRole("option", { name: /^Admin/u })).toBeNull();
+  await screen.findByRole("dialog", { name: "Settings" });
+  expect(router.state.location.search.settings).toBe("users");
 });
 
 test("typing lists the titles found, Enter opens the first, and it's a Recent next time", async () => {

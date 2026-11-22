@@ -10,6 +10,7 @@ import { press } from "@/features/action-bar/lib/keys";
 import { type Page, goTo, pagesFor } from "@/features/action-bar/lib/pages";
 import type { Frame, Opening, Row } from "@/features/action-bar/lib/rows";
 import type { FoundTitle } from "@/features/action-bar/lib/titles";
+import type { Section } from "@/features/settings/lib/sections";
 import { TitleKind } from "@/gen/nama/v1/match_pb";
 
 /** What a search from each frame asks the Server for. */
@@ -28,11 +29,11 @@ function activeOf(rows: readonly Row[], picked: string | undefined) {
 /** The open action bar: where it is, what's typed, what it lists and which row is selected. */
 export function useActionBar({
   opening,
-  hasAdminPages,
+  adminSection,
   dialog,
 }: {
   opening: Opening;
-  hasAdminPages: boolean;
+  adminSection: Section | undefined;
   /** What the dialog can be asked to do: close, and put focus back in its field. */
   dialog: { close: () => void; focusField: () => void };
 }) {
@@ -91,7 +92,7 @@ export function useActionBar({
       frame,
       // Shortcuts filter as they are typed: there is nothing to wait for.
       query: frame === "shortcuts" ? query : listed,
-      pages: pagesFor(hasAdminPages),
+      pages: pagesFor(adminSection),
       recents,
       found: search.found,
       failed: search.failed,
