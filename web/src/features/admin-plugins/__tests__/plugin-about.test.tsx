@@ -1,8 +1,8 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { PluginAbout } from "@/features/admin-plugins/components/plugin-about";
-import { openPlugin, plugin } from "@/test-plugins";
+import { openPlugin, plugin, waitForDetails } from "@/test-plugins";
 
 afterEach(cleanup);
 
@@ -15,13 +15,6 @@ async function openTmdbWith(about: Partial<typeof noAbout>) {
   });
   const page = await plugin("TMDB");
   return page;
-}
-
-/** Waits for the Plugin's details, as the view shows before them, saying "Loading…". */
-async function waitForDetails(page: Awaited<ReturnType<typeof plugin>>) {
-  await waitFor(() => {
-    expect(page.queryByText("Loading…")).toBeNull();
-  });
 }
 
 /** Renders the About section of a Plugin with only `setupMarkdown`. */

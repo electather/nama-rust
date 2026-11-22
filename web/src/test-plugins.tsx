@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, type HandlerContext, type ServiceImpl } from "@connectrpc/connect";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { expect } from "vite-plus/test";
 
 import type { LibraryService } from "@/gen/nama/v1/library_pb";
 import { GetPluginRequestSchema, PluginService } from "@/gen/nama/v1/plugin_pb";
@@ -111,6 +112,13 @@ export async function row(name: string) {
 /** The view of the Plugin shown as `name`, as `row` finds it, once it shows. */
 export async function plugin(name: string) {
   return within(await screen.findByRole("region", { name }));
+}
+
+/** Waits for the Plugin's details, as the view shows before them, saying "Loading…". */
+export async function waitForDetails(page: Awaited<ReturnType<typeof plugin>>) {
+  await waitFor(() => {
+    expect(page.queryByText("Loading…")).toBeNull();
+  });
 }
 
 /** The input for the setting labelled `label` in the view of the Plugin shown as `name`. */

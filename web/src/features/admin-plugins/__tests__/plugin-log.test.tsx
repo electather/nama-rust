@@ -3,7 +3,7 @@ import { cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { PluginLogLevel } from "@/gen/nama/v1/plugin_pb";
-import { openPlugin, openPluginAsAdmin, plugin } from "@/test-plugins";
+import { openPlugin, openPluginAsAdmin, plugin, waitForDetails } from "@/test-plugins";
 
 afterEach(cleanup);
 
@@ -96,6 +96,7 @@ test("a Plugin Log that can't be loaded says so", async () => {
 test("someone who manages settings but isn't an Admin sees no Plugin Log", async () => {
   openPlugin("tmdb");
   const page = await plugin("TMDB");
+  await waitForDetails(page);
 
   expect(page.queryByRole("heading", { name: "Plugin Log" })).toBeNull();
 });

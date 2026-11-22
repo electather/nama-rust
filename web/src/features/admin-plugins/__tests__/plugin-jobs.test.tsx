@@ -1,7 +1,7 @@
 import { cleanup, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { openPlugin, openPluginAsAdmin, plugin } from "@/test-plugins";
+import { openPlugin, openPluginAsAdmin, plugin, waitForDetails } from "@/test-plugins";
 
 afterEach(cleanup);
 
@@ -22,6 +22,7 @@ async function openUpkeep(declared: typeof jobs, { asAdmin = true, enabled = tru
     }),
   });
   const page = await plugin("Upkeep");
+  await waitForDetails(page);
   return page;
 }
 
