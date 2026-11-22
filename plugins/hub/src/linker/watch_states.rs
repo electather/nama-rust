@@ -1,6 +1,7 @@
 //! Syncing Linked Users' Watch State to the Hub (ADR 0008): each change the Kernel tells of is
 //! queued in the Plugin's Store, and the Sync Job sends the queue, in order, so changes made
-//! while the Hub is unreachable go once it is back.
+//! while the Hub is unreachable go once it is back. A User whose Link the Plugin never learned
+//! has nothing queued until the Hub can be asked.
 
 use std::sync::Arc;
 

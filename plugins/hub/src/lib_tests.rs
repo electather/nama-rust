@@ -529,6 +529,17 @@ async fn syncing_user_7(
     syncing(hub, &kernel)
 }
 
+/// The Plugin enabled against `hub`, the Server Linked and its User 7 Linked on the Hub though
+/// Settings never asked, as the Kernel tells it of Watch State changes and runs its Job.
+async fn syncing_user_7_linked_on_hub(
+    hub: &FakeHub,
+) -> (Arc<dyn Observer<WatchStatesChanged>>, Arc<dyn JobRunner>) {
+    let kernel = store();
+    link(hub, enabled(hub, &kernel).as_ref()).await;
+    hub.link_user_on_hub(7);
+    syncing(hub, &kernel)
+}
+
 /// The Plugin enabled against `hub`, keeping its Store in `kernel`, as the Kernel tells it of
 /// Watch State changes and runs its Job.
 fn syncing(
@@ -723,10 +734,7 @@ async fn a_user_who_isnt_linked_keeps_their_watch_state_on_the_server() {
 #[tokio::test]
 async fn a_user_linked_on_the_hub_has_their_changes_pushed_though_settings_never_asked() {
     let hub = FakeHub::start().await;
-    let kernel = store();
-    link(&hub, enabled(&hub, &kernel).as_ref()).await;
-    hub.link_user_on_hub(7);
-    let (observer, jobs) = syncing(&hub, &kernel);
+    let (observer, jobs) = syncing_user_7_linked_on_hub(&hub).await;
 
     tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
     run_sync(jobs.as_ref()).await.unwrap();
@@ -737,11 +745,8 @@ async fn a_user_linked_on_the_hub_has_their_changes_pushed_though_settings_never
 #[tokio::test]
 async fn a_user_whose_link_the_hub_cant_be_asked_about_has_nothing_queued_and_isnt_asked_again() {
     let hub = FakeHub::start().await;
-    let kernel = store();
-    link(&hub, enabled(&hub, &kernel).as_ref()).await;
-    hub.link_user_on_hub(7);
+    let (observer, jobs) = syncing_user_7_linked_on_hub(&hub).await;
     hub.fail_user_links();
-    let (observer, jobs) = syncing(&hub, &kernel);
     let asks = hub.user_link_asks();
 
     tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
@@ -755,10 +760,7 @@ async fn a_user_whose_link_the_hub_cant_be_asked_about_has_nothing_queued_and_is
 #[tokio::test]
 async fn changes_dont_ask_the_hub_again_about_a_user_it_was_just_asked_about() {
     let hub = FakeHub::start().await;
-    let kernel = store();
-    link(&hub, enabled(&hub, &kernel).as_ref()).await;
-    hub.link_user_on_hub(7);
-    let (observer, _) = syncing(&hub, &kernel);
+    let (observer, _) = syncing_user_7_linked_on_hub(&hub).await;
     let asks = hub.user_link_asks();
 
     tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
