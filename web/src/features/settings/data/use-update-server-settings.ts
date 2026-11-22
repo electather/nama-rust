@@ -10,7 +10,7 @@ const serverInfoKey = createConnectQueryKey({
   cardinality: "finite",
 });
 
-/** Saves the Server's settings, then refetches them, the Invites and the Server's info. */
+/** Saves the Server's settings, then refetches them and the Invites and resets the Server's info. */
 export function useUpdateServerSettings() {
   const queryClient = useQueryClient();
   return useMutation(ServerService.method.updateServerSettings, {
@@ -19,8 +19,8 @@ export function useUpdateServerSettings() {
         queryClient.invalidateQueries({ queryKey: serverSettingsKey }),
         // The Invites say whether one can be made, which takes a Server URL.
         queryClient.invalidateQueries({ queryKey: invitesKey }),
-        // Share Diagnostics can change whether the Server exports Diagnostics (#1900). The info's
-        // query is `static`, which `invalidateQueries` skips; other Devices' tabs need a reload.
+        // Share Diagnostics can change whether the Server exports Diagnostics. The info's query is
+        // `static`, which `invalidateQueries` skips; other tabs still need a reload.
         queryClient.resetQueries({ queryKey: serverInfoKey }),
       ]);
     },

@@ -142,17 +142,21 @@ test("sharing starts off, and turning Usage Analytics on saves it with the Serve
     ]);
 });
 
-test("once Share Diagnostics is turned on, the next page sends a traceparent without a reload", async () => {
+test("once Share Diagnostics is turned on, the next navigation sends a traceparent without a reload", async () => {
   let sharing = false;
+  let rereadAfterSave = false;
   const traceparents: (string | null)[] = [];
   const transport = fakeServer(
     {
       signedIn: manageSettings,
       serverService: {
         getServerInfo: () => ({ name: "Living Room", exportsDiagnostics: sharing }),
+        getServerSettings: () => {
+          rereadAfterSave = sharing;
+          return { settings: { shareDiagnostics: sharing } };
+        },
         updateServerSettings: (request) => {
-          // The switch is the only setting changed, so any save turns sharing on.
-          sharing = true;
+          sharing = Boolean(request.settings?.shareDiagnostics);
           return { settings: request.settings };
         },
       },
@@ -168,7 +172,9 @@ test("once Share Diagnostics is turned on, the next page sends a traceparent wit
   const router = openSettings("server", transport);
 
   fireEvent.click(await screen.findByRole("switch", { name: "Share Diagnostics" }));
-  await expect.poll(() => sharing).toBe(true);
+  // The save rereads the settings in the same step that resets the Server's info, so navigating
+  // any sooner could still read the old info.
+  await expect.poll(() => rereadAfterSave).toBe(true);
   await act(async () => {
     await router.navigate({ to: ".", search: { settings: "devices" } });
   });
