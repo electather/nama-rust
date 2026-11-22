@@ -362,6 +362,7 @@ struct Exporting {
 
 impl Exporting {
     fn start() -> Result<Self, ExporterBuildError> {
+        diagnostics::use_ring_for_tls();
         let traces = SdkTracerProvider::builder()
             .with_batch_exporter(SpanExporter::builder().with_http().build()?)
             .build();

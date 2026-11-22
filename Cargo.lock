@@ -2602,6 +2602,7 @@ dependencies = [
  "regex",
  "reqwest",
  "rustix",
+ "rustls",
  "schemars",
  "semver",
  "serde",

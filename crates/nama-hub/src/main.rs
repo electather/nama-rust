@@ -237,6 +237,9 @@ struct Exporting {
 
 impl Exporting {
     fn start() -> Result<Self, ExporterBuildError> {
+        // reqwest's `rustls-no-provider` (Cargo.toml) panics building the exporters' Client
+        // without a process default. One already installed is fine.
+        let _: Result<(), _> = rustls::crypto::ring::default_provider().install_default();
         let traces = SdkTracerProvider::builder()
             .with_batch_exporter(SpanExporter::builder().with_http().build()?)
             .build();

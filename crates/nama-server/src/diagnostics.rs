@@ -172,6 +172,14 @@ where
         .and_then(queries)
 }
 
+/// Makes ring rustls's process-wide crypto provider, before the Server builds a reqwest Client.
+pub fn use_ring_for_tls() {
+    // The Hub turns on reqwest's `rustls-no-provider`, and Cargo unifies it into this crate's
+    // reqwest whenever the workspace builds as one (`cargo test --workspace`): every Client build
+    // then panics without a process default. A provider already installed is fine.
+    let _: Result<(), _> = rustls::crypto::ring::default_provider().install_default();
+}
+
 /// What is exported: `info`, or whatever `RUST_LOG` asks for, never Extism's own Plugin logs.
 #[must_use]
 pub fn exported_filter() -> EnvFilter {
@@ -519,6 +527,7 @@ impl BrowserSpans {
         // ponytail: ignores `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS`,
         // which the Server's own exporter reads; read them once a collector needs a key.
         let traces_url = format!("{}/v1/traces", endpoint.trim_end_matches('/'));
+        use_ring_for_tls();
         Self {
             traces_url,
             client: reqwest::Client::new(),
