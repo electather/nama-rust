@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO title_ids (title_id, namespace, value)\n         SELECT titles.id, ids.namespace, ids.value\n         FROM UNNEST($1::text[], $2::text[], $3::text[]) AS ids (wikidata_id, namespace, value)\n         JOIN titles USING (wikidata_id)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bd1c795f10ef9ce9d086fa1b42703044678beadb99c274145280b326a1024645"
+}

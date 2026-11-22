@@ -1,0 +1,43 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT namespace, value FROM title_ids\n         WHERE namespace = ANY($4) AND title_id = (\n             SELECT title_ids.title_id FROM title_ids\n             JOIN titles ON titles.id = title_ids.title_id\n             WHERE titles.kind = $1 AND title_ids.namespace = $2 AND title_ids.value = $3\n             ORDER BY titles.wikidata_id LIMIT 1)\n         ORDER BY namespace",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "namespace",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_ids",
+            "name": "namespace"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "value",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_ids",
+            "name": "value"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "81fdcdd5dd5957c63fee14d66995c57450b43de134cbc9baa53a274af86562d8"
+}

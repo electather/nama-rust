@@ -23,6 +23,20 @@ export NAMA_HUB_DATABASE_URL=postgres://nama:nama@localhost:5432/nama_hub
 cargo run -p nama-hub
 ```
 
+## Importing Wikidata
+
+The Hub knows films and series, and which TMDB, IMDb and TVDB ids name each, from Wikidata's JSON dump, which Wikidata publishes weekly (ADR 0095). `nama-hub import-wikidata` reads the decompressed dump on stdin and replaces the titles with those in it, in one transaction: the Hub keeps answering from the last import meanwhile, and a dump cut short, which ends before its closing `]`, changes nothing. Run it weekly from the host's scheduler, as its own process, never inside the serving one (ADR 0096), with the same `NAMA_HUB_DATABASE_URL`, after the serving Hub has migrated the database:
+
+```sh
+curl -fsS https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.gz \
+  | gzip -d | nama-hub import-wikidata
+# or, from the Docker image:
+curl -fsS https://dumps.wikimedia.org/wikidatawiki/entities/latest-all.json.gz \
+  | gzip -d | docker run --rm -i -e NAMA_HUB_DATABASE_URL ghcr.io/electather/nama-hub import-wikidata
+```
+
+The dump is over 100 GiB compressed, so an import takes hours; it streams, holding nothing on disk.
+
 ## Tests
 
 The tests need that PostgreSQL. `#[sqlx::test]` reads `DATABASE_URL`, and makes a database of its own for each test:

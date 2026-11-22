@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO titles (wikidata_id, kind) SELECT * FROM UNNEST($1::text[], $2::text[])\n         ON CONFLICT (wikidata_id) DO UPDATE SET kind = EXCLUDED.kind, imported_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9ffeea135d1e8e4f0e7ffa08bb7b4e028d7f3136fe3168fa89ce2366821cd9af"
+}

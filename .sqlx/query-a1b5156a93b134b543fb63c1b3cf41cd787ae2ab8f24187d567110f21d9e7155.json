@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM title_ids",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "a1b5156a93b134b543fb63c1b3cf41cd787ae2ab8f24187d567110f21d9e7155"
+}
