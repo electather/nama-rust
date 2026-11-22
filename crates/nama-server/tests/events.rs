@@ -1,5 +1,9 @@
-//! Live updates through the generated `EventService` client, over a real socket.
+//! Live updates through the generated `EventService` client, over a real socket, and what
+//! Observers are told.
 
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
+#[path = "support/browsing.rs"]
+mod browsing;
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "support/server.rs"]
@@ -12,20 +16,22 @@ use std::{
     time::{Duration, Instant},
 };
 
+use browsing::{Fixture, tmdb_id};
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Registrar, contract,
-    points::{self, ObservedEvents},
+    points::{self, ObservedEvents, WatchStateChanges, WatchStatesChanged},
 };
 use nama_proto::nama::v1::{
     Event, EventType, ExtensionPoint, GetPluginRequest, LibraryItemAdded, LibraryKind,
     ListUnmatchedItemsRequest, MatchServiceClient, MatchingFinished, PluginServiceClient,
-    ProbingFinished, RefusalReason, ScanFinished, ScanProgress, ScanStarted, SubscribeRequest,
-    UnmatchedItemFilter, event,
+    ProbingFinished, RefusalReason, ReportProgressRequest, ScanFinished, ScanProgress, ScanStarted,
+    SetPlayedRequest, SubscribeRequest, UnmatchedItemFilter, WatchStateServiceClient, event,
+    set_played_request::Target,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
-use server::{Library, Subscription, TestServer, WAIT, subscribe_with};
+use server::{Library, Subscription, TestServer, WAIT, subscribe_with, tmdb::ALIEN};
 use tokio::sync::mpsc;
 
 const MOVIES: LibraryKind = LibraryKind::LIBRARY_KIND_MOVIES;
@@ -494,5 +500,87 @@ async fn without_ffprobe_probing_finished_follows_matching_finished_with_nothing
             library_id: media.id,
             ..Default::default()
         }
+    );
+}
+
+/// A test Plugin whose Observer forwards each User's Watch State changes it is told of.
+#[derive(Clone)]
+struct ForwardWatchStates(mpsc::UnboundedSender<WatchStateChanges>);
+
+impl Plugin for ForwardWatchStates {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            version: "0.0.0".to_owned(),
+            extension_points: vec![PointKey::observe::<WatchStatesChanged>()],
+            ..Manifest::new(PluginId::from_static("forward-watch-states"))
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        registrar.observe::<WatchStatesChanged>(self.clone());
+        Ok(())
+    }
+}
+
+impl Observer<WatchStatesChanged> for ForwardWatchStates {
+    fn observe<'a>(
+        &'a self,
+        event: &'a WatchStateChanges,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(async move {
+            let _: Result<(), _> = self.0.send(event.clone());
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn an_observer_is_told_each_watch_state_change_marking_unplayed_too() {
+    let (tx, mut observed) = mpsc::unbounded_channel();
+    let plugins = Registry::new();
+    plugins.enable(Arc::new(ForwardWatchStates(tx))).unwrap();
+    let fx = Fixture::alien_on(TestServer::builder().plugins(plugins)).await;
+    let watch_states =
+        WatchStateServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
+
+    let report = ReportProgressRequest {
+        version_id: fx.version_ids(ALIEN).await[0],
+        position_ms: 60_000,
+        duration_ms: 7_200_000,
+        ..Default::default()
+    };
+    watch_states.report_progress(report).await.unwrap();
+    let unplayed = SetPlayedRequest {
+        library_id: fx.library,
+        target: Some(Target::MovieId(Box::new(tmdb_id(ALIEN)))),
+        played: false,
+        ..Default::default()
+    };
+    watch_states.set_played(unplayed).await.unwrap();
+
+    let mut told = Vec::new();
+    while told.len() < 2 {
+        let write = tokio::time::timeout(WAIT, observed.recv())
+            .await
+            .expect("timed out waiting for the Observer")
+            .expect("the Observer is gone");
+        let [change] = <[_; 1]>::try_from(write.changes).unwrap();
+        let first_id = change.ids[0].clone();
+        told.push((
+            first_id,
+            change.played,
+            change.position_ms,
+            change.duration_ms,
+        ));
+    }
+    // Two writes may reach an Observer in either order.
+    told.sort();
+    let alien = format!("tmdb-{ALIEN}");
+    assert_eq!(
+        told,
+        [
+            (alien.clone(), false, 0, 0),
+            (alien, false, 60_000, 7_200_000)
+        ]
     );
 }

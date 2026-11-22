@@ -187,8 +187,9 @@ pub struct LinkedServer {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub url: ::buffa::alloc::string::String,
-    /// The Server Addresses a client tries, as the Server last reported them: its Server URL first,
-    /// then its LAN addresses.
+    /// The Server Addresses a client tries, best first, as the Server last reported them: its Server
+    /// URL, then its public address if the Hub reached it there from outside, then its LAN addresses,
+    /// plain `http://<lan-ip>` (ADR 0057).
     ///
     /// Field 5: `addresses`
     #[serde(
@@ -4099,6 +4100,533 @@ pub const __UNLINK_USER_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry 
     from_json: ::buffa::type_registry::any_from_json::<UnlinkUserResponse>,
     is_wkt: false,
 };
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct PushWatchStatesRequest {
+    /// In the order the Server made them: up to 500.
+    ///
+    /// Field 1: `changes`
+    #[serde(
+        rename = "changes",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub changes: ::buffa::alloc::vec::Vec<WatchStateChange>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PushWatchStatesRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PushWatchStatesRequest").field("changes", &self.changes).finish()
+    }
+}
+impl PushWatchStatesRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PushWatchStatesRequest";
+}
+::buffa::impl_default_instance!(PushWatchStatesRequest);
+impl ::buffa::MessageName for PushWatchStatesRequest {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "PushWatchStatesRequest";
+    const FULL_NAME: &'static str = "nama.hub.v1.PushWatchStatesRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PushWatchStatesRequest";
+}
+impl ::buffa::Message for PushWatchStatesRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.changes {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.changes {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.changes.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.changes.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PushWatchStatesRequest {
+    const PROTO_FQN: &'static str = "nama.hub.v1.PushWatchStatesRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for PushWatchStatesRequest {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __PUSH_WATCH_STATES_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.hub.v1.PushWatchStatesRequest",
+    to_json: ::buffa::type_registry::any_to_json::<PushWatchStatesRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<PushWatchStatesRequest>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct PushWatchStatesResponse {
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PushWatchStatesResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PushWatchStatesResponse").finish()
+    }
+}
+impl PushWatchStatesResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PushWatchStatesResponse";
+}
+::buffa::impl_default_instance!(PushWatchStatesResponse);
+impl ::buffa::MessageName for PushWatchStatesResponse {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "PushWatchStatesResponse";
+    const FULL_NAME: &'static str = "nama.hub.v1.PushWatchStatesResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PushWatchStatesResponse";
+}
+impl ::buffa::Message for PushWatchStatesResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PushWatchStatesResponse {
+    const PROTO_FQN: &'static str = "nama.hub.v1.PushWatchStatesResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for PushWatchStatesResponse {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __PUSH_WATCH_STATES_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.hub.v1.PushWatchStatesResponse",
+    to_json: ::buffa::type_registry::any_to_json::<PushWatchStatesResponse>,
+    from_json: ::buffa::type_registry::any_from_json::<PushWatchStatesResponse>,
+    is_wkt: false,
+};
+/// One User's Watch State of a Movie or Episode, as a change on their Server left it.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct WatchStateChange {
+    /// The User's id on the Server.
+    ///
+    /// Field 1: `user_id`
+    #[serde(
+        rename = "userId",
+        alias = "user_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub user_id: i64,
+    /// Whether it is an Episode rather than a Movie, whose TMDB ids are a separate id space.
+    ///
+    /// Field 2: `episode`
+    #[serde(
+        rename = "episode",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub episode: bool,
+    /// Every External ID it is known by, such as `tmdb-348` (ADR 0013): 1 to 20, each up to 100
+    /// characters. An Unmatched Item has none, so its Watch State never leaves its Server.
+    ///
+    /// Field 3: `ids`
+    #[serde(
+        rename = "ids",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub ids: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// Whether it was played. Marking it unplayed leaves it unplayed at 0 of 0 milliseconds.
+    ///
+    /// Field 4: `played`
+    #[serde(
+        rename = "played",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub played: bool,
+    /// How far in, in milliseconds, up to `duration_ms`.
+    ///
+    /// Field 5: `position_ms`
+    #[serde(
+        rename = "positionMs",
+        alias = "position_ms",
+        with = "::buffa::json_helpers::uint64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
+    )]
+    pub position_ms: u64,
+    /// How long it is, in milliseconds; 0 if no player said.
+    ///
+    /// Field 6: `duration_ms`
+    #[serde(
+        rename = "durationMs",
+        alias = "duration_ms",
+        with = "::buffa::json_helpers::uint64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
+    )]
+    pub duration_ms: u64,
+    /// When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+    /// 9999.
+    ///
+    /// Field 7: `changed_at_ms`
+    #[serde(
+        rename = "changedAtMs",
+        alias = "changed_at_ms",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub changed_at_ms: i64,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for WatchStateChange {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("WatchStateChange")
+            .field("user_id", &self.user_id)
+            .field("episode", &self.episode)
+            .field("ids", &self.ids)
+            .field("played", &self.played)
+            .field("position_ms", &self.position_ms)
+            .field("duration_ms", &self.duration_ms)
+            .field("changed_at_ms", &self.changed_at_ms)
+            .finish()
+    }
+}
+impl WatchStateChange {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.WatchStateChange";
+}
+::buffa::impl_default_instance!(WatchStateChange);
+impl ::buffa::MessageName for WatchStateChange {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "WatchStateChange";
+    const FULL_NAME: &'static str = "nama.hub.v1.WatchStateChange";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.WatchStateChange";
+}
+impl ::buffa::Message for WatchStateChange {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
+        }
+        if self.episode {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        for v in &self.ids {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
+        if self.played {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.position_ms != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.position_ms) as u64;
+        }
+        if self.duration_ms != 0u64 {
+            size += 1u64 + ::buffa::types::uint64_encoded_len(self.duration_ms) as u64;
+        }
+        if self.changed_at_ms != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.changed_at_ms) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.user_id, buf);
+        }
+        if self.episode {
+            ::buffa::types::put_bool_field(2u32, self.episode, buf);
+        }
+        for v in &self.ids {
+            ::buffa::types::put_string_field(3u32, v, buf);
+        }
+        if self.played {
+            ::buffa::types::put_bool_field(4u32, self.played, buf);
+        }
+        if self.position_ms != 0u64 {
+            ::buffa::types::put_uint64_field(5u32, self.position_ms, buf);
+        }
+        if self.duration_ms != 0u64 {
+            ::buffa::types::put_uint64_field(6u32, self.duration_ms, buf);
+        }
+        if self.changed_at_ms != 0i64 {
+            ::buffa::types::put_int64_field(7u32, self.changed_at_ms, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.user_id = ::buffa::types::decode_int64(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.episode = ::buffa::types::decode_bool(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.ids.push(__elem);
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.played = ::buffa::types::decode_bool(buf)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.position_ms = ::buffa::types::decode_uint64(buf)?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.duration_ms = ::buffa::types::decode_uint64(buf)?;
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.changed_at_ms = ::buffa::types::decode_int64(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.user_id = 0i64;
+        self.episode = false;
+        self.ids.clear();
+        self.played = false;
+        self.position_ms = 0u64;
+        self.duration_ms = 0u64;
+        self.changed_at_ms = 0i64;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for WatchStateChange {
+    const PROTO_FQN: &'static str = "nama.hub.v1.WatchStateChange";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for WatchStateChange {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __WATCH_STATE_CHANGE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.hub.v1.WatchStateChange",
+    to_json: ::buffa::type_registry::any_to_json::<WatchStateChange>,
+    from_json: ::buffa::type_registry::any_from_json::<WatchStateChange>,
+    is_wkt: false,
+};
 /// A User an Admin created from an Account, waiting for it to accept them.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
@@ -6215,6 +6743,18 @@ pub struct SetServerAddressesRequest {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub lan_addresses: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// The port on its router's public IP address that reaches it: one it opened with UPnP or
+    /// NAT-PMP, or one its Admin forwarded. 0 for none. The Hub connects to it at the IP address the
+    /// request came from, the only one it checks, so a Server can't have the Hub call anyone else.
+    ///
+    /// Field 3: `public_port`
+    #[serde(
+        rename = "publicPort",
+        alias = "public_port",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub public_port: u32,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -6224,6 +6764,7 @@ impl ::core::fmt::Debug for SetServerAddressesRequest {
         f.debug_struct("SetServerAddressesRequest")
             .field("url", &self.url)
             .field("lan_addresses", &self.lan_addresses)
+            .field("public_port", &self.public_port)
             .finish()
     }
 }
@@ -6260,6 +6801,9 @@ impl ::buffa::Message for SetServerAddressesRequest {
         for v in &self.lan_addresses {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.public_port != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.public_port) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -6275,6 +6819,9 @@ impl ::buffa::Message for SetServerAddressesRequest {
         }
         for v in &self.lan_addresses {
             ::buffa::types::put_string_field(2u32, v, buf);
+        }
+        if self.public_port != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.public_port, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -6307,6 +6854,13 @@ impl ::buffa::Message for SetServerAddressesRequest {
                 )?;
                 self.lan_addresses.push(__elem);
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.public_port = ::buffa::types::decode_uint32(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -6317,6 +6871,7 @@ impl ::buffa::Message for SetServerAddressesRequest {
     fn clear(&mut self) {
         self.url.clear();
         self.lan_addresses.clear();
+        self.public_port = 0u32;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -6353,13 +6908,36 @@ pub const __SET_SERVER_ADDRESSES_REQUEST_JSON_ANY: ::buffa::type_registry::JsonA
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct SetServerAddressesResponse {
+    /// Where the Hub tried to reach the Server from outside, such as `http://203.0.113.7:7980`: the
+    /// IP address the request came from, with `public_port`. Empty without one.
+    ///
+    /// Field 1: `public_address`
+    #[serde(
+        rename = "publicAddress",
+        alias = "public_address",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub public_address: ::buffa::alloc::string::String,
+    /// Whether the Hub reached it there. Only then is it one of the Server's Server Addresses.
+    ///
+    /// Field 2: `reachable`
+    #[serde(
+        rename = "reachable",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub reachable: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for SetServerAddressesResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("SetServerAddressesResponse").finish()
+        f.debug_struct("SetServerAddressesResponse")
+            .field("public_address", &self.public_address)
+            .field("reachable", &self.reachable)
+            .finish()
     }
 }
 impl SetServerAddressesResponse {
@@ -6389,6 +6967,14 @@ impl ::buffa::Message for SetServerAddressesResponse {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        if !self.public_address.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.public_address) as u64;
+        }
+        if self.reachable {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -6399,6 +6985,12 @@ impl ::buffa::Message for SetServerAddressesResponse {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        if !self.public_address.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.public_address, buf);
+        }
+        if self.reachable {
+            ::buffa::types::put_bool_field(2u32, self.reachable, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -6412,6 +7004,20 @@ impl ::buffa::Message for SetServerAddressesResponse {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.public_address, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.reachable = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -6420,6 +7026,8 @@ impl ::buffa::Message for SetServerAddressesResponse {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
+        self.public_address.clear();
+        self.reachable = false;
         self.__buffa_unknown_fields.clear();
     }
 }

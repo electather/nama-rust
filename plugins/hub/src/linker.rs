@@ -1,10 +1,12 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
 //! keeps in the Plugin's Store once someone entered it, the Server Addresses it tells the Hub, and
 //! through it shares what the Admin chooses with Nama's developers (ADR 0054). Its Users' Links are
-//! in `users.rs`, and signing in with an Account, and Users created from one, in `accounts.rs`.
+//! in `users.rs`, syncing their Watch State in `watch_states.rs`, and signing in with an Account,
+//! and Users created from one, in `accounts.rs`.
 
 mod accounts;
 mod users;
+mod watch_states;
 
 use std::{
     collections::HashMap,
@@ -21,7 +23,7 @@ use nama_plugin_api::{
     },
     contract::{StoreEntry, StoreKey},
     diagnostics_sharer::{DiagnosticsSharer, Signal},
-    server_link::{AccountSignIn, Link, ServerAddresses, ServerLinker},
+    server_link::{AccountSignIn, Link, Reachability, ServerAddresses, ServerLinker},
 };
 use ring::digest;
 use serde::{Deserialize, Serialize};
@@ -32,11 +34,17 @@ use crate::{
     token::{self, Claims, Rejected},
 };
 
+pub(crate) use self::watch_states::{WatchStateSync, sync_job};
+
 /// The Store key of the Link, a [`Kept`] as JSON.
 const LINK_KEY: &str = "link";
 
 /// The Store key of the Hub's key set, as the Hub publishes it.
 const KEY_SET_KEY: &str = "key-set";
+
+/// How long the Hub's check of the Server's public port stands: the same Server Addresses go to
+/// the Hub again after this, so it checks again, such as after the router's public IP changed.
+const RECHECK_EVERY: Duration = Duration::from_mins(30);
 
 /// A code the Server shows, waiting for someone to enter it on the Hub.
 struct Waiting {
@@ -64,6 +72,25 @@ impl Kept {
     }
 }
 
+/// The Server Addresses the Hub has.
+struct Reported {
+    /// The [`Kept::id`] of the Link it got them through.
+    link: String,
+    addresses: ServerAddresses,
+    /// When the Hub got them, and checked their public port.
+    at: Instant,
+}
+
+impl Reported {
+    /// Whether the Hub needs no report of `addresses` through `link` at `now`: it has them, and
+    /// checked their public port less than [`RECHECK_EVERY`] ago.
+    fn covers(&self, link: &str, addresses: &ServerAddresses, now: Instant) -> bool {
+        self.link == link
+            && self.addresses == *addresses
+            && now.duration_since(self.at) < RECHECK_EVERY
+    }
+}
+
 /// Who a Link whose token couldn't be checked belongs to, as Settings shows it.
 const UNCONFIRMED_ACCOUNT: &str = "an Account the Hub didn't confirm";
 
@@ -75,9 +102,13 @@ pub(crate) struct Linker {
     waiting: Mutex<Option<Waiting>>,
     /// What the Plugin knows of each User's Link but what it keeps in the Store.
     users: std::sync::Mutex<HashMap<i64, users::UserState>>,
-    /// The Server Addresses the Hub has, with the [`Kept::id`] of the Link it got them through.
+    /// Held while the queue of Watch State changes is read and written, so none is lost.
+    queue: Mutex<()>,
     /// Held across telling the Hub, so a report never overtakes another.
-    reported: Mutex<Option<(String, ServerAddresses)>>,
+    reported: Mutex<Option<Reported>>,
+    /// What the Hub found of the Server's public port, with the [`Kept::id`] of the Link it found
+    /// it through. Apart from `reported`, so showing the Link never waits on a report.
+    reachability: std::sync::Mutex<Option<(String, Reachability)>>,
 }
 
 impl Linker {
@@ -87,7 +118,9 @@ impl Linker {
             kernel,
             waiting: Mutex::default(),
             users: std::sync::Mutex::default(),
+            queue: Mutex::default(),
             reported: Mutex::default(),
+            reachability: std::sync::Mutex::default(),
         }
     }
 
@@ -101,6 +134,7 @@ impl Linker {
         }
         Ok(match self.kept().await? {
             Some(kept) => Link::Linked {
+                reachability: self.reachability(&kept),
                 account: kept
                     .account
                     .unwrap_or_else(|| UNCONFIRMED_ACCOUNT.to_owned()),
@@ -180,19 +214,44 @@ impl Linker {
     }
 
     /// Tells the Hub `addresses`, unless the Server isn't Linked or the Hub has them already from
-    /// this Link. Forgotten on a restart, so the Hub hears them once more then.
+    /// this Link and checked them lately. Forgotten on a restart, so the Hub hears them once more
+    /// then.
     async fn report(&self, addresses: ServerAddresses) -> Result<(), PluginError> {
         let Some(kept) = self.kept().await? else {
             return Ok(());
         };
         let mut reported = self.reported.lock().await;
-        let report = (kept.id(), addresses);
-        if reported.as_ref() == Some(&report) {
+        let (link, now) = (kept.id(), Instant::now());
+        if reported
+            .as_ref()
+            .is_some_and(|reported| reported.covers(&link, &addresses, now))
+        {
             return Ok(());
         }
-        self.hub.set_addresses(&kept.credential, &report.1).await?;
-        *reported = Some(report);
+        let reachability = self.hub.set_addresses(&kept.credential, &addresses).await?;
+        *self
+            .reachability
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) =
+            reachability.map(|reachability| (link.clone(), reachability));
+        *reported = Some(Reported {
+            link,
+            addresses,
+            at: now,
+        });
         Ok(())
+    }
+
+    /// What the Hub found of the Server's public port through the Link `kept`, if it checked one.
+    fn reachability(&self, kept: &Kept) -> Option<Reachability> {
+        let found = self
+            .reachability
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        found
+            .as_ref()
+            .filter(|(link, _)| *link == kept.id())
+            .map(|(_, reachability)| reachability.clone())
     }
 
     fn showing(&self, code: &Waiting) -> Link {
@@ -349,3 +408,7 @@ fn rejected(rejected: Rejected) -> PluginError {
         Rejected::Invalid(why) => format!("the Hub's token doesn't check out: {why}").into(),
     }
 }
+
+#[cfg(test)]
+#[path = "linker/linker_tests.rs"]
+mod tests;

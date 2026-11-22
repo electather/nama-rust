@@ -561,7 +561,7 @@ async fn marking_a_title_the_library_doesnt_have_is_refused_as_browsing_to_it_is
     for target in marks {
         match browse.mark(user, library, target, true).await {
             Err(err) => refused.push(err.to_string()),
-            Ok(()) => panic!("marked a title the Library doesn't have"),
+            Ok(_) => panic!("marked a title the Library doesn't have"),
         }
     }
 
