@@ -11,11 +11,15 @@ use nama_plugin_api::{
         Kernel, KernelFunction as _, KernelRefused,
         functions::{StoreDelete, StoreGet, StorePut},
     },
-    contract::{StoreEntry, StoreKey, StoreValue, Stored},
+    contract::{
+        SimilarAsked, SimilarTitle, SimilarTitles, StoreEntry, StoreKey, StoreValue, Stored,
+        TitleId, TitleKind,
+    },
     diagnostics_sharer::{DiagnosticsSharer, Signal},
     job::RunJob,
     points::{WatchStateChange, WatchStateChanges},
     server_link::{Link, ServerAddresses, ServerLinker},
+    similar_source::SimilarSource,
 };
 use serde_json::json;
 
@@ -57,11 +61,45 @@ fn store() -> Arc<dyn Kernel> {
 
 /// The Plugin enabled against `hub`, keeping its Store in `kernel`.
 fn enabled(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Arc<dyn ServerLinker> {
+    provided(hub, kernel)
+}
+
+/// What the Plugin enabled against `hub`, keeping its Store in `kernel`, provides as `T`.
+fn provided<T: ?Sized + Send + Sync + 'static>(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Arc<T> {
     let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
     Hub::at(hub.url()).register(&mut registrar).unwrap();
-    registrar.into_registrations()[0]
-        .provider::<dyn ServerLinker>()
+    (registrar.into_registrations().iter())
+        .find_map(Registration::provider::<T>)
         .unwrap()
+}
+
+/// What a Similar source is asked about a Movie known by `ids`.
+fn movie(ids: &[(&str, &str)]) -> SimilarAsked {
+    SimilarAsked {
+        kind: TitleKind::TITLE_KIND_MOVIE.into(),
+        ids: ids
+            .iter()
+            .map(|&(namespace, value)| TitleId {
+                namespace: namespace.to_owned(),
+                value: value.to_owned(),
+                ..Default::default()
+            })
+            .collect(),
+        ..Default::default()
+    }
+}
+
+/// `similar`'s titles, each as its id's namespace and value and its weight.
+fn answered(similar: &SimilarTitles) -> Vec<(&str, &str, f32)> {
+    (similar.titles.iter())
+        .map(|title: &SimilarTitle| {
+            (
+                title.id.namespace.as_str(),
+                title.id.value.as_str(),
+                title.weight,
+            )
+        })
+        .collect()
 }
 
 /// Links the Server through `linker` to [`EMAIL`]'s Account on `hub`.
@@ -207,13 +245,7 @@ async fn a_hub_signed_token_verifies_against_the_kept_key_set_while_the_hub_is_u
 
 /// The Plugin's sharer, enabled against `hub` with the Store in `kernel`.
 fn sharer(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Arc<dyn DiagnosticsSharer> {
-    let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
-    Hub::at(hub.url()).register(&mut registrar).unwrap();
-    registrar
-        .into_registrations()
-        .iter()
-        .find_map(Registration::provider::<dyn DiagnosticsSharer>)
-        .unwrap()
+    provided(hub, kernel)
 }
 
 #[tokio::test]
@@ -258,6 +290,24 @@ fn without_the_hubs_address_the_plugin_refuses_to_start() {
     let refused = Hub { url: None }.register(&mut registrar).unwrap_err();
 
     assert!(refused.to_string().contains("NAMA_HUB_URL"), "{refused}");
+}
+
+#[tokio::test]
+async fn a_linked_server_gets_the_titles_the_hub_finds_alike() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    let similar = provided::<dyn SimilarSource>(&hub, &kernel);
+
+    let the_matrix = similar
+        .similar(&movie(&[("imdb", "tt0133093"), ("tmdb", "603")]))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        answered(&the_matrix),
+        [("imdb", "tt0234215", 0.9), ("imdb", "tt0078748", 0.35)]
+    );
 }
 
 #[tokio::test]
@@ -313,6 +363,59 @@ async fn a_linked_user_shows_linked_while_the_hub_is_unreachable() {
             account: EMAIL.to_owned()
         })
     );
+}
+
+#[tokio::test]
+async fn a_title_the_hub_doesnt_know_gets_no_similar_titles() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+
+    let unknown = provided::<dyn SimilarSource>(&hub, &kernel)
+        .similar(&movie(&[("tmdb", "1")]))
+        .await;
+
+    assert_eq!(answered(&unknown.unwrap()), []);
+}
+
+#[tokio::test]
+async fn a_server_that_isnt_linked_gets_no_similar_titles_and_asks_the_hub_nothing() {
+    let hub = FakeHub::start().await;
+    hub.stop();
+
+    let similar = provided::<dyn SimilarSource>(&hub, &store())
+        .similar(&movie(&[("tmdb", "603")]))
+        .await;
+
+    assert_eq!(answered(&similar.unwrap()), []);
+}
+
+#[tokio::test]
+async fn a_server_whose_credential_the_hub_forgot_gets_no_similar_titles() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.forget_server();
+
+    let similar = provided::<dyn SimilarSource>(&hub, &kernel)
+        .similar(&movie(&[("tmdb", "603")]))
+        .await;
+
+    assert_eq!(answered(&similar.unwrap()), []);
+}
+
+#[tokio::test]
+async fn similar_titles_fail_while_the_hub_is_unreachable_so_the_last_answer_stays() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.stop();
+
+    let similar = provided::<dyn SimilarSource>(&hub, &kernel)
+        .similar(&movie(&[("tmdb", "603")]))
+        .await;
+
+    similar.unwrap_err();
 }
 
 #[tokio::test]

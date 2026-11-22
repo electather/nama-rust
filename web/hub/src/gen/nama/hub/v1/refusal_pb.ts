@@ -172,6 +172,15 @@ export const RefusalReason = {
   USER_LINKED: 14,
 
   /**
+   * `invalid_argument`: a Server Address isn't an `http` or `https` URL of at most `maxLength`
+   * characters, or the Server reported more than `maxLanAddresses` LAN addresses. Params:
+   * `maxLength` and `maxLanAddresses`.
+   *
+   * @generated from enum value: REFUSAL_REASON_SERVER_ADDRESS_INVALID = 15;
+   */
+  SERVER_ADDRESS_INVALID: 15,
+
+  /**
    * `invalid_argument`: a Watch State change breaks a limit `PushWatchStatesRequest` sets, such as
    * too many changes, an id too long, a position past the duration, or a time out of range. `field` names it. Params:
    * `maxChanges`, `maxIds` and `maxIdLength`.

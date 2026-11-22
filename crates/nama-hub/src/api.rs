@@ -59,7 +59,7 @@ pub(crate) fn router(
     let watch_states = WatchStates::new(db.clone(), links.clone());
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(HubServiceHandler {
-            db,
+            db: db.clone(),
             sends_sign_in_links: accounts.sends_sign_in_links(),
         }))
         .add_service(Arc::new(AccountServiceHandler {
@@ -74,6 +74,7 @@ pub(crate) fn router(
         .add_service(Arc::new(LinkedServerServiceHandler {
             links: links.clone(),
             watch_states,
+            db,
         }))
         .into_axum_service();
     let jwks = async move || {

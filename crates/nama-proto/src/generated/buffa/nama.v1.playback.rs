@@ -2123,6 +2123,9 @@ pub enum PlaybackReasonKind {
     /// The plan Transcodes HDR the Device can't show, and nothing tone-maps it, so its colours look
     /// washed out. Params: `hdrFormat`.
     PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED = 20i32,
+    /// The plan Transcodes for a Device that shows HDR, and tone-maps the picture to SDR to burn in
+    /// a text subtitle the Server's ffmpeg can't draw over HDR (ADR 0103). Params: `hdrFormat`.
+    PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN = 37i32,
     /// The default Playback Limit for remote playback chose the limit, as the Device is outside the
     /// local network, and the limit scaled the picture down or was dropped. Params: `playbackLimit`.
     PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT = 21i32,
@@ -2233,6 +2236,9 @@ impl PlaybackReasonKind {
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const HdrNotToneMapped: Self = Self::PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const HdrToneMappedForBurnIn: Self = Self::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN;
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const RemoteDefaultLimit: Self = Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT;
@@ -2479,6 +2485,11 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                     Self::PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED,
                 )
             }
+            37i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN,
+                )
+            }
             21i32 => {
                 ::core::option::Option::Some(
                     Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT,
@@ -2615,6 +2626,9 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             }
             Self::PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED => {
                 "PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED"
+            }
+            Self::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN => {
+                "PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN"
             }
             Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT => {
                 "PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT"
@@ -2773,6 +2787,11 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                     Self::PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED,
                 )
             }
+            "PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN,
+                )
+            }
             "PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT" => {
                 ::core::option::Option::Some(
                     Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT,
@@ -2859,6 +2878,7 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             Self::PLAYBACK_REASON_KIND_CONVERSION_CHANNELS_CAPPED,
             Self::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED,
             Self::PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED,
+            Self::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN,
             Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT,
             Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN,
             Self::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED,

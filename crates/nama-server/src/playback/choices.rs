@@ -8,13 +8,13 @@ use proto::SubtitleFormat::{
 
 use super::{
     AskedAudio, Candidates, Choice, DeviceDecoding, Facts, Method, Reason, Subtitle,
-    codecs::{file_audio, is_audio, played_audio_place, undecodable},
+    codecs::{file_audio, is_audio, played_audio_place, played_video, undecodable},
     limits::picture,
     subtitles,
     track_preferences::{Description, Preferred, SubtitlePreference, same_language},
     tracks::{Probe, Track, TrackKind},
 };
-use crate::ffmpeg::{BurnIn, ImageSubtitle, TextSubtitle};
+use crate::ffmpeg::{BurnIn, ImageSubtitle, TextLayer, TextSubtitle};
 
 /// The audio Track `asked` asks for, by its place in `probe`'s Tracks. One the Server chose by the
 /// User's Audio Preference is then as if they chose it, so a plan that can't play it drops it
@@ -198,7 +198,32 @@ pub(super) fn burn_in(facts: &Facts) -> Option<BurnIn> {
             fonts: probe.font_attachments.len(),
         },
     };
-    Some(BurnIn::Text { subtitle })
+    Some(BurnIn::Text {
+        subtitle,
+        layer: text_layer(facts),
+    })
+}
+
+/// The layer a text subtitle burned into an HDR Device's picture is drawn on, if the Server's
+/// ffmpeg can draw one and the picture's size and rate are known (ADR 0103).
+fn text_layer(facts: &Facts) -> Option<TextLayer> {
+    if !(facts.device.hdr && facts.can_do.subtitle_layer) {
+        return None;
+    }
+    let TrackKind::Video {
+        width: Some(width),
+        height: Some(height),
+        frame_rate: Some(frame_rate),
+        ..
+    } = played_video(facts.probe.as_ref()?)?.kind
+    else {
+        return None;
+    };
+    Some(TextLayer {
+        width,
+        height,
+        frame_rate: frame_rate.to_string(),
+    })
 }
 
 /// The place in `probe`'s Tracks of the subtitle Track `preferred` starts playback with, `None` for off or

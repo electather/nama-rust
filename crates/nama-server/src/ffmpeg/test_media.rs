@@ -164,6 +164,36 @@ pub fn write_black_with_pgs_sidecar(path: &Path) -> io::Result<()> {
     write_black(path, None)
 }
 
+/// Writes 2 seconds of a 320×240 10-bit ramp, its luma from 64 at the left to 940 at the right,
+/// more codes than 8 bits hold, tagged BT.2020 with `transfer` as [`write_4k_with_5_1`] takes it,
+/// with [`write_black_with_pgs`]'s subtitle Track, as Matroska, to `path`, for a test to burn
+/// into HDR.
+///
+/// # Errors
+///
+/// If the subtitle can't be written beside `path`, or ffmpeg can't be run or fails.
+#[cfg(any(test, feature = "testing"))]
+pub fn write_hdr_ramp_with_pgs(path: &Path, transfer: &str) -> io::Result<()> {
+    let sup = path.with_extension("sup");
+    std::fs::write(&sup, white_square_pgs(0, 19))?;
+    let written = write_test_media(path, |ffmpeg| {
+        let picture = format!(
+            "nullsrc=size=320x240:rate=24,format=yuv420p10le,\
+             geq=lum='64+X*876/319':cb=512:cr=512,\
+             setparams=range=tv:color_primaries=bt2020:color_trc={transfer}:colorspace=bt2020nc"
+        );
+        ffmpeg
+            .args(["-f", "lavfi", "-i", &picture])
+            .arg("-i")
+            .arg(&sup)
+            .args(["-map", "0", "-map", "1", "-t", "2"])
+            .args(["-c:v", "ffv1", "-pix_fmt", "yuv420p10le", "-c:s", "copy"])
+            .args(["-f", "matroska"])
+    });
+    std::fs::remove_file(&sup)?;
+    written
+}
+
 /// Writes 20 seconds of black 320×240 H.264 video, with the PGS file `pgs` as its subtitle Track
 /// if given, as Matroska, to `path`.
 #[cfg(any(test, feature = "testing"))]

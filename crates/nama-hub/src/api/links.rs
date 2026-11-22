@@ -1,18 +1,21 @@
 //! Registering a Server, Linking its Users, and Unlinking either: `nama.hub.v1.ServerLinkService`,
-//! `LinkService` and `LinkedServerService`, one for each kind of caller.
+//! `LinkService` and `LinkedServerService`, one for each kind of caller, and what a Linked Server
+//! asks of the Hub's titles.
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_hub_proto::nama::hub::v1::{
     self as proto, ApproveServerLinkRequest, ApproveServerLinkResponse, ApproveUserLinkRequest,
     ApproveUserLinkResponse, GetUserLinkRequest, GetUserLinkResponse, LinkService,
     LinkedServerService, ListLinkedServersRequest, ListLinkedServersResponse,
-    ListLinkedUsersRequest, ListLinkedUsersResponse, PollServerLinkRequest, PollServerLinkResponse,
+    ListLinkedUsersRequest, ListLinkedUsersResponse, ListSimilarTitlesRequest,
+    ListSimilarTitlesResponse, PollServerLinkRequest, PollServerLinkResponse,
     PushWatchStatesRequest, PushWatchStatesResponse, RefusalReason, ServerLinkService,
     SetServerAddressesRequest, SetServerAddressesResponse, StartServerLinkRequest,
     StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkLinkedUserRequest,
     UnlinkLinkedUserResponse, UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest,
     UnlinkUserResponse,
 };
+use sqlx::PgPool;
 
 use super::{accounts::signed_in, hub_failed, refuse};
 use crate::{
@@ -21,6 +24,7 @@ use crate::{
         ListedUser, MAX_LAN_ADDRESSES, POLL_INTERVAL_SECS, Polled,
     },
     sync::{MAX_CHANGED_AT_MS, MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, WatchStateChange, WatchStates},
+    titles::{self, ExternalId, SimilarTitle, TitleKind},
 };
 
 /// `nama.hub.v1.ServerLinkService`: a Server not yet Linked, so anyone.
@@ -169,6 +173,7 @@ impl LinkService for LinkServiceHandler {
 pub(super) struct LinkedServerServiceHandler {
     pub(super) links: Links,
     pub(super) watch_states: WatchStates,
+    pub(super) db: PgPool,
 }
 
 #[expect(
@@ -187,6 +192,36 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(UnlinkServerResponse::default())
+    }
+
+    async fn list_similar_titles(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ListSimilarTitlesRequest>,
+    ) -> ServiceResult<ListSimilarTitlesResponse> {
+        linked_server(&ctx)?;
+        let kind = match request.kind.as_known() {
+            Some(proto::TitleKind::TITLE_KIND_MOVIE) => TitleKind::Movie,
+            Some(proto::TitleKind::TITLE_KIND_SHOW) => TitleKind::Show,
+            Some(proto::TitleKind::TITLE_KIND_UNSPECIFIED) | None => {
+                return Response::ok(ListSimilarTitlesResponse::default());
+            }
+        };
+        let ids: Vec<ExternalId> = request
+            .ids
+            .iter()
+            .map(|id| ExternalId {
+                namespace: id.namespace.to_owned(),
+                value: id.value.to_owned(),
+            })
+            .collect();
+        let similar = titles::similar(&self.db, kind, &ids)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(ListSimilarTitlesResponse {
+            titles: similar.into_iter().map(similar_to_proto).collect(),
+            ..Default::default()
+        })
     }
 
     async fn start_user_link(
@@ -275,6 +310,19 @@ fn linked_server(ctx: &RequestContext) -> Result<&LinkedServer, ConnectError> {
         )
         .into()
     })
+}
+
+fn similar_to_proto(similar: SimilarTitle) -> proto::SimilarTitle {
+    proto::SimilarTitle {
+        id: proto::ExternalId {
+            namespace: similar.id.namespace,
+            value: similar.id.value,
+            ..Default::default()
+        }
+        .into(),
+        weight: similar.weight,
+        ..Default::default()
+    }
 }
 
 fn server_to_proto(server: ListedServer) -> proto::LinkedServer {

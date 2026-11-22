@@ -23,10 +23,12 @@ use hub::TestHub;
 use linking::{
     approve, create, create_proven, hub_with_mail, linked, linked_server, links, poll, start,
 };
+use nama_hub::titles;
 use nama_hub_proto::nama::hub::v1::{
-    ApproveUserLinkRequest, GetUserLinkRequest, ListLinkedServersRequest, ListLinkedUsersRequest,
-    PushWatchStatesRequest, RefusalReason, SetServerAddressesRequest, StartUserLinkRequest,
-    UnlinkLinkedUserRequest, UnlinkServerRequest, UnlinkUserRequest, WatchStateChange,
+    ApproveUserLinkRequest, ExternalId, GetUserLinkRequest, ListLinkedServersRequest,
+    ListLinkedUsersRequest, ListSimilarTitlesRequest, PushWatchStatesRequest, RefusalReason,
+    SetServerAddressesRequest, StartUserLinkRequest, TitleKind, UnlinkLinkedUserRequest,
+    UnlinkServerRequest, UnlinkUserRequest, WatchStateChange,
 };
 use refused::assert_refused;
 use ring::signature::{ED25519, UnparsedPublicKey};
@@ -497,6 +499,44 @@ async fn push(
         })
         .await?;
     Ok(())
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_linked_server_gets_the_titles_like_one_it_names(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db.clone()).await;
+    titles::import(&db, &include_bytes!("fixtures/wikidata-dump.json")[..])
+        .await
+        .unwrap();
+    titles::train(&db).await.unwrap();
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let credential = linked(&hub, &ada, "Living room").await;
+    let the_matrix = ListSimilarTitlesRequest {
+        kind: TitleKind::TITLE_KIND_MOVIE.into(),
+        ids: vec![ExternalId {
+            namespace: "tmdb".to_owned(),
+            value: "603".to_owned(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let similar = linked_server(&hub, &credential)
+        .list_similar_titles(the_matrix.clone())
+        .await
+        .unwrap()
+        .into_owned();
+
+    let ids: Vec<&str> = (similar.titles.iter())
+        .map(|title| title.id.value.as_str())
+        .collect();
+    assert_eq!(ids, ["604", "348"]);
+    assert_refused(
+        linked_server(&hub, "not-a-credential")
+            .list_similar_titles(the_matrix)
+            .await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+    );
 }
 
 /// Reports `url` and `lan_addresses` as the Server Addresses of the Server presenting `credential`.

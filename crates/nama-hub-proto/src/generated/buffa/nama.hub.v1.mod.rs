@@ -58,6 +58,10 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_LINKED_SERVERS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__UNLINK_SERVER_REQUEST_JSON_ANY);
         reg.register_json_any(super::__UNLINK_SERVER_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__EXTERNAL_ID_JSON_ANY);
+        reg.register_json_any(super::__LIST_SIMILAR_TITLES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_SIMILAR_TITLES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SIMILAR_TITLE_JSON_ANY);
         reg.register_json_any(super::__LINKED_USER_JSON_ANY);
         reg.register_json_any(super::__APPROVE_USER_LINK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__APPROVE_USER_LINK_RESPONSE_JSON_ANY);
@@ -199,6 +203,22 @@ pub use self::__buffa::view::UnlinkServerRequestOwnedView;
 pub use self::__buffa::view::UnlinkServerResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::UnlinkServerResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ExternalIdView;
+#[doc(inline)]
+pub use self::__buffa::view::ExternalIdOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListSimilarTitlesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListSimilarTitlesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListSimilarTitlesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListSimilarTitlesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SimilarTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::SimilarTitleOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::LinkedUserView;
 #[doc(inline)]
