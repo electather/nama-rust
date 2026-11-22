@@ -32,6 +32,8 @@ const LANGUAGE: &str = "language";
 
 const DEFAULT_LANGUAGE: &str = "en-US";
 
+const BOX_SET_MOVIES: &str = "box_set_movies";
+
 const SETUP: &str = "\
 1. Sign in to [TMDB](https://www.themoviedb.org/), or sign up there for free.
 2. Under [Settings > API](https://www.themoviedb.org/settings/api), request an API key.
@@ -109,6 +111,21 @@ impl Plugin for Tmdb {
                     max: None,
                     choices: Vec::new(),
                 },
+                SettingField {
+                    key: BOX_SET_MOVIES.to_owned(),
+                    label: "List Box Set Movies the Server lacks".to_owned(),
+                    description: "Lists every Movie of a Box Set, such as the Alien films, so \
+                                  Users who may Request Movies can Request those the Server \
+                                  lacks. Costs about one more TMDB request per Movie a Box Set \
+                                  lists, each time its Movies are fetched."
+                        .to_owned(),
+                    kind: SettingKind::Bool,
+                    required: false,
+                    default: Some(SettingValue::Bool(true)),
+                    min: None,
+                    max: None,
+                    choices: Vec::new(),
+                },
             ],
         };
         Manifest {
@@ -145,8 +162,17 @@ impl Plugin for Tmdb {
             .text(API_KEY)
             .ok_or("the tmdb plugin needs an API key")?;
         let language = settings.text(LANGUAGE).unwrap_or(DEFAULT_LANGUAGE);
-        let client = Client::new(self.endpoints.clone(), api_key, language)
-            .map_err(|err| format!("could not set up HTTPS for TMDB: {err}"))?;
+        let lists_box_set_movies = !matches!(
+            settings.get(BOX_SET_MOVIES),
+            Some(SettingValue::Bool(false))
+        );
+        let client = Client::new(
+            self.endpoints.clone(),
+            api_key,
+            language,
+            lists_box_set_movies,
+        )
+        .map_err(|err| format!("could not set up HTTPS for TMDB: {err}"))?;
         let client = Arc::new(client);
         let source: Arc<dyn TitleSource> = Arc::<Client>::clone(&client);
         registrar.provide::<dyn TitleSource>(Priority::DEFAULT, source);

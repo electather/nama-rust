@@ -1,7 +1,7 @@
 import { points } from "@/features/admin-plugins/lib/extension-points";
-import { IconTile } from "@/features/settings/components/icon-tile";
 import { ItemRow } from "@/features/settings/components/item-row";
 import type { ExtensionPoint } from "@/gen/nama/v1/plugin_pb";
+import { IconTile } from "@/shared/components/icon-tile";
 
 /**
  * The Extension Points a Plugin takes part at, each over a line on what it does there. One from a
@@ -20,7 +20,7 @@ export function PluginPoints({ extensionPoints }: { extensionPoints: ExtensionPo
       <h2 id="extension-points" className="font-medium">
         Extension Points
       </h2>
-      <ul className="-mb-2.5 flex flex-col">{rows}</ul>
+      <ul className="-mb-1.5 flex flex-col">{rows}</ul>
     </section>
   );
 }

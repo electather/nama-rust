@@ -1,5 +1,5 @@
-//! Creating an Account and signing it in, with its password or a Sign-in Link, and out:
-//! `nama.hub.v1.AccountService`.
+//! Creating an Account, signing it in, with its password or a Sign-in Link, and out, and setting
+//! its password: `nama.hub.v1.AccountService`.
 
 use std::{future, net::IpAddr, time::Instant};
 
@@ -14,20 +14,22 @@ use nama_forwarded::RequestSource;
 use nama_hub_proto::nama::hub::v1::{
     self as proto, AccountService, CreateAccountRequest, CreateAccountResponse, GetAccountRequest,
     GetAccountResponse, GetSignInLinkRequest, GetSignInLinkResponse, RefusalReason,
-    SendSignInLinkRequest, SendSignInLinkResponse, SignInRequest, SignInResponse,
-    SignInWithLinkRequest, SignInWithLinkResponse, SignOutRequest, SignOutResponse,
+    SendSignInLinkRequest, SendSignInLinkResponse, SetPasswordRequest, SetPasswordResponse,
+    SignInRequest, SignInResponse, SignInWithLinkRequest, SignInWithLinkResponse, SignOutRequest,
+    SignOutResponse,
 };
 
 use super::{hub_failed, refuse};
 use crate::accounts::{
-    self, Account, AccountSession, Accounts, Blocked, EMAIL_LENGTH, PASSWORD_LENGTH, SESSION_DAYS,
-    SignInLink, SignedIn, SignedInByLink,
+    self, Account, AccountSession, Accounts, Blocked, EMAIL_LENGTH, PASSWORD_LENGTH,
+    RECENT_AUTHENTICATION_MINS, SESSION_DAYS, SignInLink, SignedIn, SignedInByLink,
 };
 
 /// The cookie that holds a browser's session token.
 pub(super) const COOKIE_NAME: &str = "nama_hub_session";
 
-/// `nama.hub.v1.AccountService`: creating an Account, and signing it in and out.
+/// `nama.hub.v1.AccountService`: creating an Account, signing it in and out, and setting its
+/// password.
 pub(super) struct AccountServiceHandler {
     pub(super) accounts: Accounts,
 }
@@ -71,6 +73,7 @@ impl AccountService for AccountServiceHandler {
             .sign_in(
                 request.email,
                 request.password,
+                ctx.extensions().get::<AccountSession>(),
                 client_ip(&ctx)?,
                 Instant::now(),
             )
@@ -140,6 +143,18 @@ impl AccountService for AccountServiceHandler {
         }))
     }
 
+    async fn set_password(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetPasswordRequest>,
+    ) -> ServiceResult<SetPasswordResponse> {
+        self.accounts
+            .set_password(signed_in(&ctx)?, request.password)
+            .await
+            .map_err(refused)?;
+        Response::ok(SetPasswordResponse::default())
+    }
+
     async fn sign_out(
         &self,
         ctx: RequestContext,
@@ -153,18 +168,22 @@ impl AccountService for AccountServiceHandler {
         Ok(Response::new(SignOutResponse::default()).with_header(SET_COOKIE, cleared))
     }
 
-    fn get_account<'a>(
-        &'a self,
+    async fn get_account(
+        &self,
         ctx: RequestContext,
         _request: ServiceRequest<'_, GetAccountRequest>,
-    ) -> impl Future<Output = ServiceResult<impl Encodable<GetAccountResponse> + Send + use<'a>>> + Send
-    {
-        future::ready(signed_in(&ctx).and_then(|session| {
-            Response::ok(GetAccountResponse {
-                account: account_to_proto(session.account.clone()).into(),
-                ..Default::default()
-            })
-        }))
+    ) -> ServiceResult<GetAccountResponse> {
+        let account = &signed_in(&ctx)?.account;
+        let has_password = self
+            .accounts
+            .has_password(account.id)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(GetAccountResponse {
+            account: account_to_proto(account.clone()).into(),
+            has_password,
+            ..Default::default()
+        })
     }
 }
 
@@ -219,8 +238,8 @@ fn account_to_proto(account: Account) -> proto::Account {
     }
 }
 
-/// The Connect error a client gets for an Account that couldn't be created or signed in, or a
-/// Sign-in Link that couldn't be sent or used.
+/// The Connect error a client gets for an Account that couldn't be created, signed in or given a
+/// password, or a Sign-in Link that couldn't be sent or used.
 #[expect(
     clippy::needless_pass_by_value,
     reason = "by value, so callers can write `.map_err(refused)`"
@@ -238,6 +257,10 @@ fn refused(err: accounts::Error) -> ConnectError {
             .field("password")
             .param("minLength", PASSWORD_LENGTH.start())
             .param("maxLength", PASSWORD_LENGTH.end()),
+        E::RecentAuthenticationRequired => {
+            refuse(R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED, message)
+                .param("recentMinutes", &RECENT_AUTHENTICATION_MINS)
+        }
         E::WrongEmailOrPassword => refuse(R::REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD, message),
         E::SignInLinksOff => refuse(R::REFUSAL_REASON_SIGN_IN_LINKS_OFF, message),
         E::SignInLinkExpired => refuse(R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED, message),
@@ -268,3 +291,7 @@ fn too_many_attempts(blocked: &Blocked) -> ConnectError {
     )
     .with_headers(headers)
 }
+
+#[cfg(test)]
+#[path = "accounts_tests.rs"]
+mod tests;

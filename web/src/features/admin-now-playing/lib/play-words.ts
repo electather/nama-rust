@@ -8,7 +8,7 @@ import { methodName } from "@/shared/lib/playback-wording";
 /** A play with the Playback it plays, which the Server always sends. */
 export type KnownPlay = Play & { playback: Playback };
 
-/** Whether `play` carries its Playback, so the page can show it. */
+/** Whether `play` carries its Playback, so Now Playing can show it. */
 export function hasPlayback(play: Play): play is KnownPlay {
   return play.playback !== undefined;
 }

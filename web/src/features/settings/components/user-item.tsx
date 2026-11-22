@@ -1,9 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { UserRound } from "lucide-react";
 
-import { IconTile } from "@/features/settings/components/icon-tile";
 import { ItemRow } from "@/features/settings/components/item-row";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
+import { IconTile } from "@/shared/components/icon-tile";
 import { labelsOf } from "@/shared/lib/permissions";
 
 /** One User on the list: their name over their Permissions. All of the row opens them. */

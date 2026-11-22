@@ -247,6 +247,12 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_HOME_ROW_TITLES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_HOME_ROW_TITLES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__HOME_ROW_TITLE_JSON_ANY);
+        reg.register_json_any(super::__BOX_SET_JSON_ANY);
+        reg.register_json_any(super::__BOX_SET_SUMMARY_JSON_ANY);
+        reg.register_json_any(super::__GET_BOX_SET_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_BOX_SET_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_BOX_SETS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_BOX_SETS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SEARCH_SUBTITLES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SEARCH_SUBTITLES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__FOUND_SUBTITLE_JSON_ANY);
@@ -1166,6 +1172,30 @@ pub use self::__buffa::view::ListHomeRowTitlesResponseOwnedView;
 pub use self::__buffa::view::HomeRowTitleView;
 #[doc(inline)]
 pub use self::__buffa::view::HomeRowTitleOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::BoxSetView;
+#[doc(inline)]
+pub use self::__buffa::view::BoxSetOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::BoxSetSummaryView;
+#[doc(inline)]
+pub use self::__buffa::view::BoxSetSummaryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetBoxSetRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetBoxSetRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetBoxSetResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetBoxSetResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListBoxSetsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListBoxSetsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListBoxSetsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListBoxSetsResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SearchSubtitlesRequestView;
 #[doc(inline)]
