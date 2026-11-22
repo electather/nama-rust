@@ -311,6 +311,37 @@ test.each([
   await expectUnderField("Segment folder", "The segment folder is no good.");
 });
 
+test("a refused segment folder stays typed under its refusal, and a later change saves what's saved with it", async () => {
+  const sent: (string | undefined)[] = [];
+  // Only the first save is refused.
+  const firstAnswer = [
+    () => {
+      throw refused(Code.InvalidArgument, "the segment folder is no good", {
+        reason: RefusalReason.FOLDER_NOT_WRITABLE,
+        field: "settings.segment_folder",
+      });
+    },
+  ];
+  openPlayback(
+    { segmentFolder: "/srv/segments" },
+    {
+      updatePlaybackSettings: (request) => {
+        sent.push(request.settings?.segmentFolder);
+        firstAnswer.shift()?.();
+        return { settings: request.settings };
+      },
+    },
+  );
+
+  await screen.findByLabelText("Segment folder");
+  change("Segment folder", "/proc/nama");
+  await expectUnderField("Segment folder", "The segment folder is no good.");
+  expect(screen.getByLabelText("Segment folder")).toHaveProperty("value", "/proc/nama");
+  change("Transcodes at once", "3");
+
+  await expect.poll(() => sent).toStrictEqual(["/proc/nama", "/srv/segments"]);
+});
+
 test.each([
   ["Transcodes at once", "max_transcodes"],
   ["Keep for skipping back", "keep_behind_minutes"],
