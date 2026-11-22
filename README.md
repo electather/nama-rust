@@ -14,6 +14,7 @@ A self-hosted media server and request manager, with an optional central Hub for
 | [`crates/nama-plugin-proto`](crates/nama-plugin-proto) | Rust types generated from the Plugin contract in `proto/nama/plugin/`, and its version |
 | [`crates/nama-hub-proto`](crates/nama-hub-proto) | Rust types and ConnectRPC stubs generated from the Hub API in `proto/nama/hub/` |
 | [`crates/nama-test-plugin`](crates/nama-test-plugin) | An Installed Plugin used only in the Server's tests |
+| [`crates/nama-structure`](crates/nama-structure) | The structure checks the Server's and the Hub's tests run on their own files (ADR 0099) |
 | [`crates/nama-test-report`](crates/nama-test-report) | CI tooling: records test results and reports flaky and slow tests |
 | [`plugins/`](plugins) | Built-in Plugins, the Installed Plugins the Server bundles, and the libraries they share |
 | [`web/`](web) | The web app the Server serves, and nama-ui, the design system it shares (ADR 0101) |

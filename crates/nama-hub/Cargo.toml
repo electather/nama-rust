@@ -36,6 +36,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 [dev-dependencies]
 connectrpc = { version = "0.9.1", features = ["client"] }
 figment = { version = "0.10", features = ["test"] }
+nama-structure = { path = "../nama-structure" }
 tokio = { version = "1", features = ["sync"] }
 
 [lints]
