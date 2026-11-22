@@ -56,7 +56,7 @@ export const pluginPermissions: Partial<
   [PluginPermission.BACK_UP]: {
     label: "Back up",
     about:
-      "It writes a Backup of the Server, every Plugin’s settings and API keys included, into the Backup folder set on the Backups page, and deletes the oldest it wrote beyond the count kept there.",
+      "It writes a Backup of the Server, every Plugin’s settings and API keys included, into the Backup folder set in Settings’ Backups section, and deletes the oldest it wrote beyond the count kept there.",
   },
 };
 

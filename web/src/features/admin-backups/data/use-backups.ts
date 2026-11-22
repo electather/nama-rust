@@ -1,26 +1,11 @@
 import { create } from "@bufbuild/protobuf";
-import type { Transport } from "@connectrpc/connect";
-import {
-  createConnectQueryKey,
-  createQueryOptions,
-  useSuspenseQuery,
-} from "@connectrpc/connect-query";
+import { createConnectQueryKey, useSuspenseQuery } from "@connectrpc/connect-query";
 
 import { BackupSettingsSchema, ServerService } from "@/gen/nama/v1/server_pb";
-import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
 
-/** The Backup folder, its settings and the Backups in it, for the Backups page to load. */
-export function backupsQuery(transport: Transport) {
-  return createQueryOptions(ServerService.method.getBackups, {}, { transport });
-}
-
-/** What `backupsQuery` loads, with the default settings while none are saved. */
+/** The Backup folder, its settings and the Backups in it, with the default settings while none are saved. */
 export function useBackups() {
-  const { settings, folder, backups } = useSuspenseQuery(
-    ServerService.method.getBackups,
-    {},
-    { staleTime: loaderStaleTime },
-  ).data;
+  const { settings, folder, backups } = useSuspenseQuery(ServerService.method.getBackups, {}).data;
   return { settings: settings ?? create(BackupSettingsSchema), folder, backups };
 }
 

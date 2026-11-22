@@ -172,11 +172,14 @@
       },
       {
         "from": "settings",
-        // Its Plugins and Server Playback panes render admin features whose code stays in their own features.
+        // Its Plugins pane renders a Plugin's parts, whose code stays in admin-plugins; its Backups pane renders Backups' parts,
+        // and each Backup's row says when it was written as a Job's Run does.
         "allow": [
           "settings",
           "admin-plugins",
           "admin-playback",
+          "admin-backups",
+          "admin-jobs",
           "shared-components",
           "shared-ui",
           "shared-hooks",
@@ -221,7 +224,6 @@
           "admin-needs-a-match",
           "admin-playback",
           "admin-jobs",
-          "admin-backups",
           "admin-now-playing",
           "admin-home",
           "admin-users",

@@ -29,7 +29,7 @@ The logs, errors and timings a Server and its web app record about how they ran.
 _Avoid_: telemetry, crash reports, monitoring
 
 **Backup**:
-One `.tar` file holding a copy of a Server's database, its config file and, while the image store is local disk, its Custom Images, from which `nama-server restore` puts the Server back while it is stopped (ADR 0068). It holds every Plugin's settings, keys included, so it is as secret as the database. Upkeep writes one daily into the Backup folder and keeps the newest few; an Admin also writes one with "Back up now" on the Backups page, or with `nama-server backup`.
+One `.tar` file holding a copy of a Server's database, its config file and, while the image store is local disk, its Custom Images, from which `nama-server restore` puts the Server back while it is stopped (ADR 0068). It holds every Plugin's settings, keys included, so it is as secret as the database. Upkeep writes one daily into the Backup folder and keeps the newest few; an Admin also writes one with "Back up now" in Settings' Backups section, or with `nama-server backup`.
 _Avoid_: snapshot, dump, export
 
 **Usage Analytics**:
@@ -208,7 +208,7 @@ _Avoid_: plugin output, plugin console
 An Automation that deletes a Requested title once each of its Requesters has watched it and a set number of days have passed, or hasn't watched it within a longer set number of days. A title nobody Requested is kept.
 
 **Upkeep**:
-The Built-in Plugin whose Jobs delete what the Server keeps that nobody will read again: Home rows of Users who stopped opening home, expired sign-ins and Invites, and what a removed Plugin left behind. Each threshold is one of its settings. Another Job fetches every Matched title's metadata again each week, so it doesn't go stale, and another writes a Backup every day, keeping the newest as the Backups page sets.
+The Built-in Plugin whose Jobs delete what the Server keeps that nobody will read again: Home rows of Users who stopped opening home, expired sign-ins and Invites, and what a removed Plugin left behind. Each threshold is one of its settings. Another Job fetches every Matched title's metadata again each week, so it doesn't go stale, and another writes a Backup every day, keeping the newest as Settings' Backups section sets.
 _Avoid_: maintenance, housekeeping, garbage collection
 
 ## Media

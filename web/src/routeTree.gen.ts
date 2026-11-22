@@ -19,6 +19,7 @@ import { Route as MemberSearchRouteImport } from './routes/_member/search'
 import { Route as MemberSettingsRouteImport } from './routes/_member/settings'
 import { Route as SignedOutSetupRouteImport } from './routes/_signed-out/setup'
 import { Route as SignedOutSignInRouteImport } from './routes/_signed-out/sign-in'
+import { Route as MemberAdminBackupsRouteImport } from './routes/_member/admin.backups'
 import { Route as MemberAdminPlaybackRouteImport } from './routes/_member/admin/playback'
 import { Route as MemberCodeIndexRouteImport } from './routes/_member/code.index'
 import { Route as MemberCodeApproveRouteImport } from './routes/_member/code.approve'
@@ -30,7 +31,6 @@ import { Route as MemberShowsShowIdRouteImport } from './routes/_member/shows/$s
 import { Route as SignedOutInviteTokenRouteImport } from './routes/_signed-out/invite.$token'
 import { Route as SignedOutSignInIndexRouteImport } from './routes/_signed-out/sign-in.index'
 import { Route as MemberAdminAdminIndexRouteImport } from './routes/_member/_admin/admin/index'
-import { Route as MemberAdminAdminBackupsRouteImport } from './routes/_member/_admin/admin/backups'
 import { Route as MemberAdminAdminHomeRouteImport } from './routes/_member/_admin/admin/home'
 import { Route as MemberAdminAdminJobsRouteImport } from './routes/_member/_admin/admin/jobs'
 import { Route as MemberAdminAdminNeedsAMatchRouteImport } from './routes/_member/_admin/admin/needs-a-match'
@@ -96,6 +96,11 @@ const SignedOutSignInRoute = SignedOutSignInRouteImport.update({
   path: '/sign-in',
   getParentRoute: () => SignedOutRoute,
 } as any)
+const MemberAdminBackupsRoute = MemberAdminBackupsRouteImport.update({
+  id: '/admin/backups',
+  path: '/admin/backups',
+  getParentRoute: () => MemberRoute,
+} as any)
 const MemberAdminPlaybackRoute = MemberAdminPlaybackRouteImport.update({
   id: '/admin/playback',
   path: '/admin/playback',
@@ -149,11 +154,6 @@ const SignedOutSignInIndexRoute = SignedOutSignInIndexRouteImport.update({
 const MemberAdminAdminIndexRoute = MemberAdminAdminIndexRouteImport.update({
   id: '/admin/',
   path: '/admin/',
-  getParentRoute: () => MemberAdminRoute,
-} as any)
-const MemberAdminAdminBackupsRoute = MemberAdminAdminBackupsRouteImport.update({
-  id: '/admin/backups',
-  path: '/admin/backups',
   getParentRoute: () => MemberAdminRoute,
 } as any)
 const MemberAdminAdminHomeRoute = MemberAdminAdminHomeRouteImport.update({
@@ -265,6 +265,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof MemberSettingsRoute
   '/setup': typeof SignedOutSetupRoute
   '/sign-in': typeof SignedOutSignInRouteWithChildren
+  '/admin/backups': typeof MemberAdminBackupsRoute
   '/admin/playback': typeof MemberAdminPlaybackRoute
   '/code/approve': typeof MemberCodeApproveRoute
   '/code/done': typeof MemberCodeDoneRoute
@@ -275,7 +276,6 @@ export interface FileRoutesByFullPath {
   '/code/': typeof MemberCodeIndexRoute
   '/requests/': typeof MemberRequestsIndexRoute
   '/sign-in/': typeof SignedOutSignInIndexRoute
-  '/admin/backups': typeof MemberAdminAdminBackupsRoute
   '/admin/home': typeof MemberAdminAdminHomeRoute
   '/admin/jobs': typeof MemberAdminAdminJobsRoute
   '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
@@ -301,6 +301,7 @@ export interface FileRoutesByTo {
   '/search': typeof MemberSearchRoute
   '/settings': typeof MemberSettingsRoute
   '/setup': typeof SignedOutSetupRoute
+  '/admin/backups': typeof MemberAdminBackupsRoute
   '/admin/playback': typeof MemberAdminPlaybackRoute
   '/code/approve': typeof MemberCodeApproveRoute
   '/code/done': typeof MemberCodeDoneRoute
@@ -311,7 +312,6 @@ export interface FileRoutesByTo {
   '/code': typeof MemberCodeIndexRoute
   '/requests': typeof MemberRequestsIndexRoute
   '/sign-in': typeof SignedOutSignInIndexRoute
-  '/admin/backups': typeof MemberAdminAdminBackupsRoute
   '/admin/home': typeof MemberAdminAdminHomeRoute
   '/admin/jobs': typeof MemberAdminAdminJobsRoute
   '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
@@ -343,6 +343,7 @@ export interface FileRoutesById {
   '/_signed-out/setup': typeof SignedOutSetupRoute
   '/_signed-out/sign-in': typeof SignedOutSignInRouteWithChildren
   '/_member/': typeof MemberIndexRoute
+  '/_member/admin/backups': typeof MemberAdminBackupsRoute
   '/_member/admin/playback': typeof MemberAdminPlaybackRoute
   '/_member/code/approve': typeof MemberCodeApproveRoute
   '/_member/code/done': typeof MemberCodeDoneRoute
@@ -353,7 +354,6 @@ export interface FileRoutesById {
   '/_member/code/': typeof MemberCodeIndexRoute
   '/_member/requests/': typeof MemberRequestsIndexRoute
   '/_signed-out/sign-in/': typeof SignedOutSignInIndexRoute
-  '/_member/_admin/admin/backups': typeof MemberAdminAdminBackupsRoute
   '/_member/_admin/admin/home': typeof MemberAdminAdminHomeRoute
   '/_member/_admin/admin/jobs': typeof MemberAdminAdminJobsRoute
   '/_member/_admin/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
@@ -383,6 +383,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/sign-in'
+    | '/admin/backups'
     | '/admin/playback'
     | '/code/approve'
     | '/code/done'
@@ -393,7 +394,6 @@ export interface FileRouteTypes {
     | '/code/'
     | '/requests/'
     | '/sign-in/'
-    | '/admin/backups'
     | '/admin/home'
     | '/admin/jobs'
     | '/admin/needs-a-match'
@@ -419,6 +419,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/setup'
+    | '/admin/backups'
     | '/admin/playback'
     | '/code/approve'
     | '/code/done'
@@ -429,7 +430,6 @@ export interface FileRouteTypes {
     | '/code'
     | '/requests'
     | '/sign-in'
-    | '/admin/backups'
     | '/admin/home'
     | '/admin/jobs'
     | '/admin/needs-a-match'
@@ -460,6 +460,7 @@ export interface FileRouteTypes {
     | '/_signed-out/setup'
     | '/_signed-out/sign-in'
     | '/_member/'
+    | '/_member/admin/backups'
     | '/_member/admin/playback'
     | '/_member/code/approve'
     | '/_member/code/done'
@@ -470,7 +471,6 @@ export interface FileRouteTypes {
     | '/_member/code/'
     | '/_member/requests/'
     | '/_signed-out/sign-in/'
-    | '/_member/_admin/admin/backups'
     | '/_member/_admin/admin/home'
     | '/_member/_admin/admin/jobs'
     | '/_member/_admin/admin/needs-a-match'
@@ -568,6 +568,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedOutSignInRouteImport
       parentRoute: typeof SignedOutRoute
     }
+    '/_member/admin/backups': {
+      id: '/_member/admin/backups'
+      path: '/admin/backups'
+      fullPath: '/admin/backups'
+      preLoaderRoute: typeof MemberAdminBackupsRouteImport
+      parentRoute: typeof MemberRoute
+    }
     '/_member/admin/playback': {
       id: '/_member/admin/playback'
       path: '/admin/playback'
@@ -643,13 +650,6 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin/'
       preLoaderRoute: typeof MemberAdminAdminIndexRouteImport
-      parentRoute: typeof MemberAdminRoute
-    }
-    '/_member/_admin/admin/backups': {
-      id: '/_member/_admin/admin/backups'
-      path: '/admin/backups'
-      fullPath: '/admin/backups'
-      preLoaderRoute: typeof MemberAdminAdminBackupsRouteImport
       parentRoute: typeof MemberAdminRoute
     }
     '/_member/_admin/admin/home': {
@@ -775,7 +775,6 @@ declare module '@tanstack/react-router' {
 }
 
 interface MemberAdminRouteChildren {
-  MemberAdminAdminBackupsRoute: typeof MemberAdminAdminBackupsRoute
   MemberAdminAdminHomeRoute: typeof MemberAdminAdminHomeRoute
   MemberAdminAdminJobsRoute: typeof MemberAdminAdminJobsRoute
   MemberAdminAdminNeedsAMatchRoute: typeof MemberAdminAdminNeedsAMatchRoute
@@ -787,7 +786,6 @@ interface MemberAdminRouteChildren {
 }
 
 const MemberAdminRouteChildren: MemberAdminRouteChildren = {
-  MemberAdminAdminBackupsRoute: MemberAdminAdminBackupsRoute,
   MemberAdminAdminHomeRoute: MemberAdminAdminHomeRoute,
   MemberAdminAdminJobsRoute: MemberAdminAdminJobsRoute,
   MemberAdminAdminNeedsAMatchRoute: MemberAdminAdminNeedsAMatchRoute,
@@ -826,6 +824,7 @@ interface MemberRouteChildren {
   MemberSearchRoute: typeof MemberSearchRoute
   MemberSettingsRoute: typeof MemberSettingsRoute
   MemberIndexRoute: typeof MemberIndexRoute
+  MemberAdminBackupsRoute: typeof MemberAdminBackupsRoute
   MemberAdminPlaybackRoute: typeof MemberAdminPlaybackRoute
   MemberMoviesMovieIdRoute: typeof MemberMoviesMovieIdRoute
   MemberRequestsRequestIdRoute: typeof MemberRequestsRequestIdRoute
@@ -848,6 +847,7 @@ const MemberRouteChildren: MemberRouteChildren = {
   MemberSearchRoute: MemberSearchRoute,
   MemberSettingsRoute: MemberSettingsRoute,
   MemberIndexRoute: MemberIndexRoute,
+  MemberAdminBackupsRoute: MemberAdminBackupsRoute,
   MemberAdminPlaybackRoute: MemberAdminPlaybackRoute,
   MemberMoviesMovieIdRoute: MemberMoviesMovieIdRoute,
   MemberRequestsRequestIdRoute: MemberRequestsRequestIdRoute,
