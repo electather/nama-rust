@@ -127,6 +127,7 @@ impl ServerLinker for Hub {
     fn finish_account_sign_in<'a>(
         &'a self,
         _: &'a str,
+        _: &'a str,
     ) -> BoxFuture<'a, Result<Option<i64>, PluginError>> {
         Box::pin(future::ready(Ok(None)))
     }
