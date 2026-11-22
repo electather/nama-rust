@@ -24,10 +24,12 @@ use crate::{
     scanner::read_only_folder,
 };
 
+mod box_sets;
 mod featured;
 mod title_pages;
 mod watching;
 
+pub(crate) use box_sets::SeenBoxSet;
 pub(crate) use featured::Featured;
 pub(crate) use title_pages::{FoundPageError, TitlePages};
 pub(crate) use watching::Started;
@@ -356,7 +358,7 @@ impl Browse {
         Ok(OnServer::in_order_of(&self.contents, &libraries, kind, ids).await?)
     }
 
-    async fn library(&self, library: i64) -> Result<Library, Error> {
+    pub(super) async fn library(&self, library: i64) -> Result<Library, Error> {
         self.libraries.get(library).await.map_err(finding_failed)
     }
 }

@@ -5,9 +5,10 @@ use std::{ffi::OsStr, path::Path, sync::Arc};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_plugin_api::metadata::ExternalIds;
 use nama_proto::nama::v1::{
-    self as proto, BrowseService, GetMovieRequest, GetMovieResponse, GetNextEpisodeRequest,
-    GetNextEpisodeResponse, GetPreviousEpisodeRequest, GetPreviousEpisodeResponse, GetShowRequest,
-    GetShowResponse, GetUnmatchedVersionRequest, GetUnmatchedVersionResponse,
+    self as proto, BrowseService, GetBoxSetRequest, GetBoxSetResponse, GetMovieRequest,
+    GetMovieResponse, GetNextEpisodeRequest, GetNextEpisodeResponse, GetPreviousEpisodeRequest,
+    GetPreviousEpisodeResponse, GetShowRequest, GetShowResponse, GetUnmatchedVersionRequest,
+    GetUnmatchedVersionResponse, ListBoxSetsRequest, ListBoxSetsResponse,
     ListContinueWatchingRequest, ListContinueWatchingResponse, ListEpisodesRequest,
     ListEpisodesResponse, ListFeaturedRequest, ListFeaturedResponse, ListGenresRequest,
     ListGenresResponse, ListHomeRowTitlesRequest, ListHomeRowTitlesResponse, ListHomeRowsRequest,
@@ -22,9 +23,9 @@ use crate::{
         season_count,
     },
     db::Database,
-    home_rows::{HomeRows, RowTitle},
+    home_rows::HomeRows,
     library::{
-        Downloaded, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, OnServer, Role,
+        Downloaded, FoundMovie, FoundShow, ImageRef, Item, LibraryMovie, Listing, Role,
         ShownImages, TitleImage, TitleKind, TitleSort, Unmatched, WatchState, Watched,
     },
     playback::track_to_proto,
@@ -34,18 +35,18 @@ use crate::{
 };
 
 use super::{
-    ImageSources, caller, database_failed, external_id_to_proto, proto_number,
-    requests::{missing_movie_to_proto, missing_show_to_proto},
-    required_id,
+    ImageSources, caller, database_failed, external_id_to_proto, proto_number, required_id,
     search::{movie_hits, show_hits},
 };
 
+mod box_sets;
 mod refusals;
 mod titles;
 
+use box_sets::box_set_to_proto;
 use refusals::home_rows_refused;
 pub(super) use refusals::{Fields, not_found, refused};
-use titles::{episode_beside_to_proto, featured_to_proto, started_to_proto};
+use titles::{episode_beside_to_proto, featured_to_proto, row_title_to_proto, started_to_proto};
 pub(super) use titles::{roles_to_proto, trailers_to_proto};
 
 /// `nama.v1.BrowseService`: what a Library holds, for any signed-in User, which
@@ -163,6 +164,9 @@ impl BrowseService for BrowseServiceHandler {
         let (cast, crew) = roles_to_proto(page.roles, stored_by(&page.movie.plugin, &images));
         Response::ok(GetMovieResponse {
             similar: movie_hits(page.similar, &images),
+            box_set: (page.box_set)
+                .map(|seen| box_set_to_proto(seen, &images))
+                .into(),
             movie: proto::Movie {
                 on_watchlist: page.on_watchlist,
                 cast,
@@ -435,25 +439,27 @@ impl BrowseService for BrowseServiceHandler {
         let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(ListHomeRowTitlesResponse {
             titles: (titles.into_iter())
-                .map(|title| proto::HomeRowTitle {
-                    movie_or_show: Some(match title {
-                        RowTitle::OnServer(OnServer::Movie(movie)) => {
-                            found_movie_to_proto(movie, &images).into()
-                        }
-                        RowTitle::OnServer(OnServer::Show(show)) => {
-                            found_show_to_proto(show, &images).into()
-                        }
-                        RowTitle::MissingMovie(movie, open) => {
-                            missing_movie_to_proto(movie, open, &images).into()
-                        }
-                        RowTitle::MissingShow(show) => missing_show_to_proto(show, &images).into(),
-                    }),
-                    ..Default::default()
-                })
+                .map(|title| row_title_to_proto(title, &images))
                 .collect(),
             page: page.into(),
             ..Default::default()
         })
+    }
+
+    async fn get_box_set(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, GetBoxSetRequest>,
+    ) -> ServiceResult<GetBoxSetResponse> {
+        box_sets::get_box_set(self, &ctx, request.to_owned_message()).await
+    }
+
+    async fn list_box_sets(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ListBoxSetsRequest>,
+    ) -> ServiceResult<ListBoxSetsResponse> {
+        box_sets::list_box_sets(self, &ctx, request.to_owned_message()).await
     }
 
     async fn list_unmatched(

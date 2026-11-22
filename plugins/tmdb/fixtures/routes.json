@@ -41,5 +41,6 @@
   "/3/tv/70523/images": "tv-70523-images.json",
   "/3/tv/70523/season/1/images": "tv-70523-season-1-images.json",
   "/3/movie/348/recommendations": "movie-348-recommendations.json",
-  "/3/tv/70523/recommendations": "tv-70523-recommendations.json"
+  "/3/tv/70523/recommendations": "tv-70523-recommendations.json",
+  "/3/collection/8091": "collection-8091.json"
 }

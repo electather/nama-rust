@@ -7296,6 +7296,17 @@ pub struct DeviceDecoding {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub h264_10bit: bool,
+    /// Whether it decodes 10-bit HEVC (Main 10), which a Transcode of a 4K or HDR Version makes when
+    /// it does and the Server's hardware encodes it.
+    ///
+    /// Field 13: `hevc_10bit`
+    #[serde(
+        rename = "hevc10bit",
+        alias = "hevc_10bit",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub hevc_10bit: bool,
     /// Whether it plays HLS without a script's help.
     ///
     /// Field 3: `native_hls`
@@ -7369,6 +7380,7 @@ impl ::core::fmt::Debug for DeviceDecoding {
             .field("audio_codecs", &self.audio_codecs)
             .field("hdr", &self.hdr)
             .field("h264_10bit", &self.h264_10bit)
+            .field("hevc_10bit", &self.hevc_10bit)
             .field("native_hls", &self.native_hls)
             .field("mse", &self.mse)
             .field("audio_channels", &self.audio_channels)
@@ -7467,6 +7479,9 @@ impl ::buffa::Message for DeviceDecoding {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        if self.hevc_10bit {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -7552,6 +7567,9 @@ impl ::buffa::Message for DeviceDecoding {
             for &v in &self.dolby_vision_profiles {
                 ::buffa::types::encode_int32(v, buf);
             }
+        }
+        if self.hevc_10bit {
+            ::buffa::types::put_bool_field(13u32, self.hevc_10bit, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -7802,6 +7820,13 @@ impl ::buffa::Message for DeviceDecoding {
                     );
                 }
             }
+            13u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.hevc_10bit = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -7821,6 +7846,7 @@ impl ::buffa::Message for DeviceDecoding {
         self.h264_10bit = false;
         self.evidence = ::buffa::EnumValue::from(0);
         self.dolby_vision_profiles.clear();
+        self.hevc_10bit = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -8264,7 +8290,8 @@ pub struct PlaybackPlan {
     )]
     pub can_search_subtitles: bool,
     /// Its Recipe, what sets it apart from another plan by the same method: the method, the
-    /// container it serves and the audio codec it sends, such as `remux/fmp4/eac3`. A client that
+    /// container it serves, for a Transcode the video codec it makes, and the audio codec it sends,
+    /// such as `remux/fmp4/eac3` or `transcode/fmp4/hevc/eac3`. A client that
     /// fails to play it sends it back as it is in `PlanPlaybackRequest.failed_recipes`; its form
     /// isn't API contract. Empty when it can't be played.
     ///

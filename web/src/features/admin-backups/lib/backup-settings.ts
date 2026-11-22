@@ -18,12 +18,12 @@ export const backupLabels: Record<keyof BackupValues | "schedule" | "restore", S
   schedule: { label: "Schedule", words: "daily automatic upkeep job" },
   folder: {
     label: "Backup folder",
-    hint: "Where Backups are written, such as a share mounted from another machine, so a copy survives this one’s disk. Saving creates it if it’s missing. Leave it empty for the backups folder in the Server’s data folder.",
+    hint: "Leave it empty for the data folder’s own.",
     words: "path",
   },
   keep: {
     label: "Backups kept",
-    hint: "After each Backup, the oldest the Server wrote beyond this many are deleted. Other files in the folder, such as a Backup you wrote yourself under another name, are never deleted. Leave it empty for 7.",
+    hint: "The oldest go after each Backup. Empty keeps 7.",
     words: "retention",
   },
   restore: { label: "Restoring a Backup", words: "database" },

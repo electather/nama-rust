@@ -3,7 +3,7 @@ import type { SettingText } from "@/shared/lib/setting-text";
 
 /** What the built-in rows of a Home layout's list say, above its Home rows. */
 export const homeLabels = {
-  featured: { label: "Featured", hint: "Always at the top", words: "hero spotlight" },
+  featured: { label: "Featured", hint: "Always first", words: "hero spotlight" },
 } satisfies Record<string, SettingText>;
 
 /** What a Home layout's list calls a row, and what it says under it, if anything. */

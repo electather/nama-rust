@@ -1,6 +1,10 @@
 //! Talking to TMDB over HTTPS, as a [`TitleSource`].
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex, PoisonError},
+    time::{Duration, Instant},
+};
 
 use bytes::Bytes;
 use http::{Request, StatusCode, header};
@@ -26,8 +30,8 @@ use url::Url;
 use crate::{
     Endpoints,
     wire::{
-        EpisodeDetails, Found, Images, MovieDetails, MovieResult, Page, Recommendations,
-        SeasonDetails, ShowDetails, ShowResult,
+        Collection, EpisodeDetails, Found, Images, MovieDetails, MovieResult, Page,
+        Recommendations, SeasonDetails, ShowDetails, ShowResult,
     },
 };
 
@@ -39,11 +43,20 @@ const MAX_RESPONSE_BYTES: usize = 32 * 1024 * 1024;
 
 const IMAGE_SIZE: &str = "original";
 
+/// How long a fetched collection serves its Box Set's other Movies, about one pass of Matching,
+/// which asks for each Movie a Box Set lists.
+const COLLECTION_KEPT: Duration = Duration::from_secs(600);
+
 pub(crate) struct Client {
     http: HyperClient<HttpsConnector<HttpConnector>, Empty<Bytes>>,
     endpoints: Endpoints,
     api_key: String,
     language: String,
+    /// Whether a Movie's Box Set lists its Movies, which costs a request per Movie in one.
+    lists_box_set_movies: bool,
+    /// Each collection fetched, by id, with when.
+    // ponytail: never evicted; a Server's Libraries name a few thousand at most.
+    collections: Mutex<HashMap<i64, (Instant, Option<Collection>)>>,
 }
 
 impl Client {
@@ -51,6 +64,7 @@ impl Client {
         endpoints: Endpoints,
         api_key: &str,
         language: &str,
+        lists_box_set_movies: bool,
     ) -> std::io::Result<Self> {
         let provider = rustls::crypto::ring::default_provider();
         let builder = HttpsConnectorBuilder::new();
@@ -75,6 +89,8 @@ impl Client {
             endpoints,
             api_key: api_key.to_owned(),
             language: language.to_owned(),
+            lists_box_set_movies,
+            collections: Mutex::default(),
         })
     }
 
@@ -174,6 +190,19 @@ impl Client {
         let append = format!("external_ids,{appended}");
         self.api(path, &[("append_to_response", append.as_str())])
             .await
+    }
+
+    /// The collection `id`, fetched again only once [`COLLECTION_KEPT`] has passed.
+    async fn collection(&self, id: i64) -> Result<Option<Collection>, MetadataError> {
+        let kept = lock(&self.collections).get(&id).cloned();
+        if let Some((fetched_at, collection)) = kept
+            && fetched_at.elapsed() < COLLECTION_KEPT
+        {
+            return Ok(collection);
+        }
+        let collection: Option<Collection> = self.api(&format!("/collection/{id}"), &[]).await?;
+        lock(&self.collections).insert(id, (Instant::now(), collection.clone()));
+        Ok(collection)
     }
 
     /// The country part of the Language setting, `US` of `en-US` or `TW` of `zh-Hant-TW`, whose
@@ -350,8 +379,15 @@ impl TitleSource for Client {
             let movie: Option<MovieDetails> = self
                 .title_details(&format!("/movie/{id}"), "release_dates,credits,videos")
                 .await?;
+            let Some(movie) = movie else {
+                return Ok(MovieAnswer::default());
+            };
+            let collection = match &movie.belongs_to_collection {
+                Some(summary) if self.lists_box_set_movies => self.collection(summary.id).await?,
+                _ => None,
+            };
             Ok(MovieAnswer {
-                movie: movie.map(|movie| movie.into_movie(self.country())).into(),
+                movie: Some(movie.into_movie(self.country(), collection)).into(),
                 ..Default::default()
             })
         })
@@ -486,6 +522,11 @@ impl TitleSource for Client {
                 .await
         })
     }
+}
+
+// No code that could panic runs while it is held, so a poisoned lock's map is still whole.
+fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 #[cfg(test)]

@@ -169,6 +169,7 @@ async fn transcode(ffmpeg: &Ffmpeg, path: &Path, dir: &Path, n: usize) {
             limit: None,
             burn_in: None,
             in_band_headers: false,
+            hevc: false,
         },
     };
     let from = FromCut {
@@ -222,6 +223,7 @@ async fn tone_mapped_hdr10_probed(limit: Option<VideoLimit>) -> String {
             limit,
             burn_in: None,
             in_band_headers: false,
+            hevc: false,
         },
     };
     let from = FromCut { n: 0, cuts: &[0] };
@@ -232,17 +234,25 @@ async fn tone_mapped_hdr10_probed(limit: Option<VideoLimit>) -> String {
 
     let output = output.spawn().unwrap().wait_with_output().await.unwrap();
     assert!(output.status.success(), "{output:?}");
+    first_cut_probed(
+        &ffmpeg,
+        &dir,
+        "stream=width,height,color_transfer,color_primaries",
+    )
+    .await
+}
+
+/// What ffprobe reads of `entries` of the video a Transcode wrote to `dir` plays from its init
+/// segment and first cut, comma-separated in ffprobe's order.
+async fn first_cut_probed(ffmpeg: &Ffmpeg, dir: &Path, entries: &str) -> String {
     let init_and_first =
-        [dir.join("init-0.mp4"), cut(&dir, 0, 0)].map(|written| fs::read(written).unwrap());
-    let played = work.path().join("played.mp4");
+        [dir.join("init-0.mp4"), cut(dir, 0, 0)].map(|written| fs::read(written).unwrap());
+    let played = dir.join("played.mp4");
     fs::write(&played, init_and_first.concat()).unwrap();
     let ffprobe = &ffmpeg.ffprobe.as_ref().unwrap().path;
     let probed = tokio::process::Command::new(ffprobe)
         .args(["-v", "error", "-select_streams", "v", "-of", "csv=p=0"])
-        .args([
-            "-show_entries",
-            "stream=width,height,color_transfer,color_primaries",
-        ])
+        .args(["-show_entries", entries])
         .arg(&played)
         .output()
         .await
@@ -298,6 +308,7 @@ async fn hardware_found_on_this_host_transcodes_cut_at_every_cut_and_tone_maps_h
         }),
         burn_in: None,
         in_band_headers: true,
+        hevc: false,
     };
     let dir = work.path().join("transcoded");
     fs::create_dir_all(&dir).unwrap();
@@ -318,6 +329,58 @@ async fn hardware_found_on_this_host_transcodes_cut_at_every_cut_and_tone_maps_h
         assert!(cut(&dir, 0, n).exists(), "cut {n}");
     }
     assert!(!cut(&dir, 0, 4).exists(), "a keyframe of its own");
+}
+
+/// Run by hand where there is a GPU: `cargo test -p nama-server --lib -- --ignored hardware`.
+#[tokio::test]
+#[ignore = "needs a GPU that ffmpeg can encode HEVC with"]
+async fn hardware_found_on_this_host_keeps_hdr10_and_hlg_as_10_bit_hevc_tagged_hvc1() {
+    let ffmpeg = system_ffmpeg();
+    let found = ffmpeg.find_hardware().await.unwrap();
+    let hardware = (found.iter())
+        .find(|hardware| hardware.hevc)
+        .expect("no hardware passed its HEVC test");
+    for transfer in ["smpte2084", "arib-std-b67"] {
+        let work = tempfile::tempdir().unwrap();
+        let file = work.path().join("hdr.mkv");
+        write_test_media(&file, |command| {
+            command
+                .args(["-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=24"])
+                .args(["-t", "2", "-c:v", "libx265", "-preset", "ultrafast"])
+                .args(["-pix_fmt", "yuv420p10le", "-x265-params"])
+                .arg(format!(
+                    "log-level=error:colorprim=bt2020:transfer={transfer}:colormatrix=bt2020nc"
+                ))
+                .args(["-f", "matroska"])
+        })
+        .unwrap();
+        let video = VideoConversion {
+            hardware: Some(hardware.clone()),
+            tone_map: None,
+            limit: None,
+            burn_in: None,
+            in_band_headers: false,
+            hevc: true,
+        };
+        let dir = work.path().join("transcoded");
+        fs::create_dir_all(&dir).unwrap();
+        let transcode = Transcode { audio: None, video };
+        let from = FromCut { n: 0, cuts: &[0] };
+
+        let output = ffmpeg
+            .transcode(file.to_str().unwrap(), &transcode, &dir, from)
+            .unwrap();
+
+        let output = output.spawn().unwrap().wait_with_output().await.unwrap();
+        assert!(output.status.success(), "{hardware:?}: {output:?}");
+        let entries = "stream=codec_name,codec_tag_string,pix_fmt,\
+                       color_space,color_transfer,color_primaries";
+        assert_eq!(
+            first_cut_probed(&ffmpeg, &dir, entries).await,
+            format!("hevc,hvc1,yuv420p10le,bt2020nc,{transfer},bt2020"),
+            "{hardware:?}"
+        );
+    }
 }
 
 #[tokio::test]

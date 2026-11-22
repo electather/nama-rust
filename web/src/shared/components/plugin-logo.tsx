@@ -3,7 +3,7 @@ import { Puzzle } from "lucide-react";
 import { pluginName } from "@/shared/lib/plugins";
 
 const SIZES = {
-  row: { tile: "size-8 rounded-md", icon: "size-4" },
+  row: { tile: "size-6 rounded-sm", icon: "size-3.5" },
   // At the top of the Plugin's own view.
   large: { tile: "size-12 rounded-lg", icon: "size-6" },
 };

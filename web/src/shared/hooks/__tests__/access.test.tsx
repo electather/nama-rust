@@ -47,7 +47,7 @@ async function submitSetup(setupCode: string) {
   fireEvent.click(screen.getByRole("button", { name: "Set up" }));
 }
 
-test.each(["/", "/libraries/1", "/sign-in", "/admin/jobs"])(
+test.each(["/", "/libraries/1", "/sign-in", "/admin/libraries"])(
   "a fresh Server sends %s to /setup",
   async (path) => {
     const router = openApp(path, fakeServer({ setupRequired: true }));
@@ -187,7 +187,7 @@ test("signing in never redirects to another site", async () => {
 });
 
 test("a User who manages nothing opening an Admin page is told they can't, and has no Admin link", async () => {
-  openApp("/admin/jobs", fakeServer({ signedIn: newUser }));
+  openApp("/admin/libraries", fakeServer({ signedIn: newUser }));
 
   await expect(
     screen.findByRole("heading", { name: "You can’t open this page" }),
@@ -200,13 +200,13 @@ test.each([
     name: "Manage Libraries",
     permission: Permission.MANAGE_LIBRARIES,
     landing: "/admin/libraries",
-    pages: ["Libraries", "Needs a Match"],
+    pages: ["Libraries"],
   },
   {
     name: "Admin",
     permission: Permission.ADMIN,
     landing: "/admin/libraries",
-    pages: ["Libraries", "Needs a Match", "Now Playing", "Jobs"],
+    pages: ["Libraries"],
   },
 ])(
   "with only the $name Permission, Admin opens on $landing and lists only the pages it allows",
@@ -223,18 +223,6 @@ test.each([
         .map((link) => link.textContent),
     ).toStrictEqual(pages);
     expect(router.state.location.pathname).toBe(landing);
-  },
-);
-
-test.each(["/admin/jobs", "/admin/now-playing"])(
-  "a User with only Manage Libraries opening %s is told they can't",
-  async (path) => {
-    openApp(path, fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }));
-
-    await expect(
-      screen.findByRole("heading", { name: "You can’t open this page" }),
-    ).resolves.toBeDefined();
-    expect(screen.getByRole("link", { name: "Admin" })).toBeDefined();
   },
 );
 

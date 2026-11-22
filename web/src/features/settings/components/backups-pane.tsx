@@ -1,8 +1,5 @@
-import { BackUpNow } from "@/features/admin-backups/components/back-up-now";
-import { BackUpWhen } from "@/features/admin-backups/components/back-up-when";
 import { BackupSettingRows } from "@/features/admin-backups/components/backup-setting-rows";
-import { BackupsAbout } from "@/features/admin-backups/components/backups-about";
-import { RestoreNote } from "@/features/admin-backups/components/restore-note";
+import { KeepSafe } from "@/features/admin-backups/components/keep-safe";
 import { useBackUpJob } from "@/features/admin-backups/data/use-back-up-job";
 import { useBackups } from "@/features/admin-backups/data/use-backups";
 import { useUpdateBackupSettings } from "@/features/admin-backups/data/use-update-backup-settings";
@@ -13,6 +10,7 @@ import {
   savedBackupValues,
 } from "@/features/admin-backups/lib/backup-settings";
 import { BackupItems } from "@/features/settings/components/backup-items";
+import { BackupStatus } from "@/features/settings/components/backup-status";
 import { PaneFrame } from "@/features/settings/components/pane-frame";
 import { SaveToast } from "@/features/settings/components/save-toast";
 import { SettingGroup } from "@/features/settings/components/setting-group";
@@ -20,8 +18,8 @@ import { useAutoSave } from "@/features/settings/hooks/use-auto-save";
 import { refusedWords } from "@/features/settings/lib/refused-words";
 
 /**
- * The Server's Backups, for an Admin: Back up now, when Upkeep backs up by itself, where Backups go
- * and how many are kept, saved as they're changed, the Backups written and how to restore one.
+ * The Server's Backups, for an Admin: how they stand, with Back up now, then the Backups written,
+ * each with how to restore it, then where they go and how many are kept, saved as they're changed.
  */
 export function BackupsPane() {
   const { settings, folder, backups } = useBackups();
@@ -38,34 +36,23 @@ export function BackupsPane() {
     backupLabels,
     refused && backupRefusalFields(refused.failure),
   );
-  const schedule = (
-    <SettingGroup setting="schedule" title={backupLabels.schedule.label}>
-      <BackUpWhen job={job} />
+  const written = (
+    <SettingGroup setting="restore" title="Backups">
+      <BackupItems backups={backups} folder={folder} />
     </SettingGroup>
   );
   const storage = (
     <SettingGroup title="Storage">
-      <BackupSettingRows values={values} refused={words} onEdit={edit} />
-    </SettingGroup>
-  );
-  const written = (
-    <SettingGroup title="In the folder">
-      <BackupItems backups={backups} />
-    </SettingGroup>
-  );
-  const restoring = (
-    <SettingGroup setting="restore" title={backupLabels.restore.label}>
-      <RestoreNote folder={folder} newest={backups[0]?.name} />
+      <BackupSettingRows inUse={folder} values={values} refused={words} onEdit={edit} />
+      <KeepSafe />
     </SettingGroup>
   );
   return (
     <>
-      <PaneFrame section="backups" action={job && <BackUpNow job={job} />}>
-        <BackupsAbout folder={folder} />
-        {schedule}
-        {storage}
+      <PaneFrame section="backups">
+        <BackupStatus job={job} newest={backups[0]} />
         {written}
-        {restoring}
+        {storage}
       </PaneFrame>
       <SaveToast says={words.form} onDismiss={dismiss} />
     </>

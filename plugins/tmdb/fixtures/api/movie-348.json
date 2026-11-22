@@ -1,6 +1,7 @@
 {
   "adult": false,
   "backdrop_path": "/AmR3JG1VQVxU8TfAvljUhfSFUOx.jpg",
+  "belongs_to_collection": {"id": 8091, "name": "Alien Collection", "poster_path": "/iVzIeC3PbG9BtDAudpwSNOKmOJa.jpg", "backdrop_path": "/kB0Y3uGe9ohJa59Lk8UO9cUOxGM.jpg"},
   "budget": 11000000,
   "genres": [{"id": 27, "name": "Horror"}, {"id": 878, "name": "Science Fiction"}],
   "homepage": "https://www.20thcenturystudios.com/movies/alien",
