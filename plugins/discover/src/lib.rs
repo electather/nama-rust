@@ -1,6 +1,7 @@
 //! The Discover Installed Plugin: a Home row source of rows every User sees, such as Trending this
-//! week, from TMDB, and of each User's own, such as their Watchlist, the Admin picking which it
-//! offers. The Server builds it for wasm32 and bundles it in its binary.
+//! week from TMDB and Best Picture winners from Wikidata, and of each User's own, such as their
+//! Watchlist, the Admin picking which it offers. The Server builds it for wasm32 and bundles it in
+//! its binary.
 
 use std::{
     cmp::Reverse,
@@ -17,7 +18,7 @@ use nama_pdk::{
     nama_plugin_proto::nama::plugin::v1::Texts,
     services, setting_default, setting_field, setting_value,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 const API_KEY: &str = "api_key";
@@ -32,6 +33,20 @@ const TMDB: OutsideService = OutsideService::new("TMDB").credential("API key");
 
 /// Where TMDB's v3 API is.
 const API_URL: &str = "https://api.themoviedb.org/3/";
+
+const WIKIDATA: OutsideService = OutsideService::new("Wikidata");
+
+/// Where Wikidata's query service answers SPARQL.
+const SPARQL_URL: &str = "https://query.wikidata.org/sparql";
+
+/// Wikimedia's User-Agent policy asks a client to name itself and where to find who runs it.
+const USER_AGENT: &str = concat!(
+    "Nama-Discover/",
+    env!("CARGO_PKG_VERSION"),
+    " (",
+    env!("CARGO_PKG_REPOSITORY"),
+    ")"
+);
 
 const TRENDING: &str = "trending-week";
 
@@ -57,6 +72,10 @@ const SHARED: [(&str, &str); 18] = [
     ("palme-dor", "Palme d'Or winners"),
     ("golden-globe-dramas", "Golden Globe best dramas"),
 ];
+
+/// How long the Store keeps an award row's films before Wikidata is asked again: awards come
+/// yearly, and Wikidata asks to be queried sparingly.
+const AWARDS_FRESH_FOR: Duration = Duration::from_hours(30 * 24);
 
 /// How long a shared row stays fresh: TMDB's charts move daily at most.
 const FRESH_FOR: Duration = Duration::from_hours(24);
@@ -196,7 +215,10 @@ fn manifest() -> Manifest {
             .to_owned(),
         logo_svg: include_str!("../logo.svg").to_owned(),
         points: vec![nama_pdk::point(services::HOME_ROW)],
-        allowed_hosts: vec!["api.themoviedb.org".to_owned()],
+        allowed_hosts: vec![
+            "api.themoviedb.org".to_owned(),
+            "query.wikidata.org".to_owned(),
+        ],
         // Asked from the start, so an Admin grants once what Discover's rows for each User and its
         // award rows, kept in the Store, will need.
         permissions: vec![
@@ -240,7 +262,10 @@ impl HomeRowSource for Discover {
             // ponytail: a picked row Discover doesn't answer yet is left out until it's built.
             let titles = match key {
                 TRENDING => api.titles(&["trending", "all", "week"])?,
-                _ => continue,
+                _ => match award_query(key) {
+                    Some(query) => award_films(key, &query)?,
+                    None => continue,
+                },
             };
             rows.push(row(key, heading, FRESH_FOR, titles)?);
         }
@@ -522,16 +547,147 @@ fn title(listing: &Listing) -> Option<HomeRowTitle> {
         "tv" => TitleKind::TITLE_KIND_SHOW,
         _ => return None,
     };
-    Some(HomeRowTitle {
-        kind: kind.into(),
-        id: TitleId {
-            namespace: "tmdb".to_owned(),
-            value: listing.id.to_string(),
-            ..TitleId::default()
-        }
-        .into(),
-        ..HomeRowTitle::default()
+    Some(tmdb_title(kind, listing.id))
+}
+
+/// The Home row title of the `kind` TMDB knows as `id`.
+fn tmdb_title(kind: TitleKind, id: u64) -> HomeRowTitle {
+    Key {
+        kind,
+        namespace: "tmdb".to_owned(),
+        value: id.to_string(),
+    }
+    .row_title()
+}
+
+/// The SPARQL query for the films of the award row `key`, as TMDB ids newest first, or `None`
+/// when `key` isn't an award row.
+fn award_query(key: &str) -> Option<String> {
+    Some(match key {
+        "best-picture" => winners_of(BEST_PICTURE),
+        "oscar-nominees" => format!(
+            "SELECT ?tmdb (MAX(?date) AS ?newest) WHERE {{ \
+             ?film p:P1411 ?nomination. ?nomination ps:P1411 wd:{BEST_PICTURE}; pq:P585 ?date. \
+             FILTER(YEAR(?date) >= YEAR(NOW()) - {NOMINEE_YEARS}) \
+             FILTER NOT EXISTS {{ ?film wdt:P166 wd:{BEST_PICTURE} }} \
+             ?film wdt:P4947 ?tmdb. \
+             }} GROUP BY ?tmdb ORDER BY DESC(?newest)"
+        ),
+        "palme-dor" => winners_of("Q179808"),
+        "golden-globe-dramas" => winners_of("Q1011509"),
+        _ => return None,
     })
+}
+
+/// Wikidata's Academy Award for Best Picture.
+const BEST_PICTURE: &str = "Q102427";
+
+/// How many years of Best Picture nominees Oscar nominees holds.
+const NOMINEE_YEARS: u32 = 10;
+
+/// The SPARQL query for the films that won the Wikidata item `award`, as TMDB ids newest first.
+/// Wikidata leaves some wins undated, so those go by the film's release.
+fn winners_of(award: &str) -> String {
+    format!(
+        "SELECT ?tmdb (MAX(?date) AS ?newest) WHERE {{ \
+         ?film p:P166 ?won. ?won ps:P166 wd:{award}. ?film wdt:P4947 ?tmdb. \
+         OPTIONAL {{ ?won pq:P585 ?awarded }} OPTIONAL {{ ?film wdt:P577 ?released }} \
+         BIND(COALESCE(?awarded, ?released) AS ?date) \
+         }} GROUP BY ?tmdb ORDER BY DESC(?newest)"
+    )
+}
+
+/// The films of the award row `key`, which Wikidata answers `query` with, in its order. The Store
+/// keeps them for [`AWARDS_FRESH_FOR`]; without it Discover asks each refresh (ADR 0071).
+///
+/// # Errors
+/// If they aren't kept fresh and Wikidata can't answer.
+fn award_films(key: &str, query: &str) -> Result<Vec<HomeRowTitle>, Error> {
+    let store_key = format!("award:{key}");
+    let now = nama_pdk::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let films = if let Some(fresh) = fresh_films(&store_key, now) {
+        fresh
+    } else {
+        let asked = KeptFilms {
+            asked_at: now,
+            films: ask_wikidata(query)?,
+        };
+        keep(&store_key, &asked);
+        asked.films
+    };
+    Ok((films.into_iter())
+        .map(|id| tmdb_title(TitleKind::TITLE_KIND_MOVIE, id))
+        .collect())
+}
+
+/// The films the Store keeps under `store_key`, or `None` when it keeps none Wikidata answered
+/// within [`AWARDS_FRESH_FOR`] of `now`, or isn't granted.
+fn fresh_films(store_key: &str, now: u64) -> Option<Vec<u64>> {
+    let kept: KeptFilms = json::from_slice(&kernel::store_get(store_key, None).ok()??).ok()?;
+    (now.saturating_sub(kept.asked_at) < AWARDS_FRESH_FOR.as_secs()).then_some(kept.films)
+}
+
+/// Keeps `films` in the Store under `store_key`. Unkept, the next refresh asks Wikidata again,
+/// which is all it costs (ADR 0071: the Plugin carries on).
+fn keep(store_key: &str, films: &KeptFilms) {
+    if let Ok(films) = json::to_vec(films) {
+        let _not_kept: Result<(), Error> = kernel::store_put(store_key, None, &films);
+    }
+}
+
+/// Wikidata's answer to `query`: the TMDB ids it binds to `?tmdb`, in its order.
+///
+/// # Errors
+/// If Wikidata didn't answer, refused, or answered with something unexpected.
+fn ask_wikidata(query: &str) -> Result<Vec<u64>, Error> {
+    let mut url = Url::parse(SPARQL_URL)?;
+    url.query_pairs_mut().append_pair("query", query);
+    let request = HttpRequest::new(url.as_str())
+        .with_header("Accept", "application/sparql-results+json")
+        .with_header("User-Agent", USER_AGENT);
+    let response = WIKIDATA.send(&request, None::<String>)?;
+    let answer: Sparql = json::from_slice(WIKIDATA.accepted(response)?.body()).map_err(|err| {
+        Error::msg(format!(
+            "Wikidata answered with something unexpected: {err}"
+        ))
+    })?;
+    Ok((answer.results.bindings.into_iter())
+        .filter_map(|film| film.tmdb?.value.parse().ok())
+        .collect())
+}
+
+/// An award row's films as the Store keeps them, by TMDB id, with when Wikidata answered them in
+/// seconds since the Unix epoch.
+#[derive(Deserialize, Serialize)]
+struct KeptFilms {
+    asked_at: u64,
+    films: Vec<u64>,
+}
+
+/// A SPARQL query's answer, in the JSON format W3C sets.
+#[derive(Deserialize)]
+struct Sparql {
+    results: Bindings,
+}
+
+#[derive(Deserialize)]
+struct Bindings {
+    bindings: Vec<Film>,
+}
+
+/// A film in an award query's answer.
+#[derive(Deserialize)]
+struct Film {
+    /// `None`, or not a number, for a film Wikidata has no TMDB id for.
+    tmdb: Option<Literal>,
+}
+
+#[derive(Deserialize)]
+struct Literal {
+    value: String,
 }
 
 #[cfg(test)]
