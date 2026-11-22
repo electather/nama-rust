@@ -313,4 +313,7 @@ enum RefusalReason {
   // none of its own to replace, as it runs only when an Admin starts it. The message says why.
   // `field` is `schedule`. Params: `schedule`, as sent.
   REFUSAL_REASON_SCHEDULE_INVALID = 95;
+  // `failed_precondition`: no enabled Plugin links the Server to an outside service, such as the
+  // Hub Plugin, so it can't be Linked or Unlinked.
+  REFUSAL_REASON_NO_SERVER_LINKER = 96;
 }

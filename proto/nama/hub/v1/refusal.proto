@@ -41,4 +41,17 @@ enum RefusalReason {
   REFUSAL_REASON_SIGN_IN_LINK_EXPIRED = 7;
   // `failed_precondition`: the Hub has no mail set up, so it can't email Sign-in Links.
   REFUSAL_REASON_SIGN_IN_LINKS_OFF = 8;
+  // `failed_precondition`: the call needs Recent Authentication: a session that signed in within
+  // the last 10 minutes. Sign in again.
+  REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED = 9;
+  // `failed_precondition`: the Account's email isn't proven yet, which only using a Sign-in Link
+  // sent to it does, and Linking needs it (ADR 0100).
+  REFUSAL_REASON_EMAIL_NOT_PROVEN = 10;
+  // `not_found`: no Server is waiting on this code: it was mistyped, expired or used.
+  REFUSAL_REASON_LINK_CODE_NOT_FOUND = 11;
+  // `not_found`: the device code expired, was used, or never existed. Start again.
+  REFUSAL_REASON_LINK_EXPIRED = 12;
+  // `unauthenticated`: the call needs a Linked Server's credential, and none came or the Hub
+  // doesn't know it, such as once the Server was Unlinked.
+  REFUSAL_REASON_SERVER_NOT_LINKED = 13;
 }

@@ -334,7 +334,7 @@ impl PluginSettings {
             let config = settings
                 .get(id.as_str())
                 .cloned()
-                .unwrap_or_else(|| never_stored(plugin.kind));
+                .unwrap_or_else(|| never_stored(&id, plugin.kind));
             if !config.enabled {
                 info!(plugin = %id, "plugin disabled in its settings");
                 continue;
