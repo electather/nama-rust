@@ -25,9 +25,9 @@ pub use self::hardware::{Accel, Gpu, Hardware, find_gpus};
 #[cfg(test)]
 use self::hls::filter_value;
 pub(crate) use self::hls::{
-    AudioConversion, AudioEncoder, BurnIn, FromCut, HlsRun, ImageSubtitle, Remux, RemuxAudio,
-    TextSubtitle, ToneMapper, Transcode, TranscodeAudio, VideoConversion, VideoLimit, VideoTag,
-    hls_init, hls_playlist, hls_run_from,
+    AudioConversion, AudioEncoder, BurnIn, FromCut, HlsRun, ImageSubtitle, ReferenceWhite, Remux,
+    RemuxAudio, TextLayer, TextSubtitle, ToneMapper, Transcode, TranscodeAudio, VideoConversion,
+    VideoLimit, VideoTag, hls_init, hls_playlist, hls_run_from,
 };
 use self::hls::{
     VideoArgs, convert_audio, hls_output, map_audio, pgs_start_ms, seconds, video_args,
@@ -36,7 +36,8 @@ pub(crate) use self::refused_write::RefusedWrite;
 #[cfg(any(test, feature = "testing"))]
 pub use self::test_media::{
     FRENCH_SRT, PERSIAN_SRT, write_4k_with_5_1, write_17_minutes_h264, write_1080p_h264,
-    write_black_with_pgs, write_black_with_pgs_sidecar, write_h264_with_5_1, write_hevc_with_5_1,
+    write_black_with_pgs, write_black_with_pgs_sidecar, write_h264_with_5_1,
+    write_hdr_ramp_with_pgs, write_hevc_with_5_1,
 };
 use crate::config::Config;
 
@@ -208,6 +209,18 @@ impl Ffmpeg {
             .contains("apply_dovi"))
     }
 
+    /// Whether ffmpeg has jellyfin-ffmpeg's `alphasrc` filter and its `subtitles` filter's
+    /// `sub2video` option, with which [`Self::transcode`] draws a text subtitle on its own layer
+    /// to burn it into HDR (ADR 0103), or why ffmpeg couldn't say.
+    async fn has_subtitle_layer(&self) -> Result<bool, String> {
+        // Upstream's `subtitles` has `alpha` but not `sub2video`.
+        let (filters, subtitles) = tokio::try_join!(
+            self.listed("-filters"),
+            self.printed(&["-h", "filter=subtitles"])
+        )?;
+        Ok(filters.contains(&"alphasrc".to_owned()) && subtitles.contains("sub2video"))
+    }
+
     /// Whether ffmpeg has the libx264 encoder, which [`Self::transcode`] encodes with in software
     /// and a system ffmpeg may lack (ADR 0026), or why ffmpeg couldn't say.
     async fn has_libx264(&self) -> Result<bool, String> {
@@ -350,7 +363,7 @@ impl Ffmpeg {
             input,
             video: video_input,
             codec,
-        } = video_args(path, video, seeks);
+        } = video_args(path, video, start_ms);
         command.args(input);
         if seeks {
             // Decodes from the keyframe before it and drops the frames before it.

@@ -176,7 +176,72 @@ pub(crate) enum BurnIn {
         picture: Option<(i64, i64)>,
     },
     /// Text, such as ASS, which libass draws with its styling, from the file or a sidecar.
-    Text { subtitle: TextSubtitle },
+    Text {
+        subtitle: TextSubtitle,
+        /// The layer it's drawn on before it's mapped into HDR, if ffmpeg can draw one and the
+        /// picture's size and rate are known.
+        layer: Option<TextLayer>,
+    },
+}
+
+/// A transparent picture the size and rate of the one transcoded, which libass draws a
+/// [`BurnIn::Text`] subtitle on so it can be mapped to [`ReferenceWhite`] before it's laid over
+/// (ADR 0103). Only jellyfin-ffmpeg's `alphasrc` and `subtitles=…:alpha=1` draw one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TextLayer {
+    pub(crate) width: i64,
+    pub(crate) height: i64,
+    /// Frames per second, as ffmpeg takes a rate, such as `23.976`.
+    pub(crate) frame_rate: String,
+}
+
+/// How a subtitle burned into a picture that keeps HDR is mapped to BT.2408's reference white,
+/// the brightness of paper white in SDR, so it doesn't glare (ADR 0103).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ReferenceWhite {
+    /// 203 nits in PQ, as HDR10 is, and Dolby Vision reshaped into HDR10.
+    Pq,
+    /// 75% signal in HLG, on a 1000-nit display.
+    Hlg,
+}
+
+/// A subtitle's 16-bit SDR code value `val` as display light in nits, reference white at 203:
+/// BT.1886's gamma 2.4.
+const SUBTITLE_NITS: &str = "203*pow(val/maxval,2.4)";
+
+impl ReferenceWhite {
+    /// The `lutrgb` expression that maps a subtitle's SDR code value into this transfer.
+    fn lookup(self) -> String {
+        match self {
+            // SMPTE ST 2084's inverse EOTF, of light out of PQ's 10,000 nits.
+            Self::Pq => {
+                let light = format!("pow({SUBTITLE_NITS}/10000,0.1593017578125)");
+                format!("maxval*pow((0.8359375+18.8515625*{light})/(1+18.6875*{light}),78.84375)")
+            }
+            // BT.2100's inverse OOTF for a 1000-nit display, gamma 1.2, then HLG's OETF.
+            Self::Hlg => {
+                let scene = format!("pow({SUBTITLE_NITS}/1000,1/1.2)");
+                format!(
+                    "maxval*if(lte({scene},1/12),sqrt(3*{scene}),\
+                     0.17883277*log(12*{scene}-0.28466892)+0.55991073)"
+                )
+            }
+        }
+    }
+
+    /// The filters that map a subtitle layer to this reference white, then fit it with `fit`'s
+    /// `scale` options, if any, and convert it to 10-bit BT.2020 YUV.
+    // One `scale`: a second pass over a 4K frame cost about a third of the throughput.
+    // shortcut: the layer's BT.709 colours are read as BT.2020, so a coloured subtitle comes out
+    // more saturated; convert its primaries with zscale if that's seen (ADR 0103).
+    fn mapped_layer(self, fit: Option<&str>) -> String {
+        let lookup = self.lookup();
+        let fit = fit.map_or_default(|fit| format!("{fit}:"));
+        format!(
+            "format=rgba64le,lutrgb=r='{lookup}':g='{lookup}':b='{lookup}',\
+             scale={fit}out_color_matrix=bt2020:out_range=tv,format=yuva420p10le"
+        )
+    }
 }
 
 /// Where a [`BurnIn::Image`] subtitle is read from.
@@ -210,59 +275,48 @@ pub(crate) enum TextSubtitle {
     Cached { ass: String, fonts: String },
 }
 
+/// The `overlay` option that keeps a picture that keeps HDR 10-bit, which it drops to 8 bits by
+/// default, so its gradients would band.
+const TEN_BIT_OVERLAY: &str = "format=yuv420p10";
+
 /// The arguments that take the first video of the file at `path` into a Transcode, through
-/// `before`, then with `burn_in` drawn into it, then through `after`.
+/// `before`, then with `video`'s burn-in drawn into it, then through `after`, for a run that
+/// starts `start_ms` into the file.
 fn transcoded_video(
     path: &str,
+    video: &VideoConversion,
     before: Option<String>,
-    burn_in: Option<&BurnIn>,
     after: Option<String>,
-    seeks: bool,
+    start_ms: i64,
 ) -> Vec<String> {
-    let drawn = match burn_in {
+    let white = video.subtitle_white;
+    let drawn = match &video.burn_in {
         None => None,
         Some(BurnIn::Image { subtitle, picture }) => {
             let (source, subtitle) = match *subtitle {
                 // The input's `-ss` drops a bitmap that began before it, so a run that seeks reads
                 // the subtitle from a second input, `transcode` opens, that doesn't.
-                ImageSubtitle::Stream(subtitle) => (usize::from(seeks), subtitle),
+                ImageSubtitle::Stream(subtitle) => (usize::from(start_ms > 0), subtitle),
                 // The second input, holding just its one subtitle.
                 ImageSubtitle::Sidecar(_) => (1, 0),
             };
-            let graph = overlay_graph(before, source, subtitle, *picture, after);
-            return ["-filter_complex", &graph, "-map", "[video]"]
-                .map(str::to_owned)
-                .into();
+            let (layer, overlay) = image_layer(*picture, white);
+            let subtitle = format!("[{source}:s:{subtitle}]{layer}");
+            return laid_over(before, &subtitle, &overlay, after);
         }
-        // ponytail: assumes ffmpeg has libass. Until the subtitle cache holds it, each run reads
-        // the whole file for the subtitle first, attached fonts and all.
-        Some(BurnIn::Text {
-            subtitle: TextSubtitle::Stream { subtitle, .. },
-        }) => Some(format!(
-            "subtitles=filename={}:si={subtitle}",
-            filter_value(path)
-        )),
-        Some(BurnIn::Text {
-            subtitle:
-                TextSubtitle::Sidecar {
-                    path: sidecar,
-                    charset,
-                },
-        }) => {
-            let charenc =
-                charset.map_or_default(|charset| format!(":charenc={}", filter_value(charset)));
-            Some(format!(
-                "subtitles=filename={}{charenc}",
-                filter_value(sidecar)
-            ))
+        Some(BurnIn::Text { subtitle, layer }) => {
+            let drawn = libass(path, subtitle);
+            if let (Some(white), Some(layer)) = (white, layer) {
+                let overlay = format!("overlay=eof_action=pass:repeatlast=0:{TEN_BIT_OVERLAY}");
+                return laid_over(
+                    before,
+                    &layer.drawn(&drawn, white, start_ms),
+                    &overlay,
+                    after,
+                );
+            }
+            Some(drawn)
         }
-        Some(BurnIn::Text {
-            subtitle: TextSubtitle::Cached { ass, fonts },
-        }) => Some(format!(
-            "subtitles=filename={}:fontsdir={}",
-            filter_value(ass),
-            filter_value(fonts)
-        )),
     };
     let mut args: Vec<String> = ["-map", "0:V:0"].map(str::to_owned).into();
     if let Some(filters) = filter_chain([before, drawn, after]) {
@@ -272,29 +326,87 @@ fn transcoded_video(
     args
 }
 
-/// The filtergraph that runs the first video through `before`, lays input `source`'s `subtitle`th
-/// subtitle stream, a bitmap, over it, fitted to `picture` if known, then runs it through `after`,
-/// ending at `[video]`.
-fn overlay_graph(
-    before: Option<String>,
-    source: usize,
-    subtitle: usize,
-    picture: Option<(i64, i64)>,
-    after: Option<String>,
-) -> String {
+/// The filters that fit an image subtitle to `picture`, if known, mapping it to `white`, if
+/// given, and the `overlay` that lays it over the picture, centred.
+fn image_layer(picture: Option<(i64, i64)>, white: Option<ReferenceWhite>) -> (String, String) {
     // A bitmap's canvas can be smaller than the picture, as a 4K Blu-ray's 1080p PGS is, or
     // another shape, as a cropped film's 1080p PGS is: scaled evenly and centred, its text is
     // neither stretched nor cut off.
-    let fit = picture.map(|(width, height)| {
-        format!("scale={width}:{height}:force_original_aspect_ratio=decrease")
-    });
-    let or_null = |filter: Option<String>| filter.unwrap_or_else(|| "null".to_owned());
-    let (before, fit) = (or_null(before), or_null(fit));
+    let fit = picture
+        .map(|(width, height)| format!("{width}:{height}:force_original_aspect_ratio=decrease"));
+    let centred = "overlay=(W-w)/2:(H-h)/2";
+    match white {
+        Some(white) => (
+            white.mapped_layer(fit.as_deref()),
+            format!("{centred}:{TEN_BIT_OVERLAY}"),
+        ),
+        None => (
+            fit.map_or_else(|| "null".to_owned(), |fit| format!("scale={fit}")),
+            centred.to_owned(),
+        ),
+    }
+}
+
+impl TextLayer {
+    /// The filters that make this layer, draw it with `subtitles`, a libass filter, and map it
+    /// to `white`, for a run that starts `start_ms` into the file.
+    fn drawn(&self, subtitles: &str, white: ReferenceWhite, start_ms: i64) -> String {
+        let Self {
+            width,
+            height,
+            frame_rate,
+        } = self;
+        // Started where the run's frames are timed from, as `-copyts` keeps the file's.
+        format!(
+            "alphasrc=s={width}x{height}:r={frame_rate}:start={},format=yuva420p,\
+             {subtitles}:alpha=1:sub2video=1,{}",
+            seconds(start_ms),
+            white.mapped_layer(None)
+        )
+    }
+}
+
+/// The `subtitles` filter that has libass draw `subtitle` from the file at `path` or its own.
+fn libass(path: &str, subtitle: &TextSubtitle) -> String {
+    match subtitle {
+        // ponytail: assumes ffmpeg has libass. Until the subtitle cache holds it, each run reads
+        // the whole file for the subtitle first, attached fonts and all.
+        TextSubtitle::Stream { subtitle, .. } => {
+            format!("subtitles=filename={}:si={subtitle}", filter_value(path))
+        }
+        TextSubtitle::Sidecar {
+            path: sidecar,
+            charset,
+        } => {
+            let charenc =
+                charset.map_or_default(|charset| format!(":charenc={}", filter_value(charset)));
+            format!("subtitles=filename={}{charenc}", filter_value(sidecar))
+        }
+        TextSubtitle::Cached { ass, fonts } => format!(
+            "subtitles=filename={}:fontsdir={}",
+            filter_value(ass),
+            filter_value(fonts)
+        ),
+    }
+}
+
+/// The arguments for the filtergraph that runs the first video through `before`, lays
+/// `subtitle`, a chain from an input or a source, over it with `overlay`, then runs it through
+/// `after`, ending at `[video]`.
+fn laid_over(
+    before: Option<String>,
+    subtitle: &str,
+    overlay: &str,
+    after: Option<String>,
+) -> Vec<String> {
+    let before = before.unwrap_or_else(|| "null".to_owned());
     let after: String = after.map_or_default(|after| format!(",{after}"));
-    format!(
-        "[0:V:0]{before}[picture];[{source}:s:{subtitle}]{fit}[subtitle];\
-         [picture][subtitle]overlay=(W-w)/2:(H-h)/2{after}[video]"
-    )
+    let graph = format!(
+        "[0:V:0]{before}[picture];{subtitle}[subtitle];[picture][subtitle]{overlay}{after}[video]"
+    );
+    ["-filter_complex", &graph, "-map", "[video]"]
+        .map(str::to_owned)
+        .into()
 }
 
 /// When the first picture of the PGS file at `path` shows, in milliseconds: the 90 kHz time its
@@ -333,6 +445,9 @@ pub(crate) struct VideoConversion {
     pub(crate) limit: Option<VideoLimit>,
     /// The subtitle it draws into the picture, if any.
     pub(crate) burn_in: Option<BurnIn>,
+    /// The reference white that subtitle is mapped to, when the picture keeps HDR, or `None` to
+    /// draw it at its own values, as into SDR.
+    pub(crate) subtitle_white: Option<ReferenceWhite>,
     /// Whether each file carries the video's headers, so files written by another encoder, as
     /// when hardware fails and software carries on, play after this one's init segment. Never with
     /// `hevc`, which has no software to carry on in.
@@ -392,10 +507,9 @@ pub(super) struct VideoArgs {
     pub(super) codec: Vec<String>,
 }
 
-/// The arguments for ffmpeg that convert the first video of the file at `path` as `video` says.
-///
-/// `seeks` is whether the input is opened at a point past its start.
-pub(super) fn video_args(path: &str, video: &VideoConversion, seeks: bool) -> VideoArgs {
+/// The arguments for ffmpeg that convert the first video of the file at `path` as `video` says,
+/// for a run whose input is opened `start_ms` into it.
+pub(super) fn video_args(path: &str, video: &VideoConversion, start_ms: i64) -> VideoArgs {
     let size = video.limit.and_then(|limit| limit.size);
     let accel = video.hardware.as_ref().map(|hardware| hardware.accel);
     let gpu = video
@@ -464,7 +578,7 @@ pub(super) fn video_args(path: &str, video: &VideoConversion, seeks: bool) -> Vi
     };
     VideoArgs {
         input: accel.map_or_default(|accel| accel.input(gpu, decode)),
-        video: transcoded_video(path, before, video.burn_in.as_ref(), after, seeks),
+        video: transcoded_video(path, video, before, after, start_ms),
         codec,
     }
 }
