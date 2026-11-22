@@ -67,6 +67,27 @@ describe("where Needs a Match is", () => {
   });
 });
 
+test("every Library's Items are asked for at once, not after the Library before's", async () => {
+  const asked: bigint[] = [];
+  openSettings(
+    "needs-a-match",
+    fakeServer({ signedIn: admin, libraries: [films, shows] }, {}, {}, (router) => {
+      router.service(MatchService, {
+        listUnmatchedItems: async ({ filter }) => {
+          asked.push(filter?.libraryId ?? 0n);
+          // Films never answers, so Shows is asked only if it isn't waiting on Films.
+          await new Promise(() => {});
+          return {};
+        },
+      });
+    }),
+  );
+
+  await waitFor(() => {
+    expect(asked.toSorted()).toStrictEqual([films.id, shows.id]);
+  });
+});
+
 describe("the Library picker", () => {
   test("isn't there with one Library", async () => {
     openSettings("needs-a-match", matchServer(admin, [films]));

@@ -5,7 +5,7 @@ export function FilesToRename({ paths }: { paths: string[] }) {
   }
   return (
     <div className="mt-4">
-      <h5 className="text-sm font-medium">Files to rename</h5>
+      <h5 className="text-sm font-medium text-muted-foreground">Files to rename</h5>
       <p className="mt-1 text-xs text-pretty text-muted-foreground">
         Their names don’t say which Movie or Episode they are. Rename them, then scan the Library.
       </p>

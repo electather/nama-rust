@@ -20,8 +20,6 @@ export function UnmatchedLibrary({
   fixing,
   toggle,
 }: { library: Library; rest: Library[]; anyBefore: boolean } & Fixing) {
-  // ponytail: each Library's first page loads once the one before's has. Prefetch them all
-  // together if a Server with many Libraries waits on it.
   const { data, hasNextPage, fetchNextPage } = useUnmatchedItems(library);
   const { items, unparsedPaths, needsAMatch, anyYet } = loaded(data.pages, hasNextPage, anyBefore);
   return (
