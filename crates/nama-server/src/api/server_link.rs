@@ -29,7 +29,7 @@ const LINKING_FAILED: &str = "the Plugin that links the Server failed; its page 
 
 /// What `unavailable` says when a sign-in with an Account fails, such as while the Hub is down. A
 /// Device already signed in never needs the Hub (ADR 0092).
-/// No password advice: a User created from an Account has none.
+/// No password advice: a User whose only Sign-in Method is their Account has none.
 const ACCOUNT_SIGN_IN_FAILED: &str =
     "Signing in with an Account needs the Hub, which can't be reached right now. Try again later.";
 
