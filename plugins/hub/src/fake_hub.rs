@@ -101,6 +101,11 @@ impl FakeHub {
         lock(&self.state).entered = true;
     }
 
+    /// Forgets the Server's credential, as if it was Unlinked on the Hub's side.
+    pub(super) fn forget_server(&self) {
+        lock(&self.state).linked = false;
+    }
+
     /// Has the key set fail, as if the Hub went down right after handing out a credential.
     pub(super) fn break_key_set(&self) {
         lock(&self.state).key_set_failure = Some(StatusCode::INTERNAL_SERVER_ERROR);

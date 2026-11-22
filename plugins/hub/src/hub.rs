@@ -114,17 +114,20 @@ impl Hub {
     }
 
     /// The titles like the one `request` names, asked as the Server whose credential is
-    /// `credential`.
+    /// `credential`. None if the Hub doesn't know the credential any more, as [`Hub::unlink`]
+    /// takes it: a Server no longer Linked has no answer, which isn't a failure.
     pub(crate) async fn similar(
         &self,
         credential: &str,
         request: ListSimilarTitlesRequest,
     ) -> Result<ListSimilarTitlesResponse, PluginError> {
-        let similar = self
-            .linked(credential)?
-            .list_similar_titles(request)
-            .await?;
-        Ok(similar.into_owned())
+        match self.linked(credential)?.list_similar_titles(request).await {
+            Ok(similar) => Ok(similar.into_owned()),
+            Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => {
+                Ok(ListSimilarTitlesResponse::default())
+            }
+            Err(err) => Err(err.into()),
+        }
     }
 
     /// The Hub's API for Linked Servers, called as the one whose credential is `credential`.

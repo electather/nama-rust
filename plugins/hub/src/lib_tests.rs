@@ -282,6 +282,20 @@ async fn a_server_that_isnt_linked_gets_no_similar_titles_and_asks_the_hub_nothi
 }
 
 #[tokio::test]
+async fn a_server_whose_credential_the_hub_forgot_gets_no_similar_titles() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.forget_server();
+
+    let similar = provided::<dyn SimilarSource>(&hub, &kernel)
+        .similar(&movie(&[("tmdb", "603")]))
+        .await;
+
+    assert_eq!(answered(&similar.unwrap()), []);
+}
+
+#[tokio::test]
 async fn similar_titles_fail_while_the_hub_is_unreachable_so_the_last_answer_stays() {
     let hub = FakeHub::start().await;
     let kernel = store();

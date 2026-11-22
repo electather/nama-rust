@@ -19,14 +19,14 @@ const MOST_SIMILAR: i64 = 100;
 
 /// The least weight a similar title has. Facts hashed to one dimension make titles sharing no
 /// fact look slightly alike, and this keeps them out.
-const LEAST_WEIGHT: f32 = 0.1;
+const LEAST_WEIGHT: f32 = 0.2;
 
 /// A title like another, by its id in a namespace the asking Server uses.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SimilarTitle {
     /// Its id in the first of the asked namespaces the Hub knows it by.
     pub id: ExternalId,
-    /// How alike, from 0.1 to 1.0: their vectors' cosine similarity.
+    /// How alike, from 0.2 to 1.0: their vectors' cosine similarity.
     pub weight: f32,
 }
 
@@ -82,7 +82,7 @@ pub async fn train(db: &PgPool) -> Result<usize, sqlx::Error> {
 /// dimension, with a sign, weighing more the fewer titles share it. `None` when the facts cancel
 /// out, since a zero vector is like nothing.
 ///
-/// shortcut: every property weighs the same, and only how rare a fact is weighs it; weigh
+/// ponytail: every property weighs the same, and only how rare a fact is weighs it; weigh
 /// directors, cast and the rest apart once the offline evaluation (#1826) can measure it.
 pub(super) fn embed<'a>(facts: impl IntoIterator<Item = (&'a String, i64)>) -> Option<Vec<f32>> {
     let mut vector = vec![0.0_f32; DIMENSIONS];
@@ -174,6 +174,9 @@ pub async fn similar(
                JOIN title_vectors AS similar ON similar.title_id <> asked.title_id
                JOIN titles ON titles.id = similar.title_id
                WHERE titles.kind = $1 AND similar.embedding <=> asked.embedding < $4
+                   AND EXISTS (SELECT 1 FROM title_ids
+                               WHERE title_ids.title_id = similar.title_id
+                               AND title_ids.namespace = ANY($2))
                ORDER BY distance, similar.title_id LIMIT $5)
            SELECT id.namespace AS "namespace!", id.value AS "value!",
                   (1 - nearest.distance)::real AS "weight!"

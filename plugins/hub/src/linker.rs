@@ -76,7 +76,7 @@ impl Linker {
                 None => *waiting = None,
             }
         }
-        Ok(match self.kept().await? {
+        Ok(match kept(self.kernel.as_ref()).await? {
             Some(kept) => ServerLink::Linked {
                 account: kept
                     .account
@@ -123,7 +123,7 @@ impl Linker {
         // Held from the check on: a poll keeping a credential meanwhile would otherwise see its
         // Link overwritten by the next, leaving one on the Hub that nothing could Unlink.
         let mut waiting = self.waiting.lock().await;
-        if self.kept().await?.is_some() {
+        if kept(self.kernel.as_ref()).await?.is_some() {
             return Err("the Server is Linked already: Unlink it first".into());
         }
         let started = self.hub.start(server_name).await?;
@@ -142,7 +142,7 @@ impl Linker {
 
     async fn forget_link(&self) -> Result<(), PluginError> {
         *self.waiting.lock().await = None;
-        let Some(kept) = self.kept().await? else {
+        let Some(kept) = kept(self.kernel.as_ref()).await? else {
             return Ok(());
         };
         self.hub.unlink(&kept.credential).await?;
@@ -180,10 +180,6 @@ impl Linker {
             })
             .await?;
         token::verify(&key_set, token, now).map_err(rejected)
-    }
-
-    async fn kept(&self) -> Result<Option<Kept>, PluginError> {
-        kept(self.kernel.as_ref()).await
     }
 
     async fn keep(&self, kept: &Kept) -> Result<(), PluginError> {
