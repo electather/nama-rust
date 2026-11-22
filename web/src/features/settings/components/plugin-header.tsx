@@ -28,6 +28,8 @@ export function PluginHeader({ titleId, plugin }: { titleId: string; plugin: Plu
     <Link
       to="."
       search={(rest) => ({ ...rest, plugin: undefined })}
+      // The list's search is a subset of the open Plugin's, so inclusive matching marks this current.
+      activeOptions={{ exact: true }}
       className="-ms-1 mb-3.5 flex min-h-11 w-fit items-center gap-1.5 rounded-sm px-1 text-sm font-medium outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 md:min-h-8"
     >
       <ArrowLeft aria-hidden strokeWidth={1.5} className="size-4 rtl:rotate-180" />
