@@ -17,6 +17,7 @@ import { openTracks, pickIn, rowsOf } from "@/test-player";
 afterEach(cleanup);
 
 const PLAYER = "/libraries/1/movies/tmdb-348/play";
+// Shown only after `getting-ready.tsx` waits 1 s, so finding it needs `test-app.tsx`'s raised wait.
 const READY = "Getting this ready…";
 
 type Plan = MessageInitShape<typeof PlaybackPlanSchema>;
