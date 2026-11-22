@@ -172,7 +172,7 @@
       },
       {
         "from": "settings",
-        // Its Admin panes render the admin features they replaced pages of.
+        // Its Plugins and Server Playback panes render admin features whose code stays in their own features.
         "allow": [
           "settings",
           "admin-plugins",
@@ -218,7 +218,6 @@
           "app",
           "auth",
           "admin-libraries",
-          "admin-plugins",
           "admin-needs-a-match",
           "admin-playback",
           "admin-jobs",

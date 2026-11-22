@@ -141,7 +141,7 @@ test("a Failed Request links a User with Manage settings to its Fulfiller's Plug
 
   const link = await screen.findByRole("link", { name: "Fix it in the Plugin’s settings" });
 
-  expect(link.getAttribute("href")).toBe("/admin/plugins/radarr");
+  expect(link.getAttribute("href")).toBe("/requests?state=all&settings=plugins&plugin=radarr");
 });
 
 test("a Failed Request doesn't link a User without Manage settings to its Fulfiller's Plugin", async () => {

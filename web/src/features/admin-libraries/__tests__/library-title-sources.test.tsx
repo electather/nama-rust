@@ -187,7 +187,7 @@ test("an order where no running source searches names why each can't, and links 
     "No source above can search for titles: tvdb isn’t running and fanart.tv only adds artwork.",
   );
   const plugins = within(note).getByRole("link", { name: "Plugins" });
-  expect(plugins.getAttribute("href")).toBe("/admin/plugins");
+  expect(plugins.getAttribute("href")).toBe("/admin/libraries/1?settings=plugins");
 });
 
 test("the note names the Plugins without a link for a User who can't manage them", async () => {

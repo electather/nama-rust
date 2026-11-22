@@ -6,7 +6,7 @@ import { ErrorBoundary } from "@/shared/components/error-boundary";
 
 /**
  * A Plugin's row once it loads, `loading` until then, or nothing if it fails: a Plugin's failures
- * belong on the Plugins page.
+ * belong in Settings' Plugins section.
  */
 export function RowLoader({
   row,

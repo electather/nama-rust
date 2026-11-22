@@ -1,7 +1,9 @@
 import { Code } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
+import { PluginPoints } from "@/features/settings/components/plugin-points";
+import { ExtensionPoint } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { openPluginSettings } from "@/test-plugins";
 import { refused } from "@/test-refusal";
@@ -69,6 +71,15 @@ test("a Plugin's view says what each of its Extension Points means", async () =>
   expect(
     card.getByText("Searches for and describes Movies and Shows, for the Libraries that ask it."),
   ).toBeDefined();
+});
+
+test.each([
+  [ExtensionPoint.RECOGNISER, "Recogniser"],
+  [ExtensionPoint.SUBTITLE_SOURCE, "Subtitle source"],
+])("the Extension Point %i is shown as %s", (point, label) => {
+  render(<PluginPoints extensionPoints={[point]} />);
+
+  expect(screen.getByText(label)).toBeDefined();
 });
 
 test("a Plugin's “…” disables it from the list, and a refusal is said in a toast", async () => {
