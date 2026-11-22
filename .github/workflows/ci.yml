@@ -260,7 +260,7 @@ jobs:
           key: sqlx-cli-${{ runner.os }}-0.9.0-sqlite-postgres
       - name: Install sqlx-cli
         if: steps.sqlx-cache.outputs.cache-hit != 'true'
-        run: cargo install --locked sqlx-cli@0.9.0 --no-default-features --features sqlite,postgres,rustls
+        run: cargo install --locked --force sqlx-cli@0.9.0 --no-default-features --features sqlite,postgres,rustls
       # Queries are checked at compile time against the query data in .sqlx/, so builds need
       # no database. A scratch SQLite file and the PostgreSQL service, each with its crate's
       # migrations applied, check it is current; crates/nama-hub/sqlx.toml has the Hub's queries
