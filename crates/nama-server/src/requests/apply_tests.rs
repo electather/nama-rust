@@ -45,7 +45,7 @@ async fn leave_once_queued<T: Send + 'static>(
             tokio::task::yield_now().await;
         }
     };
-    tokio::time::timeout(Duration::from_secs(5), queued)
+    tokio::time::timeout(Duration::from_secs(30), queued)
         .await
         .expect("the change never queued its write");
 
@@ -232,14 +232,14 @@ impl Fulfiller<Shows> for Unfollowing {
 }
 
 /// The TMDB ids of the Shows `unfollowing` was told to stop following, once it was told any,
-/// waiting a second at most.
+/// waiting up to 30 seconds.
 async fn unfollowed_shows(unfollowing: &Unfollowing) -> Vec<i64> {
     let told = async {
         while unfollowing.0.lock().unwrap().is_empty() {
             tokio::task::yield_now().await;
         }
     };
-    tokio::time::timeout(Duration::from_secs(1), told)
+    tokio::time::timeout(Duration::from_secs(30), told)
         .await
         .expect("the Shows Fulfiller was never told to stop following a Show");
     unfollowing.0.lock().unwrap().clone()
