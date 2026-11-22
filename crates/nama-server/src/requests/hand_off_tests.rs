@@ -109,6 +109,9 @@ async fn approved_for_gated(tmdb_ids: &[i64]) -> (tempfile::TempDir, Requests, A
     (data, requests, gated)
 }
 
+/// Long: it only runs out on failure, and a loaded full-suite run can spend seconds in SQLite.
+const NOT_BLOCKED_WITHIN: Duration = Duration::from_secs(30);
+
 #[tokio::test]
 async fn a_request_being_handed_off_is_not_handed_to_the_fulfiller_again() {
     let (_data, requests, gated) = approved_for_gated(&[949]).await;
@@ -118,7 +121,7 @@ async fn a_request_being_handed_off_is_not_handed_to_the_fulfiller_again() {
         tokio::task::yield_now().await;
     }
 
-    tokio::time::timeout(Duration::from_secs(1), come_up(&requests, "gated"))
+    tokio::time::timeout(NOT_BLOCKED_WITHIN, come_up(&requests, "gated"))
         .await
         .expect("the second hand-off waited on the Fulfiller");
     gated.open.notify_one();
@@ -142,7 +145,7 @@ async fn a_fulfiller_coming_up_leaves_the_requests_an_ask_is_handing_off_to_it()
         tokio::task::yield_now().await;
     }
 
-    tokio::time::timeout(Duration::from_secs(1), come_up(&requests, "gated"))
+    tokio::time::timeout(NOT_BLOCKED_WITHIN, come_up(&requests, "gated"))
         .await
         .expect("the came-up hand-off waited on the Fulfiller");
     assert_eq!(
