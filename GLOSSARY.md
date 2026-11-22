@@ -416,7 +416,7 @@ A small picture of a Version at one time, shown while scrubbing.
 _Avoid_: trickplay, thumbnail, BIF
 
 **Base Layer**:
-The picture inside a Dolby Vision Track that a player without Dolby Vision shows instead: HDR10, HLG or SDR. Some Dolby Vision Tracks have none, as in profile 5: a Dolby Vision player shows them as they are, and any other player only through a Transcode, which converts it to SDR by its RPU.
+The picture inside a Dolby Vision Track that a player without Dolby Vision shows instead: HDR10, HLG or SDR. Some Dolby Vision Tracks have none, as in profile 5: a Dolby Vision player shows them as they are, and any other player only through a Transcode, which converts it by its RPU to HDR10 on hardware making HEVC for a Device showing HDR, and else to SDR.
 _Avoid_: fallback layer, compatibility layer
 
 **Direct Play**:
