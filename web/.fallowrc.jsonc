@@ -15,7 +15,7 @@
   "workspaces": { "settings": { "ui": { "includeEntryExports": true } } },
   // Run by `buf generate` in proto/, never imported.
   "ignoreDependencies": ["@bufbuild/protoc-gen-es"],
-  // web/src/AGENTS.md, "File size". Fallow sets limits by glob, not by zone.
+  // web/AGENTS.md, "File size". Fallow sets limits by glob, not by zone.
   "health": {
     "maxCyclomatic": 15,
     "maxCognitive": 15,

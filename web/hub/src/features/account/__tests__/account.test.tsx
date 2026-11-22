@@ -173,6 +173,7 @@ describe("an Account", () => {
         screen.findByText("This page couldn’t load. Check your connection, then try again."),
       ).resolves.toBeDefined();
       expect(screen.getByRole("button", { name: "Try again" })).toBeDefined();
+      // TanStack Router's own error page, which this replaces.
       expect(screen.queryByText("Something went wrong!")).toBeNull();
       expect(document.body.textContent).not.toMatch(/unavailable|Hub down/iu);
     });
