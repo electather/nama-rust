@@ -46,8 +46,8 @@ pub enum RefusalReason {
     /// Unlink them first.
     REFUSAL_REASON_USER_LINKED = 14i32,
     /// `invalid_argument`: a Server Address isn't an `http` or `https` URL of at most `maxLength`
-    /// characters, or the Server reported more than `maxLanAddresses` LAN addresses. Params:
-    /// `maxLength` and `maxLanAddresses`.
+    /// characters, the Server reported more than `maxLanAddresses` LAN addresses, or a public port
+    /// over `maxPort`. Params: `maxLength`, `maxLanAddresses` and `maxPort`.
     REFUSAL_REASON_SERVER_ADDRESS_INVALID = 15i32,
     /// `not_found`: the signed-in Account has no such User waiting for it: it was accepted already,
     /// or its Server Unlinked it.

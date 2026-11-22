@@ -79,12 +79,17 @@ impl Plugin for Hub {
             setup_markdown: "Enable it, then Link the Server under Settings, Server. The Server \
                              shows a code to enter on the Hub while signed in to your Account. \
                              Once it is Linked, each User can Link to their own Account the same \
-                             way, from their own Settings. The Hub then lists the Server's \
-                             Server URL and LAN address to the Accounts its Users Linked to, so \
-                             their apps can find it. Each play of a Matched title by a Linked User \
-                             goes to the Hub as a Viewing Event, which their Account can see, \
-                             delete and export there. Read Libraries, Read Watch State and Read \
-                             Users tell it what was played, how far, and on what kind of Device."
+                             way, from their own Settings. The Hub then lists the Server's Server \
+                             URL and LAN address to the Accounts its Users Linked to, so their \
+                             apps can find it. While it is enabled, the Server also opens its \
+                             port on your router with UPnP or NAT-PMP, unless `forwarded_port` in \
+                             `nama.toml` names one you forwarded, and the Hub checks from outside \
+                             whether it reaches the Server there, and lists that address before the \
+                             LAN one if it does. Settings, Server shows what it found. \
+                             Each play of a Matched title by a Linked User goes to the Hub as a \
+                             Viewing Event, which their Account can see, delete and export there. \
+                             Read Libraries, Read Watch State and Read Users tell it what was \
+                             played, how far, and on what kind of Device."
                 .to_owned(),
             extension_points: vec![
                 PointKey::provide::<dyn ServerLinker>(),

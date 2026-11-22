@@ -21,6 +21,7 @@ mod page;
 mod playback;
 pub mod plugin_settings;
 pub mod plugins;
+mod port_mapping;
 mod requests;
 mod scanner;
 mod server_addresses;
@@ -76,7 +77,9 @@ use crate::{
 /// Admins see the `ffmpeg` found at startup with `GetPlaybackStatus`. Plans running when
 /// `shutdown` resolves are stopped and their segment files deleted.
 ///
-/// The enabled Plugin that links the Server, if any, is told its Server Addresses every minute.
+/// The enabled Plugin that links the Server, if any, is told its Server Addresses every minute,
+/// and while there is one the Server keeps its port open on the router with UPnP or NAT-PMP,
+/// unless [`Config::forwarded_port`] names the one the Admin forwarded.
 ///
 /// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, unless the
 /// peer is in [`Config::trusted_proxies`], whose `X-Forwarded-For` names the client.
@@ -181,6 +184,7 @@ pub fn serve(
     let server_url = settings.server_url();
     // `listen` differs from the bound address only when it asks for port 0.
     let listening = listener.local_addr().unwrap_or(config.listen);
+    let forwarded_port = config.forwarded_port;
     let load_settings = load_settings(
         settings.clone(),
         images.clone(),
@@ -232,8 +236,12 @@ pub fn serve(
         // Every minute, as Seerr asks how its Requests are progressing (ADR 0012).
         let came_up = home_rows.refresh_as_plugins_come_up(plugins.take_came_up());
         requests.start(came_up, Duration::from_mins(1));
-        let telling_addresses =
-            server_addresses::tell_every_minute(plugins.extension_points(), server_url, listening);
+        let telling_addresses = server_addresses::tell_every_minute(
+            plugins.extension_points(),
+            server_url,
+            listening,
+            forwarded_port,
+        );
         let served = axum::serve(
             listener,
             // The peer's address decides whose rate limit counts and which proxies are trusted.

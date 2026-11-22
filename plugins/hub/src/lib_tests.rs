@@ -26,7 +26,7 @@ use nama_plugin_api::{
     diagnostics_sharer::{DiagnosticsSharer, Signal},
     job::RunJob,
     points::{ObservedEvents, WatchStateChange, WatchStateChanges},
-    server_link::{Link, ServerAddresses, ServerLinker},
+    server_link::{Link, Reachability, ServerAddresses, ServerLinker},
     similar_source::SimilarSource,
 };
 use serde_json::json;
@@ -34,7 +34,9 @@ use serde_json::json;
 use nama_hub_proto::nama::hub::v1::WatchStateChange as HubChange;
 
 use super::*;
-use crate::fake_hub::{EMAIL, FakeHub, SIGN_IN_ID, USER_CODE, USER_LINK_CODE};
+use crate::fake_hub::{
+    EMAIL, FakeHub, OPEN_PORT, PUBLIC_IP, SIGN_IN_ID, USER_CODE, USER_LINK_CODE,
+};
 
 /// A Kernel whose only functions are the Plugin's Store, kept in memory.
 fn store() -> Arc<dyn Kernel> {
@@ -117,7 +119,8 @@ async fn link(hub: &FakeHub, linker: &dyn ServerLinker) {
     assert_eq!(
         linker.link().await.unwrap(),
         Link::Linked {
-            account: EMAIL.to_owned()
+            account: EMAIL.to_owned(),
+            reachability: None,
         }
     );
 }
@@ -129,7 +132,8 @@ async fn link_user(hub: &FakeHub, linker: &dyn ServerLinker, user_id: i64) {
     assert_eq!(
         linker.user_link(user_id).await.unwrap(),
         Some(Link::Linked {
-            account: EMAIL.to_owned()
+            account: EMAIL.to_owned(),
+            reachability: None,
         })
     );
 }
@@ -152,6 +156,7 @@ async fn the_server_shows_a_code_and_is_linked_once_someone_enters_it() {
     hub.enter_code();
     let linked_to_ada = Link::Linked {
         account: EMAIL.to_owned(),
+        reachability: None,
     };
     assert_eq!(linker.link().await.unwrap(), linked_to_ada);
     assert!(hub.linked());
@@ -228,7 +233,8 @@ async fn a_credential_whose_token_cant_be_checked_is_kept_and_can_be_unlinked() 
     assert_eq!(
         linker.link().await.unwrap(),
         Link::Linked {
-            account: "an Account the Hub didn't confirm".to_owned()
+            account: "an Account the Hub didn't confirm".to_owned(),
+            reachability: None,
         }
     );
     linker.unlink().await.unwrap();
@@ -338,7 +344,8 @@ async fn a_user_shows_a_code_and_is_linked_once_it_is_entered() {
     assert_eq!(
         linker.user_link(7).await.unwrap(),
         Some(Link::Linked {
-            account: EMAIL.to_owned()
+            account: EMAIL.to_owned(),
+            reachability: None,
         })
     );
     assert_eq!(linker.user_link(8).await.unwrap(), Some(Link::NotLinked));
@@ -368,7 +375,8 @@ async fn a_linked_user_shows_linked_while_the_hub_is_unreachable() {
     assert_eq!(
         link,
         Some(Link::Linked {
-            account: EMAIL.to_owned()
+            account: EMAIL.to_owned(),
+            reachability: None,
         })
     );
 }
@@ -489,6 +497,7 @@ async fn a_user_linked_already_who_starts_linking_sees_their_link() {
 
     let their_link = Link::Linked {
         account: EMAIL.to_owned(),
+        reachability: None,
     };
     assert_eq!(started, their_link);
     assert_eq!(linker.user_link(7).await.unwrap(), Some(their_link));
@@ -663,6 +672,7 @@ fn addresses(url: &str, lan: &[&str]) -> ServerAddresses {
     ServerAddresses {
         url: url.to_owned(),
         lan: lan.iter().map(|&address| address.to_owned()).collect(),
+        public_port: None,
     }
 }
 
@@ -1065,4 +1075,49 @@ async fn a_play_while_the_hub_is_down_is_sent_once_it_is_back_after_a_restart_an
     send(restarted.jobs.as_ref()).await.unwrap();
 
     assert_eq!(hub.viewing_events().len(), 1);
+}
+
+#[tokio::test]
+async fn the_server_shows_whether_the_hub_reached_its_public_port() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+    let with_port = |port| ServerAddresses {
+        public_port: port,
+        ..addresses("", &["http://192.168.1.10:7980"])
+    };
+    let shown = async || {
+        let Link::Linked { reachability, .. } = linker.link().await.unwrap() else {
+            panic!("not Linked");
+        };
+        reachability
+    };
+
+    linker
+        .set_addresses(with_port(Some(OPEN_PORT)))
+        .await
+        .unwrap();
+    let reached = shown().await;
+    linker
+        .set_addresses(with_port(Some(OPEN_PORT + 1)))
+        .await
+        .unwrap();
+    let missed = shown().await;
+    linker.set_addresses(with_port(None)).await.unwrap();
+
+    assert_eq!(
+        reached,
+        Some(Reachability {
+            address: format!("http://{PUBLIC_IP}:{OPEN_PORT}"),
+            reachable: true,
+        })
+    );
+    assert_eq!(
+        missed,
+        Some(Reachability {
+            address: format!("http://{PUBLIC_IP}:{}", OPEN_PORT + 1),
+            reachable: false,
+        })
+    );
+    assert_eq!(shown().await, None);
 }

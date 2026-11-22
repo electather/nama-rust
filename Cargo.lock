@@ -2615,6 +2615,7 @@ dependencies = [
  "opentelemetry_sdk",
  "regex",
  "reqwest",
+ "roxmltree",
  "rustix",
  "rustls",
  "schemars",

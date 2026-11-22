@@ -1,6 +1,6 @@
 //! Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011), the Linked
-//! Server's opaque credential, the Server Addresses it reports, Unlinking, and the token signed for
-//! a Server once it is Linked.
+//! Server's opaque credential, the Server Addresses it reports and whether its public port can be
+//! reached, Unlinking, and the token signed for a Server once it is Linked.
 //! Linking its Users to Accounts is in `users.rs`, Users created from an Account in `invites.rs`,
 //! and signing in to a Server with an Account in `server_sign_ins.rs`.
 
@@ -10,14 +10,16 @@ mod users;
 
 use std::{
     fmt::{self, Write as _},
+    net::SocketAddr,
     sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use axum::http::Uri;
 use serde::Serialize;
 use sha2::{Digest as _, Sha256};
 use sqlx::PgPool;
+use tokio::net::TcpStream;
 use uuid::Uuid;
 
 use crate::{
@@ -52,6 +54,9 @@ pub(crate) const ADDRESS_LENGTH: usize = 2000;
 
 /// The most LAN addresses a Server may report.
 pub(crate) const MAX_LAN_ADDRESSES: usize = 16;
+
+/// How long the Hub waits for a Server's public port to take a connection.
+const REACH_WITHIN: Duration = Duration::from_secs(5);
 
 /// How long the token a newly Linked Server gets, or one for a sign-in, stays valid.
 const TOKEN_LIFETIME_SECS: u64 = 5 * 60;
@@ -88,8 +93,16 @@ pub(crate) struct ListedServer {
     pub(crate) linked_at: i64,
     /// The Server URL its Admin set, or empty for none.
     pub(crate) url: String,
-    /// The Server Addresses a client tries, in order: the Server URL, then the LAN addresses.
+    /// The Server Addresses a client tries, best first: the Server URL, then the public address
+    /// the Hub reached, then the LAN addresses, plain `http://<lan-ip>` (ADR 0057).
     pub(crate) addresses: Vec<String>,
+}
+
+/// Where the Hub tried to reach a Server from outside, and whether it could.
+pub(crate) struct PublicAddress {
+    /// Such as `http://203.0.113.7:7980`.
+    pub(crate) address: String,
+    pub(crate) reachable: bool,
 }
 
 /// A Server's codes, just made.
@@ -132,7 +145,7 @@ pub(crate) enum Error {
     UrlInvalid,
     #[error(
         "a Server Address must be an http or https URL of up to {ADDRESS_LENGTH} characters, \
-         and a Server has up to {MAX_LAN_ADDRESSES} LAN addresses"
+         a Server has up to {MAX_LAN_ADDRESSES} LAN addresses, and a port is at most 65535"
     )]
     AddressInvalid,
     #[error("could not generate a code: {0}")]
@@ -293,7 +306,7 @@ impl Links {
     /// The Linked Servers `account` owns or has a User on, oldest first.
     pub(crate) async fn list(&self, account: AccountId) -> Result<Vec<ListedServer>, sqlx::Error> {
         let servers = sqlx::query!(
-            r#"SELECT id, name, server_url, lan_addresses,
+            r#"SELECT id, name, server_url, public_address, lan_addresses,
              extract(epoch FROM created_at)::bigint AS "linked_at!"
              FROM linked_servers WHERE account_id = $1
              OR id IN (SELECT linked_server_id FROM user_links WHERE account_id = $1)
@@ -308,9 +321,9 @@ impl Links {
                 id: LinkedServerId(server.id),
                 name: server.name,
                 linked_at: server.linked_at,
-                addresses: (!server.server_url.is_empty())
-                    .then(|| server.server_url.clone())
+                addresses: [server.server_url.clone(), server.public_address]
                     .into_iter()
+                    .filter(|address| !address.is_empty())
                     .chain(server.lan_addresses)
                     .collect(),
                 url: server.server_url,
@@ -319,28 +332,43 @@ impl Links {
     }
 
     /// Replaces the Server Addresses `server` reported before with its Server URL `url`, empty
-    /// for none, and its `lan_addresses`.
+    /// for none, its `lan_addresses`, and `public`, its router's public IP address with the port
+    /// that reaches it, if it has one, once the Hub has tried to connect there.
     pub(crate) async fn set_addresses(
         &self,
         server: &LinkedServer,
         url: &str,
         lan_addresses: &[String],
-    ) -> Result<(), Error> {
+        public: Option<SocketAddr>,
+    ) -> Result<Option<PublicAddress>, Error> {
         let addresses_valid = lan_addresses.len() <= MAX_LAN_ADDRESSES
             && (url.is_empty() || is_address(url))
             && lan_addresses.iter().all(|address| is_address(address));
         if !addresses_valid {
             return Err(Error::AddressInvalid);
         }
+        let public = match public {
+            Some(public) => Some(PublicAddress {
+                address: format!("http://{public}"),
+                reachable: reaches(public).await,
+            }),
+            None => None,
+        };
+        let reached = public
+            .as_ref()
+            .filter(|public| public.reachable)
+            .map_or("", |public| public.address.as_str());
         sqlx::query!(
-            "UPDATE linked_servers SET server_url = $1, lan_addresses = $2 WHERE id = $3",
+            "UPDATE linked_servers SET server_url = $1, lan_addresses = $2, public_address = $3
+             WHERE id = $4",
             url,
             lan_addresses,
+            reached,
             server.id.0,
         )
         .execute(&self.db)
         .await?;
-        Ok(())
+        Ok(public)
     }
 
     /// The Linked Server whose credential is `credential`, if it is still Linked.
@@ -395,6 +423,14 @@ fn is_address(address: &str) -> bool {
         && address.parse::<Uri>().is_ok_and(|uri| {
             matches!(uri.scheme_str(), Some("http" | "https")) && uri.authority().is_some()
         })
+}
+
+/// Whether `public` takes a TCP connection within [`REACH_WITHIN`].
+// ponytail: a connection shows only that something listens there; check that it is this Server,
+// over TLS to its name, once Servers have names (#1830).
+async fn reaches(public: SocketAddr) -> bool {
+    let connected = tokio::time::timeout(REACH_WITHIN, TcpStream::connect(public)).await;
+    connected.is_ok_and(|connected| connected.is_ok())
 }
 
 /// `name` as the Hub keeps it: trimmed, and cut to [`NAME_LENGTH`] characters.
