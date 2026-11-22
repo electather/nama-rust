@@ -28,7 +28,7 @@ const profiles = {
 /** The dropdown for the test Plugin's Profile, once the Plugin's details show it. */
 async function profile() {
   const page = await plugin("test-choices");
-  return page.findByRole<HTMLInputElement>("combobox", { name: "Profile" });
+  return page.findByRole("combobox", { name: "Profile" });
 }
 
 async function pressTest() {
