@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, server_name FROM server_link_codes\n             WHERE user_code = $1 AND expires_at > now() AND linked_server_id IS NULL\n             FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "server_link_codes",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "server_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_link_codes",
+            "name": "server_name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "cceb7cd18b263ae99908c5fdb1d2aee23b2700c1f59c3c338cb4adeaebb69bfa"
+}

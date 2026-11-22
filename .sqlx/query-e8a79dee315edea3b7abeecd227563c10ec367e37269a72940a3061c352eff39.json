@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE accounts SET email_proven_at = now() WHERE lower(email) = lower($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e8a79dee315edea3b7abeecd227563c10ec367e37269a72940a3061c352eff39"
+}

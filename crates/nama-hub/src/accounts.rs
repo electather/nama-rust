@@ -20,7 +20,7 @@ pub(crate) const EMAIL_LENGTH: usize = 254;
 
 /// An Account's id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct AccountId(Uuid);
+pub(crate) struct AccountId(pub(crate) Uuid);
 
 impl fmt::Display for AccountId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -40,6 +40,11 @@ pub(crate) struct Account {
 #[derive(Clone, Debug)]
 pub(crate) struct AccountSession {
     pub(crate) account: Account,
+    /// Whether a Sign-in Link proved the Account owns its email, which Linking needs (ADR 0100).
+    pub(crate) email_proven: bool,
+    /// Whether the session signed in within [`sessions::RECENT_AUTHENTICATION_MINS`]: Recent
+    /// Authentication, which Linking needs.
+    pub(crate) authenticated_recently: bool,
     id: Uuid,
 }
 
@@ -158,10 +163,34 @@ impl Accounts {
         sessions::find(&self.db, token).await
     }
 
+    /// The email of the Account `id`, unless it was deleted.
+    pub(crate) async fn email(&self, id: AccountId) -> Result<Option<String>, sqlx::Error> {
+        sqlx::query_scalar!("SELECT email FROM accounts WHERE id = $1", id.0)
+            .fetch_optional(&self.db)
+            .await
+    }
+
     /// Ends `session`: its token stops working at once.
     pub(crate) async fn sign_out(&self, session: &AccountSession) -> Result<(), sqlx::Error> {
         sessions::end(&self.db, session).await
     }
+}
+
+/// Marks the email of the Account with `email` proven, for tests that Link.
+///
+/// # Errors
+///
+/// If the database fails.
+// shortcut: tests prove an email here until #1805's Sign-in Links can, then they use those.
+#[cfg(feature = "testing")]
+pub async fn prove_email(db: &PgPool, email: &str) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "UPDATE accounts SET email_proven_at = now() WHERE lower(email) = lower($1)",
+        email,
+    )
+    .execute(db)
+    .await?;
+    Ok(())
 }
 
 /// Whether `email` looks like an address: something, an `@`, then something, with no whitespace,

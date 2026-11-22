@@ -8,7 +8,7 @@ use std::{
 };
 
 use clap::{Parser, Subcommand};
-use nama_hub::{config::Config, db, titles};
+use nama_hub::{config::Config, db, signing::Keys, titles};
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_otlp::{ExporterBuildError, LogExporter, SpanExporter};
@@ -34,7 +34,9 @@ const OTLP_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
     after_help = "Configured by environment variables only: NAMA_HUB_DATABASE_URL, the \
                   PostgreSQL database as a postgres:// URL, NAMA_HUB_LISTEN, the address to \
                   listen on (0.0.0.0:7981 by default), and NAMA_HUB_TRUSTED_PROXIES, the \
-                  reverse proxies whose forwarded headers it believes, such as [\"10.0.0.0/8\"]."
+                  reverse proxies whose forwarded headers it believes, such as [\"10.0.0.0/8\"], and \
+                  NAMA_HUB_SIGNING_KEYS, the Ed25519 private keys it signs with, as PEM blocks \
+                  one after another."
 )]
 struct Args {
     /// Serves the Hub when none is given.
@@ -77,6 +79,13 @@ async fn run() -> ExitCode {
         return ExitCode::FAILURE;
     };
     info!(listen = %config.listen, "loaded config");
+    let keys = match Keys::from_pems(&config.signing_keys) {
+        Ok(keys) => keys,
+        Err(err) => {
+            error!("could not read the signing keys: {err}");
+            return ExitCode::FAILURE;
+        }
+    };
 
     if let Err(err) = db::migrate(&db).await {
         error!("could not migrate the database: {err}");
@@ -102,7 +111,14 @@ async fn run() -> ExitCode {
         shutdown.await;
         info!("shutting down");
     };
-    let served = nama_hub::serve(listener, db.clone(), &config.trusted_proxies, shutdown).await;
+    let served = nama_hub::serve(
+        listener,
+        db.clone(),
+        keys,
+        &config.trusted_proxies,
+        shutdown,
+    )
+    .await;
     db.close().await;
     if let Err(err) = served {
         error!("hub failed: {err}");

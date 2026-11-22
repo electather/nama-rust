@@ -37,4 +37,17 @@ enum RefusalReason {
   // `invalid_argument`: the password is too short or too long. Params: `minLength` and
   // `maxLength`, in characters.
   REFUSAL_REASON_PASSWORD_LENGTH = 6;
+  // `failed_precondition`: the call needs Recent Authentication: a session that signed in within
+  // the last 10 minutes. Sign in again.
+  REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED = 7;
+  // `failed_precondition`: the Account's email isn't proven yet, which only using a Sign-in Link
+  // sent to it does, and Linking needs it (ADR 0100).
+  REFUSAL_REASON_EMAIL_NOT_PROVEN = 8;
+  // `not_found`: no Server is waiting on this code: it was mistyped, expired or used.
+  REFUSAL_REASON_LINK_CODE_NOT_FOUND = 9;
+  // `not_found`: the device code expired, was used, or never existed. Start again.
+  REFUSAL_REASON_LINK_EXPIRED = 10;
+  // `unauthenticated`: the call needs a Linked Server's credential, and none came or the Hub
+  // doesn't know it, such as once the Server was Unlinked.
+  REFUSAL_REASON_SERVER_NOT_LINKED = 11;
 }

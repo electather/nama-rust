@@ -4,9 +4,15 @@
 use std::net::SocketAddr;
 
 use connectrpc::client::ClientConfig;
-use nama_hub::db;
+use nama_hub::{db, signing::Keys};
 use sqlx::PgPool;
 use tokio::{net::TcpListener, sync::oneshot};
+
+/// The Hub's one signing key, made with `openssl genpkey -algorithm ed25519`.
+const SIGNING_KEY: &str = "-----BEGIN PRIVATE KEY-----
+MC4CAQAwBQYDK2VwBCIEIJzJDsQn3SpQXPoFGl74lUI4L+huggYWuNcSt9vaCwTS
+-----END PRIVATE KEY-----
+";
 
 /// A Hub serving until it is dropped.
 #[derive(Debug)]
@@ -27,7 +33,8 @@ impl TestHub {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let (stop, stopped) = oneshot::channel::<()>();
-        tokio::spawn(nama_hub::serve(listener, db.clone(), &[], async {
+        let keys = Keys::from_pems(SIGNING_KEY).unwrap();
+        tokio::spawn(nama_hub::serve(listener, db.clone(), keys, &[], async {
             let _: Result<(), oneshot::error::RecvError> = stopped.await;
         }));
         Self {

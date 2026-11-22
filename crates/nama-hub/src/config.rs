@@ -22,6 +22,10 @@ pub struct Config {
     /// addresses or CIDR ranges, such as `["10.0.0.0/8"]` (ADR 0018). None by default.
     #[serde(default)]
     pub trusted_proxies: Vec<IpRange>,
+    /// The Ed25519 private keys the Hub signs tokens for Servers with, as PKCS#8 PEM blocks one
+    /// after another: the first signs, and all are published (ADR 0098). Required to serve.
+    #[serde(default)]
+    pub signing_keys: String,
 }
 
 impl Config {
@@ -39,7 +43,7 @@ fn default_listen() -> SocketAddr {
     SocketAddr::from(([0, 0, 0, 0], 7981))
 }
 
-// The URL may hold the database's password, so it is never printed.
+// The URL may hold the database's password, and the keys are secret, so neither is printed.
 impl fmt::Debug for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Config")

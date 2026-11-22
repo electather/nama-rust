@@ -2199,12 +2199,14 @@ dependencies = [
  "figment",
  "getrandom 0.4.3",
  "nama-forwarded",
+ "nama-hub",
  "nama-hub-proto",
  "nama-structure",
  "opentelemetry",
  "opentelemetry-appender-tracing",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
+ "ring",
  "serde",
  "serde_json",
  "sha2 0.11.1",
@@ -2283,6 +2285,28 @@ name = "nama-plugin-genres-people"
 version = "0.1.0"
 dependencies = [
  "nama-pdk",
+]
+
+[[package]]
+name = "nama-plugin-hub"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64 0.23.1",
+ "buffa",
+ "bytes",
+ "connectrpc",
+ "http",
+ "http-body-util",
+ "hyper-rustls",
+ "hyper-util",
+ "nama-hub-proto",
+ "nama-plugin-api",
+ "ring",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -2498,6 +2522,7 @@ dependencies = [
  "jxl",
  "nama-forwarded",
  "nama-plugin-api",
+ "nama-plugin-hub",
  "nama-plugin-local-auth",
  "nama-plugin-log-events",
  "nama-plugin-proto",

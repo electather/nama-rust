@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/hub/v1/refusal.proto.
  */
 export const file_nama_hub_v1_refusal: GenFile = /*@__PURE__*/
-  fileDesc("ChluYW1hL2h1Yi92MS9yZWZ1c2FsLnByb3RvEgtuYW1hLmh1Yi52MSKlAQoHUmVmdXNhbBIqCgZyZWFzb24YASABKA4yGi5uYW1hLmh1Yi52MS5SZWZ1c2FsUmVhc29uEg0KBWZpZWxkGAIgASgJEjAKBnBhcmFtcxgDIAMoCzIgLm5hbWEuaHViLnYxLlJlZnVzYWwuUGFyYW1zRW50cnkaLQoLUGFyYW1zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASqMAgoNUmVmdXNhbFJlYXNvbhIeChpSRUZVU0FMX1JFQVNPTl9VTlNQRUNJRklFRBAAEiMKH1JFRlVTQUxfUkVBU09OX1NJR05fSU5fUkVRVUlSRUQQARIqCiZSRUZVU0FMX1JFQVNPTl9XUk9OR19FTUFJTF9PUl9QQVNTV09SRBACEiQKIFJFRlVTQUxfUkVBU09OX1RPT19NQU5ZX0FUVEVNUFRTEAMSHgoaUkVGVVNBTF9SRUFTT05fRU1BSUxfVEFLRU4QBBIgChxSRUZVU0FMX1JFQVNPTl9FTUFJTF9JTlZBTElEEAUSIgoeUkVGVVNBTF9SRUFTT05fUEFTU1dPUkRfTEVOR1RIEAZiBnByb3RvMw");
+  fileDesc("ChluYW1hL2h1Yi92MS9yZWZ1c2FsLnByb3RvEgtuYW1hLmh1Yi52MSKlAQoHUmVmdXNhbBIqCgZyZWFzb24YASABKA4yGi5uYW1hLmh1Yi52MS5SZWZ1c2FsUmVhc29uEg0KBWZpZWxkGAIgASgJEjAKBnBhcmFtcxgDIAMoCzIgLm5hbWEuaHViLnYxLlJlZnVzYWwuUGFyYW1zRW50cnkaLQoLUGFyYW1zRW50cnkSCwoDa2V5GAEgASgJEg0KBXZhbHVlGAIgASgJOgI4ASrTAwoNUmVmdXNhbFJlYXNvbhIeChpSRUZVU0FMX1JFQVNPTl9VTlNQRUNJRklFRBAAEiMKH1JFRlVTQUxfUkVBU09OX1NJR05fSU5fUkVRVUlSRUQQARIqCiZSRUZVU0FMX1JFQVNPTl9XUk9OR19FTUFJTF9PUl9QQVNTV09SRBACEiQKIFJFRlVTQUxfUkVBU09OX1RPT19NQU5ZX0FUVEVNUFRTEAMSHgoaUkVGVVNBTF9SRUFTT05fRU1BSUxfVEFLRU4QBBIgChxSRUZVU0FMX1JFQVNPTl9FTUFJTF9JTlZBTElEEAUSIgoeUkVGVVNBTF9SRUFTT05fUEFTU1dPUkRfTEVOR1RIEAYSMQotUkVGVVNBTF9SRUFTT05fUkVDRU5UX0FVVEhFTlRJQ0FUSU9OX1JFUVVJUkVEEAcSIwofUkVGVVNBTF9SRUFTT05fRU1BSUxfTk9UX1BST1ZFThAIEiYKIlJFRlVTQUxfUkVBU09OX0xJTktfQ09ERV9OT1RfRk9VTkQQCRIfChtSRUZVU0FMX1JFQVNPTl9MSU5LX0VYUElSRUQQChIkCiBSRUZVU0FMX1JFQVNPTl9TRVJWRVJfTk9UX0xJTktFRBALYgZwcm90bzM");
 
 /**
  * Why the Hub refused a request, in the shape of the Server's `nama.v1.Refusal` (ADR 0019). Every
@@ -110,6 +110,44 @@ export const RefusalReason = {
    * @generated from enum value: REFUSAL_REASON_PASSWORD_LENGTH = 6;
    */
   PASSWORD_LENGTH: 6,
+
+  /**
+   * `failed_precondition`: the call needs Recent Authentication: a session that signed in within
+   * the last 10 minutes. Sign in again.
+   *
+   * @generated from enum value: REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED = 7;
+   */
+  RECENT_AUTHENTICATION_REQUIRED: 7,
+
+  /**
+   * `failed_precondition`: the Account's email isn't proven yet, which only using a Sign-in Link
+   * sent to it does, and Linking needs it (ADR 0100).
+   *
+   * @generated from enum value: REFUSAL_REASON_EMAIL_NOT_PROVEN = 8;
+   */
+  EMAIL_NOT_PROVEN: 8,
+
+  /**
+   * `not_found`: no Server is waiting on this code: it was mistyped, expired or used.
+   *
+   * @generated from enum value: REFUSAL_REASON_LINK_CODE_NOT_FOUND = 9;
+   */
+  LINK_CODE_NOT_FOUND: 9,
+
+  /**
+   * `not_found`: the device code expired, was used, or never existed. Start again.
+   *
+   * @generated from enum value: REFUSAL_REASON_LINK_EXPIRED = 10;
+   */
+  LINK_EXPIRED: 10,
+
+  /**
+   * `unauthenticated`: the call needs a Linked Server's credential, and none came or the Hub
+   * doesn't know it, such as once the Server was Unlinked.
+   *
+   * @generated from enum value: REFUSAL_REASON_SERVER_NOT_LINKED = 11;
+   */
+  SERVER_NOT_LINKED: 11,
 } as const;
 
 /**

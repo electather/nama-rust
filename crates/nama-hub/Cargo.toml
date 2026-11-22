@@ -17,9 +17,12 @@ features = ["web"]
 # Embeds the built Hub web app (`web/hub/dist`, from `vp -C hub build` in web/) and serves it. Off
 # by default so builds and tests need no Node; release builds turn it on.
 web = []
+# What only tests need: proving an Account's email without a Sign-in Link (`prove_email`).
+testing = []
 
 [dependencies]
 argon2 = "0.6"
+base64 = "0.23"
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "tokio"] }
 buffa = "0.9.2"
 clap = { version = "4", features = ["derive"] }
@@ -34,6 +37,8 @@ opentelemetry = { version = "0.33.1", default-features = false, features = ["tra
 opentelemetry-appender-tracing = "0.33.1"
 opentelemetry-otlp = { version = "0.33.1", default-features = false, features = ["http-proto", "logs", "reqwest-blocking-client", "trace"] }
 opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["logs", "trace"] }
+# Ed25519 signing (ADR 0098), the same ring rustls already builds.
+ring = "0.17"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
@@ -46,9 +51,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = "1"
 
 [dev-dependencies]
-base64 = "0.23"
 connectrpc = { version = "0.9.1", features = ["client"] }
 figment = { version = "0.10", features = ["test"] }
+nama-hub = { path = ".", features = ["testing"] }
 nama-structure = { path = "../nama-structure" }
 tokio = { version = "1", features = ["sync"] }
 
