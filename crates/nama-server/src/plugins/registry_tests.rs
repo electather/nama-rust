@@ -247,6 +247,19 @@ fn a_builtin_with_bounds_on_another_kind_is_refused() {
 }
 
 #[test]
+fn a_builtin_with_a_default_of_another_kind_is_refused() {
+    let field = SettingField {
+        default: Some(SettingValue::Text("30".to_owned())),
+        ..days(None, None, None)
+    };
+
+    assert_eq!(
+        refused(field, false).as_deref(),
+        Some("its setting days's default isn't a whole number")
+    );
+}
+
+#[test]
 fn a_builtin_with_a_min_over_its_max_is_refused() {
     assert_eq!(
         refused(days(Some(7), Some(1), None), false).as_deref(),
