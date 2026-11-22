@@ -9,7 +9,7 @@ use std::{
     env,
 };
 
-use anyhow::Context as _;
+use anyhow::{Context as _, ensure};
 use futures_util::{StreamExt as _, TryStreamExt as _, stream};
 use nama_hub::{
     db,
@@ -36,6 +36,10 @@ async fn main() -> anyhow::Result<()> {
     println!("trained {vectors} title vectors");
 
     let users = ranking::split(movielens::download()?);
+    ensure!(
+        !users.is_empty(),
+        "no MovieLens user liked a film on both sides of their split"
+    );
     let similar = similar_to_liked(&db, &users).await?;
     let scores = ranking::score(&users, &similar);
     println!(

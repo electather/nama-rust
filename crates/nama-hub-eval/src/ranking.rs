@@ -71,7 +71,7 @@ pub(crate) fn score(users: &[User], similar: &HashMap<String, Vec<SimilarTitle>>
 /// `user`'s top `K` titles by their weights in the Similar answers of the titles they liked,
 /// summed, best first, leaving out what they've seen.
 ///
-/// shortcut: sums Similar answers, as a Server merges its Similar sources; score an Account's
+/// ponytail: sums Similar answers, as a Server merges its Similar sources; score an Account's
 /// taste vector instead once the Hub makes one (#1825).
 fn recommend<'a>(user: &User, similar: &'a HashMap<String, Vec<SimilarTitle>>) -> Vec<&'a str> {
     let mut weights: HashMap<&str, f32> = HashMap::new();
@@ -140,8 +140,8 @@ mod tests {
         }
     }
 
-    fn titles<const N: usize>(titles: [&str; N]) -> HashSet<String> {
-        titles.into_iter().map(str::to_owned).collect()
+    fn titles<C: FromIterator<String>>(titles: &[&str]) -> C {
+        titles.iter().map(|title| (*title).to_owned()).collect()
     }
 
     #[test]
@@ -164,14 +164,9 @@ mod tests {
         assert_eq!(
             users,
             [User {
-                seen: titles(["tt1", "tt2", "tt3", "tt4", "tt5", "tt6", "tt7", "tt8"]),
-                liked: vec![
-                    "tt1".to_owned(),
-                    "tt3".to_owned(),
-                    "tt4".to_owned(),
-                    "tt5".to_owned()
-                ],
-                held_out: titles(["tt9"]),
+                seen: titles(&["tt1", "tt2", "tt3", "tt4", "tt5", "tt6", "tt7", "tt8"]),
+                liked: titles(&["tt1", "tt3", "tt4", "tt5"]),
+                held_out: titles(&["tt9"]),
             }]
         );
     }
@@ -196,7 +191,7 @@ mod tests {
         assert_eq!(users.len(), 1);
         assert_eq!(
             users.first().map(|user| &user.held_out),
-            Some(&titles(["tt5"]))
+            Some(&titles::<HashSet<String>>(&["tt5"]))
         );
     }
 
@@ -221,9 +216,9 @@ mod tests {
 
     fn user(seen: &[&str], liked: &[&str], held_out: &[&str]) -> User {
         User {
-            seen: seen.iter().map(|title| (*title).to_owned()).collect(),
-            liked: liked.iter().map(|title| (*title).to_owned()).collect(),
-            held_out: held_out.iter().map(|title| (*title).to_owned()).collect(),
+            seen: titles(seen),
+            liked: titles(liked),
+            held_out: titles(held_out),
         }
     }
 
@@ -235,12 +230,12 @@ mod tests {
             user(&["a", "b", "x"], &["a", "b"], &["h1", "h2"]),
             user(&["z"], &["z"], &["h1"]),
         ];
-        let similar = similar(&[
+        let answers = similar(&[
             ("a", &[("x", 0.9), ("h1", 0.5), ("c", 0.4)]),
             ("b", &[("c", 0.3), ("h2", 0.1)]),
         ]);
 
-        let scores = score(&users, &similar);
+        let scores = score(&users, &answers);
 
         assert_eq!(scores.users, 2);
         assert!((scores.recall - 0.5).abs() < 1e-9, "{scores:?}");
@@ -251,7 +246,7 @@ mod tests {
     #[test]
     fn a_held_out_title_below_the_tenth_counts_for_nothing() {
         let users = [user(&["a"], &["a"], &["h"])];
-        let similar = similar(&[(
+        let answers = similar(&[(
             "a",
             &[
                 ("c1", 0.9),
@@ -268,7 +263,7 @@ mod tests {
             ],
         )]);
 
-        let scores = score(&users, &similar);
+        let scores = score(&users, &answers);
 
         assert!(
             scores.recall.abs() < 1e-9 && scores.ndcg.abs() < 1e-9,
