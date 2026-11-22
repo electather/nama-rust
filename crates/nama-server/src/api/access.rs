@@ -77,6 +77,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC.procedure,  Access::SignedIn),
     (proto::SIGN_IN_SERVICE_POLL_SIGN_IN_CODE_SPEC.procedure,     Access::Anyone),
     (proto::SIGN_IN_SERVICE_ACCEPT_INVITE_SPEC.procedure,         Access::Anyone),
+    (proto::SIGN_IN_SERVICE_START_ACCOUNT_SIGN_IN_SPEC.procedure, Access::Anyone),
+    (proto::SIGN_IN_SERVICE_SIGN_IN_WITH_ACCOUNT_SPEC.procedure,  Access::Anyone),
     (proto::LIBRARY_SERVICE_CREATE_LIBRARY_SPEC.procedure,        MANAGE_LIBRARIES),
     (proto::LIBRARY_SERVICE_LIST_LIBRARIES_SPEC.procedure,        Access::SignedIn),
     (proto::LIBRARY_SERVICE_GET_LIBRARY_SPEC.procedure,           MANAGE_LIBRARIES),
@@ -129,6 +131,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::PLAYBACK_SERVICE_SET_SUBTITLE_OFFSET_SPEC.procedure,  Access::SignedIn),
     (proto::EVENT_SERVICE_SUBSCRIBE_SPEC.procedure,               Access::SignedIn),
     (proto::USER_SERVICE_CREATE_USER_SPEC.procedure,              MANAGE_USERS),
+    (proto::USER_SERVICE_CREATE_USER_FROM_ACCOUNT_SPEC.procedure, MANAGE_USERS),
     (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               MANAGE_USERS),
     (proto::USER_SERVICE_SET_PERMISSIONS_SPEC.procedure,          MANAGE_USERS),
     (proto::USER_SERVICE_DELETE_USER_SPEC.procedure,              MANAGE_USERS),
@@ -243,7 +246,7 @@ pub(super) fn permission_required(needed: Permission) -> ConnectError {
 /// Authentication on top of their [`Access`] (ADR 0014, and see AGENTS.md). A list of its own, not
 /// an `Access` variant: `SetPermissions` needs a Permission as well, `ChangePassword` only a
 /// session.
-const NEEDS_RECENT_AUTHENTICATION: [&str; 10] = [
+const NEEDS_RECENT_AUTHENTICATION: [&str; 11] = [
     proto::USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_SET_PERMISSIONS_SPEC.procedure,
@@ -258,6 +261,8 @@ const NEEDS_RECENT_AUTHENTICATION: [&str; 10] = [
     proto::SERVER_SERVICE_UNLINK_SERVER_SPEC.procedure,
     // Linking hands the User's Watch State and history to an Account (ADR 0008).
     proto::USER_SERVICE_START_USER_LINK_SPEC.procedure,
+    // The Account it names signs in as the User once it accepts (ADR 0092).
+    proto::USER_SERVICE_CREATE_USER_FROM_ACCOUNT_SPEC.procedure,
 ];
 
 /// Why `caller` may not request `path` yet, if it needs Recent Authentication their Device lacks.

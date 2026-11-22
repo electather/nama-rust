@@ -23,7 +23,8 @@ package nama.v1;
 // and `UserService`'s `ChangePassword`, `ResetPassword`, `SetPermissions`,
 // `SetDefaultPermissions` and `DeleteUser`.
 // Signing in with `Setup` or `SignIn` gives a Device Recent Authentication; signing in with a
-// Sign-in Code doesn't, since that Device proved nothing itself. Without it, those calls fail with
+// Sign-in Code or an Account doesn't, since that Device proved nothing itself: whoever approved,
+// on another Device or on the Hub, may not hold it. Without it, those calls fail with
 // `failed_precondition` and the `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` Refusal before
 // anything in the request is checked. `Reauthenticate` gives it back.
 service SignInService {
@@ -81,6 +82,21 @@ service SignInService {
   // if another User has the name, ignoring case, and `invalid_argument` if a name or the password
   // breaks the rules; the Invite stays valid after either.
   rpc AcceptInvite(AcceptInviteRequest) returns (AcceptInviteResponse);
+
+  // Starts signing the calling Device in with a Hub Account, on a Server Linked to the Hub (ADR
+  // 0092). The client sends the person to `url`, where they approve it on the Hub, which then sends
+  // them to `return_url`; the client then finishes with `SignInWithAccount`. Fails with
+  // `invalid_argument` and `REFUSAL_REASON_NOT_A_URL` if `return_url` isn't an `http` or `https`
+  // URL, with `failed_precondition` and `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled
+  // Plugin that links the Server, and with `unavailable` while the Server isn't Linked or the Hub
+  // can't be reached, which a Device already signed in never needs.
+  rpc StartAccountSignIn(StartAccountSignInRequest) returns (StartAccountSignInResponse);
+  // Signs the calling Device in as the User whose Account approved the sign-in `handle` stands
+  // for, the way `SignIn` does, without Recent Authentication. Fails with `not_found` and
+  // `REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND` if it wasn't approved, expired or was used, with
+  // `not_found` and `REFUSAL_REASON_USER_NOT_FOUND` if the User was deleted, and like
+  // `StartAccountSignIn` otherwise.
+  rpc SignInWithAccount(SignInWithAccountRequest) returns (SignInWithAccountResponse);
 }
 
 // How a signed-in Device is given its session.
@@ -308,4 +324,37 @@ message PollSignInCodeResponse {
   Device device = 3;
   // The session token, when signed in with `SESSION_DELIVERY_TOKEN`. Empty for a cookie.
   string token = 4;
+}
+
+message StartAccountSignInRequest {
+  // Where the Hub sends the person back to once they approve: an `http` or `https` address, such
+  // as the client's sign-in page.
+  string return_url = 1;
+}
+
+message StartAccountSignInResponse {
+  // The Hub's page where the person approves signing in.
+  string url = 1;
+  // What the client finishes with. Keep it secret: whoever holds it gets the session once the
+  // sign-in is approved.
+  string handle = 2;
+}
+
+message SignInWithAccountRequest {
+  // The handle `StartAccountSignIn` returned.
+  string handle = 1;
+  // The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+  // Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
+  string device_name = 2;
+  // How to hand out the session. Must be specified.
+  SessionDelivery delivery = 3;
+}
+
+message SignInWithAccountResponse {
+  // The User signed in as.
+  User user = 1;
+  // The Device just signed in.
+  Device device = 2;
+  // The session token, for `SESSION_DELIVERY_TOKEN` only. Empty for a cookie.
+  string token = 3;
 }

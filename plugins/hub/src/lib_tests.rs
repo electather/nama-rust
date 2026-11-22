@@ -26,7 +26,7 @@ use serde_json::json;
 use nama_hub_proto::nama::hub::v1::WatchStateChange as HubChange;
 
 use super::*;
-use crate::fake_hub::{EMAIL, FakeHub, USER_CODE, USER_LINK_CODE};
+use crate::fake_hub::{EMAIL, FakeHub, SIGN_IN_ID, USER_CODE, USER_LINK_CODE};
 
 /// A Kernel whose only functions are the Plugin's Store, kept in memory.
 fn store() -> Arc<dyn Kernel> {
@@ -608,6 +608,49 @@ async fn changes_made_while_the_hub_is_down_reach_it_in_order_once_it_is_back() 
     );
 }
 
+#[tokio::test]
+async fn an_account_approving_on_the_hub_signs_in_as_its_user() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+
+    let started = linker
+        .start_account_sign_in("https://nama.example/sign-in")
+        .await
+        .unwrap();
+
+    assert_eq!(
+        started.url,
+        format!("{}/server-sign-in/{SIGN_IN_ID}", hub.url())
+    );
+    assert_eq!(
+        hub.sign_in_returns_to().as_deref(),
+        Some("https://nama.example/sign-in")
+    );
+    assert_eq!(
+        linker
+            .finish_account_sign_in(&started.handle)
+            .await
+            .unwrap(),
+        None
+    );
+    hub.approve_sign_in(7);
+    assert_eq!(
+        linker
+            .finish_account_sign_in(&started.handle)
+            .await
+            .unwrap(),
+        Some(7)
+    );
+    assert_eq!(
+        linker
+            .finish_account_sign_in(&started.handle)
+            .await
+            .unwrap(),
+        None
+    );
+}
+
 fn addresses(url: &str, lan: &[&str]) -> ServerAddresses {
     ServerAddresses {
         url: url.to_owned(),
@@ -709,6 +752,53 @@ async fn ids_the_hub_wouldnt_take_are_left_out_and_a_change_with_none_stays_behi
     run_sync(jobs.as_ref()).await.unwrap();
 
     assert_eq!(pushed(&hub), [[("tmdb-348".to_owned(), 1000, 1_000)]]);
+}
+
+#[tokio::test]
+async fn signing_in_with_an_account_fails_while_the_hub_is_unreachable() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+
+    hub.stop();
+
+    let started = linker
+        .start_account_sign_in("https://nama.example/sign-in")
+        .await;
+    assert!(started.is_err());
+}
+
+#[tokio::test]
+async fn a_server_that_isnt_linked_cant_sign_in_with_accounts_or_invite() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+
+    let started = linker
+        .start_account_sign_in("https://nama.example/sign-in")
+        .await;
+    assert!(started.is_err());
+    linker
+        .invite_user(7, "Grace", "grace@example.com")
+        .await
+        .unwrap_err();
+    assert_eq!(hub.invite(7), None);
+}
+
+#[tokio::test]
+async fn a_user_created_from_an_account_is_invited_on_the_hub() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+
+    linker
+        .invite_user(7, "Grace", "grace@example.com")
+        .await
+        .unwrap();
+
+    assert_eq!(
+        hub.invite(7),
+        Some(("Grace".to_owned(), "grace@example.com".to_owned()))
+    );
 }
 
 #[tokio::test]

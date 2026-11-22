@@ -42,6 +42,8 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
             "server_link_codes",
             "user_links",
             "user_link_codes",
+            "user_invites",
+            "server_sign_ins",
         ],
     ),
     ("src/sync", &["watch_states"]),

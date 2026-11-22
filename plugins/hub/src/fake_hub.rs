@@ -1,7 +1,8 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
-//! one Server's device flow, Unlinking, its Users' Links, its Server Addresses, the Watch State it
-//! pushes, the titles like The Matrix, and a key set of one Ed25519 key it signs with, as the
-//! Hub's API (`proto/nama/hub/v1/link.proto`) says the Hub does, and takes shared Diagnostics.
+//! one Server's device flow, Unlinking, its Users' Links, Users created from Accounts, one sign-in
+//! with an Account at a time, its Server Addresses, the Watch State it pushes, the titles like The
+//! Matrix, and a key set of one Ed25519 key it signs with, as the Hub's API
+//! (`proto/nama/hub/v1/link.proto`) says the Hub does, and takes shared Diagnostics.
 
 use std::{
     collections::HashMap,
@@ -18,13 +19,14 @@ use axum::{
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_hub_proto::nama::hub::v1::{
-    ExternalId, GetUserLinkRequest, GetUserLinkResponse, LinkedServerService,
-    ListSimilarTitlesRequest, ListSimilarTitlesResponse, PollServerLinkRequest,
-    PollServerLinkResponse, PushWatchStatesRequest, PushWatchStatesResponse, ServerLinkService,
+    ExternalId, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest, InviteUserResponse,
+    LinkedServerService, ListSimilarTitlesRequest, ListSimilarTitlesResponse,
+    PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
+    PollServerSignInResponse, PushWatchStatesRequest, PushWatchStatesResponse, ServerLinkService,
     SetServerAddressesRequest, SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest,
-    StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse, TitleKind,
-    UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
-    WatchStateChange,
+    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
+    StartUserLinkRequest, StartUserLinkResponse, TitleKind, UnlinkServerRequest,
+    UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse, WatchStateChange,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::{Value, json};
@@ -38,6 +40,12 @@ pub(super) const USER_CODE: &str = "BDFH-JKLM";
 
 /// The one code the fake gives a User.
 pub(super) const USER_LINK_CODE: &str = "CDFG-HJKL";
+
+/// The device code of the one sign-in with an Account the fake starts.
+const SIGN_IN_DEVICE_CODE: &str = "sign-in-device-code";
+
+/// The id of that sign-in.
+pub(super) const SIGN_IN_ID: &str = "sign-in-id";
 
 /// The email of the Account the code is entered by.
 pub(super) const EMAIL: &str = "ada@example.com";
@@ -68,6 +76,11 @@ struct State {
     pushes: Vec<Vec<WatchStateChange>>,
     /// Why pushes fail, as if the Hub were down, while they do.
     push_failure: Option<&'static str>,
+    /// The name and email each User created from an Account was invited with, by id.
+    invites: HashMap<i64, (String, String)>,
+    /// The sign-in with an Account waiting: where it returns to, and the User it signs in as once
+    /// approved.
+    sign_in: Option<(String, Option<i64>)>,
     /// Each Server URL and LAN addresses the Server reported, in order.
     reported_addresses: Vec<(String, Vec<String>)>,
     /// How many of the next reports of Server Addresses fail.
@@ -186,6 +199,26 @@ impl FakeHub {
     /// Has pushes fail while `down`, as if the Hub were unreachable, and work again after.
     pub(super) fn set_down(&self, down: bool) {
         lock(&self.state).push_failure = down.then_some("the Hub is down");
+    }
+
+    /// The name and email the User `user_id` was invited with.
+    pub(super) fn invite(&self, user_id: i64) -> Option<(String, String)> {
+        lock(&self.state).invites.get(&user_id).cloned()
+    }
+
+    /// Where the waiting sign-in returns to.
+    pub(super) fn sign_in_returns_to(&self) -> Option<String> {
+        lock(&self.state)
+            .sign_in
+            .as_ref()
+            .map(|(url, _)| url.clone())
+    }
+
+    /// An Account approves the waiting sign-in as its User `user_id`.
+    pub(super) fn approve_sign_in(&self, user_id: i64) {
+        if let Some((_, user)) = &mut lock(&self.state).sign_in {
+            *user = Some(user_id);
+        }
     }
 
     /// Each Server URL and LAN addresses the Server reported, in order.
@@ -383,6 +416,59 @@ impl LinkedServerService for Linked {
         }
         state.pushes.push(request.to_owned_message().changes);
         Response::ok(PushWatchStatesResponse::default())
+    }
+
+    async fn invite_user(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, InviteUserRequest>,
+    ) -> ServiceResult<InviteUserResponse> {
+        let invite = (request.name.to_owned(), request.email.to_owned());
+        self.caller(&ctx)?.invites.insert(request.user_id, invite);
+        Response::ok(InviteUserResponse::default())
+    }
+
+    async fn start_server_sign_in(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, StartServerSignInRequest>,
+    ) -> ServiceResult<StartServerSignInResponse> {
+        self.caller(&ctx)?.sign_in = Some((request.return_url.to_owned(), None));
+        Response::ok(StartServerSignInResponse {
+            device_code: SIGN_IN_DEVICE_CODE.to_owned(),
+            id: SIGN_IN_ID.to_owned(),
+            expires_in_seconds: 600,
+            ..Default::default()
+        })
+    }
+
+    async fn poll_server_sign_in(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PollServerSignInRequest>,
+    ) -> ServiceResult<PollServerSignInResponse> {
+        let mut state = self.caller(&ctx)?;
+        let Some((_, approved)) = state
+            .sign_in
+            .as_ref()
+            .filter(|_| request.device_code == SIGN_IN_DEVICE_CODE)
+        else {
+            return Err(ConnectError::not_found("the sign-in expired"));
+        };
+        let Some(user) = *approved else {
+            return Response::ok(PollServerSignInResponse::default());
+        };
+        state.sign_in = None;
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let claims =
+            json!({ "sub": user.to_string(), "aud": "server", "iat": now, "exp": now + 300 });
+        Response::ok(PollServerSignInResponse {
+            token: sign(&self.0.key, &claims),
+            ..Default::default()
+        })
     }
 
     async fn set_server_addresses(
