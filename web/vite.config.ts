@@ -42,6 +42,9 @@ export default defineConfig({
     include: ["src/**/__tests__/**/*.test.{ts,tsx}"],
     environment: "happy-dom",
     retry: ci ? 2 : 0,
+    // A full run loads every file at once, so a test that opens the app can take over the default
+    // 1 s to reach its first call; alone it passes. `src/test-app.tsx` raises Testing Library's wait to match.
+    expect: { poll: { timeout: 5000 } },
     // JSON, not JUnit: vitest's JUnit report doesn't show which tests passed only on a retry.
     reporters: ci ? ["default", "json"] : ["default"],
     outputFile: { json: "test-results/vitest.json" },
