@@ -1,7 +1,7 @@
 //! A title source a unit test scripts, so it states only the titles, search results, Seasons,
 //! artwork, Similar titles and failures it needs, and reads back what its title source was
-//! asked. A test that wants TMDB's own
-//! behaviour enables the real TMDB Plugin on its HTTP fake instead.
+//! asked. A test that wants TMDB's own behaviour enables the real TMDB Plugin on its HTTP fake
+//! instead.
 
 use std::{
     future,

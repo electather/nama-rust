@@ -57,9 +57,10 @@ pub(crate) struct FoundPage<T> {
 /// Why a Found page couldn't be read.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum FoundPageError {
-    /// Looking the title up failed.
+    /// From the title source: its handler names the field of a title it doesn't have.
     #[error(transparent)]
     LookUp(#[from] requests::Error),
+    /// From reading the Watchlist or the Libraries, which name no field of the request.
     #[error(transparent)]
     Browse(#[from] Error),
 }
@@ -183,7 +184,7 @@ impl TitlePages {
     }
 
     /// The Similar titles of the title in a Library of `kind` known by `ids`, from what each
-    /// enabled Similar source last answered about it (ADR 0081).
+    /// enabled Similar source last answered about it (ADRs 0081 and 0084).
     async fn stored_similar(
         &self,
         kind: TitleKind,
