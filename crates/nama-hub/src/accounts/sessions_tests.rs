@@ -46,6 +46,7 @@ async fn a_session_signed_in_over_10_minutes_ago_cant_set_the_password(db: PgPoo
         .sign_in(
             "ada@example.com",
             "staple battery horse",
+            None,
             ip,
             Instant::now(),
         )
@@ -82,6 +83,7 @@ async fn a_session_ended_before_its_password_is_saved_cant_set_it(db: PgPool) {
         .sign_in(
             "ada@example.com",
             "correct horse battery",
+            None,
             ip,
             Instant::now(),
         )
