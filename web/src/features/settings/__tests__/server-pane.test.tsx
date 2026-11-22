@@ -126,13 +126,14 @@ test("a saved space that isn't one of the sizes offered stays chosen", async () 
   expect(space.textContent).toBe("512 MB");
 });
 
-test("a User who doesn't manage settings has no Server section, and its address opens Playback", async () => {
+test("a User who doesn't manage settings has no Admin sections, and the Server's address opens Playback", async () => {
   openSettings("server", fakeServer({ signedIn: newUser }));
 
   await screen.findByRole("heading", { name: "Playback" });
 
   const sections = within(screen.getByRole("navigation", { name: "Settings" }));
   expect(sections.queryByRole("link", { name: "Server" })).toBeNull();
+  expect(sections.queryByRole("link", { name: "Default Home" })).toBeNull();
   expect(sections.queryByRole("link", { name: "Plugins" })).toBeNull();
   expect(screen.queryByLabelText("Server URL")).toBeNull();
 });

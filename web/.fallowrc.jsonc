@@ -165,11 +165,12 @@
       },
       {
         "from": "settings",
-        // Its Plugins pane renders a Plugin's parts, whose code stays in admin-plugins; its Users pane renders parts of the Users and Invites features;
-        // its Backups pane renders Backups' parts, and each Backup's row says when it was written as a Job's Run does.
+        // Its Plugins, Default Home and Users panes render the admin features' parts (Users also renders Invites'); its Backups pane renders Backups' parts,
+        // and each Backup's row says when it was written as a Job's Run does.
         "allow": [
           "settings",
           "admin-plugins",
+          "admin-home",
           "admin-users",
           "invites",
           "admin-playback",
@@ -220,7 +221,6 @@
           "admin-playback",
           "admin-jobs",
           "admin-now-playing",
-          "admin-home",
           "invites",
           "requests",
           "action-bar",

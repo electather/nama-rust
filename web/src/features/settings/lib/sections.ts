@@ -12,6 +12,7 @@ const sections = [
   "server",
   "users",
   "backups",
+  "default-home",
   "server-playback",
   "plugins",
 ] as const;
@@ -54,6 +55,7 @@ export const sectionTitles: Record<Section, string> = {
   server: "Server",
   users: "Users",
   backups: "Backups",
+  "default-home": "Default Home",
   "server-playback": "Server Playback",
   plugins: "Plugins",
 };
@@ -69,6 +71,7 @@ export const loadNouns: Record<Section, string> = {
   server: "the Server settings",
   users: "the Users",
   backups: "the Backups",
+  "default-home": "the default Home layout",
   "server-playback": "the Server’s Playback settings",
   plugins: "the Plugins",
 };
@@ -84,6 +87,7 @@ const searchWords: Record<Section, string> = {
   server: "server url address images resize space storage store",
   users: "users people accounts invite invites permissions password",
   backups: "backup backups restore schedule database",
+  "default-home": "default home rows layout order everyone",
   "server-playback": "transcode transcoding hardware ffmpeg remote bitrate segments intro credits",
   plugins: "plugin telegram install",
 };
@@ -100,6 +104,7 @@ const needs: Partial<Record<Section, Permission>> = {
   server: Permission.MANAGE_SETTINGS,
   users: Permission.MANAGE_USERS,
   backups: Permission.ADMIN,
+  "default-home": Permission.MANAGE_SETTINGS,
   "server-playback": Permission.ADMIN,
   plugins: Permission.MANAGE_SETTINGS,
 };
@@ -107,7 +112,10 @@ const needs: Partial<Record<Section, Permission>> = {
 const groups: SectionGroup[] = [
   { label: "You", items: ["signin", "devices"] },
   { label: "Preferences", items: ["playback", "home", "requests", "connections"] },
-  { label: "Admin", items: ["server", "users", "backups", "server-playback", "plugins"] },
+  {
+    label: "Admin",
+    items: ["server", "users", "backups", "default-home", "server-playback", "plugins"],
+  },
 ];
 
 /** The sections `user` may open, grouped as the sidebar lists them. */
