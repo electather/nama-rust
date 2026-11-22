@@ -236,9 +236,7 @@ impl Scanner {
                 Vec::new()
             }
         };
-        if let Some(probing) = &self.inner.probing {
-            probing.clean_leftovers().await;
-        }
+        self.inner.leftovers.clean().await;
         self.inner.events.publish(events);
         self.inner.artwork.drop_unused(&self.inner.contents).await;
         (self.cancel_requests(doomed.request_titles(&deleted.versions), by)).await;
