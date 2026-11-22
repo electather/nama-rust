@@ -4,9 +4,9 @@ import { useSignIn } from "@hub/features/account/data/sessions";
 import { useSendsSignInLinks } from "@hub/features/account/data/sign-in-links";
 import { Link } from "@tanstack/react-router";
 
-/** Signing in to an Account with its email and password. */
-export function SignInPage() {
-  const signIn = useSignIn();
+/** Signing in to an Account with its email and password, then going on to the Hub path `continueTo`. */
+export function SignInPage({ continueTo }: { continueTo: string }) {
+  const signIn = useSignIn(continueTo);
   const sendsSignInLinks = useSendsSignInLinks();
   return (
     <CredentialsForm
@@ -16,7 +16,7 @@ export function SignInPage() {
       onSubmit={(credentials) => {
         signIn.mutate(credentials);
       }}
-      alternative={sendsSignInLinks ? <OrEmailASignInLink /> : undefined}
+      alternative={sendsSignInLinks ? <OrEmailASignInLink continueTo={continueTo} /> : undefined}
       footer={
         <>
           New to the Hub?{" "}

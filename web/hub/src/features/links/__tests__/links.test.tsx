@@ -76,6 +76,7 @@ function openAccount(refusing?: RefusalReason, { listFails = false } = {}) {
         return { server };
       },
       listLinkedUsers: () => ({ users }),
+      listUserInvites: () => ({}),
       approveUserLink: ({ code }) => {
         if (refusing !== undefined) {
           throw refused(Code.AlreadyExists, refusing);
@@ -148,7 +149,7 @@ describe("linking a Server", () => {
     await enterCode("BDFH-JKLM");
     await expect(
       screen.findByText(
-        "Linking needs your email proven first. Sign in with a Sign-in Link sent to it, then enter the code again.",
+        "Linking needs your email proven first. Sign in with a Sign-in Link sent to it, then try again.",
       ),
     ).resolves.toBeDefined();
 

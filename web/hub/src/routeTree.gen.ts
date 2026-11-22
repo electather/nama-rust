@@ -14,6 +14,7 @@ import { Route as CreateAccountRouteImport } from './routes/create-account'
 import { Route as SendSignInLinkRouteImport } from './routes/send-sign-in-link'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as SignInLinkRouteImport } from './routes/sign-in-link'
+import { Route as ServerSignInIdRouteImport } from './routes/server-sign-in.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,6 +41,11 @@ const SignInLinkRoute = SignInLinkRouteImport.update({
   path: '/sign-in-link',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ServerSignInIdRoute = ServerSignInIdRouteImport.update({
+  id: '/server-sign-in/$id',
+  path: '/server-sign-in/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/send-sign-in-link': typeof SendSignInLinkRoute
   '/sign-in': typeof SignInRoute
   '/sign-in-link': typeof SignInLinkRoute
+  '/server-sign-in/$id': typeof ServerSignInIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/send-sign-in-link': typeof SendSignInLinkRoute
   '/sign-in': typeof SignInRoute
   '/sign-in-link': typeof SignInLinkRoute
+  '/server-sign-in/$id': typeof ServerSignInIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,6 +70,7 @@ export interface FileRoutesById {
   '/send-sign-in-link': typeof SendSignInLinkRoute
   '/sign-in': typeof SignInRoute
   '/sign-in-link': typeof SignInLinkRoute
+  '/server-sign-in/$id': typeof ServerSignInIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -71,6 +80,7 @@ export interface FileRouteTypes {
     | '/send-sign-in-link'
     | '/sign-in'
     | '/sign-in-link'
+    | '/server-sign-in/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -78,6 +88,7 @@ export interface FileRouteTypes {
     | '/send-sign-in-link'
     | '/sign-in'
     | '/sign-in-link'
+    | '/server-sign-in/$id'
   id:
     | '__root__'
     | '/'
@@ -85,6 +96,7 @@ export interface FileRouteTypes {
     | '/send-sign-in-link'
     | '/sign-in'
     | '/sign-in-link'
+    | '/server-sign-in/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -93,6 +105,7 @@ export interface RootRouteChildren {
   SendSignInLinkRoute: typeof SendSignInLinkRoute
   SignInRoute: typeof SignInRoute
   SignInLinkRoute: typeof SignInLinkRoute
+  ServerSignInIdRoute: typeof ServerSignInIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -132,6 +145,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignInLinkRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/server-sign-in/$id': {
+      id: '/server-sign-in/$id'
+      path: '/server-sign-in/$id'
+      fullPath: '/server-sign-in/$id'
+      preLoaderRoute: typeof ServerSignInIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -141,6 +161,7 @@ const rootRouteChildren: RootRouteChildren = {
   SendSignInLinkRoute: SendSignInLinkRoute,
   SignInRoute: SignInRoute,
   SignInLinkRoute: SignInLinkRoute,
+  ServerSignInIdRoute: ServerSignInIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

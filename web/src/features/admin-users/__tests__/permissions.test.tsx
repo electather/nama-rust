@@ -83,7 +83,7 @@ test.each([
   [
     "removing the last Admin",
     refused(Code.FailedPrecondition, "refused", { reason: RefusalReason.LAST_ADMIN }),
-    "Sam is the only Admin. Make someone else an Admin first.",
+    "Sam is the only Admin who can sign in without the Hub. Make another User with a password an Admin first.",
   ],
   [
     "a change only an Admin may make",
