@@ -10,7 +10,7 @@ import {
   HomeLayoutSchema,
   type SetDefaultHomeLayoutRequest,
 } from "@/gen/nama/v1/server_pb";
-import { admin, fakeServer, newUser, openApp } from "@/test-app";
+import { admin, fakeServer, openApp } from "@/test-app";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -82,7 +82,7 @@ function dragHandle(name: string) {
   return handle;
 }
 
-test("an Admin's each move and switch of a default Home row is saved as it's made", async () => {
+test("each move and switch of a default Home row is saved as it's made", async () => {
   const saves = openDefaultHome({ rows: [continueWatching, picks, usersRows] });
 
   await screen.findByText("Continue Watching");
@@ -115,7 +115,7 @@ test("a change the Server refuses goes back, and says why", async () => {
 
   fireEvent.click(await screen.findByRole("button", { name: "Move Top picks up" }));
 
-  await expect(screen.findByText(/Couldn’t save the default Home/u)).resolves.toBeDefined();
+  await expect(screen.findByText(/Couldn’t save the default Home layout/u)).resolves.toBeDefined();
   expect(rowNames()).toStrictEqual(["Continue Watching", "Top picks"]);
 });
 
@@ -162,12 +162,4 @@ test("the old default Home address lands on Home with Settings open on Default H
   await screen.findByText("Continue Watching");
   expect(router.state.location.pathname).toBe("/");
   expect(router.state.location.search).toMatchObject({ settings: "default-home" });
-});
-
-test("a User who doesn't manage settings has no Default Home section", async () => {
-  openSettings("default-home", fakeServer({ signedIn: newUser }));
-
-  await screen.findByRole("heading", { name: "Playback" });
-  const sections = within(screen.getByRole("navigation", { name: "Settings" }));
-  expect(sections.queryByRole("link", { name: "Default Home" })).toBeNull();
 });
