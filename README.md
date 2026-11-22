@@ -8,6 +8,7 @@ A self-hosted media server and request manager, with an optional central Hub for
 |---|---|
 | [`crates/nama-server`](crates/nama-server) | The Server: owns Libraries, streams media and handles Requests |
 | [`crates/nama-hub`](crates/nama-hub) | The Hub: Accounts and Server discovery |
+| [`crates/nama-hub-eval`](crates/nama-hub-eval) | Scores the Hub's recommendations against MovieLens ratings, in development only (ADR 0095) |
 | [`crates/nama-plugin-api`](crates/nama-plugin-api) | Extension Point traits through which Plugins take part in a Server |
 | [`crates/nama-pdk`](crates/nama-pdk) | Plugin development kit for Installed Plugins |
 | [`crates/nama-proto`](crates/nama-proto) | Rust types and ConnectRPC stubs generated from the client API in `proto/nama/v1/` |
