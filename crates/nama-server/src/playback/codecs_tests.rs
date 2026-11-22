@@ -526,18 +526,28 @@ fn video_made(plan: &Plan) -> (&str, Option<i64>, Option<Hdr>, String) {
 
 #[test]
 fn a_4k_or_hdr_transcode_makes_10_bit_hevc_on_hardware_keeping_its_hdr_with_no_fallback() {
+    let dolby_vision_7 = Hdr::DolbyVision {
+        profile: 7,
+        base_layer: Some(BaseLayer::Hdr10),
+    };
     let cases = [
-        (3840, None),
-        (1920, Some(Hdr::Hdr10)),
-        (1920, Some(Hdr::Hlg)),
+        (3840, None, None),
+        (1920, Some(Hdr::Hdr10), Some(Hdr::Hdr10)),
+        (1920, Some(Hdr::Hlg), Some(Hdr::Hlg)),
+        (1920, Some(dolby_vision_7), Some(Hdr::Hdr10)),
+        (
+            1920,
+            Some(dolby_vision_8(Some(BaseLayer::Hlg))),
+            Some(Hdr::Hlg),
+        ),
     ];
-    for (width, hdr) in cases {
+    for (width, hdr, base_layer) in cases {
         let plan = build(&mut av1_on_hevc_hardware(width, hdr));
 
         let hevc = "transcode/fmp4/hevc/aac".to_owned();
         assert_eq!(
             video_made(&plan),
-            ("hevc", Some(10), hdr, hevc),
+            ("hevc", Some(10), base_layer, hevc),
             "{width} {hdr:?}"
         );
         let video = transcoded(&plan).video;

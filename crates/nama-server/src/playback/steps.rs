@@ -132,8 +132,8 @@ pub(super) fn fallback(
 ) -> Option<Fallback> {
     let video = &transcode.video;
     let accel = video.hardware.as_ref().filter(|_| !video.hevc)?.accel;
-    let tone_map = (transcode.video.tone_map).and_then(|_| facts.can_do.tone_mapper(None));
-    let stops_tone_mapping = tone_map.is_none() && transcode.video.tone_map.is_some();
+    let tone_map = (video.tone_map).and_then(|_| facts.can_do.tone_mapper(None));
+    let stops_tone_mapping = tone_map.is_none() && video.tone_map.is_some();
     let still_holds = |reason: &&Reason| {
         reason.kind != Kind::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE
             && (reason.kind != Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED || !stops_tone_mapping)
@@ -159,7 +159,7 @@ pub(super) fn fallback(
             video: VideoConversion {
                 hardware: None,
                 tone_map,
-                ..transcode.video.clone()
+                ..video.clone()
             },
             ..*transcode
         },

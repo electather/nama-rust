@@ -406,8 +406,8 @@ pub(super) const TEST_HEVC_CLIP: &[u8] = include_bytes!("test_main10.hevc");
 impl Ffmpeg {
     /// The hardware acceleration APIs that ffmpeg lists an encoder for and that pass a test
     /// encode on each GPU they may run on, as a Transcode would run it, in the order Automatic
-    /// prefers them, each with whether it passes a test tone-map too, or why ffmpeg couldn't list
-    /// its encoders. Takes a few seconds while each opens its GPU.
+    /// prefers them, each with whether it passes a test tone-map and a test HEVC encode too, or why
+    /// ffmpeg couldn't list its encoders. Takes a few seconds while each opens its GPU.
     pub(super) async fn find_hardware(&self) -> Result<Vec<Hardware>, String> {
         let encoders = self.listed("-encoders").await?;
         let lists = |encoder: &str| encoders.iter().any(|listed| listed == encoder);
