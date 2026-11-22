@@ -73,7 +73,7 @@ const SHARED: [(&str, &str); 18] = [
     ("golden-globe-dramas", "Golden Globe best dramas"),
 ];
 
-/// How long the Store keeps an award row's films before Wikidata is asked again: awards come
+/// How long the Store keeps an award row's Movies before Wikidata is asked again: awards come
 /// yearly, and Wikidata asks to be queried sparingly.
 const AWARDS_FRESH_FOR: Duration = Duration::from_hours(30 * 24);
 
@@ -252,8 +252,8 @@ impl HomeRowSource for Discover {
     /// A row for each shared row picked, in [`SHARED`]'s order.
     ///
     /// # Errors
-    /// If the API key isn't set, or TMDB can't answer for any row: a refresh shows every row or
-    /// none, so the Kernel keeps the rows it had.
+    /// If the API key isn't set, or TMDB or Wikidata can't answer for any row: a refresh shows
+    /// every row or none, so the Kernel keeps the rows it had.
     fn shared_rows() -> Result<HomeRows, Error> {
         let api = Api::from_settings()?;
         let picked = nama_pdk::setting_picked(SHARED_ROWS)?;
@@ -263,7 +263,7 @@ impl HomeRowSource for Discover {
             let titles = match key {
                 TRENDING => api.titles(&["trending", "all", "week"])?,
                 _ => match award_query(key) {
-                    Some(query) => award_films(key, &query)?,
+                    Some(query) => award_movies(key, &query)?,
                     None => continue,
                 },
             };
@@ -560,81 +560,80 @@ fn tmdb_title(kind: TitleKind, id: u64) -> HomeRowTitle {
     .row_title()
 }
 
-/// The SPARQL query for the films of the award row `key`, as TMDB ids newest first, or `None`
+/// The SPARQL query for the Movies of the award row `key`, as TMDB ids newest first, or `None`
 /// when `key` isn't an award row.
 fn award_query(key: &str) -> Option<String> {
     Some(match key {
         "best-picture" => winners_of(BEST_PICTURE),
         "oscar-nominees" => format!(
             "SELECT ?tmdb (MAX(?date) AS ?newest) WHERE {{ \
-             ?film p:P1411 ?nomination. ?nomination ps:P1411 wd:{BEST_PICTURE}; pq:P585 ?date. \
-             FILTER(YEAR(?date) >= YEAR(NOW()) - {NOMINEE_YEARS}) \
-             FILTER NOT EXISTS {{ ?film wdt:P166 wd:{BEST_PICTURE} }} \
-             ?film wdt:P4947 ?tmdb. \
+             ?movie p:P1411 ?nomination. ?nomination ps:P1411 wd:{BEST_PICTURE}; pq:P585 ?date. \
+             FILTER(YEAR(?date) > YEAR(NOW()) - {NOMINEE_YEARS}) \
+             FILTER NOT EXISTS {{ ?movie wdt:P166 wd:{BEST_PICTURE} }} \
+             ?movie wdt:P4947 ?tmdb. \
              }} GROUP BY ?tmdb ORDER BY DESC(?newest)"
         ),
-        "palme-dor" => winners_of("Q179808"),
-        "golden-globe-dramas" => winners_of("Q1011509"),
+        "palme-dor" => winners_of(PALME_DOR),
+        "golden-globe-dramas" => winners_of(GOLDEN_GLOBE_DRAMA),
         _ => return None,
     })
 }
 
-/// Wikidata's Academy Award for Best Picture.
+/// Wikidata's items for the awards Discover has rows of.
 const BEST_PICTURE: &str = "Q102427";
+const PALME_DOR: &str = "Q179808";
+const GOLDEN_GLOBE_DRAMA: &str = "Q1011509";
 
 /// How many years of Best Picture nominees Oscar nominees holds.
 const NOMINEE_YEARS: u32 = 10;
 
-/// The SPARQL query for the films that won the Wikidata item `award`, as TMDB ids newest first.
-/// Wikidata leaves some wins undated, so those go by the film's release.
+/// The SPARQL query for the Movies that won the Wikidata item `award`, as TMDB ids newest first.
+/// Wikidata leaves some wins undated, so those go by the Movie's release.
 fn winners_of(award: &str) -> String {
     format!(
         "SELECT ?tmdb (MAX(?date) AS ?newest) WHERE {{ \
-         ?film p:P166 ?won. ?won ps:P166 wd:{award}. ?film wdt:P4947 ?tmdb. \
-         OPTIONAL {{ ?won pq:P585 ?awarded }} OPTIONAL {{ ?film wdt:P577 ?released }} \
+         ?movie p:P166 ?won. ?won ps:P166 wd:{award}. ?movie wdt:P4947 ?tmdb. \
+         OPTIONAL {{ ?won pq:P585 ?awarded }} OPTIONAL {{ ?movie wdt:P577 ?released }} \
          BIND(COALESCE(?awarded, ?released) AS ?date) \
          }} GROUP BY ?tmdb ORDER BY DESC(?newest)"
     )
 }
 
-/// The films of the award row `key`, which Wikidata answers `query` with, in its order. The Store
+/// The Movies of the award row `key`, which Wikidata answers `query` with, in its order. The Store
 /// keeps them for [`AWARDS_FRESH_FOR`]; without it Discover asks each refresh (ADR 0071).
 ///
 /// # Errors
-/// If they aren't kept fresh and Wikidata can't answer.
-fn award_films(key: &str, query: &str) -> Result<Vec<HomeRowTitle>, Error> {
+/// If they aren't kept fresh and Wikidata can't answer, or the Server's clock is before 1970.
+fn award_movies(key: &str, query: &str) -> Result<Vec<HomeRowTitle>, Error> {
     let store_key = format!("award:{key}");
-    let now = nama_pdk::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    let films = if let Some(fresh) = fresh_films(&store_key, now) {
+    let now = nama_pdk::now().duration_since(UNIX_EPOCH)?.as_secs();
+    let movies = if let Some(fresh) = fresh_movies(&store_key, now) {
         fresh
     } else {
-        let asked = KeptFilms {
+        let asked = KeptMovies {
             asked_at: now,
-            films: ask_wikidata(query)?,
+            movies: ask_wikidata(query)?,
         };
         keep(&store_key, &asked);
-        asked.films
+        asked.movies
     };
-    Ok((films.into_iter())
+    Ok((movies.into_iter())
         .map(|id| tmdb_title(TitleKind::TITLE_KIND_MOVIE, id))
         .collect())
 }
 
-/// The films the Store keeps under `store_key`, or `None` when it keeps none Wikidata answered
+/// The Movies the Store keeps under `store_key`, or `None` when it keeps none Wikidata answered
 /// within [`AWARDS_FRESH_FOR`] of `now`, or isn't granted.
-fn fresh_films(store_key: &str, now: u64) -> Option<Vec<u64>> {
-    let kept: KeptFilms = json::from_slice(&kernel::store_get(store_key, None).ok()??).ok()?;
-    (now.saturating_sub(kept.asked_at) < AWARDS_FRESH_FOR.as_secs()).then_some(kept.films)
+fn fresh_movies(store_key: &str, now: u64) -> Option<Vec<u64>> {
+    let kept: KeptMovies = json::from_slice(&kernel::store_get(store_key, None).ok()??).ok()?;
+    (now.saturating_sub(kept.asked_at) < AWARDS_FRESH_FOR.as_secs()).then_some(kept.movies)
 }
 
-/// Keeps `films` in the Store under `store_key`. Unkept, the next refresh asks Wikidata again,
+/// Keeps `asked` in the Store under `store_key`. Unkept, the next refresh asks Wikidata again,
 /// which is all it costs (ADR 0071: the Plugin carries on).
-fn keep(store_key: &str, films: &KeptFilms) {
-    if let Ok(films) = json::to_vec(films) {
-        let _not_kept: Result<(), Error> = kernel::store_put(store_key, None, &films);
+fn keep(store_key: &str, asked: &KeptMovies) {
+    if let Ok(asked) = json::to_vec(asked) {
+        let _not_kept: Result<(), Error> = kernel::store_put(store_key, None, &asked);
     }
 }
 
@@ -655,16 +654,16 @@ fn ask_wikidata(query: &str) -> Result<Vec<u64>, Error> {
         ))
     })?;
     Ok((answer.results.bindings.into_iter())
-        .filter_map(|film| film.tmdb?.value.parse().ok())
+        .filter_map(|movie| movie.tmdb?.value.parse().ok())
         .collect())
 }
 
-/// An award row's films as the Store keeps them, by TMDB id, with when Wikidata answered them in
+/// An award row's Movies as the Store keeps them, by TMDB id, with when Wikidata answered them in
 /// seconds since the Unix epoch.
 #[derive(Deserialize, Serialize)]
-struct KeptFilms {
+struct KeptMovies {
     asked_at: u64,
-    films: Vec<u64>,
+    movies: Vec<u64>,
 }
 
 /// A SPARQL query's answer, in the JSON format W3C sets.
@@ -675,13 +674,13 @@ struct Sparql {
 
 #[derive(Deserialize)]
 struct Bindings {
-    bindings: Vec<Film>,
+    bindings: Vec<AwardMovie>,
 }
 
-/// A film in an award query's answer.
+/// A Movie in an award query's answer.
 #[derive(Deserialize)]
-struct Film {
-    /// `None`, or not a number, for a film Wikidata has no TMDB id for.
+struct AwardMovie {
+    /// `None`, or not a number, for a Movie Wikidata has no TMDB id for.
     tmdb: Option<Literal>,
 }
 

@@ -1,3 +1,5 @@
+use std::time::{Duration, UNIX_EPOCH};
+
 use nama_pdk::{
     HomeRowSource, HomeRows, Library, Permission, Response, SettingKind, Title, TitleId, TitleKind,
     TitleRef, TitleRefKind, UserRowsAsked, WatchState, WatchlistTitle,
@@ -10,8 +12,6 @@ use nama_pdk::{
     services, setting_value,
     testing::{Kernel, with},
 };
-use std::time::{Duration, UNIX_EPOCH};
-
 use url::Url;
 
 use super::{
@@ -52,14 +52,14 @@ fn tmdb(request: &HttpRequest) -> Response {
     }
 }
 
-/// Wikidata's answer to a SPARQL query of `request`'s URL: each award's films as TMDB ids, newest
+/// Wikidata's answer to a SPARQL query of `request`'s URL: each award's Movies as TMDB ids, newest
 /// first, a Best Picture winner Wikidata has no TMDB id for among them.
 fn wikidata(request: &HttpRequest) -> Response {
     let url = Url::parse(&request.url).expect("the Plugin sends a URL");
     let query = (url.query_pairs())
         .find_map(|(name, query)| (name == "query").then(|| query.into_owned()))
         .unwrap_or_default();
-    let films: &[&str] = if query.contains("P1411") {
+    let movies: &[&str] = if query.contains("P1411") {
         &["1064213", "872585"]
     } else if query.contains("Q102427") {
         &["1054867", "", "776503"]
@@ -70,7 +70,7 @@ fn wikidata(request: &HttpRequest) -> Response {
     } else {
         return answer(400, &json!({}));
     };
-    let bindings: Vec<_> = (films.iter())
+    let bindings: Vec<_> = (movies.iter())
         .map(|&tmdb| match tmdb {
             "" => json!({ "newest": { "type": "literal", "value": "2023-01-01T00:00:00Z" } }),
             tmdb => json!({ "tmdb": { "type": "literal", "value": tmdb } }),
@@ -160,13 +160,13 @@ fn trending_this_week_unpicked_is_no_row_and_asks_tmdb_nothing() {
     assert_eq!(kernel.sent(), []);
 }
 
-/// An award film with the TMDB id `id`, as a row summary lists it.
-fn award_film(id: &str) -> (Option<TitleKind>, &str) {
+/// An award Movie with the TMDB id `id`, as a row summary lists it.
+fn award_movie(id: &str) -> (Option<TitleKind>, &str) {
     (Some(TitleKind::TITLE_KIND_MOVIE), id)
 }
 
 #[test]
-fn award_rows_are_only_those_picked_each_of_wikidatas_films_newest_first() {
+fn award_rows_are_only_those_picked_each_of_wikidatas_movies_newest_first() {
     let mut kernel = kernel(&["palme-dor", "best-picture"]);
 
     let rows = shared_rows(&mut kernel).unwrap();
@@ -179,13 +179,13 @@ fn award_rows_are_only_those_picked_each_of_wikidatas_films_newest_first() {
                 "best-picture",
                 "Best Picture winners",
                 day,
-                vec![award_film("1054867"), award_film("776503")]
+                vec![award_movie("1054867"), award_movie("776503")]
             ),
             (
                 "palme-dor",
                 "Palme d'Or winners",
                 day,
-                vec![award_film("1401459"), award_film("1456349")]
+                vec![award_movie("1401459"), award_movie("1456349")]
             ),
         ]
     );
@@ -193,15 +193,15 @@ fn award_rows_are_only_those_picked_each_of_wikidatas_films_newest_first() {
 }
 
 #[test]
-fn award_films_wikidata_has_no_tmdb_id_for_are_left_out() {
+fn award_movies_wikidata_has_no_tmdb_id_for_are_left_out() {
     let rows = shared_rows(&mut kernel(&["best-picture"])).unwrap();
 
-    let films: Vec<_> = rows.rows[0]
+    let movies: Vec<_> = rows.rows[0]
         .titles
         .iter()
         .map(|title| &title.id.value)
         .collect();
-    assert_eq!(films, ["1054867", "776503"]);
+    assert_eq!(movies, ["1054867", "776503"]);
 }
 
 #[test]
@@ -215,7 +215,7 @@ fn wikidata_is_asked_with_a_user_agent_naming_nama() {
 }
 
 #[test]
-fn a_refresh_while_award_films_are_fresh_reads_the_store_and_asks_wikidata_nothing() {
+fn a_refresh_while_award_movies_are_fresh_reads_the_store_and_asks_wikidata_nothing() {
     let mut kernel = kernel(&["oscar-nominees"]);
     let first = shared_rows(&mut kernel).unwrap();
     let asked = kernel.sent().len();
@@ -231,7 +231,7 @@ fn a_refresh_a_month_on_asks_wikidata_again_and_keeps_its_new_answer() {
     let mut kernel = kernel(&["palme-dor"]);
     let month_ago = nama_pdk::now() - Duration::from_hours(31 * 24);
     let asked_at = month_ago.duration_since(UNIX_EPOCH).unwrap().as_secs();
-    let kept = json!({ "asked_at": asked_at, "films": [550] });
+    let kept = json!({ "asked_at": asked_at, "movies": [550] });
     with(&mut kernel, || {
         kernel::store_put("award:palme-dor", None, &json::to_vec(&kept).unwrap())
     })
@@ -240,9 +240,9 @@ fn a_refresh_a_month_on_asks_wikidata_again_and_keeps_its_new_answer() {
     let refreshed = shared_rows(&mut kernel).unwrap();
     let again = shared_rows(&mut kernel).unwrap();
 
-    let films = vec![award_film("1401459"), award_film("1456349")];
-    assert_eq!(summary(&refreshed)[0].3, films);
-    assert_eq!(summary(&again)[0].3, films);
+    let movies = vec![award_movie("1401459"), award_movie("1456349")];
+    assert_eq!(summary(&refreshed)[0].3, movies);
+    assert_eq!(summary(&again)[0].3, movies);
     assert_eq!(kernel.sent().len(), 1);
 }
 
