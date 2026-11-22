@@ -588,13 +588,13 @@ const GOLDEN_GLOBE_DRAMA: &str = "Q1011509";
 const NOMINEE_YEARS: u32 = 10;
 
 /// The SPARQL query for the Movies that won the Wikidata item `award`, as TMDB ids newest first.
-/// Wikidata leaves some wins undated, so those go by the Movie's release.
+/// Wikidata leaves some wins undated, so those go by the Movie's first release: it lists a release
+/// per country and re-release, so a later one would sort a 1973 winner as 1975.
 fn winners_of(award: &str) -> String {
     format!(
-        "SELECT ?tmdb (MAX(?date) AS ?newest) WHERE {{ \
+        "SELECT ?tmdb (COALESCE(MAX(?awarded), MIN(?released)) AS ?newest) WHERE {{ \
          ?movie p:P166 ?won. ?won ps:P166 wd:{award}. ?movie wdt:P4947 ?tmdb. \
          OPTIONAL {{ ?won pq:P585 ?awarded }} OPTIONAL {{ ?movie wdt:P577 ?released }} \
-         BIND(COALESCE(?awarded, ?released) AS ?date) \
          }} GROUP BY ?tmdb ORDER BY DESC(?newest)"
     )
 }

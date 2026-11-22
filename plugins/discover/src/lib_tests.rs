@@ -166,7 +166,7 @@ fn award_movie(id: &str) -> (Option<TitleKind>, &str) {
 }
 
 #[test]
-fn award_rows_are_only_those_picked_each_of_wikidatas_movies_newest_first() {
+fn award_rows_are_only_those_picked_each_of_wikidatas_movies_in_its_order() {
     let mut kernel = kernel(&["palme-dor", "best-picture"]);
 
     let rows = shared_rows(&mut kernel).unwrap();
