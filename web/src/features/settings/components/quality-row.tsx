@@ -24,7 +24,7 @@ export function QualityRow({
       ? "If someone else already Requested the Show, new Episodes come in the Quality they picked."
       : undefined);
   return (
-    <SettingRow label={qualityLabel(fulfiller)} hint={hint}>
+    <SettingRow label={qualityLabel(fulfiller)} hint={hint} size="field">
       {(control) => (
         <SelectBox
           control={control}

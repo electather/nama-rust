@@ -22,9 +22,9 @@ export function PickChips({
   held: string[];
 }) {
   return (
-    <SettingRow wide label={label} hint={hint} error={error}>
+    <SettingRow wide label={label} hint={hint} error={error} size="field">
       {(control) => (
-        <span className="flex w-full md:w-72">
+        <span className="flex w-full">
           <ChipsField
             control={control}
             invalid={error !== undefined}

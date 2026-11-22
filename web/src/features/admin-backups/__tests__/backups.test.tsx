@@ -1,6 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { Code } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
 import { type JobRun, JobRunOutcome, JobRunSchema, JobService } from "@/gen/nama/v1/job_pb";
@@ -121,7 +121,7 @@ describe("backup settings", () => {
     expect(updates[0]?.settings?.keep).toBeUndefined();
   });
 
-  test("backups kept that isn't a whole number of 1 or more is said under its field, unsaved", async () => {
+  test("+ on an empty backups kept steps from its default of 7, saving 8", async () => {
     const updates: UpdateBackupSettingsRequest[] = [];
     openBackups({
       updateBackupSettings: (request) => {
@@ -130,12 +130,23 @@ describe("backup settings", () => {
       },
     });
 
-    const kept = await screen.findByLabelText("Backups kept");
-    fill("Backups kept", "1.5");
+    const kept = await screen.findByLabelText<HTMLInputElement>("Backups kept");
+    fireEvent.click(screen.getByRole("button", { name: "Increase" }));
+
+    await expect.poll(() => updates.at(-1)?.settings?.keep).toBe(8);
+    expect(kept.value).toBe("8");
+  });
+
+  test("backups kept is held to a whole number of 1 or more by its field", async () => {
+    openBackups({ updateBackupSettings: () => ({}) });
+
+    const kept = await screen.findByLabelText<HTMLInputElement>("Backups kept");
+    fill("Backups kept", "0");
     fireEvent.blur(kept);
 
-    await expectUnderField("Backups kept", "Enter a whole number of 1 or more.");
-    expect(updates).toStrictEqual([]);
+    await waitFor(() => {
+      expect(kept.value).toBe("1");
+    });
   });
 
   test("a Backup folder the Server can't write to is said under its field", async () => {

@@ -1,4 +1,4 @@
-import { Input } from "nama-ui/components/input";
+import { NumberInput } from "nama-ui/components/number-field";
 import { useState } from "react";
 
 /** A year field that changes the listing once it holds a four-digit year, or is cleared. */
@@ -15,15 +15,12 @@ export function YearInput({
 }) {
   const [typed, setTyped] = useState(year === undefined ? "" : String(year));
   return (
-    <div className="w-24">
-      <Input
-        type="number"
-        inputMode="numeric"
+    <div className="w-36">
+      <NumberInput
         aria-label={label}
         placeholder={placeholder}
         value={typed}
-        onChange={(event) => {
-          const text = event.target.value;
+        onValueChange={(text) => {
           setTyped(text);
           if (text === "") {
             change();

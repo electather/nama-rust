@@ -16,7 +16,11 @@ export function SubtitleRows({
 }) {
   return (
     <>
-      <SettingRow label={playbackLabels.subtitles} hint="Pick Off to start with no subtitles.">
+      <SettingRow
+        label={playbackLabels.subtitles}
+        hint="Pick Off to start with no subtitles."
+        size="field"
+      >
         {(control) => (
           <LanguageSelect
             control={control}

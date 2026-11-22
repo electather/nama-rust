@@ -22,7 +22,8 @@ export function savedBackupValues(saved: BackupSettings): BackupValues {
 
 /** What's wrong with how many Backups to keep, as `typed`, before the Server is asked. Empty is fine. */
 export function keepProblem(typed: string) {
-  // The field is a number input, but nothing stops a negative or a fraction, which a uint32 can't hold.
+  // A guard behind the field, which keeps to whole numbers of 1 or more: a uint32 can't hold a
+  // negative or a fraction.
   const keep = typed.trim();
   return keep === "" || /^[1-9]\d*$/u.test(keep) ? undefined : "Enter a whole number of 1 or more.";
 }
