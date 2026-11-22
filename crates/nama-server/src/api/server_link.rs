@@ -4,7 +4,7 @@
 //! `CreateUserFromAccount`, and `SignInService`'s sign-in with an Account (ADR 0092). Through it
 //! too, a User's Watch State on their other Servers comes back (ADR 0008).
 
-use std::future::Future;
+use std::{future::Future, time::Duration};
 
 use connectrpc::{ConnectError, Response, ServiceResult};
 use nama_plugin_api::{
@@ -27,6 +27,9 @@ use crate::{
     plugins::ExtensionPoints,
     users::{User, Users},
 };
+
+/// How long a pull of a User's Watch State may take.
+const PULL_TIMEOUT: Duration = Duration::from_mins(1);
 
 /// What `unavailable` says when the Plugin that links the Server fails.
 const LINKING_FAILED: &str = "the Plugin that links the Server failed; its page says why";
@@ -69,7 +72,8 @@ pub(super) async fn unlink(points: &ExtensionPoints) -> ServiceResult<UnlinkServ
 }
 
 /// Where Linking `user` stands, unset while they can't Link: without an enabled Plugin that links
-/// the Server, or before the Server is Linked.
+/// the Server, or before the Server is Linked. Once they are Linked, pulls their Watch State too,
+/// as it can't tell the look that finds a Link new from a later one.
 pub(super) async fn get_user(
     points: &ExtensionPoints,
     browse: &Browse,
@@ -85,7 +89,8 @@ pub(super) async fn get_user(
     })
 }
 
-/// Starts Linking `user`, whom the service lists by their name.
+/// Starts Linking `user`, whom the service lists by their name, or pulls their Watch State if
+/// they turn out to be Linked already.
 pub(super) async fn start_user(
     points: &ExtensionPoints,
     browse: &Browse,
@@ -295,7 +300,10 @@ pub(crate) fn pull_watch_states_after_scans(
 async fn pull_watch_states(points: &ExtensionPoints, browse: &Browse, user_id: i64) {
     let Some(answer) = points
         .ask_first::<dyn ServerLinker, _, _, _, _>(async |linker| {
-            linker.watch_states(user_id).await
+            // Bounded, so a Plugin that never answers can't hold up every later scan's pulls.
+            tokio::time::timeout(PULL_TIMEOUT, linker.watch_states(user_id))
+                .await
+                .unwrap_or_else(|_elapsed| Err("it didn't answer in time".into()))
         })
         .await
     else {

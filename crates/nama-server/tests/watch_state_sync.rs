@@ -221,8 +221,9 @@ async fn progress_on_a_title_the_server_lacks_shows_once_a_scan_adds_it() {
         hub.on(TestServer::builder()),
     )
     .await;
-    watch_alien(&first, &hub).await;
+    // Signed in before anything is watched, so only the scan's pull can bring the progress.
     let ada = second.server.user_with_default_permissions("Ada").await;
+    watch_alien(&first, &hub).await;
     assert_eq!(alien_in_continue_watching(&ada.client_config()).await, None);
 
     second.write(ALIEN_1080P, b"video");

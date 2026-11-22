@@ -13,4 +13,4 @@ The Connect handlers: one part per service in this folder, and `../api.rs` with 
 ### Neighbours
 
 - Uses: every area and single file below the top row: `browse`, `home_rows`, `scanner`, `plugin_settings`, `requests`, `playback`, `matching`, `watchlist`, `library`, `events`, `connections`, `users`, `plugins`, `backup` (`Backups`), `images`, `server_settings`, `ffmpeg`, `db`, `config` and `diagnostics` (the span each RPC runs in, forwarding the web app's spans, reading a Plugin's kept Plugin Log lines, and what the Server shares, as its settings hold it).
-- Used by: startup in `lib.rs` (`router`).
+- Used by: startup in `lib.rs` (`router`, and `pull_watch_states_after_scans`, which lives beside the handlers that pull at sign-in and Link).

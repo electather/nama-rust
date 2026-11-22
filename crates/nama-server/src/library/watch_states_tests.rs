@@ -494,3 +494,28 @@ async fn a_newer_pulled_change_marking_it_unplayed_forgets_it_under_every_id() {
 
     assert_eq!(movie_state(&watch_states, user, alien_id()).await, None);
 }
+
+#[tokio::test]
+async fn of_a_titles_pulled_changes_under_several_ids_only_the_newest_is_taken_in_any_order() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user) = watch_states(&data).await;
+    let played_earlier = pulled(0, true, 120);
+    let unplayed_later = WatchStateChange {
+        ids: vec![alien_id().to_string()],
+        ..pulled(0, false, 60)
+    };
+
+    for pulled in [
+        vec![played_earlier.clone(), unplayed_later.clone()],
+        vec![unplayed_later, played_earlier],
+    ] {
+        let taken = pulled
+            .into_iter()
+            .map(|change| (alien_by_both_ids(), change));
+        (watch_states.take_pulled(user, taken.collect()))
+            .await
+            .unwrap();
+
+        assert_eq!(movie_state(&watch_states, user, alien_id()).await, None);
+    }
+}

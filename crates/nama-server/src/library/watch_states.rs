@@ -6,7 +6,7 @@
 //! rescans, renames and new Versions. Which Movie or Episodes a Version or a marked title stands
 //! for is for [`crate::browse::Browse`] to work out.
 
-use std::{iter, sync::Arc};
+use std::{cmp::Reverse, collections::HashSet, iter, sync::Arc};
 
 use nama_plugin_api::{
     metadata::{ExternalId, ExternalIds},
@@ -261,16 +261,20 @@ impl WatchStates {
             .await
     }
 
-    /// Takes each of `pulled`, another Server's change to the User `user`'s Watch State of a Movie
-    /// or Episode here, made after any this Server has of it under any of its ids, in one write:
-    /// as of when it was made, it forgets one marked unplayed and stores any other, under the
-    /// preferred id. One once played here stays played. Returns nothing to tell Observers: the
-    /// change is the service's own news.
+    /// Takes the newest of `pulled`, other Servers' changes to the User `user`'s Watch State, of
+    /// each Movie or Episode here, made after any this Server has of it under any of its ids, in
+    /// one write: as of when it was made, it forgets one marked unplayed and stores any other,
+    /// under the preferred id. One once played here stays played. Returns nothing to tell
+    /// Observers: the change is the service's own news.
     pub(crate) async fn take_pulled(
         &self,
         user: i64,
-        pulled: Vec<(Watched, WatchStateChange)>,
+        mut pulled: Vec<(Watched, WatchStateChange)>,
     ) -> Result<(), sqlx::Error> {
+        // The service may hand a title's ids apart; only the newest of them is the title's.
+        pulled.sort_by_key(|(_, change)| Reverse(change.changed_at_ms));
+        let mut seen = HashSet::new();
+        pulled.retain(|(watched, _)| seen.insert(watched.title.clone()));
         self.db
             .write(move |tx| Box::pin(take_each(tx, user, pulled)))
             .await

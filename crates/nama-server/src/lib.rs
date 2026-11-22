@@ -177,11 +177,7 @@ pub fn serve(
     let server_url = settings.server_url();
     // `listen` differs from the bound address only when it asks for port 0.
     let listening = listener.local_addr().unwrap_or(config.listen);
-    let pulls_watch_states = (
-        plugins.extension_points(),
-        browse::Browse::new(Arc::clone(&db)),
-        users.clone(),
-    );
+    let (pull_browse, pull_users) = (browse::Browse::new(Arc::clone(&db)), users.clone());
     let load_settings = load_settings(
         settings.clone(),
         images.clone(),
@@ -220,9 +216,12 @@ pub fn serve(
         load_settings.await;
         fill_sort_titles(&contents).await;
         // Before the scans start, so it sees their Matching finish.
-        let (linker, browse, every_user) = pulls_watch_states;
-        let pulling_watch_states =
-            api::pull_watch_states_after_scans(&events, linker, browse, every_user);
+        let pulling_watch_states = api::pull_watch_states_after_scans(
+            &events,
+            plugins.extension_points(),
+            pull_browse,
+            pull_users,
+        );
         scanner.start_all().await;
         preview_frames.start();
         text_passes.start();
