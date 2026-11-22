@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { PluginAbout } from "@/features/admin-plugins/components/plugin-about";
@@ -17,6 +17,13 @@ async function openTmdbWith(about: Partial<typeof noAbout>) {
   return page;
 }
 
+/** Waits for the Plugin's details, as the view shows before them, saying "Loading…". */
+async function waitForDetails(page: Awaited<ReturnType<typeof plugin>>) {
+  await waitFor(() => {
+    expect(page.queryByText("Loading…")).toBeNull();
+  });
+}
+
 /** Renders the About section of a Plugin with only `setupMarkdown`. */
 function renderSetup(setupMarkdown: string) {
   return render(<PluginAbout plugin={{ ...noAbout, setupMarkdown }} />);
@@ -28,7 +35,7 @@ test("a Plugin's setup steps and licence show in its About section", async () =>
     license: "MIT",
   });
 
-  const about = page.getByRole("region", { name: "About" });
+  const about = await page.findByRole("region", { name: "About" });
   expect(about.textContent).toContain("Get an API key:");
   expect(
     within(about)
@@ -42,12 +49,14 @@ test("a Plugin's setup steps and licence show in its About section", async () =>
 
 test("a Plugin without setup steps or a licence shows no About section", async () => {
   const page = await openTmdbWith({});
+  await waitForDetails(page);
 
   expect(page.queryByRole("region", { name: "About" })).toBeNull();
 });
 
 test("setup steps of only blank lines show no About section", async () => {
   const page = await openTmdbWith({ setupMarkdown: " \r\n\n  " });
+  await waitForDetails(page);
 
   expect(page.queryByRole("region", { name: "About" })).toBeNull();
 });
@@ -55,7 +64,7 @@ test("setup steps of only blank lines show no About section", async () => {
 test("a Plugin with only a licence shows just the licence", async () => {
   const page = await openTmdbWith({ license: "Apache-2.0" });
 
-  expect(page.getByText("Apache-2.0 licence")).toBeDefined();
+  await expect(page.findByText("Apache-2.0 licence")).resolves.toBeDefined();
 });
 
 test("raw HTML in setup steps reaches the page as text, never as an element", () => {
