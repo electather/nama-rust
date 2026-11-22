@@ -2282,6 +2282,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nama-hub-eval"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "futures-util",
+ "nama-hub",
+ "sqlx",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "nama-hub-proto"
 version = "0.1.0"
 dependencies = [

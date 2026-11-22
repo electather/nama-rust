@@ -1,0 +1,23 @@
+[package]
+name = "nama-hub-eval"
+version = "0.1.0"
+description = "Scores the Hub's recommendations against MovieLens ratings, in development only"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+publish = false
+
+# MovieLens is licensed for research only, so nothing here reaches a release (ADR 0095).
+[package.metadata.dist]
+dist = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = "1"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+nama-hub = { path = "../nama-hub" }
+sqlx = { version = "0.9", default-features = false, features = ["postgres"] }
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
