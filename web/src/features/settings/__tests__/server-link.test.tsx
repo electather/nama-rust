@@ -19,6 +19,8 @@ interface Shown {
   code?: string;
   url?: string;
   account?: string;
+  publicAddress?: string;
+  reachable?: boolean;
 }
 
 const waiting = { code: "BDFH-JKLM", url: "https://hub.example" };
@@ -73,6 +75,28 @@ test("a Linked Server names its Account, and Unlinking it says it isn't Linked",
   fireEvent.click(screen.getByRole("button", { name: "Unlink" }));
 
   await expect(screen.findByText("Not Linked")).resolves.toBeDefined();
+});
+
+test("a Linked Server says whether the Hub reached it from outside the LAN", async () => {
+  let link: Shown = {
+    account: "ada@example.com",
+    publicAddress: "http://203.0.113.7:7980",
+    reachable: true,
+  };
+  openServer({ getServerLink: () => ({ link }) });
+
+  await expect(
+    screen.findByText("Reachable from outside the LAN at http://203.0.113.7:7980."),
+  ).resolves.toBeDefined();
+  cleanup();
+  link = { ...link, reachable: false };
+  openServer({ getServerLink: () => ({ link }) });
+
+  await expect(
+    screen.findByText(
+      "The Hub couldn’t reach the Server at http://203.0.113.7:7980 from outside the LAN. Check that your router forwards that port to the Server.",
+    ),
+  ).resolves.toBeDefined();
 });
 
 test("a Hub the Server can't reach is said, and the Server stays as it was", async () => {

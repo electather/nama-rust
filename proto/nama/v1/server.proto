@@ -137,6 +137,13 @@ message ServerLink {
   string url = 2;
   // The Account the Server is Linked to, as its email, once it is.
   string account = 3;
+  // Where the Hub last tried to reach the Server from outside the LAN, such as
+  // `http://203.0.113.7:7980`: its public IP address, with the port it opened on its router with
+  // UPnP or NAT-PMP, or the one its `forwarded_port` config names (ADR 0057). Empty until the Hub
+  // tried, and while the Server has no such port.
+  string public_address = 4;
+  // Whether the Hub reached the Server at `public_address`, so clients outside the LAN try it.
+  bool reachable = 5;
 }
 
 message StartServerLinkRequest {}

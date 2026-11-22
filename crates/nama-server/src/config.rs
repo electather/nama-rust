@@ -5,6 +5,7 @@ use std::{
     collections::BTreeMap,
     fmt,
     net::SocketAddr,
+    num::NonZeroU16,
     path::{Path, PathBuf},
 };
 
@@ -63,6 +64,10 @@ pub struct Config {
     /// Whether the OS reports changes in Library folders so they're scanned soon after. On by
     /// default; off, folders are scanned every six hours and when asked.
     pub watch_folders: bool,
+    /// The port on the router's public IP address that the Admin forwards to the Server, for
+    /// clients outside the LAN of a Server Linked to the Hub. Unset, the default, has the Server
+    /// open one itself with UPnP or NAT-PMP while the Plugin that links it is enabled.
+    pub forwarded_port: Option<NonZeroU16>,
     /// Where the Server exports Diagnostics: the standard `OTEL_EXPORTER_OTLP_ENDPOINT`, which
     /// `nama-server` sets here once exporting has started, never a key in the file (ADR 0054).
     /// Unset, nothing is exported, and the web app records nothing.
@@ -176,6 +181,7 @@ impl Default for Config {
             ffmpeg: None,
             ffprobe: None,
             watch_folders: true,
+            forwarded_port: None,
             otlp_endpoint: None,
             file: PathBuf::from(DEFAULT_FILE),
         }

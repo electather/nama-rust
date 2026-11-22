@@ -1,7 +1,7 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
 //! one Server's device flow, Unlinking, its Users' Links, Users created from Accounts, one sign-in
-//! with an Account at a time, its Server Addresses, the Watch State it pushes, the titles like The
-//! Matrix, and a key set of one Ed25519 key it signs with, as the Hub's API
+//! with an Account at a time, its Server Addresses and whether its public port is reached, the
+//! Watch State it pushes, the titles like The Matrix, and a key set of one Ed25519 key it signs with, as the Hub's API
 //! (`proto/nama/hub/v1/link.proto`) says the Hub does, and takes shared Diagnostics.
 
 use std::{
@@ -49,6 +49,12 @@ pub(super) const SIGN_IN_ID: &str = "sign-in-id";
 
 /// The email of the Account the code is entered by.
 pub(super) const EMAIL: &str = "ada@example.com";
+
+/// The IP address the fake sees the Server's calls come from.
+pub(super) const PUBLIC_IP: &str = "203.0.113.7";
+
+/// The one public port the fake reaches the Server at.
+pub(super) const OPEN_PORT: u16 = 7980;
 
 /// What the fake Hub knows.
 #[derive(Default)]
@@ -488,7 +494,14 @@ impl LinkedServerService for Linked {
         state
             .reported_addresses
             .push((request.url.to_owned(), lan.collect()));
-        Response::ok(SetServerAddressesResponse::default())
+        if request.public_port == 0 {
+            return Response::ok(SetServerAddressesResponse::default());
+        }
+        Response::ok(SetServerAddressesResponse {
+            public_address: format!("http://{PUBLIC_IP}:{}", request.public_port),
+            reachable: request.public_port == u32::from(OPEN_PORT),
+            ..Default::default()
+        })
     }
 
     /// The Matrix's sequel and Alien, by IMDb id, for a Movie asked about by The Matrix's TMDB id;

@@ -2,7 +2,10 @@
 //! `LinkService` and `LinkedServerService`, one for each kind of caller, and what a Linked Server
 //! asks of the Hub's titles.
 
+use std::net::SocketAddr;
+
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
+use nama_forwarded::RequestSource;
 use nama_hub_proto::nama::hub::v1::{
     self as proto, AcceptUserInviteRequest, AcceptUserInviteResponse, ApproveServerLinkRequest,
     ApproveServerLinkResponse, ApproveServerSignInRequest, ApproveServerSignInResponse,
@@ -418,12 +421,37 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .iter()
             .map(|&address| address.to_owned())
             .collect();
-        self.links
-            .set_addresses(linked_server(&ctx)?, request.url, &lan_addresses)
+        let public = public_address(&ctx, request.public_port)?;
+        let checked = self
+            .links
+            .set_addresses(linked_server(&ctx)?, request.url, &lan_addresses, public)
             .await
             .map_err(refused)?;
-        Response::ok(SetServerAddressesResponse::default())
+        Response::ok(
+            checked.map_or_else(SetServerAddressesResponse::default, |checked| {
+                SetServerAddressesResponse {
+                    public_address: checked.address,
+                    reachable: checked.reachable,
+                    ..Default::default()
+                }
+            }),
+        )
     }
+}
+
+/// The address to check the calling Server's public `port` at: the IP address its request `ctx`
+/// came from (ADR 0018), never one it names, so a Server can't have the Hub call anyone else.
+/// `None` for port 0.
+fn public_address(ctx: &RequestContext, port: u32) -> Result<Option<SocketAddr>, ConnectError> {
+    if port == 0 {
+        return Ok(None);
+    }
+    let port = u16::try_from(port).map_err(|_too_big| refused(links::Error::AddressInvalid))?;
+    let source = ctx
+        .extensions()
+        .get::<RequestSource>()
+        .ok_or_else(|| hub_failed(&"a request came without its peer's address"))?;
+    Ok(Some(SocketAddr::new(source.client_ip.to_canonical(), port)))
 }
 
 /// The invite `id` names. One that isn't a UUID names none.
@@ -518,7 +546,8 @@ fn refused(err: links::Error) -> ConnectError {
         E::UrlInvalid => refuse(R::REFUSAL_REASON_URL_INVALID, message).field("return_url"),
         E::AddressInvalid => refuse(R::REFUSAL_REASON_SERVER_ADDRESS_INVALID, message)
             .param("maxLength", &ADDRESS_LENGTH)
-            .param("maxLanAddresses", &MAX_LAN_ADDRESSES),
+            .param("maxLanAddresses", &MAX_LAN_ADDRESSES)
+            .param("maxPort", &u16::MAX),
         E::Random(_) | E::Database(_) => return hub_failed(&err),
     };
     refused.into()
