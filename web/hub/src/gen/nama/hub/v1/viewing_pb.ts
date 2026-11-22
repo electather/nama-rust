@@ -4,13 +4,15 @@
 
 import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2";
+import type { TitleKind } from "./title_pb";
+import { file_nama_hub_v1_title } from "./title_pb";
 import type { Message, UnknownEnum } from "@bufbuild/protobuf";
 
 /**
  * Describes the file nama/hub/v1/viewing.proto.
  */
 export const file_nama_hub_v1_viewing: GenFile = /*@__PURE__*/
-  fileDesc("ChluYW1hL2h1Yi92MS92aWV3aW5nLnByb3RvEgtuYW1hLmh1Yi52MSL1AQoMVmlld2luZ0V2ZW50EgoKAmlkGAEgASgJEiQKBGtpbmQYAiABKA4yFi5uYW1hLmh1Yi52MS5UaXRsZUtpbmQSEwoLZXh0ZXJuYWxfaWQYAyABKAkSEgoKc3RhcnRlZF9hdBgEIAEoAxIbChN0aW1lX29mX2RheV9taW51dGVzGAUgASgFEhgKEHN0b3BfcG9zaXRpb25fbXMYBiABKAMSEwoLZHVyYXRpb25fbXMYByABKAMSEAoIZmluaXNoZWQYCCABKAgSLAoLZGV2aWNlX2tpbmQYCSABKA4yFy5uYW1hLmh1Yi52MS5EZXZpY2VLaW5kIhoKGExpc3RWaWV3aW5nRXZlbnRzUmVxdWVzdCJGChlMaXN0Vmlld2luZ0V2ZW50c1Jlc3BvbnNlEikKBmV2ZW50cxgBIAMoCzIZLm5hbWEuaHViLnYxLlZpZXdpbmdFdmVudCInChlEZWxldGVWaWV3aW5nRXZlbnRSZXF1ZXN0EgoKAmlkGAEgASgJIhwKGkRlbGV0ZVZpZXdpbmdFdmVudFJlc3BvbnNlIloKEFVzZXJWaWV3aW5nRXZlbnQSDwoHdXNlcl9pZBgBIAEoAxILCgNrZXkYAiABKAkSKAoFZXZlbnQYAyABKAsyGS5uYW1hLmh1Yi52MS5WaWV3aW5nRXZlbnQiSwoaUmVjb3JkVmlld2luZ0V2ZW50c1JlcXVlc3QSLQoGZXZlbnRzGAEgAygLMh0ubmFtYS5odWIudjEuVXNlclZpZXdpbmdFdmVudCIdChtSZWNvcmRWaWV3aW5nRXZlbnRzUmVzcG9uc2UqVQoJVGl0bGVLaW5kEhoKFlRJVExFX0tJTkRfVU5TUEVDSUZJRUQQABIUChBUSVRMRV9LSU5EX01PVklFEAESFgoSVElUTEVfS0lORF9FUElTT0RFEAIqhgEKCkRldmljZUtpbmQSGwoXREVWSUNFX0tJTkRfVU5TUEVDSUZJRUQQABIYChRERVZJQ0VfS0lORF9DT01QVVRFUhABEhUKEURFVklDRV9LSU5EX1BIT05FEAISFgoSREVWSUNFX0tJTkRfVEFCTEVUEAMSEgoOREVWSUNFX0tJTkRfVFYQBDLqAQoTVmlld2luZ0V2ZW50U2VydmljZRJnChFMaXN0Vmlld2luZ0V2ZW50cxIlLm5hbWEuaHViLnYxLkxpc3RWaWV3aW5nRXZlbnRzUmVxdWVzdBomLm5hbWEuaHViLnYxLkxpc3RWaWV3aW5nRXZlbnRzUmVzcG9uc2UiA5ACARJqChJEZWxldGVWaWV3aW5nRXZlbnQSJi5uYW1hLmh1Yi52MS5EZWxldGVWaWV3aW5nRXZlbnRSZXF1ZXN0GicubmFtYS5odWIudjEuRGVsZXRlVmlld2luZ0V2ZW50UmVzcG9uc2UiA5ACAmIGcHJvdG8z");
+  fileDesc("ChluYW1hL2h1Yi92MS92aWV3aW5nLnByb3RvEgtuYW1hLmh1Yi52MSL1AQoMVmlld2luZ0V2ZW50EgoKAmlkGAEgASgJEiQKBGtpbmQYAiABKA4yFi5uYW1hLmh1Yi52MS5UaXRsZUtpbmQSEwoLZXh0ZXJuYWxfaWQYAyABKAkSEgoKc3RhcnRlZF9hdBgEIAEoAxIbChN0aW1lX29mX2RheV9taW51dGVzGAUgASgFEhgKEHN0b3BfcG9zaXRpb25fbXMYBiABKAMSEwoLZHVyYXRpb25fbXMYByABKAMSEAoIZmluaXNoZWQYCCABKAgSLAoLZGV2aWNlX2tpbmQYCSABKA4yFy5uYW1hLmh1Yi52MS5EZXZpY2VLaW5kIhoKGExpc3RWaWV3aW5nRXZlbnRzUmVxdWVzdCJGChlMaXN0Vmlld2luZ0V2ZW50c1Jlc3BvbnNlEikKBmV2ZW50cxgBIAMoCzIZLm5hbWEuaHViLnYxLlZpZXdpbmdFdmVudCInChlEZWxldGVWaWV3aW5nRXZlbnRSZXF1ZXN0EgoKAmlkGAEgASgJIhwKGkRlbGV0ZVZpZXdpbmdFdmVudFJlc3BvbnNlIloKEFVzZXJWaWV3aW5nRXZlbnQSDwoHdXNlcl9pZBgBIAEoAxILCgNrZXkYAiABKAkSKAoFZXZlbnQYAyABKAsyGS5uYW1hLmh1Yi52MS5WaWV3aW5nRXZlbnQiSwoaUmVjb3JkVmlld2luZ0V2ZW50c1JlcXVlc3QSLQoGZXZlbnRzGAEgAygLMh0ubmFtYS5odWIudjEuVXNlclZpZXdpbmdFdmVudCIdChtSZWNvcmRWaWV3aW5nRXZlbnRzUmVzcG9uc2UqhgEKCkRldmljZUtpbmQSGwoXREVWSUNFX0tJTkRfVU5TUEVDSUZJRUQQABIYChRERVZJQ0VfS0lORF9DT01QVVRFUhABEhUKEURFVklDRV9LSU5EX1BIT05FEAISFgoSREVWSUNFX0tJTkRfVEFCTEVUEAMSEgoOREVWSUNFX0tJTkRfVFYQBDLqAQoTVmlld2luZ0V2ZW50U2VydmljZRJnChFMaXN0Vmlld2luZ0V2ZW50cxIlLm5hbWEuaHViLnYxLkxpc3RWaWV3aW5nRXZlbnRzUmVxdWVzdBomLm5hbWEuaHViLnYxLkxpc3RWaWV3aW5nRXZlbnRzUmVzcG9uc2UiA5ACARJqChJEZWxldGVWaWV3aW5nRXZlbnQSJi5uYW1hLmh1Yi52MS5EZWxldGVWaWV3aW5nRXZlbnRSZXF1ZXN0GicubmFtYS5odWIudjEuRGVsZXRlVmlld2luZ0V2ZW50UmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_hub_v1_title]);
 
 /**
  * One play of a Movie or Episode by a Linked User, kept under their Account for as long as it
@@ -27,7 +29,7 @@ export type ViewingEvent = Message<"nama.hub.v1.ViewingEvent"> & {
   id: string;
 
   /**
-   * Whether it played a Movie or an Episode. Must be specified.
+   * Whether it played a Movie or an Episode; any other kind is refused.
    *
    * @generated from field: nama.hub.v1.TitleKind kind = 2;
    */
@@ -220,41 +222,6 @@ export const RecordViewingEventsResponseSchema: GenMessage<RecordViewingEventsRe
   messageDesc(file_nama_hub_v1_viewing, 7);
 
 /**
- * Whether a title is a Movie or an Episode, whose External IDs are separate id spaces.
- *
- * @generated from enum nama.hub.v1.TitleKind
- */
-export const TitleKind = {
-  /**
-   * @generated from enum value: TITLE_KIND_UNSPECIFIED = 0;
-   */
-  UNSPECIFIED: 0,
-
-  /**
-   * @generated from enum value: TITLE_KIND_MOVIE = 1;
-   */
-  MOVIE: 1,
-
-  /**
-   * @generated from enum value: TITLE_KIND_EPISODE = 2;
-   */
-  EPISODE: 2,
-} as const;
-
-/**
- * Whether a title is a Movie or an Episode, whose External IDs are separate id spaces.
- *
- * @generated from enum nama.hub.v1.TitleKind
- */
-export type TitleKind = (typeof TitleKind)[keyof typeof TitleKind] | UnknownEnum;
-
-/**
- * Describes the enum nama.hub.v1.TitleKind.
- */
-export const TitleKindSchema: GenEnum<TitleKind> = /*@__PURE__*/
-  enumDesc(file_nama_hub_v1_viewing, 0);
-
-/**
  * What kind of Device played, as its Server read it from the Device's browser.
  *
  * @generated from enum nama.hub.v1.DeviceKind
@@ -299,7 +266,7 @@ export type DeviceKind = (typeof DeviceKind)[keyof typeof DeviceKind] | UnknownE
  * Describes the enum nama.hub.v1.DeviceKind.
  */
 export const DeviceKindSchema: GenEnum<DeviceKind> = /*@__PURE__*/
-  enumDesc(file_nama_hub_v1_viewing, 1);
+  enumDesc(file_nama_hub_v1_viewing, 0);
 
 /**
  * An Account's Viewing Events, for the Hub's web pages (ADR 0093). A Linked Server records them

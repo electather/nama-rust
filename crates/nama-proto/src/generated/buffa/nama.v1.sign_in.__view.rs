@@ -6786,3 +6786,1265 @@ impl ::serde::Serialize for PollSignInCodeResponseOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
+#[derive(Clone, Debug, Default)]
+pub struct StartAccountSignInRequestView<'a> {
+    /// Where the Hub sends the person back to once they approve: an `http` or `https` address, such
+    /// as the client's sign-in page.
+    ///
+    /// Field 1: `return_url`
+    pub return_url: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for StartAccountSignInRequestView<'a> {
+    type Owned = super::super::StartAccountSignInRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.return_url = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::StartAccountSignInRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::StartAccountSignInRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::StartAccountSignInRequest {
+            return_url: self.return_url.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for StartAccountSignInRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.return_url.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.return_url) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.return_url.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.return_url, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for StartAccountSignInRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.return_url) {
+            __map.serialize_entry("returnUrl", self.return_url)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for StartAccountSignInRequestView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "StartAccountSignInRequest";
+    const FULL_NAME: &'static str = "nama.v1.StartAccountSignInRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.StartAccountSignInRequest";
+}
+::buffa::impl_default_view_instance!(StartAccountSignInRequestView);
+::buffa::impl_view_reborrow!(StartAccountSignInRequestView);
+/** Self-contained, `'static` owned view of a `StartAccountSignInRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`StartAccountSignInRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`StartAccountSignInRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct StartAccountSignInRequestOwnedView(
+    ::buffa::OwnedView<StartAccountSignInRequestView<'static>>,
+);
+impl StartAccountSignInRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartAccountSignInRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartAccountSignInRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::StartAccountSignInRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartAccountSignInRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`StartAccountSignInRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &StartAccountSignInRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::StartAccountSignInRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Where the Hub sends the person back to once they approve: an `http` or `https` address, such
+    /// as the client's sign-in page.
+    ///
+    /// Field 1: `return_url`
+    #[must_use]
+    pub fn return_url(&self) -> &'_ str {
+        self.0.reborrow().return_url
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<StartAccountSignInRequestView<'static>>>
+for StartAccountSignInRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<StartAccountSignInRequestView<'static>>) -> Self {
+        StartAccountSignInRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<StartAccountSignInRequestOwnedView>
+for ::buffa::OwnedView<StartAccountSignInRequestView<'static>> {
+    fn from(wrapper: StartAccountSignInRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<StartAccountSignInRequestView<'static>>>
+for StartAccountSignInRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<StartAccountSignInRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::StartAccountSignInRequest {
+    type View<'a> = StartAccountSignInRequestView<'a>;
+    type ViewHandle = StartAccountSignInRequestOwnedView;
+}
+impl ::serde::Serialize for StartAccountSignInRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct StartAccountSignInResponseView<'a> {
+    /// The Hub's page where the person approves signing in.
+    ///
+    /// Field 1: `url`
+    pub url: &'a str,
+    /// What the client finishes with. Keep it secret: whoever holds it gets the session once the
+    /// sign-in is approved.
+    ///
+    /// Field 2: `handle`
+    pub handle: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for StartAccountSignInResponseView<'a> {
+    type Owned = super::super::StartAccountSignInResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.url = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.handle = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::StartAccountSignInResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::StartAccountSignInResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::StartAccountSignInResponse {
+            url: self.url.to_string(),
+            handle: self.handle.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for StartAccountSignInResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.url.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.url) as u64;
+        }
+        if !self.handle.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.handle) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.url.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.url, buf);
+        }
+        if !self.handle.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.handle, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for StartAccountSignInResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.url) {
+            __map.serialize_entry("url", self.url)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.handle) {
+            __map.serialize_entry("handle", self.handle)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for StartAccountSignInResponseView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "StartAccountSignInResponse";
+    const FULL_NAME: &'static str = "nama.v1.StartAccountSignInResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.StartAccountSignInResponse";
+}
+::buffa::impl_default_view_instance!(StartAccountSignInResponseView);
+::buffa::impl_view_reborrow!(StartAccountSignInResponseView);
+/** Self-contained, `'static` owned view of a `StartAccountSignInResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`StartAccountSignInResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`StartAccountSignInResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct StartAccountSignInResponseOwnedView(
+    ::buffa::OwnedView<StartAccountSignInResponseView<'static>>,
+);
+impl StartAccountSignInResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartAccountSignInResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartAccountSignInResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::StartAccountSignInResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartAccountSignInResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`StartAccountSignInResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &StartAccountSignInResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::StartAccountSignInResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The Hub's page where the person approves signing in.
+    ///
+    /// Field 1: `url`
+    #[must_use]
+    pub fn url(&self) -> &'_ str {
+        self.0.reborrow().url
+    }
+    /// What the client finishes with. Keep it secret: whoever holds it gets the session once the
+    /// sign-in is approved.
+    ///
+    /// Field 2: `handle`
+    #[must_use]
+    pub fn handle(&self) -> &'_ str {
+        self.0.reborrow().handle
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<StartAccountSignInResponseView<'static>>>
+for StartAccountSignInResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<StartAccountSignInResponseView<'static>>) -> Self {
+        StartAccountSignInResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<StartAccountSignInResponseOwnedView>
+for ::buffa::OwnedView<StartAccountSignInResponseView<'static>> {
+    fn from(wrapper: StartAccountSignInResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<StartAccountSignInResponseView<'static>>>
+for StartAccountSignInResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<StartAccountSignInResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::StartAccountSignInResponse {
+    type View<'a> = StartAccountSignInResponseView<'a>;
+    type ViewHandle = StartAccountSignInResponseOwnedView;
+}
+impl ::serde::Serialize for StartAccountSignInResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct SignInWithAccountRequestView<'a> {
+    /// The handle `StartAccountSignIn` returned.
+    ///
+    /// Field 1: `handle`
+    pub handle: &'a str,
+    /// The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+    /// Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
+    ///
+    /// Field 2: `device_name`
+    pub device_name: &'a str,
+    /// How to hand out the session. Must be specified.
+    ///
+    /// Field 3: `delivery`
+    pub delivery: ::buffa::EnumValue<super::super::SessionDelivery>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for SignInWithAccountRequestView<'a> {
+    type Owned = super::super::SignInWithAccountRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.handle = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.device_name = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.delivery = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::SignInWithAccountRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::SignInWithAccountRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::SignInWithAccountRequest {
+            handle: self.handle.to_string(),
+            device_name: self.device_name.to_string(),
+            delivery: self.delivery,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for SignInWithAccountRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.handle.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.handle) as u64;
+        }
+        if !self.device_name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.device_name) as u64;
+        }
+        {
+            let val = self.delivery.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.handle.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.handle, buf);
+        }
+        if !self.device_name.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.device_name, buf);
+        }
+        {
+            let val = self.delivery.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
+            }
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for SignInWithAccountRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.handle) {
+            __map.serialize_entry("handle", self.handle)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.device_name) {
+            __map.serialize_entry("deviceName", self.device_name)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.delivery) {
+            __map.serialize_entry("delivery", &self.delivery)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for SignInWithAccountRequestView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "SignInWithAccountRequest";
+    const FULL_NAME: &'static str = "nama.v1.SignInWithAccountRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SignInWithAccountRequest";
+}
+::buffa::impl_default_view_instance!(SignInWithAccountRequestView);
+::buffa::impl_view_reborrow!(SignInWithAccountRequestView);
+/** Self-contained, `'static` owned view of a `SignInWithAccountRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`SignInWithAccountRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`SignInWithAccountRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct SignInWithAccountRequestOwnedView(
+    ::buffa::OwnedView<SignInWithAccountRequestView<'static>>,
+);
+impl SignInWithAccountRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SignInWithAccountRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SignInWithAccountRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::SignInWithAccountRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SignInWithAccountRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`SignInWithAccountRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &SignInWithAccountRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::SignInWithAccountRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The handle `StartAccountSignIn` returned.
+    ///
+    /// Field 1: `handle`
+    #[must_use]
+    pub fn handle(&self) -> &'_ str {
+        self.0.reborrow().handle
+    }
+    /// The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+    /// Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
+    ///
+    /// Field 2: `device_name`
+    #[must_use]
+    pub fn device_name(&self) -> &'_ str {
+        self.0.reborrow().device_name
+    }
+    /// How to hand out the session. Must be specified.
+    ///
+    /// Field 3: `delivery`
+    #[must_use]
+    pub fn delivery(&self) -> ::buffa::EnumValue<super::super::SessionDelivery> {
+        self.0.reborrow().delivery
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<SignInWithAccountRequestView<'static>>>
+for SignInWithAccountRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<SignInWithAccountRequestView<'static>>) -> Self {
+        SignInWithAccountRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<SignInWithAccountRequestOwnedView>
+for ::buffa::OwnedView<SignInWithAccountRequestView<'static>> {
+    fn from(wrapper: SignInWithAccountRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<SignInWithAccountRequestView<'static>>>
+for SignInWithAccountRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<SignInWithAccountRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::SignInWithAccountRequest {
+    type View<'a> = SignInWithAccountRequestView<'a>;
+    type ViewHandle = SignInWithAccountRequestOwnedView;
+}
+impl ::serde::Serialize for SignInWithAccountRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct SignInWithAccountResponseView<'a> {
+    /// The User signed in as.
+    ///
+    /// Field 1: `user`
+    pub user: ::buffa::MessageFieldView<super::super::__buffa::view::UserView<'a>>,
+    /// The Device just signed in.
+    ///
+    /// Field 2: `device`
+    pub device: ::buffa::MessageFieldView<super::super::__buffa::view::DeviceView<'a>>,
+    /// The session token, for `SESSION_DELIVERY_TOKEN` only. Empty for a cookie.
+    ///
+    /// Field 3: `token`
+    pub token: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for SignInWithAccountResponseView<'a> {
+    type Owned = super::super::SignInWithAccountResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.user.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.user = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::UserView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.device.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.device = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::DeviceView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.token = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::SignInWithAccountResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::SignInWithAccountResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::SignInWithAccountResponse {
+            user: match self.user.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::User,
+                        ::buffa::Inline<super::super::User>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            device: match self.device.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::Device,
+                        ::buffa::Inline<super::super::Device>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            token: self.token.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for SignInWithAccountResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.user.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.user.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if self.device.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.device.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        if !self.token.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.token) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.user.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.user.write_to(__cache, buf);
+        }
+        if self.device.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.device.write_to(__cache, buf);
+        }
+        if !self.token.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.token, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for SignInWithAccountResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        {
+            if let ::core::option::Option::Some(__v) = self.user.as_option() {
+                __map.serialize_entry("user", __v)?;
+            }
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.device.as_option() {
+                __map.serialize_entry("device", __v)?;
+            }
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.token) {
+            __map.serialize_entry("token", self.token)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for SignInWithAccountResponseView<'a> {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "SignInWithAccountResponse";
+    const FULL_NAME: &'static str = "nama.v1.SignInWithAccountResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.SignInWithAccountResponse";
+}
+::buffa::impl_default_view_instance!(SignInWithAccountResponseView);
+::buffa::impl_view_reborrow!(SignInWithAccountResponseView);
+/** Self-contained, `'static` owned view of a `SignInWithAccountResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`SignInWithAccountResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`SignInWithAccountResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct SignInWithAccountResponseOwnedView(
+    ::buffa::OwnedView<SignInWithAccountResponseView<'static>>,
+);
+impl SignInWithAccountResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SignInWithAccountResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SignInWithAccountResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::SignInWithAccountResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            SignInWithAccountResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`SignInWithAccountResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &SignInWithAccountResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::SignInWithAccountResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The User signed in as.
+    ///
+    /// Field 1: `user`
+    #[must_use]
+    pub fn user(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::UserView<'_>> {
+        &self.0.reborrow().user
+    }
+    /// The Device just signed in.
+    ///
+    /// Field 2: `device`
+    #[must_use]
+    pub fn device(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::DeviceView<'_>> {
+        &self.0.reborrow().device
+    }
+    /// The session token, for `SESSION_DELIVERY_TOKEN` only. Empty for a cookie.
+    ///
+    /// Field 3: `token`
+    #[must_use]
+    pub fn token(&self) -> &'_ str {
+        self.0.reborrow().token
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<SignInWithAccountResponseView<'static>>>
+for SignInWithAccountResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<SignInWithAccountResponseView<'static>>) -> Self {
+        SignInWithAccountResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<SignInWithAccountResponseOwnedView>
+for ::buffa::OwnedView<SignInWithAccountResponseView<'static>> {
+    fn from(wrapper: SignInWithAccountResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<SignInWithAccountResponseView<'static>>>
+for SignInWithAccountResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<SignInWithAccountResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::SignInWithAccountResponse {
+    type View<'a> = SignInWithAccountResponseView<'a>;
+    type ViewHandle = SignInWithAccountResponseOwnedView;
+}
+impl ::serde::Serialize for SignInWithAccountResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}

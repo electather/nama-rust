@@ -8,6 +8,7 @@ pub mod diagnostics;
 mod links;
 pub mod mail;
 pub mod signing;
+mod sync;
 pub mod titles;
 mod viewing;
 #[cfg(feature = "web")]

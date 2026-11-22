@@ -2256,6 +2256,7 @@ dependencies = [
  "clap",
  "connectrpc",
  "figment",
+ "futures-util",
  "getrandom 0.4.3",
  "nama-forwarded",
  "nama-hub-proto",
@@ -2278,6 +2279,18 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "webpki-roots",
+]
+
+[[package]]
+name = "nama-hub-eval"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "futures-util",
+ "nama-hub",
+ "sqlx",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]

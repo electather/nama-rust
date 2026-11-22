@@ -504,6 +504,7 @@ impl Ffmpeg {
                 bits_per_second: 1_000_000,
             }),
             burn_in: None,
+            subtitle_white: None,
             in_band_headers: true,
             hevc: false,
         };
@@ -551,7 +552,7 @@ impl Ffmpeg {
             input,
             video,
             codec,
-        } = video_args(source, video, false);
+        } = video_args(source, video, 0);
         let mut child = tokio::process::Command::new(&ffmpeg.path)
             .args(["-v", "error", "-nostdin"])
             .args(input)

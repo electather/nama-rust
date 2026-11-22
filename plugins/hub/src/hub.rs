@@ -17,10 +17,13 @@ use hyper_util::{
     rt::TokioExecutor,
 };
 use nama_hub_proto::nama::hub::v1::{
-    GetUserLinkRequest, LinkedServerServiceClient, PollServerLinkRequest, PollServerLinkResponse,
-    RecordViewingEventsRequest, ServerLinkServiceClient, SetServerAddressesRequest,
-    StartServerLinkRequest, StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse,
-    UnlinkServerRequest, UnlinkUserRequest,
+    GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient, ListSimilarTitlesRequest,
+    ListSimilarTitlesResponse, PollServerLinkRequest, PollServerLinkResponse,
+    PollServerSignInRequest, PushWatchStatesRequest, RecordViewingEventsRequest,
+    ServerLinkServiceClient, SetServerAddressesRequest, StartServerLinkRequest,
+    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
+    StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest, UnlinkUserRequest,
+    WatchStateChange,
 };
 use nama_plugin_api::{PluginError, diagnostics_sharer::Signal, server_link::ServerAddresses};
 
@@ -32,6 +35,7 @@ const MAX_KEY_SET_BYTES: usize = 64 * 1024;
 type Transport = ServiceTransport<Client<HttpsConnector<HttpConnector>, ClientBody>>;
 
 /// The Hub at one address.
+#[derive(Clone)]
 pub(crate) struct Hub {
     url: String,
     transport: Transport,
@@ -167,6 +171,42 @@ impl Hub {
         unlinked_already(unlinked.map(drop))
     }
 
+    /// Pushes `changes` to the Watch State of the Accounts the Users of the Server whose credential
+    /// is `credential` are Linked to, in order.
+    pub(crate) async fn push_watch_states(
+        &self,
+        credential: &str,
+        changes: Vec<WatchStateChange>,
+    ) -> Result<(), PluginError> {
+        self.linked_server(credential)?
+            .push_watch_states(PushWatchStatesRequest {
+                changes,
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
+    }
+
+    /// Asks the Account with `email`, if any, to accept the User `user_id`, named `name`, of the
+    /// Server whose credential is `credential`.
+    pub(crate) async fn invite_user(
+        &self,
+        credential: &str,
+        user_id: i64,
+        name: &str,
+        email: &str,
+    ) -> Result<(), PluginError> {
+        self.linked_server(credential)?
+            .invite_user(InviteUserRequest {
+                user_id,
+                name: name.to_owned(),
+                email: email.to_owned(),
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
+    }
+
     /// Tells the Hub `addresses` are where clients reach the Server whose credential is
     /// `credential`.
     pub(crate) async fn set_addresses(
@@ -208,6 +248,45 @@ impl Hub {
         }
     }
 
+    /// Starts a sign-in with an Account to the Server whose credential is `credential`, which the
+    /// Hub's page sends back to `return_url`.
+    pub(crate) async fn start_sign_in(
+        &self,
+        credential: &str,
+        return_url: &str,
+    ) -> Result<StartServerSignInResponse, PluginError> {
+        let started = self
+            .linked_server(credential)?
+            .start_server_sign_in(StartServerSignInRequest {
+                return_url: return_url.to_owned(),
+                ..Default::default()
+            })
+            .await?;
+        Ok(started.into_owned())
+    }
+
+    /// The token naming the User the sign-in polled with `device_code` signs in as, once an
+    /// Account approved it; `None` before, and for one that expired or was used, the call's one
+    /// `not_found`.
+    pub(crate) async fn poll_sign_in(
+        &self,
+        credential: &str,
+        device_code: &str,
+    ) -> Result<Option<String>, PluginError> {
+        let polled = self
+            .linked_server(credential)?
+            .poll_server_sign_in(PollServerSignInRequest {
+                device_code: device_code.to_owned(),
+                ..Default::default()
+            })
+            .await;
+        match polled {
+            Ok(polled) => Ok(Some(polled.into_owned().token).filter(|token| !token.is_empty())),
+            Err(err) if err.code == connectrpc::ErrorCode::NotFound => Ok(None),
+            Err(err) => Err(err.into()),
+        }
+    }
+
     /// The Hub's API for the Server whose credential is `credential`.
     fn linked_server(
         &self,
@@ -241,6 +320,26 @@ impl Hub {
             return Err(format!("the Hub answered {status} for shared Diagnostics").into());
         }
         Ok(())
+    }
+
+    /// The titles like the one `request` names, asked as the Server whose credential is
+    /// `credential`. Empty if the Hub doesn't know the credential any more, as [`Hub::unlink`]
+    /// takes it: a Server no longer Linked has no answer, which isn't a failure.
+    pub(crate) async fn similar(
+        &self,
+        credential: &str,
+        request: ListSimilarTitlesRequest,
+    ) -> Result<ListSimilarTitlesResponse, PluginError> {
+        match (self.linked_server(credential)?)
+            .list_similar_titles(request)
+            .await
+        {
+            Ok(similar) => Ok(similar.into_owned()),
+            Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => {
+                Ok(ListSimilarTitlesResponse::default())
+            }
+            Err(err) => Err(err.into()),
+        }
     }
 
     /// The Hub's published key set, as JSON.

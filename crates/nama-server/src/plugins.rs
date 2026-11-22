@@ -57,6 +57,7 @@ pub use registry::Registry;
 #[cfg(test)]
 pub(crate) use scripted_fulfiller::{ScriptedFulfiller, Told};
 pub use sharing::ShareThroughPlugins;
+pub(crate) use sharing::share_diagnostics;
 #[cfg(test)]
 pub(crate) use wasm::installed_points;
 pub(crate) use wasm::read as read_installed;

@@ -3852,14 +3852,21 @@ pub struct GetServerInfoResponseView<'a> {
     ///
     /// Field 4: `image_widths`
     pub image_widths: ::buffa::RepeatedView<'a, u32>,
-    /// Whether the Server exports Diagnostics, because its admin set `OTEL_EXPORTER_OTLP_ENDPOINT`
-    /// (ADR 0054). Only then does a signed-in web app record its own and POST them as OTLP/HTTP to
-    /// `/diagnostics/v1/traces`, which the Server forwards there unchanged. That path answers 404
-    /// while this is false, refuses a body over 256 KiB with HTTP 413, and refuses a Device posting
-    /// too often with HTTP 429.
+    /// Whether the Server exports Diagnostics: its admin set `OTEL_EXPORTER_OTLP_ENDPOINT`, shares
+    /// them, or both, so it changes as they turn sharing on or off (ADR 0054). Only then does a
+    /// signed-in web app record its own and POST them as OTLP/HTTP protobuf to
+    /// `/diagnostics/v1/traces`, which the Server forwards unchanged to that endpoint and, while they
+    /// are shared, to the Hub. That path answers 404 while this is false, refuses a body over 256 KiB
+    /// with HTTP 413, a Device posting too often with HTTP 429, and a body that isn't protobuf while
+    /// the Server only shares them with HTTP 415.
     ///
     /// Field 5: `exports_diagnostics`
     pub exports_diagnostics: bool,
+    /// Whether the Server is Linked to the Hub, so its Users can sign in with their Accounts
+    /// (`SignInService.StartAccountSignIn`).
+    ///
+    /// Field 7: `account_sign_in`
+    pub account_sign_in: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
@@ -3920,6 +3927,13 @@ impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
                 )?;
                 view.exports_diagnostics = ::buffa::types::decode_bool(&mut cur)?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.account_sign_in = ::buffa::types::decode_bool(&mut cur)?;
+            }
             4u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
                     let payload = ::buffa::types::borrow_bytes(&mut cur)?;
@@ -3972,6 +3986,7 @@ impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
             setup_required: self.setup_required,
             image_widths: self.image_widths.to_vec(),
             exports_diagnostics: self.exports_diagnostics,
+            account_sign_in: self.account_sign_in,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4001,6 +4016,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetServerInfoResponseView<'a> {
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
         if self.exports_diagnostics {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.account_sign_in {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -4036,6 +4054,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetServerInfoResponseView<'a> {
         }
         if self.exports_diagnostics {
             ::buffa::types::put_bool_field(5u32, self.exports_diagnostics, buf);
+        }
+        if self.account_sign_in {
+            ::buffa::types::put_bool_field(7u32, self.account_sign_in, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4076,6 +4097,9 @@ impl<'__a> ::serde::Serialize for GetServerInfoResponseView<'__a> {
         }
         if self.exports_diagnostics {
             __map.serialize_entry("exportsDiagnostics", &self.exports_diagnostics)?;
+        }
+        if self.account_sign_in {
+            __map.serialize_entry("accountSignIn", &self.account_sign_in)?;
         }
         __map.end()
     }
@@ -4207,16 +4231,26 @@ impl GetServerInfoResponseOwnedView {
     pub fn image_widths(&self) -> &::buffa::RepeatedView<'_, u32> {
         &self.0.reborrow().image_widths
     }
-    /// Whether the Server exports Diagnostics, because its admin set `OTEL_EXPORTER_OTLP_ENDPOINT`
-    /// (ADR 0054). Only then does a signed-in web app record its own and POST them as OTLP/HTTP to
-    /// `/diagnostics/v1/traces`, which the Server forwards there unchanged. That path answers 404
-    /// while this is false, refuses a body over 256 KiB with HTTP 413, and refuses a Device posting
-    /// too often with HTTP 429.
+    /// Whether the Server exports Diagnostics: its admin set `OTEL_EXPORTER_OTLP_ENDPOINT`, shares
+    /// them, or both, so it changes as they turn sharing on or off (ADR 0054). Only then does a
+    /// signed-in web app record its own and POST them as OTLP/HTTP protobuf to
+    /// `/diagnostics/v1/traces`, which the Server forwards unchanged to that endpoint and, while they
+    /// are shared, to the Hub. That path answers 404 while this is false, refuses a body over 256 KiB
+    /// with HTTP 413, a Device posting too often with HTTP 429, and a body that isn't protobuf while
+    /// the Server only shares them with HTTP 415.
     ///
     /// Field 5: `exports_diagnostics`
     #[must_use]
     pub fn exports_diagnostics(&self) -> bool {
         self.0.reborrow().exports_diagnostics
+    }
+    /// Whether the Server is Linked to the Hub, so its Users can sign in with their Accounts
+    /// (`SignInService.StartAccountSignIn`).
+    ///
+    /// Field 7: `account_sign_in`
+    #[must_use]
+    pub fn account_sign_in(&self) -> bool {
+        self.0.reborrow().account_sign_in
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<GetServerInfoResponseView<'static>>>

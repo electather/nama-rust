@@ -1,4 +1,5 @@
-import { DeviceKind, TitleKind, type ViewingEvent } from "@hub/gen/nama/hub/v1/viewing_pb";
+import { TitleKind } from "@hub/gen/nama/hub/v1/title_pb";
+import { DeviceKind, type ViewingEvent } from "@hub/gen/nama/hub/v1/viewing_pb";
 
 const startedAt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 

@@ -3,11 +3,12 @@
 
 use std::{fmt, str::FromStr};
 
+use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
 use super::{
-    CODE_LIFETIME_MINS, Error, LinkedServer, Links, kept_name, may_link, random_code, shown_code,
-    typed_code,
+    CODE_LIFETIME_MINS, Error, LinkedServer, LinkedServerId, Links, kept_name, may_link,
+    random_code, shown_code, typed_code,
 };
 use crate::accounts::{AccountId, AccountSession};
 
@@ -102,26 +103,16 @@ impl Links {
         .await?
         .ok_or(Error::CodeNotFound)?;
         // Nothing conflicts but a Link made between starting this code and entering it.
-        let linked = sqlx::query!(
-            r#"INSERT INTO user_links (account_id, linked_server_id, server_user_id, user_name)
-             VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING
-             RETURNING id, extract(epoch FROM created_at)::bigint AS "linked_at!",
-             (SELECT name FROM linked_servers WHERE id = $2) AS "server_name!""#,
-            session.account.id.0,
-            waiting.linked_server_id,
+        let user = insert_link(
+            &mut tx,
+            session.account.id,
+            LinkedServerId(waiting.linked_server_id),
             waiting.server_user_id,
             waiting.user_name,
         )
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(Error::UserLinked)?;
+        .await?;
         tx.commit().await?;
-        Ok(ListedUser {
-            id: LinkId(linked.id),
-            name: waiting.user_name,
-            server_name: linked.server_name,
-            linked_at: linked.linked_at,
-        })
+        Ok(user)
     }
 
     /// The email of the Account `server`'s User `user_id` is Linked to, if they are.
@@ -130,14 +121,14 @@ impl Links {
         server: &LinkedServer,
         user_id: i64,
     ) -> Result<Option<String>, sqlx::Error> {
-        match self.user_account_id(server, user_id).await? {
+        match self.linked_account(server, user_id).await? {
             Some(account) => self.accounts.email(account).await,
             None => Ok(None),
         }
     }
 
     /// The Account `server`'s User `user_id` is Linked to, if they are.
-    pub(crate) async fn user_account_id(
+    pub(crate) async fn linked_account(
         &self,
         server: &LinkedServer,
         user_id: i64,
@@ -152,7 +143,8 @@ impl Links {
         Ok(account.map(AccountId))
     }
 
-    /// Unlinks `server`'s User `user_id`, and forgets the code they wait on.
+    /// Unlinks `server`'s User `user_id`, and forgets the code they wait on and any Account asked
+    /// to accept them.
     pub(crate) async fn unlink_user(
         &self,
         server: &LinkedServer,
@@ -160,6 +152,8 @@ impl Links {
     ) -> Result<(), sqlx::Error> {
         sqlx::query!(
             "WITH codes AS (DELETE FROM user_link_codes
+             WHERE linked_server_id = $1 AND server_user_id = $2),
+             invites AS (DELETE FROM user_invites
              WHERE linked_server_id = $1 AND server_user_id = $2)
              DELETE FROM user_links WHERE linked_server_id = $1 AND server_user_id = $2",
             server.id.0,
@@ -210,4 +204,34 @@ impl Links {
         .await?;
         Ok(())
     }
+}
+
+/// Links `server`'s User `user_id`, named `name`, to `account`, failing with [`Error::UserLinked`]
+/// if they are Linked already.
+pub(super) async fn insert_link(
+    tx: &mut Transaction<'_, Postgres>,
+    account: AccountId,
+    server: LinkedServerId,
+    user_id: i64,
+    name: String,
+) -> Result<ListedUser, Error> {
+    let linked = sqlx::query!(
+        r#"INSERT INTO user_links (account_id, linked_server_id, server_user_id, user_name)
+             VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING
+             RETURNING id, extract(epoch FROM created_at)::bigint AS "linked_at!",
+             (SELECT name FROM linked_servers WHERE id = $2) AS "server_name!""#,
+        account.0,
+        server.0,
+        user_id,
+        name,
+    )
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(Error::UserLinked)?;
+    Ok(ListedUser {
+        id: LinkId(linked.id),
+        name,
+        server_name: linked.server_name,
+        linked_at: linked.linked_at,
+    })
 }

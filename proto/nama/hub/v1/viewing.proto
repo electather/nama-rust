@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package nama.hub.v1;
 
+import "nama/hub/v1/title.proto";
+
 // An Account's Viewing Events, for the Hub's web pages (ADR 0093). A Linked Server records them
 // through `LinkedServerService.RecordViewingEvents`. Every call fails with
 // `REFUSAL_REASON_SIGN_IN_REQUIRED` without a session.
@@ -22,7 +24,7 @@ service ViewingEventService {
 message ViewingEvent {
   // The Viewing Event's id, a UUID. Ignored in what a Server records.
   string id = 1;
-  // Whether it played a Movie or an Episode. Must be specified.
+  // Whether it played a Movie or an Episode; any other kind is refused.
   TitleKind kind = 2;
   // The Movie or Episode, by the External ID its Server keeps its Watch State under, such as
   // `tmdb-603`: 1 to 100 characters.
@@ -39,13 +41,6 @@ message ViewingEvent {
   bool finished = 8;
   // What kind of Device played it. Unspecified when its Server couldn't tell.
   DeviceKind device_kind = 9;
-}
-
-// Whether a title is a Movie or an Episode, whose External IDs are separate id spaces.
-enum TitleKind {
-  TITLE_KIND_UNSPECIFIED = 0;
-  TITLE_KIND_MOVIE = 1;
-  TITLE_KIND_EPISODE = 2;
 }
 
 // What kind of Device played, as its Server read it from the Device's browser.

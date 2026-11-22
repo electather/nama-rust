@@ -15,7 +15,7 @@ use crate::{
     config::Config,
     connections::Connections,
     db::Database,
-    diagnostics::{self, BrowserSpans, RecordFailures},
+    diagnostics::{self, RecordFailures},
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
     home_rows::HomeRows,
@@ -57,6 +57,7 @@ mod watch_states;
 mod watchlist;
 
 use access::require_access;
+pub(crate) use browser_spans::BrowserSpans;
 
 /// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers
 /// that identify the caller and refuse calls they may not make.
@@ -89,6 +90,7 @@ pub(crate) fn router(
     running: RunningPlans,
     abilities: Abilities,
     preview_frames: PreviewFrames,
+    browser_spans: BrowserSpans,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
 ) -> axum::Router {
@@ -126,11 +128,12 @@ pub(crate) fn router(
             home_rows: home_rows.clone(),
             data_dir: config.data_dir.clone(),
             backups: Backups::new(&config.data_dir, &config.file, settings.clone()),
-            exports_diagnostics: config.otlp_endpoint.is_some(),
+            browser_spans: browser_spans.clone(),
             running: running.clone(),
         }))
         .add_service(Arc::new(sign_in::SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
+            points: plugins.clone(),
         }))
         .add_service(Arc::new(matches::MatchServiceHandler {
             matcher: scanner.matcher().clone(),
@@ -154,6 +157,7 @@ pub(crate) fn router(
         .add_service(Arc::new(watch_states::WatchStateServiceHandler {
             browse: Browse::new(Arc::clone(&db)),
             running: running.clone(),
+            points: plugins.clone(),
         }))
         .add_service(Arc::new(watchlist::WatchlistServiceHandler {
             db: Arc::clone(&db),
@@ -224,9 +228,7 @@ pub(crate) fn router(
         .merge(local_images_router(local_images, image_settings))
         .merge(plugin_logos_router(plugin_logos))
         .merge(media)
-        .merge(browser_spans::router(
-            config.otlp_endpoint.as_deref().map(BrowserSpans::new),
-        ))
+        .merge(browser_spans::router(browser_spans))
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
         .layer(middleware::from_fn_with_state(
@@ -422,6 +424,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_NO_SERVER_LINKER => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
+        | R::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
         | R::REFUSAL_REASON_DEVICE_NOT_FOUND
         | R::REFUSAL_REASON_LIBRARY_NOT_FOUND

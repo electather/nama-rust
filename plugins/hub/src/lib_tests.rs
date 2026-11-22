@@ -7,7 +7,9 @@ use std::{
 
 use buffa::Message as _;
 use connectrpc::ErrorCode;
-use nama_hub_proto::nama::hub::v1::{DeviceKind as HubDeviceKind, TitleKind, ViewingEvent};
+use nama_hub_proto::nama::hub::v1::{
+    DeviceKind as HubDeviceKind, TitleKind as HubTitleKind, ViewingEvent,
+};
 use nama_plugin_api::{
     BoxFuture, Observer, Registrar, Registration,
     automation::{
@@ -22,15 +24,19 @@ use nama_plugin_api::{
         VersionTitles, VersionTitlesAsked, WatchState, WatchStates, WatchStatesAsked,
         event::Event as Happened,
     },
+    contract::{SimilarAsked, SimilarTitle, SimilarTitles, TitleKind},
     diagnostics_sharer::{DiagnosticsSharer, Signal},
     job::RunJob,
-    points::ObservedEvents,
+    points::{ObservedEvents, WatchStateChange, WatchStateChanges},
     server_link::{Link, ServerAddresses, ServerLinker},
+    similar_source::SimilarSource,
 };
 use serde_json::json;
 
+use nama_hub_proto::nama::hub::v1::WatchStateChange as HubChange;
+
 use super::*;
-use crate::fake_hub::{EMAIL, FakeHub, USER_CODE, USER_LINK_CODE};
+use crate::fake_hub::{EMAIL, FakeHub, SIGN_IN_ID, USER_CODE, USER_LINK_CODE};
 
 /// A Kernel whose only functions are the Plugin's Store, kept in memory.
 fn store() -> Arc<dyn Kernel> {
@@ -65,11 +71,45 @@ fn store() -> Arc<dyn Kernel> {
 
 /// The Plugin enabled against `hub`, keeping its Store in `kernel`.
 fn enabled(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Arc<dyn ServerLinker> {
+    provided(hub, kernel)
+}
+
+/// What the Plugin enabled against `hub`, keeping its Store in `kernel`, provides as `T`.
+fn provided<T: ?Sized + Send + Sync + 'static>(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Arc<T> {
     let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
     Hub::at(hub.url()).register(&mut registrar).unwrap();
-    registrar.into_registrations()[0]
-        .provider::<dyn ServerLinker>()
+    (registrar.into_registrations().iter())
+        .find_map(Registration::provider::<T>)
         .unwrap()
+}
+
+/// What a Similar source is asked about a Movie known by `ids`.
+fn movie(ids: &[(&str, &str)]) -> SimilarAsked {
+    SimilarAsked {
+        kind: TitleKind::TITLE_KIND_MOVIE.into(),
+        ids: ids
+            .iter()
+            .map(|&(namespace, value)| TitleId {
+                namespace: namespace.to_owned(),
+                value: value.to_owned(),
+                ..Default::default()
+            })
+            .collect(),
+        ..Default::default()
+    }
+}
+
+/// `similar`'s titles, each as its id's namespace and value and its weight.
+fn answered(similar: &SimilarTitles) -> Vec<(&str, &str, f32)> {
+    (similar.titles.iter())
+        .map(|title: &SimilarTitle| {
+            (
+                title.id.namespace.as_str(),
+                title.id.value.as_str(),
+                title.weight,
+            )
+        })
+        .collect()
 }
 
 /// Links the Server through `linker` to [`EMAIL`]'s Account on `hub`.
@@ -215,13 +255,7 @@ async fn a_hub_signed_token_verifies_against_the_kept_key_set_while_the_hub_is_u
 
 /// The Plugin's sharer, enabled against `hub` with the Store in `kernel`.
 fn sharer(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Arc<dyn DiagnosticsSharer> {
-    let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
-    Hub::at(hub.url()).register(&mut registrar).unwrap();
-    registrar
-        .into_registrations()
-        .iter()
-        .find_map(Registration::provider::<dyn DiagnosticsSharer>)
-        .unwrap()
+    provided(hub, kernel)
 }
 
 #[tokio::test]
@@ -266,6 +300,24 @@ fn without_the_hubs_address_the_plugin_refuses_to_start() {
     let refused = Hub { url: None }.register(&mut registrar).unwrap_err();
 
     assert!(refused.to_string().contains("NAMA_HUB_URL"), "{refused}");
+}
+
+#[tokio::test]
+async fn a_linked_server_gets_the_titles_the_hub_finds_alike() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    let similar = provided::<dyn SimilarSource>(&hub, &kernel);
+
+    let the_matrix = similar
+        .similar(&movie(&[("imdb", "tt0133093"), ("tmdb", "603")]))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        answered(&the_matrix),
+        [("imdb", "tt0234215", 0.9), ("imdb", "tt0078748", 0.35)]
+    );
 }
 
 #[tokio::test]
@@ -321,6 +373,59 @@ async fn a_linked_user_shows_linked_while_the_hub_is_unreachable() {
             account: EMAIL.to_owned()
         })
     );
+}
+
+#[tokio::test]
+async fn a_title_the_hub_doesnt_know_gets_no_similar_titles() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+
+    let unknown = provided::<dyn SimilarSource>(&hub, &kernel)
+        .similar(&movie(&[("tmdb", "1")]))
+        .await;
+
+    assert_eq!(answered(&unknown.unwrap()), []);
+}
+
+#[tokio::test]
+async fn a_server_that_isnt_linked_gets_no_similar_titles_and_asks_the_hub_nothing() {
+    let hub = FakeHub::start().await;
+    hub.stop();
+
+    let similar = provided::<dyn SimilarSource>(&hub, &store())
+        .similar(&movie(&[("tmdb", "603")]))
+        .await;
+
+    assert_eq!(answered(&similar.unwrap()), []);
+}
+
+#[tokio::test]
+async fn a_server_whose_credential_the_hub_forgot_gets_no_similar_titles() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.forget_server();
+
+    let similar = provided::<dyn SimilarSource>(&hub, &kernel)
+        .similar(&movie(&[("tmdb", "603")]))
+        .await;
+
+    assert_eq!(answered(&similar.unwrap()), []);
+}
+
+#[tokio::test]
+async fn similar_titles_fail_while_the_hub_is_unreachable_so_the_last_answer_stays() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.stop();
+
+    let similar = provided::<dyn SimilarSource>(&hub, &kernel)
+        .similar(&movie(&[("tmdb", "603")]))
+        .await;
+
+    similar.unwrap_err();
 }
 
 #[tokio::test]
@@ -422,6 +527,140 @@ async fn a_server_linked_again_doesnt_show_its_users_old_links() {
     assert_eq!(linker.user_link(8).await.unwrap(), Some(Link::NotLinked));
 }
 
+/// The Plugin enabled against `hub`, the Server and its User 7 Linked, as the Kernel tells it of
+/// Watch State changes and runs its Job.
+async fn syncing_user_7(
+    hub: &FakeHub,
+) -> (Arc<dyn Observer<WatchStatesChanged>>, Arc<dyn JobRunner>) {
+    let mut registrar = Registrar::new().with_kernel(store());
+    Hub::at(hub.url()).register(&mut registrar).unwrap();
+    let registrations = registrar.into_registrations();
+    let linker = (registrations.iter())
+        .find_map(Registration::provider::<dyn ServerLinker>)
+        .unwrap();
+    link(hub, linker.as_ref()).await;
+    link_user(hub, linker.as_ref(), 7).await;
+    let observer = (registrations.iter())
+        .find_map(Registration::observer::<WatchStatesChanged>)
+        .unwrap();
+    let jobs = (registrations.iter())
+        .find_map(Registration::provider::<dyn JobRunner>)
+        .unwrap();
+    (observer, jobs)
+}
+
+/// The Movie `tmdb-<id>` at `position_ms`, changed at `changed_at_ms`.
+fn movie_at(id: u64, position_ms: u64, changed_at_ms: i64) -> WatchStateChange {
+    WatchStateChange {
+        episode: false,
+        ids: vec![format!("tmdb-{id}")],
+        played: false,
+        position_ms,
+        duration_ms: 7000,
+        changed_at_ms,
+    }
+}
+
+/// Tells `observer` of the User `user_id`'s `changes`, in one write.
+async fn tell(
+    observer: &dyn Observer<WatchStatesChanged>,
+    user_id: i64,
+    changes: Vec<WatchStateChange>,
+) {
+    let write = WatchStateChanges { user_id, changes };
+    observer.observe(&write).await.unwrap();
+}
+
+async fn run_sync(jobs: &dyn JobRunner) -> Result<(), PluginError> {
+    let run = RunJob {
+        job_id: "sync".to_owned(),
+        ..Default::default()
+    };
+    jobs.run(&run).await
+}
+
+/// What the Hub was pushed, in order, as each change's first id, position and when it changed.
+fn pushed(hub: &FakeHub) -> Vec<Vec<(String, u64, i64)>> {
+    let changes = |push: Vec<HubChange>| {
+        (push.into_iter())
+            .map(|change| {
+                (
+                    change.ids[0].clone(),
+                    change.position_ms,
+                    change.changed_at_ms,
+                )
+            })
+            .collect()
+    };
+    hub.pushes().into_iter().map(changes).collect()
+}
+
+#[tokio::test]
+async fn changes_made_while_the_hub_is_down_reach_it_in_order_once_it_is_back() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs) = syncing_user_7(&hub).await;
+    hub.set_down(true);
+
+    tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
+    tell(observer.as_ref(), 7, vec![movie_at(679, 2000, 2_000)]).await;
+    assert!(run_sync(jobs.as_ref()).await.is_err());
+    tell(observer.as_ref(), 7, vec![movie_at(348, 3000, 3_000)]).await;
+    hub.set_down(false);
+    run_sync(jobs.as_ref()).await.unwrap();
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(
+        pushed(&hub),
+        [[
+            ("tmdb-679".to_owned(), 2000, 2_000),
+            ("tmdb-348".to_owned(), 3000, 3_000)
+        ]]
+    );
+}
+
+#[tokio::test]
+async fn an_account_approving_on_the_hub_signs_in_as_its_user() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+
+    let started = linker
+        .start_account_sign_in("https://nama.example/sign-in")
+        .await
+        .unwrap();
+
+    assert_eq!(
+        started.url,
+        format!("{}/server-sign-in/{SIGN_IN_ID}", hub.url())
+    );
+    assert_eq!(
+        hub.sign_in_returns_to().as_deref(),
+        Some("https://nama.example/sign-in")
+    );
+    assert_eq!(
+        linker
+            .finish_account_sign_in(&started.handle)
+            .await
+            .unwrap(),
+        None
+    );
+    hub.approve_sign_in(7);
+    assert_eq!(
+        linker
+            .finish_account_sign_in(&started.handle)
+            .await
+            .unwrap(),
+        Some(7)
+    );
+    assert_eq!(
+        linker
+            .finish_account_sign_in(&started.handle)
+            .await
+            .unwrap(),
+        None
+    );
+}
+
 fn addresses(url: &str, lan: &[&str]) -> ServerAddresses {
     ServerAddresses {
         url: url.to_owned(),
@@ -455,6 +694,120 @@ async fn the_server_reports_its_addresses_once_linked_and_then_only_when_they_ch
             (String::new(), lan.clone()),
             ("https://nama.example.com".to_owned(), lan),
         ]
+    );
+}
+
+#[tokio::test]
+async fn a_change_told_after_a_later_one_of_the_same_title_is_dropped() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs) = syncing_user_7(&hub).await;
+
+    tell(observer.as_ref(), 7, vec![movie_at(348, 3000, 2_000)]).await;
+    tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(pushed(&hub), [[("tmdb-348".to_owned(), 3000, 2_000)]]);
+}
+
+#[tokio::test]
+async fn a_user_who_isnt_linked_keeps_their_watch_state_on_the_server() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs) = syncing_user_7(&hub).await;
+
+    tell(observer.as_ref(), 8, vec![movie_at(348, 1000, 1_000)]).await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(hub.pushes(), Vec::<Vec<HubChange>>::new());
+}
+
+#[tokio::test]
+async fn a_write_of_many_changes_is_pushed_a_page_at_a_time_in_order() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs) = syncing_user_7(&hub).await;
+    let changes: Vec<_> = (1..=250).map(|id| movie_at(id, 1000, 1_000)).collect();
+
+    tell(observer.as_ref(), 7, changes).await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    let pushes = hub.pushes();
+    let sizes: Vec<_> = pushes.iter().map(Vec::len).collect();
+    let ids: Vec<_> = (pushes.into_iter().flatten())
+        .map(|change| change.ids[0].clone())
+        .collect();
+    let expected: Vec<_> = (1..=250).map(|id| format!("tmdb-{id}")).collect();
+    assert_eq!(sizes, [100, 100, 50]);
+    assert_eq!(ids, expected);
+}
+
+#[tokio::test]
+async fn ids_the_hub_wouldnt_take_are_left_out_and_a_change_with_none_stays_behind() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs) = syncing_user_7(&hub).await;
+    let long = format!("anidb-{}", "1".repeat(100));
+    let with_a_long_id = WatchStateChange {
+        ids: vec![long.clone(), "tmdb-348".to_owned()],
+        ..movie_at(348, 1000, 1_000)
+    };
+    let with_only_a_long_id = WatchStateChange {
+        ids: vec![long],
+        ..movie_at(679, 1000, 1_000)
+    };
+
+    tell(
+        observer.as_ref(),
+        7,
+        vec![with_a_long_id, with_only_a_long_id],
+    )
+    .await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(pushed(&hub), [[("tmdb-348".to_owned(), 1000, 1_000)]]);
+}
+
+#[tokio::test]
+async fn signing_in_with_an_account_fails_while_the_hub_is_unreachable() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+
+    hub.stop();
+
+    let started = linker
+        .start_account_sign_in("https://nama.example/sign-in")
+        .await;
+    assert!(started.is_err());
+}
+
+#[tokio::test]
+async fn a_server_that_isnt_linked_cant_sign_in_with_accounts_or_invite() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+
+    let started = linker
+        .start_account_sign_in("https://nama.example/sign-in")
+        .await;
+    assert!(started.is_err());
+    linker
+        .invite_user(7, "Grace", "grace@example.com")
+        .await
+        .unwrap_err();
+    assert_eq!(hub.invite(7), None);
+}
+
+#[tokio::test]
+async fn a_user_created_from_an_account_is_invited_on_the_hub() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+
+    linker
+        .invite_user(7, "Grace", "grace@example.com")
+        .await
+        .unwrap();
+
+    assert_eq!(
+        hub.invite(7),
+        Some(("Grace".to_owned(), "grace@example.com".to_owned()))
     );
 }
 
@@ -661,7 +1014,7 @@ async fn a_linked_users_play_of_a_matched_title_goes_to_the_hub() {
     assert_eq!(
         event,
         &ViewingEvent {
-            kind: TitleKind::TITLE_KIND_MOVIE.into(),
+            kind: HubTitleKind::TITLE_KIND_MOVIE.into(),
             external_id: "tmdb-603".to_owned(),
             started_at: event.started_at,
             time_of_day_minutes: event.time_of_day_minutes,

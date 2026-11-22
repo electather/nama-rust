@@ -49,9 +49,24 @@ pub enum RefusalReason {
     /// characters, or the Server reported more than `maxLanAddresses` LAN addresses. Params:
     /// `maxLength` and `maxLanAddresses`.
     REFUSAL_REASON_SERVER_ADDRESS_INVALID = 15i32,
+    /// `not_found`: the signed-in Account has no such User waiting for it: it was accepted already,
+    /// or its Server Unlinked it.
+    REFUSAL_REASON_USER_INVITE_NOT_FOUND = 16i32,
+    /// `not_found`: the sign-in expired, was approved already, or never existed. Start again on the
+    /// Server.
+    REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND = 17i32,
+    /// `failed_precondition`: the signed-in Account has no User Linked on that Server, so it can't
+    /// sign in to it.
+    REFUSAL_REASON_NO_USER_ON_SERVER = 18i32,
+    /// `invalid_argument`: the field isn't an `http` or `https` address.
+    REFUSAL_REASON_URL_INVALID = 19i32,
+    /// `invalid_argument`: a Watch State change breaks a limit `PushWatchStatesRequest` sets, such as
+    /// too many changes, an id too long, a position past the duration, or a time out of range. `field` names it. Params:
+    /// `maxChanges`, `maxIds` and `maxIdLength`.
+    REFUSAL_REASON_WATCH_STATE_INVALID = 20i32,
     /// `invalid_argument`: a Viewing Event breaks the rules `ViewingEvent` and `UserViewingEvent`
     /// give, or more than `maxEvents` came at once. Params: `maxEvents`.
-    REFUSAL_REASON_VIEWING_EVENT_INVALID = 16i32,
+    REFUSAL_REASON_VIEWING_EVENT_INVALID = 21i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -102,6 +117,21 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_SERVER_ADDRESS_INVALID`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ServerAddressInvalid: Self = Self::REFUSAL_REASON_SERVER_ADDRESS_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_USER_INVITE_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const UserInviteNotFound: Self = Self::REFUSAL_REASON_USER_INVITE_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ServerSignInNotFound: Self = Self::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_NO_USER_ON_SERVER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const NoUserOnServer: Self = Self::REFUSAL_REASON_NO_USER_ON_SERVER;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_URL_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const UrlInvalid: Self = Self::REFUSAL_REASON_URL_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_WATCH_STATE_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const WatchStateInvalid: Self = Self::REFUSAL_REASON_WATCH_STATE_INVALID;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_VIEWING_EVENT_INVALID`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ViewingEventInvalid: Self = Self::REFUSAL_REASON_VIEWING_EVENT_INVALID;
@@ -231,6 +261,19 @@ impl ::buffa::Enumeration for RefusalReason {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SERVER_ADDRESS_INVALID)
             }
             16i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_USER_INVITE_NOT_FOUND)
+            }
+            17i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND,
+                )
+            }
+            18i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NO_USER_ON_SERVER),
+            19i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_URL_INVALID),
+            20i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_WATCH_STATE_INVALID)
+            }
+            21i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_VIEWING_EVENT_INVALID)
             }
             _ => ::core::option::Option::None,
@@ -266,6 +309,17 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_USER_LINKED => "REFUSAL_REASON_USER_LINKED",
             Self::REFUSAL_REASON_SERVER_ADDRESS_INVALID => {
                 "REFUSAL_REASON_SERVER_ADDRESS_INVALID"
+            }
+            Self::REFUSAL_REASON_USER_INVITE_NOT_FOUND => {
+                "REFUSAL_REASON_USER_INVITE_NOT_FOUND"
+            }
+            Self::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND => {
+                "REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND"
+            }
+            Self::REFUSAL_REASON_NO_USER_ON_SERVER => "REFUSAL_REASON_NO_USER_ON_SERVER",
+            Self::REFUSAL_REASON_URL_INVALID => "REFUSAL_REASON_URL_INVALID",
+            Self::REFUSAL_REASON_WATCH_STATE_INVALID => {
+                "REFUSAL_REASON_WATCH_STATE_INVALID"
             }
             Self::REFUSAL_REASON_VIEWING_EVENT_INVALID => {
                 "REFUSAL_REASON_VIEWING_EVENT_INVALID"
@@ -326,6 +380,23 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_SERVER_ADDRESS_INVALID" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SERVER_ADDRESS_INVALID)
             }
+            "REFUSAL_REASON_USER_INVITE_NOT_FOUND" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_USER_INVITE_NOT_FOUND)
+            }
+            "REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND,
+                )
+            }
+            "REFUSAL_REASON_NO_USER_ON_SERVER" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_NO_USER_ON_SERVER)
+            }
+            "REFUSAL_REASON_URL_INVALID" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_URL_INVALID)
+            }
+            "REFUSAL_REASON_WATCH_STATE_INVALID" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_WATCH_STATE_INVALID)
+            }
             "REFUSAL_REASON_VIEWING_EVENT_INVALID" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_VIEWING_EVENT_INVALID)
             }
@@ -350,6 +421,11 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_SERVER_NOT_LINKED,
             Self::REFUSAL_REASON_USER_LINKED,
             Self::REFUSAL_REASON_SERVER_ADDRESS_INVALID,
+            Self::REFUSAL_REASON_USER_INVITE_NOT_FOUND,
+            Self::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND,
+            Self::REFUSAL_REASON_NO_USER_ON_SERVER,
+            Self::REFUSAL_REASON_URL_INVALID,
+            Self::REFUSAL_REASON_WATCH_STATE_INVALID,
             Self::REFUSAL_REASON_VIEWING_EVENT_INVALID,
         ]
     }

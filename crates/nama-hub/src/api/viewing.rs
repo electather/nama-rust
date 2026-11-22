@@ -68,7 +68,10 @@ pub(super) fn recorded_from_proto(
             let kind = match event.kind {
                 EnumValue::Known(TitleKind::TITLE_KIND_MOVIE) => Kind::Movie,
                 EnumValue::Known(TitleKind::TITLE_KIND_EPISODE) => Kind::Episode,
-                EnumValue::Known(TitleKind::TITLE_KIND_UNSPECIFIED) | EnumValue::Unknown(_) => {
+                EnumValue::Known(
+                    TitleKind::TITLE_KIND_UNSPECIFIED | TitleKind::TITLE_KIND_SHOW,
+                )
+                | EnumValue::Unknown(_) => {
                     return Err(refused(&viewing::Error::Invalid));
                 }
             };

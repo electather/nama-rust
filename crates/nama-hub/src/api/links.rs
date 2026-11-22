@@ -1,25 +1,36 @@
 //! Registering a Server, Linking its Users, and Unlinking either: `nama.hub.v1.ServerLinkService`,
-//! `LinkService` and `LinkedServerService`, one for each kind of caller.
+//! `LinkService` and `LinkedServerService`, one for each kind of caller, and what a Linked Server
+//! asks of the Hub's titles.
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_hub_proto::nama::hub::v1::{
-    self as proto, ApproveServerLinkRequest, ApproveServerLinkResponse, ApproveUserLinkRequest,
-    ApproveUserLinkResponse, GetUserLinkRequest, GetUserLinkResponse, LinkService,
-    LinkedServerService, ListLinkedServersRequest, ListLinkedServersResponse,
-    ListLinkedUsersRequest, ListLinkedUsersResponse, PollServerLinkRequest, PollServerLinkResponse,
-    RecordViewingEventsRequest, RecordViewingEventsResponse, RefusalReason, ServerLinkService,
-    SetServerAddressesRequest, SetServerAddressesResponse, StartServerLinkRequest,
-    StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkLinkedUserRequest,
-    UnlinkLinkedUserResponse, UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest,
-    UnlinkUserResponse,
+    self as proto, AcceptUserInviteRequest, AcceptUserInviteResponse, ApproveServerLinkRequest,
+    ApproveServerLinkResponse, ApproveServerSignInRequest, ApproveServerSignInResponse,
+    ApproveUserLinkRequest, ApproveUserLinkResponse, GetServerSignInRequest,
+    GetServerSignInResponse, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest,
+    InviteUserResponse, LinkService, LinkedServerService, ListLinkedServersRequest,
+    ListLinkedServersResponse, ListLinkedUsersRequest, ListLinkedUsersResponse,
+    ListSimilarTitlesRequest, ListSimilarTitlesResponse, ListUserInvitesRequest,
+    ListUserInvitesResponse, PollServerLinkRequest, PollServerLinkResponse,
+    PollServerSignInRequest, PollServerSignInResponse, PushWatchStatesRequest,
+    PushWatchStatesResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
+    RefusalReason, ServerLinkService, SetServerAddressesRequest, SetServerAddressesResponse,
+    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
+    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse,
+    UnlinkLinkedUserRequest, UnlinkLinkedUserResponse, UnlinkServerRequest, UnlinkServerResponse,
+    UnlinkUserRequest, UnlinkUserResponse,
 };
+use sqlx::PgPool;
 
 use super::{accounts::signed_in, hub_failed, refuse, viewing};
 use crate::{
     links::{
-        self, ADDRESS_LENGTH, CODE_LIFETIME_MINS, LinkId, LinkedServer, Links, ListedServer,
-        ListedUser, MAX_LAN_ADDRESSES, POLL_INTERVAL_SECS, Polled,
+        self, ADDRESS_LENGTH, CODE_LIFETIME_MINS, InviteId, LinkId, LinkedServer, Links,
+        ListedInvite, ListedServer, ListedUser, MAX_LAN_ADDRESSES, POLL_INTERVAL_SECS, Polled,
+        SignInId,
     },
+    sync::{MAX_CHANGED_AT_MS, MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, WatchStateChange, WatchStates},
+    titles::{self, ExternalId, SimilarTitle, TitleKind},
     viewing::Viewing,
 };
 
@@ -163,11 +174,82 @@ impl LinkService for LinkServiceHandler {
         }
         Response::ok(UnlinkLinkedUserResponse::default())
     }
+
+    async fn list_user_invites(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListUserInvitesRequest>,
+    ) -> ServiceResult<ListUserInvitesResponse> {
+        let account = signed_in(&ctx)?.account.id;
+        let invites = self
+            .links
+            .list_invites(account)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(ListUserInvitesResponse {
+            invites: invites.into_iter().map(invite_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn accept_user_invite(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, AcceptUserInviteRequest>,
+    ) -> ServiceResult<AcceptUserInviteResponse> {
+        let session = signed_in(&ctx)?;
+        let user = self
+            .links
+            .accept_invite(session, invite_id(request.id)?)
+            .await
+            .map_err(refused)?;
+        Response::ok(AcceptUserInviteResponse {
+            user: user_to_proto(user).into(),
+            ..Default::default()
+        })
+    }
+
+    async fn get_server_sign_in(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, GetServerSignInRequest>,
+    ) -> ServiceResult<GetServerSignInResponse> {
+        let account = signed_in(&ctx)?.account.id;
+        let waiting = self
+            .links
+            .sign_in(account, sign_in_id(request.id)?)
+            .await
+            .map_err(refused)?;
+        Response::ok(GetServerSignInResponse {
+            server_name: waiting.server_name,
+            user_name: waiting.user_name.unwrap_or_default(),
+            ..Default::default()
+        })
+    }
+
+    async fn approve_server_sign_in(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ApproveServerSignInRequest>,
+    ) -> ServiceResult<ApproveServerSignInResponse> {
+        let account = signed_in(&ctx)?.account.id;
+        let return_url = self
+            .links
+            .approve_sign_in(account, sign_in_id(request.id)?)
+            .await
+            .map_err(refused)?;
+        Response::ok(ApproveServerSignInResponse {
+            return_url,
+            ..Default::default()
+        })
+    }
 }
 
 /// `nama.hub.v1.LinkedServerService`: a Linked Server, by its credential.
 pub(super) struct LinkedServerServiceHandler {
     pub(super) links: Links,
+    pub(super) watch_states: WatchStates,
+    pub(super) db: PgPool,
     pub(super) viewing: Viewing,
 }
 
@@ -187,6 +269,39 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(UnlinkServerResponse::default())
+    }
+
+    async fn list_similar_titles(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ListSimilarTitlesRequest>,
+    ) -> ServiceResult<ListSimilarTitlesResponse> {
+        linked_server(&ctx)?;
+        let kind = match request.kind.as_known() {
+            Some(proto::TitleKind::TITLE_KIND_MOVIE) => TitleKind::Movie,
+            Some(proto::TitleKind::TITLE_KIND_SHOW) => TitleKind::Show,
+            Some(
+                proto::TitleKind::TITLE_KIND_UNSPECIFIED | proto::TitleKind::TITLE_KIND_EPISODE,
+            )
+            | None => {
+                return Response::ok(ListSimilarTitlesResponse::default());
+            }
+        };
+        let ids: Vec<ExternalId> = request
+            .ids
+            .iter()
+            .map(|id| ExternalId {
+                namespace: id.namespace.to_owned(),
+                value: id.value.to_owned(),
+            })
+            .collect();
+        let similar = titles::similar(&self.db, kind, &ids)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(ListSimilarTitlesResponse {
+            titles: similar.into_iter().map(similar_to_proto).collect(),
+            ..Default::default()
+        })
     }
 
     async fn start_user_link(
@@ -234,6 +349,71 @@ impl LinkedServerService for LinkedServerServiceHandler {
         Response::ok(UnlinkUserResponse::default())
     }
 
+    async fn push_watch_states(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PushWatchStatesRequest>,
+    ) -> ServiceResult<PushWatchStatesResponse> {
+        let server = linked_server(&ctx)?;
+        let changes = changes_from_proto(request.to_owned_message().changes)?;
+        self.watch_states
+            .push(server, changes)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(PushWatchStatesResponse::default())
+    }
+
+    async fn invite_user(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, InviteUserRequest>,
+    ) -> ServiceResult<InviteUserResponse> {
+        self.links
+            .invite_user(
+                linked_server(&ctx)?,
+                request.user_id,
+                request.name,
+                request.email,
+            )
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(InviteUserResponse::default())
+    }
+
+    async fn start_server_sign_in(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, StartServerSignInRequest>,
+    ) -> ServiceResult<StartServerSignInResponse> {
+        let started = self
+            .links
+            .start_sign_in(linked_server(&ctx)?, request.return_url)
+            .await
+            .map_err(refused)?;
+        Response::ok(StartServerSignInResponse {
+            device_code: started.device_code,
+            id: started.id.to_string(),
+            expires_in_seconds: CODE_LIFETIME_MINS * 60,
+            ..Default::default()
+        })
+    }
+
+    async fn poll_server_sign_in(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PollServerSignInRequest>,
+    ) -> ServiceResult<PollServerSignInResponse> {
+        let token = self
+            .links
+            .poll_sign_in(linked_server(&ctx)?, request.device_code)
+            .await
+            .map_err(refused)?;
+        Response::ok(PollServerSignInResponse {
+            token: token.unwrap_or_default(),
+            ..Default::default()
+        })
+    }
+
     async fn set_server_addresses(
         &self,
         ctx: RequestContext,
@@ -265,6 +445,18 @@ impl LinkedServerService for LinkedServerServiceHandler {
     }
 }
 
+/// The invite `id` names. One that isn't a UUID names none.
+fn invite_id(id: &str) -> Result<InviteId, ConnectError> {
+    id.parse()
+        .map_err(|_not_a_uuid| refused(links::Error::InviteNotFound))
+}
+
+/// The sign-in `id` names. One that isn't a UUID names none.
+fn sign_in_id(id: &str) -> Result<SignInId, ConnectError> {
+    id.parse()
+        .map_err(|_not_a_uuid| refused(links::Error::SignInNotFound))
+}
+
 /// The Linked Server whose credential the request carried, which the auth layer found.
 fn linked_server(ctx: &RequestContext) -> Result<&LinkedServer, ConnectError> {
     ctx.extensions().get::<LinkedServer>().ok_or_else(|| {
@@ -274,6 +466,19 @@ fn linked_server(ctx: &RequestContext) -> Result<&LinkedServer, ConnectError> {
         )
         .into()
     })
+}
+
+fn similar_to_proto(similar: SimilarTitle) -> proto::SimilarTitle {
+    proto::SimilarTitle {
+        id: proto::ExternalId {
+            namespace: similar.id.namespace,
+            value: similar.id.value,
+            ..Default::default()
+        }
+        .into(),
+        weight: similar.weight,
+        ..Default::default()
+    }
 }
 
 fn server_to_proto(server: ListedServer) -> proto::LinkedServer {
@@ -297,6 +502,16 @@ fn user_to_proto(user: ListedUser) -> proto::LinkedUser {
     }
 }
 
+fn invite_to_proto(invite: ListedInvite) -> proto::UserInvite {
+    proto::UserInvite {
+        id: invite.id.to_string(),
+        name: invite.name,
+        server_name: invite.server_name,
+        invited_at: invite.invited_at,
+        ..Default::default()
+    }
+}
+
 /// The Connect error a client gets for a Link that couldn't be made or polled.
 #[expect(
     clippy::needless_pass_by_value,
@@ -314,10 +529,80 @@ fn refused(err: links::Error) -> ConnectError {
         E::CodeNotFound => refuse(R::REFUSAL_REASON_LINK_CODE_NOT_FOUND, message).field("code"),
         E::Expired => refuse(R::REFUSAL_REASON_LINK_EXPIRED, message).field("device_code"),
         E::UserLinked => refuse(R::REFUSAL_REASON_USER_LINKED, message),
+        E::InviteNotFound => refuse(R::REFUSAL_REASON_USER_INVITE_NOT_FOUND, message).field("id"),
+        E::SignInNotFound => {
+            refuse(R::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND, message).field("id")
+        }
+        E::NoUserOnServer => refuse(R::REFUSAL_REASON_NO_USER_ON_SERVER, message),
+        E::UrlInvalid => refuse(R::REFUSAL_REASON_URL_INVALID, message).field("return_url"),
         E::AddressInvalid => refuse(R::REFUSAL_REASON_SERVER_ADDRESS_INVALID, message)
             .param("maxLength", &ADDRESS_LENGTH)
             .param("maxLanAddresses", &MAX_LAN_ADDRESSES),
         E::Random(_) | E::Database(_) => return hub_failed(&err),
     };
     refused.into()
+}
+
+/// `changes` as `sync` takes them, or the refusal of the first limit they break.
+fn changes_from_proto(
+    changes: Vec<proto::WatchStateChange>,
+) -> Result<Vec<WatchStateChange>, ConnectError> {
+    if changes.len() > MAX_CHANGES {
+        return Err(invalid_change(
+            "changes",
+            format!("a push holds up to {MAX_CHANGES} changes"),
+        ));
+    }
+    (changes.into_iter().enumerate())
+        .map(|(nth, change)| change_from_proto(nth, change))
+        .collect()
+}
+
+/// The `nth` change of a push, as `sync` takes it.
+fn change_from_proto(
+    nth: usize,
+    change: proto::WatchStateChange,
+) -> Result<WatchStateChange, ConnectError> {
+    let field = |name: &str| format!("changes[{nth}].{name}");
+    let id_fits = |id: &String| !id.is_empty() && id.chars().count() <= MAX_ID_LENGTH;
+    if !(1..=MAX_IDS).contains(&change.ids.len()) || !change.ids.iter().all(id_fits) {
+        return Err(invalid_change(
+            &field("ids"),
+            format!(
+                "a change names 1 to {MAX_IDS} External IDs of 1 to {MAX_ID_LENGTH} characters"
+            ),
+        ));
+    }
+    let duration_ms = i64::try_from(change.duration_ms)
+        .map_err(|_too_long| invalid_change(&field("duration_ms"), "the duration is too long"))?;
+    let position_ms = (i64::try_from(change.position_ms).ok())
+        .filter(|&position_ms| position_ms <= duration_ms)
+        .ok_or_else(|| {
+            invalid_change(&field("position_ms"), "the position is past the duration")
+        })?;
+    if !(0..=MAX_CHANGED_AT_MS).contains(&change.changed_at_ms) {
+        return Err(invalid_change(
+            &field("changed_at_ms"),
+            "a change is dated from 1970 to the end of 9999",
+        ));
+    }
+    Ok(WatchStateChange {
+        user_id: change.user_id,
+        episode: change.episode,
+        ids: change.ids,
+        played: change.played,
+        position_ms,
+        duration_ms,
+        changed_at_ms: change.changed_at_ms,
+    })
+}
+
+/// Refuses a push for a change at `field` that breaks a limit, which `message` names.
+fn invalid_change(field: &str, message: impl Into<String>) -> ConnectError {
+    refuse(RefusalReason::REFUSAL_REASON_WATCH_STATE_INVALID, message)
+        .field(field)
+        .param("maxChanges", &MAX_CHANGES)
+        .param("maxIds", &MAX_IDS)
+        .param("maxIdLength", &MAX_ID_LENGTH)
+        .into()
 }

@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package nama.hub.v1;
 
+import "nama/hub/v1/title.proto";
 import "nama/hub/v1/viewing.proto";
 
 // Registering a Server with the Hub, as an OAuth device flow (RFC 8628, ADR 0011): the Server
@@ -44,6 +45,26 @@ service LinkService {
   rpc UnlinkLinkedUser(UnlinkLinkedUserRequest) returns (UnlinkLinkedUserResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Returns the Users Admins created from the signed-in Account that it hasn't accepted yet,
+  // oldest first (ADR 0092).
+  rpc ListUserInvites(ListUserInvitesRequest) returns (ListUserInvitesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Accepts a User created from the signed-in Account, which Links them to it, so they can sign in
+  // with it. Fails like `ApproveServerLink`, with `REFUSAL_REASON_USER_INVITE_NOT_FOUND` for an id
+  // none of its invites has, and with `REFUSAL_REASON_USER_LINKED` if the User Linked meanwhile.
+  rpc AcceptUserInvite(AcceptUserInviteRequest) returns (AcceptUserInviteResponse);
+  // Names the Server a sign-in with the Account was started on, and the signed-in Account's User
+  // there, so the person can check them before approving. Fails with
+  // `REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND` for a sign-in that expired, was approved, or never
+  // existed.
+  rpc GetServerSignIn(GetServerSignInRequest) returns (GetServerSignInResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Approves a sign-in with the signed-in Account, as its User on that Server, and returns where to
+  // go back to. Fails like `GetServerSignIn`, and with `REFUSAL_REASON_NO_USER_ON_SERVER` if the
+  // Account has no User Linked on that Server.
+  rpc ApproveServerSignIn(ApproveServerSignInRequest) returns (ApproveServerSignInResponse);
 }
 
 // What a Linked Server asks the Hub. It sends the credential `PollServerLink` gave it in an
@@ -53,6 +74,13 @@ service LinkedServerService {
   // Unlinks the calling Server: its credential stops working at once, and it leaves its Account's
   // Servers.
   rpc UnlinkServer(UnlinkServerRequest) returns (UnlinkServerResponse);
+  // The titles most like one title, of its kind, by the vectors the Hub builds from Wikidata's
+  // facts (ADR 0095): at most 100, most alike first. Empty when Wikidata lacks the title or the
+  // kind isn't a Movie or a Show, which isn't a failure: the Server's other Similar sources cover
+  // it.
+  rpc ListSimilarTitles(ListSimilarTitlesRequest) returns (ListSimilarTitlesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
   // Starts Linking one of the Server's Users: the code they enter on the Hub, which replaces any
   // code they were waiting on and stops working after `expires_in_seconds`. Fails with
   // `REFUSAL_REASON_USER_LINKED` for a User Linked already, since a User Links to one Account.
@@ -67,6 +95,26 @@ service LinkedServerService {
   rpc UnlinkUser(UnlinkUserRequest) returns (UnlinkUserResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Merges changes to the Server's Users' Watch State into their Accounts' (ADR 0008): per Account
+  // and title, the change made last wins, whichever Server sends it and whenever. A change of a User
+  // who isn't Linked is dropped. Fails with `REFUSAL_REASON_WATCH_STATE_INVALID` for a change it
+  // can't keep, keeping none of the call's.
+  rpc PushWatchStates(PushWatchStatesRequest) returns (PushWatchStatesResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Asks the Account with `email`, if there is one, to accept one of the Server's Users created
+  // from it (ADR 0092). It answers the same whether or not there is, so it reveals nothing about
+  // which emails have Accounts. Asking again for the same User replaces the request.
+  rpc InviteUser(InviteUserRequest) returns (InviteUserResponse);
+  // Starts someone signing in to the Server with their Account, as an OAuth device flow: the
+  // person approves it on the Hub's page for `id`, which then sends them to `return_url`, and the
+  // Server collects the sign-in with `PollServerSignIn`. Both stop working after
+  // `expires_in_seconds`.
+  rpc StartServerSignIn(StartServerSignInRequest) returns (StartServerSignInResponse);
+  // Whether the sign-in was approved. Once it is, the first poll gets the token naming the User
+  // and every later one fails. Fails with `REFUSAL_REASON_LINK_EXPIRED` for a device code that
+  // expired, was used, or never existed.
+  rpc PollServerSignIn(PollServerSignInRequest) returns (PollServerSignInResponse);
   // Replaces the Server Addresses the calling Server reported before. The Server reports them
   // whenever they change. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an
   // `http` or `https` URL, or for too many.
@@ -150,6 +198,33 @@ message UnlinkServerRequest {}
 
 message UnlinkServerResponse {}
 
+// A title's id at a metadata source (ADR 0042).
+message ExternalId {
+  // The metadata source, such as `tmdb`, `imdb` or `tvdb`.
+  string namespace = 1;
+  // The title's id there, such as `603`.
+  string value = 2;
+}
+
+message ListSimilarTitlesRequest {
+  TitleKind kind = 1;
+  // The title's External IDs, at most one per namespace, in the order the Server prefers its
+  // answers' namespaces.
+  repeated ExternalId ids = 2;
+}
+
+message ListSimilarTitlesResponse {
+  repeated SimilarTitle titles = 1;
+}
+
+// A title like the one asked about.
+message SimilarTitle {
+  // Its id in the first namespace of the request's `ids` that the Hub knows it by. A title the Hub
+  // knows by none of them isn't answered.
+  ExternalId id = 1;
+  // How alike, from 0.0 to 1.0.
+  float weight = 2;
+}
 // A User on a Linked Server, Linked to an Account.
 message LinkedUser {
   // The Link's id, a UUID.
@@ -217,6 +292,120 @@ message UnlinkUserRequest {
 
 message UnlinkUserResponse {}
 
+message PushWatchStatesRequest {
+  // In the order the Server made them: up to 500.
+  repeated WatchStateChange changes = 1;
+}
+
+message PushWatchStatesResponse {}
+
+// One User's Watch State of a Movie or Episode, as a change on their Server left it.
+message WatchStateChange {
+  // The User's id on the Server.
+  int64 user_id = 1;
+  // Whether it is an Episode rather than a Movie, whose TMDB ids are a separate id space.
+  bool episode = 2;
+  // Every External ID it is known by, such as `tmdb-348` (ADR 0013): 1 to 20, each up to 100
+  // characters. An Unmatched Item has none, so its Watch State never leaves its Server.
+  repeated string ids = 3;
+  // Whether it was played. Marking it unplayed leaves it unplayed at 0 of 0 milliseconds.
+  bool played = 4;
+  // How far in, in milliseconds, up to `duration_ms`.
+  uint64 position_ms = 5;
+  // How long it is, in milliseconds; 0 if no player said.
+  uint64 duration_ms = 6;
+  // When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+  // 9999.
+  int64 changed_at_ms = 7;
+}
+
+// A User an Admin created from an Account, waiting for it to accept them.
+message UserInvite {
+  // The invite's id, a UUID.
+  string id = 1;
+  // The User's name on their Server.
+  string name = 2;
+  // The name of the Linked Server the User is on.
+  string server_name = 3;
+  // When the Admin created them, in seconds since the Unix epoch.
+  int64 invited_at = 4;
+}
+
+message ListUserInvitesRequest {}
+
+message ListUserInvitesResponse {
+  repeated UserInvite invites = 1;
+}
+
+message AcceptUserInviteRequest {
+  // The invite's id, as `UserInvite.id`.
+  string id = 1;
+}
+
+message AcceptUserInviteResponse {
+  // The User just Linked.
+  LinkedUser user = 1;
+}
+
+message GetServerSignInRequest {
+  // The sign-in's id, from the page's address.
+  string id = 1;
+}
+
+message GetServerSignInResponse {
+  // The name of the Linked Server it signs in to.
+  string server_name = 1;
+  // The name of the signed-in Account's User on that Server, or empty if it has none there.
+  string user_name = 2;
+}
+
+message ApproveServerSignInRequest {
+  // The sign-in's id, from the page's address.
+  string id = 1;
+}
+
+message ApproveServerSignInResponse {
+  // Where to send the person back to, on the Server.
+  string return_url = 1;
+}
+
+message InviteUserRequest {
+  // The User's id on the Server.
+  int64 user_id = 1;
+  // The User's name, which the Account's list of invites shows: up to 100 characters, cut there if
+  // longer.
+  string name = 2;
+  // The email of the Account to ask, in any case.
+  string email = 3;
+}
+
+message InviteUserResponse {}
+
+message StartServerSignInRequest {
+  // Where the Hub's page sends the person once they approve: an `http` or `https` address on the
+  // Server. Fails with `invalid_argument` for any other.
+  string return_url = 1;
+}
+
+message StartServerSignInResponse {
+  // What the Server polls with. A secret: only the Server and the browser that started see it.
+  string device_code = 1;
+  // The sign-in's id: the Hub's page for it is `/server-sign-in/<id>`.
+  string id = 2;
+  // How long both work.
+  int32 expires_in_seconds = 3;
+}
+
+message PollServerSignInRequest {
+  string device_code = 1;
+}
+
+message PollServerSignInResponse {
+  // Empty until the sign-in is approved. Then a JWT the Hub signed as `PollServerLinkResponse`'s
+  // is: `sub` is the User's id on the Server, `aud` the Linked Server's id, and it expires 5
+  // minutes after it was made.
+  string token = 1;
+}
 message SetServerAddressesRequest {
   // The Server URL its Admin set, such as `https://nama.example.com`, or empty for none.
   string url = 1;

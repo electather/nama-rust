@@ -2,9 +2,9 @@ import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
 import { AccountSchema, AccountService } from "@hub/gen/nama/hub/v1/account_pb";
 import { LinkService } from "@hub/gen/nama/hub/v1/link_pb";
+import { TitleKind } from "@hub/gen/nama/hub/v1/title_pb";
 import {
   DeviceKind,
-  TitleKind,
   ViewingEventSchema,
   ViewingEventService,
 } from "@hub/gen/nama/hub/v1/viewing_pb";

@@ -1,12 +1,13 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
 //! keeps in the Plugin's Store once someone entered it, the Server Addresses it tells the Hub, and
 //! through it shares what the Admin chooses with Nama's developers (ADR 0054). Its Users' Links are
-//! in `users.rs`.
+//! in `users.rs`, syncing their Watch State in `watch_states.rs`, their plays as Viewing Events in
+//! `viewing.rs`, and signing in with an Account, and Users created from one, in `accounts.rs`.
 
+mod accounts;
 mod users;
 mod viewing;
-
-pub(crate) use viewing::{SEND_JOB, ViewingEvents};
+mod watch_states;
 
 use std::{
     collections::HashMap,
@@ -23,7 +24,8 @@ use nama_plugin_api::{
     },
     contract::{StoreEntry, StoreKey},
     diagnostics_sharer::{DiagnosticsSharer, Signal},
-    server_link::{Link, ServerAddresses, ServerLinker},
+    job::{JobRunner, RunJob},
+    server_link::{AccountSignIn, Link, ServerAddresses, ServerLinker},
 };
 use ring::digest;
 use serde::{Deserialize, Serialize};
@@ -33,6 +35,30 @@ use crate::{
     hub::{Hub, Polling},
     token::{self, Claims, Rejected},
 };
+
+pub(crate) use self::{
+    viewing::{ViewingEvents, send_job},
+    watch_states::{WatchStateSync, sync_job},
+};
+
+/// Runs the Hub Plugin's Jobs. One runner serves them all, as the Kernel asks only the first
+/// `JobRunner` a Plugin provides.
+pub(crate) struct Jobs {
+    pub(crate) linker: Arc<Linker>,
+    pub(crate) viewing: ViewingEvents,
+}
+
+impl JobRunner for Jobs {
+    fn run<'a>(&'a self, run: &'a RunJob) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(async move {
+            match run.job_id.as_str() {
+                watch_states::SYNC => self.linker.send_queued().await,
+                viewing::SEND_JOB => self.viewing.send().await,
+                other => Err(format!("the Hub Plugin has no Job {other}").into()),
+            }
+        })
+    }
+}
 
 /// The Store key of the Link, a [`Kept`] as JSON.
 const LINK_KEY: &str = "link";
@@ -77,6 +103,8 @@ pub(crate) struct Linker {
     waiting: Mutex<Option<Waiting>>,
     /// What the Plugin knows of each User's Link but what it keeps in the Store.
     users: std::sync::Mutex<HashMap<i64, users::UserState>>,
+    /// Held while the queue of Watch State changes is read and written, so none is lost.
+    queue: Mutex<()>,
     /// The Server Addresses the Hub has, with the [`Kept::id`] of the Link it got them through.
     /// Held across telling the Hub, so a report never overtakes another.
     reported: Mutex<Option<(String, ServerAddresses)>>,
@@ -89,6 +117,7 @@ impl Linker {
             kernel,
             waiting: Mutex::default(),
             users: std::sync::Mutex::default(),
+            queue: Mutex::default(),
             reported: Mutex::default(),
         }
     }
@@ -243,10 +272,7 @@ impl Linker {
     }
 
     async fn kept(&self) -> Result<Option<Kept>, PluginError> {
-        let Some(kept) = self.stored(LINK_KEY).await? else {
-            return Ok(None);
-        };
-        Ok(Some(serde_json::from_slice(&kept)?))
+        kept(self.kernel.as_ref()).await
     }
 
     async fn keep(&self, kept: &Kept) -> Result<(), PluginError> {
@@ -294,6 +320,29 @@ impl ServerLinker for Linker {
         Box::pin(self.forget_user_link(user_id))
     }
 
+    fn invite_user<'a>(
+        &'a self,
+        user_id: i64,
+        user_name: &'a str,
+        email: &'a str,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(self.invite(user_id, user_name, email))
+    }
+
+    fn start_account_sign_in<'a>(
+        &'a self,
+        return_url: &'a str,
+    ) -> BoxFuture<'a, Result<AccountSignIn, PluginError>> {
+        Box::pin(self.start_sign_in(return_url))
+    }
+
+    fn finish_account_sign_in<'a>(
+        &'a self,
+        handle: &'a str,
+    ) -> BoxFuture<'a, Result<Option<i64>, PluginError>> {
+        Box::pin(self.finish_sign_in(handle))
+    }
+
     fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
         Box::pin(self.report(addresses))
     }
@@ -303,6 +352,19 @@ impl DiagnosticsSharer for Linker {
     fn share(&self, signal: Signal, batch: Vec<u8>) -> BoxFuture<'_, Result<(), PluginError>> {
         Box::pin(self.share_batch(signal, batch))
     }
+}
+
+/// The credential the Server presents on every Hub call once it is Linked, as `kernel`'s Store
+/// keeps it; `None` while it isn't.
+pub(crate) async fn credential(kernel: &dyn Kernel) -> Result<Option<String>, PluginError> {
+    Ok(kept(kernel).await?.map(|kept| kept.credential))
+}
+
+async fn kept(kernel: &dyn Kernel) -> Result<Option<Kept>, PluginError> {
+    let Some(kept) = kernel.ask::<StoreGet>(store_key(LINK_KEY)).await?.value else {
+        return Ok(None);
+    };
+    Ok(Some(serde_json::from_slice(&kept)?))
 }
 
 fn store_key(key: &str) -> StoreKey {

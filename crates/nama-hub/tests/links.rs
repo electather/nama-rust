@@ -1,6 +1,6 @@
 //! Registering a Server through the device flow, listing an Account's Servers with their Server
-//! Addresses, Unlinking one, and Linking a Linked Server's Users to
-//! Accounts, against a real PostgreSQL.
+//! Addresses, Unlinking one, Linking a Linked Server's Users to Accounts, and pushing their Watch
+//! State, against a real PostgreSQL.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/hub.rs"]
@@ -13,83 +13,16 @@ mod mail;
 #[path = "support/refused.rs"]
 mod refused;
 
-use axum::body::{Body, Bytes};
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use connectrpc::{
-    ErrorCode,
-    client::{ClientTransport as _, HttpClient, full_body},
-};
+use connectrpc::ErrorCode;
 use hub::TestHub;
-use linking::{
-    approve, create, create_proven, hub_with_mail, linked, linked_server, links, poll, start,
-};
+use linking::*;
+use nama_hub::titles;
 use nama_hub_proto::nama::hub::v1::{
-    ApproveUserLinkRequest, GetUserLinkRequest, ListLinkedServersRequest, ListLinkedUsersRequest,
-    RefusalReason, SetServerAddressesRequest, StartUserLinkRequest, UnlinkLinkedUserRequest,
-    UnlinkServerRequest, UnlinkUserRequest,
+    ExternalId, ListLinkedServersRequest, ListSimilarTitlesRequest, PushWatchStatesRequest,
+    RefusalReason, SetServerAddressesRequest, TitleKind, UnlinkServerRequest, WatchStateChange,
 };
 use refused::assert_refused;
-use ring::signature::{ED25519, UnparsedPublicKey};
-use serde_json::Value;
 use sqlx::PgPool;
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn server_names(hub: &TestHub, token: &str) -> Vec<String> {
-    let listed = links(hub, token)
-        .list_linked_servers(ListLinkedServersRequest::default())
-        .await
-        .unwrap()
-        .into_owned();
-    listed
-        .servers
-        .into_iter()
-        .map(|server| server.name)
-        .collect()
-}
-
-#[expect(
-    clippy::unwrap_used,
-    clippy::indexing_slicing,
-    reason = "a test helper fails its test by panicking"
-)]
-/// The claims of `token` once its signature checks out against the key its header names in the
-/// Hub's published key set.
-async fn verified_claims(hub: &TestHub, token: &str) -> Value {
-    let request = axum::http::Request::get(format!(
-        "{}.well-known/jwks.json",
-        hub.client_config().base_uri()
-    ))
-    .body(full_body(Bytes::new()))
-    .unwrap();
-    let response = HttpClient::plaintext().send(request).await.unwrap();
-    let jwks = axum::body::to_bytes(Body::new(response.into_body()), 1 << 16)
-        .await
-        .unwrap();
-    let jwks: Value = serde_json::from_slice(&jwks).unwrap();
-    let parts: Vec<&str> = token.split('.').collect();
-    let decoded = |part: &str| -> Value {
-        serde_json::from_slice(&URL_SAFE_NO_PAD.decode(part).unwrap()).unwrap()
-    };
-    let header = decoded(parts[0]);
-    let key = jwks["keys"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|key| key["kid"] == header["kid"])
-        .unwrap();
-    let public = URL_SAFE_NO_PAD.decode(key["x"].as_str().unwrap()).unwrap();
-    UnparsedPublicKey::new(&ED25519, public)
-        .verify(
-            format!("{}.{}", parts[0], parts[1]).as_bytes(),
-            &URL_SAFE_NO_PAD.decode(parts[2]).unwrap(),
-        )
-        .unwrap();
-    assert_eq!(header["alg"], "EdDSA");
-    decoded(parts[1])
-}
 
 #[sqlx::test(migrations = false)]
 async fn entering_the_code_links_the_server_which_collects_its_credential_once(db: PgPool) {
@@ -252,105 +185,6 @@ async fn a_credential_the_hub_cant_check_isnt_called_unlinked(db: PgPool) {
     assert_ne!(failed.code, ErrorCode::Unauthenticated, "{failed:?}");
 }
 
-/// Starts Linking the User `user_id` of the Server presenting `credential`, and returns their code.
-async fn start_user(
-    hub: &TestHub,
-    credential: &str,
-    user_id: i64,
-) -> Result<String, connectrpc::ConnectError> {
-    Ok(linked_server(hub, credential)
-        .start_user_link(StartUserLinkRequest {
-            user_id,
-            name: "Grace".to_owned(),
-            ..Default::default()
-        })
-        .await?
-        .into_owned()
-        .user_code)
-}
-
-async fn approve_user(
-    hub: &TestHub,
-    token: &str,
-    code: &str,
-) -> Result<String, connectrpc::ConnectError> {
-    let approved = links(hub, token)
-        .approve_user_link(ApproveUserLinkRequest {
-            code: code.to_owned(),
-            ..Default::default()
-        })
-        .await?
-        .into_owned();
-    Ok(approved
-        .user
-        .into_option()
-        .map_or_else(String::new, |user| user.id))
-}
-
-/// The email of the Account the Server presenting `credential` says its User `user_id` is Linked
-/// to, empty while they aren't.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn user_account(hub: &TestHub, credential: &str, user_id: i64) -> String {
-    linked_server(hub, credential)
-        .get_user_link(GetUserLinkRequest {
-            user_id,
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-        .account
-}
-
-/// Each of the signed-in Account's Linked Users, as `<User> on <Server>`.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn linked_users(hub: &TestHub, token: &str) -> Vec<String> {
-    let listed = links(hub, token)
-        .list_linked_users(ListLinkedUsersRequest::default())
-        .await
-        .unwrap()
-        .into_owned();
-    listed
-        .users
-        .into_iter()
-        .map(|user| format!("{} on {}", user.name, user.server_name))
-        .collect()
-}
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn unlink_user(hub: &TestHub, credential: &str, user_id: i64) {
-    linked_server(hub, credential)
-        .unlink_user(UnlinkUserRequest {
-            user_id,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-}
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn unlink_linked_user(hub: &TestHub, token: &str, id: &str) {
-    links(hub, token)
-        .unlink_linked_user(UnlinkLinkedUserRequest {
-            id: id.to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-}
-
 #[sqlx::test(migrations = false)]
 async fn a_user_who_enters_their_code_is_linked_on_both_sides(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
@@ -472,6 +306,71 @@ async fn linking_a_user_needs_a_proven_email_and_a_linked_server(db: PgPool) {
     );
 }
 
+/// The User `user_id`'s Watch State of Alien at `position_ms` of 7000, changed at `changed_at_ms`.
+fn alien_at(user_id: i64, position_ms: u64, changed_at_ms: i64) -> WatchStateChange {
+    WatchStateChange {
+        user_id,
+        ids: vec!["tmdb-348".to_owned(), "imdb-tt0078748".to_owned()],
+        position_ms,
+        duration_ms: 7000,
+        changed_at_ms,
+        ..Default::default()
+    }
+}
+
+/// Pushes `changes` from the Server presenting `credential`.
+async fn push(
+    hub: &TestHub,
+    credential: &str,
+    changes: Vec<WatchStateChange>,
+) -> Result<(), connectrpc::ConnectError> {
+    linked_server(hub, credential)
+        .push_watch_states(PushWatchStatesRequest {
+            changes,
+            ..Default::default()
+        })
+        .await?;
+    Ok(())
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_linked_server_gets_the_titles_like_one_it_names(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db.clone()).await;
+    titles::import(&db, &include_bytes!("fixtures/wikidata-dump.json")[..])
+        .await
+        .unwrap();
+    titles::train(&db).await.unwrap();
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let credential = linked(&hub, &ada, "Living room").await;
+    let the_matrix = ListSimilarTitlesRequest {
+        kind: TitleKind::TITLE_KIND_MOVIE.into(),
+        ids: vec![ExternalId {
+            namespace: "tmdb".to_owned(),
+            value: "603".to_owned(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let similar = linked_server(&hub, &credential)
+        .list_similar_titles(the_matrix.clone())
+        .await
+        .unwrap()
+        .into_owned();
+
+    let ids: Vec<&str> = (similar.titles.iter())
+        .map(|title| title.id.value.as_str())
+        .collect();
+    assert_eq!(ids, ["604", "348"]);
+    assert_refused(
+        linked_server(&hub, "not-a-credential")
+            .list_similar_titles(the_matrix)
+            .await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+    );
+}
+
 /// Reports `url` and `lan_addresses` as the Server Addresses of the Server presenting `credential`.
 async fn set_addresses(
     hub: &TestHub,
@@ -490,6 +389,59 @@ async fn set_addresses(
         })
         .await?;
     Ok(())
+}
+
+// Which Account a push reaches, and which change wins, is checked where it merges, in
+// `src/sync/sync_tests.rs`, since only `sync` reads its table.
+#[sqlx::test(migrations = false)]
+async fn a_linked_server_pushes_its_users_watch_state_linked_or_not(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let code = start_user(&hub, &server, 7).await.unwrap();
+    approve_user(&hub, &ada, &code).await.unwrap();
+
+    push(
+        &hub,
+        &server,
+        vec![alien_at(7, 3000, 2_000), alien_at(8, 1000, 1_000)],
+    )
+    .await
+    .unwrap();
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_push_breaking_a_limit_or_from_no_linked_server_is_refused(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let unmatched = WatchStateChange {
+        ids: Vec::new(),
+        ..alien_at(7, 3000, 1_000)
+    };
+
+    let past_the_end = assert_refused(
+        push(
+            &hub,
+            &server,
+            vec![alien_at(7, 3000, 1_000), alien_at(7, 8000, 1_000)],
+        )
+        .await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WATCH_STATE_INVALID,
+    );
+    assert_eq!(past_the_end.field, "changes[1].position_ms");
+    let without_ids = assert_refused(
+        push(&hub, &server, vec![unmatched]).await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WATCH_STATE_INVALID,
+    );
+    assert_eq!(without_ids.field, "changes[0].ids");
+    assert_refused(
+        push(&hub, "no such credential", vec![alien_at(7, 3000, 1_000)]).await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+    );
 }
 
 /// Each Server the Account signed in as `token` lists: its name, its Server URL and its Server

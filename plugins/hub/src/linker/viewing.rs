@@ -23,15 +23,15 @@ use nama_plugin_api::{
         DeviceKind, DevicesAsked, Playback, StoreEntry, TitleRefKind, TitleWatchStates,
         VersionTitlesAsked, WatchStatesAsked, event::Event as Happened,
     },
-    job::{JobRunner, RunJob},
+    job::Job,
     points::{Events, ObservedEvents},
 };
 use ring::rand::{SecureRandom as _, SystemRandom};
 
 use super::{Linker, store_key};
 
-/// The Job that sends the Viewing Events the Hub hasn't had yet.
-pub(crate) const SEND_JOB: &str = "send-viewing-events";
+/// The id of the Job that sends the Viewing Events the Hub hasn't had yet.
+pub(super) const SEND_JOB: &str = "send-viewing-events";
 
 /// The Store key of the Viewing Events the Hub hasn't had yet, as the request that sends them.
 const UNSENT_KEY: &str = "viewing-events";
@@ -44,6 +44,17 @@ const MAX_STORED_BYTES: usize = 64 * 1024;
 
 /// The most characters the Hub takes in an External ID (`ViewingEvent.external_id`).
 const MAX_EXTERNAL_ID_CHARS: usize = 100;
+
+/// The Job that sends the Viewing Events the Hub hasn't had yet, which the Kernel runs every 5
+/// minutes.
+pub(crate) fn send_job() -> Job {
+    Job {
+        id: SEND_JOB.to_owned(),
+        name: "Send Viewing Events".to_owned(),
+        description: "Sends the Hub the Viewing Events of plays it was unreachable for.".to_owned(),
+        schedule: Some("*/5 * * * *".to_owned()),
+    }
+}
 
 /// When a play started, by the Server's clock.
 #[derive(Clone, Copy)]
@@ -64,7 +75,7 @@ impl Started {
     }
 }
 
-/// The Observer of plays and the runner of [`SEND_JOB`]. Clones share one state, so the Observer
+/// The Observer of plays and the sender of [`SEND_JOB`]'s Viewing Events. Clones share one state, so the Observer
 /// and the Job can each hold one.
 #[derive(Clone)]
 pub(crate) struct ViewingEvents {
@@ -180,7 +191,7 @@ impl ViewingEvents {
 
     /// Sends the Hub the Viewing Events it hasn't had yet, and forgets them once it has, or once
     /// the Server isn't Linked, when nothing can take them.
-    async fn send(&self) -> Result<(), PluginError> {
+    pub(super) async fn send(&self) -> Result<(), PluginError> {
         let _held = self.unsent.lock().await;
         let unsent = self.unsent_events().await?;
         if unsent.events.is_empty() {
@@ -227,17 +238,6 @@ impl Observer<Events> for ViewingEvents {
                 self.happened(happened).await?;
             }
             Ok(())
-        })
-    }
-}
-
-impl JobRunner for ViewingEvents {
-    fn run<'a>(&'a self, run: &'a RunJob) -> BoxFuture<'a, Result<(), PluginError>> {
-        Box::pin(async move {
-            if run.job_id != SEND_JOB {
-                return Err(format!("the Hub Plugin has no Job {}", run.job_id).into());
-            }
-            self.send().await
         })
     }
 }

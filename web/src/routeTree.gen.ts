@@ -27,6 +27,7 @@ import { Route as MemberRequestsRequestIdRouteImport } from './routes/_member/re
 import { Route as MemberShowsShowIdRouteImport } from './routes/_member/shows/$showId'
 import { Route as SignedOutInviteTokenRouteImport } from './routes/_signed-out/invite.$token'
 import { Route as SignedOutSignInIndexRouteImport } from './routes/_signed-out/sign-in.index'
+import { Route as SignedOutSignInAccountRouteImport } from './routes/_signed-out/sign-in.account'
 import { Route as MemberLibrariesLibraryIdIndexRouteImport } from './routes/_member/libraries/$libraryId/index'
 import { Route as SignedOutSignInCodeIndexRouteImport } from './routes/_signed-out/sign-in.code.index'
 import { Route as SignedOutSignInCodeWaitingRouteImport } from './routes/_signed-out/sign-in.code.waiting'
@@ -124,6 +125,11 @@ const SignedOutSignInIndexRoute = SignedOutSignInIndexRouteImport.update({
   path: '/',
   getParentRoute: () => SignedOutSignInRoute,
 } as any)
+const SignedOutSignInAccountRoute = SignedOutSignInAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => SignedOutSignInRoute,
+} as any)
 const MemberLibrariesLibraryIdIndexRoute =
   MemberLibrariesLibraryIdIndexRouteImport.update({
     id: '/libraries/$libraryId/',
@@ -189,6 +195,7 @@ export interface FileRoutesByFullPath {
   '/requests/$requestId': typeof MemberRequestsRequestIdRoute
   '/shows/$showId': typeof MemberShowsShowIdRoute
   '/invite/$token': typeof SignedOutInviteTokenRoute
+  '/sign-in/account': typeof SignedOutSignInAccountRoute
   '/code/': typeof MemberCodeIndexRoute
   '/requests/': typeof MemberRequestsIndexRoute
   '/sign-in/': typeof SignedOutSignInIndexRoute
@@ -213,6 +220,7 @@ export interface FileRoutesByTo {
   '/requests/$requestId': typeof MemberRequestsRequestIdRoute
   '/shows/$showId': typeof MemberShowsShowIdRoute
   '/invite/$token': typeof SignedOutInviteTokenRoute
+  '/sign-in/account': typeof SignedOutSignInAccountRoute
   '/code': typeof MemberCodeIndexRoute
   '/requests': typeof MemberRequestsIndexRoute
   '/sign-in': typeof SignedOutSignInIndexRoute
@@ -242,6 +250,7 @@ export interface FileRoutesById {
   '/_member/requests/$requestId': typeof MemberRequestsRequestIdRoute
   '/_member/shows/$showId': typeof MemberShowsShowIdRoute
   '/_signed-out/invite/$token': typeof SignedOutInviteTokenRoute
+  '/_signed-out/sign-in/account': typeof SignedOutSignInAccountRoute
   '/_member/code/': typeof MemberCodeIndexRoute
   '/_member/requests/': typeof MemberRequestsIndexRoute
   '/_signed-out/sign-in/': typeof SignedOutSignInIndexRoute
@@ -270,6 +279,7 @@ export interface FileRouteTypes {
     | '/requests/$requestId'
     | '/shows/$showId'
     | '/invite/$token'
+    | '/sign-in/account'
     | '/code/'
     | '/requests/'
     | '/sign-in/'
@@ -294,6 +304,7 @@ export interface FileRouteTypes {
     | '/requests/$requestId'
     | '/shows/$showId'
     | '/invite/$token'
+    | '/sign-in/account'
     | '/code'
     | '/requests'
     | '/sign-in'
@@ -322,6 +333,7 @@ export interface FileRouteTypes {
     | '/_member/requests/$requestId'
     | '/_member/shows/$showId'
     | '/_signed-out/invite/$token'
+    | '/_signed-out/sign-in/account'
     | '/_member/code/'
     | '/_member/requests/'
     | '/_signed-out/sign-in/'
@@ -468,6 +480,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedOutSignInIndexRouteImport
       parentRoute: typeof SignedOutSignInRoute
     }
+    '/_signed-out/sign-in/account': {
+      id: '/_signed-out/sign-in/account'
+      path: '/account'
+      fullPath: '/sign-in/account'
+      preLoaderRoute: typeof SignedOutSignInAccountRouteImport
+      parentRoute: typeof SignedOutSignInRoute
+    }
     '/_member/libraries/$libraryId/': {
       id: '/_member/libraries/$libraryId/'
       path: '/libraries/$libraryId'
@@ -588,12 +607,14 @@ const MemberRouteWithChildren =
   MemberRoute._addFileChildren(MemberRouteChildren)
 
 interface SignedOutSignInRouteChildren {
+  SignedOutSignInAccountRoute: typeof SignedOutSignInAccountRoute
   SignedOutSignInIndexRoute: typeof SignedOutSignInIndexRoute
   SignedOutSignInCodeWaitingRoute: typeof SignedOutSignInCodeWaitingRoute
   SignedOutSignInCodeIndexRoute: typeof SignedOutSignInCodeIndexRoute
 }
 
 const SignedOutSignInRouteChildren: SignedOutSignInRouteChildren = {
+  SignedOutSignInAccountRoute: SignedOutSignInAccountRoute,
   SignedOutSignInIndexRoute: SignedOutSignInIndexRoute,
   SignedOutSignInCodeWaitingRoute: SignedOutSignInCodeWaitingRoute,
   SignedOutSignInCodeIndexRoute: SignedOutSignInCodeIndexRoute,

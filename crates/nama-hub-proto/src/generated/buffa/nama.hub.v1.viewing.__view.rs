@@ -9,7 +9,7 @@ pub struct ViewingEventView<'a> {
     ///
     /// Field 1: `id`
     pub id: &'a str,
-    /// Whether it played a Movie or an Episode. Must be specified.
+    /// Whether it played a Movie or an Episode; any other kind is refused.
     ///
     /// Field 2: `kind`
     pub kind: ::buffa::EnumValue<super::super::TitleKind>,
@@ -426,7 +426,7 @@ impl ViewingEventOwnedView {
     pub fn id(&self) -> &'_ str {
         self.0.reborrow().id
     }
-    /// Whether it played a Movie or an Episode. Must be specified.
+    /// Whether it played a Movie or an Episode; any other kind is refused.
     ///
     /// Field 2: `kind`
     #[must_use]

@@ -196,7 +196,7 @@ impl Viewing {
         let mut accounts: HashMap<i64, Option<AccountId>> = HashMap::new();
         for event in &events {
             if let Entry::Vacant(unknown) = accounts.entry(event.user_id) {
-                unknown.insert(self.links.user_account_id(server, event.user_id).await?);
+                unknown.insert(self.links.linked_account(server, event.user_id).await?);
             }
         }
         let mut tx = self.db.begin().await?;

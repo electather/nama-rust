@@ -2320,11 +2320,13 @@ pub struct GetServerInfoResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub image_widths: ::buffa::alloc::vec::Vec<u32>,
-    /// Whether the Server exports Diagnostics, because its admin set `OTEL_EXPORTER_OTLP_ENDPOINT`
-    /// (ADR 0054). Only then does a signed-in web app record its own and POST them as OTLP/HTTP to
-    /// `/diagnostics/v1/traces`, which the Server forwards there unchanged. That path answers 404
-    /// while this is false, refuses a body over 256 KiB with HTTP 413, and refuses a Device posting
-    /// too often with HTTP 429.
+    /// Whether the Server exports Diagnostics: its admin set `OTEL_EXPORTER_OTLP_ENDPOINT`, shares
+    /// them, or both, so it changes as they turn sharing on or off (ADR 0054). Only then does a
+    /// signed-in web app record its own and POST them as OTLP/HTTP protobuf to
+    /// `/diagnostics/v1/traces`, which the Server forwards unchanged to that endpoint and, while they
+    /// are shared, to the Hub. That path answers 404 while this is false, refuses a body over 256 KiB
+    /// with HTTP 413, a Device posting too often with HTTP 429, and a body that isn't protobuf while
+    /// the Server only shares them with HTTP 415.
     ///
     /// Field 5: `exports_diagnostics`
     #[serde(
@@ -2334,6 +2336,17 @@ pub struct GetServerInfoResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub exports_diagnostics: bool,
+    /// Whether the Server is Linked to the Hub, so its Users can sign in with their Accounts
+    /// (`SignInService.StartAccountSignIn`).
+    ///
+    /// Field 7: `account_sign_in`
+    #[serde(
+        rename = "accountSignIn",
+        alias = "account_sign_in",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub account_sign_in: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2346,6 +2359,7 @@ impl ::core::fmt::Debug for GetServerInfoResponse {
             .field("setup_required", &self.setup_required)
             .field("image_widths", &self.image_widths)
             .field("exports_diagnostics", &self.exports_diagnostics)
+            .field("account_sign_in", &self.account_sign_in)
             .finish()
     }
 }
@@ -2396,6 +2410,9 @@ impl ::buffa::Message for GetServerInfoResponse {
         if self.exports_diagnostics {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if self.account_sign_in {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2428,6 +2445,9 @@ impl ::buffa::Message for GetServerInfoResponse {
         }
         if self.exports_diagnostics {
             ::buffa::types::put_bool_field(5u32, self.exports_diagnostics, buf);
+        }
+        if self.account_sign_in {
+            ::buffa::types::put_bool_field(7u32, self.account_sign_in, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2510,6 +2530,13 @@ impl ::buffa::Message for GetServerInfoResponse {
                 )?;
                 self.exports_diagnostics = ::buffa::types::decode_bool(buf)?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.account_sign_in = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2523,6 +2550,7 @@ impl ::buffa::Message for GetServerInfoResponse {
         self.setup_required = false;
         self.image_widths.clear();
         self.exports_diagnostics = false;
+        self.account_sign_in = false;
         self.__buffa_unknown_fields.clear();
     }
 }
