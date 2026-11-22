@@ -384,6 +384,22 @@ fn episode(value: &str, show: &str, genres: &[&str]) -> Title {
     }
 }
 
+fn tvdb_id(value: &str) -> TitleId {
+    TitleId {
+        namespace: "tvdb".to_owned(),
+        ..tmdb_id(value)
+    }
+}
+
+/// An Episode in Library 1 of the Show listed under `show`, which also has the id `also`.
+fn episode_also_known_as(value: &str, show: TitleId, also: TitleId) -> Title {
+    Title {
+        show_ids: vec![show.clone(), also],
+        show_id: show.into(),
+        ..episode(value, "", &[])
+    }
+}
+
 fn watchlisted(kind: TitleKind, value: &str) -> WatchlistTitle {
     WatchlistTitle {
         kind: kind.into(),
@@ -483,6 +499,54 @@ fn your_watchlist_keeps_a_title_the_server_lacks_for_the_kernel_to_offer_as_requ
     assert_eq!(
         summary(&rows)[0].3,
         [(Some(TitleKind::TITLE_KIND_SHOW), "1396")]
+    );
+}
+
+#[test]
+fn your_watchlist_leaves_out_a_started_show_whichever_of_its_ids_names_it() {
+    let titles = [
+        episode_also_known_as("10", tvdb_id("334824"), tmdb_id("70523")),
+        episode_also_known_as("20", tmdb_id("1396"), tvdb_id("81189")),
+        movie("1", &[]),
+    ];
+    let by_tvdb = WatchlistTitle {
+        id: tvdb_id("81189").into(),
+        ..watchlisted(TitleKind::TITLE_KIND_SHOW, "")
+    };
+    let kernel = user_kernel(&["watchlist"], &titles).watchlist(
+        ADA,
+        [
+            watchlisted(TitleKind::TITLE_KIND_SHOW, "70523"),
+            by_tvdb,
+            watchlisted(TitleKind::TITLE_KIND_MOVIE, "1"),
+        ],
+    );
+    let kernel = watching(kernel, &titles[0], ADA, STARTED, days_ago(1));
+    let mut kernel = watching(kernel, &titles[1], ADA, PLAYED, days_ago(1));
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    assert_eq!(
+        summary(&rows)[0].3,
+        [(Some(TitleKind::TITLE_KIND_MOVIE), "1")]
+    );
+}
+
+#[test]
+fn watch_it_again_names_a_show_whose_episodes_list_it_under_two_ids_once_by_its_tmdb_id() {
+    let titles = [
+        episode_also_known_as("10", tvdb_id("334824"), tmdb_id("70523")),
+        episode("11", "70523", &[]),
+    ];
+    let kernel = user_kernel(&["watch-again"], &titles);
+    let kernel = watching(kernel, &titles[0], ADA, PLAYED, days_ago(400));
+    let mut kernel = watching(kernel, &titles[1], ADA, PLAYED, days_ago(400));
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    assert_eq!(
+        summary(&rows)[0].3,
+        [(Some(TitleKind::TITLE_KIND_SHOW), "70523")]
     );
 }
 

@@ -4,7 +4,8 @@
 
 use std::{
     cmp::Reverse,
-    collections::{HashMap, HashSet},
+    collections::HashMap,
+    iter,
     time::{Duration, UNIX_EPOCH},
 };
 
@@ -341,6 +342,27 @@ impl Key {
         }
     }
 
+    /// Every id of the Movie `title` is, or of the Show whose Episode it is, [`Self::of_title`]'s
+    /// first; none for an Episode without its Show's id.
+    fn every_of_title(title: &Title) -> Vec<Self> {
+        let Some(preferred) = Self::of_title(title) else {
+            return Vec::new();
+        };
+        let kind = preferred.kind;
+        let others = if kind == TitleKind::TITLE_KIND_MOVIE {
+            &title.ids
+        } else {
+            &title.show_ids
+        };
+        iter::once(preferred)
+            .chain(others.iter().map(|id| Self::of(kind, id)))
+            .collect()
+    }
+
+    fn is_tmdb(&self) -> bool {
+        self.namespace == "tmdb"
+    }
+
     fn row_title(&self) -> HomeRowTitle {
         HomeRowTitle {
             kind: self.kind.into(),
@@ -358,10 +380,14 @@ impl Key {
 /// What one User did with each Movie and Show on the Server, in the order the Kernel lists them.
 struct History {
     titles: Vec<Watched>,
+    /// The place in `titles` of each id of each title: a Library may list a title under any of
+    /// its ids (ADR 0042), and a Watchlist or a row may name it by another.
+    places: HashMap<Key, usize>,
 }
 
 /// One User's Watch State of a Movie, or of every Episode of a Show the Server has.
 struct Watched {
+    /// Its TMDB id, as Discover's other rows name titles, or else the first id it was listed by.
     key: Key,
     genres: Vec<String>,
     /// The Movie's 1, or the Show's Episodes the Server has.
@@ -386,47 +412,57 @@ impl History {
         // ponytail: one call for every title on the Server, as Top Picks makes; ask a page at a
         // time if a large Server's answer outgrows the Plugin's memory.
         let states = kernel::watch_states(&refs, Some(user))?;
-        let mut order = Vec::new();
-        let mut watched: HashMap<Key, Watched> = HashMap::new();
+        let mut history = Self {
+            titles: Vec::new(),
+            places: HashMap::new(),
+        };
         for (title, state) in titles.iter().zip(&states) {
-            let Some(key) = Key::of_title(title).filter(|_| state.title_ref == title.title_ref)
-            else {
+            if state.title_ref != title.title_ref {
                 continue;
-            };
-            let entry = watched.entry(key.clone()).or_insert_with(|| {
-                order.push(key.clone());
-                Watched {
-                    key,
-                    genres: title.genres.clone(),
-                    episodes: 0,
-                    played_episodes: 0,
-                    started: false,
-                    last_changed_ms: 0,
-                }
-            });
-            entry.add(&state.states);
+            }
+            if let Some(watched) = history.watched(title) {
+                watched.add(&state.states);
+            }
         }
-        Ok(Self {
-            titles: (order.iter())
-                .filter_map(|key| watched.remove(key))
-                .collect(),
-        })
+        Ok(history)
+    }
+
+    /// The entry of the Movie `title` is, or of its Show, found by any of its ids or else added,
+    /// now found by all of them; `None` for an Episode without its Show's id.
+    // shortcut: a title whose ids join two entries already apart joins the first only; merge
+    // them if one Show's Episodes ever share no id with each other but each one with a third.
+    fn watched(&mut self, title: &Title) -> Option<&mut Watched> {
+        let keys = Key::every_of_title(title);
+        let first = keys.first()?;
+        let found = keys.iter().find_map(|key| self.places.get(key)).copied();
+        let place = found.unwrap_or_else(|| {
+            self.titles.push(Watched::new(first.clone(), title));
+            self.titles.len() - 1
+        });
+        let watched = self.titles.get_mut(place)?;
+        if let Some(tmdb) = keys.iter().find(|key| key.is_tmdb()) {
+            watched.key = tmdb.clone();
+        }
+        for key in keys {
+            self.places.entry(key).or_insert(place);
+        }
+        Some(watched)
     }
 
     /// The titles of `watchlist` the User hasn't started or played, in its order.
-    ///
-    /// ponytail: a Watchlist title matches only by the id the Kernel lists it under, so one added
-    /// under another id shows even once started; match every id when the Kernel lists them.
     fn unstarted(&self, watchlist: &[WatchlistTitle]) -> Vec<HomeRowTitle> {
-        let started: HashSet<&Key> = (self.titles.iter())
-            .filter(|title| title.started)
-            .map(|title| &title.key)
-            .collect();
         (watchlist.iter())
             .filter_map(|title| Some(Key::of(title.kind.as_known()?, title.id.as_option()?)))
-            .filter(|key| !started.contains(key))
+            .filter(|key| !self.started(key))
             .map(|key| key.row_title())
             .collect()
+    }
+
+    /// Whether the User started or played the title with the id `key`.
+    fn started(&self, key: &Key) -> bool {
+        (self.places.get(key))
+            .and_then(|&place| self.titles.get(place))
+            .is_some_and(|title| title.started)
     }
 
     /// The titles the User played through and last watched over [`WATCH_AGAIN_AFTER`] ago, those
@@ -454,6 +490,18 @@ impl History {
 }
 
 impl Watched {
+    /// `title`'s entry, as `key`, before any Watch State is added.
+    fn new(key: Key, title: &Title) -> Self {
+        Self {
+            key,
+            genres: title.genres.clone(),
+            episodes: 0,
+            played_episodes: 0,
+            started: false,
+            last_changed_ms: 0,
+        }
+    }
+
     /// Adds `states`, the User's Watch State of the Movie or of one of the Show's Episodes.
     fn add(&mut self, states: &[WatchState]) {
         let played = states.iter().any(|state| state.played);
