@@ -18,6 +18,7 @@ import { Route as MemberCodeRouteImport } from './routes/_member/code'
 import { Route as MemberSearchRouteImport } from './routes/_member/search'
 import { Route as SignedOutSetupRouteImport } from './routes/_signed-out/setup'
 import { Route as SignedOutSignInRouteImport } from './routes/_signed-out/sign-in'
+import { Route as MemberBoxSetsBoxSetIdRouteImport } from './routes/_member/box-sets/$boxSetId'
 import { Route as MemberCodeIndexRouteImport } from './routes/_member/code.index'
 import { Route as MemberCodeApproveRouteImport } from './routes/_member/code.approve'
 import { Route as MemberCodeDoneRouteImport } from './routes/_member/code.done'
@@ -81,6 +82,11 @@ const SignedOutSignInRoute = SignedOutSignInRouteImport.update({
   id: '/sign-in',
   path: '/sign-in',
   getParentRoute: () => SignedOutRoute,
+} as any)
+const MemberBoxSetsBoxSetIdRoute = MemberBoxSetsBoxSetIdRouteImport.update({
+  id: '/box-sets/$boxSetId',
+  path: '/box-sets/$boxSetId',
+  getParentRoute: () => MemberRoute,
 } as any)
 const MemberCodeIndexRoute = MemberCodeIndexRouteImport.update({
   id: '/',
@@ -208,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof MemberSearchRoute
   '/setup': typeof SignedOutSetupRoute
   '/sign-in': typeof SignedOutSignInRouteWithChildren
+  '/box-sets/$boxSetId': typeof MemberBoxSetsBoxSetIdRoute
   '/code/approve': typeof MemberCodeApproveRoute
   '/code/done': typeof MemberCodeDoneRoute
   '/movies/$movieId': typeof MemberMoviesMovieIdRoute
@@ -235,6 +242,7 @@ export interface FileRoutesByTo {
   '/$': typeof MemberSplatRoute
   '/search': typeof MemberSearchRoute
   '/setup': typeof SignedOutSetupRoute
+  '/box-sets/$boxSetId': typeof MemberBoxSetsBoxSetIdRoute
   '/code/approve': typeof MemberCodeApproveRoute
   '/code/done': typeof MemberCodeDoneRoute
   '/movies/$movieId': typeof MemberMoviesMovieIdRoute
@@ -268,6 +276,7 @@ export interface FileRoutesById {
   '/_signed-out/setup': typeof SignedOutSetupRoute
   '/_signed-out/sign-in': typeof SignedOutSignInRouteWithChildren
   '/_member/': typeof MemberIndexRoute
+  '/_member/box-sets/$boxSetId': typeof MemberBoxSetsBoxSetIdRoute
   '/_member/code/approve': typeof MemberCodeApproveRoute
   '/_member/code/done': typeof MemberCodeDoneRoute
   '/_member/movies/$movieId': typeof MemberMoviesMovieIdRoute
@@ -299,6 +308,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/setup'
     | '/sign-in'
+    | '/box-sets/$boxSetId'
     | '/code/approve'
     | '/code/done'
     | '/movies/$movieId'
@@ -326,6 +336,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/search'
     | '/setup'
+    | '/box-sets/$boxSetId'
     | '/code/approve'
     | '/code/done'
     | '/movies/$movieId'
@@ -358,6 +369,7 @@ export interface FileRouteTypes {
     | '/_signed-out/setup'
     | '/_signed-out/sign-in'
     | '/_member/'
+    | '/_member/box-sets/$boxSetId'
     | '/_member/code/approve'
     | '/_member/code/done'
     | '/_member/movies/$movieId'
@@ -450,6 +462,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/sign-in'
       preLoaderRoute: typeof SignedOutSignInRouteImport
       parentRoute: typeof SignedOutRoute
+    }
+    '/_member/box-sets/$boxSetId': {
+      id: '/_member/box-sets/$boxSetId'
+      path: '/box-sets/$boxSetId'
+      fullPath: '/box-sets/$boxSetId'
+      preLoaderRoute: typeof MemberBoxSetsBoxSetIdRouteImport
+      parentRoute: typeof MemberRoute
     }
     '/_member/code/': {
       id: '/_member/code/'
@@ -642,6 +661,7 @@ interface MemberRouteChildren {
   MemberCodeRoute: typeof MemberCodeRouteWithChildren
   MemberSearchRoute: typeof MemberSearchRoute
   MemberIndexRoute: typeof MemberIndexRoute
+  MemberBoxSetsBoxSetIdRoute: typeof MemberBoxSetsBoxSetIdRoute
   MemberMoviesMovieIdRoute: typeof MemberMoviesMovieIdRoute
   MemberRequestsRequestIdRoute: typeof MemberRequestsRequestIdRoute
   MemberShowsShowIdRoute: typeof MemberShowsShowIdRoute
@@ -660,6 +680,7 @@ const MemberRouteChildren: MemberRouteChildren = {
   MemberCodeRoute: MemberCodeRouteWithChildren,
   MemberSearchRoute: MemberSearchRoute,
   MemberIndexRoute: MemberIndexRoute,
+  MemberBoxSetsBoxSetIdRoute: MemberBoxSetsBoxSetIdRoute,
   MemberMoviesMovieIdRoute: MemberMoviesMovieIdRoute,
   MemberRequestsRequestIdRoute: MemberRequestsRequestIdRoute,
   MemberShowsShowIdRoute: MemberShowsShowIdRoute,

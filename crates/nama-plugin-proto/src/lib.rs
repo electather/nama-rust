@@ -83,7 +83,7 @@ pub const SERVICES: &[(&str, &str)] = &[
     (services::NOTIFIER, "1.2.0"),
     (services::CONNECTOR, "1.0.0"),
     (services::EVENT_OBSERVER, "1.0.0"),
-    (services::TITLE_SOURCE, "1.8.0"),
+    (services::TITLE_SOURCE, "1.9.0"),
     (services::RECOGNISER, "1.0.0"),
     (services::BLOB_STORE, "1.0.0"),
     (services::HOME_ROW, "1.5.0"),
