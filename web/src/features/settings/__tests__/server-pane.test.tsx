@@ -142,6 +142,32 @@ test("sharing starts off, and turning Usage Analytics on saves it with the Serve
     ]);
 });
 
+test("after turning Diagnostics sharing on, the next page asks the Server again whether it exports Diagnostics", async () => {
+  let infoReads = 0;
+  let settingsReads = 0;
+  openServer({
+    getServerInfo: () => {
+      infoReads += 1;
+      return { name: "Living Room" };
+    },
+    getServerSettings: () => {
+      settingsReads += 1;
+      return { settings: { url: "http://nama.lan" } };
+    },
+    updateServerSettings: (request) => ({ settings: request.settings }),
+  });
+
+  const diagnostics = await screen.findByRole("switch", { name: "Share Diagnostics" });
+  const before = infoReads;
+  fireEvent.click(diagnostics);
+  // Saving rereads the settings once it's answered, as it resets the Server's info.
+  await expect.poll(() => settingsReads).toBe(2);
+  const sections = within(screen.getByRole("navigation", { name: "Settings" }));
+  fireEvent.click(sections.getByRole("link", { name: "Playback" }));
+
+  await expect.poll(() => infoReads).toBeGreaterThan(before);
+});
+
 test("a saved space that isn't one of the sizes offered stays chosen", async () => {
   openServer({
     getImageSettings: () => ({ settings: { resizeImages: true, resizedCacheMib: 512 } }),
