@@ -81,6 +81,9 @@ impl WatchStates {
 /// Keeps `change` as `account`'s Watch State under each of its ids, unless a later change is kept
 /// there. Of two made at the same moment, the one pushed last wins, as a Server pushes its own
 /// changes in order.
+// ponytail: each id's row merges alone, as the Hub learns a title's ids only from the changes
+// naming them. A Server knowing `tmdb-348` alone can leave `imdb-tt0078748`'s row behind;
+// keep each row's sibling ids and merge across them if Servers' Matches start to differ.
 async fn merge(
     conn: &mut PgConnection,
     account: AccountId,
