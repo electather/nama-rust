@@ -23,7 +23,11 @@ export function TypedSettingRow({
   /** Why the Server refused what was last sent, if it did. */
   error: string | undefined;
   check?: (typed: string) => string | undefined;
-  input: ComponentProps<typeof Input>;
+  /** The field's own attributes; the row owns its value, its events and whether it's invalid. */
+  input: Omit<
+    ComponentProps<typeof Input>,
+    "value" | "onChange" | "onBlur" | "onKeyDown" | "aria-invalid"
+  >;
   onSave: (typed: string) => void;
 }) {
   const [typed, setTyped] = useState(saved);

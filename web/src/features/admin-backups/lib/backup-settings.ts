@@ -20,6 +20,13 @@ export function savedBackupValues(saved: BackupSettings): BackupValues {
   return { folder: saved.folder, keep: saved.keep?.toString() ?? "" };
 }
 
+/** What's wrong with how many Backups to keep, as `typed`, before the Server is asked. Empty is fine. */
+export function keepProblem(typed: string) {
+  // The field is a number input, but nothing stops a negative or a fraction, which a uint32 can't hold.
+  const keep = typed.trim();
+  return keep === "" || /^[1-9]\d*$/u.test(keep) ? undefined : "Enter a whole number of 1 or more.";
+}
+
 /** The Backup settings to save for `values`. */
 export function backupSettings({ folder, keep }: BackupValues) {
   // Empty leaves it unset, for the Server's default.

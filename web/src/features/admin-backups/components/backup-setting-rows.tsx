@@ -1,4 +1,8 @@
-import { backupLabels, type BackupValues } from "@/features/admin-backups/lib/backup-settings";
+import {
+  backupLabels,
+  type BackupValues,
+  keepProblem,
+} from "@/features/admin-backups/lib/backup-settings";
 import { TypedSettingRow } from "@/shared/components/typed-setting-row";
 import type { FormErrors } from "@/shared/lib/forms";
 
@@ -30,6 +34,7 @@ export function BackupSettingRows({
         hint="After each Backup, the oldest the Server wrote beyond this many are deleted. Other files in the folder, such as a Backup you wrote yourself under another name, are never deleted. Leave it empty for 7."
         saved={values.keep}
         error={refused.backupsKept}
+        check={keepProblem}
         input={{ type: "number", inputMode: "numeric", min: 1, placeholder: "7" }}
         onSave={(keep) => {
           onEdit({ keep });

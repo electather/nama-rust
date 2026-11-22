@@ -121,6 +121,23 @@ describe("backup settings", () => {
     expect(updates[0]?.settings?.keep).toBeUndefined();
   });
 
+  test("backups kept that isn't a whole number of 1 or more is said under its field, unsaved", async () => {
+    const updates: UpdateBackupSettingsRequest[] = [];
+    openBackups({
+      updateBackupSettings: (request) => {
+        updates.push(request);
+        return {};
+      },
+    });
+
+    const kept = await screen.findByLabelText("Backups kept");
+    fill("Backups kept", "1.5");
+    fireEvent.blur(kept);
+
+    await expectUnderField("Backups kept", "Enter a whole number of 1 or more.");
+    expect(updates).toStrictEqual([]);
+  });
+
   test("a Backup folder the Server can't write to is said under its field", async () => {
     openBackups({
       updateBackupSettings: () => {
