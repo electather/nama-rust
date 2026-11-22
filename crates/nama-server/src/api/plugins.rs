@@ -81,12 +81,12 @@ impl PluginService for PluginServiceHandler {
             granted,
         } in listed
         {
-            let logo = logo(&self.plugin_logos, &plugin).await;
+            let logo_url = logo_url(&self.plugin_logos, &plugin).await;
             summaries.push(plugin_summary_to_proto(
                 plugin,
                 stored.settings,
                 &granted,
-                logo,
+                logo_url,
             ));
         }
         Response::ok(ListPluginsResponse {
@@ -248,11 +248,16 @@ impl PluginServiceHandler {
 
     /// `stored` as `Plugin`, with its logo and each of its Extension Points whose last call failed.
     async fn plugin_with_logo(&self, stored: StoredPlugin) -> Result<proto::Plugin, ConnectError> {
-        let logo = logo(&self.plugin_logos, &stored.plugin).await;
+        let logo_url = logo_url(&self.plugin_logos, &stored.plugin).await;
         let failures = failures(&self.plugin_settings.extension_points(), &stored.plugin.id);
         Ok(proto::Plugin {
             failures,
-            ..plugin_to_proto(stored.plugin, stored.stored.settings, &stored.granted, logo)
+            ..plugin_to_proto(
+                stored.plugin,
+                stored.stored.settings,
+                &stored.granted,
+                logo_url,
+            )
         })
     }
 }
@@ -260,7 +265,7 @@ impl PluginServiceHandler {
 /// Where clients fetch `plugin`'s logo, its Manifest's, which is stored in `plugin_logos` first if
 /// it isn't. Empty if it has none, or if the store fails, which is logged: the Plugin is still
 /// listed.
-pub(super) async fn logo(plugin_logos: &PluginLogos, plugin: &Listed) -> String {
+pub(super) async fn logo_url(plugin_logos: &PluginLogos, plugin: &Listed) -> String {
     let manifest_logo = plugin
         .manifest
         .as_ref()

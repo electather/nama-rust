@@ -44,7 +44,7 @@ use super::{
     access::permission_required,
     browse::home_rows_of,
     caller, database_failed,
-    plugins::{change_refused, list_failed, logo, setting_to_proto, settings_from_proto},
+    plugins::{change_refused, list_failed, logo_url, setting_to_proto, settings_from_proto},
     refuse,
     server::{home_layout_from_proto, home_row_from_proto},
     signed_out, unknown_enum_value,
@@ -546,7 +546,7 @@ impl UserServiceHandler {
         } = personal;
         proto::PersonalSettings {
             plugin_id: plugin.id.to_string(),
-            logo_url: logo(&self.plugin_logos, &plugin).await,
+            logo_url: logo_url(&self.plugin_logos, &plugin).await,
             settings: manifest
                 .personal_settings
                 .fields

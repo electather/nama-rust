@@ -23,7 +23,7 @@ fn service_and_method_is_none_for_a_path_that_is_no_rpc() {
         "/",
         "/index.html",
         "/media/12/master.m3u8",
-        "/custom-images/plugin/tmdb",
+        "/custom-images/movie/tmdb-348/poster",
         "/nama.v1.SignInService/SignIn/more",
     ] {
         assert_eq!(service_and_method(path), None, "{path}");
