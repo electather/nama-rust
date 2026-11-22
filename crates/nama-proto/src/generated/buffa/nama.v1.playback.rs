@@ -7845,8 +7845,8 @@ impl ::buffa::Message for DeviceDecoding {
         self.subtitle_formats.clear();
         self.h264_10bit = false;
         self.evidence = ::buffa::EnumValue::from(0);
-        self.hevc_10bit = false;
         self.dolby_vision_profiles.clear();
+        self.hevc_10bit = false;
         self.__buffa_unknown_fields.clear();
     }
 }

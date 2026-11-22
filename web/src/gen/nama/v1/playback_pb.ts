@@ -743,14 +743,6 @@ export type DeviceDecoding = Message<"nama.v1.DeviceDecoding"> & {
   hevc10bit: boolean;
 
   /**
-   * Whether it decodes 10-bit HEVC (Main 10), which a Transcode of a 4K or HDR Version makes when
-   * it does and the Server's hardware encodes it.
-   *
-   * @generated from field: bool hevc_10bit = 12;
-   */
-  hevc10bit: boolean;
-
-  /**
    * Whether it plays HLS without a script's help.
    *
    * @generated from field: bool native_hls = 3;
