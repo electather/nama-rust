@@ -7,7 +7,7 @@ use nama_plugin_api::metadata::{ExternalId, ExternalIds, IMDB, TMDB, TVDB};
 use sqlx::SqliteConnection;
 
 use super::pins::Pin;
-use crate::library::title_source::TitleKind;
+use crate::{library::title_source::TitleKind, playback::title_ids_changed};
 
 impl Pin {
     /// The pin stored in a `match_pins` row, if there is one, holding the id `id` in its text
@@ -109,6 +109,65 @@ pub(crate) async fn matched_ids(
     Ok((rows.into_iter())
         .filter_map(|row| ExternalId::new(&row.namespace, row.value).ok())
         .collect())
+}
+
+/// Stores `ids` as the Item `item`'s title's and `show_ids` as its Show's, in place of those it
+/// had.
+pub(super) async fn insert_match_ids(
+    conn: &mut SqliteConnection,
+    item: i64,
+    ids: &ExternalIds,
+    show_ids: &ExternalIds,
+) -> Result<(), sqlx::Error> {
+    // Deleted explicitly rather than trusting SQLite to cascade the delete REPLACE makes.
+    sqlx::query!("DELETE FROM item_match_ids WHERE item_id = ?", item)
+        .execute(&mut *conn)
+        .await?;
+    let ids = (ids.iter().map(|id| ("title", id))).chain(show_ids.iter().map(|id| ("show", id)));
+    for (scope, id) in ids {
+        let (namespace, value) = (id.namespace(), id.value());
+        sqlx::query!(
+            "INSERT INTO item_match_ids (item_id, scope, namespace, value) VALUES (?, ?, ?, ?)",
+            item,
+            scope,
+            namespace,
+            value
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
+    Ok(())
+}
+
+/// The ids the Item `item`'s Version is searched by, as [`super::FirstItem`] reads them: a
+/// Movie's own, an Episode's Show's. None unless it's Matched.
+pub(super) async fn searched_ids(
+    conn: &mut SqliteConnection,
+    item: i64,
+) -> Result<ExternalIds, sqlx::Error> {
+    let rows = sqlx::query!(
+        "SELECT ids.namespace, ids.value FROM item_match_ids AS ids
+         JOIN library_items ON library_items.id = ids.item_id
+         WHERE ids.item_id = ?
+           AND ids.scope = IIF(library_items.kind = 'movie', 'title', 'show')",
+        item
+    )
+    .fetch_all(conn)
+    .await?;
+    Ok((rows.into_iter())
+        .filter_map(|row| ExternalId::new(&row.namespace, row.value).ok())
+        .collect())
+}
+
+/// Tells Segments, inside the write that changed the Item `item`'s Match, that its
+/// [`searched_ids`] were `old` before it (ADR 0075).
+pub(super) async fn searched_ids_changed(
+    conn: &mut SqliteConnection,
+    item: i64,
+    old: &ExternalIds,
+) -> Result<(), sqlx::Error> {
+    let new = searched_ids(&mut *conn, item).await?;
+    title_ids_changed(conn, item, old, &new).await
 }
 
 /// The ID Hint stored as `text`, which is how [`ExternalId`] displays: any well-formed id.

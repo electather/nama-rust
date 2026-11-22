@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM segments WHERE version_id = ? AND source IS NOT NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "0311d2f4a6deb11df10766e6bd3eb9cfa1ecd7b6e138cf0ffcf6bab58d0463da"
+}
