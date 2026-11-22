@@ -73,21 +73,27 @@ impl HttpClient for ShareThroughPlugins {
         let held = Arc::clone(&self.points).read_owned().await;
         if let Ok(points) = OwnedRwLockReadGuard::try_map(held, Option::as_ref) {
             let (signal, batch) = (self.signal, request.into_body());
-            let shared = async move {
-                // A failure shows on the Plugin's page, as any Provider's does.
-                let _: Option<_> = points
-                    .ask_first::<dyn DiagnosticsSharer, _, _, _, _>(|sharer| {
-                        let batch = batch.to_vec();
-                        async move { sharer.share(signal, batch).await }
-                    })
-                    .await;
-            };
-            // Traced, sharing would record spans of its own that the next batch would share, and
-            // so on for as long as the Server runs.
             self.runtime
-                .spawn(shared.with_subscriber(NoSubscriber::default()))
+                .spawn(async move { share_diagnostics(&points, signal, batch).await })
                 .await?;
         }
         Ok(Response::new(Bytes::new()))
     }
+}
+
+/// Hands `batch`, an OTLP/HTTP protobuf export request of `signal`, to the enabled
+/// [`DiagnosticsSharer`] among `points`, if any.
+pub(crate) async fn share_diagnostics(points: &ExtensionPoints, signal: Signal, batch: Bytes) {
+    let shared = async {
+        // A failure shows on the Plugin's page, as any Provider's does.
+        let _: Option<_> = points
+            .ask_first::<dyn DiagnosticsSharer, _, _, _, _>(|sharer| {
+                let batch = batch.to_vec();
+                async move { sharer.share(signal, batch).await }
+            })
+            .await;
+    };
+    // Traced, sharing would record spans of its own that the next batch would share, and so on
+    // for as long as the Server runs.
+    shared.with_subscriber(NoSubscriber::default()).await;
 }
