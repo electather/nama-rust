@@ -356,3 +356,55 @@ async fn hiding_a_movie_hides_only_that_users_and_leaves_its_watch_state_alone()
     assert_eq!(hidden(&watch_states, ada).await, [true]);
     assert_eq!(hidden(&watch_states, bob).await, [false]);
 }
+
+#[tokio::test]
+async fn each_write_returns_the_watch_state_it_left_under_every_id_preferred_first() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user) = watch_states(&data).await;
+    let ids = ExternalIds::from_iter([ExternalId::new("imdb", "tt0078748").unwrap(), alien_id()]);
+    let known = || alien().known_as(&ids);
+
+    watch_states
+        .report(
+            user,
+            vec![Some(known())],
+            Progress::new(1_950, 2_000).unwrap(),
+        )
+        .await
+        .unwrap();
+    let rewound = (watch_states.report(
+        user,
+        vec![Some(known())],
+        Progress::new(100, 2_000).unwrap(),
+    ))
+    .await
+    .unwrap();
+    let marked = watch_states.mark(user, vec![known()], true).await.unwrap();
+    let unplayed = watch_states.mark(user, vec![known()], false).await.unwrap();
+
+    let [rewound] = rewound.as_slice() else {
+        panic!("{rewound:?}")
+    };
+    assert_eq!(rewound.ids, ["tmdb-348", "imdb-tt0078748"]);
+    assert!(!rewound.episode);
+    assert_eq!(
+        (rewound.played, rewound.position_ms, rewound.duration_ms),
+        (true, 100, 2_000)
+    );
+    assert_eq!(
+        (
+            marked[0].played,
+            marked[0].position_ms,
+            marked[0].duration_ms
+        ),
+        (true, 100, 2_000)
+    );
+    assert_eq!(
+        (
+            unplayed[0].played,
+            unplayed[0].position_ms,
+            unplayed[0].duration_ms
+        ),
+        (false, 0, 0)
+    );
+}

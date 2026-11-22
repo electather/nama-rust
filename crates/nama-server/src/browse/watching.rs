@@ -5,7 +5,10 @@ use std::{
     collections::{HashMap, HashSet},
 };
 
-use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use nama_plugin_api::{
+    metadata::{ExternalId, ExternalIds},
+    points::WatchStateChange,
+};
 use nama_proto::nama::v1::{PageRequest, PageResponse};
 
 use super::{
@@ -48,16 +51,16 @@ impl Browse {
     /// Records, as of now, that the User `user` has got as far as `progress` through the Version
     /// `version`: through its Movie, or split across each Episode its file holds, under each one's
     /// preferred id. An Unmatched Item has no Watch State, so progress on it stores nothing (ADR
-    /// 0013).
+    /// 0013). Returns each change it made.
     pub(crate) async fn report(
         &self,
         user: i64,
         version: i64,
         progress: Progress,
-    ) -> Result<(), Error> {
+    ) -> Result<Vec<WatchStateChange>, Error> {
         let titles = match self.contents.titles_in(version).await? {
             TitlesIn::NoSuchVersion => return Err(NotFound::NoSuchVersion.into()),
-            TitlesIn::Movie(None) => return Ok(()),
+            TitlesIn::Movie(None) => return Ok(Vec::new()),
             TitlesIn::Movie(Some((id, ids))) => {
                 vec![Some(MovieOrEpisode::movie(&id).known_as(&ids))]
             }
@@ -74,14 +77,14 @@ impl Browse {
     /// `user`: a Season or Show is each of its Episodes. Played is written under each one's
     /// preferred id; unplayed forgets it under every id. Either, where it changes a Watch State,
     /// shows the Movie or Show again in Continue Watching. Fails as browsing to it does if the
-    /// Library has no such title.
+    /// Library has no such title. Returns each change it made.
     pub(crate) async fn mark(
         &self,
         user: i64,
         library: i64,
         target: Target,
         played: bool,
-    ) -> Result<(), Error> {
+    ) -> Result<Vec<WatchStateChange>, Error> {
         let Targeted { titles, entry } = self.targeted(library, target).await?;
         if played {
             Ok(self.watch_states.mark(user, titles, true).await?)

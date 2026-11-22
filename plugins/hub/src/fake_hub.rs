@@ -1,8 +1,8 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
 //! one Server's device flow, Unlinking, its Users' Links, Users created from Accounts, one sign-in
-//! with an Account at a time, its Server Addresses, the titles like The Matrix, and a key set of
-//! one Ed25519 key it signs with, as the Hub's API (`proto/nama/hub/v1/link.proto`) says the Hub
-//! does, and takes shared Diagnostics.
+//! with an Account at a time, its Server Addresses, the Watch State it pushes, the titles like The
+//! Matrix, and a key set of one Ed25519 key it signs with, as the Hub's API
+//! (`proto/nama/hub/v1/link.proto`) says the Hub does, and takes shared Diagnostics.
 
 use std::{
     collections::HashMap,
@@ -22,11 +22,11 @@ use nama_hub_proto::nama::hub::v1::{
     ExternalId, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest, InviteUserResponse,
     LinkedServerService, ListSimilarTitlesRequest, ListSimilarTitlesResponse,
     PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
-    PollServerSignInResponse, ServerLinkService, SetServerAddressesRequest,
-    SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest, StartServerLinkResponse,
-    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
-    StartUserLinkResponse, TitleKind, UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest,
-    UnlinkUserResponse,
+    PollServerSignInResponse, PushWatchStatesRequest, PushWatchStatesResponse, ServerLinkService,
+    SetServerAddressesRequest, SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest,
+    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
+    StartUserLinkRequest, StartUserLinkResponse, TitleKind, UnlinkServerRequest,
+    UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse, WatchStateChange,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::{Value, json};
@@ -75,6 +75,10 @@ struct State {
     user_accounts: HashMap<i64, String>,
     /// How often a User's Link was asked about.
     user_link_asks: usize,
+    /// Each push's changes, in the order they came.
+    pushes: Vec<Vec<WatchStateChange>>,
+    /// Why pushes fail, as if the Hub were down, while they do.
+    push_failure: Option<&'static str>,
     /// The name and email each User created from an Account was invited with, by id.
     invites: HashMap<i64, (String, String)>,
     /// The sign-in with an Account waiting: where it returns to, and the User it signs in as once
@@ -188,6 +192,16 @@ impl FakeHub {
     /// How often the Server asked about a User's Link.
     pub(super) fn user_link_asks(&self) -> usize {
         lock(&self.state).user_link_asks
+    }
+
+    /// Each push's changes, in the order they came.
+    pub(super) fn pushes(&self) -> Vec<Vec<WatchStateChange>> {
+        lock(&self.state).pushes.clone()
+    }
+
+    /// Has pushes fail while `down`, as if the Hub were unreachable, and work again after.
+    pub(super) fn set_down(&self, down: bool) {
+        lock(&self.state).push_failure = down.then_some("the Hub is down");
     }
 
     /// The name and email the User `user_id` was invited with.
@@ -394,6 +408,19 @@ impl LinkedServerService for Linked {
         state.user_codes.remove(&request.user_id);
         state.user_accounts.remove(&request.user_id);
         Response::ok(UnlinkUserResponse::default())
+    }
+
+    async fn push_watch_states(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PushWatchStatesRequest>,
+    ) -> ServiceResult<PushWatchStatesResponse> {
+        let mut state = self.caller(&ctx)?;
+        if let Some(failure) = state.push_failure {
+            return Err(ConnectError::unavailable(failure));
+        }
+        state.pushes.push(request.to_owned_message().changes);
+        Response::ok(PushWatchStatesResponse::default())
     }
 
     async fn invite_user(

@@ -6,12 +6,15 @@
 //! rescans, renames and new Versions. Which Movie or Episodes a Version or a marked title stands
 //! for is for [`crate::browse::Browse`] to work out.
 
-use std::sync::Arc;
+use std::{iter, sync::Arc};
 
-use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use nama_plugin_api::{
+    metadata::{ExternalId, ExternalIds},
+    points::WatchStateChange,
+};
 use sqlx::SqliteConnection;
 
-use crate::db::{Database, now};
+use crate::db::{Database, now_ms};
 
 // The `kind` of a Watch State, part of its key since Movie and Episode TMDB ids are separate id
 // spaces.
@@ -97,6 +100,30 @@ impl Watched {
         let mut ids: Vec<&str> = self.ids.iter().map(String::as_str).collect();
         ids.push(title);
         (kind, title, serde_json::Value::from(ids).to_string())
+    }
+
+    /// The change that left it `played` at `progress` at `changed_at_ms`, as Plugins are told of
+    /// it.
+    fn changed(&self, played: bool, progress: Progress, changed_at_ms: i64) -> WatchStateChange {
+        let (kind, title) = self.title.key();
+        let others = self.ids.iter().filter(|&id| id != title).cloned();
+        WatchStateChange {
+            episode: kind == EPISODE,
+            ids: iter::once(title.to_owned()).chain(others).collect(),
+            played,
+            position_ms: u64::try_from(progress.position_ms).unwrap_or_default(),
+            duration_ms: u64::try_from(progress.duration_ms).unwrap_or_default(),
+            changed_at_ms,
+        }
+    }
+
+    /// The change that forgot it at `changed_at_ms`: unplayed at 0 of 0.
+    fn forgotten(&self, changed_at_ms: i64) -> WatchStateChange {
+        let start = Progress {
+            position_ms: 0,
+            duration_ms: 0,
+        };
+        self.changed(false, start, changed_at_ms)
     }
 }
 
@@ -184,13 +211,13 @@ impl WatchStates {
     /// holding `titles`, in order, `None` for an Item that isn't Matched. The file plays as one, so
     /// its progress is split across them (ADR 0013), and one it hasn't reached is left alone, so
     /// rewinding keeps progress stored on a later one. One once played, under any of its ids, stays
-    /// played.
+    /// played. Returns each change it made.
     pub(crate) async fn report(
         &self,
         user: i64,
         titles: Vec<Option<impl Into<Watched>>>,
         progress: Progress,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<Vec<WatchStateChange>, sqlx::Error> {
         let shares = progress.split(titles.len());
         let reached = titles
             .into_iter()
@@ -204,13 +231,13 @@ impl WatchStates {
 
     /// Marks, as of now, each of `titles` played or unplayed for the User `user`, in one write.
     /// Played keeps the position; unplayed forgets the Watch State under every id, so it starts
-    /// from the beginning.
+    /// from the beginning. Returns each change it made.
     pub(crate) async fn mark(
         &self,
         user: i64,
         titles: Vec<impl Into<Watched>>,
         played: bool,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<Vec<WatchStateChange>, sqlx::Error> {
         let titles = titles.into_iter().map(Into::into).collect();
         self.db
             .write(move |tx| Box::pin(mark_each(tx, user, titles, played)))
@@ -220,13 +247,13 @@ impl WatchStates {
     /// Marks, as of now, each of `titles` unplayed for the User `user`, as [`WatchStates::mark`]
     /// does, and where that forgot any Watch State shows each of `entry` again in their
     /// Continue Watching, in one write. Forgetting writes no Watch State that would show it again,
-    /// as playing it does.
+    /// as playing it does. Returns each change it made.
     pub(crate) async fn mark_unplayed(
         &self,
         user: i64,
         titles: Vec<impl Into<Watched>>,
         entry: Vec<impl Into<Watched>>,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<Vec<WatchStateChange>, sqlx::Error> {
         let titles = titles.into_iter().map(Into::into).collect();
         let entry = entry.into_iter().map(Into::into).collect();
         self.db
@@ -368,15 +395,18 @@ async fn upsert(
     conn: &mut SqliteConnection,
     user: i64,
     titles: Vec<(Watched, Progress)>,
-) -> Result<(), sqlx::Error> {
-    let now = now();
-    for (title, progress) in titles {
-        let (kind, title, ids) = title.key();
+) -> Result<Vec<WatchStateChange>, sqlx::Error> {
+    // In milliseconds for the Plugins told, as two changes in one second must still order.
+    let changed_at_ms = now_ms();
+    let now = changed_at_ms.div_euclid(1000);
+    let mut changes = Vec::with_capacity(titles.len());
+    for (watched, progress) in titles {
+        let (kind, title, ids) = watched.key();
         let played = progress.is_played();
         // An upsert, never a replace: the triggers on `watch_states` make Home rows stale on an
         // insert, a delete or a change to `played`, which a position report must not fire.
-        sqlx::query!(
-            "INSERT INTO watch_states
+        let stored = sqlx::query!(
+            r#"INSERT INTO watch_states
                  (user_id, kind, title_id, position_ms, duration_ms, played, updated_at,
                   played_at)
              VALUES (?1, ?2, ?3, ?4, ?5,
@@ -394,7 +424,8 @@ async fn upsert(
                  played = watch_states.played OR excluded.played,
                  updated_at = excluded.updated_at,
                  played_at = coalesce(watch_states.played_at, excluded.played_at),
-                 hidden = 0",
+                 hidden = 0
+             RETURNING played AS "played: bool""#,
             user,
             kind,
             title,
@@ -404,10 +435,11 @@ async fn upsert(
             now,
             ids,
         )
-        .execute(&mut *conn)
+        .fetch_one(&mut *conn)
         .await?;
+        changes.push(watched.changed(stored.played, progress, changed_at_ms));
     }
-    Ok(())
+    Ok(changes)
 }
 
 async fn mark_each(
@@ -415,34 +447,44 @@ async fn mark_each(
     user: i64,
     titles: Vec<Watched>,
     played: bool,
-) -> Result<(), sqlx::Error> {
-    let now = now();
-    for title in titles {
-        let (kind, title, ids) = title.key();
-        if played {
-            mark_played(&mut *conn, user, kind, title, now).await?;
+) -> Result<Vec<WatchStateChange>, sqlx::Error> {
+    // In milliseconds for the Plugins told, as two changes in one second must still order.
+    let changed_at_ms = now_ms();
+    let now = changed_at_ms.div_euclid(1000);
+    let mut changes = Vec::with_capacity(titles.len());
+    for watched in titles {
+        let (kind, title, ids) = watched.key();
+        changes.push(if played {
+            let kept = mark_played(&mut *conn, user, kind, title, now).await?;
+            watched.changed(true, kept, changed_at_ms)
         } else {
             forget(&mut *conn, user, kind, ids).await?;
-        }
+            watched.forgotten(changed_at_ms)
+        });
     }
-    Ok(())
+    Ok(changes)
 }
 
+/// Every one of `titles` is a change, forgotten or not: another Server may have played it.
 async fn forget_each(
     conn: &mut SqliteConnection,
     user: i64,
     titles: Vec<Watched>,
     entry: Vec<Watched>,
-) -> Result<(), sqlx::Error> {
+) -> Result<Vec<WatchStateChange>, sqlx::Error> {
+    let changed_at_ms = now_ms();
     let mut forgot = false;
-    for title in titles {
+    for title in &titles {
         let (kind, _, ids) = title.key();
         forgot |= forget(&mut *conn, user, kind, ids).await?;
     }
     if forgot {
         hide_each(conn, user, entry, false).await?;
     }
-    Ok(())
+    Ok(titles
+        .iter()
+        .map(|title| title.forgotten(changed_at_ms))
+        .collect())
 }
 
 async fn hide_each(
@@ -468,29 +510,30 @@ async fn hide_each(
 }
 
 /// Keeps any position, and when it became played if it already was. One the User hasn't started
-/// is at 0 of an unknown duration, 0.
+/// is at 0 of an unknown duration, 0. Returns the position kept.
 async fn mark_played(
     conn: &mut SqliteConnection,
     user: i64,
     kind: &'static str,
     title: &str,
     now: i64,
-) -> Result<(), sqlx::Error> {
-    sqlx::query!(
+) -> Result<Progress, sqlx::Error> {
+    sqlx::query_as!(
+        Progress,
         "INSERT INTO watch_states
              (user_id, kind, title_id, position_ms, duration_ms, played, updated_at, played_at)
          VALUES (?1, ?2, ?3, 0, 0, 1, ?4, ?4)
          ON CONFLICT (user_id, kind, title_id) DO UPDATE
          SET played = 1, updated_at = excluded.updated_at,
-             played_at = coalesce(watch_states.played_at, excluded.played_at), hidden = 0",
+             played_at = coalesce(watch_states.played_at, excluded.played_at), hidden = 0
+         RETURNING position_ms, duration_ms",
         user,
         kind,
         title,
         now,
     )
-    .execute(conn)
-    .await?;
-    Ok(())
+    .fetch_one(conn)
+    .await
 }
 
 /// Deleting the rows is how a title becomes unplayed with no position. Its rows under every id
