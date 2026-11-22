@@ -1,6 +1,8 @@
 //! Slowing down guesses at passwords, by refusing sign-ins after too many recent failures from one
-//! client IP or for one email, as the Server's `users/rate_limits.rs` does for User names. A
-//! client IP is counted by its /64 if it is IPv6.
+//! client IP or for one email, as the Server's `users/rate_limits.rs` does for User names; and
+//! bounding the argon2 work, throwaway Accounts and probing for taken emails one client can cause,
+//! by refusing Account creations after too many recent ones from its IP. A client IP is counted by
+//! its /64 if it is IPv6.
 //!
 //! ponytail: counts live in this process's memory (ADR 0096); they move to PostgreSQL once the Hub
 //! runs as replicas. They expire as the window slides past them and a restart forgets them, so
@@ -24,6 +26,10 @@ const FAILURES_PER_EMAIL: usize = 10;
 /// How many failures from one client IP the window may hold before its sign-ins are refused.
 const FAILURES_PER_IP: usize = 50;
 
+/// How many Account creations from one client IP, whether or not they succeeded, the window may
+/// hold before its creations are refused.
+const CREATIONS_PER_IP: usize = 10;
+
 /// The recent failed sign-ins, by client IP and by email.
 #[derive(Debug, Default)]
 pub(super) struct SignInLimits {
@@ -46,11 +52,17 @@ pub(super) struct Attempt {
     at: Instant,
 }
 
-/// A sign-in refused for too many recent failures.
+/// The recent Account creations, by client IP.
+#[derive(Debug, Default)]
+pub(super) struct CreationLimits {
+    creations: Mutex<Window<IpAddr>>,
+}
+
+/// A sign-in or an Account creation refused for too many recent attempts.
 #[derive(Debug, thiserror::Error)]
-#[error("too many failed attempts; try again in {} seconds", self.retry_after_secs())]
+#[error("too many attempts; try again in {} seconds", self.retry_after_secs())]
 pub(crate) struct Blocked {
-    /// How long until the oldest failure in the way leaves the window.
+    /// How long until the oldest attempt in the way leaves the window.
     retry_after: Duration,
 }
 
@@ -86,9 +98,27 @@ impl SignInLimits {
     }
 
     fn lock(&self) -> MutexGuard<'_, Failures> {
-        // Every change leaves the counts consistent, so a panic elsewhere doesn't spoil them.
-        self.failures.lock().unwrap_or_else(PoisonError::into_inner)
+        lock(&self.failures)
     }
+}
+
+impl CreationLimits {
+    /// Lets an Account creation from `ip` through at `now` unless too many have been let through
+    /// recently, and counts it.
+    pub(super) fn admit(&self, ip: IpAddr, now: Instant) -> Result<(), Blocked> {
+        let ip = counted_ip(ip);
+        let mut creations = lock(&self.creations);
+        if let Some(retry_after) = creations.wait(&ip, CREATIONS_PER_IP, now) {
+            return Err(Blocked { retry_after });
+        }
+        creations.record(ip, now);
+        Ok(())
+    }
+}
+
+fn lock<T>(counts: &Mutex<T>) -> MutexGuard<'_, T> {
+    // Every change leaves the counts consistent, so a panic elsewhere doesn't spoil them.
+    counts.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// What failures for `email` are counted under: lowercased, as emails are compared, and cut short
@@ -110,11 +140,11 @@ fn counted_ip(ip: IpAddr) -> IpAddr {
     }
 }
 
-/// When each key's failures still in the window happened, oldest first.
+/// When each key's attempts still in the window happened, oldest first.
 #[derive(Debug)]
 struct Window<K> {
     times: HashMap<K, VecDeque<Instant>>,
-    /// When keys whose failures had all left the window were last dropped.
+    /// When keys whose attempts had all left the window were last dropped.
     swept_at: Option<Instant>,
 }
 
@@ -128,7 +158,7 @@ impl<K> Default for Window<K> {
 }
 
 impl<K: Hash + Eq> Window<K> {
-    /// How long `key` must wait, as of `now`, before it has fewer than `limit` failures in the
+    /// How long `key` must wait, as of `now`, before it has fewer than `limit` attempts in the
     /// window, if it has that many now.
     fn wait(&mut self, key: &K, limit: usize, now: Instant) -> Option<Duration> {
         let times = self.times.get_mut(key)?;
@@ -138,13 +168,13 @@ impl<K: Hash + Eq> Window<K> {
         {
             times.pop_front();
         }
-        // Failures are only recorded below the limit, so at the limit the oldest has to leave.
+        // Attempts are only recorded below the limit, so at the limit the oldest has to leave.
         let oldest = *times.front()?;
         (times.len() >= limit).then(|| WINDOW.saturating_sub(now.saturating_duration_since(oldest)))
     }
 
-    /// Counts one for `key` at `at`. Once a window, it also drops the keys whose failures have all
-    /// left it: sweeping on every count would make each one slower the more clients failed lately.
+    /// Counts one for `key` at `at`. Once a window, it also drops the keys whose attempts have all
+    /// left it: sweeping on every count would make each one slower the more clients tried lately.
     fn record(&mut self, key: K, at: Instant) {
         if self
             .swept_at

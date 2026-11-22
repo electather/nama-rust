@@ -10,7 +10,7 @@ It reads its config from environment variables only:
 |---|---|
 | `NAMA_HUB_DATABASE_URL` | The PostgreSQL database, as a `postgres://` URL. Required. |
 | `NAMA_HUB_LISTEN` | The address to listen on. `0.0.0.0:7981` by default. |
-| `NAMA_HUB_TRUSTED_PROXIES` | The reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` it believes, such as `["10.0.0.0/8"]` (ADR 0018). None by default, so sign-in rate limits count the peer's address and the session cookie is `Secure` only behind a listed proxy that says HTTPS. |
+| `NAMA_HUB_TRUSTED_PROXIES` | The reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` it believes, such as `["10.0.0.0/8"]` (ADR 0018). None by default, so rate limits count the peer's address and the session cookie is `Secure` only behind a listed proxy that says HTTPS. |
 
 Each release, prereleases aside, is also a Docker image for amd64 and arm64, `ghcr.io/electather/nama-hub`, with the Server's version; it listens on 7981 as user 1000.
 

@@ -1,6 +1,6 @@
 //! Creating an Account and signing it in and out: `nama.hub.v1.AccountService`.
 
-use std::{future, time::Instant};
+use std::{future, net::IpAddr, time::Instant};
 
 use axum::http::{
     Extensions, HeaderMap, HeaderValue,
@@ -43,7 +43,12 @@ impl AccountService for AccountServiceHandler {
     ) -> ServiceResult<CreateAccountResponse> {
         let signed_in = self
             .accounts
-            .create(request.email, request.password)
+            .create(
+                request.email,
+                request.password,
+                client_ip(&ctx)?,
+                Instant::now(),
+            )
             .await
             .map_err(refused)?;
         Ok(hand_out_session(signed_in, &ctx, |account| {
@@ -59,14 +64,14 @@ impl AccountService for AccountServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, SignInRequest>,
     ) -> ServiceResult<SignInResponse> {
-        let ip = ctx
-            .extensions()
-            .get::<RequestSource>()
-            .ok_or_else(|| hub_failed(&"a request came without its peer's address"))?
-            .client_ip;
         let signed_in = self
             .accounts
-            .sign_in(request.email, request.password, ip, Instant::now())
+            .sign_in(
+                request.email,
+                request.password,
+                client_ip(&ctx)?,
+                Instant::now(),
+            )
             .await
             .map_err(refused)?;
         Ok(hand_out_session(signed_in, &ctx, |account| {
@@ -103,6 +108,13 @@ impl AccountService for AccountServiceHandler {
             })
         }))
     }
+}
+
+/// The client the request `ctx` is from, which rate limits count by.
+fn client_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
+    let source = ctx.extensions().get::<RequestSource>();
+    let source = source.ok_or_else(|| hub_failed(&"a request came without its peer's address"))?;
+    Ok(source.client_ip)
 }
 
 /// The session the request `ctx` is for, or `REFUSAL_REASON_SIGN_IN_REQUIRED`.
@@ -172,8 +184,8 @@ fn refused(err: accounts::Error) -> ConnectError {
     refused.into()
 }
 
-/// Refuses a sign-in until `blocked` lets it through, with the delay to wait in both `Retry-After`
-/// and the Refusal's `retryAfterSeconds`.
+/// Refuses a sign-in or an Account creation until `blocked` lets it through, with the delay to wait
+/// in both `Retry-After` and the Refusal's `retryAfterSeconds`.
 fn too_many_attempts(blocked: &Blocked) -> ConnectError {
     let retry_after_secs = blocked.retry_after_secs();
     let headers = HeaderMap::from_iter([(RETRY_AFTER, HeaderValue::from(retry_after_secs))]);

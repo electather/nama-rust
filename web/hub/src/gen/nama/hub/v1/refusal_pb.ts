@@ -81,7 +81,7 @@ export const RefusalReason = {
   WRONG_EMAIL_OR_PASSWORD: 2,
 
   /**
-   * `resource_exhausted`: too many attempts failed lately. Params: `retryAfterSeconds`, also sent
+   * `resource_exhausted`: too many attempts lately. Params: `retryAfterSeconds`, also sent
    * as the `Retry-After` header.
    *
    * @generated from enum value: REFUSAL_REASON_TOO_MANY_ATTEMPTS = 3;
