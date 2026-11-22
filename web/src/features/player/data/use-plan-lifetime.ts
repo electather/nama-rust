@@ -28,6 +28,7 @@ interface Plans extends Ended {
   transport: Transport;
 }
 
+// Per Query client, not one set for the page, so each test's app starts with no plans ended.
 const endedBy = new WeakMap<QueryClient, Ended>();
 
 /**
@@ -35,7 +36,7 @@ const endedBy = new WeakMap<QueryClient, Ended>();
  * nothing shows it. `stopReplaced` tells the Server a plan stopped while its player is still open,
  * as before asking for the plan that replaces it, so a Transcode it runs no longer counts toward
  * the Server's limit. `keepPlaying` is an effect that keeps an open plan alive until the page goes
- * or its cleanup, either of which stops it.
+ * or its cleanup, either of which stops it. The rule it keeps is in `features/player/AGENTS.md`.
  */
 export function usePlanLifetime() {
   const queryClient = useQueryClient();
@@ -86,11 +87,11 @@ function keepPlaying(plans: Plans, { id: planId, url }: { id: bigint; url: strin
   return () => {
     clearInterval(asking);
     globalThis.removeEventListener("pagehide", leaving);
-    letGo(plans, planId);
+    stopLater(plans, planId);
   };
 }
 
-function letGo(plans: Plans, planId: bigint) {
+function stopLater(plans: Plans, planId: bigint) {
   if (plans.stoppedEarly.delete(planId)) {
     return;
   }
@@ -126,13 +127,13 @@ async function ask(url: string) {
 /** Drops the plan `planId` from the cache once nothing shows it, so the Version's next player asks
  * for a new one. */
 function forget(queryClient: QueryClient, planId: bigint) {
-  const plans = queryClient.getQueryCache().findAll({
+  const queries = queryClient.getQueryCache().findAll({
     queryKey: planKey,
     predicate: ({ state: { data } }) =>
       isMessage(data, PlanPlaybackResponseSchema) && data.plan?.id === planId,
   });
-  for (const plan of plans) {
-    removeOnceUnseen(queryClient, plan);
+  for (const query of queries) {
+    removeOnceUnseen(queryClient, query);
   }
 }
 
