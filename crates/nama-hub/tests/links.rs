@@ -1,163 +1,37 @@
-//! Registering a Server through the device flow, listing an Account's Servers, Unlinking one,
-//! what a Linked Server shares, and Linking a Linked Server's Users to Accounts, against a real
-//! PostgreSQL.
+//! Registering a Server through the device flow, listing an Account's Servers with their Server
+//! Addresses, Unlinking one, and Linking a Linked Server's Users to
+//! Accounts, against a real PostgreSQL.
 
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/hub.rs"]
 mod hub;
+#[path = "support/linking.rs"]
+mod linking;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/mail.rs"]
 mod mail;
 #[path = "support/refused.rs"]
 mod refused;
 
-use axum::{
-    body::{Body, Bytes},
-    http::{HeaderMap, StatusCode},
-};
+use axum::body::{Body, Bytes};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use connectrpc::{
     ErrorCode,
     client::{ClientTransport as _, HttpClient, full_body},
 };
 use hub::TestHub;
-use mail::{Inbox, fake_mail};
-use nama_hub::diagnostics::Signal;
+use linking::{
+    approve, create, create_proven, hub_with_mail, linked, linked_server, links, poll, start,
+};
 use nama_hub_proto::nama::hub::v1::{
-    AccountServiceClient, ApproveServerLinkRequest, ApproveUserLinkRequest, CreateAccountRequest,
-    GetUserLinkRequest, LinkServiceClient, LinkedServerServiceClient, ListLinkedServersRequest,
-    ListLinkedUsersRequest, PollServerLinkRequest, PollServerLinkResponse, RefusalReason,
-    SendSignInLinkRequest, ServerLinkServiceClient, SignInWithLinkRequest, StartServerLinkRequest,
-    StartServerLinkResponse, StartUserLinkRequest, UnlinkLinkedUserRequest, UnlinkServerRequest,
-    UnlinkUserRequest,
+    ApproveUserLinkRequest, GetUserLinkRequest, ListLinkedServersRequest, ListLinkedUsersRequest,
+    RefusalReason, SetServerAddressesRequest, StartUserLinkRequest, UnlinkLinkedUserRequest,
+    UnlinkServerRequest, UnlinkUserRequest,
 };
 use refused::assert_refused;
 use ring::signature::{ED25519, UnparsedPublicKey};
 use serde_json::Value;
 use sqlx::PgPool;
-
-/// A Hub that emails Sign-in Links through the fake, and the fake's inbox.
-async fn hub_with_mail(db: PgPool) -> (TestHub, Inbox) {
-    let (mail, inbox) = fake_mail();
-    (TestHub::start(db, Some(mail)).await, inbox)
-}
-
-fn accounts(hub: &TestHub) -> AccountServiceClient<HttpClient> {
-    AccountServiceClient::new(HttpClient::plaintext(), hub.client_config())
-}
-
-/// The session token a response's `Set-Cookie` carries.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-fn session_token(headers: &HeaderMap) -> String {
-    let cookie = headers.get("set-cookie").unwrap().to_str().unwrap();
-    let token = cookie.split(';').next().unwrap();
-    token.strip_prefix("nama_hub_session=").unwrap().to_owned()
-}
-
-/// Creates an Account with `email`, and returns its session token.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn create(hub: &TestHub, email: &str) -> String {
-    let created = accounts(hub)
-        .create_account(CreateAccountRequest {
-            email: email.to_owned(),
-            password: "correct horse battery".to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    session_token(created.headers())
-}
-
-/// Creates an Account with `email` and proves its email with the Sign-in Link it gets, and returns
-/// the token of the session the link signed in.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn create_proven(hub: &TestHub, inbox: &mut Inbox, email: &str) -> String {
-    create(hub, email).await;
-    accounts(hub)
-        .send_sign_in_link(SendSignInLinkRequest {
-            email: email.to_owned(),
-            continue_to: "/".to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    let link = inbox.next_link(email).await;
-    let used = accounts(hub)
-        .sign_in_with_link(SignInWithLinkRequest {
-            token: link,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    session_token(used.headers())
-}
-
-/// The Hub's pages, signed in with the session `token`.
-fn links(hub: &TestHub, token: &str) -> LinkServiceClient<HttpClient> {
-    let config = hub
-        .client_config()
-        .with_default_header("cookie", format!("nama_hub_session={token}"));
-    LinkServiceClient::new(HttpClient::plaintext(), config)
-}
-
-/// A Server not yet Linked.
-fn server(hub: &TestHub) -> ServerLinkServiceClient<HttpClient> {
-    ServerLinkServiceClient::new(HttpClient::plaintext(), hub.client_config())
-}
-
-/// A Server presenting `credential`.
-fn linked_server(hub: &TestHub, credential: &str) -> LinkedServerServiceClient<HttpClient> {
-    let config = hub
-        .client_config()
-        .with_default_header("authorization", format!("Bearer {credential}"));
-    LinkedServerServiceClient::new(HttpClient::plaintext(), config)
-}
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn start(hub: &TestHub, name: &str) -> StartServerLinkResponse {
-    server(hub)
-        .start_server_link(StartServerLinkRequest {
-            name: name.to_owned(),
-            ..Default::default()
-        })
-        .await
-        .unwrap()
-        .into_owned()
-}
-
-async fn poll(
-    hub: &TestHub,
-    device_code: &str,
-) -> Result<PollServerLinkResponse, connectrpc::ConnectError> {
-    Ok(server(hub)
-        .poll_server_link(PollServerLinkRequest {
-            device_code: device_code.to_owned(),
-            ..Default::default()
-        })
-        .await?
-        .into_owned())
-}
-
-async fn approve(hub: &TestHub, token: &str, code: &str) -> Result<(), connectrpc::ConnectError> {
-    links(hub, token)
-        .approve_server_link(ApproveServerLinkRequest {
-            code: code.to_owned(),
-            ..Default::default()
-        })
-        .await?;
-    Ok(())
-}
 
 #[expect(
     clippy::unwrap_used,
@@ -376,17 +250,6 @@ async fn a_credential_the_hub_cant_check_isnt_called_unlinked(db: PgPool) {
 
     // A Server that heard "not Linked" would forget its Link.
     assert_ne!(failed.code, ErrorCode::Unauthenticated, "{failed:?}");
-}
-
-/// Links a Server named `name` to the Account signed in with `token`, and returns its credential.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn linked(hub: &TestHub, token: &str, name: &str) -> String {
-    let started = start(hub, name).await;
-    approve(hub, token, &started.user_code).await.unwrap();
-    poll(hub, &started.device_code).await.unwrap().credential
 }
 
 /// Starts Linking the User `user_id` of the Server presenting `credential`, and returns their code.
@@ -609,81 +472,151 @@ async fn linking_a_user_needs_a_proven_email_and_a_linked_server(db: PgPool) {
     );
 }
 
-/// Posts `batch` to the Hub's OTLP/HTTP `/otlp/v1/{signal}`, as the Server presenting
-/// `credential`, if any, and answers the Hub's status.
+/// Reports `url` and `lan_addresses` as the Server Addresses of the Server presenting `credential`.
+async fn set_addresses(
+    hub: &TestHub,
+    credential: &str,
+    url: &str,
+    lan_addresses: &[&str],
+) -> Result<(), connectrpc::ConnectError> {
+    linked_server(hub, credential)
+        .set_server_addresses(SetServerAddressesRequest {
+            url: url.to_owned(),
+            lan_addresses: lan_addresses
+                .iter()
+                .map(|&address| address.to_owned())
+                .collect(),
+            ..Default::default()
+        })
+        .await?;
+    Ok(())
+}
+
+/// Each Server the Account signed in as `token` lists: its name, its Server URL and its Server
+/// Addresses.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn share(hub: &TestHub, signal: &str, credential: Option<&str>, batch: &[u8]) -> StatusCode {
-    let mut request = axum::http::Request::post(format!(
-        "{}otlp/v1/{signal}",
-        hub.client_config().base_uri()
-    ))
-    .header("content-type", "application/x-protobuf");
-    if let Some(credential) = credential {
-        request = request.header("authorization", format!("Bearer {credential}"));
-    }
-    let request = request
-        .body(full_body(Bytes::copy_from_slice(batch)))
-        .unwrap();
-    HttpClient::plaintext()
-        .send(request)
+async fn server_addresses(hub: &TestHub, token: &str) -> Vec<(String, String, Vec<String>)> {
+    let listed = links(hub, token)
+        .list_linked_servers(ListLinkedServersRequest::default())
         .await
         .unwrap()
-        .status()
+        .into_owned();
+    listed
+        .servers
+        .into_iter()
+        .map(|server| (server.name, server.url, server.addresses))
+        .collect()
 }
 
 #[sqlx::test(migrations = false)]
-async fn a_linked_servers_shared_batches_reach_the_backend_unchanged_and_no_one_elses_do(
-    db: PgPool,
-) {
+async fn an_account_lists_the_server_addresses_its_server_last_reported(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
-    let credential = linked(&hub, &ada, "Living room").await;
-
-    let anyone = share(&hub, "traces", None, b"anyone's").await;
-    let unknown = share(&hub, "traces", Some("no such credential"), b"unknown").await;
-    let spans = share(&hub, "traces", Some(&credential), b"spans").await;
-    let lines = share(&hub, "logs", Some(&credential), b"lines").await;
-
+    let living_room = linked(&hub, &ada, "Living room").await;
     assert_eq!(
-        [anyone, unknown, spans, lines],
-        [
-            StatusCode::UNAUTHORIZED,
-            StatusCode::UNAUTHORIZED,
-            StatusCode::OK,
-            StatusCode::OK
-        ]
+        server_addresses(&hub, &ada).await,
+        [("Living room".to_owned(), String::new(), vec![])]
     );
+    set_addresses(&hub, &living_room, "", &["http://192.168.1.10:7980"])
+        .await
+        .unwrap();
+
+    set_addresses(
+        &hub,
+        &living_room,
+        "https://nama.example.com",
+        &["http://192.168.1.11:7980"],
+    )
+    .await
+    .unwrap();
+
     assert_eq!(
-        hub.shared(),
-        [
-            (Signal::Traces, Bytes::from_static(b"spans")),
-            (Signal::Logs, Bytes::from_static(b"lines"))
-        ]
+        server_addresses(&hub, &ada).await,
+        [(
+            "Living room".to_owned(),
+            "https://nama.example.com".to_owned(),
+            vec![
+                "https://nama.example.com".to_owned(),
+                "http://192.168.1.11:7980".to_owned()
+            ]
+        )]
     );
 }
 
 #[sqlx::test(migrations = false)]
-async fn a_linked_server_sharing_over_4_mib_a_minute_is_refused(db: PgPool) {
+async fn an_account_lists_the_servers_its_users_are_on_and_no_others(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
-    let credential = linked(&hub, &ada, "Living room").await;
-    let batch = vec![0; 3 * 512 * 1024];
+    let bea = create_proven(&hub, &mut inbox, "bea@example.com").await;
+    let cy = create_proven(&hub, &mut inbox, "cy@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    linked(&hub, &ada, "Cabin").await;
+    set_addresses(&hub, &living_room, "https://nama.example.com", &[])
+        .await
+        .unwrap();
+    let code = start_user(&hub, &living_room, 7).await.unwrap();
+    approve_user(&hub, &bea, &code).await.unwrap();
 
-    let mut answers = Vec::new();
-    for _ in 0..3 {
-        answers.push(share(&hub, "traces", Some(&credential), &batch).await);
+    assert_eq!(
+        server_addresses(&hub, &bea).await,
+        [(
+            "Living room".to_owned(),
+            "https://nama.example.com".to_owned(),
+            vec!["https://nama.example.com".to_owned()]
+        )]
+    );
+    assert_eq!(server_names(&hub, &ada).await, ["Living room", "Cabin"]);
+    assert_eq!(server_names(&hub, &cy).await, Vec::<String>::new());
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_server_sets_only_its_own_addresses(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let bea = create_proven(&hub, &mut inbox, "bea@example.com").await;
+    linked(&hub, &ada, "Ada's").await;
+    let beas = linked(&hub, &bea, "Bea's").await;
+
+    set_addresses(&hub, &beas, "https://bea.example.com", &[])
+        .await
+        .unwrap();
+
+    assert_eq!(
+        server_addresses(&hub, &ada).await,
+        [("Ada's".to_owned(), String::new(), vec![])]
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_server_address_must_be_an_http_url(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    let too_many = ["http://192.168.1.10:7980"; 17];
+    let too_long = format!("https://{}.example.com", "a".repeat(2000));
+
+    for (url, lan_addresses) in [
+        ("javascript:alert(1)", &[][..]),
+        ("", &["192.168.1.10:7980"][..]),
+        (too_long.as_str(), &[][..]),
+        ("", &too_many[..]),
+    ] {
+        assert_refused(
+            set_addresses(&hub, &living_room, url, lan_addresses).await,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_SERVER_ADDRESS_INVALID,
+        );
     }
-
-    assert_eq!(
-        answers,
-        [
-            StatusCode::OK,
-            StatusCode::OK,
-            StatusCode::TOO_MANY_REQUESTS
-        ]
+    assert_refused(
+        set_addresses(&hub, "not a credential", "", &[]).await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
     );
-    assert_eq!(hub.shared().len(), 2);
+    assert_eq!(
+        server_addresses(&hub, &ada).await,
+        [("Living room".to_owned(), String::new(), vec![])]
+    );
 }

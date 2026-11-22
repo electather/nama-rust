@@ -277,6 +277,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         // `UNSPECIFIED` is never sent; a client sees it only for a reason it doesn't know.
         R::REFUSAL_REASON_EMAIL_INVALID
         | R::REFUSAL_REASON_PASSWORD_LENGTH
+        | R::REFUSAL_REASON_SERVER_ADDRESS_INVALID
         | R::REFUSAL_REASON_VIEWING_EVENT_INVALID
         | R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,
     }

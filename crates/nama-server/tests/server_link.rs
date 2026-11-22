@@ -1,6 +1,6 @@
 //! Linking the Server, and a User, through the enabled Plugin that links it (ADR 0011, ADR 0094),
 //! here an in-process one scripted by each test, and a Server without one, which has nothing to
-//! Link.
+//! Link. The Plugin is told the Server's Server Addresses.
 
 #[expect(dead_code, reason = "this binary only counts logged lines")]
 #[path = "support/log.rs"]
@@ -14,6 +14,7 @@ mod server;
 use std::{
     future,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
+    time::Duration,
 };
 
 use connectrpc::{
@@ -23,12 +24,13 @@ use connectrpc::{
 use log::Log;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    server_link::{Link, ServerLinker},
+    server_link::{Link, ServerAddresses, ServerLinker},
 };
 use nama_proto::nama::v1::{
     self as proto, DeleteUserRequest, GetServerLinkRequest, GetUserLinkRequest, ListUsersRequest,
-    Permission, RefusalReason, ServerServiceClient, StartServerLinkRequest, StartUserLinkRequest,
-    UnlinkServerRequest, UnlinkUserRequest, UserServiceClient,
+    Permission, RefusalReason, ServerServiceClient, ServerSettings, StartServerLinkRequest,
+    StartUserLinkRequest, UnlinkServerRequest, UnlinkUserRequest, UpdateServerSettingsRequest,
+    UserServiceClient,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -48,6 +50,8 @@ struct Script {
     user_link: Option<Link>,
     /// The User it was last asked to start Linking, by id and name.
     user_started: Option<(i64, String)>,
+    /// The Server Addresses it was last told.
+    addresses: Option<ServerAddresses>,
     /// The Users it was asked to Unlink, by id, in order.
     unlinked_users: Vec<i64>,
     /// Whether Unlinking a User fails, as with the service unreachable.
@@ -134,16 +138,28 @@ impl ServerLinker for Scripted {
         script.user_link = Some(Link::NotLinked);
         Box::pin(future::ready(Ok(())))
     }
+
+    fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
+        self.script().addresses = Some(addresses);
+        Box::pin(future::ready(Ok(())))
+    }
+}
+
+async fn with_linker(linker: &Scripted) -> TestServer {
+    TestServer::builder()
+        .plugins(enabling(linker))
+        .start()
+        .await
 }
 
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn with_linker(linker: &Scripted) -> TestServer {
+fn enabling(linker: &Scripted) -> Registry {
     let plugins = Registry::new();
     plugins.enable(Arc::new(linker.clone())).unwrap();
-    TestServer::builder().plugins(plugins).start().await
+    plugins
 }
 
 fn settings(server: &TestServer) -> ServerServiceClient<HttpClient> {
@@ -332,6 +348,41 @@ async fn a_plugin_that_cant_reach_its_service_leaves_the_server_as_it_was() {
 
     assert_eq!(started.unwrap_err().code, ErrorCode::Unavailable);
     assert_eq!(unlinked.unwrap_err().code, ErrorCode::Unavailable);
+}
+
+#[tokio::test]
+async fn the_plugin_is_told_the_server_url_the_admin_set() {
+    let linker = Scripted::default();
+    let server = with_linker(&linker).await;
+    settings(&server)
+        .update_server_settings(UpdateServerSettingsRequest {
+            settings: ServerSettings {
+                url: "https://nama.example.com".to_owned(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let _restarted = TestServer::builder()
+        .plugins(enabling(&linker))
+        .restart(server)
+        .await;
+
+    // The test Server listens on 127.0.0.1, which no other device on its LAN can reach.
+    let told = ServerAddresses {
+        url: "https://nama.example.com/".to_owned(),
+        lan: vec![],
+    };
+    let waited = tokio::time::timeout(server::WAIT, async {
+        while linker.script().addresses.as_ref() != Some(&told) {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await;
+    assert!(waited.is_ok(), "told {:?}", linker.script().addresses);
 }
 
 #[tokio::test]

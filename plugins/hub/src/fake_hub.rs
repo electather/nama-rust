@@ -1,7 +1,7 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
-//! one Server's device flow, Unlinking, its Users' Links and Viewing Events, and a key set of one
-//! Ed25519 key it signs with, as the Hub's API (`proto/nama/hub/v1/`) says the Hub does, and takes
-//! shared Diagnostics.
+//! one Server's device flow, Unlinking, its Users' Links and Viewing Events, its Server Addresses,
+//! and a key set of one Ed25519 key it signs with, as the Hub's API (`proto/nama/hub/v1/`) says the
+//! Hub does, and takes shared Diagnostics.
 
 use std::{
     collections::HashMap,
@@ -22,9 +22,10 @@ use connectrpc::{
 use nama_hub_proto::nama::hub::v1::{
     GetUserLinkRequest, GetUserLinkResponse, LinkedServerService, PollServerLinkRequest,
     PollServerLinkResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
-    ServerLinkService, StartServerLinkRequest, StartServerLinkResponse, StartUserLinkRequest,
-    StartUserLinkResponse, UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest,
-    UnlinkUserResponse, UserViewingEvent,
+    ServerLinkService, SetServerAddressesRequest, SetServerAddressesResponse,
+    StartServerLinkRequest, StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse,
+    UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
+    UserViewingEvent,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::{Value, json};
@@ -68,6 +69,10 @@ struct State {
     viewing_events: Vec<UserViewingEvent>,
     /// What recording Viewing Events fails with, if it does.
     recording_failure: Option<ErrorCode>,
+    /// Each Server URL and LAN addresses the Server reported, in order.
+    reported_addresses: Vec<(String, Vec<String>)>,
+    /// How many of the next reports of Server Addresses fail.
+    addresses_failures: usize,
 }
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
@@ -167,6 +172,16 @@ impl FakeHub {
     /// How often the Server asked about a User's Link.
     pub(super) fn user_link_asks(&self) -> usize {
         lock(&self.state).user_link_asks
+    }
+
+    /// Each Server URL and LAN addresses the Server reported, in order.
+    pub(super) fn reported_addresses(&self) -> Vec<(String, Vec<String>)> {
+        lock(&self.state).reported_addresses.clone()
+    }
+
+    /// Has the next report of Server Addresses fail, as if the Hub blinked.
+    pub(super) fn fail_next_addresses(&self) {
+        lock(&self.state).addresses_failures += 1;
     }
 
     /// Each Viewing Event recorded, in order.
@@ -352,6 +367,26 @@ impl LinkedServerService for Linked {
         state.user_codes.remove(&request.user_id);
         state.user_accounts.remove(&request.user_id);
         Response::ok(UnlinkUserResponse::default())
+    }
+
+    async fn set_server_addresses(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetServerAddressesRequest>,
+    ) -> ServiceResult<SetServerAddressesResponse> {
+        let mut state = self.caller(&ctx)?;
+        if state.addresses_failures > 0 {
+            state.addresses_failures -= 1;
+            return Err(ConnectError::unavailable("the fake Hub blinked"));
+        }
+        let lan = request
+            .lan_addresses
+            .iter()
+            .map(|&address| address.to_owned());
+        state
+            .reported_addresses
+            .push((request.url.to_owned(), lan.collect()));
+        Response::ok(SetServerAddressesResponse::default())
     }
 
     async fn record_viewing_events(

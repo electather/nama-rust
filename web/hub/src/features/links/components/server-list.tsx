@@ -1,6 +1,6 @@
 import { LinkedServers } from "@hub/features/links/components/linked-servers";
 
-/** The signed-in Account's Linked Servers, each with when it was Linked. */
+/** The Servers the signed-in Account owns or has a User on, each with when it was Linked. */
 export function ServerList() {
   return (
     <section aria-labelledby="your-servers" className="flex flex-col gap-2">

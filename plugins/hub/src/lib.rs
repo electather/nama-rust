@@ -3,7 +3,8 @@
 //! 0011), keeps the credential the Server presents to the Hub from then on in its Store, and sends
 //! the Hub the Diagnostics and Usage Analytics the Admin shares (ADR 0054). Its Users then Link to
 //! their own Accounts the same way, and each play of theirs goes to the Hub as a Viewing Event (ADR
-//! 0093).
+//! 0093), and the Hub lists the Server, with its Server Addresses, to every Account it has a User
+//! on.
 
 mod hub;
 mod linker;
@@ -72,11 +73,12 @@ impl Plugin for Hub {
             setup_markdown: "Enable it, then Link the Server under Settings, Server. The Server \
                              shows a code to enter on the Hub while signed in to your Account. \
                              Once it is Linked, each User can Link to their own Account the same \
-                             way, from their own Settings. From then on, each play of a Matched \
-                             title by a Linked User goes to the Hub as a Viewing Event, which \
-                             their Account can see, delete and export there. Read Libraries, \
-                             Read Watch State and Read Users tell it what was played, how far, \
-                             and on what kind of Device."
+                             way, from their own Settings. The Hub then lists the Server's \
+                             Server URL and LAN address to the Accounts its Users Linked to, so \
+                             their apps can find it. Each play of a Matched title by a Linked User \
+                             goes to the Hub as a Viewing Event, which their Account can see, \
+                             delete and export there. Read Libraries, Read Watch State and Read \
+                             Users tell it what was played, how far, and on what kind of Device."
                 .to_owned(),
             extension_points: vec![
                 PointKey::provide::<dyn ServerLinker>(),
