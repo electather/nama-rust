@@ -168,6 +168,28 @@ async fn list_titles_gives_genres_content_rating_and_an_episodes_show_id() {
 }
 
 #[tokio::test]
+async fn list_titles_gives_every_id_of_a_movie_matched_under_tmdb_and_tvdb() {
+    let data = tempfile::tempdir().unwrap();
+    let media = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let mut alien = tmdb_movie(ALIEN_TMDB_ID, "Alien");
+    alien.ids.insert(ExternalId::tvdb(1));
+    let alien = MatchedMovie::new(&db, media.path(), alien).await;
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_LIBRARIES);
+
+    let listed = kernel
+        .ask::<ListTitles>(titles_asked(alien.library, 0, ""))
+        .await;
+
+    let [title] = listed.unwrap().titles.try_into().unwrap();
+    let ids: Vec<_> = (title.ids.iter())
+        .map(|id| format!("{}-{}", id.namespace, id.value))
+        .collect();
+    assert_eq!(ids, [format!("tmdb-{ALIEN_TMDB_ID}"), "tvdb-1".to_owned()]);
+    assert_eq!(title.show_ids, []);
+}
+
+#[tokio::test]
 async fn list_titles_gives_when_each_movie_and_episode_was_added() {
     let data = tempfile::tempdir().unwrap();
     let movies = tempfile::tempdir().unwrap();

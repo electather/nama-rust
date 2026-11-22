@@ -63,7 +63,18 @@ impl SettingField {
     /// Why the Kernel refuses a Plugin that declares this setting, if it does.
     #[must_use]
     pub fn flaw(&self) -> Option<SettingFlaw> {
-        self.bounds_flaw().or_else(|| self.choices_flaw())
+        // First, since the bounds and Choices rules assume the default is of the setting's kind.
+        self.kind_flaw()
+            .or_else(|| self.bounds_flaw())
+            .or_else(|| self.choices_flaw())
+    }
+
+    fn kind_flaw(&self) -> Option<SettingFlaw> {
+        let default = self.default.as_ref()?;
+        (!default.is(self.kind)).then(|| SettingFlaw::DefaultWrongKind {
+            key: self.key.clone(),
+            kind: self.kind,
+        })
     }
 
     fn bounds_flaw(&self) -> Option<SettingFlaw> {
@@ -138,6 +149,13 @@ impl SettingsSchema {
 /// it is given.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SettingFlaw {
+    /// A default that isn't of the setting's [`kind`](SettingField::kind).
+    DefaultWrongKind {
+        /// The setting's key.
+        key: String,
+        /// The setting's kind.
+        kind: SettingKind,
+    },
     /// A [`min`](SettingField::min) or [`max`](SettingField::max) on a setting that isn't
     /// [`SettingKind::Integer`].
     BoundsOnAnotherKind {
@@ -188,6 +206,9 @@ pub enum SettingFlaw {
 impl fmt::Display for SettingFlaw {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::DefaultWrongKind { key, kind } => {
+                write!(f, "its setting {key}'s default isn't {kind}")
+            }
             Self::BoundsOnAnotherKind { key } => write!(
                 f,
                 "its setting {key} has min or max, which only an Integer setting may"
@@ -536,7 +557,10 @@ pub trait PersonalSettingsCheck: Send + Sync {
 
 #[cfg(test)]
 mod tests {
-    use super::{SettingField, SettingKind, SettingValue, Settings, SettingsError, SettingsSchema};
+    use super::{
+        SettingField, SettingFlaw, SettingKind, SettingValue, Settings, SettingsError,
+        SettingsSchema,
+    };
 
     fn text(text: &str) -> SettingValue {
         SettingValue::Text(text.to_owned())
@@ -664,6 +688,36 @@ mod tests {
         assert_eq!(
             err.to_string(),
             "the setting sonarr must be an http or https URL"
+        );
+    }
+
+    #[test]
+    fn a_default_is_a_flaw_only_when_not_of_its_settings_kind() {
+        let flaw = |kind, default| {
+            SettingField {
+                default: Some(default),
+                ..required("port", kind)
+            }
+            .flaw()
+        };
+        let wrong_kind = |kind| {
+            Some(SettingFlaw::DefaultWrongKind {
+                key: "port".to_owned(),
+                kind,
+            })
+        };
+
+        assert_eq!(
+            flaw(SettingKind::Integer, text("8989")),
+            wrong_kind(SettingKind::Integer)
+        );
+        assert_eq!(
+            flaw(SettingKind::Url, text("sonarr.lan")),
+            wrong_kind(SettingKind::Url)
+        );
+        assert_eq!(
+            flaw(SettingKind::Integer, SettingValue::Integer(8989)),
+            None
         );
     }
 
