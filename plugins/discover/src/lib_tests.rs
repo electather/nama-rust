@@ -1,3 +1,5 @@
+use std::time::{Duration, UNIX_EPOCH};
+
 use nama_pdk::{
     HomeRowSource, HomeRows, Library, Permission, Response, SettingKind, Title, TitleId, TitleKind,
     TitleRef, TitleRefKind, UserRowsAsked, WatchState, WatchlistTitle,
@@ -5,6 +7,7 @@ use nama_pdk::{
         Error, HttpRequest,
         json::{self, Value, json},
     },
+    kernel,
     nama_plugin_proto::nama::plugin::v1::Texts,
     services, setting_value,
     testing::{Kernel, with},
@@ -84,17 +87,56 @@ fn genres(genres: &[(u64, &str)]) -> Response {
     answer(200, &json!({ "genres": genres }))
 }
 
+/// Wikidata's answer to a SPARQL query of `request`'s URL: each award's Movies as TMDB ids, newest
+/// first, a Best Picture winner Wikidata has no TMDB id for among them.
+fn wikidata(request: &HttpRequest) -> Response {
+    let url = Url::parse(&request.url).expect("the Plugin sends a URL");
+    let query = (url.query_pairs())
+        .find_map(|(name, query)| (name == "query").then(|| query.into_owned()))
+        .unwrap_or_default();
+    let movies: &[&str] = if query.contains("P1411") {
+        &["1064213", "872585"]
+    } else if query.contains("Q102427") {
+        &["1054867", "", "776503"]
+    } else if query.contains("Q179808") {
+        &["1401459", "1456349"]
+    } else if query.contains("Q1011509") {
+        &["549509"]
+    } else {
+        return answer(400, &json!({}));
+    };
+    let bindings: Vec<_> = (movies.iter())
+        .map(|&tmdb| match tmdb {
+            "" => json!({ "newest": { "type": "literal", "value": "2023-01-01T00:00:00Z" } }),
+            tmdb => json!({ "tmdb": { "type": "literal", "value": tmdb } }),
+        })
+        .collect();
+    answer(
+        200,
+        &json!({ "head": { "vars": ["tmdb", "newest"] }, "results": { "bindings": bindings } }),
+    )
+}
+
 fn answer(status: u16, body: &Value) -> Response {
     Response::new(status, json::to_vec(body).unwrap_or_default())
 }
 
-/// A Kernel holding the fake's API key and `picked` as the Shared rows, whose requests the fake
-/// TMDB answers.
+/// A Kernel holding the fake's API key and `picked` as the Shared rows, granting the Store, whose
+/// requests the fake TMDB and Wikidata answer.
 fn kernel(picked: &[&str]) -> Kernel {
     Kernel::new()
         .setting(API_KEY, VALID_KEY)
         .setting(SHARED_ROWS, &json::to_string(picked).unwrap())
-        .http(|request, _body| Ok(tmdb(request)))
+        .store()
+        .http(|request, _body| {
+            let host = Url::parse(&request.url)
+                .ok()
+                .and_then(|url| url.host_str().map(str::to_owned));
+            Ok(match host.as_deref() {
+                Some("query.wikidata.org") => wikidata(request),
+                _ => tmdb(request),
+            })
+        })
 }
 
 fn shared_rows(kernel: &mut Kernel) -> Result<HomeRows, Error> {
@@ -151,6 +193,92 @@ fn trending_this_week_unpicked_is_no_row_and_asks_tmdb_nothing() {
 
     assert_eq!(summary(&rows), []);
     assert_eq!(kernel.sent(), []);
+}
+
+/// An award Movie with the TMDB id `id`, as a row summary lists it.
+fn award_movie(id: &str) -> (Option<TitleKind>, &str) {
+    (Some(TitleKind::TITLE_KIND_MOVIE), id)
+}
+
+#[test]
+fn award_rows_are_only_those_picked_each_of_wikidatas_movies_in_its_order() {
+    let mut kernel = kernel(&["palme-dor", "best-picture"]);
+
+    let rows = shared_rows(&mut kernel).unwrap();
+
+    let day = 24 * 60 * 60;
+    assert_eq!(
+        summary(&rows),
+        [
+            (
+                "best-picture",
+                "Best Picture winners",
+                day,
+                vec![award_movie("1054867"), award_movie("776503")]
+            ),
+            (
+                "palme-dor",
+                "Palme d'Or winners",
+                day,
+                vec![award_movie("1401459"), award_movie("1456349")]
+            ),
+        ]
+    );
+    assert_eq!(kernel.sent().len(), 2);
+}
+
+#[test]
+fn award_movies_wikidata_has_no_tmdb_id_for_are_left_out() {
+    let rows = shared_rows(&mut kernel(&["best-picture"])).unwrap();
+
+    let movies: Vec<_> = rows.rows[0]
+        .titles
+        .iter()
+        .map(|title| &title.id.value)
+        .collect();
+    assert_eq!(movies, ["1054867", "776503"]);
+}
+
+#[test]
+fn wikidata_is_asked_with_a_user_agent_naming_nama() {
+    let mut kernel = kernel(&["golden-globe-dramas"]);
+
+    shared_rows(&mut kernel).unwrap();
+
+    let user_agent = &kernel.sent()[0].request.headers["User-Agent"];
+    assert!(user_agent.starts_with("Nama-Discover/"), "{user_agent}");
+}
+
+#[test]
+fn a_refresh_while_award_movies_are_fresh_reads_the_store_and_asks_wikidata_nothing() {
+    let mut kernel = kernel(&["oscar-nominees"]);
+    let first = shared_rows(&mut kernel).unwrap();
+    let asked = kernel.sent().len();
+
+    let again = shared_rows(&mut kernel).unwrap();
+
+    assert_eq!(summary(&again), summary(&first));
+    assert_eq!(kernel.sent().len(), asked);
+}
+
+#[test]
+fn a_refresh_a_month_on_asks_wikidata_again_and_keeps_its_new_answer() {
+    let mut kernel = kernel(&["palme-dor"]);
+    let month_ago = nama_pdk::now() - Duration::from_hours(31 * 24);
+    let asked_at = month_ago.duration_since(UNIX_EPOCH).unwrap().as_secs();
+    let kept = json!({ "asked_at": asked_at, "movies": [550] });
+    with(&mut kernel, || {
+        kernel::store_put("award:palme-dor", None, &json::to_vec(&kept).unwrap())
+    })
+    .unwrap();
+
+    let refreshed = shared_rows(&mut kernel).unwrap();
+    let again = shared_rows(&mut kernel).unwrap();
+
+    let movies = vec![award_movie("1401459"), award_movie("1456349")];
+    assert_eq!(summary(&refreshed)[0].3, movies);
+    assert_eq!(summary(&again)[0].3, movies);
+    assert_eq!(kernel.sent().len(), 1);
 }
 
 #[test]
@@ -236,7 +364,10 @@ fn manifest_serves_home_rows_with_its_permissions_api_key_region_shared_and_user
             Permission::PERMISSION_STORE,
         ]
     );
-    assert_eq!(manifest.allowed_hosts, ["api.themoviedb.org"]);
+    assert_eq!(
+        manifest.allowed_hosts,
+        ["api.themoviedb.org", "query.wikidata.org"]
+    );
     let settings: Vec<_> = (manifest.settings.iter())
         .map(|field| {
             let default = field
@@ -378,8 +509,8 @@ const BEN: i64 = 2;
 
 /// `days` days before now, in milliseconds since the Unix epoch, as a Watch State's time.
 fn days_ago(days: u64) -> i64 {
-    let then = nama_pdk::now() - std::time::Duration::from_hours(24 * days);
-    let since_epoch = then.duration_since(std::time::UNIX_EPOCH).unwrap();
+    let then = nama_pdk::now() - Duration::from_hours(24 * days);
+    let since_epoch = then.duration_since(UNIX_EPOCH).unwrap();
     i64::try_from(since_epoch.as_millis()).unwrap()
 }
 

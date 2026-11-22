@@ -240,3 +240,21 @@ test("seeking neither asks for a new plan nor stops the one playing", async () =
   expect(stoppedWhenAsked).toStrictEqual([[]]);
   expect(stopped).toStrictEqual([]);
 });
+
+// A replaced plan's query outlives its player by the second Suspense keeps it, keyed as the first.
+test("playing again at once after replacing a plan and leaving asks for a new plan", async () => {
+  const stoppedWhenAsked: bigint[][] = [];
+  openApp(
+    "/libraries/1/movies/tmdb-603/play",
+    planning(PlaybackMethod.REMUX, PLAYLIST, [], stoppedWhenAsked),
+  );
+  const first = await screen.findByLabelText("The Matrix");
+  choose720p();
+  await newVideo(first);
+
+  fireEvent.click(screen.getByRole("link", { name: "Back" }));
+  fireEvent.click(await screen.findByRole("link", { name: "Play" }));
+  await screen.findByLabelText("The Matrix");
+
+  expect(stoppedWhenAsked).toHaveLength(3);
+});

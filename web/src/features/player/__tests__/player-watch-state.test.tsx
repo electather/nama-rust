@@ -155,12 +155,9 @@ test("a report that fails is sent again, and nothing is shown", async () => {
   video.currentTime = 42;
   fireEvent(video, new Event("pause"));
 
-  await waitFor(
-    () => {
-      expect(reports.map(({ positionMs }) => positionMs)).toStrictEqual([42_000n]);
-    },
-    { timeout: 3000 },
-  );
+  await waitFor(() => {
+    expect(reports.map(({ positionMs }) => positionMs)).toStrictEqual([42_000n]);
+  });
   await act(async () => {});
   expect(screen.getByLabelText("Alien")).toBe(video);
   expect(screen.queryByRole("alert")).toBeNull();

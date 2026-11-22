@@ -10,7 +10,7 @@ use nama_proto::nama::v1::{self as proto, Refusal, RefusalReason};
 
 use crate::{
     backup::Backups,
-    browse::Browse,
+    browse::{Browse, TitlePages},
     config::Config,
     connections::Connections,
     db::Database,
@@ -25,8 +25,8 @@ use crate::{
         TitleKind, TitleSources, artwork_router, custom_images_router, local_images_router,
     },
     playback::{
-        Plans, PreviewFrames, Probing, RunningPlans, SubtitleDownloads, TrackPreferences,
-        preview_frames_router, running_router,
+        Plans, PreviewFrames, Probing, RunningPlans, SubtitleCache, SubtitleDownloads,
+        TrackPreferences, WholeFileReads, preview_frames_router, running_router,
     },
     plugin_settings::PluginSettings,
     requests::Requests,
@@ -79,6 +79,8 @@ pub(crate) fn router(
     image_store: ImageStore,
     artwork: Artwork,
     probing: Probing,
+    subtitles: SubtitleCache,
+    reads: WholeFileReads,
     events: EventBus,
     requests: Requests,
     home_rows: HomeRows,
@@ -90,19 +92,17 @@ pub(crate) fn router(
     ffmpeg: Arc<Ffmpeg>,
 ) -> axum::Router {
     let plugins = plugin_settings.extension_points();
-    let contents = Contents::new(Arc::clone(&db));
     let image_settings = settings.images();
     let local_images = LocalImages::new(Arc::clone(&db), image_store.clone());
-    let artwork_router = artwork_router(artwork.clone(), contents.clone(), image_settings.clone());
-    let media = crate::playback::router(
-        contents,
-        running.clone(),
-        &db,
-        Arc::clone(&ffmpeg),
-        probing.clone(),
-    )
-    .merge(running_router(running.clone()))
-    .merge(preview_frames_router(preview_frames.clone()));
+    let artwork_router = artwork_router(
+        artwork.clone(),
+        Contents::new(Arc::clone(&db)),
+        image_settings.clone(),
+    );
+    let media =
+        crate::playback::router(running.clone(), &db, Arc::clone(&ffmpeg), subtitles, reads)
+            .merge(running_router(running.clone()))
+            .merge(preview_frames_router(preview_frames.clone()));
     let images = ImageSources {
         custom_images: custom_images.clone(),
         local_images: local_images.clone(),
@@ -110,6 +110,8 @@ pub(crate) fn router(
         settings: image_settings.clone(),
     };
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
+    let similar = SimilarSources::new(plugins.clone());
+    let pages = TitlePages::new(Arc::clone(&db), requests.clone(), similar);
     let server_url = settings.server_url();
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(server::ServerServiceHandler {
@@ -137,7 +139,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(browse::BrowseServiceHandler {
             browse: Browse::new(Arc::clone(&db)),
-            similar: SimilarSources::new(plugins.clone()),
+            pages: pages.clone(),
             home_rows: home_rows.clone(),
             settings: settings.clone(),
             images: images.clone(),
@@ -170,10 +172,8 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(requests::RequestServiceHandler {
             requests,
-            browse: Browse::new(Arc::clone(&db)),
-            similar: SimilarSources::new(plugins.clone()),
+            pages,
             images: images.clone(),
-            db: Arc::clone(&db),
         }))
         .add_service(Arc::new(jobs::JobServiceHandler {
             plugin_settings: plugin_settings.clone(),

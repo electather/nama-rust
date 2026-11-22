@@ -1,6 +1,6 @@
 //! Users asking for Movies and Seasons of Shows: `nama.v1.RequestService`.
 
-use std::{collections::BTreeSet, sync::Arc};
+use std::collections::BTreeSet;
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_plugin_api::{
@@ -23,17 +23,14 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    browse::Browse,
-    db::Database,
+    browse::{FoundPageError, TitlePages},
     library::{
-        Candidate, Downloaded, ImageRef, ImageSources, Metadata, Role, ShownImages, SimilarSources,
-        TitleImage, TitleKind,
+        Candidate, Downloaded, ImageRef, ImageSources, Metadata, Role, ShownImages, TitleImage,
     },
     requests::{
         self, Asked, Found, FoundShow, Hit, Listed, QUALITY_ASKED_FIELD, QUALITY_CHANGED_FIELD,
         QualityRefused, Requests, year_of,
     },
-    watchlist,
 };
 
 use super::{
@@ -50,14 +47,10 @@ use super::{
 /// [`Requests`] shows a User only their own Requests.
 pub(super) struct RequestServiceHandler {
     pub(super) requests: Requests,
-    /// Finds which of a looked-up title's Similar titles are in a Library.
-    pub(super) browse: Browse,
-    /// Asks which titles are like a looked-up title, since it has no stored answers.
-    pub(super) similar: SimilarSources,
+    /// Reads a looked-up title's page.
+    pub(super) pages: TitlePages,
     /// The images found, or those the Server shows in their place, with their thumbhashes.
     pub(super) images: ImageSources,
-    /// Holds the Watchlists that say whether a looked-up title is on the caller's.
-    pub(super) db: Arc<Database>,
 }
 
 #[expect(
@@ -240,32 +233,19 @@ impl RequestService for RequestServiceHandler {
             "movie_id",
             "Movie",
         )?;
-        let not_found = || title_not_found(&id, "movie_id", "Movie");
-        let found = self.requests.look_up(viewer, &id).await;
-        let found = found.map_err(|err| {
-            if matches!(err, requests::Error::NoSuchMovie(_)) {
-                not_found()
-            } else {
-                err.into()
+        let page = self.pages.found_movie(viewer, &id).await;
+        let page = page.map_err(|err| match err {
+            FoundPageError::LookUp(requests::Error::NoSuchMovie(_)) => {
+                title_not_found(&id, "movie_id", "Movie")
             }
+            FoundPageError::LookUp(err) => err.into(),
+            FoundPageError::Browse(err) => refused(Fields::NONE)(err),
         })?;
-        // By the id it was looked up by, which its page's Watchlist button removes it under, not
-        // the title source's other ids: `RemoveFromWatchlist` clears only the Matches' (#1292).
-        let on_watchlist = watchlist::has_matched(&self.db, viewer.id, TitleKind::Movie, &id);
-        let on_watchlist = on_watchlist.await.map_err(database_failed)?;
-        let movie = &found.movie;
-        let answers = (self.similar)
-            .ask(TitleKind::Movie, &movie.ids, &movie.genres, &movie.roles)
-            .await;
-        let similar = (self.browse)
-            .similar_in_libraries(TitleKind::Movie, &answers)
-            .await;
-        let similar = similar.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(LookUpMovieResponse {
             movie: proto::FoundMovie {
-                similar: movie_hits(similar, &images),
-                ..looked_up_to_proto(found, on_watchlist, &images)
+                similar: movie_hits(page.similar, &images),
+                ..looked_up_to_proto(page.found, page.on_watchlist, &images)
             }
             .into(),
             ..Default::default()
@@ -283,31 +263,19 @@ impl RequestService for RequestServiceHandler {
             "show_id",
             "Show",
         )?;
-        let not_found = || title_not_found(&id, "show_id", "Show");
-        let found = self.requests.look_up_show(viewer, &id).await;
-        let found = found.map_err(|err| {
-            if matches!(err, requests::Error::NoSuchShow(_)) {
-                not_found()
-            } else {
-                err.into()
+        let page = self.pages.found_show(viewer, &id).await;
+        let page = page.map_err(|err| match err {
+            FoundPageError::LookUp(requests::Error::NoSuchShow(_)) => {
+                title_not_found(&id, "show_id", "Show")
             }
+            FoundPageError::LookUp(err) => err.into(),
+            FoundPageError::Browse(err) => refused(Fields::NONE)(err),
         })?;
-        // As `look_up_movie`'s.
-        let on_watchlist = watchlist::has_matched(&self.db, viewer.id, TitleKind::Show, &id);
-        let on_watchlist = on_watchlist.await.map_err(database_failed)?;
-        let show = &found.show;
-        let answers = (self.similar)
-            .ask(TitleKind::Show, &show.ids, &show.genres, &show.roles)
-            .await;
-        let similar = (self.browse)
-            .similar_in_libraries(TitleKind::Show, &answers)
-            .await;
-        let similar = similar.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await.map_err(database_failed)?;
         Response::ok(LookUpShowResponse {
             show: proto::FoundShow {
-                similar: show_hits(similar, &images),
-                ..looked_up_show_to_proto(found, on_watchlist, &images)
+                similar: show_hits(page.similar, &images),
+                ..looked_up_show_to_proto(page.found, page.on_watchlist, &images)
             }
             .into(),
             ..Default::default()
