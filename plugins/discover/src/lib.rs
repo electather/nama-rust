@@ -357,7 +357,6 @@ impl Key {
         }
     }
 
-    /// The Movie or Show `kind` with the TMDB id `id`.
     fn tmdb(kind: TitleKind, id: u64) -> Self {
         Self {
             kind,
@@ -479,7 +478,7 @@ impl History {
     ///
     /// ponytail: a title matches only by the id the Kernel lists it under, so one named by
     /// another, such as a Show listed by its TVDB id, shows even once started; match every id
-    /// when the Kernel lists them.
+    /// when the Kernel lists them (#1717).
     fn unstarted_of(&self, keys: impl IntoIterator<Item = Key>) -> Vec<HomeRowTitle> {
         let started: HashSet<&Key> = (self.titles.iter())
             .filter(|title| title.started)
@@ -496,7 +495,7 @@ impl History {
     /// User's Home layout as the title it follows changes.
     ///
     /// ponytail: a title the Kernel names by another id, such as a Show by its TVDB id, is
-    /// skipped; ask TMDB's `find` for its TMDB id if Libraries matched elsewhere miss the row.
+    /// skipped until the Kernel lists every id of a title (#1717).
     ///
     /// # Errors
     /// If TMDB can't answer.
@@ -552,6 +551,11 @@ impl History {
     /// A row of TMDB's top Movies and Shows in each of the [`GENRE_ROWS`] genres the User played
     /// most, keyed by its place as [`Self::because_you_watched`]'s are. A genre TMDB has no
     /// genre of that name for, Movie or Show, is passed over for the next.
+    ///
+    /// ponytail: genres match by name, and the Kernel names them in the title source's language
+    /// while TMDB's lists are in its default one, so a Server whose titles aren't in English gets
+    /// no More rows; ask TMDB's lists in that language once the Kernel tells a Plugin which
+    /// (#1718).
     ///
     /// # Errors
     /// If TMDB can't answer.
