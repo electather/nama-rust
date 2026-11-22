@@ -355,8 +355,8 @@ jobs:
           dirname "$(find "$RUNNER_TEMP/jellyfin-ffmpeg" -name ffmpeg -type f)" >> "$GITHUB_PATH"
       - if: runner.os == 'Windows'
         uses: FedericoCarboni/setup-ffmpeg@37062fbf7149fc5578d6c57e08aed62458b375d6 # v3.1
-      # The test of converting Dolby Vision 5 skips itself without `tonemapx`, and PRs don't test
-      # on macOS, so a wrong install fails here, not as tests passing or failing on main.
+      # The tests of converting Dolby Vision 5 skip themselves without `tonemapx`, and PRs don't
+      # test on macOS, so a wrong install fails here, not as tests passing or failing on main.
       - if: runner.os != 'Windows'
         run: |
           ffmpeg -hide_banner -filters | grep -w zscale

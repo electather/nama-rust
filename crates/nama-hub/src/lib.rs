@@ -4,6 +4,7 @@ mod accounts;
 mod api;
 pub mod config;
 pub mod db;
+pub mod diagnostics;
 mod links;
 pub mod mail;
 pub mod signing;
@@ -19,12 +20,13 @@ use signing::Keys;
 use sqlx::PgPool;
 use tokio::net::TcpListener;
 
-use crate::mail::Mail;
+use crate::{diagnostics::Backend, mail::Mail};
 
 /// Serves the Hub API on `listener`, backed by `db`, which must be migrated already, signing with
 /// `keys`, until `shutdown` resolves, then lets requests in flight finish. Forwarded headers are
 /// believed only from a peer in `trusted_proxies` (ADR 0018). Sign-in Links are emailed through
-/// `mail`, and without it aren't offered. Must be called inside a Tokio runtime, which sends them.
+/// `mail`, and without it aren't offered. What Linked Servers share goes to `diagnostics`, and
+/// without it is dropped. Must be called inside a Tokio runtime, which sends them.
 ///
 /// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
 /// protobuf bodies. With the `web` feature, any other `GET` gets the Hub's web pages.
@@ -43,9 +45,10 @@ pub fn serve(
     keys: Keys,
     trusted_proxies: &[IpRange],
     mail: Option<Mail>,
+    diagnostics: Option<Arc<dyn Backend>>,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
-    let app = api::router(db, Arc::new(keys), trusted_proxies, mail);
+    let app = api::router(db, Arc::new(keys), trusted_proxies, mail, diagnostics);
     #[cfg(feature = "web")]
     let app = app.layer(axum::middleware::from_fn(web::serve));
     let app = app.into_make_service_with_connect_info::<SocketAddr>();

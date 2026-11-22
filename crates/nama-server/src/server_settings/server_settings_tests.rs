@@ -12,7 +12,7 @@ use super::{
 };
 #[cfg(unix)]
 use crate::ffmpeg::fake::vaapi_on_two_gpus;
-use crate::{db::Database, ffmpeg::Accel};
+use crate::{db::Database, diagnostics::Sharing, ffmpeg::Accel};
 
 const DEFAULT_FOLDER: &str = "/data/transcodes";
 
@@ -69,7 +69,7 @@ async fn a_stored_url_is_trimmed_used_for_links_and_read_again_after_a_restart()
     let (_data_dir, settings) = fresh().await;
 
     let stored = settings
-        .set_url(" https://example.com/nama/ ")
+        .change_server(" https://example.com/nama/ ", Sharing::default())
         .await
         .unwrap();
 
@@ -82,9 +82,26 @@ async fn a_stored_url_is_trimmed_used_for_links_and_read_again_after_a_restart()
 }
 
 #[tokio::test]
+async fn sharing_starts_off_and_what_is_shared_is_read_again_after_a_restart() {
+    let (_data_dir, settings) = fresh().await;
+    assert_eq!(settings.now().sharing, Sharing::default());
+    let sharing = Sharing {
+        diagnostics: false,
+        usage_analytics: true,
+    };
+
+    settings.change_server("", sharing).await.unwrap();
+
+    assert_eq!(restarted(&settings).await.now().sharing, sharing);
+}
+
+#[tokio::test]
 async fn refusing_a_url_with_a_user_name_password_query_or_fragment_or_not_http_changes_nothing() {
     let (_data_dir, settings) = fresh().await;
-    settings.set_url("https://nama.example.com").await.unwrap();
+    settings
+        .change_server("https://nama.example.com", Sharing::default())
+        .await
+        .unwrap();
 
     for not_a_url in [
         "nama.example.com",
@@ -95,7 +112,10 @@ async fn refusing_a_url_with_a_user_name_password_query_or_fragment_or_not_http_
         "https://user@nama.example.com",
         "https://:pw@nama.example.com",
     ] {
-        assert_eq!(invalid(settings.set_url(not_a_url).await), Invalid::NotAUrl);
+        assert_eq!(
+            invalid(settings.change_server(not_a_url, Sharing::default()).await),
+            Invalid::NotAUrl
+        );
     }
     assert_eq!(settings.now().url, "https://nama.example.com");
 }
@@ -105,7 +125,7 @@ async fn a_url_with_an_at_sign_only_in_its_path_is_accepted() {
     let (_data_dir, settings) = fresh().await;
 
     let stored = settings
-        .set_url("https://nama.example.com/@home")
+        .change_server("https://nama.example.com/@home", Sharing::default())
         .await
         .unwrap();
 
@@ -115,9 +135,15 @@ async fn a_url_with_an_at_sign_only_in_its_path_is_accepted() {
 #[tokio::test]
 async fn clearing_the_url_leaves_links_out() {
     let (_data_dir, settings) = fresh().await;
-    settings.set_url("https://nama.example.com").await.unwrap();
+    settings
+        .change_server("https://nama.example.com", Sharing::default())
+        .await
+        .unwrap();
 
-    settings.set_url("  ").await.unwrap();
+    settings
+        .change_server("  ", Sharing::default())
+        .await
+        .unwrap();
 
     assert_eq!(settings.server_url().request_link(7), None);
     assert_eq!(restarted(&settings).await.now().url, "");
@@ -413,13 +439,19 @@ async fn after_a_restart_without_its_gpu_a_pick_keeps_its_name_and_survives_anot
 async fn changing_one_group_keeps_the_others_stored_values() {
     let (data_dir, settings) = fresh().await;
     let folder = folder_in(&data_dir);
-    settings.set_url("https://nama.example.com").await.unwrap();
+    settings
+        .change_server("https://nama.example.com", Sharing::default())
+        .await
+        .unwrap();
     settings
         .change_playback(change(&folder), &[])
         .await
         .unwrap();
     let after_playback = restarted(&settings).await.now();
-    settings.set_url("https://other.example.com").await.unwrap();
+    settings
+        .change_server("https://other.example.com", Sharing::default())
+        .await
+        .unwrap();
     let after_url = restarted(&settings).await.now();
 
     assert_eq!(after_playback.url, "https://nama.example.com");

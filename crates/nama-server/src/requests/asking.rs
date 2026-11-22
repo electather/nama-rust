@@ -22,6 +22,7 @@ use super::state::{open_request, stored};
 use super::{Error, Requests, qualities};
 use crate::{
     db::now,
+    diagnostics::{self, Usage},
     events::event,
     library::{
         DEFAULT_ORDER, Metadata, SourceSeason, library_with_movie, matched_episodes, primary_id,
@@ -87,8 +88,9 @@ impl Requests {
         let wanted = Wanted::movie(id, movie, quality);
         let state = opening_state(asker, Permission::AutoApproveMovie);
         let user = asker.id;
-        self.apply(move |tx| Box::pin(ask_movie(tx, user, wanted, state)))
-            .await
+        let made = self.apply(move |tx| Box::pin(ask_movie(tx, user, wanted, state)));
+        made.await
+            .inspect(|_| diagnostics::record(Usage::RequestMade))
     }
 
     /// Asks for the Seasons `numbers` of the Show `show_id` for `asker`, one Request per Season in
@@ -131,8 +133,9 @@ impl Requests {
         };
         let state = opening_state(asker, Permission::AutoApproveTv);
         let user = asker.id;
-        self.apply(move |tx| Box::pin(ask_seasons(tx, user, wanted, state)))
-            .await
+        let made = self.apply(move |tx| Box::pin(ask_seasons(tx, user, wanted, state)));
+        made.await
+            .inspect(|_| diagnostics::record(Usage::RequestMade))
     }
 }
 

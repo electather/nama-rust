@@ -7,6 +7,7 @@ use nama_plugin_api::{
     auth::Authenticator,
     blob_store::BlobStore,
     connector::Connector,
+    diagnostics_sharer::DiagnosticsSharer,
     fulfiller::{Fulfiller, Movies, Shows},
     home_row::HomeRowSource,
     job::JobRunner,
@@ -62,7 +63,7 @@ pub(super) fn extension_points_to_proto(
 }
 
 /// Each Extension Point this API names, by its key, in the order its enum lists them.
-pub(super) fn public_points() -> [(PointKey, proto::ExtensionPoint); 17] {
+pub(super) fn public_points() -> [(PointKey, proto::ExtensionPoint); 18] {
     use proto::ExtensionPoint as Public;
     [
         (
@@ -132,6 +133,10 @@ pub(super) fn public_points() -> [(PointKey, proto::ExtensionPoint); 17] {
         (
             PointKey::provide::<dyn ServerLinker>(),
             Public::EXTENSION_POINT_SERVER_LINKER,
+        ),
+        (
+            PointKey::provide::<dyn DiagnosticsSharer>(),
+            Public::EXTENSION_POINT_DIAGNOSTICS_SHARER,
         ),
     ]
 }

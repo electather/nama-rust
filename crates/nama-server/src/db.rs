@@ -322,7 +322,8 @@ async fn run_writer(mut conn: SqliteConnection, mut queue: mpsc::Receiver<Job>) 
             .await
             .is_err()
         {
-            tracing::error!("a database write panicked");
+            // Shared with Diagnostics (`SHARED_LINES` in `src/diagnostics.rs`).
+            tracing::error!(name: "database write panicked", "a database write panicked");
         }
     }
     if let Err(err) = conn.close().await {

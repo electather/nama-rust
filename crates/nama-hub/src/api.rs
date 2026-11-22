@@ -5,15 +5,17 @@ mod accounts;
 mod links;
 mod viewing;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use axum::{
+    Extension,
+    body::Bytes,
     extract::{Request, State},
     http::{StatusCode, header},
     middleware,
     middleware::Next,
     response::{IntoResponse as _, Response},
-    routing::get,
+    routing::{get, post},
 };
 use buffa::MessageName as _;
 use connectrpc::{
@@ -26,7 +28,15 @@ use nama_hub_proto::nama::hub::v1::{
 use sqlx::PgPool;
 use tracing::Instrument as _;
 
-use crate::{accounts::Accounts, db, links::Links, mail::Mail, signing::Keys, viewing::Viewing};
+use crate::{
+    accounts::Accounts,
+    db,
+    diagnostics::{Backend, NotTaken, Shared, Signal},
+    links::{LinkedServer, Links},
+    mail::Mail,
+    signing::Keys,
+    viewing::Viewing,
+};
 
 use self::{
     accounts::{AccountServiceHandler, COOKIE_NAME},
@@ -35,14 +45,16 @@ use self::{
 };
 
 /// The Hub's routes: every service, each call in a span of its own, knowing where it came from
-/// through `trusted_proxies` (ADR 0018) and which Account or Linked Server, if any, sent it, and
-/// the public half of `keys` at `/.well-known/jwks.json`. Sign-in Links go out through `mail`, if
-/// it is set up.
+/// through `trusted_proxies` (ADR 0018) and which Account or Linked Server, if any, sent it, the
+/// public half of `keys` at `/.well-known/jwks.json`, and OTLP/HTTP's `/otlp/v1/traces` and
+/// `/otlp/v1/logs` taking what Linked Servers share for `diagnostics`. Sign-in Links go out
+/// through `mail`, if it is set up.
 pub(crate) fn router(
     db: PgPool,
     keys: Arc<Keys>,
     trusted_proxies: &[IpRange],
     mail: Option<Mail>,
+    diagnostics: Option<Arc<dyn Backend>>,
 ) -> axum::Router {
     let accounts = Accounts::new(db.clone(), mail);
     let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys));
@@ -71,8 +83,18 @@ pub(crate) fn router(
         let jwks = keys.jwks().to_owned();
         ([(header::CONTENT_TYPE, "application/json")], jwks)
     };
+    let shared = Shared::new(diagnostics);
     axum::Router::new()
         .route("/.well-known/jwks.json", get(jwks))
+        .route(
+            "/otlp/v1/traces",
+            post(async |state, server, batch| share(Signal::Traces, state, server, batch).await),
+        )
+        .route(
+            "/otlp/v1/logs",
+            post(async |state, server, batch| share(Signal::Logs, state, server, batch).await),
+        )
+        .with_state(shared)
         .fallback_service(rpcs)
         .layer(middleware::from_fn_with_state(
             Callers { accounts, links },
@@ -83,6 +105,29 @@ pub(crate) fn router(
             identify_source,
         ))
         .layer(middleware::from_fn(trace_call))
+}
+
+/// Takes a Linked Server's batch of `signal`, as OTLP/HTTP protobuf, and forwards it unchanged
+/// (ADR 0054). OTLP/HTTP rather than a ConnectRPC method, so the Hub passes on what the Server's
+/// exporter wrote byte for byte. Anyone else gets 401, a Server that shared too much lately 429,
+/// and a failing backend 502.
+async fn share(
+    signal: Signal,
+    State(shared): State<Shared>,
+    server: Option<Extension<LinkedServer>>,
+    batch: Bytes,
+) -> StatusCode {
+    let Some(Extension(server)) = server else {
+        return StatusCode::UNAUTHORIZED;
+    };
+    match shared.take(server.id, signal, batch, Instant::now()).await {
+        Ok(()) => StatusCode::OK,
+        Err(NotTaken::TooMuch) => StatusCode::TOO_MANY_REQUESTS,
+        Err(NotTaken::Backend(err)) => {
+            tracing::warn!(server = %server.id, "{err}");
+            StatusCode::BAD_GATEWAY
+        }
+    }
 }
 
 /// `nama.hub.v1.HubService`: facts about the Hub, for anyone.

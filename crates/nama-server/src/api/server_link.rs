@@ -88,6 +88,21 @@ pub(super) async fn unlink_user(
     Response::ok(UnlinkUserResponse::default())
 }
 
+/// Unlinks the User `user_id`, just deleted, so the service forgets their Link or waiting code
+/// too. A failure is logged, not answered: the User is gone either way, and the service being
+/// unreachable mustn't fail their delete.
+pub(super) async fn unlink_deleted_user(points: &ExtensionPoints, user_id: i64) {
+    let unlinked = points
+        .ask_first::<dyn ServerLinker, _, _, _, _>(async |linker| linker.unlink_user(user_id).await)
+        .await;
+    if let Some(answer) = unlinked
+        && answer.result.is_err()
+    {
+        // Ids only: `ask_first` already puts the failure's message on the Plugin's page.
+        tracing::warn!(plugin = %answer.plugin, user = user_id, "could not Unlink a deleted User");
+    }
+}
+
 /// What `call` gets from the enabled Plugin that links the Server, or `None` without one. Its
 /// failure, such as the service being unreachable, is logged and answered `unavailable`.
 async fn ask<R, F>(

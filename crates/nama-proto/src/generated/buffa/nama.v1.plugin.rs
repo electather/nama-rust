@@ -672,6 +672,9 @@ pub enum ExtensionPoint {
     /// Links the Server to an outside service an Admin signs in to there, such as the Hub, through
     /// `ServerService.StartServerLink` (ADR 0011).
     EXTENSION_POINT_SERVER_LINKER = 17i32,
+    /// Takes the Diagnostics and Usage Analytics an Admin shares with Nama's developers to them, such
+    /// as through the Hub (ADR 0054).
+    EXTENSION_POINT_DIAGNOSTICS_SHARER = 18i32,
 }
 impl ExtensionPoint {
     ///Idiomatic alias for [`Self::EXTENSION_POINT_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -728,6 +731,9 @@ impl ExtensionPoint {
     ///Idiomatic alias for [`Self::EXTENSION_POINT_SERVER_LINKER`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ServerLinker: Self = Self::EXTENSION_POINT_SERVER_LINKER;
+    ///Idiomatic alias for [`Self::EXTENSION_POINT_DIAGNOSTICS_SHARER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const DiagnosticsSharer: Self = Self::EXTENSION_POINT_DIAGNOSTICS_SHARER;
 }
 impl ::core::default::Default for ExtensionPoint {
     fn default() -> Self {
@@ -847,6 +853,9 @@ impl ::buffa::Enumeration for ExtensionPoint {
             15i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_SEARCH_SOURCE),
             16i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_SIMILAR_SOURCE),
             17i32 => ::core::option::Option::Some(Self::EXTENSION_POINT_SERVER_LINKER),
+            18i32 => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_DIAGNOSTICS_SHARER)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -875,6 +884,9 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_SEARCH_SOURCE => "EXTENSION_POINT_SEARCH_SOURCE",
             Self::EXTENSION_POINT_SIMILAR_SOURCE => "EXTENSION_POINT_SIMILAR_SOURCE",
             Self::EXTENSION_POINT_SERVER_LINKER => "EXTENSION_POINT_SERVER_LINKER",
+            Self::EXTENSION_POINT_DIAGNOSTICS_SHARER => {
+                "EXTENSION_POINT_DIAGNOSTICS_SHARER"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -935,6 +947,9 @@ impl ::buffa::Enumeration for ExtensionPoint {
             "EXTENSION_POINT_SERVER_LINKER" => {
                 ::core::option::Option::Some(Self::EXTENSION_POINT_SERVER_LINKER)
             }
+            "EXTENSION_POINT_DIAGNOSTICS_SHARER" => {
+                ::core::option::Option::Some(Self::EXTENSION_POINT_DIAGNOSTICS_SHARER)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -958,6 +973,7 @@ impl ::buffa::Enumeration for ExtensionPoint {
             Self::EXTENSION_POINT_SEARCH_SOURCE,
             Self::EXTENSION_POINT_SIMILAR_SOURCE,
             Self::EXTENSION_POINT_SERVER_LINKER,
+            Self::EXTENSION_POINT_DIAGNOSTICS_SHARER,
         ]
     }
 }

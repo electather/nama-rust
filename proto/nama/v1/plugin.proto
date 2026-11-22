@@ -426,6 +426,9 @@ enum ExtensionPoint {
   // Links the Server to an outside service an Admin signs in to there, such as the Hub, through
   // `ServerService.StartServerLink` (ADR 0011).
   EXTENSION_POINT_SERVER_LINKER = 17;
+  // Takes the Diagnostics and Usage Analytics an Admin shares with Nama's developers to them, such
+  // as through the Hub (ADR 0054).
+  EXTENSION_POINT_DIAGNOSTICS_SHARER = 18;
 }
 
 // What kind of value a setting takes.

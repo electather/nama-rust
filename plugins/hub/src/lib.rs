@@ -1,8 +1,9 @@
 //! The Hub Plugin (ADR 0094): the Built-in Plugin through which a Server does everything
 //! Hub-facing. It Links the Server to an Account, through a code an Admin enters on the Hub (ADR
-//! 0011), and keeps the credential the Server presents to the Hub from then on in its Store. Its
-//! Users then Link to their own Accounts the same way, and each play of theirs goes to the Hub as
-//! a Viewing Event (ADR 0093).
+//! 0011), keeps the credential the Server presents to the Hub from then on in its Store, and sends
+//! the Hub the Diagnostics and Usage Analytics the Admin shares (ADR 0054). Its Users then Link to
+//! their own Accounts the same way, and each play of theirs goes to the Hub as a Viewing Event (ADR
+//! 0093).
 
 mod hub;
 mod linker;
@@ -13,6 +14,7 @@ use std::{env, sync::Arc};
 use nama_plugin_api::{
     Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     automation::Permission,
+    diagnostics_sharer::DiagnosticsSharer,
     job::{Job, JobRunner},
     points::Events,
     server_link::ServerLinker,
@@ -63,7 +65,8 @@ impl Plugin for Hub {
         Manifest {
             name: "Hub".to_owned(),
             description: "Links the Server, and its Users, to Accounts on Nama's Hub, and sends \
-                          the Hub what Linked Users play."
+                          the Hub what Linked Users play, and the Diagnostics and Usage Analytics you share in \
+                          Settings."
                 .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_markdown: "Enable it, then Link the Server under Settings, Server. The Server \
@@ -79,6 +82,7 @@ impl Plugin for Hub {
                 PointKey::provide::<dyn ServerLinker>(),
                 PointKey::observe::<Events>(),
                 PointKey::provide::<dyn JobRunner>(),
+                PointKey::provide::<dyn DiagnosticsSharer>(),
             ],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
             permissions: vec![
@@ -107,7 +111,9 @@ impl Plugin for Hub {
             .ok_or("the Kernel handed the Hub Plugin none of its functions")?;
         let linker = Arc::new(Linker::new(HubApi::new(url)?, kernel));
         let viewing = ViewingEvents::new(Arc::clone(&linker));
+        let sharer: Arc<dyn DiagnosticsSharer> = Arc::<Linker>::clone(&linker);
         registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, linker);
+        registrar.provide::<dyn DiagnosticsSharer>(Priority::DEFAULT, sharer);
         registrar.observe::<Events>(viewing.clone());
         let jobs: Arc<dyn JobRunner> = Arc::new(viewing);
         registrar.provide::<dyn JobRunner>(Priority::DEFAULT, jobs);
