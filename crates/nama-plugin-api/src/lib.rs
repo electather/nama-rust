@@ -17,6 +17,7 @@ pub mod auth;
 pub mod automation;
 pub mod blob_store;
 pub mod connector;
+pub mod diagnostics_sharer;
 pub mod fulfiller;
 pub mod home_row;
 mod ids;

@@ -16,7 +16,130 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/user.proto.
  */
 export const file_nama_v1_user: GenFile = /*@__PURE__*/
-  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiPwoRQ3JlYXRlVXNlclJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCUoECAMQBFIEcm9sZSIgChJDcmVhdGVVc2VyUmVzcG9uc2USCgoCaWQYASABKAMiEgoQTGlzdFVzZXJzUmVxdWVzdCIxChFMaXN0VXNlcnNSZXNwb25zZRIcCgV1c2VycxgBIAMoCzINLm5hbWEudjEuVXNlciJSChVTZXRQZXJtaXNzaW9uc1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIoCgtwZXJtaXNzaW9ucxgCIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiIYChZTZXRQZXJtaXNzaW9uc1Jlc3BvbnNlIiQKEURlbGV0ZVVzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiFAoSRGVsZXRlVXNlclJlc3BvbnNlIjYKEkxpc3REZXZpY2VzUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQFCCgoIX3VzZXJfaWQiNwoTTGlzdERldmljZXNSZXNwb25zZRIgCgdkZXZpY2VzGAEgAygLMg8ubmFtYS52MS5EZXZpY2UiSgoTUmV2b2tlRGV2aWNlUmVxdWVzdBIUCgd1c2VyX2lkGAEgASgDSACIAQESEQoJZGV2aWNlX2lkGAIgASgDQgoKCF91c2VyX2lkIhYKFFJldm9rZURldmljZVJlc3BvbnNlIkUKFUNoYW5nZVBhc3N3b3JkUmVxdWVzdBIUCgxuZXdfcGFzc3dvcmQYAiABKAlKBAgBEAJSEGN1cnJlbnRfcGFzc3dvcmQiGAoWQ2hhbmdlUGFzc3dvcmRSZXNwb25zZSI9ChRSZXNldFBhc3N3b3JkUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEhQKDG5ld19wYXNzd29yZBgCIAEoCSIXChVSZXNldFBhc3N3b3JkUmVzcG9uc2UiHgocR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVxdWVzdCJJCh1HZXREZWZhdWx0UGVybWlzc2lvbnNSZXNwb25zZRIoCgtwZXJtaXNzaW9ucxgBIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiJIChxTZXREZWZhdWx0UGVybWlzc2lvbnNSZXF1ZXN0EigKC3Blcm1pc3Npb25zGAEgAygOMhMubmFtYS52MS5QZXJtaXNzaW9uIh8KHVNldERlZmF1bHRQZXJtaXNzaW9uc1Jlc3BvbnNlIooBCgZJbnZpdGUSCgoCaWQYASABKAMSDAoEbm90ZRgCIAEoCRIUCgxjcmVhdG9yX25hbWUYAyABKAkSKAoLcGVybWlzc2lvbnMYBCADKA4yEy5uYW1hLnYxLlBlcm1pc3Npb24SEgoKY3JlYXRlZF9hdBgFIAEoAxISCgpleHBpcmVzX2F0GAYgASgDIk0KE0NyZWF0ZUludml0ZVJlcXVlc3QSDAoEbm90ZRgBIAEoCRIoCgtwZXJtaXNzaW9ucxgCIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiJEChRDcmVhdGVJbnZpdGVSZXNwb25zZRIfCgZpbnZpdGUYASABKAsyDy5uYW1hLnYxLkludml0ZRILCgN1cmwYAiABKAkiFAoSTGlzdEludml0ZXNSZXF1ZXN0Ik8KE0xpc3RJbnZpdGVzUmVzcG9uc2USIAoHaW52aXRlcxgBIAMoCzIPLm5hbWEudjEuSW52aXRlEhYKDnNlcnZlcl91cmxfc2V0GAIgASgIIigKE1Jldm9rZUludml0ZVJlcXVlc3QSEQoJaW52aXRlX2lkGAEgASgDIhYKFFJldm9rZUludml0ZVJlc3BvbnNlIh4KHExpc3RQbHVnaW5Db25uZWN0aW9uc1JlcXVlc3QiTwodTGlzdFBsdWdpbkNvbm5lY3Rpb25zUmVzcG9uc2USLgoLY29ubmVjdGlvbnMYASADKAsyGS5uYW1hLnYxLlBsdWdpbkNvbm5lY3Rpb24iVAoQUGx1Z2luQ29ubmVjdGlvbhIRCglwbHVnaW5faWQYASABKAkSLQoFc3RhdGUYAiABKA4yHi5uYW1hLnYxLlBsdWdpbkNvbm5lY3Rpb25TdGF0ZSIxChxTdGFydFBsdWdpbkNvbm5lY3Rpb25SZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCSIsCh1TdGFydFBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZRILCgN1cmwYASABKAkiMgodRGVsZXRlUGx1Z2luQ29ubmVjdGlvblJlcXVlc3QSEQoJcGx1Z2luX2lkGAEgASgJIiAKHkRlbGV0ZVBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZSIdChtMaXN0UGVyc29uYWxTZXR0aW5nc1JlcXVlc3QiSgocTGlzdFBlcnNvbmFsU2V0dGluZ3NSZXNwb25zZRIqCgdwbHVnaW5zGAEgAygLMhkubmFtYS52MS5QZXJzb25hbFNldHRpbmdzImkKEFBlcnNvbmFsU2V0dGluZ3MSEQoJcGx1Z2luX2lkGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIbG9nb191cmwYAyABKAkSIgoIc2V0dGluZ3MYBCADKAsyEC5uYW1hLnYxLlNldHRpbmciwgEKHVVwZGF0ZVBlcnNvbmFsU2V0dGluZ3NSZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCRJGCghzZXR0aW5ncxgCIAMoCzI0Lm5hbWEudjEuVXBkYXRlUGVyc29uYWxTZXR0aW5nc1JlcXVlc3QuU2V0dGluZ3NFbnRyeRpGCg1TZXR0aW5nc0VudHJ5EgsKA2tleRgBIAEoCRIkCgV2YWx1ZRgCIAEoCzIVLm5hbWEudjEuU2V0dGluZ1ZhbHVlOgI4ASJLCh5VcGRhdGVQZXJzb25hbFNldHRpbmdzUmVzcG9uc2USKQoGcGx1Z2luGAEgASgLMhkubmFtYS52MS5QZXJzb25hbFNldHRpbmdzIjIKHURlbGV0ZVBlcnNvbmFsU2V0dGluZ3NSZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCSIgCh5EZWxldGVQZXJzb25hbFNldHRpbmdzUmVzcG9uc2UiJAoiTGlzdE5vdGlmaWNhdGlvblByZWZlcmVuY2VzUmVxdWVzdCJbCiNMaXN0Tm90aWZpY2F0aW9uUHJlZmVyZW5jZXNSZXNwb25zZRI0CgtwcmVmZXJlbmNlcxgBIAMoCzIfLm5hbWEudjEuTm90aWZpY2F0aW9uUHJlZmVyZW5jZSJNChZOb3RpZmljYXRpb25QcmVmZXJlbmNlEicKBGtpbmQYASABKA4yGS5uYW1hLnYxLk5vdGlmaWNhdGlvbktpbmQSCgoCb24YAiABKAgiVwogU2V0Tm90aWZpY2F0aW9uUHJlZmVyZW5jZVJlcXVlc3QSJwoEa2luZBgBIAEoDjIZLm5hbWEudjEuTm90aWZpY2F0aW9uS2luZBIKCgJvbhgCIAEoCCIjCiFTZXROb3RpZmljYXRpb25QcmVmZXJlbmNlUmVzcG9uc2UiFgoUR2V0SG9tZUxheW91dFJlcXVlc3QiPAoVR2V0SG9tZUxheW91dFJlc3BvbnNlEiMKBmxheW91dBgBIAEoCzITLm5hbWEudjEuSG9tZUxheW91dCI7ChRTZXRIb21lTGF5b3V0UmVxdWVzdBIjCgZsYXlvdXQYASABKAsyEy5uYW1hLnYxLkhvbWVMYXlvdXQiPAoVU2V0SG9tZUxheW91dFJlc3BvbnNlEiMKBmxheW91dBgBIAEoCzITLm5hbWEudjEuSG9tZUxheW91dCI+ChZSZW9yZGVySG9tZVJvd3NSZXF1ZXN0EiQKBHJvd3MYASADKAsyFi5uYW1hLnYxLkhvbWVMYXlvdXRSb3ciPgoXUmVvcmRlckhvbWVSb3dzUmVzcG9uc2USIwoGbGF5b3V0GAEgASgLMhMubmFtYS52MS5Ib21lTGF5b3V0IhgKFlJlc2V0SG9tZUxheW91dFJlcXVlc3QiGQoXUmVzZXRIb21lTGF5b3V0UmVzcG9uc2UqtwEKFVBsdWdpbkNvbm5lY3Rpb25TdGF0ZRInCiNQTFVHSU5fQ09OTkVDVElPTl9TVEFURV9VTlNQRUNJRklFRBAAEikKJVBMVUdJTl9DT05ORUNUSU9OX1NUQVRFX05PVF9DT05ORUNURUQQARIjCh9QTFVHSU5fQ09OTkVDVElPTl9TVEFURV9XQUlUSU5HEAISJQohUExVR0lOX0NPTk5FQ1RJT05fU1RBVEVfQ09OTkVDVEVEEAMqrwIKEE5vdGlmaWNhdGlvbktpbmQSIQodTk9USUZJQ0FUSU9OX0tJTkRfVU5TUEVDSUZJRUQQABIeChpOT1RJRklDQVRJT05fS0lORF9BUFBST1ZFRBABEh4KGk5PVElGSUNBVElPTl9LSU5EX0RFQ0xJTkVEEAISHAoYTk9USUZJQ0FUSU9OX0tJTkRfRkFJTEVEEAMSKQolTk9USUZJQ0FUSU9OX0tJTkRfUEFSVElBTExZX0FWQUlMQUJMRRAEEh8KG05PVElGSUNBVElPTl9LSU5EX0FWQUlMQUJMRRAFEisKJ05PVElGSUNBVElPTl9LSU5EX0NBTkNFTExFRF9CWV9ERUxFVElPThAGEiEKHU5PVElGSUNBVElPTl9LSU5EX05FV19QRU5ESU5HEAcyrxIKC1VzZXJTZXJ2aWNlEkUKCkNyZWF0ZVVzZXISGi5uYW1hLnYxLkNyZWF0ZVVzZXJSZXF1ZXN0GhsubmFtYS52MS5DcmVhdGVVc2VyUmVzcG9uc2USRwoJTGlzdFVzZXJzEhkubmFtYS52MS5MaXN0VXNlcnNSZXF1ZXN0GhoubmFtYS52MS5MaXN0VXNlcnNSZXNwb25zZSIDkAIBElYKDlNldFBlcm1pc3Npb25zEh4ubmFtYS52MS5TZXRQZXJtaXNzaW9uc1JlcXVlc3QaHy5uYW1hLnYxLlNldFBlcm1pc3Npb25zUmVzcG9uc2UiA5ACAhJKCgpEZWxldGVVc2VyEhoubmFtYS52MS5EZWxldGVVc2VyUmVxdWVzdBobLm5hbWEudjEuRGVsZXRlVXNlclJlc3BvbnNlIgOQAgISTQoLTGlzdERldmljZXMSGy5uYW1hLnYxLkxpc3REZXZpY2VzUmVxdWVzdBocLm5hbWEudjEuTGlzdERldmljZXNSZXNwb25zZSIDkAIBEksKDFJldm9rZURldmljZRIcLm5hbWEudjEuUmV2b2tlRGV2aWNlUmVxdWVzdBodLm5hbWEudjEuUmV2b2tlRGV2aWNlUmVzcG9uc2USUQoOQ2hhbmdlUGFzc3dvcmQSHi5uYW1hLnYxLkNoYW5nZVBhc3N3b3JkUmVxdWVzdBofLm5hbWEudjEuQ2hhbmdlUGFzc3dvcmRSZXNwb25zZRJOCg1SZXNldFBhc3N3b3JkEh0ubmFtYS52MS5SZXNldFBhc3N3b3JkUmVxdWVzdBoeLm5hbWEudjEuUmVzZXRQYXNzd29yZFJlc3BvbnNlEmsKFUdldERlZmF1bHRQZXJtaXNzaW9ucxIlLm5hbWEudjEuR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVxdWVzdBomLm5hbWEudjEuR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVzcG9uc2UiA5ACARJrChVTZXREZWZhdWx0UGVybWlzc2lvbnMSJS5uYW1hLnYxLlNldERlZmF1bHRQZXJtaXNzaW9uc1JlcXVlc3QaJi5uYW1hLnYxLlNldERlZmF1bHRQZXJtaXNzaW9uc1Jlc3BvbnNlIgOQAgISSwoMQ3JlYXRlSW52aXRlEhwubmFtYS52MS5DcmVhdGVJbnZpdGVSZXF1ZXN0Gh0ubmFtYS52MS5DcmVhdGVJbnZpdGVSZXNwb25zZRJNCgtMaXN0SW52aXRlcxIbLm5hbWEudjEuTGlzdEludml0ZXNSZXF1ZXN0GhwubmFtYS52MS5MaXN0SW52aXRlc1Jlc3BvbnNlIgOQAgESUAoMUmV2b2tlSW52aXRlEhwubmFtYS52MS5SZXZva2VJbnZpdGVSZXF1ZXN0Gh0ubmFtYS52MS5SZXZva2VJbnZpdGVSZXNwb25zZSIDkAICEmsKFUxpc3RQbHVnaW5Db25uZWN0aW9ucxIlLm5hbWEudjEuTGlzdFBsdWdpbkNvbm5lY3Rpb25zUmVxdWVzdBomLm5hbWEudjEuTGlzdFBsdWdpbkNvbm5lY3Rpb25zUmVzcG9uc2UiA5ACARJmChVTdGFydFBsdWdpbkNvbm5lY3Rpb24SJS5uYW1hLnYxLlN0YXJ0UGx1Z2luQ29ubmVjdGlvblJlcXVlc3QaJi5uYW1hLnYxLlN0YXJ0UGx1Z2luQ29ubmVjdGlvblJlc3BvbnNlEm4KFkRlbGV0ZVBsdWdpbkNvbm5lY3Rpb24SJi5uYW1hLnYxLkRlbGV0ZVBsdWdpbkNvbm5lY3Rpb25SZXF1ZXN0GicubmFtYS52MS5EZWxldGVQbHVnaW5Db25uZWN0aW9uUmVzcG9uc2UiA5ACAhJoChRMaXN0UGVyc29uYWxTZXR0aW5ncxIkLm5hbWEudjEuTGlzdFBlcnNvbmFsU2V0dGluZ3NSZXF1ZXN0GiUubmFtYS52MS5MaXN0UGVyc29uYWxTZXR0aW5nc1Jlc3BvbnNlIgOQAgESbgoWVXBkYXRlUGVyc29uYWxTZXR0aW5ncxImLm5hbWEudjEuVXBkYXRlUGVyc29uYWxTZXR0aW5nc1JlcXVlc3QaJy5uYW1hLnYxLlVwZGF0ZVBlcnNvbmFsU2V0dGluZ3NSZXNwb25zZSIDkAICEm4KFkRlbGV0ZVBlcnNvbmFsU2V0dGluZ3MSJi5uYW1hLnYxLkRlbGV0ZVBlcnNvbmFsU2V0dGluZ3NSZXF1ZXN0GicubmFtYS52MS5EZWxldGVQZXJzb25hbFNldHRpbmdzUmVzcG9uc2UiA5ACAhJ9ChtMaXN0Tm90aWZpY2F0aW9uUHJlZmVyZW5jZXMSKy5uYW1hLnYxLkxpc3ROb3RpZmljYXRpb25QcmVmZXJlbmNlc1JlcXVlc3QaLC5uYW1hLnYxLkxpc3ROb3RpZmljYXRpb25QcmVmZXJlbmNlc1Jlc3BvbnNlIgOQAgESdwoZU2V0Tm90aWZpY2F0aW9uUHJlZmVyZW5jZRIpLm5hbWEudjEuU2V0Tm90aWZpY2F0aW9uUHJlZmVyZW5jZVJlcXVlc3QaKi5uYW1hLnYxLlNldE5vdGlmaWNhdGlvblByZWZlcmVuY2VSZXNwb25zZSIDkAICElMKDUdldEhvbWVMYXlvdXQSHS5uYW1hLnYxLkdldEhvbWVMYXlvdXRSZXF1ZXN0Gh4ubmFtYS52MS5HZXRIb21lTGF5b3V0UmVzcG9uc2UiA5ACARJTCg1TZXRIb21lTGF5b3V0Eh0ubmFtYS52MS5TZXRIb21lTGF5b3V0UmVxdWVzdBoeLm5hbWEudjEuU2V0SG9tZUxheW91dFJlc3BvbnNlIgOQAgISWQoPUmVvcmRlckhvbWVSb3dzEh8ubmFtYS52MS5SZW9yZGVySG9tZVJvd3NSZXF1ZXN0GiAubmFtYS52MS5SZW9yZGVySG9tZVJvd3NSZXNwb25zZSIDkAICElkKD1Jlc2V0SG9tZUxheW91dBIfLm5hbWEudjEuUmVzZXRIb21lTGF5b3V0UmVxdWVzdBogLm5hbWEudjEuUmVzZXRIb21lTGF5b3V0UmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_v1_plugin, file_nama_v1_server, file_nama_v1_sign_in]);
+  fileDesc("ChJuYW1hL3YxL3VzZXIucHJvdG8SB25hbWEudjEiFAoSR2V0VXNlckxpbmtSZXF1ZXN0IjYKE0dldFVzZXJMaW5rUmVzcG9uc2USHwoEbGluaxgBIAEoCzIRLm5hbWEudjEuVXNlckxpbmsiNgoIVXNlckxpbmsSDAoEY29kZRgBIAEoCRILCgN1cmwYAiABKAkSDwoHYWNjb3VudBgDIAEoCSIWChRTdGFydFVzZXJMaW5rUmVxdWVzdCI4ChVTdGFydFVzZXJMaW5rUmVzcG9uc2USHwoEbGluaxgBIAEoCzIRLm5hbWEudjEuVXNlckxpbmsiEwoRVW5saW5rVXNlclJlcXVlc3QiFAoSVW5saW5rVXNlclJlc3BvbnNlIj8KEUNyZWF0ZVVzZXJSZXF1ZXN0EgwKBG5hbWUYASABKAkSEAoIcGFzc3dvcmQYAiABKAlKBAgDEARSBHJvbGUiIAoSQ3JlYXRlVXNlclJlc3BvbnNlEgoKAmlkGAEgASgDIhIKEExpc3RVc2Vyc1JlcXVlc3QiMQoRTGlzdFVzZXJzUmVzcG9uc2USHAoFdXNlcnMYASADKAsyDS5uYW1hLnYxLlVzZXIiUgoVU2V0UGVybWlzc2lvbnNSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSKAoLcGVybWlzc2lvbnMYAiADKA4yEy5uYW1hLnYxLlBlcm1pc3Npb24iGAoWU2V0UGVybWlzc2lvbnNSZXNwb25zZSIkChFEZWxldGVVc2VyUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDIhQKEkRlbGV0ZVVzZXJSZXNwb25zZSI2ChJMaXN0RGV2aWNlc1JlcXVlc3QSFAoHdXNlcl9pZBgBIAEoA0gAiAEBQgoKCF91c2VyX2lkIjcKE0xpc3REZXZpY2VzUmVzcG9uc2USIAoHZGV2aWNlcxgBIAMoCzIPLm5hbWEudjEuRGV2aWNlIkoKE1Jldm9rZURldmljZVJlcXVlc3QSFAoHdXNlcl9pZBgBIAEoA0gAiAEBEhEKCWRldmljZV9pZBgCIAEoA0IKCghfdXNlcl9pZCIWChRSZXZva2VEZXZpY2VSZXNwb25zZSJFChVDaGFuZ2VQYXNzd29yZFJlcXVlc3QSFAoMbmV3X3Bhc3N3b3JkGAIgASgJSgQIARACUhBjdXJyZW50X3Bhc3N3b3JkIhgKFkNoYW5nZVBhc3N3b3JkUmVzcG9uc2UiPQoUUmVzZXRQYXNzd29yZFJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIUCgxuZXdfcGFzc3dvcmQYAiABKAkiFwoVUmVzZXRQYXNzd29yZFJlc3BvbnNlIh4KHEdldERlZmF1bHRQZXJtaXNzaW9uc1JlcXVlc3QiSQodR2V0RGVmYXVsdFBlcm1pc3Npb25zUmVzcG9uc2USKAoLcGVybWlzc2lvbnMYASADKA4yEy5uYW1hLnYxLlBlcm1pc3Npb24iSAocU2V0RGVmYXVsdFBlcm1pc3Npb25zUmVxdWVzdBIoCgtwZXJtaXNzaW9ucxgBIAMoDjITLm5hbWEudjEuUGVybWlzc2lvbiIfCh1TZXREZWZhdWx0UGVybWlzc2lvbnNSZXNwb25zZSKKAQoGSW52aXRlEgoKAmlkGAEgASgDEgwKBG5vdGUYAiABKAkSFAoMY3JlYXRvcl9uYW1lGAMgASgJEigKC3Blcm1pc3Npb25zGAQgAygOMhMubmFtYS52MS5QZXJtaXNzaW9uEhIKCmNyZWF0ZWRfYXQYBSABKAMSEgoKZXhwaXJlc19hdBgGIAEoAyJNChNDcmVhdGVJbnZpdGVSZXF1ZXN0EgwKBG5vdGUYASABKAkSKAoLcGVybWlzc2lvbnMYAiADKA4yEy5uYW1hLnYxLlBlcm1pc3Npb24iRAoUQ3JlYXRlSW52aXRlUmVzcG9uc2USHwoGaW52aXRlGAEgASgLMg8ubmFtYS52MS5JbnZpdGUSCwoDdXJsGAIgASgJIhQKEkxpc3RJbnZpdGVzUmVxdWVzdCJPChNMaXN0SW52aXRlc1Jlc3BvbnNlEiAKB2ludml0ZXMYASADKAsyDy5uYW1hLnYxLkludml0ZRIWCg5zZXJ2ZXJfdXJsX3NldBgCIAEoCCIoChNSZXZva2VJbnZpdGVSZXF1ZXN0EhEKCWludml0ZV9pZBgBIAEoAyIWChRSZXZva2VJbnZpdGVSZXNwb25zZSIeChxMaXN0UGx1Z2luQ29ubmVjdGlvbnNSZXF1ZXN0Ik8KHUxpc3RQbHVnaW5Db25uZWN0aW9uc1Jlc3BvbnNlEi4KC2Nvbm5lY3Rpb25zGAEgAygLMhkubmFtYS52MS5QbHVnaW5Db25uZWN0aW9uIlQKEFBsdWdpbkNvbm5lY3Rpb24SEQoJcGx1Z2luX2lkGAEgASgJEi0KBXN0YXRlGAIgASgOMh4ubmFtYS52MS5QbHVnaW5Db25uZWN0aW9uU3RhdGUiMQocU3RhcnRQbHVnaW5Db25uZWN0aW9uUmVxdWVzdBIRCglwbHVnaW5faWQYASABKAkiLAodU3RhcnRQbHVnaW5Db25uZWN0aW9uUmVzcG9uc2USCwoDdXJsGAEgASgJIjIKHURlbGV0ZVBsdWdpbkNvbm5lY3Rpb25SZXF1ZXN0EhEKCXBsdWdpbl9pZBgBIAEoCSIgCh5EZWxldGVQbHVnaW5Db25uZWN0aW9uUmVzcG9uc2UiHQobTGlzdFBlcnNvbmFsU2V0dGluZ3NSZXF1ZXN0IkoKHExpc3RQZXJzb25hbFNldHRpbmdzUmVzcG9uc2USKgoHcGx1Z2lucxgBIAMoCzIZLm5hbWEudjEuUGVyc29uYWxTZXR0aW5ncyJpChBQZXJzb25hbFNldHRpbmdzEhEKCXBsdWdpbl9pZBgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCGxvZ29fdXJsGAMgASgJEiIKCHNldHRpbmdzGAQgAygLMhAubmFtYS52MS5TZXR0aW5nIsIBCh1VcGRhdGVQZXJzb25hbFNldHRpbmdzUmVxdWVzdBIRCglwbHVnaW5faWQYASABKAkSRgoIc2V0dGluZ3MYAiADKAsyNC5uYW1hLnYxLlVwZGF0ZVBlcnNvbmFsU2V0dGluZ3NSZXF1ZXN0LlNldHRpbmdzRW50cnkaRgoNU2V0dGluZ3NFbnRyeRILCgNrZXkYASABKAkSJAoFdmFsdWUYAiABKAsyFS5uYW1hLnYxLlNldHRpbmdWYWx1ZToCOAEiSwoeVXBkYXRlUGVyc29uYWxTZXR0aW5nc1Jlc3BvbnNlEikKBnBsdWdpbhgBIAEoCzIZLm5hbWEudjEuUGVyc29uYWxTZXR0aW5ncyIyCh1EZWxldGVQZXJzb25hbFNldHRpbmdzUmVxdWVzdBIRCglwbHVnaW5faWQYASABKAkiIAoeRGVsZXRlUGVyc29uYWxTZXR0aW5nc1Jlc3BvbnNlIiQKIkxpc3ROb3RpZmljYXRpb25QcmVmZXJlbmNlc1JlcXVlc3QiWwojTGlzdE5vdGlmaWNhdGlvblByZWZlcmVuY2VzUmVzcG9uc2USNAoLcHJlZmVyZW5jZXMYASADKAsyHy5uYW1hLnYxLk5vdGlmaWNhdGlvblByZWZlcmVuY2UiTQoWTm90aWZpY2F0aW9uUHJlZmVyZW5jZRInCgRraW5kGAEgASgOMhkubmFtYS52MS5Ob3RpZmljYXRpb25LaW5kEgoKAm9uGAIgASgIIlcKIFNldE5vdGlmaWNhdGlvblByZWZlcmVuY2VSZXF1ZXN0EicKBGtpbmQYASABKA4yGS5uYW1hLnYxLk5vdGlmaWNhdGlvbktpbmQSCgoCb24YAiABKAgiIwohU2V0Tm90aWZpY2F0aW9uUHJlZmVyZW5jZVJlc3BvbnNlIhYKFEdldEhvbWVMYXlvdXRSZXF1ZXN0IjwKFUdldEhvbWVMYXlvdXRSZXNwb25zZRIjCgZsYXlvdXQYASABKAsyEy5uYW1hLnYxLkhvbWVMYXlvdXQiOwoUU2V0SG9tZUxheW91dFJlcXVlc3QSIwoGbGF5b3V0GAEgASgLMhMubmFtYS52MS5Ib21lTGF5b3V0IjwKFVNldEhvbWVMYXlvdXRSZXNwb25zZRIjCgZsYXlvdXQYASABKAsyEy5uYW1hLnYxLkhvbWVMYXlvdXQiPgoWUmVvcmRlckhvbWVSb3dzUmVxdWVzdBIkCgRyb3dzGAEgAygLMhYubmFtYS52MS5Ib21lTGF5b3V0Um93Ij4KF1Jlb3JkZXJIb21lUm93c1Jlc3BvbnNlEiMKBmxheW91dBgBIAEoCzITLm5hbWEudjEuSG9tZUxheW91dCIYChZSZXNldEhvbWVMYXlvdXRSZXF1ZXN0IhkKF1Jlc2V0SG9tZUxheW91dFJlc3BvbnNlKrcBChVQbHVnaW5Db25uZWN0aW9uU3RhdGUSJwojUExVR0lOX0NPTk5FQ1RJT05fU1RBVEVfVU5TUEVDSUZJRUQQABIpCiVQTFVHSU5fQ09OTkVDVElPTl9TVEFURV9OT1RfQ09OTkVDVEVEEAESIwofUExVR0lOX0NPTk5FQ1RJT05fU1RBVEVfV0FJVElORxACEiUKIVBMVUdJTl9DT05ORUNUSU9OX1NUQVRFX0NPTk5FQ1RFRBADKq8CChBOb3RpZmljYXRpb25LaW5kEiEKHU5PVElGSUNBVElPTl9LSU5EX1VOU1BFQ0lGSUVEEAASHgoaTk9USUZJQ0FUSU9OX0tJTkRfQVBQUk9WRUQQARIeChpOT1RJRklDQVRJT05fS0lORF9ERUNMSU5FRBACEhwKGE5PVElGSUNBVElPTl9LSU5EX0ZBSUxFRBADEikKJU5PVElGSUNBVElPTl9LSU5EX1BBUlRJQUxMWV9BVkFJTEFCTEUQBBIfChtOT1RJRklDQVRJT05fS0lORF9BVkFJTEFCTEUQBRIrCidOT1RJRklDQVRJT05fS0lORF9DQU5DRUxMRURfQllfREVMRVRJT04QBhIhCh1OT1RJRklDQVRJT05fS0lORF9ORVdfUEVORElORxAHMpAUCgtVc2VyU2VydmljZRJFCgpDcmVhdGVVc2VyEhoubmFtYS52MS5DcmVhdGVVc2VyUmVxdWVzdBobLm5hbWEudjEuQ3JlYXRlVXNlclJlc3BvbnNlEkcKCUxpc3RVc2VycxIZLm5hbWEudjEuTGlzdFVzZXJzUmVxdWVzdBoaLm5hbWEudjEuTGlzdFVzZXJzUmVzcG9uc2UiA5ACARJWCg5TZXRQZXJtaXNzaW9ucxIeLm5hbWEudjEuU2V0UGVybWlzc2lvbnNSZXF1ZXN0Gh8ubmFtYS52MS5TZXRQZXJtaXNzaW9uc1Jlc3BvbnNlIgOQAgISSgoKRGVsZXRlVXNlchIaLm5hbWEudjEuRGVsZXRlVXNlclJlcXVlc3QaGy5uYW1hLnYxLkRlbGV0ZVVzZXJSZXNwb25zZSIDkAICEk0KC0xpc3REZXZpY2VzEhsubmFtYS52MS5MaXN0RGV2aWNlc1JlcXVlc3QaHC5uYW1hLnYxLkxpc3REZXZpY2VzUmVzcG9uc2UiA5ACARJLCgxSZXZva2VEZXZpY2USHC5uYW1hLnYxLlJldm9rZURldmljZVJlcXVlc3QaHS5uYW1hLnYxLlJldm9rZURldmljZVJlc3BvbnNlElEKDkNoYW5nZVBhc3N3b3JkEh4ubmFtYS52MS5DaGFuZ2VQYXNzd29yZFJlcXVlc3QaHy5uYW1hLnYxLkNoYW5nZVBhc3N3b3JkUmVzcG9uc2USTgoNUmVzZXRQYXNzd29yZBIdLm5hbWEudjEuUmVzZXRQYXNzd29yZFJlcXVlc3QaHi5uYW1hLnYxLlJlc2V0UGFzc3dvcmRSZXNwb25zZRJrChVHZXREZWZhdWx0UGVybWlzc2lvbnMSJS5uYW1hLnYxLkdldERlZmF1bHRQZXJtaXNzaW9uc1JlcXVlc3QaJi5uYW1hLnYxLkdldERlZmF1bHRQZXJtaXNzaW9uc1Jlc3BvbnNlIgOQAgESawoVU2V0RGVmYXVsdFBlcm1pc3Npb25zEiUubmFtYS52MS5TZXREZWZhdWx0UGVybWlzc2lvbnNSZXF1ZXN0GiYubmFtYS52MS5TZXREZWZhdWx0UGVybWlzc2lvbnNSZXNwb25zZSIDkAICEksKDENyZWF0ZUludml0ZRIcLm5hbWEudjEuQ3JlYXRlSW52aXRlUmVxdWVzdBodLm5hbWEudjEuQ3JlYXRlSW52aXRlUmVzcG9uc2USTQoLTGlzdEludml0ZXMSGy5uYW1hLnYxLkxpc3RJbnZpdGVzUmVxdWVzdBocLm5hbWEudjEuTGlzdEludml0ZXNSZXNwb25zZSIDkAIBElAKDFJldm9rZUludml0ZRIcLm5hbWEudjEuUmV2b2tlSW52aXRlUmVxdWVzdBodLm5hbWEudjEuUmV2b2tlSW52aXRlUmVzcG9uc2UiA5ACAhJrChVMaXN0UGx1Z2luQ29ubmVjdGlvbnMSJS5uYW1hLnYxLkxpc3RQbHVnaW5Db25uZWN0aW9uc1JlcXVlc3QaJi5uYW1hLnYxLkxpc3RQbHVnaW5Db25uZWN0aW9uc1Jlc3BvbnNlIgOQAgESZgoVU3RhcnRQbHVnaW5Db25uZWN0aW9uEiUubmFtYS52MS5TdGFydFBsdWdpbkNvbm5lY3Rpb25SZXF1ZXN0GiYubmFtYS52MS5TdGFydFBsdWdpbkNvbm5lY3Rpb25SZXNwb25zZRJuChZEZWxldGVQbHVnaW5Db25uZWN0aW9uEiYubmFtYS52MS5EZWxldGVQbHVnaW5Db25uZWN0aW9uUmVxdWVzdBonLm5hbWEudjEuRGVsZXRlUGx1Z2luQ29ubmVjdGlvblJlc3BvbnNlIgOQAgISaAoUTGlzdFBlcnNvbmFsU2V0dGluZ3MSJC5uYW1hLnYxLkxpc3RQZXJzb25hbFNldHRpbmdzUmVxdWVzdBolLm5hbWEudjEuTGlzdFBlcnNvbmFsU2V0dGluZ3NSZXNwb25zZSIDkAIBEm4KFlVwZGF0ZVBlcnNvbmFsU2V0dGluZ3MSJi5uYW1hLnYxLlVwZGF0ZVBlcnNvbmFsU2V0dGluZ3NSZXF1ZXN0GicubmFtYS52MS5VcGRhdGVQZXJzb25hbFNldHRpbmdzUmVzcG9uc2UiA5ACAhJuChZEZWxldGVQZXJzb25hbFNldHRpbmdzEiYubmFtYS52MS5EZWxldGVQZXJzb25hbFNldHRpbmdzUmVxdWVzdBonLm5hbWEudjEuRGVsZXRlUGVyc29uYWxTZXR0aW5nc1Jlc3BvbnNlIgOQAgISfQobTGlzdE5vdGlmaWNhdGlvblByZWZlcmVuY2VzEisubmFtYS52MS5MaXN0Tm90aWZpY2F0aW9uUHJlZmVyZW5jZXNSZXF1ZXN0GiwubmFtYS52MS5MaXN0Tm90aWZpY2F0aW9uUHJlZmVyZW5jZXNSZXNwb25zZSIDkAIBEncKGVNldE5vdGlmaWNhdGlvblByZWZlcmVuY2USKS5uYW1hLnYxLlNldE5vdGlmaWNhdGlvblByZWZlcmVuY2VSZXF1ZXN0GioubmFtYS52MS5TZXROb3RpZmljYXRpb25QcmVmZXJlbmNlUmVzcG9uc2UiA5ACAhJTCg1HZXRIb21lTGF5b3V0Eh0ubmFtYS52MS5HZXRIb21lTGF5b3V0UmVxdWVzdBoeLm5hbWEudjEuR2V0SG9tZUxheW91dFJlc3BvbnNlIgOQAgESUwoNU2V0SG9tZUxheW91dBIdLm5hbWEudjEuU2V0SG9tZUxheW91dFJlcXVlc3QaHi5uYW1hLnYxLlNldEhvbWVMYXlvdXRSZXNwb25zZSIDkAICElkKD1Jlb3JkZXJIb21lUm93cxIfLm5hbWEudjEuUmVvcmRlckhvbWVSb3dzUmVxdWVzdBogLm5hbWEudjEuUmVvcmRlckhvbWVSb3dzUmVzcG9uc2UiA5ACAhJZCg9SZXNldEhvbWVMYXlvdXQSHy5uYW1hLnYxLlJlc2V0SG9tZUxheW91dFJlcXVlc3QaIC5uYW1hLnYxLlJlc2V0SG9tZUxheW91dFJlc3BvbnNlIgOQAgISSAoLR2V0VXNlckxpbmsSGy5uYW1hLnYxLkdldFVzZXJMaW5rUmVxdWVzdBocLm5hbWEudjEuR2V0VXNlckxpbmtSZXNwb25zZRJOCg1TdGFydFVzZXJMaW5rEh0ubmFtYS52MS5TdGFydFVzZXJMaW5rUmVxdWVzdBoeLm5hbWEudjEuU3RhcnRVc2VyTGlua1Jlc3BvbnNlEkUKClVubGlua1VzZXISGi5uYW1hLnYxLlVubGlua1VzZXJSZXF1ZXN0GhsubmFtYS52MS5VbmxpbmtVc2VyUmVzcG9uc2ViBnByb3RvMw", [file_nama_v1_plugin, file_nama_v1_server, file_nama_v1_sign_in]);
+
+/**
+ * @generated from message nama.v1.GetUserLinkRequest
+ */
+export type GetUserLinkRequest = Message<"nama.v1.GetUserLinkRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.GetUserLinkRequest.
+ * Use `create(GetUserLinkRequestSchema)` to create a new message.
+ */
+export const GetUserLinkRequestSchema: GenMessage<GetUserLinkRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 0);
+
+/**
+ * @generated from message nama.v1.GetUserLinkResponse
+ */
+export type GetUserLinkResponse = Message<"nama.v1.GetUserLinkResponse"> & {
+  /**
+   * Unset while the Server can't Link Users.
+   *
+   * @generated from field: nama.v1.UserLink link = 1;
+   */
+  link?: UserLink | undefined;
+};
+
+/**
+ * Describes the message nama.v1.GetUserLinkResponse.
+ * Use `create(GetUserLinkResponseSchema)` to create a new message.
+ */
+export const GetUserLinkResponseSchema: GenMessage<GetUserLinkResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 1);
+
+/**
+ * Where Linking a User stands.
+ *
+ * @generated from message nama.v1.UserLink
+ */
+export type UserLink = Message<"nama.v1.UserLink"> & {
+  /**
+   * Set while the User waits for someone to enter `code`.
+   *
+   * @generated from field: string code = 1;
+   */
+  code: string;
+
+  /**
+   * Where to enter `code`, set with it.
+   *
+   * @generated from field: string url = 2;
+   */
+  url: string;
+
+  /**
+   * The Account the User is Linked to, as its email, once they are.
+   *
+   * @generated from field: string account = 3;
+   */
+  account: string;
+};
+
+/**
+ * Describes the message nama.v1.UserLink.
+ * Use `create(UserLinkSchema)` to create a new message.
+ */
+export const UserLinkSchema: GenMessage<UserLink> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 2);
+
+/**
+ * @generated from message nama.v1.StartUserLinkRequest
+ */
+export type StartUserLinkRequest = Message<"nama.v1.StartUserLinkRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.StartUserLinkRequest.
+ * Use `create(StartUserLinkRequestSchema)` to create a new message.
+ */
+export const StartUserLinkRequestSchema: GenMessage<StartUserLinkRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 3);
+
+/**
+ * @generated from message nama.v1.StartUserLinkResponse
+ */
+export type StartUserLinkResponse = Message<"nama.v1.StartUserLinkResponse"> & {
+  /**
+   * @generated from field: nama.v1.UserLink link = 1;
+   */
+  link?: UserLink | undefined;
+};
+
+/**
+ * Describes the message nama.v1.StartUserLinkResponse.
+ * Use `create(StartUserLinkResponseSchema)` to create a new message.
+ */
+export const StartUserLinkResponseSchema: GenMessage<StartUserLinkResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 4);
+
+/**
+ * @generated from message nama.v1.UnlinkUserRequest
+ */
+export type UnlinkUserRequest = Message<"nama.v1.UnlinkUserRequest"> & {
+};
+
+/**
+ * Describes the message nama.v1.UnlinkUserRequest.
+ * Use `create(UnlinkUserRequestSchema)` to create a new message.
+ */
+export const UnlinkUserRequestSchema: GenMessage<UnlinkUserRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 5);
+
+/**
+ * @generated from message nama.v1.UnlinkUserResponse
+ */
+export type UnlinkUserResponse = Message<"nama.v1.UnlinkUserResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.UnlinkUserResponse.
+ * Use `create(UnlinkUserResponseSchema)` to create a new message.
+ */
+export const UnlinkUserResponseSchema: GenMessage<UnlinkUserResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_user, 6);
 
 /**
  * @generated from message nama.v1.CreateUserRequest
@@ -42,7 +165,7 @@ export type CreateUserRequest = Message<"nama.v1.CreateUserRequest"> & {
  * Use `create(CreateUserRequestSchema)` to create a new message.
  */
 export const CreateUserRequestSchema: GenMessage<CreateUserRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 0);
+  messageDesc(file_nama_v1_user, 7);
 
 /**
  * @generated from message nama.v1.CreateUserResponse
@@ -61,7 +184,7 @@ export type CreateUserResponse = Message<"nama.v1.CreateUserResponse"> & {
  * Use `create(CreateUserResponseSchema)` to create a new message.
  */
 export const CreateUserResponseSchema: GenMessage<CreateUserResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 1);
+  messageDesc(file_nama_v1_user, 8);
 
 /**
  * @generated from message nama.v1.ListUsersRequest
@@ -74,7 +197,7 @@ export type ListUsersRequest = Message<"nama.v1.ListUsersRequest"> & {
  * Use `create(ListUsersRequestSchema)` to create a new message.
  */
 export const ListUsersRequestSchema: GenMessage<ListUsersRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 2);
+  messageDesc(file_nama_v1_user, 9);
 
 /**
  * @generated from message nama.v1.ListUsersResponse
@@ -91,7 +214,7 @@ export type ListUsersResponse = Message<"nama.v1.ListUsersResponse"> & {
  * Use `create(ListUsersResponseSchema)` to create a new message.
  */
 export const ListUsersResponseSchema: GenMessage<ListUsersResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 3);
+  messageDesc(file_nama_v1_user, 10);
 
 /**
  * @generated from message nama.v1.SetPermissionsRequest
@@ -117,7 +240,7 @@ export type SetPermissionsRequest = Message<"nama.v1.SetPermissionsRequest"> & {
  * Use `create(SetPermissionsRequestSchema)` to create a new message.
  */
 export const SetPermissionsRequestSchema: GenMessage<SetPermissionsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 4);
+  messageDesc(file_nama_v1_user, 11);
 
 /**
  * @generated from message nama.v1.SetPermissionsResponse
@@ -130,7 +253,7 @@ export type SetPermissionsResponse = Message<"nama.v1.SetPermissionsResponse"> &
  * Use `create(SetPermissionsResponseSchema)` to create a new message.
  */
 export const SetPermissionsResponseSchema: GenMessage<SetPermissionsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 5);
+  messageDesc(file_nama_v1_user, 12);
 
 /**
  * @generated from message nama.v1.DeleteUserRequest
@@ -149,7 +272,7 @@ export type DeleteUserRequest = Message<"nama.v1.DeleteUserRequest"> & {
  * Use `create(DeleteUserRequestSchema)` to create a new message.
  */
 export const DeleteUserRequestSchema: GenMessage<DeleteUserRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 6);
+  messageDesc(file_nama_v1_user, 13);
 
 /**
  * @generated from message nama.v1.DeleteUserResponse
@@ -162,7 +285,7 @@ export type DeleteUserResponse = Message<"nama.v1.DeleteUserResponse"> & {
  * Use `create(DeleteUserResponseSchema)` to create a new message.
  */
 export const DeleteUserResponseSchema: GenMessage<DeleteUserResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 7);
+  messageDesc(file_nama_v1_user, 14);
 
 /**
  * @generated from message nama.v1.ListDevicesRequest
@@ -181,7 +304,7 @@ export type ListDevicesRequest = Message<"nama.v1.ListDevicesRequest"> & {
  * Use `create(ListDevicesRequestSchema)` to create a new message.
  */
 export const ListDevicesRequestSchema: GenMessage<ListDevicesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 8);
+  messageDesc(file_nama_v1_user, 15);
 
 /**
  * @generated from message nama.v1.ListDevicesResponse
@@ -198,7 +321,7 @@ export type ListDevicesResponse = Message<"nama.v1.ListDevicesResponse"> & {
  * Use `create(ListDevicesResponseSchema)` to create a new message.
  */
 export const ListDevicesResponseSchema: GenMessage<ListDevicesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 9);
+  messageDesc(file_nama_v1_user, 16);
 
 /**
  * @generated from message nama.v1.RevokeDeviceRequest
@@ -224,7 +347,7 @@ export type RevokeDeviceRequest = Message<"nama.v1.RevokeDeviceRequest"> & {
  * Use `create(RevokeDeviceRequestSchema)` to create a new message.
  */
 export const RevokeDeviceRequestSchema: GenMessage<RevokeDeviceRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 10);
+  messageDesc(file_nama_v1_user, 17);
 
 /**
  * @generated from message nama.v1.RevokeDeviceResponse
@@ -237,7 +360,7 @@ export type RevokeDeviceResponse = Message<"nama.v1.RevokeDeviceResponse"> & {
  * Use `create(RevokeDeviceResponseSchema)` to create a new message.
  */
 export const RevokeDeviceResponseSchema: GenMessage<RevokeDeviceResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 11);
+  messageDesc(file_nama_v1_user, 18);
 
 /**
  * @generated from message nama.v1.ChangePasswordRequest
@@ -256,7 +379,7 @@ export type ChangePasswordRequest = Message<"nama.v1.ChangePasswordRequest"> & {
  * Use `create(ChangePasswordRequestSchema)` to create a new message.
  */
 export const ChangePasswordRequestSchema: GenMessage<ChangePasswordRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 12);
+  messageDesc(file_nama_v1_user, 19);
 
 /**
  * @generated from message nama.v1.ChangePasswordResponse
@@ -269,7 +392,7 @@ export type ChangePasswordResponse = Message<"nama.v1.ChangePasswordResponse"> &
  * Use `create(ChangePasswordResponseSchema)` to create a new message.
  */
 export const ChangePasswordResponseSchema: GenMessage<ChangePasswordResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 13);
+  messageDesc(file_nama_v1_user, 20);
 
 /**
  * @generated from message nama.v1.ResetPasswordRequest
@@ -295,7 +418,7 @@ export type ResetPasswordRequest = Message<"nama.v1.ResetPasswordRequest"> & {
  * Use `create(ResetPasswordRequestSchema)` to create a new message.
  */
 export const ResetPasswordRequestSchema: GenMessage<ResetPasswordRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 14);
+  messageDesc(file_nama_v1_user, 21);
 
 /**
  * @generated from message nama.v1.ResetPasswordResponse
@@ -308,7 +431,7 @@ export type ResetPasswordResponse = Message<"nama.v1.ResetPasswordResponse"> & {
  * Use `create(ResetPasswordResponseSchema)` to create a new message.
  */
 export const ResetPasswordResponseSchema: GenMessage<ResetPasswordResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 15);
+  messageDesc(file_nama_v1_user, 22);
 
 /**
  * @generated from message nama.v1.GetDefaultPermissionsRequest
@@ -321,7 +444,7 @@ export type GetDefaultPermissionsRequest = Message<"nama.v1.GetDefaultPermission
  * Use `create(GetDefaultPermissionsRequestSchema)` to create a new message.
  */
 export const GetDefaultPermissionsRequestSchema: GenMessage<GetDefaultPermissionsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 16);
+  messageDesc(file_nama_v1_user, 23);
 
 /**
  * @generated from message nama.v1.GetDefaultPermissionsResponse
@@ -340,7 +463,7 @@ export type GetDefaultPermissionsResponse = Message<"nama.v1.GetDefaultPermissio
  * Use `create(GetDefaultPermissionsResponseSchema)` to create a new message.
  */
 export const GetDefaultPermissionsResponseSchema: GenMessage<GetDefaultPermissionsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 17);
+  messageDesc(file_nama_v1_user, 24);
 
 /**
  * @generated from message nama.v1.SetDefaultPermissionsRequest
@@ -359,7 +482,7 @@ export type SetDefaultPermissionsRequest = Message<"nama.v1.SetDefaultPermission
  * Use `create(SetDefaultPermissionsRequestSchema)` to create a new message.
  */
 export const SetDefaultPermissionsRequestSchema: GenMessage<SetDefaultPermissionsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 18);
+  messageDesc(file_nama_v1_user, 25);
 
 /**
  * @generated from message nama.v1.SetDefaultPermissionsResponse
@@ -372,7 +495,7 @@ export type SetDefaultPermissionsResponse = Message<"nama.v1.SetDefaultPermissio
  * Use `create(SetDefaultPermissionsResponseSchema)` to create a new message.
  */
 export const SetDefaultPermissionsResponseSchema: GenMessage<SetDefaultPermissionsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 19);
+  messageDesc(file_nama_v1_user, 26);
 
 /**
  * A pending Invite, as Users who manage Users see it.
@@ -429,7 +552,7 @@ export type Invite = Message<"nama.v1.Invite"> & {
  * Use `create(InviteSchema)` to create a new message.
  */
 export const InviteSchema: GenMessage<Invite> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 20);
+  messageDesc(file_nama_v1_user, 27);
 
 /**
  * @generated from message nama.v1.CreateInviteRequest
@@ -457,7 +580,7 @@ export type CreateInviteRequest = Message<"nama.v1.CreateInviteRequest"> & {
  * Use `create(CreateInviteRequestSchema)` to create a new message.
  */
 export const CreateInviteRequestSchema: GenMessage<CreateInviteRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 21);
+  messageDesc(file_nama_v1_user, 28);
 
 /**
  * @generated from message nama.v1.CreateInviteResponse
@@ -484,7 +607,7 @@ export type CreateInviteResponse = Message<"nama.v1.CreateInviteResponse"> & {
  * Use `create(CreateInviteResponseSchema)` to create a new message.
  */
 export const CreateInviteResponseSchema: GenMessage<CreateInviteResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 22);
+  messageDesc(file_nama_v1_user, 29);
 
 /**
  * @generated from message nama.v1.ListInvitesRequest
@@ -497,7 +620,7 @@ export type ListInvitesRequest = Message<"nama.v1.ListInvitesRequest"> & {
  * Use `create(ListInvitesRequestSchema)` to create a new message.
  */
 export const ListInvitesRequestSchema: GenMessage<ListInvitesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 23);
+  messageDesc(file_nama_v1_user, 30);
 
 /**
  * @generated from message nama.v1.ListInvitesResponse
@@ -523,7 +646,7 @@ export type ListInvitesResponse = Message<"nama.v1.ListInvitesResponse"> & {
  * Use `create(ListInvitesResponseSchema)` to create a new message.
  */
 export const ListInvitesResponseSchema: GenMessage<ListInvitesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 24);
+  messageDesc(file_nama_v1_user, 31);
 
 /**
  * @generated from message nama.v1.RevokeInviteRequest
@@ -542,7 +665,7 @@ export type RevokeInviteRequest = Message<"nama.v1.RevokeInviteRequest"> & {
  * Use `create(RevokeInviteRequestSchema)` to create a new message.
  */
 export const RevokeInviteRequestSchema: GenMessage<RevokeInviteRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 25);
+  messageDesc(file_nama_v1_user, 32);
 
 /**
  * @generated from message nama.v1.RevokeInviteResponse
@@ -555,7 +678,7 @@ export type RevokeInviteResponse = Message<"nama.v1.RevokeInviteResponse"> & {
  * Use `create(RevokeInviteResponseSchema)` to create a new message.
  */
 export const RevokeInviteResponseSchema: GenMessage<RevokeInviteResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 26);
+  messageDesc(file_nama_v1_user, 33);
 
 /**
  * @generated from message nama.v1.ListPluginConnectionsRequest
@@ -568,7 +691,7 @@ export type ListPluginConnectionsRequest = Message<"nama.v1.ListPluginConnection
  * Use `create(ListPluginConnectionsRequestSchema)` to create a new message.
  */
 export const ListPluginConnectionsRequestSchema: GenMessage<ListPluginConnectionsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 27);
+  messageDesc(file_nama_v1_user, 34);
 
 /**
  * @generated from message nama.v1.ListPluginConnectionsResponse
@@ -587,7 +710,7 @@ export type ListPluginConnectionsResponse = Message<"nama.v1.ListPluginConnectio
  * Use `create(ListPluginConnectionsResponseSchema)` to create a new message.
  */
 export const ListPluginConnectionsResponseSchema: GenMessage<ListPluginConnectionsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 28);
+  messageDesc(file_nama_v1_user, 35);
 
 /**
  * A User's Plugin Connection, as the User sees it.
@@ -613,7 +736,7 @@ export type PluginConnection = Message<"nama.v1.PluginConnection"> & {
  * Use `create(PluginConnectionSchema)` to create a new message.
  */
 export const PluginConnectionSchema: GenMessage<PluginConnection> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 29);
+  messageDesc(file_nama_v1_user, 36);
 
 /**
  * @generated from message nama.v1.StartPluginConnectionRequest
@@ -632,7 +755,7 @@ export type StartPluginConnectionRequest = Message<"nama.v1.StartPluginConnectio
  * Use `create(StartPluginConnectionRequestSchema)` to create a new message.
  */
 export const StartPluginConnectionRequestSchema: GenMessage<StartPluginConnectionRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 30);
+  messageDesc(file_nama_v1_user, 37);
 
 /**
  * @generated from message nama.v1.StartPluginConnectionResponse
@@ -651,7 +774,7 @@ export type StartPluginConnectionResponse = Message<"nama.v1.StartPluginConnecti
  * Use `create(StartPluginConnectionResponseSchema)` to create a new message.
  */
 export const StartPluginConnectionResponseSchema: GenMessage<StartPluginConnectionResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 31);
+  messageDesc(file_nama_v1_user, 38);
 
 /**
  * @generated from message nama.v1.DeletePluginConnectionRequest
@@ -670,7 +793,7 @@ export type DeletePluginConnectionRequest = Message<"nama.v1.DeletePluginConnect
  * Use `create(DeletePluginConnectionRequestSchema)` to create a new message.
  */
 export const DeletePluginConnectionRequestSchema: GenMessage<DeletePluginConnectionRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 32);
+  messageDesc(file_nama_v1_user, 39);
 
 /**
  * @generated from message nama.v1.DeletePluginConnectionResponse
@@ -683,7 +806,7 @@ export type DeletePluginConnectionResponse = Message<"nama.v1.DeletePluginConnec
  * Use `create(DeletePluginConnectionResponseSchema)` to create a new message.
  */
 export const DeletePluginConnectionResponseSchema: GenMessage<DeletePluginConnectionResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 33);
+  messageDesc(file_nama_v1_user, 40);
 
 /**
  * @generated from message nama.v1.ListPersonalSettingsRequest
@@ -696,7 +819,7 @@ export type ListPersonalSettingsRequest = Message<"nama.v1.ListPersonalSettingsR
  * Use `create(ListPersonalSettingsRequestSchema)` to create a new message.
  */
 export const ListPersonalSettingsRequestSchema: GenMessage<ListPersonalSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 34);
+  messageDesc(file_nama_v1_user, 41);
 
 /**
  * @generated from message nama.v1.ListPersonalSettingsResponse
@@ -715,7 +838,7 @@ export type ListPersonalSettingsResponse = Message<"nama.v1.ListPersonalSettings
  * Use `create(ListPersonalSettingsResponseSchema)` to create a new message.
  */
 export const ListPersonalSettingsResponseSchema: GenMessage<ListPersonalSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 35);
+  messageDesc(file_nama_v1_user, 42);
 
 /**
  * One Plugin's Personal settings, with the caller's own values.
@@ -758,7 +881,7 @@ export type PersonalSettings = Message<"nama.v1.PersonalSettings"> & {
  * Use `create(PersonalSettingsSchema)` to create a new message.
  */
 export const PersonalSettingsSchema: GenMessage<PersonalSettings> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 36);
+  messageDesc(file_nama_v1_user, 43);
 
 /**
  * @generated from message nama.v1.UpdatePersonalSettingsRequest
@@ -785,7 +908,7 @@ export type UpdatePersonalSettingsRequest = Message<"nama.v1.UpdatePersonalSetti
  * Use `create(UpdatePersonalSettingsRequestSchema)` to create a new message.
  */
 export const UpdatePersonalSettingsRequestSchema: GenMessage<UpdatePersonalSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 37);
+  messageDesc(file_nama_v1_user, 44);
 
 /**
  * @generated from message nama.v1.UpdatePersonalSettingsResponse
@@ -804,7 +927,7 @@ export type UpdatePersonalSettingsResponse = Message<"nama.v1.UpdatePersonalSett
  * Use `create(UpdatePersonalSettingsResponseSchema)` to create a new message.
  */
 export const UpdatePersonalSettingsResponseSchema: GenMessage<UpdatePersonalSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 38);
+  messageDesc(file_nama_v1_user, 45);
 
 /**
  * @generated from message nama.v1.DeletePersonalSettingsRequest
@@ -823,7 +946,7 @@ export type DeletePersonalSettingsRequest = Message<"nama.v1.DeletePersonalSetti
  * Use `create(DeletePersonalSettingsRequestSchema)` to create a new message.
  */
 export const DeletePersonalSettingsRequestSchema: GenMessage<DeletePersonalSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 39);
+  messageDesc(file_nama_v1_user, 46);
 
 /**
  * @generated from message nama.v1.DeletePersonalSettingsResponse
@@ -836,7 +959,7 @@ export type DeletePersonalSettingsResponse = Message<"nama.v1.DeletePersonalSett
  * Use `create(DeletePersonalSettingsResponseSchema)` to create a new message.
  */
 export const DeletePersonalSettingsResponseSchema: GenMessage<DeletePersonalSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 40);
+  messageDesc(file_nama_v1_user, 47);
 
 /**
  * @generated from message nama.v1.ListNotificationPreferencesRequest
@@ -849,7 +972,7 @@ export type ListNotificationPreferencesRequest = Message<"nama.v1.ListNotificati
  * Use `create(ListNotificationPreferencesRequestSchema)` to create a new message.
  */
 export const ListNotificationPreferencesRequestSchema: GenMessage<ListNotificationPreferencesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 41);
+  messageDesc(file_nama_v1_user, 48);
 
 /**
  * @generated from message nama.v1.ListNotificationPreferencesResponse
@@ -868,7 +991,7 @@ export type ListNotificationPreferencesResponse = Message<"nama.v1.ListNotificat
  * Use `create(ListNotificationPreferencesResponseSchema)` to create a new message.
  */
 export const ListNotificationPreferencesResponseSchema: GenMessage<ListNotificationPreferencesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 42);
+  messageDesc(file_nama_v1_user, 49);
 
 /**
  * Whether a User gets one kind of Request notification.
@@ -896,7 +1019,7 @@ export type NotificationPreference = Message<"nama.v1.NotificationPreference"> &
  * Use `create(NotificationPreferenceSchema)` to create a new message.
  */
 export const NotificationPreferenceSchema: GenMessage<NotificationPreference> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 43);
+  messageDesc(file_nama_v1_user, 50);
 
 /**
  * @generated from message nama.v1.SetNotificationPreferenceRequest
@@ -922,7 +1045,7 @@ export type SetNotificationPreferenceRequest = Message<"nama.v1.SetNotificationP
  * Use `create(SetNotificationPreferenceRequestSchema)` to create a new message.
  */
 export const SetNotificationPreferenceRequestSchema: GenMessage<SetNotificationPreferenceRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 44);
+  messageDesc(file_nama_v1_user, 51);
 
 /**
  * @generated from message nama.v1.SetNotificationPreferenceResponse
@@ -935,7 +1058,7 @@ export type SetNotificationPreferenceResponse = Message<"nama.v1.SetNotification
  * Use `create(SetNotificationPreferenceResponseSchema)` to create a new message.
  */
 export const SetNotificationPreferenceResponseSchema: GenMessage<SetNotificationPreferenceResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 45);
+  messageDesc(file_nama_v1_user, 52);
 
 /**
  * @generated from message nama.v1.GetHomeLayoutRequest
@@ -948,7 +1071,7 @@ export type GetHomeLayoutRequest = Message<"nama.v1.GetHomeLayoutRequest"> & {
  * Use `create(GetHomeLayoutRequestSchema)` to create a new message.
  */
 export const GetHomeLayoutRequestSchema: GenMessage<GetHomeLayoutRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 46);
+  messageDesc(file_nama_v1_user, 53);
 
 /**
  * @generated from message nama.v1.GetHomeLayoutResponse
@@ -965,7 +1088,7 @@ export type GetHomeLayoutResponse = Message<"nama.v1.GetHomeLayoutResponse"> & {
  * Use `create(GetHomeLayoutResponseSchema)` to create a new message.
  */
 export const GetHomeLayoutResponseSchema: GenMessage<GetHomeLayoutResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 47);
+  messageDesc(file_nama_v1_user, 54);
 
 /**
  * @generated from message nama.v1.SetHomeLayoutRequest
@@ -984,7 +1107,7 @@ export type SetHomeLayoutRequest = Message<"nama.v1.SetHomeLayoutRequest"> & {
  * Use `create(SetHomeLayoutRequestSchema)` to create a new message.
  */
 export const SetHomeLayoutRequestSchema: GenMessage<SetHomeLayoutRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 48);
+  messageDesc(file_nama_v1_user, 55);
 
 /**
  * @generated from message nama.v1.SetHomeLayoutResponse
@@ -1003,7 +1126,7 @@ export type SetHomeLayoutResponse = Message<"nama.v1.SetHomeLayoutResponse"> & {
  * Use `create(SetHomeLayoutResponseSchema)` to create a new message.
  */
 export const SetHomeLayoutResponseSchema: GenMessage<SetHomeLayoutResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 49);
+  messageDesc(file_nama_v1_user, 56);
 
 /**
  * @generated from message nama.v1.ReorderHomeRowsRequest
@@ -1022,7 +1145,7 @@ export type ReorderHomeRowsRequest = Message<"nama.v1.ReorderHomeRowsRequest"> &
  * Use `create(ReorderHomeRowsRequestSchema)` to create a new message.
  */
 export const ReorderHomeRowsRequestSchema: GenMessage<ReorderHomeRowsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 50);
+  messageDesc(file_nama_v1_user, 57);
 
 /**
  * @generated from message nama.v1.ReorderHomeRowsResponse
@@ -1041,7 +1164,7 @@ export type ReorderHomeRowsResponse = Message<"nama.v1.ReorderHomeRowsResponse">
  * Use `create(ReorderHomeRowsResponseSchema)` to create a new message.
  */
 export const ReorderHomeRowsResponseSchema: GenMessage<ReorderHomeRowsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 51);
+  messageDesc(file_nama_v1_user, 58);
 
 /**
  * @generated from message nama.v1.ResetHomeLayoutRequest
@@ -1054,7 +1177,7 @@ export type ResetHomeLayoutRequest = Message<"nama.v1.ResetHomeLayoutRequest"> &
  * Use `create(ResetHomeLayoutRequestSchema)` to create a new message.
  */
 export const ResetHomeLayoutRequestSchema: GenMessage<ResetHomeLayoutRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 52);
+  messageDesc(file_nama_v1_user, 59);
 
 /**
  * @generated from message nama.v1.ResetHomeLayoutResponse
@@ -1067,7 +1190,7 @@ export type ResetHomeLayoutResponse = Message<"nama.v1.ResetHomeLayoutResponse">
  * Use `create(ResetHomeLayoutResponseSchema)` to create a new message.
  */
 export const ResetHomeLayoutResponseSchema: GenMessage<ResetHomeLayoutResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 53);
+  messageDesc(file_nama_v1_user, 60);
 
 /**
  * Where a User's Plugin Connection is.
@@ -1196,14 +1319,14 @@ export const NotificationKindSchema: GenEnum<NotificationKind> = /*@__PURE__*/
  * Managing the Server's Users, their Devices, Invites, Plugin Connections, Personal settings,
  * notification preferences and Home layouts. Every RPC but `ListDevices`, `RevokeDevice`,
  * `ChangePassword`, the Plugin Connection ones, the Personal settings ones, the notification
- * preference ones and the Home layout ones needs `PERMISSION_MANAGE_USERS`,
+ * preference ones, the Home layout ones and the User Link ones needs `PERMISSION_MANAGE_USERS`,
  * and fails with `permission_denied` without it.
  * Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
  * User with it, grant it, put it in the default Permissions or create a User while they hold it, or
  * set their own Permissions; others fail with `permission_denied` and a Refusal naming
- * `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions`, `SetDefaultPermissions`
- * and `DeleteUser` also need Recent Authentication, as `SignInService` describes. RPCs name Users
- * by ID, not by name.
+ * `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions`, `SetDefaultPermissions`,
+ * `DeleteUser` and `StartUserLink` also need Recent Authentication, as `SignInService` describes.
+ * RPCs name Users by ID, not by name.
  *
  * @generated from service nama.v1.UserService
  */
@@ -1519,6 +1642,45 @@ export const UserService: GenService<{
     methodKind: "unary";
     input: typeof ResetHomeLayoutRequestSchema;
     output: typeof ResetHomeLayoutResponseSchema;
+  },
+  /**
+   * Returns whether the caller is Linked to an Account, and to which, or the code they show while
+   * they wait for it to be entered on the Hub (ADR 0011). While it waits, this is also what has the
+   * Plugin ask the Hub whether it was entered. `link` is unset while the Server can't Link Users:
+   * without an enabled Plugin that links it, such as the Hub Plugin, or before the Server is Linked
+   * itself. Fails with `unavailable` if the Plugin failed.
+   *
+   * @generated from rpc nama.v1.UserService.GetUserLink
+   */
+  getUserLink: {
+    methodKind: "unary";
+    input: typeof GetUserLinkRequestSchema;
+    output: typeof GetUserLinkResponseSchema;
+  },
+  /**
+   * Starts Linking the caller to an Account, replacing a code they were showing, and returns the
+   * new one. A User Links to one Account, so a caller Linked already gets that Link back. Fails
+   * with `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled Plugin that links the Server, and
+   * with `unavailable` if the Plugin couldn't start, such as with the Hub unreachable.
+   *
+   * @generated from rpc nama.v1.UserService.StartUserLink
+   */
+  startUserLink: {
+    methodKind: "unary";
+    input: typeof StartUserLinkRequestSchema;
+    output: typeof StartUserLinkResponseSchema;
+  },
+  /**
+   * Unlinks the caller from their Account, or stops showing their code. Unlinking a User who isn't
+   * Linked does nothing. Fails like `StartUserLink`; the caller stays Linked if the Hub couldn't be
+   * told.
+   *
+   * @generated from rpc nama.v1.UserService.UnlinkUser
+   */
+  unlinkUser: {
+    methodKind: "unary";
+    input: typeof UnlinkUserRequestSchema;
+    output: typeof UnlinkUserResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_v1_user, 0);

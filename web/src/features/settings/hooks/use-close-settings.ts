@@ -1,6 +1,8 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
 
+import { closedSearch } from "@/features/settings/lib/sections";
+
 /** Closes Settings, leaving the page under it. */
 export function useCloseSettings() {
   const navigate = useNavigate();
@@ -10,14 +12,7 @@ export function useCloseSettings() {
     // was opened from this page.
     void navigate({
       to: ".",
-      search: (rest) => ({
-        ...rest,
-        settings: undefined,
-        plugin: undefined,
-        user: undefined,
-        library: undefined,
-        setting: undefined,
-      }),
+      search: (rest) => ({ ...rest, ...closedSearch }),
       replace: true,
     });
   }, [navigate]);

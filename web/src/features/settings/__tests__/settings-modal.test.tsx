@@ -42,6 +42,33 @@ test("closing Settings leaves the page it was over", async () => {
   expect(router.state.location.search.settings).toBeUndefined();
 });
 
+test("your menu opens Playback, dropping a Job and other details left in the address", async () => {
+  const router = openApp(
+    "/code?job=7&plugin=tmdb&user=2&library=3&setting=quality",
+    fakeServer({ signedIn: newUser }),
+  );
+
+  fireEvent.click(await screen.findByRole("button", { name: "Sam’s menu" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Settings" }));
+
+  await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
+  expect(router.state.location.href).toBe("/code?settings=playback");
+});
+
+test("closing Settings clears every Settings detail from the address, a Job too", async () => {
+  const router = openApp(
+    "/code?settings=jobs&job=7&plugin=tmdb&user=2&library=3&setting=quality",
+    fakeServer({ signedIn: newUser }),
+  );
+
+  fireEvent.click(await screen.findByRole("button", { name: "Close Settings" }));
+
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog", { name: "Settings" })).toBeNull();
+  });
+  expect(router.state.location.href).toBe("/code");
+});
+
 test("a section's link opens it, and a word that names none opens Playback", async () => {
   openApp("/code?settings=nonsense", fakeServer({ signedIn: newUser }));
 

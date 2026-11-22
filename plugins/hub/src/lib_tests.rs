@@ -12,12 +12,13 @@ use nama_plugin_api::{
         functions::{StoreDelete, StoreGet, StorePut},
     },
     contract::{StoreEntry, StoreKey, StoreValue, Stored},
-    server_link::{ServerLink, ServerLinker},
+    diagnostics_sharer::{DiagnosticsSharer, Signal},
+    server_link::{Link, ServerLinker},
 };
 use serde_json::json;
 
 use super::*;
-use crate::fake_hub::{EMAIL, FakeHub, USER_CODE};
+use crate::fake_hub::{EMAIL, FakeHub, USER_CODE, USER_LINK_CODE};
 
 /// A Kernel whose only functions are the Plugin's Store, kept in memory.
 fn store() -> Arc<dyn Kernel> {
@@ -65,9 +66,21 @@ async fn link(hub: &FakeHub, linker: &dyn ServerLinker) {
     hub.enter_code();
     assert_eq!(
         linker.link().await.unwrap(),
-        ServerLink::Linked {
+        Link::Linked {
             account: EMAIL.to_owned()
         }
+    );
+}
+
+/// Links the User `user_id` through `linker` to [`EMAIL`]'s Account on `hub`.
+async fn link_user(hub: &FakeHub, linker: &dyn ServerLinker, user_id: i64) {
+    linker.start_user_link(user_id, "Grace").await.unwrap();
+    hub.enter_user_code(user_id);
+    assert_eq!(
+        linker.user_link(user_id).await.unwrap(),
+        Some(Link::Linked {
+            account: EMAIL.to_owned()
+        })
     );
 }
 
@@ -79,7 +92,7 @@ async fn the_server_shows_a_code_and_is_linked_once_someone_enters_it() {
 
     let started = linker.start_link("Living room").await.unwrap();
 
-    let waiting = ServerLink::Waiting {
+    let waiting = Link::Waiting {
         code: USER_CODE.to_owned(),
         url: hub.url(),
     };
@@ -87,7 +100,7 @@ async fn the_server_shows_a_code_and_is_linked_once_someone_enters_it() {
     assert_eq!(hub.starting().as_deref(), Some("Living room"));
     assert_eq!(linker.link().await.unwrap(), waiting);
     hub.enter_code();
-    let linked_to_ada = ServerLink::Linked {
+    let linked_to_ada = Link::Linked {
         account: EMAIL.to_owned(),
     };
     assert_eq!(linker.link().await.unwrap(), linked_to_ada);
@@ -103,7 +116,7 @@ async fn a_server_that_isnt_linked_asks_the_hub_nothing() {
 
     let link = enabled(&hub, &store()).link().await.unwrap();
 
-    assert_eq!(link, ServerLink::NotLinked);
+    assert_eq!(link, Link::NotLinked);
 }
 
 #[tokio::test]
@@ -137,7 +150,7 @@ async fn unlinking_revokes_the_servers_credential_on_the_hub() {
     linker.unlink().await.unwrap();
 
     assert!(!hub.linked());
-    assert_eq!(linker.link().await.unwrap(), ServerLink::NotLinked);
+    assert_eq!(linker.link().await.unwrap(), Link::NotLinked);
 }
 
 #[tokio::test]
@@ -149,10 +162,7 @@ async fn unlinking_while_the_hub_is_unreachable_keeps_the_link() {
 
     linker.unlink().await.unwrap_err();
 
-    assert!(matches!(
-        linker.link().await.unwrap(),
-        ServerLink::Linked { .. }
-    ));
+    assert!(matches!(linker.link().await.unwrap(), Link::Linked { .. }));
 }
 
 #[tokio::test]
@@ -167,7 +177,7 @@ async fn a_credential_whose_token_cant_be_checked_is_kept_and_can_be_unlinked() 
 
     assert_eq!(
         linker.link().await.unwrap(),
-        ServerLink::Linked {
+        Link::Linked {
             account: "an Account the Hub didn't confirm".to_owned()
         }
     );
@@ -191,6 +201,52 @@ async fn a_hub_signed_token_verifies_against_the_kept_key_set_while_the_hub_is_u
     assert_eq!(hub.key_set_fetches(), 1);
 }
 
+/// The Plugin's sharer, enabled against `hub` with the Store in `kernel`.
+fn sharer(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Arc<dyn DiagnosticsSharer> {
+    let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
+    Hub::at(hub.url()).register(&mut registrar).unwrap();
+    registrar
+        .into_registrations()
+        .iter()
+        .find_map(nama_plugin_api::Registration::provider::<dyn DiagnosticsSharer>)
+        .unwrap()
+}
+
+#[tokio::test]
+async fn a_linked_server_sends_each_shared_batch_to_the_hub_unchanged_with_its_credential() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+
+    let sharer = sharer(&hub, &kernel);
+    sharer
+        .share(Signal::Traces, b"spans".to_vec())
+        .await
+        .unwrap();
+    sharer.share(Signal::Logs, b"lines".to_vec()).await.unwrap();
+
+    assert_eq!(
+        hub.shared(),
+        [
+            ("traces".to_owned(), b"spans".to_vec()),
+            ("logs".to_owned(), b"lines".to_vec())
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_server_that_isnt_linked_sends_nothing() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+
+    sharer(&hub, &kernel)
+        .share(Signal::Traces, b"spans".to_vec())
+        .await
+        .unwrap();
+
+    assert_eq!(hub.shared(), []);
+}
+
 #[test]
 fn without_the_hubs_address_the_plugin_refuses_to_start() {
     let mut registrar = Registrar::new().with_kernel(store());
@@ -198,4 +254,158 @@ fn without_the_hubs_address_the_plugin_refuses_to_start() {
     let refused = Hub { url: None }.register(&mut registrar).unwrap_err();
 
     assert!(refused.to_string().contains("NAMA_HUB_URL"), "{refused}");
+}
+
+#[tokio::test]
+async fn a_user_shows_a_code_and_is_linked_once_it_is_entered() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+    assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
+
+    let started = linker.start_user_link(7, "Grace").await.unwrap();
+
+    let waiting = Link::Waiting {
+        code: USER_LINK_CODE.to_owned(),
+        url: hub.url(),
+    };
+    assert_eq!(started, waiting);
+    assert_eq!(hub.user_starting(7).as_deref(), Some("Grace"));
+    assert_eq!(linker.user_link(7).await.unwrap(), Some(waiting));
+    hub.enter_user_code(7);
+    assert_eq!(
+        linker.user_link(7).await.unwrap(),
+        Some(Link::Linked {
+            account: EMAIL.to_owned()
+        })
+    );
+    assert_eq!(linker.user_link(8).await.unwrap(), Some(Link::NotLinked));
+}
+
+#[tokio::test]
+async fn users_cant_link_until_the_server_is() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+
+    assert_eq!(linker.user_link(7).await.unwrap(), None);
+    linker.start_user_link(7, "Grace").await.unwrap_err();
+}
+
+#[tokio::test]
+async fn a_linked_user_shows_linked_while_the_hub_is_unreachable() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    let linker = enabled(&hub, &kernel);
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+    hub.stop();
+
+    // Enabled again, it asks the Hub, which doesn't answer.
+    let link = enabled(&hub, &kernel).user_link(7).await.unwrap();
+
+    assert_eq!(
+        link,
+        Some(Link::Linked {
+            account: EMAIL.to_owned()
+        })
+    );
+}
+
+#[tokio::test]
+async fn the_server_unlinking_a_user_unlinks_them_on_the_hub() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    let linker = enabled(&hub, &kernel);
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+
+    linker.unlink_user(7).await.unwrap();
+
+    assert!(!hub.user_linked(7));
+    assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
+    let kept = kernel
+        .ask::<StoreGet>(StoreKey {
+            key: "user-link/7".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(kept.value, None);
+}
+
+#[tokio::test]
+async fn the_account_unlinking_a_user_on_the_hub_shows_on_the_server() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    let linker = enabled(&hub, &kernel);
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+
+    hub.unlink_user_on_hub(7);
+
+    // Enabled again, as a minute later, it asks the Hub again.
+    let link = enabled(&hub, &kernel).user_link(7).await.unwrap();
+    assert_eq!(link, Some(Link::NotLinked));
+}
+
+#[tokio::test]
+async fn a_linked_users_settings_dont_ask_the_hub_each_time() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+    let asks = hub.user_link_asks();
+
+    linker.user_link(7).await.unwrap();
+    linker.user_link(7).await.unwrap();
+
+    assert_eq!(hub.user_link_asks(), asks);
+}
+
+#[tokio::test]
+async fn a_user_linked_already_who_starts_linking_sees_their_link() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+    assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
+    hub.link_user_on_hub(7);
+
+    let started = linker.start_user_link(7, "Grace").await.unwrap();
+
+    let their_link = Link::Linked {
+        account: EMAIL.to_owned(),
+    };
+    assert_eq!(started, their_link);
+    assert_eq!(linker.user_link(7).await.unwrap(), Some(their_link));
+}
+
+#[tokio::test]
+async fn a_server_linked_again_doesnt_show_its_users_old_links_while_the_hub_is_unreachable() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    let linker = enabled(&hub, &kernel);
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+    linker.unlink().await.unwrap();
+    link(&hub, linker.as_ref()).await;
+    hub.stop();
+
+    let link = enabled(&hub, &kernel).user_link(7).await.unwrap();
+
+    assert_eq!(link, Some(Link::NotLinked));
+}
+
+#[tokio::test]
+async fn a_server_linked_again_doesnt_show_its_users_old_links() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+    linker.start_user_link(8, "Ida").await.unwrap();
+
+    linker.unlink().await.unwrap();
+    link(&hub, linker.as_ref()).await;
+
+    assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
+    assert_eq!(linker.user_link(8).await.unwrap(), Some(Link::NotLinked));
 }

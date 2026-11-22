@@ -10,7 +10,7 @@ export function EmptyFolders({ library }: { library: Library }) {
     return null;
   }
   return (
-    <ul aria-label="Folders that look empty" className="mt-6 flex max-w-xl flex-col gap-3">
+    <ul aria-label="Folders that look empty" className="flex max-w-xl flex-col gap-3">
       {library.emptyFolders.map((folder) => (
         <EmptyFolder key={folder} libraryId={library.id} folder={folder} />
       ))}

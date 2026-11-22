@@ -1,5 +1,3 @@
-import type { PluginOrderKind } from "@/features/admin-libraries/lib/recognisers";
-
 /** The folders typed one per line, without blank lines or stray spaces. */
 export function foldersTyped(typed: string) {
   return typed
@@ -8,12 +6,6 @@ export function foldersTyped(typed: string) {
     .filter((folder) => folder !== "");
 }
 
-/** The title sources the form holds, in the order the Admin set. */
-export function titleSourcesTyped(typed: FormData) {
-  return typed.getAll("titleSources").filter((each) => typeof each === "string");
-}
-
-/** The ids of the Plugins of `kind` the form holds, in the order the Admin set. */
-export function pluginOrderTyped(typed: FormData, { name }: PluginOrderKind) {
-  return typed.getAll(name).filter((each) => typeof each === "string");
-}
+/** What a Library's folders field asks for. */
+export const foldersHint =
+  "Where its files are on the Server: one full path per line, such as /srv/media/films.";

@@ -206,6 +206,30 @@ pub type OwnedResetHomeLayoutRequestView = ::buffa::view::OwnedView<
 pub type OwnedResetHomeLayoutResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ResetHomeLayoutResponseView<'static>,
 >;
+///Shorthand for `OwnedView<GetUserLinkRequestView<'static>>`.
+pub type OwnedGetUserLinkRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetUserLinkRequestView<'static>,
+>;
+///Shorthand for `OwnedView<GetUserLinkResponseView<'static>>`.
+pub type OwnedGetUserLinkResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetUserLinkResponseView<'static>,
+>;
+///Shorthand for `OwnedView<StartUserLinkRequestView<'static>>`.
+pub type OwnedStartUserLinkRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StartUserLinkRequestView<'static>,
+>;
+///Shorthand for `OwnedView<StartUserLinkResponseView<'static>>`.
+pub type OwnedStartUserLinkResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StartUserLinkResponseView<'static>,
+>;
+///Shorthand for `OwnedView<UnlinkUserRequestView<'static>>`.
+pub type OwnedUnlinkUserRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UnlinkUserRequestView<'static>,
+>;
+///Shorthand for `OwnedView<UnlinkUserResponseView<'static>>`.
+pub type OwnedUnlinkUserResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UnlinkUserResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::CreateUserResponse>
 for crate::messages::nama::v1::__buffa::view::CreateUserResponseView<'_> {
     fn encode(
@@ -1070,6 +1094,108 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetUserLinkResponse>
+for crate::messages::nama::v1::__buffa::view::GetUserLinkResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetUserLinkResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetUserLinkResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::StartUserLinkResponse>
+for crate::messages::nama::v1::__buffa::view::StartUserLinkResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::StartUserLinkResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StartUserLinkResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::UnlinkUserResponse>
+for crate::messages::nama::v1::__buffa::view::UnlinkUserResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::UnlinkUserResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UnlinkUserResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const USER_SERVICE_SERVICE_NAME: &str = "nama.v1.UserService";
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -1222,17 +1348,35 @@ pub const USER_SERVICE_RESET_HOME_LAYOUT_SPEC: ::connectrpc::Spec = ::connectrpc
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `GetUserLink` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_GET_USER_LINK_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/GetUserLink",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `StartUserLink` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_START_USER_LINK_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/StartUserLink",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `UnlinkUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_UNLINK_USER_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/UnlinkUser",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Managing the Server's Users, their Devices, Invites, Plugin Connections, Personal settings,
 /// notification preferences and Home layouts. Every RPC but `ListDevices`, `RevokeDevice`,
 /// `ChangePassword`, the Plugin Connection ones, the Personal settings ones, the notification
-/// preference ones and the Home layout ones needs `PERMISSION_MANAGE_USERS`,
+/// preference ones, the Home layout ones and the User Link ones needs `PERMISSION_MANAGE_USERS`,
 /// and fails with `permission_denied` without it.
 /// Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
 /// User with it, grant it, put it in the default Permissions or create a User while they hold it, or
 /// set their own Permissions; others fail with `permission_denied` and a Refusal naming
-/// `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions`, `SetDefaultPermissions`
-/// and `DeleteUser` also need Recent Authentication, as `SignInService` describes. RPCs name Users
-/// by ID, not by name.
+/// `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions`, `SetDefaultPermissions`,
+/// `DeleteUser` and `StartUserLink` also need Recent Authentication, as `SignInService` describes.
+/// RPCs name Users by ID, not by name.
 ///
 /// # Implementing handlers
 ///
@@ -1917,6 +2061,84 @@ pub trait UserService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::ResetHomeLayoutResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Returns whether the caller is Linked to an Account, and to which, or the code they show while
+    /// they wait for it to be entered on the Hub (ADR 0011). While it waits, this is also what has the
+    /// Plugin ask the Hub whether it was entered. `link` is unset while the Server can't Link Users:
+    /// without an enabled Plugin that links it, such as the Hub Plugin, or before the Server is Linked
+    /// itself. Fails with `unavailable` if the Plugin failed.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn get_user_link<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::GetUserLinkRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::GetUserLinkResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Starts Linking the caller to an Account, replacing a code they were showing, and returns the
+    /// new one. A User Links to one Account, so a caller Linked already gets that Link back. Fails
+    /// with `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled Plugin that links the Server, and
+    /// with `unavailable` if the Plugin couldn't start, such as with the Hub unreachable.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn start_user_link<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::StartUserLinkRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::StartUserLinkResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Unlinks the caller from their Account, or stops showing their code. Unlinking a User who isn't
+    /// Linked does nothing. Fails like `StartUserLink`; the caller stays Linked if the Hub couldn't be
+    /// told.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn unlink_user<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::UnlinkUserRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::UnlinkUserResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -2677,6 +2899,93 @@ impl<S: UserService> UserServiceExt for S {
                 },
             )
             .with_spec(USER_SERVICE_RESET_HOME_LAYOUT_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "GetUserLink",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::GetUserLinkRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::GetUserLinkRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.get_user_link(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::GetUserLinkResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_GET_USER_LINK_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "StartUserLink",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::StartUserLinkRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::StartUserLinkRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.start_user_link(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::StartUserLinkResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_START_USER_LINK_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "UnlinkUser",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::UnlinkUserRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::UnlinkUserRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.unlink_user(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::UnlinkUserResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_UNLINK_USER_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -2879,6 +3188,24 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(USER_SERVICE_RESET_HOME_LAYOUT_SPEC),
+                )
+            }
+            "GetUserLink" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_GET_USER_LINK_SPEC),
+                )
+            }
+            "StartUserLink" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_START_USER_LINK_SPEC),
+                )
+            }
+            "UnlinkUser" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_UNLINK_USER_SPEC),
                 )
             }
             _ => None,
@@ -3434,6 +3761,68 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .encode::<
                             crate::messages::nama::v1::ResetHomeLayoutResponse,
                         >(format)
+                })
+            }
+            "GetUserLink" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::GetUserLinkRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::GetUserLinkRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::GetUserLinkRequest,
+                    >::from_parts(&req, &body);
+                    svc.get_user_link(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::GetUserLinkResponse>(format)
+                })
+            }
+            "StartUserLink" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::StartUserLinkRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::StartUserLinkRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::StartUserLinkRequest,
+                    >::from_parts(&req, &body);
+                    svc.start_user_link(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::StartUserLinkResponse,
+                        >(format)
+                })
+            }
+            "UnlinkUser" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::UnlinkUserRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::UnlinkUserRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::UnlinkUserRequest,
+                    >::from_parts(&req, &body);
+                    svc.unlink_user(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::UnlinkUserResponse>(format)
                 })
             }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
@@ -4671,6 +5060,137 @@ where
                 &self.transport,
                 &self.config,
                 USER_SERVICE_RESET_HOME_LAYOUT_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetUserLink RPC. Sends a request to /nama.v1.UserService/GetUserLink.
+    pub async fn get_user_link(
+        &self,
+        request: crate::messages::nama::v1::GetUserLinkRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetUserLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_user_link_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the GetUserLink RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_user_link_with_options(
+        &self,
+        request: crate::messages::nama::v1::GetUserLinkRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetUserLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_GET_USER_LINK_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the StartUserLink RPC. Sends a request to /nama.v1.UserService/StartUserLink.
+    pub async fn start_user_link(
+        &self,
+        request: crate::messages::nama::v1::StartUserLinkRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::StartUserLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.start_user_link_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the StartUserLink RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn start_user_link_with_options(
+        &self,
+        request: crate::messages::nama::v1::StartUserLinkRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::StartUserLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_START_USER_LINK_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the UnlinkUser RPC. Sends a request to /nama.v1.UserService/UnlinkUser.
+    pub async fn unlink_user(
+        &self,
+        request: crate::messages::nama::v1::UnlinkUserRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::UnlinkUserResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.unlink_user_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the UnlinkUser RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn unlink_user_with_options(
+        &self,
+        request: crate::messages::nama::v1::UnlinkUserRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::UnlinkUserResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_UNLINK_USER_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

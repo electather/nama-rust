@@ -58,6 +58,19 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_LINKED_SERVERS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__UNLINK_SERVER_REQUEST_JSON_ANY);
         reg.register_json_any(super::__UNLINK_SERVER_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LINKED_USER_JSON_ANY);
+        reg.register_json_any(super::__APPROVE_USER_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__APPROVE_USER_LINK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_LINKED_USERS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_LINKED_USERS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UNLINK_LINKED_USER_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UNLINK_LINKED_USER_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__START_USER_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__START_USER_LINK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_USER_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_USER_LINK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UNLINK_USER_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UNLINK_USER_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
     }
 }
@@ -181,6 +194,58 @@ pub use self::__buffa::view::UnlinkServerRequestOwnedView;
 pub use self::__buffa::view::UnlinkServerResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::UnlinkServerResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LinkedUserView;
+#[doc(inline)]
+pub use self::__buffa::view::LinkedUserOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveUserLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveUserLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveUserLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveUserLinkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListLinkedUsersRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListLinkedUsersRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListLinkedUsersResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListLinkedUsersResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkLinkedUserRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkLinkedUserRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkLinkedUserResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkLinkedUserResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartUserLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StartUserLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartUserLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StartUserLinkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUserLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUserLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUserLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUserLinkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkUserRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkUserRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkUserResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkUserResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RefusalView;
 #[doc(inline)]

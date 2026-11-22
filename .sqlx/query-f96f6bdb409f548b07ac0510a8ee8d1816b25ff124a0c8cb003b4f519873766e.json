@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO server_settings\n                             (id, url, share_diagnostics, share_usage_analytics)\n                         VALUES (1, ?, ?, ?)\n                         ON CONFLICT (id) DO UPDATE SET url = excluded.url,\n                             share_diagnostics = excluded.share_diagnostics,\n                             share_usage_analytics = excluded.share_usage_analytics",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "f96f6bdb409f548b07ac0510a8ee8d1816b25ff124a0c8cb003b4f519873766e"
+}

@@ -1,10 +1,19 @@
 //! A Hub serving the API on a random local port, on a database `#[sqlx::test]` made for the test,
-//! for tests that call it the way clients do.
+//! for tests that call it the way clients do, forwarding what Servers share to a fake backend.
 
-use std::net::SocketAddr;
+use std::{
+    net::SocketAddr,
+    sync::{Arc, Mutex, PoisonError},
+};
 
+use axum::body::Bytes;
 use connectrpc::client::ClientConfig;
-use nama_hub::{db, mail::Mail, signing::Keys};
+use nama_hub::{
+    db,
+    diagnostics::{Backend, Forwarding, Signal},
+    mail::Mail,
+    signing::Keys,
+};
 use sqlx::PgPool;
 use tokio::{net::TcpListener, sync::oneshot};
 
@@ -19,7 +28,20 @@ MC4CAQAwBQYDK2VwBCIEIJzJDsQn3SpQXPoFGl74lUI4L+huggYWuNcSt9vaCwTS
 pub(crate) struct TestHub {
     addr: SocketAddr,
     db: PgPool,
+    shared: Arc<SharedBatches>,
     _stop: oneshot::Sender<()>,
+}
+
+/// The fake Diagnostics backend: each batch it was sent, oldest first.
+#[derive(Debug, Default)]
+struct SharedBatches(Mutex<Vec<(Signal, Bytes)>>);
+
+impl Backend for SharedBatches {
+    fn forward(&self, signal: Signal, batch: Bytes) -> Forwarding<'_> {
+        let mut batches = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        batches.push((signal, batch));
+        Box::pin(async { Ok(()) })
+    }
 }
 
 #[expect(
@@ -36,12 +58,15 @@ impl TestHub {
         let addr = listener.local_addr().unwrap();
         let (stop, stopped) = oneshot::channel::<()>();
         let keys = Keys::from_pems(SIGNING_KEY).unwrap();
+        let shared = Arc::new(SharedBatches::default());
+        let backend: Arc<dyn Backend> = Arc::<SharedBatches>::clone(&shared);
         tokio::spawn(nama_hub::serve(
             listener,
             db.clone(),
             keys,
             &["127.0.0.1".parse().unwrap()],
             mail,
+            Some(backend),
             async {
                 let _: Result<(), oneshot::error::RecvError> = stopped.await;
             },
@@ -49,6 +74,7 @@ impl TestHub {
         Self {
             addr,
             db,
+            shared,
             _stop: stop,
         }
     }
@@ -56,6 +82,15 @@ impl TestHub {
     /// Client settings that point at the Hub and carry no sign-in.
     pub(crate) fn client_config(&self) -> ClientConfig {
         ClientConfig::new(format!("http://{}", self.addr).parse().unwrap())
+    }
+
+    /// Each batch the Hub forwarded to its Diagnostics backend, oldest first.
+    pub(crate) fn shared(&self) -> Vec<(Signal, Bytes)> {
+        self.shared
+            .0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// Closes the Hub's connections to PostgreSQL, as if it went down.

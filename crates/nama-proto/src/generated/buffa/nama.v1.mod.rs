@@ -445,6 +445,13 @@ pub mod __buffa {
         reg.register_json_any(super::__ACCEPT_INVITE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__POLL_SIGN_IN_CODE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__POLL_SIGN_IN_CODE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_USER_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_USER_LINK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__USER_LINK_JSON_ANY);
+        reg.register_json_any(super::__START_USER_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__START_USER_LINK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UNLINK_USER_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UNLINK_USER_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__CREATE_USER_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CREATE_USER_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_USERS_REQUEST_JSON_ANY);
@@ -1957,6 +1964,34 @@ pub use self::__buffa::view::PollSignInCodeRequestOwnedView;
 pub use self::__buffa::view::PollSignInCodeResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::PollSignInCodeResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUserLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUserLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUserLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetUserLinkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserLinkView;
+#[doc(inline)]
+pub use self::__buffa::view::UserLinkOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartUserLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StartUserLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartUserLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StartUserLinkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkUserRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkUserRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkUserResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkUserResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::CreateUserRequestView;
 #[doc(inline)]
