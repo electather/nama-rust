@@ -138,11 +138,11 @@ impl Browse {
         })
     }
 
-    /// Takes from `pulled`, the User `user`'s Watch State on their other Servers, that of each Movie
-    /// or Episode a Library has under any of its ids, in the oldest Library that has it, where it
-    /// is newer than this Server's own (see [`crate::library::WatchStates::take_pulled`]). One no
-    /// Library has stays with the service, which hands it back on the pull after the scan that adds
-    /// it.
+    /// Takes from `pulled`, the User `user`'s Watch State on their other Servers, that of each
+    /// Movie or Episode a Library has under any of its ids, in the oldest Library that has it,
+    /// where it is newer than this Server's own (see [`crate::library::WatchStates::take_pulled`]).
+    /// One no Library has stays with the service, which hands it back on the pull after the scan
+    /// that adds it.
     pub(crate) async fn take_pulled(
         &self,
         user: i64,

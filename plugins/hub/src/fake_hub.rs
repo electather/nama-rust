@@ -1,8 +1,8 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
 //! one Server's device flow, Unlinking, its Users' Links, Users created from Accounts, one sign-in
 //! with an Account at a time, its Server Addresses, the Watch State it pushes, which its Linked
-//! Users pull back, the titles like The Matrix, and a key set of one Ed25519 key it signs with, as the Hub's API
-//! (`proto/nama/hub/v1/link.proto`) says the Hub does, and takes shared Diagnostics.
+//! Users pull back, the titles like The Matrix, and a key set of one Ed25519 key it signs with, as
+//! the Hub's API (`proto/nama/hub/v1/link.proto`) says the Hub does, and takes shared Diagnostics.
 
 use std::{
     collections::HashMap,
