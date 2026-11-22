@@ -201,6 +201,25 @@ test("a Library manager's Admin link opens Settings at Libraries, and Back close
   });
 });
 
+test.each([
+  { who: "an Admin", permissions: admin, section: "libraries" },
+  { who: "a Settings manager", permissions: [Permission.MANAGE_SETTINGS], section: "server" },
+  { who: "a User manager", permissions: [Permission.MANAGE_USERS], section: "users" },
+])(
+  "$who's G then A opens Settings at $section, over the page",
+  async ({ permissions, section }) => {
+    const router = openApp("/requests", fakeServer({ signedIn: permissions }));
+    await screen.findByRole("link", { name: "Admin" });
+
+    fireEvent.keyDown(document.body, { key: "g" });
+    fireEvent.keyDown(document.body, { key: "a" });
+
+    await screen.findByRole("dialog", { name: "Settings" });
+    expect(router.state.location.pathname).toBe("/requests");
+    expect(router.state.location.search.settings).toBe(section);
+  },
+);
+
 test("a wrong password shows an error and keeps the username", async () => {
   const router = openApp(
     "/sign-in",
