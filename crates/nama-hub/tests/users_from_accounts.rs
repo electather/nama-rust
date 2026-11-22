@@ -271,3 +271,43 @@ async fn an_account_without_a_user_on_the_server_cant_sign_in_to_it(db: PgPool) 
         RefusalReason::REFUSAL_REASON_URL_INVALID,
     );
 }
+
+#[sqlx::test(migrations = false)]
+async fn an_account_with_two_users_on_a_server_signs_in_as_the_one_linked_first(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    for user_id in [7, 8] {
+        let code = start_user(&hub, &server, user_id).await.unwrap();
+        approve_user(&hub, &ada, &code).await.unwrap();
+    }
+    let started = start_sign_in(&hub, &server).await;
+
+    assert_eq!(
+        sign_in_page(&hub, &ada, &started.id).await.unwrap(),
+        ("Ada's".to_owned(), "Grace".to_owned())
+    );
+    approve_sign_in(&hub, &ada, &started.id).await.unwrap();
+    let token = poll_sign_in(&hub, &server, &started.device_code)
+        .await
+        .unwrap();
+    assert_eq!(verified_claims(&hub, &token).await["sub"], "7");
+}
+
+#[sqlx::test(migrations = false)]
+async fn another_linked_server_cant_collect_a_sign_in(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let other = linked(&hub, &ada, "Other").await;
+    let code = start_user(&hub, &server, 7).await.unwrap();
+    approve_user(&hub, &ada, &code).await.unwrap();
+    let started = start_sign_in(&hub, &server).await;
+    approve_sign_in(&hub, &ada, &started.id).await.unwrap();
+
+    assert_refused(
+        poll_sign_in(&hub, &other, &started.device_code).await,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LINK_EXPIRED,
+    );
+}

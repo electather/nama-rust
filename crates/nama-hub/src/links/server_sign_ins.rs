@@ -100,10 +100,13 @@ impl Links {
         account: AccountId,
         id: SignInId,
     ) -> Result<WaitingSignIn, Error> {
+        // ponytail: an Account Linked to more than one User on the Server signs in as the one it
+        // Linked first, here and in `approve_sign_in`; let it choose if anyone needs both.
         let waiting = sqlx::query!(
             "SELECT linked_servers.name AS server_name,
              (SELECT user_name FROM user_links WHERE account_id = $2
-             AND linked_server_id = server_sign_ins.linked_server_id) AS user_name
+             AND linked_server_id = server_sign_ins.linked_server_id
+             ORDER BY created_at, id LIMIT 1) AS user_name
              FROM server_sign_ins JOIN linked_servers
              ON linked_servers.id = server_sign_ins.linked_server_id
              WHERE server_sign_ins.id = $1 AND server_sign_ins.expires_at > now()
@@ -132,11 +135,13 @@ impl Links {
         }
         // Nothing matches but a sign-in approved, or a User Unlinked, since the look above.
         sqlx::query_scalar!(
-            "UPDATE server_sign_ins SET user_link_id = user_links.id FROM user_links
-             WHERE server_sign_ins.id = $1 AND server_sign_ins.expires_at > now()
-             AND server_sign_ins.user_link_id IS NULL AND user_links.account_id = $2
-             AND user_links.linked_server_id = server_sign_ins.linked_server_id
-             RETURNING server_sign_ins.return_url",
+            "UPDATE server_sign_ins SET user_link_id = (SELECT id FROM user_links
+             WHERE account_id = $2 AND linked_server_id = server_sign_ins.linked_server_id
+             ORDER BY created_at, id LIMIT 1)
+             WHERE id = $1 AND expires_at > now() AND user_link_id IS NULL
+             AND EXISTS (SELECT 1 FROM user_links WHERE account_id = $2
+             AND linked_server_id = server_sign_ins.linked_server_id)
+             RETURNING return_url",
             id.0,
             account.0,
         )
