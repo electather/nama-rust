@@ -1,6 +1,6 @@
 {
   "extends": "../tsconfig.json",
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  // The web app's `@/` alias points into the web app, which nama-ui never imports.
+  // web/AGENTS.md, "Imports go one way".
   "compilerOptions": { "paths": {} }
 }

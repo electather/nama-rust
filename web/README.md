@@ -45,11 +45,11 @@ impeccable runs from the repo root because that's where it finds `.impeccable/co
 
 How strict they are:
 
-- **oxfmt**: formats, sorts imports, and sorts Tailwind classes against `src/styles.css` (with nama-ui's, which it imports), in `className` and in `cn` and `cva` calls. No lint rule checks either order.
+- **oxfmt**: formats, sorts imports, and sorts Tailwind classes against each package's own stylesheet (`src/styles.css`, `ui/src/styles.css`), in `className` and in `cn` and `cva` calls. No lint rule checks either order.
 - **oxlint**: the `typescript`, `react`, `jsx-a11y`, `import`, `unicorn`, `promise` and `oxc` plugins, plus `vitest` for tests. Two ESLint plugins run inside it: [`@shadcn/lint`](https://github.com/shadcn-ui/lint) for the design system (no raw palette colours, arbitrary values, inline styles, unknown or dynamic classes, or `className` restyles of nama-ui's components) and [`eslint-plugin-better-tailwindcss`](https://github.com/schoero/eslint-plugin-better-tailwindcss) for classes that conflict, repeat, are deprecated or have a canonical or shorter spelling, and for left/right classes ("Logical properties" in `AGENTS.md`). Every category is on in full, `nursery`, `style` and `restriction` included. Every rule is `error`, never `warn`. A rule left off, such as one that's taste only or one Fallow already covers, is turned off in `vite.config.ts` with a comment saying why.
 - **TypeScript**: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `noPropertyAccessFromIndexSignature`, `verbatimModuleSyntax`, `isolatedModules`, `erasableSyntaxOnly`, `forceConsistentCasingInFileNames`, and unreachable code and unused labels as errors. Unused locals are reported by oxlint, not tsc.
 - **Fallow**: every rule is `error`, except `coverage-gaps`, which needs the runtime coverage sidecar. Any duplicated code fails. The complexity limits are 15 cyclomatic and 15 cognitive, and a file holds at most 200 lines (400 for a test in `__tests__/`). Zones enforce which folder imports which, and the rule pack in `fallow-rules.jsonc` enforces data hooks, Suspense and dynamic loading in `src/app/`, `src/features/` and `src/shared/`. Generated code is ignored. nama-ui's package `exports` make each of its components an entry point, so an unused one, or an unused sub-part, fails as an unused export (`includeEntryExports`).
-- **`src/app/`, `src/features/`, `src/shared/` and `ui/src/`** get stricter oxlint rules on top, listed in `src/AGENTS.md`.
+- **`src/app/`, `src/features/`, `src/shared/` and `ui/src/`** get stricter oxlint rules on top, listed in `AGENTS.md`.
 
 ## Generated client
 

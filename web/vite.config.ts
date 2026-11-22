@@ -16,6 +16,40 @@ const generated = ["src/gen/**", "src/routeTree.gen.ts"];
 // The feature layout's folders (web/src/AGENTS.md) and nama-ui, where the strictest rules apply.
 const newFolders = ["src/app/**", "src/features/**", "src/shared/**", "ui/src/**"];
 
+// better-tailwindcss's rules, reading the classes `stylesheet` defines. Each package's files are read
+// against its own stylesheet (ADR 0101), and oxlint's `overrides` can't change `settings`, so the
+// stylesheet goes in each rule's options.
+function tailwindRules(
+  stylesheet: string,
+): Record<string, ["error", { entryPoint: string; ignore?: string[] }]> {
+  const on: ["error", { entryPoint: string }] = ["error", { entryPoint: stylesheet }];
+  return {
+    "better-tailwindcss/no-conflicting-classes": on,
+    "better-tailwindcss/no-duplicate-classes": on,
+    "better-tailwindcss/no-deprecated-classes": on,
+    "better-tailwindcss/no-unnecessary-whitespace": on,
+    "better-tailwindcss/no-concatenated-classes": on,
+    "better-tailwindcss/enforce-canonical-classes": on,
+    "better-tailwindcss/enforce-shorthand-classes": on,
+    // web/AGENTS.md, "Logical properties": only left and right. Block-axis and sizing classes
+    // (`mt-*`, `top-*`, `border-b`, `w-full`, `size-4`) stay, since `mbs-*` and `inline-full`
+    // would change nothing for right-to-left. A pattern sees the class with its variants.
+    "better-tailwindcss/enforce-logical-properties": [
+      "error",
+      {
+        entryPoint: stylesheet,
+        ignore: [
+          "(^|:)-?(scroll-)?[mp][tb]-",
+          "(^|:)-?(top|bottom)-",
+          "(^|:)border-[tb](-|$)",
+          "(^|:)(min-|max-)?[hw]-",
+          "(^|:)size-",
+        ],
+      },
+    ],
+  };
+}
+
 export default defineConfig({
   resolve: { tsconfigPaths: true },
   // The build's `index.html` is what the Server embeds and serves for every page (ADR 0004). The
@@ -55,6 +89,13 @@ export default defineConfig({
     ignorePatterns: generated,
     sortImports: true,
     sortTailwindcss: { stylesheet: "src/styles.css", functions: ["cn", "cva"] },
+    // nama-ui's classes sort against its own stylesheet (ADR 0101).
+    overrides: [
+      {
+        files: ["ui/src/**"],
+        options: { sortTailwindcss: { stylesheet: "ui/src/styles.css", functions: ["cn", "cva"] } },
+      },
+    ],
   },
   lint: {
     ignorePatterns: generated,
@@ -63,7 +104,8 @@ export default defineConfig({
       // Runs inside oxlint, so it doesn't break "Only `vp`" (web/AGENTS.md).
       "eslint-plugin-better-tailwindcss",
       { name: "vite-plus", specifier: "vite-plus/oxlint-plugin" },
-      // Design-system rules, read from the nearest components.json and the stylesheet it names.
+      // Design-system rules, read from the nearest components.json and the stylesheet it names, so
+      // each package's against its own.
       { name: "shadcn", specifier: "@shadcn/lint" },
     ],
     // Nursery rules change between oxlint versions. vite-plus is pinned in the workspace catalog,
@@ -78,9 +120,6 @@ export default defineConfig({
       nursery: "error",
     },
     env: { browser: true, es2024: true },
-    settings: {
-      "better-tailwindcss": { entryPoint: "src/styles.css" },
-    },
     rules: {
       "vite-plus/prefer-vite-plus-imports": "error",
       "shadcn/no-restyle": "error",
@@ -89,28 +128,7 @@ export default defineConfig({
       "shadcn/no-inline-styles": "error",
       "shadcn/no-unknown-classes": "error",
       "shadcn/require-static-classes": "error",
-      "better-tailwindcss/no-conflicting-classes": "error",
-      "better-tailwindcss/no-duplicate-classes": "error",
-      "better-tailwindcss/no-deprecated-classes": "error",
-      "better-tailwindcss/no-unnecessary-whitespace": "error",
-      "better-tailwindcss/no-concatenated-classes": "error",
-      "better-tailwindcss/enforce-canonical-classes": "error",
-      "better-tailwindcss/enforce-shorthand-classes": "error",
-      // web/AGENTS.md, "Logical properties": only left and right. Block-axis and sizing classes
-      // (`mt-*`, `top-*`, `border-b`, `w-full`, `size-4`) stay, since `mbs-*` and `inline-full`
-      // would change nothing for right-to-left. A pattern sees the class with its variants.
-      "better-tailwindcss/enforce-logical-properties": [
-        "error",
-        {
-          ignore: [
-            "(^|:)-?(scroll-)?[mp][tb]-",
-            "(^|:)-?(top|bottom)-",
-            "(^|:)border-[tb](-|$)",
-            "(^|:)(min-|max-)?[hw]-",
-            "(^|:)size-",
-          ],
-        },
-      ],
+      ...tailwindRules("src/styles.css"),
       // `enforce-consistent-class-order` is left off: the formatter sorts classes.
       // `enforce-consistent-line-wrapping` is left off: it fights the formatter.
       "func-style": ["error", "declaration", { allowArrowFunctions: true }],
@@ -230,7 +248,7 @@ export default defineConfig({
       "vitest/require-hook": "off",
     },
     overrides: [
-      // web/src/AGENTS.md, "Strictest lint": the strictest bar the tools offer.
+      // web/AGENTS.md, "Strictest lint": the strictest bar the tools offer.
       {
         files: newFolders,
         rules: {
@@ -260,6 +278,7 @@ export default defineConfig({
           "vitest/require-hook": "error",
         },
       },
+      { files: ["ui/src/**"], rules: tailwindRules("ui/src/styles.css") },
       // shadcn generates a component with its sub-parts and variants in one file, and a re-run of
       // `shadcn add` is diffed against ours (ui/src/components/AGENTS.md).
       {

@@ -15,7 +15,7 @@ A self-hosted media server and request manager, with an optional central Hub for
 | [`crates/nama-test-plugin`](crates/nama-test-plugin) | An Installed Plugin used only in the Server's tests |
 | [`crates/nama-test-report`](crates/nama-test-report) | CI tooling: records test results and reports flaky and slow tests |
 | [`plugins/`](plugins) | Built-in Plugins, the Installed Plugins the Server bundles, and the libraries they share |
-| [`web/`](web) | The web app the Server serves |
+| [`web/`](web) | The web app the Server serves, and nama-ui, the design system it shares (ADR 0101) |
 | [`docker/`](docker) | The Server's Docker image |
 | [`proto/`](proto) | The Protobuf API schema |
 

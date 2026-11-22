@@ -15,6 +15,6 @@ The web app stays at `web/`'s root, with nama-ui in `web/ui/` and the Hub web ap
 
 ## Consequences
 
-- ADR 0016's tokens live in `web/ui/src/styles.css` now. The web app's `src/styles.css` imports them and adds its own tokens and utilities, so its formatter and lint read that stylesheet, not nama-ui's.
+- ADR 0016's tokens live in `web/ui/src/styles.css` now. The web app's `src/styles.css` imports them and adds its own tokens and utilities. Each package's formatter and lint read its own stylesheet, so a nama-ui component that uses a class only the web app defines fails `vp check`.
 - A dependency both packages declare is pinned once in the pnpm `catalog`, and React is nama-ui's peer dependency, so an app and its components share one React.
 - nama-ui's package `exports` make each component a Fallow entry point, so Fallow checks its exports (`includeEntryExports`) to keep failing a component no screen uses.
