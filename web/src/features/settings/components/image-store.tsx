@@ -4,6 +4,7 @@ import { SwitchProgress } from "@/features/settings/components/switch-progress";
 import { useImageStore } from "@/features/settings/data/use-image-store";
 import { usePlugins } from "@/features/settings/data/use-plugins";
 import { isEnabledBlobStore, isRunning, storeName } from "@/features/settings/lib/image-store";
+import { serverLabels } from "@/features/settings/lib/server-values";
 
 /**
  * Where the Server keeps its stored images, which a User who manages settings switches to local
@@ -18,15 +19,16 @@ export function ImageStore() {
   const nameOf = (pluginId: string) => storeName(pluginId, plugins);
 
   return (
-    <section aria-labelledby="image-store" className="flex flex-col gap-3.5">
+    <section
+      aria-labelledby="image-store"
+      data-setting="imageStore"
+      className="flex flex-col gap-3.5"
+    >
       <div>
         <h4 id="image-store" className="font-medium">
-          Image store
+          {serverLabels.imageStore.label}
         </h4>
-        <p className="text-xs text-pretty text-muted-foreground">
-          Where the Server keeps the images it fetched, Custom Images and Plugin logos. Resized
-          copies always stay on local disk.
-        </p>
+        <p className="text-xs text-pretty text-muted-foreground">{serverLabels.imageStore.hint}</p>
         <StoreInUse name={nameOf(current)} />
       </div>
       <SwitchProgress switching={switching} nameOf={nameOf} current={nameOf(current)} />

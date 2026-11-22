@@ -6,10 +6,11 @@ import {
   notFoundLabel,
   savedHardware,
 } from "@/features/admin-playback/lib/hardware";
-import { playbackLabels } from "@/features/admin-playback/lib/playback-settings-form";
+import { serverPlaybackLabels } from "@/features/admin-playback/lib/playback-labels";
 import type { PlaybackSettings } from "@/gen/nama/v1/server_pb";
 import { FormSelect } from "@/shared/components/form-field/form-select";
 import { hardwareLabel } from "@/shared/lib/playback-names";
+import { rowText } from "@/shared/lib/setting-text";
 
 /**
  * The choice of what Transcodes run on: Automatic, Off, or an API on a GPU that passed its test,
@@ -34,10 +35,9 @@ export function HardwareField({
   return (
     <FormSelect
       row
-      label={playbackLabels.hardwareAcceleration}
+      {...rowText(serverPlaybackLabels, "hardwareAcceleration")}
       name="hardwareAcceleration"
       value={value}
-      hint="What every Transcode decodes, scales and encodes video on. Automatic picks the one marked above. Off runs them in software, and so does a pick that was missing or didn’t pass its test when the Server started. A change applies from the next Transcode."
       error={error}
       onValueChange={onPick}
       options={[

@@ -188,6 +188,14 @@ _Avoid_: linker, integration
 A User's identity at an outside service, such as their Telegram chat, that a Plugin acts on for them.
 _Avoid_: integration, link, account
 
+**Section**:
+One part of Settings, such as Playback or Backups, listed down its side. A User sees only the Sections their Permissions let them open.
+_Avoid_: tab, page
+
+**Setting**:
+One choice in a Section of Settings, such as the Subtitle language or a Personal setting, with its own row. Settings' search finds each one and opens its row.
+_Avoid_: option
+
 **Personal setting**:
 A setting a Plugin's Manifest declares for each User to set for themself, such as their ntfy topic or Discord webhook. The Admin sets the Plugin's own settings; only the User sees their Personal settings, and a Plugin gets them only in a call for that User (ADR 0046).
 _Avoid_: user setting (confused with Settings preferences)

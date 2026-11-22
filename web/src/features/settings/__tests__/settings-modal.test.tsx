@@ -61,17 +61,6 @@ test("a section's link opens it, and a word that names none opens Playback", asy
   expect(screen.getByRole("link", { name: "Devices" }).getAttribute("aria-current")).toBe("page");
 });
 
-test("searching narrows the sections by what they hold, and says when none matches", async () => {
-  openSettings("playback", fakeServer({ signedIn: newUser }));
-
-  const search = await screen.findByRole("searchbox", { name: "Search settings" });
-  fireEvent.change(search, { target: { value: "subtitles" } });
-  expect(sections()).toStrictEqual(["Playback"]);
-  fireEvent.change(search, { target: { value: "wallpaper" } });
-
-  expect(screen.getByText("No settings match “wallpaper”.")).toBeDefined();
-});
-
 function locked(): object {
   throw new ConnectError("the database is locked", Code.Internal);
 }

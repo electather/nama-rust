@@ -13,12 +13,12 @@ export interface Refused {
  */
 export function refusedWords(
   refused: Refused | undefined,
-  labels: Record<string, string>,
+  labels: Record<string, { label: string }>,
   byReason?: Parameters<typeof refusal>[3],
 ): FormErrors {
   if (refused === undefined) {
     return {};
   }
-  const names = refused.keys.map((key) => labels[key] ?? key);
+  const names = refused.keys.map((key) => labels[key]?.label ?? key);
   return refusal(refused.failure, `save ${andList(names)}`, {}, byReason);
 }
