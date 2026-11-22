@@ -54,4 +54,7 @@ enum RefusalReason {
   // `unauthenticated`: the call needs a Linked Server's credential, and none came or the Hub
   // doesn't know it, such as once the Server was Unlinked.
   REFUSAL_REASON_SERVER_NOT_LINKED = 13;
+  // `already_exists`: the User is Linked to an Account already, and a User Links to one only.
+  // Unlink them first.
+  REFUSAL_REASON_USER_LINKED = 14;
 }

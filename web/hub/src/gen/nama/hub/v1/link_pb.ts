@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/hub/v1/link.proto.
  */
 export const file_nama_hub_v1_link: GenFile = /*@__PURE__*/
-  fileDesc("ChZuYW1hL2h1Yi92MS9saW5rLnByb3RvEgtuYW1hLmh1Yi52MSI7CgxMaW5rZWRTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglsaW5rZWRfYXQYAyABKAMiJgoWU3RhcnRTZXJ2ZXJMaW5rUmVxdWVzdBIMCgRuYW1lGAEgASgJIncKF1N0YXJ0U2VydmVyTGlua1Jlc3BvbnNlEhMKC2RldmljZV9jb2RlGAEgASgJEhEKCXVzZXJfY29kZRgCIAEoCRIaChJleHBpcmVzX2luX3NlY29uZHMYAyABKAUSGAoQaW50ZXJ2YWxfc2Vjb25kcxgEIAEoBSIsChVQb2xsU2VydmVyTGlua1JlcXVlc3QSEwoLZGV2aWNlX2NvZGUYASABKAkiSwoWUG9sbFNlcnZlckxpbmtSZXNwb25zZRIOCgZsaW5rZWQYASABKAgSEgoKY3JlZGVudGlhbBgCIAEoCRINCgV0b2tlbhgDIAEoCSIoChhBcHByb3ZlU2VydmVyTGlua1JlcXVlc3QSDAoEY29kZRgBIAEoCSJGChlBcHByb3ZlU2VydmVyTGlua1Jlc3BvbnNlEikKBnNlcnZlchgBIAEoCzIZLm5hbWEuaHViLnYxLkxpbmtlZFNlcnZlciIaChhMaXN0TGlua2VkU2VydmVyc1JlcXVlc3QiRwoZTGlzdExpbmtlZFNlcnZlcnNSZXNwb25zZRIqCgdzZXJ2ZXJzGAEgAygLMhkubmFtYS5odWIudjEuTGlua2VkU2VydmVyIhUKE1VubGlua1NlcnZlclJlcXVlc3QiFgoUVW5saW5rU2VydmVyUmVzcG9uc2UyzAEKEVNlcnZlckxpbmtTZXJ2aWNlElwKD1N0YXJ0U2VydmVyTGluaxIjLm5hbWEuaHViLnYxLlN0YXJ0U2VydmVyTGlua1JlcXVlc3QaJC5uYW1hLmh1Yi52MS5TdGFydFNlcnZlckxpbmtSZXNwb25zZRJZCg5Qb2xsU2VydmVyTGluaxIiLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVxdWVzdBojLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVzcG9uc2Uy2gEKC0xpbmtTZXJ2aWNlEmIKEUFwcHJvdmVTZXJ2ZXJMaW5rEiUubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXF1ZXN0GiYubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXNwb25zZRJnChFMaXN0TGlua2VkU2VydmVycxIlLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVxdWVzdBomLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVzcG9uc2UiA5ACATJqChNMaW5rZWRTZXJ2ZXJTZXJ2aWNlElMKDFVubGlua1NlcnZlchIgLm5hbWEuaHViLnYxLlVubGlua1NlcnZlclJlcXVlc3QaIS5uYW1hLmh1Yi52MS5VbmxpbmtTZXJ2ZXJSZXNwb25zZWIGcHJvdG8z");
+  fileDesc("ChZuYW1hL2h1Yi92MS9saW5rLnByb3RvEgtuYW1hLmh1Yi52MSI7CgxMaW5rZWRTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglsaW5rZWRfYXQYAyABKAMiJgoWU3RhcnRTZXJ2ZXJMaW5rUmVxdWVzdBIMCgRuYW1lGAEgASgJIncKF1N0YXJ0U2VydmVyTGlua1Jlc3BvbnNlEhMKC2RldmljZV9jb2RlGAEgASgJEhEKCXVzZXJfY29kZRgCIAEoCRIaChJleHBpcmVzX2luX3NlY29uZHMYAyABKAUSGAoQaW50ZXJ2YWxfc2Vjb25kcxgEIAEoBSIsChVQb2xsU2VydmVyTGlua1JlcXVlc3QSEwoLZGV2aWNlX2NvZGUYASABKAkiSwoWUG9sbFNlcnZlckxpbmtSZXNwb25zZRIOCgZsaW5rZWQYASABKAgSEgoKY3JlZGVudGlhbBgCIAEoCRINCgV0b2tlbhgDIAEoCSIoChhBcHByb3ZlU2VydmVyTGlua1JlcXVlc3QSDAoEY29kZRgBIAEoCSJGChlBcHByb3ZlU2VydmVyTGlua1Jlc3BvbnNlEikKBnNlcnZlchgBIAEoCzIZLm5hbWEuaHViLnYxLkxpbmtlZFNlcnZlciIaChhMaXN0TGlua2VkU2VydmVyc1JlcXVlc3QiRwoZTGlzdExpbmtlZFNlcnZlcnNSZXNwb25zZRIqCgdzZXJ2ZXJzGAEgAygLMhkubmFtYS5odWIudjEuTGlua2VkU2VydmVyIhUKE1VubGlua1NlcnZlclJlcXVlc3QiFgoUVW5saW5rU2VydmVyUmVzcG9uc2UiTgoKTGlua2VkVXNlchIKCgJpZBgBIAEoCRIMCgRuYW1lGAIgASgJEhMKC3NlcnZlcl9uYW1lGAMgASgJEhEKCWxpbmtlZF9hdBgEIAEoAyImChZBcHByb3ZlVXNlckxpbmtSZXF1ZXN0EgwKBGNvZGUYASABKAkiQAoXQXBwcm92ZVVzZXJMaW5rUmVzcG9uc2USJQoEdXNlchgBIAEoCzIXLm5hbWEuaHViLnYxLkxpbmtlZFVzZXIiGAoWTGlzdExpbmtlZFVzZXJzUmVxdWVzdCJBChdMaXN0TGlua2VkVXNlcnNSZXNwb25zZRImCgV1c2VycxgBIAMoCzIXLm5hbWEuaHViLnYxLkxpbmtlZFVzZXIiJQoXVW5saW5rTGlua2VkVXNlclJlcXVlc3QSCgoCaWQYASABKAkiGgoYVW5saW5rTGlua2VkVXNlclJlc3BvbnNlIjUKFFN0YXJ0VXNlckxpbmtSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMSDAoEbmFtZRgCIAEoCSJGChVTdGFydFVzZXJMaW5rUmVzcG9uc2USEQoJdXNlcl9jb2RlGAEgASgJEhoKEmV4cGlyZXNfaW5fc2Vjb25kcxgCIAEoBSIlChJHZXRVc2VyTGlua1JlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyImChNHZXRVc2VyTGlua1Jlc3BvbnNlEg8KB2FjY291bnQYASABKAkiJAoRVW5saW5rVXNlclJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAyIUChJVbmxpbmtVc2VyUmVzcG9uc2UyzAEKEVNlcnZlckxpbmtTZXJ2aWNlElwKD1N0YXJ0U2VydmVyTGluaxIjLm5hbWEuaHViLnYxLlN0YXJ0U2VydmVyTGlua1JlcXVlc3QaJC5uYW1hLmh1Yi52MS5TdGFydFNlcnZlckxpbmtSZXNwb25zZRJZCg5Qb2xsU2VydmVyTGluaxIiLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVxdWVzdBojLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVzcG9uc2UygQQKC0xpbmtTZXJ2aWNlEmIKEUFwcHJvdmVTZXJ2ZXJMaW5rEiUubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXF1ZXN0GiYubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXNwb25zZRJnChFMaXN0TGlua2VkU2VydmVycxIlLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVxdWVzdBomLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVzcG9uc2UiA5ACARJcCg9BcHByb3ZlVXNlckxpbmsSIy5uYW1hLmh1Yi52MS5BcHByb3ZlVXNlckxpbmtSZXF1ZXN0GiQubmFtYS5odWIudjEuQXBwcm92ZVVzZXJMaW5rUmVzcG9uc2USYQoPTGlzdExpbmtlZFVzZXJzEiMubmFtYS5odWIudjEuTGlzdExpbmtlZFVzZXJzUmVxdWVzdBokLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRVc2Vyc1Jlc3BvbnNlIgOQAgESZAoQVW5saW5rTGlua2VkVXNlchIkLm5hbWEuaHViLnYxLlVubGlua0xpbmtlZFVzZXJSZXF1ZXN0GiUubmFtYS5odWIudjEuVW5saW5rTGlua2VkVXNlclJlc3BvbnNlIgOQAgIy7QIKE0xpbmtlZFNlcnZlclNlcnZpY2USUwoMVW5saW5rU2VydmVyEiAubmFtYS5odWIudjEuVW5saW5rU2VydmVyUmVxdWVzdBohLm5hbWEuaHViLnYxLlVubGlua1NlcnZlclJlc3BvbnNlElYKDVN0YXJ0VXNlckxpbmsSIS5uYW1hLmh1Yi52MS5TdGFydFVzZXJMaW5rUmVxdWVzdBoiLm5hbWEuaHViLnYxLlN0YXJ0VXNlckxpbmtSZXNwb25zZRJVCgtHZXRVc2VyTGluaxIfLm5hbWEuaHViLnYxLkdldFVzZXJMaW5rUmVxdWVzdBogLm5hbWEuaHViLnYxLkdldFVzZXJMaW5rUmVzcG9uc2UiA5ACARJSCgpVbmxpbmtVc2VyEh4ubmFtYS5odWIudjEuVW5saW5rVXNlclJlcXVlc3QaHy5uYW1hLmh1Yi52MS5VbmxpbmtVc2VyUmVzcG9uc2UiA5ACAmIGcHJvdG8z");
 
 /**
  * A Server registered with the Hub, owned by an Account.
@@ -255,6 +255,271 @@ export const UnlinkServerResponseSchema: GenMessage<UnlinkServerResponse> = /*@_
   messageDesc(file_nama_hub_v1_link, 10);
 
 /**
+ * A User on a Linked Server, Linked to an Account.
+ *
+ * @generated from message nama.hub.v1.LinkedUser
+ */
+export type LinkedUser = Message<"nama.hub.v1.LinkedUser"> & {
+  /**
+   * The Link's id, a UUID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The User's name on their Server when they Linked.
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * The name of the Linked Server the User is on.
+   *
+   * @generated from field: string server_name = 3;
+   */
+  serverName: string;
+
+  /**
+   * When they Linked, in seconds since the Unix epoch.
+   *
+   * @generated from field: int64 linked_at = 4;
+   */
+  linkedAt: bigint;
+};
+
+/**
+ * Describes the message nama.hub.v1.LinkedUser.
+ * Use `create(LinkedUserSchema)` to create a new message.
+ */
+export const LinkedUserSchema: GenMessage<LinkedUser> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 11);
+
+/**
+ * @generated from message nama.hub.v1.ApproveUserLinkRequest
+ */
+export type ApproveUserLinkRequest = Message<"nama.hub.v1.ApproveUserLinkRequest"> & {
+  /**
+   * The code the User's Server shows, in any case, with or without its hyphen.
+   *
+   * @generated from field: string code = 1;
+   */
+  code: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.ApproveUserLinkRequest.
+ * Use `create(ApproveUserLinkRequestSchema)` to create a new message.
+ */
+export const ApproveUserLinkRequestSchema: GenMessage<ApproveUserLinkRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 12);
+
+/**
+ * @generated from message nama.hub.v1.ApproveUserLinkResponse
+ */
+export type ApproveUserLinkResponse = Message<"nama.hub.v1.ApproveUserLinkResponse"> & {
+  /**
+   * The User just Linked.
+   *
+   * @generated from field: nama.hub.v1.LinkedUser user = 1;
+   */
+  user?: LinkedUser | undefined;
+};
+
+/**
+ * Describes the message nama.hub.v1.ApproveUserLinkResponse.
+ * Use `create(ApproveUserLinkResponseSchema)` to create a new message.
+ */
+export const ApproveUserLinkResponseSchema: GenMessage<ApproveUserLinkResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 13);
+
+/**
+ * @generated from message nama.hub.v1.ListLinkedUsersRequest
+ */
+export type ListLinkedUsersRequest = Message<"nama.hub.v1.ListLinkedUsersRequest"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.ListLinkedUsersRequest.
+ * Use `create(ListLinkedUsersRequestSchema)` to create a new message.
+ */
+export const ListLinkedUsersRequestSchema: GenMessage<ListLinkedUsersRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 14);
+
+/**
+ * @generated from message nama.hub.v1.ListLinkedUsersResponse
+ */
+export type ListLinkedUsersResponse = Message<"nama.hub.v1.ListLinkedUsersResponse"> & {
+  /**
+   * @generated from field: repeated nama.hub.v1.LinkedUser users = 1;
+   */
+  users: LinkedUser[];
+};
+
+/**
+ * Describes the message nama.hub.v1.ListLinkedUsersResponse.
+ * Use `create(ListLinkedUsersResponseSchema)` to create a new message.
+ */
+export const ListLinkedUsersResponseSchema: GenMessage<ListLinkedUsersResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 15);
+
+/**
+ * @generated from message nama.hub.v1.UnlinkLinkedUserRequest
+ */
+export type UnlinkLinkedUserRequest = Message<"nama.hub.v1.UnlinkLinkedUserRequest"> & {
+  /**
+   * The Link's id, as `LinkedUser.id`.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.UnlinkLinkedUserRequest.
+ * Use `create(UnlinkLinkedUserRequestSchema)` to create a new message.
+ */
+export const UnlinkLinkedUserRequestSchema: GenMessage<UnlinkLinkedUserRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 16);
+
+/**
+ * @generated from message nama.hub.v1.UnlinkLinkedUserResponse
+ */
+export type UnlinkLinkedUserResponse = Message<"nama.hub.v1.UnlinkLinkedUserResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.UnlinkLinkedUserResponse.
+ * Use `create(UnlinkLinkedUserResponseSchema)` to create a new message.
+ */
+export const UnlinkLinkedUserResponseSchema: GenMessage<UnlinkLinkedUserResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 17);
+
+/**
+ * @generated from message nama.hub.v1.StartUserLinkRequest
+ */
+export type StartUserLinkRequest = Message<"nama.hub.v1.StartUserLinkRequest"> & {
+  /**
+   * The User's id on the Server.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+
+  /**
+   * The User's name, which their Account's list of Users shows: up to 100 characters, cut there if
+   * longer.
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.StartUserLinkRequest.
+ * Use `create(StartUserLinkRequestSchema)` to create a new message.
+ */
+export const StartUserLinkRequestSchema: GenMessage<StartUserLinkRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 18);
+
+/**
+ * @generated from message nama.hub.v1.StartUserLinkResponse
+ */
+export type StartUserLinkResponse = Message<"nama.hub.v1.StartUserLinkResponse"> & {
+  /**
+   * What the User's Server shows and they enter on the Hub, such as `BDFH-JKLM`.
+   *
+   * @generated from field: string user_code = 1;
+   */
+  userCode: string;
+
+  /**
+   * How long the code works.
+   *
+   * @generated from field: int32 expires_in_seconds = 2;
+   */
+  expiresInSeconds: number;
+};
+
+/**
+ * Describes the message nama.hub.v1.StartUserLinkResponse.
+ * Use `create(StartUserLinkResponseSchema)` to create a new message.
+ */
+export const StartUserLinkResponseSchema: GenMessage<StartUserLinkResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 19);
+
+/**
+ * @generated from message nama.hub.v1.GetUserLinkRequest
+ */
+export type GetUserLinkRequest = Message<"nama.hub.v1.GetUserLinkRequest"> & {
+  /**
+   * The User's id on the Server.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+};
+
+/**
+ * Describes the message nama.hub.v1.GetUserLinkRequest.
+ * Use `create(GetUserLinkRequestSchema)` to create a new message.
+ */
+export const GetUserLinkRequestSchema: GenMessage<GetUserLinkRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 20);
+
+/**
+ * @generated from message nama.hub.v1.GetUserLinkResponse
+ */
+export type GetUserLinkResponse = Message<"nama.hub.v1.GetUserLinkResponse"> & {
+  /**
+   * The email of the Account the User is Linked to, or empty while they aren't.
+   *
+   * @generated from field: string account = 1;
+   */
+  account: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.GetUserLinkResponse.
+ * Use `create(GetUserLinkResponseSchema)` to create a new message.
+ */
+export const GetUserLinkResponseSchema: GenMessage<GetUserLinkResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 21);
+
+/**
+ * @generated from message nama.hub.v1.UnlinkUserRequest
+ */
+export type UnlinkUserRequest = Message<"nama.hub.v1.UnlinkUserRequest"> & {
+  /**
+   * The User's id on the Server.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+};
+
+/**
+ * Describes the message nama.hub.v1.UnlinkUserRequest.
+ * Use `create(UnlinkUserRequestSchema)` to create a new message.
+ */
+export const UnlinkUserRequestSchema: GenMessage<UnlinkUserRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 22);
+
+/**
+ * @generated from message nama.hub.v1.UnlinkUserResponse
+ */
+export type UnlinkUserResponse = Message<"nama.hub.v1.UnlinkUserResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.UnlinkUserResponse.
+ * Use `create(UnlinkUserResponseSchema)` to create a new message.
+ */
+export const UnlinkUserResponseSchema: GenMessage<UnlinkUserResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 23);
+
+/**
  * Registering a Server with the Hub, as an OAuth device flow (RFC 8628, ADR 0011): the Server
  * starts it and polls, and the holder of an Account enters the code it shows on the Hub's pages.
  * The Hub never calls a Server. Anyone may call it, since a Server not yet Linked has no identity.
@@ -319,6 +584,38 @@ export const LinkService: GenService<{
     input: typeof ListLinkedServersRequestSchema;
     output: typeof ListLinkedServersResponseSchema;
   },
+  /**
+   * Links the User showing `code` on their Server to the signed-in Account. An Account may have
+   * Users on many Servers. Fails like `ApproveServerLink`, with `REFUSAL_REASON_LINK_CODE_NOT_FOUND`
+   * for a code no User is waiting on.
+   *
+   * @generated from rpc nama.hub.v1.LinkService.ApproveUserLink
+   */
+  approveUserLink: {
+    methodKind: "unary";
+    input: typeof ApproveUserLinkRequestSchema;
+    output: typeof ApproveUserLinkResponseSchema;
+  },
+  /**
+   * Returns the signed-in Account's Linked Users, oldest first.
+   *
+   * @generated from rpc nama.hub.v1.LinkService.ListLinkedUsers
+   */
+  listLinkedUsers: {
+    methodKind: "unary";
+    input: typeof ListLinkedUsersRequestSchema;
+    output: typeof ListLinkedUsersResponseSchema;
+  },
+  /**
+   * Unlinks one of the signed-in Account's Users. Unlinking one it doesn't have does nothing.
+   *
+   * @generated from rpc nama.hub.v1.LinkService.UnlinkLinkedUser
+   */
+  unlinkLinkedUser: {
+    methodKind: "unary";
+    input: typeof UnlinkLinkedUserRequestSchema;
+    output: typeof UnlinkLinkedUserResponseSchema;
+  },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_hub_v1_link, 1);
 
@@ -340,6 +637,40 @@ export const LinkedServerService: GenService<{
     methodKind: "unary";
     input: typeof UnlinkServerRequestSchema;
     output: typeof UnlinkServerResponseSchema;
+  },
+  /**
+   * Starts Linking one of the Server's Users: the code they enter on the Hub, which replaces any
+   * code they were waiting on and stops working after `expires_in_seconds`. Fails with
+   * `REFUSAL_REASON_USER_LINKED` for a User Linked already, since a User Links to one Account.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.StartUserLink
+   */
+  startUserLink: {
+    methodKind: "unary";
+    input: typeof StartUserLinkRequestSchema;
+    output: typeof StartUserLinkResponseSchema;
+  },
+  /**
+   * Returns the Account one of the Server's Users is Linked to, if any. The Server asks while the
+   * User waits for their code to be entered, and to see whether the Account Unlinked them.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.GetUserLink
+   */
+  getUserLink: {
+    methodKind: "unary";
+    input: typeof GetUserLinkRequestSchema;
+    output: typeof GetUserLinkResponseSchema;
+  },
+  /**
+   * Unlinks one of the Server's Users, or forgets the code they wait on. Unlinking a User who
+   * isn't Linked does nothing.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.UnlinkUser
+   */
+  unlinkUser: {
+    methodKind: "unary";
+    input: typeof UnlinkUserRequestSchema;
+    output: typeof UnlinkUserResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_hub_v1_link, 2);
