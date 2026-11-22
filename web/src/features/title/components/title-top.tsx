@@ -14,9 +14,11 @@ import { WatchlistButton } from "@/shared/components/watchlist-button";
 const watchlistKind = { Movie: TitleKind.MOVIE, Show: TitleKind.SHOW };
 
 /**
- * The top every title's page shares: its name, genres, overview, starring line, facts, then
- * `actions`, the Watchlist button and `more`. `title` is any of Movie, Show, Found Movie and Found
- * Show, which share these fields by name; `id` is only what the Watchlist button needs.
+ * The top every title's page shares: its name, or `logoUrl`, the Title Logo only a title in a
+ * Library has, genres, overview, starring line, facts with `boxed` after the Content Rating, then
+ * `actions`, the Watchlist button and `more`. `title` is a Movie or Show, in a Library or from the
+ * title source, whose four messages share these fields; `id` is only what the Watchlist button
+ * needs.
  */
 export function TitleTop({
   title,
