@@ -1,8 +1,9 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
 //! keeps in the Plugin's Store once someone entered it, the Server Addresses it tells the Hub, and
 //! through it shares what the Admin chooses with Nama's developers (ADR 0054). Its Users' Links are
-//! in `users.rs`.
+//! in `users.rs`, and signing in with an Account, and Users created from one, in `accounts.rs`.
 
+mod accounts;
 mod users;
 
 use std::{
@@ -20,7 +21,7 @@ use nama_plugin_api::{
     },
     contract::{StoreEntry, StoreKey},
     diagnostics_sharer::{DiagnosticsSharer, Signal},
-    server_link::{Link, ServerAddresses, ServerLinker},
+    server_link::{AccountSignIn, Link, ServerAddresses, ServerLinker},
 };
 use ring::digest;
 use serde::{Deserialize, Serialize};
@@ -286,6 +287,29 @@ impl ServerLinker for Linker {
 
     fn unlink_user(&self, user_id: i64) -> BoxFuture<'_, Result<(), PluginError>> {
         Box::pin(self.forget_user_link(user_id))
+    }
+
+    fn invite_user<'a>(
+        &'a self,
+        user_id: i64,
+        user_name: &'a str,
+        email: &'a str,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(self.invite(user_id, user_name, email))
+    }
+
+    fn start_account_sign_in<'a>(
+        &'a self,
+        return_url: &'a str,
+    ) -> BoxFuture<'a, Result<AccountSignIn, PluginError>> {
+        Box::pin(self.start_sign_in(return_url))
+    }
+
+    fn finish_account_sign_in<'a>(
+        &'a self,
+        handle: &'a str,
+    ) -> BoxFuture<'a, Result<Option<i64>, PluginError>> {
+        Box::pin(self.finish_sign_in(handle))
     }
 
     fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {

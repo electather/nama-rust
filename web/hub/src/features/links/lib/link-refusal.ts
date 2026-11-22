@@ -39,8 +39,11 @@ const wording: Partial<Record<RefusalReason, LinkErrors>> = {
     form: "This User is Linked to an Account already. Unlink them in their Server’s Settings first.",
   },
   [RefusalReason.EMAIL_NOT_PROVEN]: {
-    form: "Linking needs your email proven first. Sign in with a Sign-in Link sent to it, then enter the code again.",
+    form: "Linking needs your email proven first. Sign in with a Sign-in Link sent to it, then try again.",
     proveEmail: true,
+  },
+  [RefusalReason.USER_INVITE_NOT_FOUND]: {
+    form: "This User isn’t waiting for you any more. Reload the page.",
   },
   [RefusalReason.SIGN_IN_REQUIRED]: {
     form: "You’re signed out. Sign in again to Link.",

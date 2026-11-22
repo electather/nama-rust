@@ -53,8 +53,9 @@ const MANAGE_LIBRARIES: [&str; 11] = [
 ];
 
 /// Every RPC that manages Users, which needs `PERMISSION_MANAGE_USERS`.
-const MANAGE_USERS: [&str; 10] = [
+const MANAGE_USERS: [&str; 11] = [
     "/nama.v1.UserService/CreateUser",
+    "/nama.v1.UserService/CreateUserFromAccount",
     "/nama.v1.UserService/ListUsers",
     "/nama.v1.UserService/SetPermissions",
     "/nama.v1.UserService/DeleteUser",
@@ -190,7 +191,7 @@ const SIGN_OUT: &str = "/nama.v1.SignInService/SignOut";
 
 /// The RPCs that change who can sign in as whom, delete media or Link the Server or a User, which
 /// need Recent Authentication (ADR 0014).
-const SENSITIVE: [&str; 10] = [
+const SENSITIVE: [&str; 11] = [
     "/nama.v1.UserService/ChangePassword",
     "/nama.v1.UserService/ResetPassword",
     "/nama.v1.UserService/SetPermissions",
@@ -201,6 +202,7 @@ const SENSITIVE: [&str; 10] = [
     "/nama.v1.ServerService/StartServerLink",
     "/nama.v1.ServerService/UnlinkServer",
     "/nama.v1.UserService/StartUserLink",
+    "/nama.v1.UserService/CreateUserFromAccount",
 ];
 
 struct Reply {

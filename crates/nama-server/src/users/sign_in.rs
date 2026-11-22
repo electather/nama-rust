@@ -176,6 +176,17 @@ impl SignIn {
             .await?)
     }
 
+    /// Signs `device` in as the User `user`, whose Account the Hub vouches signed in (ADR 0092).
+    /// Nothing here is guessable: the Hub checked who it is, and its handle is a secret.
+    pub(crate) async fn sign_in_with_account(
+        &self,
+        user: i64,
+        device: NewDevice,
+    ) -> Result<SignedIn, Error> {
+        let device = named(device)?;
+        Ok(self.users.sign_in_as(Proved::Account(user), device).await?)
+    }
+
     /// Starts signing in `device` with a Sign-in Code at `now`, unless its IP started too many
     /// recently. Of `device`, only its name is kept; `delivery` is kept, unread, for the poll that
     /// signs it in.

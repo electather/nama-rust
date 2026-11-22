@@ -44,7 +44,8 @@ pub enum RefusalReason {
     REFUSAL_REASON_USER_NOT_FOUND = 13i32,
     /// `already_exists`: another User already has the name, ignoring case.
     REFUSAL_REASON_USER_NAME_TAKEN = 14i32,
-    /// `failed_precondition`: the change would leave no User with `PERMISSION_ADMIN`.
+    /// `failed_precondition`: the change would leave no User with `PERMISSION_ADMIN` who can sign in
+    /// without the Hub, with a password (ADR 0092).
     REFUSAL_REASON_LAST_ADMIN = 15i32,
     /// `failed_precondition`: a User changes their own password with `ChangePassword`, not
     /// `ResetPassword`.
@@ -287,6 +288,9 @@ pub enum RefusalReason {
     /// `not_found`: there is no Box Set with the ID, or none the caller may see. `field` is
     /// `box_set_id`.
     REFUSAL_REASON_BOX_SET_NOT_FOUND = 97i32,
+    /// `not_found`: the sign-in with an Account wasn't approved on the Hub, expired or was used.
+    /// Start again. `field` is `handle`.
+    REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND = 98i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -574,6 +578,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_BOX_SET_NOT_FOUND`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const BoxSetNotFound: Self = Self::REFUSAL_REASON_BOX_SET_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const AccountSignInNotFound: Self = Self::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -876,6 +883,11 @@ impl ::buffa::Enumeration for RefusalReason {
             95i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_SCHEDULE_INVALID),
             96i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NO_SERVER_LINKER),
             97i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_BOX_SET_NOT_FOUND),
+            98i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1065,6 +1077,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_SCHEDULE_INVALID => "REFUSAL_REASON_SCHEDULE_INVALID",
             Self::REFUSAL_REASON_NO_SERVER_LINKER => "REFUSAL_REASON_NO_SERVER_LINKER",
             Self::REFUSAL_REASON_BOX_SET_NOT_FOUND => "REFUSAL_REASON_BOX_SET_NOT_FOUND",
+            Self::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND => {
+                "REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -1380,6 +1395,11 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_BOX_SET_NOT_FOUND" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_BOX_SET_NOT_FOUND)
             }
+            "REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1480,6 +1500,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_SCHEDULE_INVALID,
             Self::REFUSAL_REASON_NO_SERVER_LINKER,
             Self::REFUSAL_REASON_BOX_SET_NOT_FOUND,
+            Self::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND,
         ]
     }
 }

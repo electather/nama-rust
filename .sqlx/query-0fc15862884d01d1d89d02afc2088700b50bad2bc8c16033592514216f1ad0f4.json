@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO server_sign_ins (linked_server_id, device_code_hash, return_url, expires_at)\n             VALUES ($1, $2, $3, now() + make_interval(mins => $4)) RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "server_sign_ins",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0fc15862884d01d1d89d02afc2088700b50bad2bc8c16033592514216f1ad0f4"
+}
