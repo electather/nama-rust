@@ -91,6 +91,13 @@ service LinkedServerService {
   rpc UnlinkUser(UnlinkUserRequest) returns (UnlinkUserResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Merges changes to the Server's Users' Watch State into their Accounts' (ADR 0008): per Account
+  // and title, the change made last wins, whichever Server sends it and whenever. A change of a User
+  // who isn't Linked is dropped. Fails with `REFUSAL_REASON_WATCH_STATE_INVALID` for a change it
+  // can't keep, keeping none of the call's.
+  rpc PushWatchStates(PushWatchStatesRequest) returns (PushWatchStatesResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
   // Asks the Account with `email`, if there is one, to accept one of the Server's Users created
   // from it (ADR 0092). It answers the same whether or not there is, so it reveals nothing about
   // which emails have Accounts. Asking again for the same User replaces the request.
@@ -280,6 +287,33 @@ message UnlinkUserRequest {
 }
 
 message UnlinkUserResponse {}
+
+message PushWatchStatesRequest {
+  // In the order the Server made them: up to 500.
+  repeated WatchStateChange changes = 1;
+}
+
+message PushWatchStatesResponse {}
+
+// One User's Watch State of a Movie or Episode, as a change on their Server left it.
+message WatchStateChange {
+  // The User's id on the Server.
+  int64 user_id = 1;
+  // Whether it is an Episode rather than a Movie, whose TMDB ids are a separate id space.
+  bool episode = 2;
+  // Every External ID it is known by, such as `tmdb-348` (ADR 0013): 1 to 20, each up to 100
+  // characters. An Unmatched Item has none, so its Watch State never leaves its Server.
+  repeated string ids = 3;
+  // Whether it was played. Marking it unplayed leaves it unplayed at 0 of 0 milliseconds.
+  bool played = 4;
+  // How far in, in milliseconds, up to `duration_ms`.
+  uint64 position_ms = 5;
+  // How long it is, in milliseconds; 0 if no player said.
+  uint64 duration_ms = 6;
+  // When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+  // 9999.
+  int64 changed_at_ms = 7;
+}
 
 // A User an Admin created from an Account, waiting for it to accept them.
 message UserInvite {

@@ -1,10 +1,12 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
 //! keeps in the Plugin's Store once someone entered it, the Server Addresses it tells the Hub, and
 //! through it shares what the Admin chooses with Nama's developers (ADR 0054). Its Users' Links are
-//! in `users.rs`, and signing in with an Account, and Users created from one, in `accounts.rs`.
+//! in `users.rs`, syncing their Watch State in `watch_states.rs`, and signing in with an Account,
+//! and Users created from one, in `accounts.rs`.
 
 mod accounts;
 mod users;
+mod watch_states;
 
 use std::{
     collections::HashMap,
@@ -31,6 +33,8 @@ use crate::{
     hub::{Hub, Polling},
     token::{self, Claims, Rejected},
 };
+
+pub(crate) use self::watch_states::{WatchStateSync, sync_job};
 
 /// The Store key of the Link, a [`Kept`] as JSON.
 const LINK_KEY: &str = "link";
@@ -75,6 +79,8 @@ pub(crate) struct Linker {
     waiting: Mutex<Option<Waiting>>,
     /// What the Plugin knows of each User's Link but what it keeps in the Store.
     users: std::sync::Mutex<HashMap<i64, users::UserState>>,
+    /// Held while the queue of Watch State changes is read and written, so none is lost.
+    queue: Mutex<()>,
     /// The Server Addresses the Hub has, with the [`Kept::id`] of the Link it got them through.
     /// Held across telling the Hub, so a report never overtakes another.
     reported: Mutex<Option<(String, ServerAddresses)>>,
@@ -87,6 +93,7 @@ impl Linker {
             kernel,
             waiting: Mutex::default(),
             users: std::sync::Mutex::default(),
+            queue: Mutex::default(),
             reported: Mutex::default(),
         }
     }

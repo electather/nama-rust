@@ -46,6 +46,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
             "server_sign_ins",
         ],
     ),
+    ("src/sync", &["watch_states"]),
     (
         "src/titles",
         &[

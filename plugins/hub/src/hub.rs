@@ -19,10 +19,10 @@ use hyper_util::{
 use nama_hub_proto::nama::hub::v1::{
     GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient, ListSimilarTitlesRequest,
     ListSimilarTitlesResponse, PollServerLinkRequest, PollServerLinkResponse,
-    PollServerSignInRequest, ServerLinkServiceClient, SetServerAddressesRequest,
-    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
-    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest,
-    UnlinkUserRequest,
+    PollServerSignInRequest, PushWatchStatesRequest, ServerLinkServiceClient,
+    SetServerAddressesRequest, StartServerLinkRequest, StartServerLinkResponse,
+    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
+    StartUserLinkResponse, UnlinkServerRequest, UnlinkUserRequest, WatchStateChange,
 };
 use nama_plugin_api::{PluginError, diagnostics_sharer::Signal, server_link::ServerAddresses};
 
@@ -168,6 +168,22 @@ impl Hub {
             })
             .await;
         unlinked_already(unlinked.map(drop))
+    }
+
+    /// Pushes `changes` to the Watch State of the Accounts the Users of the Server whose credential
+    /// is `credential` are Linked to, in order.
+    pub(crate) async fn push_watch_states(
+        &self,
+        credential: &str,
+        changes: Vec<WatchStateChange>,
+    ) -> Result<(), PluginError> {
+        self.linked_server(credential)?
+            .push_watch_states(PushWatchStatesRequest {
+                changes,
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
     }
 
     /// Asks the Account with `email`, if any, to accept the User `user_id`, named `name`, of the
