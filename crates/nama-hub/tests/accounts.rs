@@ -156,6 +156,14 @@ async fn an_email_or_a_password_breaking_the_rules_is_refused(db: PgPool) {
     assert_eq!(password_refusal.field, "password");
     assert_eq!(password_refusal.params["minLength"], "8");
     assert_eq!(password_refusal.params["maxLength"], "1024");
+    let too_long = client
+        .create_account(create_request("ada@example.com", &"x".repeat(1025)))
+        .await;
+    assert_refused(
+        too_long,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_PASSWORD_LENGTH,
+    );
 }
 
 #[sqlx::test(migrations = false)]

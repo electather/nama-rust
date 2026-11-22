@@ -1,7 +1,6 @@
 use argon2::password_hash::phc::PasswordHash;
 
 use super::{UNKNOWN_EMAIL_HASH, hash, verify};
-use crate::accounts::Error;
 
 #[tokio::test]
 async fn a_hashed_password_verifies_and_another_doesnt() {
@@ -14,13 +13,6 @@ async fn a_hashed_password_verifies_and_another_doesnt() {
             .unwrap()
     );
     assert!(!verify("wrong horse".to_owned(), hashed).await.unwrap());
-}
-
-#[tokio::test]
-async fn a_password_too_short_or_too_long_isnt_hashed() {
-    for password in ["seven c".to_owned(), "x".repeat(1025)] {
-        assert!(matches!(hash(password).await, Err(Error::PasswordLength)));
-    }
 }
 
 #[tokio::test]

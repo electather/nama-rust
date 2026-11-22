@@ -168,10 +168,11 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         }
         R::REFUSAL_REASON_TOO_MANY_ATTEMPTS => ErrorCode::ResourceExhausted,
         R::REFUSAL_REASON_EMAIL_TAKEN => ErrorCode::AlreadyExists,
+        R::REFUSAL_REASON_EMAIL_INVALID | R::REFUSAL_REASON_PASSWORD_LENGTH => {
+            ErrorCode::InvalidArgument
+        }
         // Never sent; a client sees it only for a reason it doesn't know.
-        R::REFUSAL_REASON_UNSPECIFIED
-        | R::REFUSAL_REASON_EMAIL_INVALID
-        | R::REFUSAL_REASON_PASSWORD_LENGTH => ErrorCode::InvalidArgument,
+        R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,
     }
 }
 

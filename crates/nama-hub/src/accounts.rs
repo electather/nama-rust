@@ -59,8 +59,8 @@ pub(crate) enum Error {
     EmailInvalid,
     #[error(
         "a password needs {} to {} characters",
-        passwords::PASSWORD_LENGTH.start(),
-        passwords::PASSWORD_LENGTH.end()
+        PASSWORD_LENGTH.start(),
+        PASSWORD_LENGTH.end()
     )]
     PasswordLength,
     #[error("no Account has this email and password")]
@@ -95,6 +95,9 @@ impl Accounts {
         let email = email.trim();
         if !is_email(email) {
             return Err(Error::EmailInvalid);
+        }
+        if !PASSWORD_LENGTH.contains(&password.chars().count()) {
+            return Err(Error::PasswordLength);
         }
         let password_hash = passwords::hash(password.to_owned()).await?;
         let mut tx = self.db.begin().await?;

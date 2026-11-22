@@ -8,7 +8,7 @@ Rules for every web package: the web app at the root, nama-ui, the design system
 - **Semantic tokens only.** Style with shadcn's semantic utilities (`bg-background`, `text-muted-foreground`, `bg-primary`). Never use Tailwind palette colours, raw colour values or `dark:` variants (ADR 0016). If a screen needs a colour that no token covers, add a token to `ui/src/styles.css`.
 - **Logical properties.** Use `ms-`/`me-`/`ps-`/`pe-`/`start-`/`end-`, never `ml-`/`mr-`/`pl-`/`pr-`/`left-`/`right-`, so right-to-left languages can be added later.
 - **Imports go one way.** nama-ui imports nothing from an app, and an app imports it by name (`nama-ui/components/button`), never by path. `ui/tsconfig.json` leaves out the web app's `@/` alias, and lint bans parent-relative imports, so `vp check` fails on either. The two apps share nothing but nama-ui (ADR 0101): the Hub web app imports its own files through `@hub/`, never the web app's `@/`, and Fallow's `hub` zone and `hub/tsconfig.json` fail either reaching across.
-- **The Hub web app speaks only `nama.hub.v1`**, from `hub/src/gen/`, and reads the Hub's own `Refusal` by reason.
+- **The Hub web app speaks only `nama.hub.v1`**, from `hub/src/gen/`.
 - **One version of a shared dependency.** A dependency more than one package declares is `catalog:` in each, pinned once in `pnpm-workspace.yaml`'s `catalog`. nama-ui takes React as a peer dependency, so an app and its components share one React.
 - **Strictest lint.** The web app's `src/app/`, `src/features/` and `src/shared/`, nama-ui's `ui/src/`, and the Hub web app's `hub/src/app/` and `hub/src/features/` get extra oxlint rules (the `newFolders` override in `vite.config.ts`). The ones that change how code is written:
   - `satisfies` or a type guard, never a cast.
