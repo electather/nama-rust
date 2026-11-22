@@ -49,7 +49,7 @@ pub struct JobRun {
     pub started_by: Option<String>,
 }
 
-/// A Job an enabled Plugin declares, as the Jobs page lists it.
+/// A Job an enabled Plugin declares, as an Admin sees it listed.
 #[derive(Debug, Clone)]
 pub struct ListedJob {
     /// The Plugin declaring it.
