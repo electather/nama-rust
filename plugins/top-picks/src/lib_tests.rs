@@ -20,6 +20,13 @@ fn id(value: &str) -> TitleId {
     }
 }
 
+fn tvdb(value: &str) -> TitleId {
+    TitleId {
+        namespace: "tvdb".to_owned(),
+        ..id(value)
+    }
+}
+
 fn title(kind: TitleRefKind, value: &str, genres: &[&str], rating: Option<&str>) -> Title {
     Title {
         title_ref: TitleRef {
@@ -57,6 +64,25 @@ fn episode(value: &str, show: &str) -> Title {
             &[],
             Some("TV-G"),
         )
+    }
+}
+
+/// A Movie a Library preferring TVDB lists by the TVDB id `value`, with the TMDB id `tmdb` among
+/// its ids (ADR 0042).
+fn tvdb_movie(value: &str, tmdb: &str) -> Title {
+    let mut title = movie(value, &[]);
+    title.title_ref.get_or_insert_default().id = tvdb(value).into();
+    title.ids = vec![tvdb(value), id(tmdb)];
+    title
+}
+
+/// An Episode of the Show a Library preferring TVDB lists by the TVDB id `show`, with `others`
+/// among its Show's ids.
+fn tvdb_episode(value: &str, show: &str, others: &[TitleId]) -> Title {
+    Title {
+        show_id: tvdb(show).into(),
+        show_ids: [&[tvdb(show)], others].concat(),
+        ..episode(value, show)
     }
 }
 
@@ -102,9 +128,9 @@ fn top_picks(
         .collect()
 }
 
-fn watchlisted_movie(value: &str) -> WatchlistTitle {
+fn watchlisted(kind: TitleKind, value: &str) -> WatchlistTitle {
     WatchlistTitle {
-        kind: TitleKind::TITLE_KIND_MOVIE.into(),
+        kind: kind.into(),
         id: id(value).into(),
         ..WatchlistTitle::default()
     }
@@ -148,9 +174,68 @@ fn a_watchlisted_title_outranks_the_users_genres() {
         unwatched(&titles[2]),
     ];
     assert_eq!(
-        top_picks(&titles, &states, &[watchlisted_movie("2")]),
+        top_picks(
+            &titles,
+            &states,
+            &[watchlisted(TitleKind::TITLE_KIND_MOVIE, "2")]
+        ),
         ["2", "3"]
     );
+}
+
+/// A played Horror Movie, then `listed`, then an unplayed Horror Movie `3`.
+fn horror_fan_and(listed: &[Title]) -> (Vec<Title>, Vec<TitleWatchStates>) {
+    let mut titles = vec![movie("1", &["Horror"])];
+    titles.extend_from_slice(listed);
+    titles.push(movie("3", &["Horror"]));
+    let mut states: Vec<_> = titles.iter().map(unwatched).collect();
+    states[0] = watched(&titles[0], true, 0);
+    (titles, states)
+}
+
+#[test]
+fn a_movie_listed_by_another_id_is_watchlisted_by_its_tmdb_id_and_keeps_the_listed_id() {
+    let (titles, states) = horror_fan_and(&[tvdb_movie("t2", "2")]);
+
+    let picks = top_picks(
+        &titles,
+        &states,
+        &[watchlisted(TitleKind::TITLE_KIND_MOVIE, "2")],
+    );
+
+    assert_eq!(picks, ["t2", "3"]);
+}
+
+#[test]
+fn a_show_listed_by_another_id_is_watchlisted_by_the_tmdb_id_any_episode_names() {
+    let (titles, states) = horror_fan_and(&[
+        tvdb_episode("10", "ts1", &[]),
+        tvdb_episode("11", "ts1", &[id("s1")]),
+    ]);
+
+    let picks = top_picks(
+        &titles,
+        &states,
+        &[watchlisted(TitleKind::TITLE_KIND_SHOW, "s1")],
+    );
+
+    assert_eq!(picks, ["ts1", "3"]);
+}
+
+#[test]
+fn a_watchlist_entry_of_another_kind_or_id_boosts_nothing() {
+    let (titles, states) = horror_fan_and(&[tvdb_movie("t2", "2")]);
+
+    let picks = top_picks(
+        &titles,
+        &states,
+        &[
+            watchlisted(TitleKind::TITLE_KIND_SHOW, "2"),
+            watchlisted(TitleKind::TITLE_KIND_MOVIE, "9"),
+        ],
+    );
+
+    assert_eq!(picks, ["3", "t2"]);
 }
 
 #[test]
@@ -364,7 +449,8 @@ fn user_rows_and_featured_put_a_watchlisted_title_above_the_users_genres() {
         movie("2", &["Comedy"]),
         movie("3", &["Horror"]),
     ];
-    let kernel = granting_watchlists(&titles).watchlist(ADA, [watchlisted_movie("2")]);
+    let kernel = granting_watchlists(&titles)
+        .watchlist(ADA, [watchlisted(TitleKind::TITLE_KIND_MOVIE, "2")]);
     let mut kernel = watching(kernel, &titles[0], ADA, true, 0);
 
     let rows = user_rows(&mut kernel, ADA).unwrap();

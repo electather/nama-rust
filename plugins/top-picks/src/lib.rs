@@ -131,21 +131,27 @@ impl Key {
         }
     }
 
-    /// The Movie `title` is, or the Show whose Episode it is; `None` for an Episode without its
-    /// Show's id.
-    fn of_title(title: &Title) -> Option<Self> {
-        let title_ref = title.title_ref.as_option()?;
-        match title_ref.kind.as_known()? {
-            TitleRefKind::TITLE_REF_KIND_MOVIE => Some(Self::of(
-                TitleKind::TITLE_KIND_MOVIE,
-                title_ref.id.as_option()?,
-            )),
-            TitleRefKind::TITLE_REF_KIND_EPISODE => Some(Self::of(
-                TitleKind::TITLE_KIND_SHOW,
-                title.show_id.as_option()?,
-            )),
-            TitleRefKind::TITLE_REF_KIND_UNSPECIFIED => None,
-        }
+    /// Every id of the Movie `title` is, or of the Show whose Episode it is, with the one the
+    /// Kernel lists it under first; none for an Episode without its Show's id.
+    fn every_of_title(title: &Title) -> Vec<Self> {
+        let Some(title_ref) = title.title_ref.as_option() else {
+            return Vec::new();
+        };
+        let (kind, preferred, others) = match title_ref.kind.as_known() {
+            Some(TitleRefKind::TITLE_REF_KIND_MOVIE) => {
+                (TitleKind::TITLE_KIND_MOVIE, &title_ref.id, &title.ids)
+            }
+            Some(TitleRefKind::TITLE_REF_KIND_EPISODE) => {
+                (TitleKind::TITLE_KIND_SHOW, &title.show_id, &title.show_ids)
+            }
+            Some(TitleRefKind::TITLE_REF_KIND_UNSPECIFIED) | None => return Vec::new(),
+        };
+        let Some(preferred) = preferred.as_option() else {
+            return Vec::new();
+        };
+        (std::iter::once(preferred).chain(others))
+            .map(|id| Self::of(kind, id))
+            .collect()
     }
 
     fn id(&self) -> TitleId {
@@ -178,6 +184,9 @@ impl Pick {
 /// played it, or any of the Show's Episodes.
 #[derive(Default)]
 struct Candidate {
+    /// Every id of the Movie, or of the Show by any of its Episodes, any of which a Watchlist
+    /// may name it by (ADR 0042).
+    ids: HashSet<Key>,
     genres: Vec<String>,
     content_rating: Option<String>,
     started: bool,
@@ -189,8 +198,8 @@ struct Candidate {
 /// genres, then in the Kernel's order. A title whose Watch State isn't paired with it is left
 /// out, so a title the User started never shows.
 ///
-/// ponytail: a genre count and a Watchlist flag, matching a Watchlist entry only by the id the
-/// Kernel lists a title under; weigh recent plays, or ratings, when Users ask for better picks.
+/// ponytail: a genre count and a Watchlist flag; weigh recent plays, or ratings, when Users ask
+/// for better picks.
 fn ranked(
     titles: &[Title],
     states: &[TitleWatchStates],
@@ -199,17 +208,19 @@ fn ranked(
     let mut order = Vec::new();
     let mut candidates: HashMap<Key, Candidate> = HashMap::new();
     for (title, state) in titles.iter().zip(states) {
-        let Some(key) = Key::of_title(title).filter(|_| state.title_ref == title.title_ref) else {
+        let ids = Key::every_of_title(title);
+        let Some(key) = ids.first().filter(|_| state.title_ref == title.title_ref) else {
             continue;
         };
         let candidate = candidates.entry(key.clone()).or_insert_with(|| {
-            order.push(key);
+            order.push(key.clone());
             Candidate {
                 genres: title.genres.clone(),
                 content_rating: title.content_rating.clone(),
                 ..Candidate::default()
             }
         });
+        candidate.ids.extend(ids);
         candidate.started |= (state.states.iter()).any(|it| it.played || it.position_ms > 0);
         candidate.played |= (state.states.iter()).any(|it| it.played);
     }
@@ -223,13 +234,15 @@ fn ranked(
         .collect();
     let mut picks: Vec<Pick> = (order.into_iter())
         .filter_map(|key| {
-            let title = candidates.get(&key).filter(|title| !title.started)?;
+            let candidate = candidates
+                .get(&key)
+                .filter(|candidate| !candidate.started)?;
             Some(Pick {
-                on_watchlist: watchlist.contains(&key),
-                genre_plays: (title.genres.iter())
+                on_watchlist: !candidate.ids.is_disjoint(&watchlist),
+                genre_plays: (candidate.genres.iter())
                     .map(|genre| genre_plays.get(genre.as_str()).copied().unwrap_or_default())
                     .sum(),
-                content_rating: title.content_rating.clone(),
+                content_rating: candidate.content_rating.clone(),
                 key,
             })
         })
