@@ -1,12 +1,13 @@
-import { Code, ConnectError, type ConnectRouter } from "@connectrpc/connect";
+import { Code, type ConnectError, type ConnectRouter } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vite-plus/test";
 
 import type { SubscribeResponse } from "@/gen/nama/v1/event_pb";
 import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { admin, eventFeed, fakeServer, fill, openApp } from "@/test-app";
+import { admin, eventFeed, fakeServer, fill } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
+import { openLibraries } from "@/test-settings";
 
 afterEach(cleanup);
 
@@ -18,17 +19,17 @@ function adminServer(
   more: (router: ConnectRouter) => void,
 ) {
   return fakeServer({ signedIn: admin, events }, {}, {}, (router) => {
-    router.service(LibraryService, { listLibraries: () => ({ libraries: [films] }) });
+    router.service(LibraryService, {
+      listLibraries: () => ({ libraries: [films] }),
+      getLibrary: () => ({ library: films }),
+    });
     more(router);
   });
 }
 
-test("a scan Event updates a Library's progress without a reload", async () => {
+test("a scan Event updates a Library's progress on the list without a reload", async () => {
   const events = eventFeed();
-  openApp(
-    "/admin/libraries",
-    adminServer(events.stream, () => {}),
-  );
+  openLibraries(adminServer(events.stream, () => {}));
   await screen.findByRole("link", { name: "Films" });
 
   events.send({
@@ -48,53 +49,54 @@ const scannedFilms = {
   lastScan: { finishedAt: 1_795_010_520n, added: 3n, updated: 1n, removed: 2n, unchanged: 50n },
 };
 
-test.each(["/admin/libraries", "/admin/libraries/1"])(
-  "%s shows a Library's last scan until a scan Event replaces it",
-  async (path) => {
-    const events = eventFeed();
-    openApp(
-      path,
-      adminServer(events.stream, (router) => {
-        router.service(LibraryService, {
-          listLibraries: () => ({ libraries: [scannedFilms] }),
-          getLibrary: () => ({ library: scannedFilms }),
-        });
-      }),
-    );
-    const stored = /^Last scanned .*2026.*: 3 new, 1 changed and 2 gone$/u;
-    await expect(screen.findByText(stored)).resolves.toBeDefined();
+/** A fake Server with only `scannedFilms`, fed `events`. */
+function scannedServer(events: ReadableStream<SubscribeResponse>) {
+  return adminServer(events, (router) => {
+    router.service(LibraryService, {
+      listLibraries: () => ({ libraries: [scannedFilms] }),
+      getLibrary: () => ({ library: scannedFilms }),
+    });
+  });
+}
 
-    events.send({ event: { case: "scanStarted", value: { libraryId: 1n } } });
-    await expect(screen.findByText("Scanning…")).resolves.toBeDefined();
-    expect(screen.queryByText(stored)).toBeNull();
-  },
-);
+test("a Library's row says what it holds, its folders and when it was last scanned", async () => {
+  openLibraries(scannedServer(new ReadableStream()));
+
+  const link = await screen.findByRole("link", { name: "Films" });
+  expect(link.closest("li")?.textContent).toMatch(
+    /^FilmsMovies · 1 folder · Last scanned .*2026.*Scan$/u,
+  );
+});
+
+test("a Library shows its last scan until a scan Event replaces it", async () => {
+  const events = eventFeed();
+  openLibraries(scannedServer(events.stream), "1");
+  const stored = /^Last scanned .*2026.*: 3 new, 1 changed and 2 gone$/u;
+  await expect(screen.findByText(stored)).resolves.toBeDefined();
+
+  events.send({ event: { case: "scanStarted", value: { libraryId: 1n } } });
+  await expect(screen.findByText("Scanning…")).resolves.toBeDefined();
+  expect(screen.queryByText(stored)).toBeNull();
+});
 
 test("a Library that has never finished a scan says no scan was seen", async () => {
-  openApp(
-    "/admin/libraries/1",
-    adminServer(new ReadableStream(), (router) => {
-      router.service(LibraryService, { getLibrary: () => ({ library: films }) });
-    }),
+  openLibraries(
+    adminServer(new ReadableStream(), () => {}),
+    "1",
   );
 
   await expect(screen.findByText("No scan seen yet.")).resolves.toBeDefined();
 });
 
-test("a Library that isn't on the Server shows the not-found page, under the app chrome", async () => {
-  openApp(
-    "/admin/libraries/9",
-    adminServer(new ReadableStream(), (router) => {
-      router.service(LibraryService, {
-        getLibrary: () => {
-          throw new ConnectError("there is no Library 9", Code.NotFound);
-        },
-      });
-    }),
+test("an id no Library has shows the list", async () => {
+  openLibraries(
+    adminServer(new ReadableStream(), () => {}),
+    "9",
   );
 
-  await expect(screen.findByRole("heading", { name: "Page not found" })).resolves.toBeDefined();
-  expect(screen.getByRole("navigation", { name: "Admin" })).toBeDefined();
+  await expect(screen.findByRole("link", { name: "Films" })).resolves.toBeDefined();
+  const crumbs = screen.getByRole("navigation", { name: "Breadcrumbs" });
+  expect(crumbs.textContent).toBe("Libraries");
 });
 
 /** A fake Server whose Library changes are refused with `error`. */
@@ -114,25 +116,41 @@ function serverRefusingLibraryChanges(error: ConnectError) {
 
 const nameTaken = { reason: RefusalReason.LIBRARY_NAME_TAKEN, field: "name" };
 
-describe.each([
-  ["/admin/libraries", "Create Library"],
-  ["/admin/libraries/1", "Save changes"],
-])("on %s", (path, action) => {
-  // Each message is already the sentence shown, which the form shows as it is.
-  test.each([
-    ["Name", Code.InvalidArgument, { field: "name" }, "A Library's name can't be blank."],
-    ["Name", Code.AlreadyExists, nameTaken, 'The Library "Films" already has this name.'],
-    ["Folders", Code.InvalidArgument, { field: "folders[2]" }, "The folder srv is not absolute."],
-    // oxlint-disable-next-line max-params -- test.each hands a row's columns over as parameters
-  ] as const)("a refused %s shows under its field", async (label, code, refusal, shown) => {
-    openApp(path, serverRefusingLibraryChanges(refused(code, shown, refusal)));
-    await screen.findByRole("button", { name: action });
-    fill("Name", "Films");
-    fireEvent.change(screen.getByRole("textbox", { name: "Folders" }), {
-      target: { value: "/srv/films" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: action }));
+// Each message is already the sentence shown, which the form shows as it is.
+const refusals = [
+  ["Name", Code.InvalidArgument, { field: "name" }, "A Library's name can't be blank."],
+  ["Name", Code.AlreadyExists, nameTaken, 'The Library "Films" already has this name.'],
+  ["Folders", Code.InvalidArgument, { field: "folders[2]" }, "The folder srv is not absolute."],
+] as const;
 
-    await expectUnderField(label, shown);
-  });
+describe("a new Library", () => {
+  test.each(refusals)(
+    "refused for its %s says so under the field",
+    // oxlint-disable-next-line max-params -- test.each hands a row's columns over as parameters
+    async (label, code, refusal, shown) => {
+      openLibraries(serverRefusingLibraryChanges(refused(code, shown, refusal)), "new");
+      await screen.findByRole("button", { name: "Create Library" });
+      fill("Name", "Films");
+      fill("Folders", "/srv/films");
+      fireEvent.click(screen.getByRole("button", { name: "Create Library" }));
+
+      await expectUnderField(label, shown);
+    },
+  );
+});
+
+describe("a Library's change", () => {
+  test.each(refusals)(
+    "refused for its %s says so in the toast",
+    // oxlint-disable-next-line max-params -- test.each hands a row's columns over as parameters
+    async (label, code, refusal, shown) => {
+      openLibraries(serverRefusingLibraryChanges(refused(code, shown, refusal)), "1");
+      const field = await screen.findByRole("textbox", { name: label });
+      fireEvent.change(field, { target: { value: "srv" } });
+      fireEvent.blur(field);
+
+      await expect(screen.findByText(shown)).resolves.toBeDefined();
+      expect(screen.getByText("Not saved")).toBeDefined();
+    },
+  );
 });

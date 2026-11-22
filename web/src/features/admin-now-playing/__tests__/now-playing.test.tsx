@@ -145,12 +145,14 @@ describe("where Now Playing is", () => {
     expect(nav.getAllByRole("heading").map((heading) => heading.textContent)).toStrictEqual([
       "You",
       "Preferences",
+      "Media",
       "Activity",
       "Admin",
     ]);
     const links = nav.getAllByRole("link").map((link) => link.textContent);
     expect(links.slice(links.indexOf("Connections"), links.indexOf("Server") + 1)).toStrictEqual([
       "Connections",
+      "Libraries",
       "Now Playing",
       "Server",
     ]);

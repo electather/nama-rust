@@ -9,7 +9,7 @@ export const librariesKey = createConnectQueryKey({
   cardinality: "finite",
 });
 
-/** The Library `id`, which the route's loader loads, or undefined once it's gone. */
+/** The Library `id`, with what its last scan found, which a finished scan refetches. */
 export function useLibrary(id: bigint) {
   return useSuspenseQuery(LibraryService.method.getLibrary, { id }, { staleTime: loaderStaleTime })
     .data.library;

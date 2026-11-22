@@ -35,6 +35,7 @@ const builtIn: Record<Section, Record<string, SettingText>> = {
   home: homeLabels,
   requests: {},
   connections: notificationLabels,
+  libraries: {},
   "now-playing": {},
   server: serverLabels,
   users: userLabels,
