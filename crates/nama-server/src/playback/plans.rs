@@ -4,7 +4,7 @@
 use std::{collections::BTreeSet, net::IpAddr, sync::Arc};
 
 use super::{
-    AskedAudio, Description, DeviceDecoding, Facts, Method, Network, PickedLimit, Planned,
+    AskedAudio, Description, DeviceDecoding, Facts, Method, Network, PickedLimit, Plan, Planned,
     PreviewFrames, Probing, RunningPlans, StartError, StartedPlan, SubtitlePreference, Track,
     TrackKind, TrackPreferenceError, TrackPreferences, audio_asked, build,
     codecs::is_audio,
@@ -275,7 +275,10 @@ impl Plans {
     ) -> Result<Option<Planned>, StartError> {
         let version = facts.version;
         loop {
-            match self.start_built(caller, facts.clone(), start_ms).await {
+            let mut built = facts.clone();
+            let plan = build(&mut built);
+            let recipe = plan.recipe();
+            match self.start_built(caller, built, plan, start_ms).await {
                 Err(StartError::Keyframes(err)) => {
                     tracing::warn!(
                         version,
@@ -284,8 +287,8 @@ impl Plans {
                     );
                     facts.keyframes_unlisted = true;
                 }
-                Err(StartError::FailedOnServer(method)) => {
-                    facts.failed_on_server.insert(method);
+                Err(StartError::FailedOnServer(_)) => {
+                    facts.failed_on_server.insert(recipe);
                 }
                 planned => return planned,
             }
@@ -294,15 +297,15 @@ impl Plans {
         }
     }
 
-    /// Builds the plan for `facts` and starts it if it plays, or else lists the other Versions
-    /// that would play.
+    /// Starts `plan`, built from `facts`, if it plays, or else lists the other Versions that would
+    /// play.
     async fn start_built(
         &self,
         caller: &Caller,
-        mut facts: Facts,
+        facts: Facts,
+        plan: Plan,
         start_ms: i64,
     ) -> Result<Option<Planned>, StartError> {
-        let plan = build(&mut facts);
         if plan.playing.is_none() {
             if let Some(max) = too_busy_to_play(facts.clone()) {
                 return Err(StartError::Busy(max));

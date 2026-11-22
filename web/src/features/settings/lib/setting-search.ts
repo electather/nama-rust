@@ -37,6 +37,7 @@ const builtIn: Record<Section, Record<string, SettingText>> = {
   connections: notificationLabels,
   "needs-a-match": {},
   "now-playing": {},
+  jobs: {},
   server: serverLabels,
   users: userLabels,
   backups: backupLabels,

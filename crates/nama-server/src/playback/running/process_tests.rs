@@ -5,7 +5,7 @@ use std::{path::Path, process::Stdio, time::Duration};
 
 use tokio_util::sync::CancellationToken;
 
-use super::{Outcome, run};
+use super::{KEPT_STDERR, Outcome, run};
 use crate::ffmpeg::fake;
 
 /// The fake ffmpeg `body` in `bin`, started as `HlsRun` starts ffmpeg, with `arg`.
@@ -97,4 +97,20 @@ async fn a_run_that_exits_cleanly_finishes() {
         run(ffmpeg, CancellationToken::new()).await,
         Outcome::Finished
     ));
+}
+
+#[tokio::test]
+async fn a_failed_run_keeps_only_the_tail_of_a_long_stderr() {
+    let bin = tempfile::tempdir().unwrap();
+    // 100,000 `a`s, then a last line, past what's kept.
+    let body = "#!/bin/sh\nhead -c 100000 /dev/zero | tr '\\0' a >&2\necho ' last' >&2\nexit 1\n";
+    let ffmpeg = spawn(bin.path(), body, bin.path());
+
+    let outcome = run(ffmpeg, CancellationToken::new()).await;
+
+    let Outcome::Failed { stderr, .. } = outcome else {
+        panic!("{outcome:?}");
+    };
+    assert_eq!(stderr.len(), KEPT_STDERR);
+    assert!(stderr.starts_with('a') && stderr.ends_with("aaa last\n"));
 }

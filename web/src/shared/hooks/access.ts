@@ -57,7 +57,6 @@ export function signedInQuery(transport: Transport) {
 /** The Admin pages, in the order the Admin nav lists them, each with the Permission it needs. */
 export const adminPages = [
   { to: "/admin/libraries", label: "Libraries", permission: Permission.MANAGE_LIBRARIES },
-  { to: "/admin/jobs", label: "Jobs", permission: Permission.ADMIN },
 ] as const;
 
 /** The Admin pages `user` may open. */

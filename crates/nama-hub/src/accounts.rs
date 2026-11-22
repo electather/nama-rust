@@ -1,5 +1,5 @@
-//! Accounts: creating one with an email and a password, and signing it in, with its password or a
-//! Sign-in Link, and out, each sign-in a web session (ADR 0098).
+//! Accounts: creating one with an email and a password, signing it in, with its password or a
+//! Sign-in Link, and out, each sign-in a web session (ADR 0098), and setting its password.
 
 mod passwords;
 mod rate_limits;
@@ -21,7 +21,7 @@ use crate::mail::Mail;
 pub(crate) use passwords::PASSWORD_LENGTH;
 pub(crate) use rate_limits::Blocked;
 use rate_limits::{CreationLimits, SignInLimits};
-pub(crate) use sessions::SESSION_DAYS;
+pub(crate) use sessions::{RECENT_AUTHENTICATION_MINS, SESSION_DAYS};
 use sign_in_links::Outbox;
 pub(crate) use sign_in_links::{SignInLink, SignedInByLink};
 
@@ -78,6 +78,11 @@ pub(crate) enum Error {
         PASSWORD_LENGTH.end()
     )]
     PasswordLength,
+    #[error(
+        "this needs a sign-in in the last {} minutes: sign in again",
+        sessions::RECENT_AUTHENTICATION_MINS
+    )]
+    RecentAuthenticationRequired,
     #[error("no Account has this email and password")]
     WrongEmailOrPassword,
     #[error("the Hub has no mail set up, so it can't email Sign-in Links")]
@@ -132,9 +137,7 @@ impl Accounts {
         if !is_email(email) {
             return Err(Error::EmailInvalid);
         }
-        if !PASSWORD_LENGTH.contains(&password.chars().count()) {
-            return Err(Error::PasswordLength);
-        }
+        check_password_length(password)?;
         self.creations.admit(ip, now)?;
         let password_hash = passwords::hash(password.to_owned()).await?;
         let mut tx = self.db.begin().await?;
@@ -157,11 +160,18 @@ impl Accounts {
     }
 
     /// Signs in the Account whose email is `email`, compared without regard to case, if
-    /// `password` is its password, from the client at `ip` at `now`.
+    /// `password` is its password, from the client at `ip` at `now`, in place of `replacing`, the
+    /// browser's session, if any.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "`replacing` is as in `sign_in_with_link`, and `ip` and `now` are the rate \
+                  limit's, as in `create`; bundling those callers' arguments is its own change"
+    )]
     pub(crate) async fn sign_in(
         &self,
         email: &str,
         password: &str,
+        replacing: Option<&AccountSession>,
         ip: IpAddr,
         now: Instant,
     ) -> Result<SignedIn, Error> {
@@ -188,9 +198,52 @@ impl Accounts {
             return Err(Error::WrongEmailOrPassword);
         }
         self.sign_ins.succeeded(&attempt);
-        let mut conn = self.db.acquire().await?;
-        let token = sessions::start(&mut conn, account.id).await?;
+        let mut tx = self.db.begin().await?;
+        if let Some(session) = replacing {
+            sessions::end(&mut *tx, session).await?;
+        }
+        let token = sessions::start(&mut tx, account.id).await?;
+        tx.commit().await?;
         Ok(SignedIn { account, token })
+    }
+
+    /// Sets the password of `session`'s Account to `password`, replacing any it has, and ends the
+    /// Account's other sessions. Needs Recent Authentication, checked before the password.
+    pub(crate) async fn set_password(
+        &self,
+        session: &AccountSession,
+        password: &str,
+    ) -> Result<(), Error> {
+        if !session.authenticated_recently {
+            return Err(Error::RecentAuthenticationRequired);
+        }
+        check_password_length(password)?;
+        let password_hash = passwords::hash(password.to_owned()).await?;
+        let mut tx = self.db.begin().await?;
+        // Checked again: the session may have ended, or aged, while the password hashed.
+        if !sessions::lock_while_recent(&mut tx, session).await? {
+            return Err(Error::RecentAuthenticationRequired);
+        }
+        sqlx::query!(
+            "UPDATE accounts SET password_hash = $1 WHERE id = $2",
+            password_hash,
+            session.account.id.0,
+        )
+        .execute(&mut *tx)
+        .await?;
+        sessions::end_others(&mut tx, session).await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Whether `account` has a password: one a Sign-in Link took over has none (ADR 0100).
+    pub(crate) async fn has_password(&self, account: AccountId) -> Result<bool, sqlx::Error> {
+        sqlx::query_scalar!(
+            r#"SELECT password_hash IS NOT NULL AS "has_password!" FROM accounts WHERE id = $1"#,
+            account.0,
+        )
+        .fetch_one(&self.db)
+        .await
     }
 
     /// Whether the Hub emails Sign-in Links, which it does with mail set up.
@@ -246,6 +299,14 @@ impl Accounts {
     /// Ends `session`: its token stops working at once.
     pub(crate) async fn sign_out(&self, session: &AccountSession) -> Result<(), sqlx::Error> {
         sessions::end(&self.db, session).await
+    }
+}
+
+fn check_password_length(password: &str) -> Result<(), Error> {
+    if PASSWORD_LENGTH.contains(&password.chars().count()) {
+        Ok(())
+    } else {
+        Err(Error::PasswordLength)
     }
 }
 

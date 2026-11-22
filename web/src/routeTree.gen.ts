@@ -28,7 +28,6 @@ import { Route as MemberShowsShowIdRouteImport } from './routes/_member/shows/$s
 import { Route as SignedOutInviteTokenRouteImport } from './routes/_signed-out/invite.$token'
 import { Route as SignedOutSignInIndexRouteImport } from './routes/_signed-out/sign-in.index'
 import { Route as MemberAdminAdminIndexRouteImport } from './routes/_member/_admin/admin/index'
-import { Route as MemberAdminAdminJobsRouteImport } from './routes/_member/_admin/admin/jobs'
 import { Route as MemberLibrariesLibraryIdIndexRouteImport } from './routes/_member/libraries/$libraryId/index'
 import { Route as SignedOutSignInCodeIndexRouteImport } from './routes/_signed-out/sign-in.code.index'
 import { Route as SignedOutSignInCodeWaitingRouteImport } from './routes/_signed-out/sign-in.code.waiting'
@@ -132,11 +131,6 @@ const MemberAdminAdminIndexRoute = MemberAdminAdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => MemberAdminRoute,
 } as any)
-const MemberAdminAdminJobsRoute = MemberAdminAdminJobsRouteImport.update({
-  id: '/admin/jobs',
-  path: '/admin/jobs',
-  getParentRoute: () => MemberAdminRoute,
-} as any)
 const MemberLibrariesLibraryIdIndexRoute =
   MemberLibrariesLibraryIdIndexRouteImport.update({
     id: '/libraries/$libraryId/',
@@ -216,7 +210,6 @@ export interface FileRoutesByFullPath {
   '/code/': typeof MemberCodeIndexRoute
   '/requests/': typeof MemberRequestsIndexRoute
   '/sign-in/': typeof SignedOutSignInIndexRoute
-  '/admin/jobs': typeof MemberAdminAdminJobsRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/admin/': typeof MemberAdminAdminIndexRoute
   '/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
@@ -243,7 +236,6 @@ export interface FileRoutesByTo {
   '/code': typeof MemberCodeIndexRoute
   '/requests': typeof MemberRequestsIndexRoute
   '/sign-in': typeof SignedOutSignInIndexRoute
-  '/admin/jobs': typeof MemberAdminAdminJobsRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/admin': typeof MemberAdminAdminIndexRoute
   '/libraries/$libraryId': typeof MemberLibrariesLibraryIdIndexRoute
@@ -276,7 +268,6 @@ export interface FileRoutesById {
   '/_member/code/': typeof MemberCodeIndexRoute
   '/_member/requests/': typeof MemberRequestsIndexRoute
   '/_signed-out/sign-in/': typeof SignedOutSignInIndexRoute
-  '/_member/_admin/admin/jobs': typeof MemberAdminAdminJobsRoute
   '/_signed-out/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/_member/_admin/admin/': typeof MemberAdminAdminIndexRoute
   '/_member/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
@@ -307,7 +298,6 @@ export interface FileRouteTypes {
     | '/code/'
     | '/requests/'
     | '/sign-in/'
-    | '/admin/jobs'
     | '/sign-in/code/waiting'
     | '/admin/'
     | '/libraries/$libraryId/'
@@ -334,7 +324,6 @@ export interface FileRouteTypes {
     | '/code'
     | '/requests'
     | '/sign-in'
-    | '/admin/jobs'
     | '/sign-in/code/waiting'
     | '/admin'
     | '/libraries/$libraryId'
@@ -366,7 +355,6 @@ export interface FileRouteTypes {
     | '/_member/code/'
     | '/_member/requests/'
     | '/_signed-out/sign-in/'
-    | '/_member/_admin/admin/jobs'
     | '/_signed-out/sign-in/code/waiting'
     | '/_member/_admin/admin/'
     | '/_member/libraries/$libraryId/'
@@ -520,13 +508,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberAdminAdminIndexRouteImport
       parentRoute: typeof MemberAdminRoute
     }
-    '/_member/_admin/admin/jobs': {
-      id: '/_member/_admin/admin/jobs'
-      path: '/admin/jobs'
-      fullPath: '/admin/jobs'
-      preLoaderRoute: typeof MemberAdminAdminJobsRouteImport
-      parentRoute: typeof MemberAdminRoute
-    }
     '/_member/libraries/$libraryId/': {
       id: '/_member/libraries/$libraryId/'
       path: '/libraries/$libraryId'
@@ -601,14 +582,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface MemberAdminRouteChildren {
-  MemberAdminAdminJobsRoute: typeof MemberAdminAdminJobsRoute
   MemberAdminAdminIndexRoute: typeof MemberAdminAdminIndexRoute
   MemberAdminAdminLibrariesLibraryIdRoute: typeof MemberAdminAdminLibrariesLibraryIdRoute
   MemberAdminAdminLibrariesIndexRoute: typeof MemberAdminAdminLibrariesIndexRoute
 }
 
 const MemberAdminRouteChildren: MemberAdminRouteChildren = {
-  MemberAdminAdminJobsRoute: MemberAdminAdminJobsRoute,
   MemberAdminAdminIndexRoute: MemberAdminAdminIndexRoute,
   MemberAdminAdminLibrariesLibraryIdRoute:
     MemberAdminAdminLibrariesLibraryIdRoute,

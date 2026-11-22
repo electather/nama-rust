@@ -1,12 +1,11 @@
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { refusal, serverMessage } from "@/shared/lib/forms";
+import { serverMessage } from "@/shared/lib/forms";
 
-/** Why the Server refused the `attempt` (such as "save the Job"), as a sentence. */
-export function jobRefusal(error: unknown, attempt: string) {
-  const told = { form: serverMessage(error) };
-  const byReason = {
-    [RefusalReason.SCHEDULE_INVALID]: told,
-    [RefusalReason.JOB_NOT_FOUND]: told,
+/** Where a Job's settings say the refusal `failure`, by its reason: under its schedule, or in its toast. */
+export function jobRefusalFields(failure: unknown) {
+  const message = serverMessage(failure);
+  return {
+    [RefusalReason.SCHEDULE_INVALID]: { schedule: message },
+    [RefusalReason.JOB_NOT_FOUND]: { form: message },
   };
-  return refusal(error, attempt, {}, byReason).form;
 }

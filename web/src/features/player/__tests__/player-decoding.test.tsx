@@ -45,11 +45,12 @@ const serverAsked = (asked: PlanPlaybackRequest[]) =>
   );
 
 test.each([
-  { decoded: "avc1.640028", h26410bit: false },
-  { decoded: "avc1.6E0028", h26410bit: true },
+  { decoded: "avc1.640028", h26410bit: false, hevc10bit: false },
+  { decoded: "avc1.6E0028", h26410bit: true, hevc10bit: false },
+  { decoded: "hvc1.2.4.L153.B0", h26410bit: false, hevc10bit: true },
 ])(
-  "the plan request says h26410bit is $h26410bit when decodingInfo accepts only $decoded",
-  async ({ decoded, h26410bit }) => {
+  "the plan request says h26410bit is $h26410bit and hevc10bit $hevc10bit when decodingInfo accepts only $decoded",
+  async ({ decoded, h26410bit, hevc10bit }) => {
     // oxlint-disable-next-line require-await -- a fake answers at once
     const decodingInfo = async (configuration: MediaDecodingConfiguration) => ({
       supported: JSON.stringify(configuration).includes(decoded),
@@ -63,7 +64,12 @@ test.each([
 
     await screen.findByLabelText("The Matrix");
 
-    expect(asked.map((request) => request.deviceDecoding?.h26410bit)).toStrictEqual([h26410bit]);
+    expect(
+      asked.map((request) => [
+        request.deviceDecoding?.h26410bit,
+        request.deviceDecoding?.hevc10bit,
+      ]),
+    ).toStrictEqual([[h26410bit, hevc10bit]]);
   },
 );
 

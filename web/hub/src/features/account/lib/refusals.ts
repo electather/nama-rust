@@ -1,7 +1,7 @@
 import { ConnectError } from "@connectrpc/connect";
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 
-/** Why a creating or signing-in form was refused: under one of its fields, or for the whole form. */
+/** Why a form for an email or a password was refused: under one of its fields, or for the whole form. */
 export interface CredentialErrors {
   email?: string;
   password?: string;
@@ -13,7 +13,7 @@ export function refusalReason(error: unknown) {
   return refusalOf(error)?.reason;
 }
 
-/** What to say about a refused attempt to create an Account or sign in, read by its reason. */
+/** What to say about a refused attempt to create an Account, sign in or set a password, by its reason. */
 export function credentialErrors(error: unknown): CredentialErrors {
   const refusal = refusalOf(error);
   const say = refusal && wording[refusal.reason];
@@ -41,6 +41,9 @@ const wording: Partial<
   }),
   [RefusalReason.SIGN_IN_LINKS_OFF]: () => ({
     form: "This Hub can’t email Sign-in Links. Sign in with your password instead.",
+  }),
+  [RefusalReason.RECENT_AUTHENTICATION_REQUIRED]: (param) => ({
+    form: `You signed in over ${param("recentMinutes")} minutes ago.`,
   }),
   [RefusalReason.PASSWORD_LENGTH]: (param) => ({
     password: `A password needs ${param("minLength")} to ${param("maxLength")} characters.`,

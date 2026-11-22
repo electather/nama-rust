@@ -11,6 +11,7 @@ const sections = [
   "connections",
   "needs-a-match",
   "now-playing",
+  "jobs",
   "server",
   "users",
   "backups",
@@ -34,8 +35,8 @@ export function sectionParam(value: unknown): Section | undefined {
 }
 
 /**
- * The Plugin `?plugin=` asks the Plugins section to open, the Library `?library=` asks Needs a Match
- * to show, or the setting `?setting=` asks for: none without it.
+ * The Plugin `?plugin=` asks the Plugins section to open, the Job `?job=` asks the Jobs section to
+ * open, the Library `?library=` asks Needs a Match to show, or the setting `?setting=` asks for: none without it.
  */
 export function idParam(value: unknown) {
   // The router reads an id made of digits as a number.
@@ -43,11 +44,18 @@ export function idParam(value: unknown) {
 }
 
 /**
- * The address of `section` in Settings, at its `setting` if one is asked for. A Plugin or User open
+ * The address of `section` in Settings, at its `setting` if one is asked for. A Plugin, User or Job open
  * in another Section closes, and a Library picked there is forgotten.
  */
 export function sectionSearch(section: Section, setting?: string) {
-  return { settings: section, plugin: undefined, user: undefined, library: undefined, setting };
+  return {
+    settings: section,
+    plugin: undefined,
+    user: undefined,
+    job: undefined,
+    library: undefined,
+    setting,
+  };
 }
 
 /** The User `?user=` asks the Users section to open: none without it. */
@@ -67,6 +75,7 @@ export const sectionTitles: Record<Section, string> = {
   connections: "Connections",
   "needs-a-match": "Needs a Match",
   "now-playing": "Now Playing",
+  jobs: "Jobs",
   server: "Server",
   users: "Users",
   backups: "Backups",
@@ -85,6 +94,7 @@ export const loadNouns: Record<Section, string> = {
   connections: "your Connections",
   "needs-a-match": "what needs a Match",
   "now-playing": "what’s playing",
+  jobs: "the Jobs",
   server: "the Server settings",
   users: "the Users",
   backups: "the Backups",
@@ -97,6 +107,7 @@ export const loadNouns: Record<Section, string> = {
 export const sectionWords: Partial<Record<Section, string>> = {
   "needs-a-match": "needs a match unmatched identify fix wrong title",
   "now-playing": "now playing watching streams sessions stop transcode",
+  jobs: "jobs schedule run tasks upkeep",
 };
 
 /** The sidebar's sections under a heading. */
@@ -110,6 +121,7 @@ const needs: Partial<Record<Section, Permission>> = {
   requests: Permission.CHOOSE_QUALITY,
   "needs-a-match": Permission.MANAGE_LIBRARIES,
   "now-playing": Permission.ADMIN,
+  jobs: Permission.ADMIN,
   server: Permission.MANAGE_SETTINGS,
   users: Permission.MANAGE_USERS,
   backups: Permission.ADMIN,
@@ -122,7 +134,7 @@ const groups: SectionGroup[] = [
   { label: "You", items: ["signin", "devices"] },
   { label: "Preferences", items: ["playback", "home", "requests", "connections"] },
   { label: "Media", items: ["needs-a-match"] },
-  { label: "Activity", items: ["now-playing"] },
+  { label: "Activity", items: ["now-playing", "jobs"] },
   {
     label: "Admin",
     items: ["server", "users", "backups", "default-home", "server-playback", "plugins"],
