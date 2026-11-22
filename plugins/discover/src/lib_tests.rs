@@ -20,7 +20,8 @@ use super::{
 const VALID_KEY: &str = "fake-tmdb-key";
 
 /// TMDB's answer to a GET of `request`'s URL: this week's trending titles, a person among them,
-/// or its countries, refusing any key but [`VALID_KEY`] as TMDB does.
+/// one Movie for a Movie list, one Show for a Show list, or its countries, refusing any key but
+/// [`VALID_KEY`] as TMDB does.
 fn tmdb(request: &HttpRequest) -> Response {
     let url = Url::parse(&request.url).expect("the Plugin sends a URL");
     let key = url.query_pairs().find(|(name, _)| name == "api_key");
@@ -38,6 +39,17 @@ fn tmdb(request: &HttpRequest) -> Response {
                 { "id": 287, "media_type": "person", "name": "Brad Pitt" },
                 { "id": 1396, "media_type": "tv", "name": "Breaking Bad" },
             ] }),
+        ),
+        "/3/movie/popular"
+        | "/3/movie/top_rated"
+        | "/3/movie/now_playing"
+        | "/3/movie/upcoming" => answer(
+            200,
+            &json!({ "page": 1, "results": [{ "id": 550, "title": "Fight Club" }] }),
+        ),
+        "/3/tv/popular" | "/3/tv/top_rated" | "/3/tv/on_the_air" => answer(
+            200,
+            &json!({ "page": 1, "results": [{ "id": 1399, "name": "Game of Thrones" }] }),
         ),
         "/3/configuration/countries" => answer(
             200,
@@ -66,8 +78,15 @@ fn tmdb(request: &HttpRequest) -> Response {
                     .find(|(asked_name, _)| asked_name == name)
                     .map(|(_, value)| value.into_owned())
             };
+            // A search without a genre is a fixed row's, answered with the one Movie.
+            let Some(genre) = asked("with_genres") else {
+                return answer(
+                    200,
+                    &json!({ "page": 1, "results": [{ "id": 550, "title": "Fight Club" }] }),
+                );
+            };
             assert_eq!(asked("sort_by").as_deref(), Some("vote_average.desc"));
-            page_after(&asked("with_genres").expect("a genre is asked"))
+            page_after(&genre)
         }
         path => match path.split('/').collect::<Vec<_>>()[..] {
             ["", "3", "movie" | "tv", id, "recommendations"] => page_after(id),
@@ -215,11 +234,12 @@ fn answer(status: u16, body: &Value) -> Response {
     Response::new(status, json::to_vec(body).unwrap_or_default())
 }
 
-/// A Kernel holding the fake's API key and `picked` as the Shared rows, granting the Store, whose
-/// requests the fake TMDB and Wikidata answer.
+/// A Kernel holding the fake's API key, Region's default and `picked` as the Shared rows, granting
+/// the Store, whose requests the fake TMDB and Wikidata answer.
 fn kernel(picked: &[&str]) -> Kernel {
     Kernel::new()
         .setting(API_KEY, VALID_KEY)
+        .setting(REGION, "US")
         .setting_picked(SHARED_ROWS, picked)
         .store()
         .http(|request, _body| {
@@ -279,9 +299,127 @@ fn trending_this_week_picked_is_a_row_of_tmdbs_weekly_trending_movies_and_shows(
     );
 }
 
+/// What each request `kernel` sent asked TMDB: its path and query, leaving out the API key.
+fn asked(kernel: &Kernel) -> Vec<String> {
+    (kernel.sent().iter())
+        .map(|sent| {
+            let url = Url::parse(&sent.request.url).expect("the Plugin sends a URL");
+            let query: Vec<_> = (url.query_pairs())
+                .filter(|(name, _)| name != "api_key")
+                .map(|(name, value)| format!("{name}={value}"))
+                .collect();
+            format!("{}?{}", url.path(), query.join("&"))
+        })
+        .collect()
+}
+
 #[test]
-fn trending_this_week_unpicked_is_no_row_and_asks_tmdb_nothing() {
-    let mut kernel = kernel(&["top-rated-movies", "top-rated-shows"]);
+fn every_tmdb_row_picked_is_answered_in_order_from_its_own_tmdb_list() {
+    let tmdb_rows: Vec<_> = (SHARED.iter())
+        .map(|(key, _)| *key)
+        .filter(|key| crate::award_query(key).is_none())
+        .collect();
+    let mut kernel = kernel(&tmdb_rows);
+
+    let rows = shared_rows(&mut kernel).unwrap();
+
+    let movie = vec![(Some(TitleKind::TITLE_KIND_MOVIE), "550")];
+    let show = vec![(Some(TitleKind::TITLE_KIND_SHOW), "1399")];
+    let day = 24 * 60 * 60;
+    let trending = vec![
+        (Some(TitleKind::TITLE_KIND_MOVIE), "603"),
+        (Some(TitleKind::TITLE_KIND_SHOW), "1396"),
+    ];
+    assert_eq!(
+        summary(&rows),
+        [
+            ("trending-week", "Trending this week", day, trending),
+            ("popular-movies", "Popular movies", day, movie.clone()),
+            ("popular-shows", "Popular shows", day, show.clone()),
+            ("top-rated-movies", "Top rated movies", day, movie.clone()),
+            ("top-rated-shows", "Top rated shows", day, show.clone()),
+            ("now-in-theaters", "Now in theaters", day, movie.clone()),
+            ("coming-soon", "Coming soon", day, movie.clone()),
+            ("on-the-air", "On the air this week", day, show),
+            (
+                "critically-acclaimed",
+                "Critically acclaimed",
+                day,
+                movie.clone()
+            ),
+            ("80s", "80s favourites", day, movie.clone()),
+            ("90s", "90s favourites", day, movie.clone()),
+            ("2000s", "2000s favourites", day, movie.clone()),
+            ("under-90-minutes", "Under 90 minutes", day, movie.clone()),
+            ("hidden-gems", "Hidden gems", day, movie),
+        ]
+    );
+    let decade_favourites = "sort_by=vote_average.desc&vote_count.gte=1000";
+    assert_eq!(
+        asked(&kernel),
+        [
+            "/3/trending/all/week?".to_owned(),
+            "/3/movie/popular?".to_owned(),
+            "/3/tv/popular?".to_owned(),
+            "/3/movie/top_rated?".to_owned(),
+            "/3/tv/top_rated?".to_owned(),
+            "/3/movie/now_playing?region=US".to_owned(),
+            "/3/movie/upcoming?region=US".to_owned(),
+            "/3/tv/on_the_air?".to_owned(),
+            "/3/discover/movie?sort_by=popularity.desc&vote_average.gte=8&vote_count.gte=5000"
+                .to_owned(),
+            format!(
+                "/3/discover/movie?primary_release_date.gte=1980-01-01&\
+                 primary_release_date.lte=1989-12-31&{decade_favourites}"
+            ),
+            format!(
+                "/3/discover/movie?primary_release_date.gte=1990-01-01&\
+                 primary_release_date.lte=1999-12-31&{decade_favourites}"
+            ),
+            format!(
+                "/3/discover/movie?primary_release_date.gte=2000-01-01&\
+                 primary_release_date.lte=2009-12-31&{decade_favourites}"
+            ),
+            "/3/discover/movie?with_runtime.gte=60&with_runtime.lte=89&\
+             sort_by=vote_average.desc&vote_count.gte=1000"
+                .to_owned(),
+            "/3/discover/movie?vote_average.gte=7.5&vote_count.gte=200&vote_count.lte=1000&\
+             sort_by=vote_average.desc"
+                .to_owned(),
+        ]
+    );
+}
+
+#[test]
+fn now_in_theaters_and_coming_soon_ask_tmdb_for_the_region_set() {
+    let mut kernel = kernel(&["now-in-theaters", "coming-soon"]).setting(REGION, "DE");
+
+    let rows = shared_rows(&mut kernel).unwrap();
+
+    assert_eq!(rows.rows.len(), 2);
+    assert_eq!(
+        asked(&kernel),
+        [
+            "/3/movie/now_playing?region=DE",
+            "/3/movie/upcoming?region=DE"
+        ]
+    );
+}
+
+#[test]
+fn only_the_picked_rows_are_answered_and_asked_of_tmdb() {
+    let mut kernel = kernel(&["hidden-gems", "popular-shows"]);
+
+    let rows = shared_rows(&mut kernel).unwrap();
+
+    let keys: Vec<_> = rows.rows.iter().map(|row| row.key.as_str()).collect();
+    assert_eq!(keys, ["popular-shows", "hidden-gems"]);
+    assert_eq!(kernel.sent().len(), 2);
+}
+
+#[test]
+fn nothing_picked_is_no_row_and_asks_tmdb_nothing() {
+    let mut kernel = kernel(&[]);
 
     let rows = shared_rows(&mut kernel).unwrap();
 
