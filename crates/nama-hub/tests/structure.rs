@@ -18,7 +18,7 @@ fn the_hub_keeps_its_structure() {
         confined_crates: CONFINED_CRATES,
         must_find: MustFind {
             nested_folder: "tests/support",
-            area_module: None,
+            area_module: Some(("accounts", "sessions")),
             crate_paths: 1,
             named_paths: 5,
         },
@@ -30,7 +30,7 @@ fn the_hub_keeps_its_structure() {
 const CEILINGS: &[(&str, usize)] = &[];
 
 /// The tables each area owns, each with its owner's path without `.rs`.
-const OWNED_TABLES: &[(&str, &[&str])] = &[];
+const OWNED_TABLES: &[(&str, &[&str])] = &[("src/accounts", &["accounts", "account_sessions"])];
 
 /// The Hub's modules in rows of who may call whom, highest row first (ADR 0099).
 const ROWS: &[&[&str]] = &[
@@ -51,7 +51,11 @@ const ALLOWED_UPWARD: &[Allowed] = &[];
 
 /// The modules neighbours reach inside an area anyway, each with why re-exporting it would be
 /// wrong. An entry no import uses fails.
-const SURFACE_EXCEPTIONS: &[Exception] = &[];
+const SURFACE_EXCEPTIONS: &[Exception] = &[(
+    "titles",
+    "import",
+    "`main` calls the function `titles::import`, which titles.rs re-exports under its module's name",
+)];
 
 /// The crates only one area may name.
 const CONFINED_CRATES: &[Confined] = &[(

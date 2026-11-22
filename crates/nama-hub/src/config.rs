@@ -4,6 +4,7 @@
 use std::{fmt, net::SocketAddr};
 
 use figment::{Figment, providers::Env};
+use nama_forwarded::IpRange;
 use serde::Deserialize;
 
 /// Prefix of the environment variables the config is read from, e.g. `NAMA_HUB_LISTEN`.
@@ -17,6 +18,10 @@ pub struct Config {
     /// Address the Hub listens on.
     #[serde(default = "default_listen")]
     pub listen: SocketAddr,
+    /// The reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` the Hub believes, as IP
+    /// addresses or CIDR ranges, such as `["10.0.0.0/8"]` (ADR 0018). None by default.
+    #[serde(default)]
+    pub trusted_proxies: Vec<IpRange>,
 }
 
 impl Config {
@@ -39,6 +44,7 @@ impl fmt::Debug for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Config")
             .field("listen", &self.listen)
+            .field("trusted_proxies", &self.trusted_proxies)
             .finish_non_exhaustive()
     }
 }
