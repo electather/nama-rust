@@ -1,17 +1,21 @@
-//! Registering a Server and Unlinking it: `nama.hub.v1.ServerLinkService`, `LinkService` and
-//! `LinkedServerService`, one for each kind of caller.
+//! Registering a Server, Linking its Users, and Unlinking either: `nama.hub.v1.ServerLinkService`,
+//! `LinkService` and `LinkedServerService`, one for each kind of caller.
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_hub_proto::nama::hub::v1::{
-    self as proto, ApproveServerLinkRequest, ApproveServerLinkResponse, LinkService,
+    self as proto, ApproveServerLinkRequest, ApproveServerLinkResponse, ApproveUserLinkRequest,
+    ApproveUserLinkResponse, GetUserLinkRequest, GetUserLinkResponse, LinkService,
     LinkedServerService, ListLinkedServersRequest, ListLinkedServersResponse,
-    PollServerLinkRequest, PollServerLinkResponse, RefusalReason, ServerLinkService,
-    StartServerLinkRequest, StartServerLinkResponse, UnlinkServerRequest, UnlinkServerResponse,
+    ListLinkedUsersRequest, ListLinkedUsersResponse, PollServerLinkRequest, PollServerLinkResponse,
+    RefusalReason, ServerLinkService, StartServerLinkRequest, StartServerLinkResponse,
+    StartUserLinkRequest, StartUserLinkResponse, UnlinkLinkedUserRequest, UnlinkLinkedUserResponse,
+    UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
 };
 
 use super::{accounts::signed_in, hub_failed, refuse};
 use crate::links::{
-    self, CODE_LIFETIME_MINS, LinkedServer, Links, ListedServer, POLL_INTERVAL_SECS, Polled,
+    self, CODE_LIFETIME_MINS, LinkId, LinkedServer, Links, ListedServer, ListedUser,
+    POLL_INTERVAL_SECS, Polled,
 };
 
 /// `nama.hub.v1.ServerLinkService`: a Server not yet Linked, so anyone.
@@ -105,6 +109,55 @@ impl LinkService for LinkServiceHandler {
             ..Default::default()
         })
     }
+
+    async fn approve_user_link(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ApproveUserLinkRequest>,
+    ) -> ServiceResult<ApproveUserLinkResponse> {
+        let user = self
+            .links
+            .approve_user(signed_in(&ctx)?, request.code)
+            .await
+            .map_err(refused)?;
+        Response::ok(ApproveUserLinkResponse {
+            user: user_to_proto(user).into(),
+            ..Default::default()
+        })
+    }
+
+    async fn list_linked_users(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListLinkedUsersRequest>,
+    ) -> ServiceResult<ListLinkedUsersResponse> {
+        let account = signed_in(&ctx)?.account.id;
+        let users = self
+            .links
+            .list_users(account)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(ListLinkedUsersResponse {
+            users: users.into_iter().map(user_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn unlink_linked_user(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, UnlinkLinkedUserRequest>,
+    ) -> ServiceResult<UnlinkLinkedUserResponse> {
+        let account = signed_in(&ctx)?.account.id;
+        // An id that isn't a UUID names no Link, so Unlinking it does nothing.
+        if let Ok(link) = request.id.parse::<LinkId>() {
+            self.links
+                .unlink_linked_user(account, link)
+                .await
+                .map_err(|err| hub_failed(&err))?;
+        }
+        Response::ok(UnlinkLinkedUserResponse::default())
+    }
 }
 
 /// `nama.hub.v1.LinkedServerService`: a Linked Server, by its credential.
@@ -123,18 +176,68 @@ impl LinkedServerService for LinkedServerServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, UnlinkServerRequest>,
     ) -> ServiceResult<UnlinkServerResponse> {
-        let server = ctx.extensions().get::<LinkedServer>().ok_or_else(|| {
-            ConnectError::from(refuse(
-                RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
-                "send a Linked Server's credential",
-            ))
-        })?;
         self.links
-            .unlink(server)
+            .unlink(linked_server(&ctx)?)
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(UnlinkServerResponse::default())
     }
+
+    async fn start_user_link(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, StartUserLinkRequest>,
+    ) -> ServiceResult<StartUserLinkResponse> {
+        let user_code = self
+            .links
+            .start_user(linked_server(&ctx)?, request.user_id, request.name)
+            .await
+            .map_err(refused)?;
+        Response::ok(StartUserLinkResponse {
+            user_code,
+            expires_in_seconds: CODE_LIFETIME_MINS * 60,
+            ..Default::default()
+        })
+    }
+
+    async fn get_user_link(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, GetUserLinkRequest>,
+    ) -> ServiceResult<GetUserLinkResponse> {
+        let account = self
+            .links
+            .user_account(linked_server(&ctx)?, request.user_id)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(GetUserLinkResponse {
+            account: account.unwrap_or_default(),
+            ..Default::default()
+        })
+    }
+
+    async fn unlink_user(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, UnlinkUserRequest>,
+    ) -> ServiceResult<UnlinkUserResponse> {
+        self.links
+            .unlink_user(linked_server(&ctx)?, request.user_id)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(UnlinkUserResponse::default())
+    }
+}
+
+/// The Linked Server whose credential the request carried, which the auth layer found.
+fn linked_server(ctx: &RequestContext) -> Result<&LinkedServer, ConnectError> {
+    ctx.extensions().get::<LinkedServer>().ok_or_else(|| {
+        refuse(
+            RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+            "send a Linked Server's credential",
+        )
+        .into()
+    })
 }
 
 fn server_to_proto(server: ListedServer) -> proto::LinkedServer {
@@ -142,6 +245,16 @@ fn server_to_proto(server: ListedServer) -> proto::LinkedServer {
         id: server.id.to_string(),
         name: server.name,
         linked_at: server.linked_at,
+        ..Default::default()
+    }
+}
+
+fn user_to_proto(user: ListedUser) -> proto::LinkedUser {
+    proto::LinkedUser {
+        id: user.id.to_string(),
+        name: user.name,
+        server_name: user.server_name,
+        linked_at: user.linked_at,
         ..Default::default()
     }
 }
@@ -162,6 +275,7 @@ fn refused(err: links::Error) -> ConnectError {
         E::EmailNotProven => refuse(R::REFUSAL_REASON_EMAIL_NOT_PROVEN, message),
         E::CodeNotFound => refuse(R::REFUSAL_REASON_LINK_CODE_NOT_FOUND, message).field("code"),
         E::Expired => refuse(R::REFUSAL_REASON_LINK_EXPIRED, message).field("device_code"),
+        E::UserLinked => refuse(R::REFUSAL_REASON_USER_LINKED, message),
         E::Random(_) | E::Database(_) => return hub_failed(&err),
     };
     refused.into()

@@ -75,6 +75,8 @@ const defaultUsers: Partial<ServiceImpl<typeof UserService>> = {
   listPersonalSettings: () => ({}),
   listNotificationPreferences: () => ({}),
   getHomeLayout: () => ({}),
+  // The Server can't Link Users.
+  getUserLink: () => ({}),
   getDefaultPermissions: () => ({ permissions: newUser }),
   listInvites: () => ({}),
 };

@@ -28,6 +28,18 @@ service LinkService {
   rpc ListLinkedServers(ListLinkedServersRequest) returns (ListLinkedServersResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Links the User showing `code` on their Server to the signed-in Account. An Account may have
+  // Users on many Servers. Fails like `ApproveServerLink`, with `REFUSAL_REASON_LINK_CODE_NOT_FOUND`
+  // for a code no User is waiting on.
+  rpc ApproveUserLink(ApproveUserLinkRequest) returns (ApproveUserLinkResponse);
+  // Returns the signed-in Account's Linked Users, oldest first.
+  rpc ListLinkedUsers(ListLinkedUsersRequest) returns (ListLinkedUsersResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Unlinks one of the signed-in Account's Users. Unlinking one it doesn't have does nothing.
+  rpc UnlinkLinkedUser(UnlinkLinkedUserRequest) returns (UnlinkLinkedUserResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
 
 // What a Linked Server asks the Hub. It sends the credential `PollServerLink` gave it in an
@@ -37,6 +49,20 @@ service LinkedServerService {
   // Unlinks the calling Server: its credential stops working at once, and it leaves its Account's
   // Servers.
   rpc UnlinkServer(UnlinkServerRequest) returns (UnlinkServerResponse);
+  // Starts Linking one of the Server's Users: the code they enter on the Hub, which replaces any
+  // code they were waiting on and stops working after `expires_in_seconds`. Fails with
+  // `REFUSAL_REASON_USER_LINKED` for a User Linked already, since a User Links to one Account.
+  rpc StartUserLink(StartUserLinkRequest) returns (StartUserLinkResponse);
+  // Returns the Account one of the Server's Users is Linked to, if any. The Server asks while the
+  // User waits for their code to be entered, and to see whether the Account Unlinked them.
+  rpc GetUserLink(GetUserLinkRequest) returns (GetUserLinkResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Unlinks one of the Server's Users, or forgets the code they wait on. Unlinking a User who
+  // isn't Linked does nothing.
+  rpc UnlinkUser(UnlinkUserRequest) returns (UnlinkUserResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
 
 // A Server registered with the Hub, owned by an Account.
@@ -101,3 +127,70 @@ message ListLinkedServersResponse {
 message UnlinkServerRequest {}
 
 message UnlinkServerResponse {}
+
+// A User on a Linked Server, Linked to an Account.
+message LinkedUser {
+  // The Link's id, a UUID.
+  string id = 1;
+  // The User's name on their Server when they Linked.
+  string name = 2;
+  // The name of the Linked Server the User is on.
+  string server_name = 3;
+  // When they Linked, in seconds since the Unix epoch.
+  int64 linked_at = 4;
+}
+
+message ApproveUserLinkRequest {
+  // The code the User's Server shows, in any case, with or without its hyphen.
+  string code = 1;
+}
+
+message ApproveUserLinkResponse {
+  // The User just Linked.
+  LinkedUser user = 1;
+}
+
+message ListLinkedUsersRequest {}
+
+message ListLinkedUsersResponse {
+  repeated LinkedUser users = 1;
+}
+
+message UnlinkLinkedUserRequest {
+  // The Link's id, as `LinkedUser.id`.
+  string id = 1;
+}
+
+message UnlinkLinkedUserResponse {}
+
+message StartUserLinkRequest {
+  // The User's id on the Server.
+  int64 user_id = 1;
+  // The User's name, which their Account's list of Users shows: up to 100 characters, cut there if
+  // longer.
+  string name = 2;
+}
+
+message StartUserLinkResponse {
+  // What the User's Server shows and they enter on the Hub, such as `BDFH-JKLM`.
+  string user_code = 1;
+  // How long the code works.
+  int32 expires_in_seconds = 2;
+}
+
+message GetUserLinkRequest {
+  // The User's id on the Server.
+  int64 user_id = 1;
+}
+
+message GetUserLinkResponse {
+  // The email of the Account the User is Linked to, or empty while they aren't.
+  string account = 1;
+}
+
+message UnlinkUserRequest {
+  // The User's id on the Server.
+  int64 user_id = 1;
+}
+
+message UnlinkUserResponse {}

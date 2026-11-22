@@ -9,14 +9,14 @@ import "nama/v1/sign_in.proto";
 // Managing the Server's Users, their Devices, Invites, Plugin Connections, Personal settings,
 // notification preferences and Home layouts. Every RPC but `ListDevices`, `RevokeDevice`,
 // `ChangePassword`, the Plugin Connection ones, the Personal settings ones, the notification
-// preference ones and the Home layout ones needs `PERMISSION_MANAGE_USERS`,
+// preference ones, the Home layout ones and the User Link ones needs `PERMISSION_MANAGE_USERS`,
 // and fails with `permission_denied` without it.
 // Only a caller with `PERMISSION_ADMIN` may `SetPermissions`, `ResetPassword` or `DeleteUser` for a
 // User with it, grant it, put it in the default Permissions or create a User while they hold it, or
 // set their own Permissions; others fail with `permission_denied` and a Refusal naming
-// `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions`, `SetDefaultPermissions`
-// and `DeleteUser` also need Recent Authentication, as `SignInService` describes. RPCs name Users
-// by ID, not by name.
+// `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions`, `SetDefaultPermissions`,
+// `DeleteUser` and `StartUserLink` also need Recent Authentication, as `SignInService` describes.
+// RPCs name Users by ID, not by name.
 service UserService {
   // Creates a User, who can sign in at once, with the default Permissions as they are now. Fails
   // with `invalid_argument` if the name or the password breaks the rules, and `already_exists` if
@@ -168,7 +168,49 @@ service UserService {
   rpc ResetHomeLayout(ResetHomeLayoutRequest) returns (ResetHomeLayoutResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Returns whether the caller is Linked to an Account, and to which, or the code they show while
+  // they wait for it to be entered on the Hub (ADR 0011). While it waits, this is also what has the
+  // Plugin ask the Hub whether it was entered. `link` is unset while the Server can't Link Users:
+  // without an enabled Plugin that links it, such as the Hub Plugin, or before the Server is Linked
+  // itself. Fails with `unavailable` if the Plugin failed.
+  rpc GetUserLink(GetUserLinkRequest) returns (GetUserLinkResponse) {}
+  // Starts Linking the caller to an Account, replacing a code they were showing, and returns the
+  // new one. A User Links to one Account, so a caller Linked already gets that Link back. Fails
+  // with `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled Plugin that links the Server, and
+  // with `unavailable` if the Plugin couldn't start, such as with the Hub unreachable.
+  rpc StartUserLink(StartUserLinkRequest) returns (StartUserLinkResponse) {}
+  // Unlinks the caller from their Account, or stops showing their code. Unlinking a User who isn't
+  // Linked does nothing. Fails like `StartUserLink`; the caller stays Linked if the Hub couldn't be
+  // told.
+  rpc UnlinkUser(UnlinkUserRequest) returns (UnlinkUserResponse) {}
 }
+
+message GetUserLinkRequest {}
+
+message GetUserLinkResponse {
+  // Unset while the Server can't Link Users.
+  UserLink link = 1;
+}
+
+// Where Linking a User stands.
+message UserLink {
+  // Set while the User waits for someone to enter `code`.
+  string code = 1;
+  // Where to enter `code`, set with it.
+  string url = 2;
+  // The Account the User is Linked to, as its email, once they are.
+  string account = 3;
+}
+
+message StartUserLinkRequest {}
+
+message StartUserLinkResponse {
+  UserLink link = 1;
+}
+
+message UnlinkUserRequest {}
+
+message UnlinkUserResponse {}
 
 message CreateUserRequest {
   // 1 to 64 characters once leading and trailing spaces are trimmed, and unique ignoring case.

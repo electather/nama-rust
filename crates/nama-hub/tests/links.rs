@@ -1,5 +1,6 @@
-//! Registering a Server through the device flow, listing an Account's Servers, Unlinking one, and
-//! what a Linked Server shares, against a real PostgreSQL.
+//! Registering a Server through the device flow, listing an Account's Servers, Unlinking one,
+//! what a Linked Server shares, and Linking a Linked Server's Users to Accounts, against a real
+//! PostgreSQL.
 
 #[path = "support/hub.rs"]
 mod hub;
@@ -22,10 +23,12 @@ use hub::TestHub;
 use mail::{Inbox, fake_mail};
 use nama_hub::diagnostics::Signal;
 use nama_hub_proto::nama::hub::v1::{
-    AccountServiceClient, ApproveServerLinkRequest, CreateAccountRequest, LinkServiceClient,
-    LinkedServerServiceClient, ListLinkedServersRequest, PollServerLinkRequest,
-    PollServerLinkResponse, RefusalReason, SendSignInLinkRequest, ServerLinkServiceClient,
-    SignInWithLinkRequest, StartServerLinkRequest, StartServerLinkResponse, UnlinkServerRequest,
+    AccountServiceClient, ApproveServerLinkRequest, ApproveUserLinkRequest, CreateAccountRequest,
+    GetUserLinkRequest, LinkServiceClient, LinkedServerServiceClient, ListLinkedServersRequest,
+    ListLinkedUsersRequest, PollServerLinkRequest, PollServerLinkResponse, RefusalReason,
+    SendSignInLinkRequest, ServerLinkServiceClient, SignInWithLinkRequest, StartServerLinkRequest,
+    StartServerLinkResponse, StartUserLinkRequest, UnlinkLinkedUserRequest, UnlinkServerRequest,
+    UnlinkUserRequest,
 };
 use refused::assert_refused;
 use ring::signature::{ED25519, UnparsedPublicKey};
@@ -375,16 +378,235 @@ async fn a_credential_the_hub_cant_check_isnt_called_unlinked(db: PgPool) {
     assert_ne!(failed.code, ErrorCode::Unauthenticated, "{failed:?}");
 }
 
-/// Links a Server to a new Account with a proven email, and returns the Server's credential.
+/// Links a Server named `name` to the Account signed in with `token`, and returns its credential.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn linked_credential(hub: &TestHub, inbox: &mut Inbox) -> String {
-    let ada = create_proven(hub, inbox, "ada@example.com").await;
-    let started = start(hub, "Living room").await;
-    approve(hub, &ada, &started.user_code).await.unwrap();
+async fn linked(hub: &TestHub, token: &str, name: &str) -> String {
+    let started = start(hub, name).await;
+    approve(hub, token, &started.user_code).await.unwrap();
     poll(hub, &started.device_code).await.unwrap().credential
+}
+
+/// Starts Linking the User `user_id` of the Server presenting `credential`, and returns their code.
+async fn start_user(
+    hub: &TestHub,
+    credential: &str,
+    user_id: i64,
+) -> Result<String, connectrpc::ConnectError> {
+    Ok(linked_server(hub, credential)
+        .start_user_link(StartUserLinkRequest {
+            user_id,
+            name: "Grace".to_owned(),
+            ..Default::default()
+        })
+        .await?
+        .into_owned()
+        .user_code)
+}
+
+async fn approve_user(
+    hub: &TestHub,
+    token: &str,
+    code: &str,
+) -> Result<String, connectrpc::ConnectError> {
+    let approved = links(hub, token)
+        .approve_user_link(ApproveUserLinkRequest {
+            code: code.to_owned(),
+            ..Default::default()
+        })
+        .await?
+        .into_owned();
+    Ok(approved
+        .user
+        .into_option()
+        .map_or_else(String::new, |user| user.id))
+}
+
+/// The email of the Account the Server presenting `credential` says its User `user_id` is Linked
+/// to, empty while they aren't.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn user_account(hub: &TestHub, credential: &str, user_id: i64) -> String {
+    linked_server(hub, credential)
+        .get_user_link(GetUserLinkRequest {
+            user_id,
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .account
+}
+
+/// Each of the signed-in Account's Linked Users, as `<User> on <Server>`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn linked_users(hub: &TestHub, token: &str) -> Vec<String> {
+    let listed = links(hub, token)
+        .list_linked_users(ListLinkedUsersRequest::default())
+        .await
+        .unwrap()
+        .into_owned();
+    listed
+        .users
+        .into_iter()
+        .map(|user| format!("{} on {}", user.name, user.server_name))
+        .collect()
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn unlink_user(hub: &TestHub, credential: &str, user_id: i64) {
+    linked_server(hub, credential)
+        .unlink_user(UnlinkUserRequest {
+            user_id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn unlink_linked_user(hub: &TestHub, token: &str, id: &str) {
+    links(hub, token)
+        .unlink_linked_user(UnlinkLinkedUserRequest {
+            id: id.to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_user_who_enters_their_code_is_linked_on_both_sides(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let bea = create_proven(&hub, &mut inbox, "Bea@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let code = start_user(&hub, &server, 7).await.unwrap();
+    assert_eq!(user_account(&hub, &server, 7).await, "");
+
+    approve_user(&hub, &bea, &code.to_lowercase())
+        .await
+        .unwrap();
+
+    assert_eq!(user_account(&hub, &server, 7).await, "Bea@example.com");
+    assert_eq!(linked_users(&hub, &bea).await, ["Grace on Ada's"]);
+    assert_eq!(linked_users(&hub, &ada).await, Vec::<String>::new());
+    assert_eq!(user_account(&hub, &server, 8).await, "");
+    assert_refused(
+        approve_user(&hub, &bea, &code).await,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LINK_CODE_NOT_FOUND,
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn an_account_links_users_on_many_servers_but_a_user_links_to_one(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let bea = create_proven(&hub, &mut inbox, "bea@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    let cabin = linked(&hub, &ada, "Cabin").await;
+    for server in [&living_room, &cabin] {
+        let code = start_user(&hub, server, 7).await.unwrap();
+        approve_user(&hub, &bea, &code).await.unwrap();
+    }
+
+    assert_eq!(
+        linked_users(&hub, &bea).await,
+        ["Grace on Living room", "Grace on Cabin"]
+    );
+    assert_refused(
+        start_user(&hub, &living_room, 7).await,
+        ErrorCode::AlreadyExists,
+        RefusalReason::REFUSAL_REASON_USER_LINKED,
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn the_server_unlinks_only_its_own_user(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    let cabin = linked(&hub, &ada, "Cabin").await;
+    for server in [&living_room, &cabin] {
+        let code = start_user(&hub, server, 7).await.unwrap();
+        approve_user(&hub, &ada, &code).await.unwrap();
+    }
+
+    unlink_user(&hub, &living_room, 7).await;
+
+    assert_eq!(user_account(&hub, &living_room, 7).await, "");
+    assert_eq!(linked_users(&hub, &ada).await, ["Grace on Cabin"]);
+    // Unlinked, they may Link again.
+    start_user(&hub, &living_room, 7).await.unwrap();
+}
+
+#[sqlx::test(migrations = false)]
+async fn an_account_unlinks_only_its_own_users(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let bea = create_proven(&hub, &mut inbox, "bea@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let code = start_user(&hub, &server, 7).await.unwrap();
+    let link = approve_user(&hub, &bea, &code).await.unwrap();
+
+    unlink_linked_user(&hub, &ada, &link).await;
+    unlink_linked_user(&hub, &bea, "not a uuid").await;
+    assert_eq!(linked_users(&hub, &bea).await, ["Grace on Ada's"]);
+    unlink_linked_user(&hub, &bea, &link).await;
+
+    assert_eq!(linked_users(&hub, &bea).await, Vec::<String>::new());
+    assert_eq!(user_account(&hub, &server, 7).await, "");
+}
+
+#[sqlx::test(migrations = false)]
+async fn unlinking_a_server_unlinks_its_users(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let code = start_user(&hub, &server, 7).await.unwrap();
+    approve_user(&hub, &ada, &code).await.unwrap();
+
+    linked_server(&hub, &server)
+        .unlink_server(UnlinkServerRequest::default())
+        .await
+        .unwrap();
+
+    assert_eq!(linked_users(&hub, &ada).await, Vec::<String>::new());
+}
+
+#[sqlx::test(migrations = false)]
+async fn linking_a_user_needs_a_proven_email_and_a_linked_server(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let bea = create(&hub, "bea@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let code = start_user(&hub, &server, 7).await.unwrap();
+
+    assert_refused(
+        approve_user(&hub, &bea, &code).await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_EMAIL_NOT_PROVEN,
+    );
+    assert_eq!(user_account(&hub, &server, 7).await, "");
+    assert_refused(
+        start_user(&hub, "no such credential", 7).await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+    );
 }
 
 /// Posts `batch` to the Hub's OTLP/HTTP `/otlp/v1/{signal}`, as the Server presenting
@@ -417,7 +639,8 @@ async fn a_linked_servers_shared_batches_reach_the_backend_unchanged_and_no_one_
     db: PgPool,
 ) {
     let (hub, mut inbox) = hub_with_mail(db).await;
-    let credential = linked_credential(&hub, &mut inbox).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let credential = linked(&hub, &ada, "Living room").await;
 
     let anyone = share(&hub, "traces", None, b"anyone's").await;
     let unknown = share(&hub, "traces", Some("no such credential"), b"unknown").await;
@@ -445,7 +668,8 @@ async fn a_linked_servers_shared_batches_reach_the_backend_unchanged_and_no_one_
 #[sqlx::test(migrations = false)]
 async fn a_linked_server_sharing_over_4_mib_a_minute_is_refused(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
-    let credential = linked_credential(&hub, &mut inbox).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let credential = linked(&hub, &ada, "Living room").await;
     let batch = vec![0; 3 * 512 * 1024];
 
     let mut answers = Vec::new();
