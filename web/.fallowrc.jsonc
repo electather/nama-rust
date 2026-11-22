@@ -172,7 +172,8 @@
       },
       {
         "from": "settings",
-        // Its Plugins pane lists the Plugins page's rows, and its Backups pane renders Backups'.
+        // Its Plugins pane lists the Plugins page's rows, its Backups pane renders Backups' parts,
+        // and each Backup's row says when it was written as a Job's Run does.
         "allow": [
           "settings",
           "admin-plugins",
@@ -223,7 +224,6 @@
           "admin-needs-a-match",
           "admin-playback",
           "admin-jobs",
-          "admin-backups",
           "admin-now-playing",
           "admin-home",
           "admin-users",
