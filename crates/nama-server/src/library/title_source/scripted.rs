@@ -1,5 +1,6 @@
 //! A title source a unit test scripts, so it states only the titles, search results, Seasons,
-//! artwork and failures it needs, and reads back what was asked. A test that wants TMDB's own
+//! artwork, Similar titles and failures it needs, and reads back what its title source was
+//! asked. A test that wants TMDB's own
 //! behaviour enables the real TMDB Plugin on its HTTP fake instead.
 
 use std::{
@@ -12,9 +13,10 @@ use nama_plugin_api::{
     contract::{
         Artwork, ArtworkAnswer, ArtworkAsked, ArtworkKind, Candidate, Episode, Movie, MovieAnswer,
         SearchQuery, SearchResults, Season, SeasonAnswer, SeasonAsked, Show, ShowAnswer,
-        TitleAsked, TitleId,
+        SimilarAsked, SimilarTitle, SimilarTitles, TitleAsked, TitleId,
     },
     metadata::{MetadataError, TitleMethod, TitleSource},
+    similar_source::SimilarSource,
 };
 
 /// What the [`ScriptedSource`]s sharing it were asked, in the order asked.
@@ -81,6 +83,8 @@ pub(crate) struct ScriptedSource {
     /// Each Season with the id of its Show.
     seasons: Vec<(String, Season)>,
     artwork: Vec<Artwork>,
+    /// What it answers as a Similar source; it is one only if this holds a title.
+    similar: Vec<SimilarTitle>,
     serving: Option<Vec<TitleMethod>>,
     refusals: Vec<(TitleMethod, Refusal)>,
     asked: SourcesAsked,
@@ -98,6 +102,7 @@ impl ScriptedSource {
             shows: Vec::new(),
             seasons: Vec::new(),
             artwork: Vec::new(),
+            similar: Vec::new(),
             serving: None,
             refusals: Vec::new(),
             asked: asked.clone(),
@@ -186,6 +191,17 @@ impl ScriptedSource {
             kind: kind.into(),
             path: path.to_owned(),
             language: Some(language.to_owned()),
+            ..Default::default()
+        });
+        self
+    }
+
+    /// Is a Similar source too, answering that the title `id` is like every title it's asked
+    /// about, at `weight`, after those it answers already.
+    pub(crate) fn with_similar(mut self, id: &str, weight: f32) -> Self {
+        self.similar.push(SimilarTitle {
+            id: title_id(id).into(),
+            weight,
             ..Default::default()
         });
         self
@@ -327,17 +343,36 @@ impl TitleSource for ScriptedSource {
     }
 }
 
+impl SimilarSource for ScriptedSource {
+    fn similar<'a>(
+        &'a self,
+        _asked: &'a SimilarAsked,
+    ) -> BoxFuture<'a, Result<SimilarTitles, PluginError>> {
+        Box::pin(future::ready(Ok(SimilarTitles {
+            titles: self.similar.clone(),
+            ..Default::default()
+        })))
+    }
+}
+
 impl Plugin for ScriptedSource {
     fn manifest(&self) -> Manifest {
+        let mut extension_points = vec![PointKey::provide::<dyn TitleSource>()];
+        if !self.similar.is_empty() {
+            extension_points.push(PointKey::provide::<dyn SimilarSource>());
+        }
         Manifest {
             version: "0.0.0".to_owned(),
-            extension_points: vec![PointKey::provide::<dyn TitleSource>()],
+            extension_points,
             ..Manifest::new(PluginId::from_static(self.namespace))
         }
     }
 
     fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         registrar.provide::<dyn TitleSource>(Priority::DEFAULT, Arc::new(self.clone()));
+        if !self.similar.is_empty() {
+            registrar.provide::<dyn SimilarSource>(Priority::DEFAULT, Arc::new(self.clone()));
+        }
         Ok(())
     }
 }
