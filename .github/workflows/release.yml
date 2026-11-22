@@ -135,6 +135,8 @@ jobs:
           "working-directory": "web"
       - name: "Build the web app"
         run: "vp -C web build"
+      - name: "Build the Hub web app"
+        run: "vp -C web/hub build"
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
       # Get the dist-manifest

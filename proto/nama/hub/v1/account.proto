@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package nama.hub.v1;
+
+// Creating an Account, and signing it in and out, for the Hub's web pages. A session is an
+// HttpOnly `SameSite=Strict` cookie (ADR 0015), never in a response body. Failures a client can
+// cause carry a `nama.hub.v1.Refusal`.
+service AccountService {
+  // Creates an Account with an email and a password, and signs it in. Fails with
+  // `REFUSAL_REASON_EMAIL_TAKEN` when another Account has the email, and with
+  // `REFUSAL_REASON_EMAIL_INVALID` or `REFUSAL_REASON_PASSWORD_LENGTH` when one breaks the rules.
+  rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
+  // Signs an Account in by its email, compared without regard to case, and password. Fails with
+  // `REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD`, without saying which is wrong, and with
+  // `REFUSAL_REASON_TOO_MANY_ATTEMPTS` after too many failures from one client or for one email.
+  rpc SignIn(SignInRequest) returns (SignInResponse);
+  // Ends the calling session and clears its cookie. Fails with `REFUSAL_REASON_SIGN_IN_REQUIRED`
+  // without a session.
+  rpc SignOut(SignOutRequest) returns (SignOutResponse);
+  // Returns the signed-in Account, or fails with `REFUSAL_REASON_SIGN_IN_REQUIRED`.
+  rpc GetAccount(GetAccountRequest) returns (GetAccountResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+// A person's identity on the Hub.
+message Account {
+  // The Account's id, a UUID.
+  string id = 1;
+  // The email it was created with, as it was typed.
+  string email = 2;
+}
+
+message CreateAccountRequest {
+  // Up to 254 characters, with an `@` that has something on each side.
+  string email = 1;
+  // 8 to 1024 characters.
+  string password = 2;
+}
+
+message CreateAccountResponse {
+  // The Account just created and signed in.
+  Account account = 1;
+}
+
+message SignInRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message SignInResponse {
+  // The Account just signed in.
+  Account account = 1;
+}
+
+message SignOutRequest {}
+
+message SignOutResponse {}
+
+message GetAccountRequest {}
+
+message GetAccountResponse {
+  Account account = 1;
+}

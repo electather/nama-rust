@@ -1,0 +1,39 @@
+//! The Hub's web pages (ADR 0010): the app `vp -C hub build` writes to `web/hub/dist`, embedded in
+//! the binary by `build.rs`.
+
+use axum::{
+    extract::Request,
+    http::{Method, header},
+    middleware::Next,
+    response::{IntoResponse, Response},
+};
+
+include!(concat!(env!("OUT_DIR"), "/web_assets.rs"));
+
+/// Answers a `GET` for any path but an RPC's with the app's file at that path, or else with
+/// `index.html`, so a reloaded deep link still loads the app, which then routes to the page. Every
+/// other request goes on to `next`, so an unknown RPC still gets a 404. `vp dev` proxies the same
+/// paths to a Hub (`web/hub/vite.config.ts`).
+pub(crate) async fn serve(request: Request, next: Next) -> Response {
+    let path = request.uri().path();
+    if request.method() != Method::GET || path.starts_with("/nama.") {
+        return next.run(request).await;
+    }
+    match asset(path) {
+        Some(body) => ([(header::CONTENT_TYPE, content_type(path))], body).into_response(),
+        None => ([(header::CONTENT_TYPE, HTML_CONTENT_TYPE)], SHELL).into_response(),
+    }
+}
+
+const HTML_CONTENT_TYPE: &str = "text/html; charset=utf-8";
+
+fn content_type(path: &str) -> &'static str {
+    match path.rsplit_once('.').map(|(_, extension)| extension) {
+        Some("html") => HTML_CONTENT_TYPE,
+        Some("js") => "text/javascript; charset=utf-8",
+        Some("css") => "text/css; charset=utf-8",
+        Some("woff2") => "font/woff2",
+        Some("svg") => "image/svg+xml",
+        _ => "application/octet-stream",
+    }
+}

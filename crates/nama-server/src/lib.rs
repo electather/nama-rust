@@ -11,7 +11,6 @@ pub mod db;
 pub mod diagnostics;
 mod events;
 pub mod ffmpeg;
-mod forwarded;
 mod home_rows;
 pub mod images;
 mod library;

@@ -4,12 +4,13 @@ The web app: React and TanStack Router, built with Vite into static files that t
 
 ## Toolchain
 
-`web/` is a pnpm workspace of two packages (ADR 0101):
+`web/` is a pnpm workspace of three packages (ADR 0101):
 
 - **The web app**, at the root: everything below unless it says otherwise.
-- **nama-ui**, in `ui/`: the design system, which the Hub web app will share. Its shadcn components are in `ui/src/components/`, and its tokens and fonts in `ui/src/styles.css`. It has no build step: its `exports` point at its sources, which the app's Vite compiles. Shared components, hooks and helpers that aren't the design system stay in the web app's `src/shared/`.
+- **nama-ui**, in `ui/`: the design system, which both apps share. Its shadcn components are in `ui/src/components/`, and its tokens and fonts in `ui/src/styles.css`. It has no build step: its `exports` point at its sources, which each app's Vite compiles. Shared components, hooks and helpers that aren't the design system stay in the web app's `src/shared/`.
+- **The Hub web app**, nama-hub-web, in `hub/`: the Hub's pages for Accounts (ADR 0010), which the Hub embeds and serves. Its code is in `hub/src/`, imported through its own `@hub/` alias, with a route per page in `hub/src/routes/` and the rest in `hub/src/app/` and `hub/src/features/`. It builds to the same `DESIGN.md`.
 
-The packages pin a dependency both declare once, in `pnpm-workspace.yaml`'s `catalog`. Every command below runs from `web/` and covers both. `vp build` builds the web app at the root into `dist/`, the files the Server embeds.
+The packages pin a dependency more than one declares once, in `pnpm-workspace.yaml`'s `catalog`. Every command below runs from `web/` and covers all three. `vp build` builds the web app at the root into `dist/`, the files the Server embeds, and `vp -C hub build` the Hub web app into `hub/dist/`, the files the Hub embeds. `hub/vite.config.ts` holds only what its build needs; its checks and tests run from the root's config.
 
 Everything runs through [Vite+](https://viteplus.dev) (`vp`, ADR 0017). It pins Node 26 and pnpm 12 for this workspace, so install `vp` and run:
 
@@ -37,11 +38,12 @@ CI's `web` job runs, and every finding fails it:
 vp check
 vp test
 vp build
+vp -C hub build
 vp run fallow   # fallow --ci
-(cd .. && vp dlx impeccable@4.8.0 detect --json web/src web/ui/src)
+(cd .. && vp dlx impeccable@4.8.0 detect --json web/src web/ui/src web/hub/src)
 ```
 
-impeccable runs from the repo root because that's where it finds `.impeccable/config.json`, which ignores `src/gen/`, and `DESIGN.md`. From `web/` it reads neither.
+impeccable runs from the repo root because that's where it finds `.impeccable/config.json`, which ignores `src/gen/` and `hub/src/gen/`, and `DESIGN.md`. From `web/` it reads neither.
 
 How strict they are:
 
@@ -53,13 +55,15 @@ How strict they are:
 
 ## Generated client
 
-`src/gen/` holds the TypeScript messages and service descriptors that `protoc-gen-es` generates from `proto/` (ADR 0007). It holds the client API only, not the Plugin contract. Like the Rust code in `crates/nama-proto`, it's checked in, and CI's `lint` job fails if it's stale. After changing the schema, run `vp install` here (that installs the plugin), then `buf generate` in `proto/`. Calls go through `@connectrpc/connect-query` with the generated descriptors, so there's no `protoc-gen-connect-query`.
+`src/gen/` holds the TypeScript messages and service descriptors that `protoc-gen-es` generates from `proto/` (ADR 0007). It holds the client API only, not the Plugin contract. The Hub web app's `hub/src/gen/` holds the Hub API, `nama.hub.v1`, only. Like the Rust code in `crates/nama-proto`, it's checked in, and CI's `lint` job fails if it's stale. After changing the schema, run `vp install` here (that installs the plugin), then `buf generate` in `proto/`. Calls go through `@connectrpc/connect-query` with the generated descriptors, so there's no `protoc-gen-connect-query`.
 
 ## Running against a Server
 
 Start a Server (it listens on `http://localhost:7980` by default), then run `vp dev`. The dev server proxies every Connect path (`/nama.…`), `/media/…`, `/custom-images/…` and `/diagnostics/…` to `NAMA_SERVER_URL`, which defaults to that address. The browser sees one origin, so the `SameSite=Strict` session cookie works as it does in production and no CORS is involved (ADR 0015).
 
-Tests never need a Server. They fake RPCs with Connect's `createRouterTransport`, built from the same generated descriptors.
+For the Hub web app, start a Hub (`crates/nama-hub/README.md`, listening on `http://localhost:7981`), then run `vp -C hub dev`, which proxies the Hub's Connect paths (`/nama.hub.…`) to `NAMA_HUB_URL`, which defaults to that address.
+
+Tests never need a Server or a Hub. They fake RPCs with Connect's `createRouterTransport`, built from the same generated descriptors.
 
 ## Installing as an app
 

@@ -1,0 +1,16 @@
+[package]
+name = "nama-forwarded"
+version = "0.1.0"
+description = "Where a request to the Server or the Hub came from, believing forwarded headers only from trusted proxies"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+
+[dependencies]
+axum = { version = "0.8", default-features = false, features = ["tokio"] }
+schemars = "1"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+
+[lints]
+workspace = true

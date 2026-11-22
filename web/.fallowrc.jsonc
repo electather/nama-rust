@@ -2,8 +2,14 @@
 // `vp run fallow` runs `fallow --ci`. See web/README.md, "Checks".
 {
   "$schema": "https://fallow.tools/schema.json",
-  // Generated code: `buf generate` writes src/gen/, the router plugin writes the route tree.
-  "ignorePatterns": ["src/gen/**", "src/routeTree.gen.ts"],
+  // Generated code: `buf generate` writes src/gen/ and hub/src/gen/, the router plugin the route
+  // trees.
+  "ignorePatterns": [
+    "src/gen/**",
+    "src/routeTree.gen.ts",
+    "hub/src/gen/**",
+    "hub/src/routeTree.gen.ts",
+  ],
   // nama-ui's package exports make every component an entry point, so this is what still fails a
   // component, or a sub-part, that no screen uses (ui/src/components/AGENTS.md).
   "workspaces": { "settings": { "ui": { "includeEntryExports": true } } },
@@ -36,6 +42,8 @@
   // @bufbuild/protobuf, so it needs no zone. A file is in the first zone that matches it.
   "boundaries": {
     "zones": [
+      // The Hub web app imports only its own files and nama-ui (ADR 0101).
+      { "name": "hub", "patterns": ["hub/**"] },
       { "name": "shared-components", "patterns": ["src/shared/components/**"] },
       { "name": "shared-hooks", "patterns": ["src/shared/hooks/**"] },
       { "name": "shared-lib", "patterns": ["src/shared/lib/**"] },
@@ -65,6 +73,10 @@
     // Each feature PR adds its feature's zone, allowed `shared-*` and the sibling features it
     // lists, and adds the feature to `app`, `routes` and `router`.
     "rules": [
+      {
+        "from": "hub",
+        "allow": ["hub"],
+      },
       {
         "from": "shared-lib",
         "allow": ["shared-lib"],

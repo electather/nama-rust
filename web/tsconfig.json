@@ -7,7 +7,9 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable", "DOM.AsyncIterable"],
     "types": ["vite/client"],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      // The Hub web app's own files (hub/tsconfig.json).
+      "@hub/*": ["./hub/src/*"]
     },
 
     "moduleResolution": "bundler",

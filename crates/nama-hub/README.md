@@ -10,8 +10,11 @@ It reads its config from environment variables only:
 |---|---|
 | `NAMA_HUB_DATABASE_URL` | The PostgreSQL database, as a `postgres://` URL. Required. |
 | `NAMA_HUB_LISTEN` | The address to listen on. `0.0.0.0:7981` by default. |
+| `NAMA_HUB_TRUSTED_PROXIES` | The reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` it believes, such as `["10.0.0.0/8"]` (ADR 0018). None by default, so sign-in rate limits count the peer's address and the session cookie is `Secure` only behind a listed proxy that says HTTPS. |
 
 Each release, prereleases aside, is also a Docker image for amd64 and arm64, `ghcr.io/electather/nama-hub`, with the Server's version; it listens on 7981 as user 1000.
+
+With the `web` feature, which releases turn on, it also serves its web pages, the Hub web app in `web/hub/` (`web/README.md`): build them first with `vp -C hub build` in `web/`. Without it, it serves only the API, and `vp -C hub dev` in `web/` serves the pages against it.
 
 At startup it applies every migration the database hasn't had, in one transaction. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export its traces and logs, as on the Server (root `README.md`, "Diagnostics").
 

@@ -19,11 +19,11 @@ use nama_proto::nama::v1::{
     StartSignInCodeResponse, WhoAmIRequest, WhoAmIResponse, reauthenticate_request::Proof,
 };
 
-use crate::forwarded::RequestSource;
 use crate::users::{
     self, Blocked, Caller, Delivery, NewDevice, Polled, SignIn, SignInCodeError, SignInError,
     SignedIn, session_cookie,
 };
+use nama_forwarded::RequestSource;
 
 use super::{
     caller, database_failed, refuse, signed_out, unknown_enum_value,

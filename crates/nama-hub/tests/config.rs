@@ -55,3 +55,19 @@ fn the_database_url_stays_out_of_debug_output() {
         Ok(())
     });
 }
+
+#[test]
+fn the_environment_lists_the_trusted_proxies_and_none_are_trusted_by_default() {
+    Jail::expect_with(|jail| {
+        jail.set_env("NAMA_HUB_DATABASE_URL", "postgres://hub@db/hub");
+        assert_eq!(Config::load().unwrap().trusted_proxies, []);
+
+        jail.set_env("NAMA_HUB_TRUSTED_PROXIES", r#"["10.0.0.0/8", "::1"]"#);
+
+        assert_eq!(
+            Config::load().unwrap().trusted_proxies,
+            ["10.0.0.0/8".parse().unwrap(), "::1".parse().unwrap()]
+        );
+        Ok(())
+    });
+}
