@@ -69,12 +69,12 @@ function open(path: string, { events = [matrix, pilot], listFails = false } = {}
   render(<RouterProvider router={getRouter(transport)} />);
 }
 
-/** The text of `file`, which should be a Blob the page exported. */
-async function textOf(file: Blob | MediaSource | undefined) {
+/** `file`, which should be a Blob the page exported. */
+function exportedBlob(file: Blob | MediaSource | undefined) {
   if (!(file instanceof Blob)) {
     throw new TypeError("the page exported no Blob");
   }
-  return file.text();
+  return file;
 }
 
 describe("viewing history", () => {
@@ -133,7 +133,7 @@ describe("viewing history", () => {
 
     expect(downloads).toStrictEqual(["nama-viewing-history.json"]);
     const [file] = exported;
-    const json: unknown = JSON.parse(await textOf(file));
+    const json: unknown = JSON.parse(await exportedBlob(file).text());
     expect(json).toStrictEqual({
       events: [
         {
