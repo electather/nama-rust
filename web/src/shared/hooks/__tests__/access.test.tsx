@@ -211,8 +211,8 @@ test.each([
   {
     name: "Manage settings",
     permission: Permission.MANAGE_SETTINGS,
-    landing: "/admin/plugins",
-    pages: ["Plugins", "Home"],
+    landing: "/admin/home",
+    pages: ["Home"],
   },
   {
     name: "Admin",
@@ -222,7 +222,6 @@ test.each([
       "Libraries",
       "Needs a Match",
       "Users",
-      "Plugins",
       "Home",
       "Playback",
       "Now Playing",
@@ -248,20 +247,17 @@ test.each([
   },
 );
 
-test.each([
-  "/admin/users",
-  "/admin/plugins",
-  "/admin/plugins/tmdb",
-  "/admin/jobs",
-  "/admin/now-playing",
-])("a User with only Manage Libraries opening %s is told they can't", async (path) => {
-  openApp(path, fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }));
+test.each(["/admin/users", "/admin/jobs", "/admin/now-playing"])(
+  "a User with only Manage Libraries opening %s is told they can't",
+  async (path) => {
+    openApp(path, fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }));
 
-  await expect(
-    screen.findByRole("heading", { name: "You can’t open this page" }),
-  ).resolves.toBeDefined();
-  expect(screen.getByRole("link", { name: "Admin" })).toBeDefined();
-});
+    await expect(
+      screen.findByRole("heading", { name: "You can’t open this page" }),
+    ).resolves.toBeDefined();
+    expect(screen.getByRole("link", { name: "Admin" })).toBeDefined();
+  },
+);
 
 test("a wrong password shows an error and keeps the username", async () => {
   const router = openApp(
