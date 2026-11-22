@@ -61,8 +61,13 @@ impl PlaybackService for PlaybackServiceHandler {
         // ponytail: `decoding.evidence` goes unread, unset meaning declared, since nothing passes
         // audio through yet; read it once something does, which needs exact (ADR 0027).
         let decoding = request.device_decoding.into_option().unwrap_or_default();
-        // A client plans again, saying what failed, when the plan it started with couldn't play.
-        let retrying = !(request.failed_methods.is_empty() && request.failed_recipes.is_empty());
+        // A player's first ask leaves every choice to the Server; asking again, for another Track,
+        // Playback Limit or after a failure, carries what the last plan played or what failed.
+        let first_ask = request.audio_track.is_none()
+            && request.subtitle_track.is_none()
+            && !request.no_subtitles
+            && request.failed_methods.is_empty()
+            && request.failed_recipes.is_empty();
         let subtitle = match (request.subtitle_track, request.no_subtitles) {
             // A place past `usize::MAX` is in no file ffprobe reads.
             (Some(place), _) => {
@@ -99,7 +104,7 @@ impl PlaybackService for PlaybackServiceHandler {
         let planned = (self.plans.plan(caller, asked).await)
             .map_err(|err| plan_failed(err, request.version_id))?
             .ok_or_else(version_not_found)?;
-        if !retrying {
+        if first_ask {
             diagnostics::record(Usage::PlaybackStarted);
         }
         Response::ok(planned_to_proto(planned, self.downloads.has_source()))

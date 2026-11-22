@@ -72,6 +72,7 @@ enum Command {
 #[tokio::main]
 async fn main() -> ExitCode {
     let args = Args::parse();
+    // The traces exporter's client; the logs exporter's is made from it.
     let sharing = ShareThroughPlugins::new(Signal::Traces, Handle::current());
     let exporting = init_tracing(&sharing);
     let to_admin = exporting.as_ref().is_some_and(Exporting::to_admin);
@@ -150,18 +151,17 @@ async fn run(
         }
     }
 
-    plugins
-        .extension_points()
-        .notify::<ServerStarted>(ServerStartedEvent {
-            name: config.name.clone(),
-            version: env!("CARGO_PKG_VERSION").to_owned(),
-        });
+    let points = plugins.extension_points();
+    points.notify::<ServerStarted>(ServerStartedEvent {
+        name: config.name.clone(),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+    });
 
     let shutdown = async {
         shutdown.await;
         info!("shutting down");
     };
-    sharing.serve(Some(plugins.extension_points()));
+    sharing.serve(Some(points));
     let served = nama_server::serve(
         listener,
         &config,
@@ -384,7 +384,7 @@ impl Exporting {
     fn start(to_admin: bool, sharing: &ShareThroughPlugins) -> Result<Self, ExporterBuildError> {
         let shared_spans = SpanExporter::builder()
             .with_http()
-            .with_http_client(sharing.for_signal(Signal::Traces))
+            .with_http_client(sharing.clone())
             .build()?;
         let mut traces =
             SdkTracerProvider::builder().with_span_processor(diagnostics::SharedSpans::new(

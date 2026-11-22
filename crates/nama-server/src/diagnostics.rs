@@ -202,6 +202,8 @@ where
         .and(while_recording());
     tracing_opentelemetry::layer()
         .with_tracer(tracer)
+        // For `SharedSpans`, which shares none finer than `info`.
+        .with_level(true)
         .with_filter(spans_only)
         .and_then(queries)
 }
@@ -326,7 +328,7 @@ impl<P: SpanProcessor> SpanProcessor for SharedSpans<P> {
     }
 
     fn on_end(&self, span: SpanData) {
-        if self.switches.diagnostics() {
+        if self.switches.diagnostics() && at_info_or_above(&span) {
             self.processor.on_end(span);
         }
     }
@@ -342,6 +344,15 @@ impl<P: SpanProcessor> SpanProcessor for SharedSpans<P> {
     fn set_resource(&mut self, _resource: &Resource) {
         self.processor.set_resource(&shared_resource());
     }
+}
+
+/// Whether `span` was recorded at `info` or above. An admin's `RUST_LOG` may record finer spans
+/// for their own collector, from crates no one reviewed for what their spans carry.
+fn at_info_or_above(span: &SpanData) -> bool {
+    !span.attributes.iter().any(|attribute| {
+        attribute.key.as_str() == "level"
+            && matches!(attribute.value.as_str().as_ref(), "DEBUG" | "TRACE")
+    })
 }
 
 /// The resource every shared span and log record names: the Server's version, never the admin's

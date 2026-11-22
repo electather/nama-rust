@@ -1,4 +1,5 @@
 use nama_plugin_api::PluginId;
+use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_sdk::{
     logs::{InMemoryLogExporter, SdkLoggerProvider},
@@ -75,6 +76,35 @@ fn sharing_diagnostics_shares_spans_and_only_the_lines_on_the_list() {
 
     assert_eq!(spans, ["transcode"]);
     assert_eq!(lines, ["hardware acceleration failed partway"]);
+}
+
+#[test]
+fn a_span_finer_than_info_isnt_shared_though_an_admin_records_it() {
+    let switches: &'static SharingSwitches = Box::leak(Box::default());
+    switches.set(Sharing {
+        diagnostics: true,
+        usage_analytics: false,
+    });
+    let spans = InMemorySpanExporter::default();
+    let traces = SdkTracerProvider::builder()
+        .with_span_processor(SharedSpans::new(
+            SimpleSpanProcessor::new(spans.clone()),
+            switches,
+        ))
+        .build();
+    // As `RUST_LOG=debug` records them for the admin's own collector.
+    let recording_debug = tracing_opentelemetry::layer()
+        .with_tracer(traces.tracer("test"))
+        .with_level(true);
+
+    tracing::subscriber::with_default(tracing_subscriber::registry().with(recording_debug), || {
+        tracing::info_span!("scan").in_scope(|| {});
+        tracing::debug_span!("hyper::connect").in_scope(|| {});
+    });
+
+    let shared = spans.get_finished_spans().unwrap();
+    let names: Vec<String> = shared.into_iter().map(|span| span.name.into()).collect();
+    assert_eq!(names, ["scan"]);
 }
 
 #[test]

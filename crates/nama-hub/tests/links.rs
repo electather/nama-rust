@@ -375,6 +375,18 @@ async fn a_credential_the_hub_cant_check_isnt_called_unlinked(db: PgPool) {
     assert_ne!(failed.code, ErrorCode::Unauthenticated, "{failed:?}");
 }
 
+/// Links a Server to a new Account with a proven email, and returns the Server's credential.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn linked_credential(hub: &TestHub, inbox: &mut Inbox) -> String {
+    let ada = create_proven(hub, inbox, "ada@example.com").await;
+    let started = start(hub, "Living room").await;
+    approve(hub, &ada, &started.user_code).await.unwrap();
+    poll(hub, &started.device_code).await.unwrap().credential
+}
+
 /// Posts `batch` to the Hub's OTLP/HTTP `/otlp/v1/{signal}`, as the Server presenting
 /// `credential`, if any, and answers the Hub's status.
 #[expect(
@@ -405,10 +417,7 @@ async fn a_linked_servers_shared_batches_reach_the_backend_unchanged_and_no_one_
     db: PgPool,
 ) {
     let (hub, mut inbox) = hub_with_mail(db).await;
-    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
-    let started = start(&hub, "Living room").await;
-    approve(&hub, &ada, &started.user_code).await.unwrap();
-    let credential = poll(&hub, &started.device_code).await.unwrap().credential;
+    let credential = linked_credential(&hub, &mut inbox).await;
 
     let anyone = share(&hub, "traces", None, b"anyone's").await;
     let unknown = share(&hub, "traces", Some("no such credential"), b"unknown").await;
@@ -436,10 +445,7 @@ async fn a_linked_servers_shared_batches_reach_the_backend_unchanged_and_no_one_
 #[sqlx::test(migrations = false)]
 async fn a_linked_server_sharing_over_4_mib_a_minute_is_refused(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
-    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
-    let started = start(&hub, "Living room").await;
-    approve(&hub, &ada, &started.user_code).await.unwrap();
-    let credential = poll(&hub, &started.device_code).await.unwrap().credential;
+    let credential = linked_credential(&hub, &mut inbox).await;
     let batch = vec![0; 3 * 512 * 1024];
 
     let mut answers = Vec::new();

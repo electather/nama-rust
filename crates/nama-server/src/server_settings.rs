@@ -1,10 +1,10 @@
 //! What an admin sets about the Server as a whole, kept in the one `server_settings` row: its
 //! URL, which notifications link to the web app with, what it shares with Nama's developers, and
-//! the Playback settings: the folder
-//! playback writes segment files to, how far behind playback it keeps them, the most Transcodes it
-//! runs at once, what they run on, and the default Playback Limit for remote playback; and whether
-//! Posters and Backdrops are resized, how much disk the resized copies take, and which store
-//! keeps the images; the default Home layout; and where Backups go and how many are kept.
+//! the Playback settings: the folder playback writes segment files to, how far behind playback it
+//! keeps them, the most Transcodes it runs at once, what they run on, and the default Playback
+//! Limit for remote playback; and whether Posters and Backdrops are resized, how much disk the
+//! resized copies take, and which store keeps the images; the default Home layout; and where
+//! Backups go and how many are kept.
 //!
 //! [`Settings`] owns the table (see the crate's `AGENTS.md`).
 
