@@ -1,7 +1,6 @@
 [package]
 name = "nama-server"
-# nama-hub has this version too, so one release tag ships both, Docker images included
-# (`.github/workflows/docker.yml`): bump them together.
+# Shared with nama-hub: see "Releases" in `crates/nama-hub/AGENTS.md`.
 version = "0.1.0"
 description = "The Nama Server: owns Libraries, streams media and handles Requests"
 license = "AGPL-3.0-only"

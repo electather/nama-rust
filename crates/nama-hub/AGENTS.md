@@ -19,6 +19,10 @@
 - **Queries use sqlx's macros.** After changing one or a migration, regenerate `.sqlx/` at the workspace root (`README.md`).
 - **Spans carry ids only**, never an email, a name or a title (ADR 0054).
 
+### Releases
+
+- **The Server's version.** `Cargo.toml`'s `version` matches `crates/nama-server/Cargo.toml`'s: bump both together, since one release tag ships both binaries and their Docker images (`.github/workflows/docker.yml`). This holds until a deploy pipeline wants an image per commit.
+
 ### Tests
 
 - **One fixture.** Tests in `tests/` start the Hub with `TestHub` in `tests/support/hub.rs`, on the database `#[sqlx::test]` makes. Setup goes through the API, and shared helpers never write the database.
