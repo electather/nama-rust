@@ -1,10 +1,10 @@
 import type { LinkOptions } from "@tanstack/react-router";
 import { CirclePlus } from "lucide-react";
 
-import type { RowTitle } from "@/features/home/lib/row-titles";
 import { type MovieHit, RequestState } from "@/gen/nama/v1/request_pb";
 import { shownRequestState } from "@/shared/components/request-state/request-states";
 import type { Shown } from "@/shared/components/state-label";
+import type { RowTitle } from "@/shared/lib/row-titles";
 import { titleParam } from "@/shared/lib/title-param";
 
 /** A row's title as its shelf shows it: a poster that opens its page, maybe with a badge. */

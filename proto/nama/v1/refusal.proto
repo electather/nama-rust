@@ -313,4 +313,7 @@ enum RefusalReason {
   // none of its own to replace, as it runs only when an Admin starts it. The message says why.
   // `field` is `schedule`. Params: `schedule`, as sent.
   REFUSAL_REASON_SCHEDULE_INVALID = 95;
+  // `not_found`: there is no Box Set with the ID, or none the caller may see. `field` is
+  // `box_set_id`.
+  REFUSAL_REASON_BOX_SET_NOT_FOUND = 96;
 }

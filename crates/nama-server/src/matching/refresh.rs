@@ -138,6 +138,7 @@ impl Matcher {
     /// refresh never changes which title an item Matches.
     async fn store_refreshed(&self, found: Outcomes) -> Result<(), sqlx::Error> {
         let found = self.with_similar(found).await;
+        let found = self.with_box_set_movies(found).await;
         let items = (found.items.into_iter())
             .filter_map(|(item, outcome)| Some((item, Decided::Matched(Box::new(outcome.ok()?)))))
             .collect();

@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT plugin, name, overview, poster, backdrop, movies, looked_up FROM box_sets\n             WHERE namespace = ? AND value = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "box_sets",
+            "name": "plugin"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "box_sets",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "overview",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "box_sets",
+            "name": "overview"
+          }
+        }
+      },
+      {
+        "name": "poster",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "box_sets",
+            "name": "poster"
+          }
+        }
+      },
+      {
+        "name": "backdrop",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "box_sets",
+            "name": "backdrop"
+          }
+        }
+      },
+      {
+        "name": "movies",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "box_sets",
+            "name": "movies"
+          }
+        }
+      },
+      {
+        "name": "looked_up",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "box_sets",
+            "name": "looked_up"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "92ac3ae3188568dd062318d172293c8c96817a715ba9431f48cebb4d4b847220"
+}

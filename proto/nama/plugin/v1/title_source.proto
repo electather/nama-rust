@@ -28,7 +28,7 @@ service TitleSourceService {
   // The `title_episode` export: one Episode of the Show with the id asked for. Optional.
   rpc Episode(EpisodeAsked) returns (EpisodeAnswer);
   // The `title_image` export: the image at a path the source gave in a poster, backdrop, still,
-  // `Artwork` or `Role.headshot`. A path names bytes that never change: the Kernel keeps an image under its path and
+  // `Artwork`, `Role.headshot` or `BoxSet`. A path names bytes that never change: the Kernel keeps an image under its path and
   // browsers cache it for good, so a changed image needs a new path. Optional.
   rpc Image(ImageAsked) returns (ImageAnswer);
   // The `title_artwork` export: the artwork the source has for one title, of every kind it has.
@@ -240,6 +240,26 @@ message Movie {
   repeated Role cast = 14;
   // Its Crew, in billing order.
   repeated Role crew = 15;
+  // The Box Set it belongs to, unset if none. A Movie belongs to at most one per source.
+  BoxSet box_set = 17;
+}
+
+// A group of Movies the source says belong together, such as the Alien films. It is a grouping,
+// not a title: the Kernel never Matches a file to it.
+message BoxSet {
+  // Its id, in the namespace the source keeps titles under.
+  TitleId id = 1;
+  // Its name, in the source's language.
+  string name = 2;
+  // A summary.
+  optional string overview = 3;
+  // The poster, as a path for the `title_image` export.
+  optional string poster = 4;
+  // The backdrop, as a path for the `title_image` export.
+  optional string backdrop = 5;
+  // Its Movies' ids in release order, those without a release date last. Empty when the source
+  // doesn't list them: the Kernel then groups only the Movies it has that name the Box Set.
+  repeated TitleId movies = 6;
 }
 
 // A Show's details.

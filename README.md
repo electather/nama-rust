@@ -40,6 +40,8 @@ api_key = "your TMDB API key"
 
 After that it ignores those tables, and logs that it does, so editing them changes nothing. The `#:schema` line lets an editor check the file ([`crates/nama-server/README.md`](crates/nama-server/README.md), "Editing `nama.toml`").
 
+TMDB also says which Box Set a Movie belongs to, such as the Alien films. A Movie's page shows the rest of its Box Set, and each Movies Library has a Box Sets tab. Its Movies the Server lacks are listed too, for Users who may Request Movies to Request, unless an Admin turns off TMDB's "List Box Set Movies the Server lacks" setting, which saves about one TMDB request per Movie a Box Set lists each time its Movies are fetched.
+
 A file or folder name can name the Edition its Version holds, as Plex writes it: `Alien (1979) {edition-Director's Cut}.mkv`. The web app shows "Director's Cut" beside that Version. A folder's Edition applies to every file in it that names none of its own, and an Edition never changes what a file Matches.
 
 The Server also reads the IDs, and nothing else, from the `.nfo` files Kodi, Jellyfin and Emby leave beside videos: a Movie's `<video name>.nfo`, a stacked Movie's shared one, or `movie.nfo` in a folder holding one Movie, a Show's `tvshow.nfo`, and an Episode's own `<video name>.nfo`. A file Matches the title its `.nfo` file names, without a search. IDs in the file's name count only when the title sources have none of the `.nfo` file's. Adding, editing or deleting an `.nfo` file Matches its video again on the next scan, unless an Admin set its Match by hand. The Server skips an `.nfo` file over 4 MiB, a link, or one naming no ID it can read, and logs a warning naming it.

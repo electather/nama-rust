@@ -38,3 +38,5 @@ Only Alien (`movie-348.json`) and Dark (`tv-70523.json`) have credits, trimmed t
 
 `movie-949.json` has no US release, so tests have a title with no rating in the Language
 setting's country.
+
+Only Alien (`movie-348.json`) is in a Box Set, TMDB's Alien Collection (`collection-8091.json`), trimmed to Alien, Aliens and a made-up announced part with no release date, listed out of release order on purpose, so tests see the Plugin sort them.

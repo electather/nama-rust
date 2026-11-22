@@ -586,7 +586,8 @@ impl Matcher {
         outcomes: Outcomes,
         summary: &mut Summary,
     ) -> Result<(), sqlx::Error> {
-        let decided = tally(self.with_similar(outcomes).await, summary);
+        let outcomes = self.with_similar(outcomes).await;
+        let decided = tally(self.with_box_set_movies(outcomes).await, summary);
         if decided.items.is_empty() {
             return Ok(());
         }

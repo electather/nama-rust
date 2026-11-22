@@ -14,6 +14,7 @@ use crate::db::Database;
 mod air_dates;
 mod any_library;
 mod backdrops;
+mod box_sets;
 mod decisions;
 mod details;
 mod edit_distance;
@@ -29,6 +30,7 @@ mod matched;
 mod nfo;
 mod pages;
 mod pins;
+mod reasons;
 mod roles;
 mod search;
 mod sharing;
@@ -42,6 +44,7 @@ pub(crate) use testing::{File, FileItem, Recorded};
 
 pub(crate) use any_library::{library_with_movie, library_with_show, matched_episodes};
 pub(crate) use backdrops::NewestBackdrop;
+pub(crate) use box_sets::StoredBoxSet;
 use decisions::insert_decisions;
 pub(crate) use decisions::{
     Decided, Decisions, ImageRef, Metadata, TiedTitle, Unmatched, UnmatchedReason,
@@ -72,14 +75,15 @@ impl Contents {
         Self { db }
     }
 
-    /// Deletes, in `conn`'s write, the Scores, Trailers, Similar titles, Roles and air dates the
-    /// Plugin `plugin`'s title source gave titles, for Upkeep to forget a Plugin the Server no
-    /// longer has.
+    /// Deletes, in `conn`'s write, the Scores, Trailers, Box Sets, Similar titles, Roles and
+    /// air dates the Plugin `plugin`'s title source gave titles, for Upkeep to forget a Plugin
+    /// the Server no longer has.
     pub(crate) async fn forget_plugin(
         conn: &mut SqliteConnection,
         plugin: &str,
     ) -> Result<(), sqlx::Error> {
         details::forget_plugin(conn, plugin).await?;
+        box_sets::forget_plugin(conn, plugin).await?;
         similar::forget_plugin(conn, plugin).await?;
         roles::forget_plugin(conn, plugin).await?;
         air_dates::forget_plugin(conn, plugin).await

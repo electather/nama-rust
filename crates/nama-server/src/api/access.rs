@@ -100,6 +100,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::BROWSE_SERVICE_LIST_FEATURED_SPEC.procedure,          Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_HOME_ROWS_SPEC.procedure,         Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_HOME_ROW_TITLES_SPEC.procedure,   Access::SignedIn),
+    (proto::BROWSE_SERVICE_GET_BOX_SET_SPEC.procedure,            Access::SignedIn),
+    (proto::BROWSE_SERVICE_LIST_BOX_SETS_SPEC.procedure,          Access::SignedIn),
     (proto::BROWSE_SERVICE_LIST_UNMATCHED_SPEC.procedure,         Access::SignedIn),
     (proto::BROWSE_SERVICE_GET_UNMATCHED_VERSION_SPEC.procedure,  Access::SignedIn),
     (proto::SEARCH_SERVICE_SEARCH_SPEC.procedure,                 Access::SignedIn),
