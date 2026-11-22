@@ -2,7 +2,6 @@
 //! here an in-process one scripted by each test, and a Server without one, which has nothing to
 //! Link.
 
-#[expect(dead_code, reason = "this binary only counts logged lines")]
 #[path = "support/log.rs"]
 mod log;
 #[path = "support/refused.rs"]
@@ -14,6 +13,7 @@ mod server;
 use std::{
     future,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
+    time::Duration,
 };
 
 use connectrpc::{
@@ -52,6 +52,8 @@ struct Script {
     unlinked_users: Vec<i64>,
     /// Whether Unlinking a User fails, as with the service unreachable.
     unlink_user_fails: bool,
+    /// Whether Unlinking a User never answers, as with the service slow to time out.
+    unlink_user_hangs: bool,
 }
 
 impl Scripted {
@@ -128,6 +130,9 @@ impl ServerLinker for Scripted {
     fn unlink_user(&self, user_id: i64) -> BoxFuture<'_, Result<(), PluginError>> {
         let mut script = self.script();
         script.unlinked_users.push(user_id);
+        if script.unlink_user_hangs {
+            return Box::pin(future::pending());
+        }
         if script.unlink_user_fails {
             return Box::pin(future::ready(Err("the service is unreachable".into())));
         }
@@ -176,6 +181,21 @@ async fn user_link(config: ClientConfig) -> Option<proto::UserLink> {
         .await
         .unwrap();
     got.into_owned().link.into_option()
+}
+
+/// Waits until `linker` was asked to Unlink exactly `expected`, since a delete doesn't wait for it.
+async fn until_unlinked(linker: &Scripted, expected: &[i64]) {
+    let waited = tokio::time::timeout(server::WAIT, async {
+        while linker.script().unlinked_users != expected {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await;
+    assert!(
+        waited.is_ok(),
+        "Unlinked {:?}, not {expected:?}",
+        linker.script().unlinked_users
+    );
 }
 
 /// Deletes the User `user_id`, calling as `who`.
@@ -345,7 +365,21 @@ async fn deleting_a_user_unlinks_them_once() {
 
     delete(server.client_config(), grace.id).await.unwrap();
 
-    assert_eq!(linker.script().unlinked_users, [grace.id]);
+    until_unlinked(&linker, &[grace.id]).await;
+}
+
+#[tokio::test]
+async fn deleting_a_user_doesnt_wait_for_the_plugin_to_unlink_them() {
+    let linker = Scripted::default();
+    linker.script().unlink_user_hangs = true;
+    let server = with_linker(&linker).await;
+    let grace = server.user_with_default_permissions("Grace").await;
+
+    let deleted =
+        tokio::time::timeout(server::WAIT, delete(server.client_config(), grace.id)).await;
+
+    deleted.expect("the delete waited for the Plugin").unwrap();
+    until_unlinked(&linker, &[grace.id]).await;
 }
 
 #[tokio::test]
@@ -356,7 +390,7 @@ async fn an_admin_deleting_themselves_is_unlinked() {
 
     delete(ada.client_config(), ada.id).await.unwrap();
 
-    assert_eq!(linker.script().unlinked_users, [ada.id]);
+    until_unlinked(&linker, &[ada.id]).await;
 }
 
 #[tokio::test]
@@ -404,5 +438,9 @@ async fn a_plugin_that_cant_unlink_a_deleted_user_leaves_them_deleted_and_warns(
         .into_owned()
         .users;
     assert!(listed.iter().all(|user| user.id != grace.id));
-    assert_eq!(log.count(&["could not Unlink a deleted User", "linker"]), 1);
+    log.wait_for(
+        &["could not tell the service a User was deleted", "linker"],
+        1,
+    )
+    .await;
 }
