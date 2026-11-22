@@ -4,6 +4,7 @@ import { type ComponentType, Suspense } from "react";
 
 import { Crumbs } from "@/features/settings/components/crumbs";
 import { JobCrumbs } from "@/features/settings/components/job-crumbs";
+import { LibraryCrumbs } from "@/features/settings/components/library-crumbs";
 import { PluginCrumbs } from "@/features/settings/components/plugin-crumbs";
 import { ResetHomeLayout } from "@/features/settings/components/reset-home-layout";
 import { type Section, sectionTitles } from "@/features/settings/lib/sections";
@@ -11,6 +12,7 @@ import { type Section, sectionTitles } from "@/features/settings/lib/sections";
 // The sections that open one of their things in place of their list, whose crumbs then name it.
 const openedCrumbs: Partial<Record<Section, ComponentType>> = {
   plugins: PluginCrumbs,
+  libraries: LibraryCrumbs,
   jobs: JobCrumbs,
 };
 
