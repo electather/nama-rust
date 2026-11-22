@@ -2177,6 +2177,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 
 [[package]]
+name = "nama-forwarded"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "schemars",
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "nama-hub"
 version = "0.1.0"
 dependencies = [
@@ -2479,6 +2489,7 @@ dependencies = [
  "jiff",
  "jixel",
  "jxl",
+ "nama-forwarded",
  "nama-plugin-api",
  "nama-plugin-local-auth",
  "nama-plugin-log-events",

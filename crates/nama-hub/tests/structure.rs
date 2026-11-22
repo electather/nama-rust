@@ -39,7 +39,7 @@ const ROWS: &[&[&str]] = &[
     &["sync", "viewing"],
     &["links"],
     &["accounts", "titles"],
-    &["signing", "mail", "forwarded", "web", "db", "config"],
+    &["signing", "mail", "web", "db", "config"],
 ];
 
 /// The modules that start the Hub, which call any row.
