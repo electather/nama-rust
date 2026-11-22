@@ -328,7 +328,8 @@ fn tone_mapping(facts: &Facts, video: &VideoConversion) -> Option<Reason> {
     if !tone_map.makes_sdr() {
         return None;
     }
-    // On an HDR Device, only a text Burn-in ffmpeg can't draw over HDR tone-maps.
+    // On an HDR Device, only a text Burn-in ffmpeg can't draw over HDR, or Dolby Vision 5 reshaped
+    // to H.264, tone-maps.
     let burns_text = matches!(video.burn_in, Some(BurnIn::Text { .. }));
     // Dolby Vision with no Base Layer is tone-mapped anyway unless the Transcode makes HEVC.
     let reshapes_anyway = !video.hevc && tone_map == (ToneMapper::Tonemapx { dolby_vision: true });

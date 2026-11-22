@@ -680,9 +680,9 @@ fn without_zscale_a_hardware_transcode_of_hdr_falls_back_without_tone_mapping_an
     );
     let for_encoder = Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_ENCODER;
     let reasons = [hdr_reason(for_encoder, Hdr::Hdr10, String::new())];
-    let from_hdr_device = super::fallback(&facts, &transcoded(&plan), &reasons).unwrap();
+    let with_encoder_reason = super::fallback(&facts, &transcoded(&plan), &reasons).unwrap();
     assert!(
-        !from_hdr_device
+        !with_encoder_reason
             .reasons
             .iter()
             .any(|reason| reason.kind == for_encoder)
