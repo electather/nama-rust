@@ -12,6 +12,7 @@ use std::{
     sync::Arc,
 };
 
+use tokio::sync::Notify;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use super::{ASS, Error, Subtitles, WEBVTT, ass, cached, cached_name, font_name, probed};
@@ -22,7 +23,7 @@ use crate::{
     images::write_atomically,
     library::Stored,
     playback::{
-        Probing, RunningPlans,
+        RunningPlans, WholeFileReads,
         read_failures::{Read, ReadFailure},
         tracks::Probe,
     },
@@ -82,7 +83,7 @@ impl Subtitles {
                 stop.run_until_cancelled(pass.run(&path)).await;
                 drop(running);
             };
-            self.probing.read_whole_file_in_background(span, pass);
+            self.reads.spawn(span, pass);
         };
         self.cache.after_making_all(&folder, start).await
     }
@@ -94,23 +95,33 @@ pub(crate) struct TextPasses {
     subtitles: Subtitles,
     /// Whether anything plays, which the background work waits out.
     running: RunningPlans,
+    /// Notified after each probe pass.
+    passed: Arc<Notify>,
     /// The background loop, so shutting down can wait for it.
     tasks: TaskTracker,
     cancel: CancellationToken,
 }
 
 impl TextPasses {
-    /// Finds Versions in `db` and reads them with `ffmpeg`, on `probing`, after each of its
-    /// passes, waiting while `running` plays anything.
+    /// Finds Versions in `db` and reads them with `ffmpeg` on `reads` into `cache`, each time
+    /// `passed` is notified, waiting while `running` plays anything.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is a separate handle the passes are built from; a struct bundling them \
+                  would exist only for this call"
+    )]
     pub(crate) fn new(
         db: &Arc<Database>,
         ffmpeg: Arc<Ffmpeg>,
         running: RunningPlans,
-        probing: Probing,
+        cache: super::Cache,
+        reads: WholeFileReads,
+        passed: Arc<Notify>,
     ) -> Self {
         Self {
-            subtitles: Subtitles::new(db, ffmpeg, probing),
+            subtitles: Subtitles::new(db, ffmpeg, cache, reads),
             running,
+            passed,
             tasks: TaskTracker::new(),
             cancel: CancellationToken::new(),
         }
@@ -130,7 +141,7 @@ impl TextPasses {
     }
 
     /// Stops the background work, ffmpeg included, and waits for the loop; ffmpeg runs on
-    /// [`Probing`], whose shutdown waits for it.
+    /// [`WholeFileReads`], whose shutdown waits for it.
     pub(crate) async fn shutdown(&self) {
         self.cancel.cancel();
         self.tasks.close();
@@ -146,7 +157,7 @@ impl TextPasses {
             if let Err(err) = self.read_needed().await {
                 tracing::error!("could not read which Versions need a text pass: {err}");
             }
-            self.subtitles.probing.pass_finished_for_text_passes().await;
+            self.passed.notified().await;
         }
     }
 

@@ -18,8 +18,7 @@ mod mp4;
 mod testing;
 
 use std::{
-    collections::{HashMap, HashSet, hash_map::Entry},
-    io,
+    collections::{HashMap, hash_map::Entry},
     sync::{
         Arc, Mutex, PoisonError,
         atomic::{AtomicBool, Ordering},
@@ -29,15 +28,14 @@ use std::{
 
 use futures_util::StreamExt;
 use nama_proto::nama::v1::ProbingFinished;
-use tokio::sync::{Notify, watch};
+use tokio::sync::watch;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tracing::Instrument as _;
 
 use self::ffprobe::{Ffprobe, Reader};
 use super::{
-    StoredTracks,
+    ProbePasses, StoredTracks, WholeFileReads,
     read_failures::{Read, ReadFailure},
-    subtitles,
     tracks::{
         Keyframes, LastingReason, ListedKeyframes, PassingReason, Probe, ProbeFailure, Tracks,
     },
@@ -46,18 +44,12 @@ use crate::{
     db::Database,
     diagnostics,
     ffmpeg::{Ffmpeg, RunError},
-    images::{DOWNLOADED_SUBTITLES_DIR, ImageStore, PREVIEW_FRAMES_DIR},
     library::{Contents, Stored},
 };
 
 /// How many files background passes probe at once, across all Libraries. Each probe reads only a
 /// file's headers, but from a disk, or a network share, that playback is reading from too.
 const PROBES_AT_ONCE: usize = 3;
-
-/// How many whole files are read at once, to list a Version's keyframes or read its text
-/// subtitles out ([`Probing::read_whole_file_in_background`]), from a disk that playback is
-/// reading from too.
-const WHOLE_FILE_READS_AT_ONCE: usize = 2;
 
 /// How long a plan waits for a Version's keyframes before it Transcodes instead, well short of
 /// a reverse proxy's timeout (nginx's is 60 s), which would drop the plan request (#866). Short,
@@ -139,52 +131,42 @@ struct Inner {
     tracks: Tracks,
     stored_tracks: StoredTracks,
     reader: Arc<dyn Reader>,
-    subtitles: subtitles::Cache,
-    /// Where downloaded subtitles and Preview frames are kept, from which it deletes those of
-    /// Versions gone.
-    images: ImageStore,
     /// Told each time a background pass has probed what it found stale.
-    passed: Notify,
-    /// Background passes and whole-file reads, so shutting down can wait for them.
+    passes: ProbePasses,
+    /// Where keyframe listings run.
+    reads: WholeFileReads,
+    /// Background passes, so shutting down can wait for them.
     tasks: TaskTracker,
     /// Cancelled when the Server shuts down.
     cancel: CancellationToken,
     /// A permit per background probe running, [`PROBES_AT_ONCE`] in all.
     running: tokio::sync::Semaphore,
-    /// A permit per whole-file read running, [`WHOLE_FILE_READS_AT_ONCE`] in all.
-    whole_file_reads: tokio::sync::Semaphore,
     /// The Versions being probed, each by one [`Claim`] holder, and where it sends what it found,
     /// so a later pass over their Library leaves them to it and [`Probing::current`] waits for
     /// its result, rather than probe them twice.
     claimed: Claims<Probed>,
     /// The Versions whose keyframes are being listed, as `claimed` is for probing.
     listing: Claims<Listed>,
-    /// Notified when a background pass has caught up, for Segments. Not `passed`: `notify_one`
-    /// wakes only one waiter, so each follower of a pass needs its own.
-    passed_for_segments: Arc<Notify>,
-    /// As `passed_for_segments`, for text passes.
-    passed_for_text_passes: Notify,
 }
 
 impl Probing {
-    /// Probes with `ffmpeg`'s ffprobe, or not at all without one, throws away what `subtitles`
-    /// caches for files gone or changed, and deletes from `images` the subtitles downloaded for
-    /// Versions gone.
+    /// Probes with `ffmpeg`'s ffprobe, or not at all without one, telling `passes` each time a
+    /// background pass finishes, and lists keyframes on `reads`.
     pub(crate) fn new(
         db: Arc<Database>,
         ffmpeg: Arc<Ffmpeg>,
-        subtitles: subtitles::Cache,
-        images: ImageStore,
+        passes: ProbePasses,
+        reads: WholeFileReads,
     ) -> Self {
-        Self::with_reader(db, Arc::new(Ffprobe(ffmpeg)), subtitles, images)
+        Self::with_reader(db, Arc::new(Ffprobe(ffmpeg)), passes, reads)
     }
 
     /// As [`Self::new`], reading files with `reader` rather than ffprobe.
     fn with_reader(
         db: Arc<Database>,
         reader: Arc<dyn Reader>,
-        subtitles: subtitles::Cache,
-        images: ImageStore,
+        passes: ProbePasses,
+        reads: WholeFileReads,
     ) -> Self {
         Self {
             inner: Arc::new(Inner {
@@ -192,17 +174,13 @@ impl Probing {
                 stored_tracks: StoredTracks::new(Arc::clone(&db)),
                 contents: Contents::new(db),
                 reader,
-                subtitles,
-                images,
+                passes,
+                reads,
                 tasks: TaskTracker::new(),
                 cancel: CancellationToken::new(),
                 running: tokio::sync::Semaphore::new(PROBES_AT_ONCE),
-                whole_file_reads: tokio::sync::Semaphore::new(WHOLE_FILE_READS_AT_ONCE),
                 claimed: Claims::default(),
                 listing: Claims::default(),
-                passed: Notify::new(),
-                passed_for_segments: Arc::default(),
-                passed_for_text_passes: Notify::new(),
             }),
         }
     }
@@ -264,11 +242,6 @@ impl Probing {
                     .map_err(|err| Error::Probe(Arc::clone(err)));
             }
         }
-    }
-
-    /// The subtitle cache it cleans, where a burn-in reads what's cached instead of the file.
-    pub(super) fn subtitles(&self) -> &subtitles::Cache {
-        &self.inner.subtitles
     }
 
     /// When the Version `version`'s file starts and each keyframe of its first video falls: as
@@ -337,9 +310,7 @@ impl Probing {
                 let pass = probing.probe_stale(library);
                 match probing.inner.cancel.run_until_cancelled(pass).await {
                     Some(Ok(probed)) => {
-                        probing.inner.passed.notify_one();
-                        probing.inner.passed_for_segments.notify_one();
-                        probing.inner.passed_for_text_passes.notify_one();
+                        probing.inner.passes.finished();
                         finished(probed);
                     }
                     Some(Err(err)) => {
@@ -352,56 +323,11 @@ impl Probing {
         );
     }
 
-    /// What's notified each time a background pass has caught up with a Library.
-    pub(crate) fn passed(&self) -> Arc<Notify> {
-        Arc::clone(&self.inner.passed_for_segments)
-    }
-
-    /// The subtitle cache, from which it throws away what's cached for files gone or changed.
-    pub(super) fn subtitle_cache(&self) -> subtitles::Cache {
-        self.inner.subtitles.clone()
-    }
-
-    /// Waits until a background pass has probed what it found stale, or returns at once if one
-    /// has since the last call.
-    pub(super) async fn pass_finished(&self) {
-        self.inner.passed.notified().await;
-    }
-
-    /// As [`Self::pass_finished`], for text passes.
-    pub(super) async fn pass_finished_for_text_passes(&self) {
-        self.inner.passed_for_text_passes.notified().await;
-    }
-
     /// Cancels the probes running, waits for them to stop, and starts no more passes.
     pub(crate) async fn shutdown(&self) {
         self.inner.cancel.cancel();
         self.inner.tasks.close();
         self.inner.tasks.wait().await;
-    }
-
-    /// Throws away the subtitles cached for files gone, such as a deleted Library's, or changed
-    /// since they were cached, and deletes the subtitles downloaded for Versions gone and their
-    /// Preview frames, or logs why it couldn't.
-    pub(crate) async fn clean_leftovers(&self) {
-        // ponytail: reads every stored file, and lists every downloaded subtitle, after each scan;
-        // clean only the Library scanned once Libraries get big.
-        let stored = match self.inner.contents.every_stored().await {
-            Ok(stored) => stored,
-            Err(err) => {
-                tracing::error!("could not read which files to keep subtitles for: {err}");
-                return;
-            }
-        };
-        if let Err(err) = self.inner.subtitles.keep_only(&stored).await {
-            tracing::error!("could not throw away subtitles of files gone or changed: {err}");
-        }
-        let images = &self.inner.images;
-        for dir in [DOWNLOADED_SUBTITLES_DIR, PREVIEW_FRAMES_DIR] {
-            if let Err(err) = keep_only(images, dir, &stored).await {
-                tracing::error!("could not list {dir} to delete those of Versions gone: {err}");
-            }
-        }
     }
 
     /// Probes the Library `library`'s files without current Tracks and stores what each holds,
@@ -563,33 +489,6 @@ impl Probing {
         }
     }
 
-    /// Runs `read`, which reads a whole file, in `span` as a background task, so a request given
-    /// up on doesn't stop it (#866), once fewer than [`WHOLE_FILE_READS_AT_ONCE`] such reads run.
-    /// Shutting down cancels it. Returns `false`, dropping `read`, once the Server is shutting
-    /// down.
-    pub(super) fn read_whole_file_in_background(
-        &self,
-        span: tracing::Span,
-        read: impl Future<Output = ()> + Send + 'static,
-    ) -> bool {
-        // A read spawned after shutdown would be cancelled at once, and whoever waited for it
-        // would spawn it again, round and round.
-        if self.inner.cancel.is_cancelled() {
-            return false;
-        }
-        let probing = self.clone();
-        let read = async move {
-            // The semaphore is never closed.
-            if let Ok(_reading) = probing.inner.whole_file_reads.acquire().await {
-                read.await;
-            }
-        };
-        let cancel = self.inner.cancel.clone();
-        (self.inner.tasks)
-            .spawn(async move { cancel.run_until_cancelled(read).await }.instrument(span));
-        true
-    }
-
     /// Lists the keyframes of the file at `path` as [`Self::list_claimed`] does, as a background
     /// task, so a plan request given up on doesn't stop it (#866), and hands back where it sends
     /// them. `None` once the Server is shutting down.
@@ -610,8 +509,7 @@ impl Probing {
                 tracing::error!("could not keep the keyframes listed for {path}: {err}");
             }
         };
-        self.read_whole_file_in_background(listing_span, listing)
-            .then_some(found)
+        (self.inner.reads.spawn(listing_span, listing)).then_some(found)
     }
 
     /// Lists the keyframes of the file at `path`, stored as the file `claim` is for, keeps them,
@@ -716,28 +614,6 @@ fn try_claim<T>(claims: &Claims<T>, file: Stored) -> Result<Claim<T>, watch::Rec
     }
 }
 
-/// Deletes from `images` the folder under `dir` of every Version but `stored`'s, going on past one
-/// it can't delete, which it logs.
-///
-/// # Errors
-///
-/// If the store can't be listed.
-async fn keep_only(images: &ImageStore, dir: &str, stored: &[Stored]) -> io::Result<()> {
-    let current: HashSet<String> = stored.iter().map(|file| file.id.to_string()).collect();
-    let kept: HashSet<String> = (images.list(dir).await?.into_iter())
-        .filter_map(|key| key.get(1).cloned())
-        .collect();
-    for gone in kept.difference(&current) {
-        if let Err(err) = images.delete_dir_on_disk(&[dir, gone]).await {
-            tracing::error!(
-                version = gone,
-                "could not delete a gone Version's {dir}: {err}"
-            );
-        }
-    }
-    Ok(())
-}
-
 /// Locks `mutex`, which no code panics while holding.
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
@@ -745,11 +621,12 @@ fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 
 #[cfg(test)]
 impl Probing {
-    /// Waits until no background pass is running.
+    /// Waits until no background pass or keyframe listing is running.
     pub(crate) async fn idle(&self) {
         self.inner.tasks.close();
         self.inner.tasks.wait().await;
         self.inner.tasks.reopen();
+        self.inner.reads.idle().await;
     }
 }
 

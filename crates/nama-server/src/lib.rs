@@ -45,7 +45,10 @@ use crate::{
     home_rows::HomeRows,
     images::{ImageStore, PluginLogos},
     library::{Contents, CustomImages, LocalImages},
-    playback::{PreviewFrames, Probing, RunningPlans, Segments, SubtitleCache, TextPasses},
+    playback::{
+        Leftovers, PreviewFrames, ProbePasses, Probing, RunningPlans, Segments, SubtitleCache,
+        TextPasses, WholeFileReads,
+    },
     plugin_settings::PluginSettings,
     plugins::{PluginBlobs, log_jobs_time_zone},
     requests::Requests,
@@ -107,19 +110,24 @@ pub fn serve(
     let ffmpeg = Arc::new(ffmpeg);
     let subtitles = SubtitleCache::new(&config.data_dir);
     let images = ImageStore::new(&config.data_dir, Arc::clone(&db));
+    let (passes, reads) = (ProbePasses::default(), WholeFileReads::default());
     let probing = Probing::new(
         Arc::clone(&db),
         Arc::clone(&ffmpeg),
-        subtitles,
-        images.clone(),
+        passes.clone(),
+        reads.clone(),
     );
+    let leftovers = Leftovers::new(Arc::clone(&db), subtitles.clone(), images.clone());
     let segments = Segments::new(Arc::clone(&db), points.clone());
+    // Followed now, so no pass a scan at startup finishes is missed.
+    let probed_for_segments = passes.follow();
     let contents = Contents::new(Arc::clone(&db));
     let running = RunningPlans::new(
         settings.playback(),
         Arc::clone(&ffmpeg),
         contents.clone(),
         probing.clone(),
+        subtitles.clone(),
         events.clone(),
     );
     let preview_frames = PreviewFrames::new(
@@ -127,9 +135,16 @@ pub fn serve(
         images.clone(),
         Arc::clone(&ffmpeg),
         running.clone(),
-        probing.clone(),
+        passes.follow(),
     );
-    let text_passes = TextPasses::new(&db, Arc::clone(&ffmpeg), running.clone(), probing.clone());
+    let text_passes = TextPasses::new(
+        &db,
+        Arc::clone(&ffmpeg),
+        running.clone(),
+        subtitles.clone(),
+        reads.clone(),
+        passes.follow(),
+    );
     let requests = Requests::new(Arc::clone(&db), events.clone(), points.clone());
     let users = Users::new(Arc::clone(&db), points.clone());
     let home_rows = HomeRows::new(Arc::clone(&db), points.clone(), requests.clone());
@@ -144,6 +159,7 @@ pub fn serve(
         LocalImages::new(Arc::clone(&db), images.clone()),
         events.clone(),
         Some(probing.clone()),
+        leftovers,
         running.clone(),
         requests.clone(),
     );
@@ -172,6 +188,8 @@ pub fn serve(
         images,
         artwork,
         probing.clone(),
+        subtitles,
+        reads.clone(),
         events.clone(),
         requests.clone(),
         home_rows.clone(),
@@ -199,7 +217,7 @@ pub fn serve(
             scanner.watch(Duration::from_secs(30), Duration::from_hours(6));
         }
         // After each probe pass, and hourly for a Version due again (ADR 0075).
-        segments.start(probing.passed(), Duration::from_hours(1));
+        segments.start(probed_for_segments, Duration::from_hours(1));
         // Every minute, as Seerr asks how its Requests are progressing (ADR 0012).
         let came_up = home_rows.refresh_as_plugins_come_up(plugins.take_came_up());
         requests.start(came_up, Duration::from_mins(1));
@@ -222,6 +240,9 @@ pub fn serve(
         // The Scanner first, so a scan finishing now can't start a pass once Probing has stopped.
         scanner.shutdown().await;
         probing.shutdown().await;
+        // After text passes and Probing, the last to start reads, so none runs on a closed
+        // database.
+        reads.shutdown().await;
         // Before the Plugin settings, as it asks Segment sources.
         segments.shutdown().await;
         // Before the Plugin settings, which save a Plugin that crashes as it is asked about progress.

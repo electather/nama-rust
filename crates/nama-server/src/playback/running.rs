@@ -86,7 +86,7 @@ use crate::{
         BurnIn, Ffmpeg, FromCut, Hardware, Keyframe, Remux, TextSubtitle, Transcode,
         sidecar_charset,
     },
-    library::{Contents, Stored},
+    library::Contents,
     server_settings::PlaybackSettings,
     users::Caller,
 };
@@ -171,6 +171,7 @@ struct Inner {
     ffmpeg: Arc<Ffmpeg>,
     contents: Contents,
     probing: Probing,
+    subtitles: subtitles::Cache,
     events: EventBus,
     next_id: AtomicU64,
     plans: Mutex<HashMap<u64, Arc<Plan>>>,
@@ -225,14 +226,19 @@ struct Plan {
 
 impl RunningPlans {
     /// Runs plans with `ffmpeg`, cutting a Remux at the keyframes `probing` lists and burning in a
-    /// text subtitle from its subtitle cache once it's there, writing their files to the segment
-    /// folder in `settings` as it is when each starts, and publishing on `events` when each stops.
+    /// text subtitle from `subtitles` once it's there, writing their files to the segment folder
+    /// in `settings` as it is when each starts, and publishing on `events` when each stops.
     /// Until these are dropped or shut down, stops the plans gone unused in the background.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is a separate handle plans run on"
+    )]
     pub(crate) fn new(
         settings: PlaybackSettings,
         ffmpeg: Arc<Ffmpeg>,
         contents: Contents,
         probing: Probing,
+        subtitles: subtitles::Cache,
         events: EventBus,
     ) -> Self {
         let inner = Arc::new(Inner {
@@ -240,6 +246,7 @@ impl RunningPlans {
             ffmpeg,
             contents,
             probing,
+            subtitles,
             events,
             // From 1, as the API's plan id 0 is no plan.
             next_id: AtomicU64::new(1),
@@ -388,7 +395,7 @@ impl RunningPlans {
         let timeline = Timeline::transcoded(duration_ms);
         let cuts = timeline.keyframes.clone();
         let ffmpeg = Arc::clone(&self.inner.ffmpeg);
-        let subtitles = self.inner.probing.subtitles().clone();
+        let subtitles = self.inner.subtitles.clone();
         let start = move |attempt: Transcode| -> Box<Start> {
             let (ffmpeg, subtitles) = (Arc::clone(&ffmpeg), subtitles.clone());
             let (path, cuts) = (path.clone(), cuts.clone());
@@ -396,7 +403,7 @@ impl RunningPlans {
                 let cuts = cuts.get(from.n..).unwrap_or_default();
                 let from = FromCut { n: from.n, cuts };
                 // Asked each run, so a seek once the cache is filled skips reading the whole file.
-                let attempt = burning_in_from(&subtitles, file, &attempt);
+                let attempt = subtitles.burning_in(file, &attempt);
                 let child = ffmpeg.transcode(&path, &attempt, dir, from)?.spawn()?;
                 Ok(process::run(child, stop))
             })
@@ -758,18 +765,6 @@ async fn in_sidecar_charset(mut transcode: Transcode) -> Transcode {
         *charset = sidecar_charset(path).await;
     }
     transcode
-}
-
-/// `attempt`, burning its text subtitle in from `subtitles` if the Version stored as `file` has
-/// it cached there.
-fn burning_in_from(subtitles: &subtitles::Cache, file: Stored, attempt: &Transcode) -> Transcode {
-    let mut attempt = attempt.clone();
-    if let Some(BurnIn::Text { subtitle }) = &mut attempt.video.burn_in
-        && let Some(cached) = subtitles.cached_burn_in(file, subtitle)
-    {
-        *subtitle = cached;
-    }
-    attempt
 }
 
 /// What Observers are told of `caller` playing by `plan`.
