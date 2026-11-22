@@ -56,6 +56,8 @@ mod users;
 mod watch_states;
 mod watchlist;
 
+pub(crate) use server_link::pull_watch_states_after_scans;
+
 use access::require_access;
 
 /// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers
@@ -132,6 +134,7 @@ pub(crate) fn router(
         .add_service(Arc::new(sign_in::SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
             points: plugins.clone(),
+            browse: Browse::new(Arc::clone(&db)),
         }))
         .add_service(Arc::new(matches::MatchServiceHandler {
             matcher: scanner.matcher().clone(),
@@ -207,6 +210,7 @@ pub(crate) fn router(
             connections,
             plugin_settings,
             plugin_logos: plugin_logos.clone(),
+            browse: Browse::new(Arc::clone(&db)),
             db,
             server_url,
             home_rows,

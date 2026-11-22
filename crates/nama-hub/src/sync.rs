@@ -1,5 +1,5 @@
 //! Sync (ADR 0008): each Account's merged Watch State, which its Linked Users' Servers push their
-//! changes into.
+//! changes into and pull from.
 
 use std::collections::{HashMap, hash_map::Entry};
 
@@ -75,6 +75,40 @@ impl WatchStates {
             }
         }
         tx.commit().await
+    }
+
+    /// The Watch State of the Account `server`'s User `user_id` is Linked to, each title's under
+    /// each of its ids apart, as `user_id`'s changes; empty if they aren't Linked. A Server merges
+    /// a title's ids itself, as only it knows which ids its titles have.
+    // ponytail: one answer holds the Account's whole Watch State; page it once one nears the
+    // largest message a client takes.
+    pub(crate) async fn pull(
+        &self,
+        server: &LinkedServer,
+        user_id: i64,
+    ) -> Result<Vec<WatchStateChange>, sqlx::Error> {
+        let Some(account) = self.links.linked_account(server, user_id).await? else {
+            return Ok(Vec::new());
+        };
+        let rows = sqlx::query!(
+            r#"SELECT episode, title_id, played, position_ms, duration_ms,
+                      (extract(epoch FROM changed_at) * 1000)::bigint AS "changed_at_ms!"
+               FROM watch_states WHERE account_id = $1"#,
+            account.0,
+        )
+        .fetch_all(&self.db)
+        .await?;
+        Ok((rows.into_iter())
+            .map(|row| WatchStateChange {
+                user_id,
+                episode: row.episode,
+                ids: vec![row.title_id],
+                played: row.played,
+                position_ms: row.position_ms,
+                duration_ms: row.duration_ms,
+                changed_at_ms: row.changed_at_ms,
+            })
+            .collect())
     }
 }
 

@@ -1,14 +1,14 @@
 //! Provide: Linking the Server to an outside service through a code an Admin enters there, such as
 //! the Hub (ADR 0011, ADR 0094), and then Linking its Users the same way. The Plugin keeps whatever
 //! identity the service gives the Server. Its Users then sign in with their accounts there, and an
-//! Admin creates Users from such accounts (ADR 0092). Only a Built-in Plugin provides it, by
-//! registering it:
+//! Admin creates Users from such accounts (ADR 0092). Their Watch State on their other Servers comes
+//! back through it too (ADR 0008). Only a Built-in Plugin provides it, by registering it:
 //!
 //! ```ignore
 //! registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::new(my_linker));
 //! ```
 
-use crate::{BoxFuture, PluginError};
+use crate::{BoxFuture, PluginError, points::WatchStateChange};
 
 /// Where Linking the Server, or one of its Users, stands.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -151,4 +151,16 @@ pub trait ServerLinker: Send + Sync + 'static {
     ///
     /// When the service couldn't be told: the Kernel tells the Plugin again a minute later.
     fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>>;
+
+    /// The Watch State the service keeps of the User `user_id` from every Server they use, such as
+    /// their Account's on the Hub (ADR 0008), each title's by any of its ids, with when it last
+    /// changed; empty while they aren't Linked. The Kernel takes what is newer than its own.
+    ///
+    /// # Errors
+    ///
+    /// When the service couldn't be asked: the Kernel asks again at the next sign-in or scan.
+    fn watch_states(
+        &self,
+        user_id: i64,
+    ) -> BoxFuture<'_, Result<Vec<WatchStateChange>, PluginError>>;
 }

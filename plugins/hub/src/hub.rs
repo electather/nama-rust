@@ -19,10 +19,11 @@ use hyper_util::{
 use nama_hub_proto::nama::hub::v1::{
     GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient, ListSimilarTitlesRequest,
     ListSimilarTitlesResponse, PollServerLinkRequest, PollServerLinkResponse,
-    PollServerSignInRequest, PushWatchStatesRequest, ServerLinkServiceClient,
-    SetServerAddressesRequest, StartServerLinkRequest, StartServerLinkResponse,
-    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
-    StartUserLinkResponse, UnlinkServerRequest, UnlinkUserRequest, WatchStateChange,
+    PollServerSignInRequest, PullWatchStatesRequest, PushWatchStatesRequest,
+    ServerLinkServiceClient, SetServerAddressesRequest, StartServerLinkRequest,
+    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
+    StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest, UnlinkUserRequest,
+    WatchStateChange,
 };
 use nama_plugin_api::{PluginError, diagnostics_sharer::Signal, server_link::ServerAddresses};
 
@@ -184,6 +185,23 @@ impl Hub {
             })
             .await?;
         Ok(())
+    }
+
+    /// The Watch State of the Account the User `user_id` of the Server whose credential is
+    /// `credential` is Linked to, each title by each id apart; empty while they aren't Linked.
+    pub(crate) async fn pull_watch_states(
+        &self,
+        credential: &str,
+        user_id: i64,
+    ) -> Result<Vec<WatchStateChange>, PluginError> {
+        let pulled = self
+            .linked_server(credential)?
+            .pull_watch_states(PullWatchStatesRequest {
+                user_id,
+                ..Default::default()
+            })
+            .await?;
+        Ok(pulled.into_owned().watch_states)
     }
 
     /// Asks the Account with `email`, if any, to accept the User `user_id`, named `name`, of the

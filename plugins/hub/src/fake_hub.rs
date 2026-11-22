@@ -1,7 +1,7 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
 //! one Server's device flow, Unlinking, its Users' Links, Users created from Accounts, one sign-in
-//! with an Account at a time, its Server Addresses, the Watch State it pushes, the titles like The
-//! Matrix, and a key set of one Ed25519 key it signs with, as the Hub's API
+//! with an Account at a time, its Server Addresses, the Watch State it pushes, which its Linked
+//! Users pull back, the titles like The Matrix, and a key set of one Ed25519 key it signs with, as the Hub's API
 //! (`proto/nama/hub/v1/link.proto`) says the Hub does, and takes shared Diagnostics.
 
 use std::{
@@ -22,11 +22,12 @@ use nama_hub_proto::nama::hub::v1::{
     ExternalId, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest, InviteUserResponse,
     LinkedServerService, ListSimilarTitlesRequest, ListSimilarTitlesResponse,
     PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
-    PollServerSignInResponse, PushWatchStatesRequest, PushWatchStatesResponse, ServerLinkService,
-    SetServerAddressesRequest, SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest,
-    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
-    StartUserLinkRequest, StartUserLinkResponse, TitleKind, UnlinkServerRequest,
-    UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse, WatchStateChange,
+    PollServerSignInResponse, PullWatchStatesRequest, PullWatchStatesResponse,
+    PushWatchStatesRequest, PushWatchStatesResponse, ServerLinkService, SetServerAddressesRequest,
+    SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest, StartServerLinkResponse,
+    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
+    StartUserLinkResponse, TitleKind, UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest,
+    UnlinkUserResponse, WatchStateChange,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::{Value, json};
@@ -416,6 +417,30 @@ impl LinkedServerService for Linked {
         }
         state.pushes.push(request.to_owned_message().changes);
         Response::ok(PushWatchStatesResponse::default())
+    }
+
+    /// Every change pushed, as the asked User's, if they are Linked: the fake has one Account.
+    async fn pull_watch_states(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PullWatchStatesRequest>,
+    ) -> ServiceResult<PullWatchStatesResponse> {
+        let state = self.caller(&ctx)?;
+        let user_id = request.user_id;
+        let watch_states = if state.user_accounts.contains_key(&user_id) {
+            (state.pushes.iter().flatten())
+                .map(|change| WatchStateChange {
+                    user_id,
+                    ..change.clone()
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        Response::ok(PullWatchStatesResponse {
+            watch_states,
+            ..Default::default()
+        })
     }
 
     async fn invite_user(

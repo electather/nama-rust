@@ -21,6 +21,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
+    browse::Browse,
     plugins::ExtensionPoints,
     users::{
         self, Blocked, Caller, Delivery, NewDevice, Polled, SignIn, SignInCodeError, SignInError,
@@ -37,8 +38,11 @@ use super::{
 /// `nama.v1.SignInService`: signing Devices in, and saying who is signed in.
 pub(super) struct SignInServiceHandler {
     pub(super) sign_in: SignIn,
-    /// The Plugin that links the Server, through which a User signs in with their Account.
+    /// The Plugin that links the Server, through which a User signs in with their Account and
+    /// pulls their Watch State on their other Servers.
     pub(super) points: ExtensionPoints,
+    /// Takes the Watch State a User pulls as they sign in.
+    pub(super) browse: Browse,
 }
 
 #[expect(
@@ -65,17 +69,14 @@ impl SignInService for SignInServiceHandler {
                 Instant::now(),
             )
             .await?;
-        Ok(hand_out_session(
-            signed_in,
-            delivery,
-            &ctx,
-            |caller, token| SetupResponse {
+        Ok(
+            self.hand_out_session(signed_in, delivery, &ctx, |caller, token| SetupResponse {
                 user: user_to_proto(caller.user).into(),
                 device: device_to_proto(caller.device, true).into(),
                 token,
                 ..Default::default()
-            },
-        ))
+            }),
+        )
     }
 
     async fn sign_in(
@@ -91,17 +92,14 @@ impl SignInService for SignInServiceHandler {
         };
         let device = new_device(request.device_name, &ctx)?;
         let signed_in = self.sign_in.sign_in(proof, device, Instant::now()).await?;
-        Ok(hand_out_session(
-            signed_in,
-            delivery,
-            &ctx,
-            |caller, token| SignInResponse {
+        Ok(
+            self.hand_out_session(signed_in, delivery, &ctx, |caller, token| SignInResponse {
                 user: user_to_proto(caller.user).into(),
                 device: device_to_proto(caller.device, true).into(),
                 token,
                 ..Default::default()
-            },
-        ))
+            }),
+        )
     }
 
     async fn sign_out(
@@ -231,18 +229,17 @@ impl SignInService for SignInServiceHandler {
                 delivery,
             } => (signed_in, delivery),
         };
-        Ok(hand_out_session(
-            signed_in,
-            delivery,
-            &ctx,
-            |caller, token| PollSignInCodeResponse {
-                status: SignInCodeStatus::SIGN_IN_CODE_STATUS_SIGNED_IN.into(),
-                user: user_to_proto(caller.user).into(),
-                device: device_to_proto(caller.device, true).into(),
-                token,
-                ..Default::default()
-            },
-        ))
+        Ok(
+            self.hand_out_session(signed_in, delivery, &ctx, |caller, token| {
+                PollSignInCodeResponse {
+                    status: SignInCodeStatus::SIGN_IN_CODE_STATUS_SIGNED_IN.into(),
+                    user: user_to_proto(caller.user).into(),
+                    device: device_to_proto(caller.device, true).into(),
+                    token,
+                    ..Default::default()
+                }
+            }),
+        )
     }
 
     async fn accept_invite(
@@ -263,17 +260,16 @@ impl SignInService for SignInServiceHandler {
                 Instant::now(),
             )
             .await?;
-        Ok(hand_out_session(
-            signed_in,
-            delivery,
-            &ctx,
-            |caller, token| AcceptInviteResponse {
-                user: user_to_proto(caller.user).into(),
-                device: device_to_proto(caller.device, true).into(),
-                token,
-                ..Default::default()
-            },
-        ))
+        Ok(
+            self.hand_out_session(signed_in, delivery, &ctx, |caller, token| {
+                AcceptInviteResponse {
+                    user: user_to_proto(caller.user).into(),
+                    device: device_to_proto(caller.device, true).into(),
+                    token,
+                    ..Default::default()
+                }
+            }),
+        )
     }
 
     async fn start_account_sign_in(
@@ -294,17 +290,16 @@ impl SignInService for SignInServiceHandler {
         let device = new_device(request.device_name, &ctx)?;
         let user = server_link::account_signing_in(&self.points, &request.handle).await?;
         let signed_in = self.sign_in.sign_in_with_account(user, device).await?;
-        Ok(hand_out_session(
-            signed_in,
-            delivery,
-            &ctx,
-            |caller, token| SignInWithAccountResponse {
-                user: user_to_proto(caller.user).into(),
-                device: device_to_proto(caller.device, true).into(),
-                token,
-                ..Default::default()
-            },
-        ))
+        Ok(
+            self.hand_out_session(signed_in, delivery, &ctx, |caller, token| {
+                SignInWithAccountResponse {
+                    user: user_to_proto(caller.user).into(),
+                    device: device_to_proto(caller.device, true).into(),
+                    token,
+                    ..Default::default()
+                }
+            }),
+        )
     }
 }
 
@@ -347,20 +342,25 @@ fn user_agent(headers: &HeaderMap) -> Option<String> {
     Some(value.chars().take(LONGEST).collect())
 }
 
-/// The response `body` makes for a Device just `signed_in`, with its session token handed out by
-/// `delivery`: in the body, or in a cookie and not in the body.
-fn hand_out_session<M>(
-    signed_in: SignedIn,
-    delivery: Delivery,
-    ctx: &RequestContext,
-    body: impl FnOnce(Caller, String) -> M,
-) -> Response<M> {
-    let SignedIn { caller, token } = signed_in;
-    match delivery {
-        Delivery::Token => Response::new(body(caller, token)),
-        Delivery::Cookie => {
-            let cookie = session_cookie(&token, ctx.extensions());
-            Response::new(body(caller, String::new())).with_header(SET_COOKIE, cookie)
+impl SignInServiceHandler {
+    /// The response `body` makes for a Device just `signed_in`, with its session token handed out
+    /// by `delivery`: in the body, or in a cookie and not in the body. Pulls the User's Watch
+    /// State on their other Servers too, as every sign-in does (ADR 0008).
+    fn hand_out_session<M>(
+        &self,
+        signed_in: SignedIn,
+        delivery: Delivery,
+        ctx: &RequestContext,
+        body: impl FnOnce(Caller, String) -> M,
+    ) -> Response<M> {
+        let SignedIn { caller, token } = signed_in;
+        server_link::pull_watch_states_soon(&self.points, &self.browse, caller.user.id);
+        match delivery {
+            Delivery::Token => Response::new(body(caller, token)),
+            Delivery::Cookie => {
+                let cookie = session_cookie(&token, ctx.extensions());
+                Response::new(body(caller, String::new())).with_header(SET_COOKIE, cookie)
+            }
         }
     }
 }

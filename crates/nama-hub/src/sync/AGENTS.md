@@ -1,11 +1,12 @@
 ## Sync
 
-Sync (ADR 0008): each Account's merged Watch State, which its Linked Users' Servers push their changes into.
+Sync (ADR 0008): each Account's merged Watch State, which its Linked Users' Servers push their changes into and pull from.
 
 - **One owner.** Only this area reads or writes `watch_states`, tests included.
 - **Keyed by External ID** (ADR 0013): a title known by several has a row under each, so a Server finds it under any it knows. An Unmatched Item has none, so it never reaches the Hub.
 - **The change made last wins**, per Account, title and id, by the time the Server made it, not when it arrived. Marking a title unplayed is a change like any other: unplayed at 0 of 0.
-- **Scoped by Account** (ADR 0097): a Linked Server's change reaches only the Account its User is Linked to, and one of a User who isn't Linked is dropped.
+- **Scoped by Account** (ADR 0097): a Linked Server's change reaches only the Account its User is Linked to, and one of a User who isn't Linked is dropped. A pull reads only that Account's, and nothing for a User who isn't Linked.
+- **A pull hands each id's row apart.** The Hub doesn't know which ids name one title; the Server does for the titles it has, and merges them.
 
 ### Neighbours
 

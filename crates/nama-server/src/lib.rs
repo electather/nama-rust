@@ -76,7 +76,8 @@ use crate::{
 /// Admins see the `ffmpeg` found at startup with `GetPlaybackStatus`. Plans running when
 /// `shutdown` resolves are stopped and their segment files deleted.
 ///
-/// The enabled Plugin that links the Server, if any, is told its Server Addresses every minute.
+/// The enabled Plugin that links the Server, if any, is told its Server Addresses every minute, and
+/// asked for each User's Watch State on their other Servers after each scan.
 ///
 /// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, unless the
 /// peer is in [`Config::trusted_proxies`], whose `X-Forwarded-For` names the client.
@@ -176,6 +177,11 @@ pub fn serve(
     let server_url = settings.server_url();
     // `listen` differs from the bound address only when it asks for port 0.
     let listening = listener.local_addr().unwrap_or(config.listen);
+    let pulls_watch_states = (
+        plugins.extension_points(),
+        browse::Browse::new(Arc::clone(&db)),
+        users.clone(),
+    );
     let load_settings = load_settings(
         settings.clone(),
         images.clone(),
@@ -213,6 +219,10 @@ pub fn serve(
         // before serving, so the sweeps delete no plan's files or upload but an earlier run's.
         load_settings.await;
         fill_sort_titles(&contents).await;
+        // Before the scans start, so it sees their Matching finish.
+        let (linker, browse, every_user) = pulls_watch_states;
+        let pulling_watch_states =
+            api::pull_watch_states_after_scans(&events, linker, browse, every_user);
         scanner.start_all().await;
         preview_frames.start();
         text_passes.start();
@@ -258,6 +268,8 @@ pub fn serve(
         // Its calls run in the Plugin's scope, which shutting the Plugins down joins; telling it
         // again at the next start loses nothing.
         telling_addresses.abort();
+        // The next start's scans pull again.
+        pulling_watch_states.abort();
         plugins.shutdown().await;
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
         drop(automation);

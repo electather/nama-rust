@@ -1,8 +1,8 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
 //! keeps in the Plugin's Store once someone entered it, the Server Addresses it tells the Hub, and
 //! through it shares what the Admin chooses with Nama's developers (ADR 0054). Its Users' Links are
-//! in `users.rs`, syncing their Watch State in `watch_states.rs`, and signing in with an Account,
-//! and Users created from one, in `accounts.rs`.
+//! in `users.rs`, syncing their Watch State both ways in `watch_states.rs`, and signing in with an
+//! Account, and Users created from one, in `accounts.rs`.
 
 mod accounts;
 mod users;
@@ -23,6 +23,7 @@ use nama_plugin_api::{
     },
     contract::{StoreEntry, StoreKey},
     diagnostics_sharer::{DiagnosticsSharer, Signal},
+    points::WatchStateChange,
     server_link::{AccountSignIn, Link, ServerAddresses, ServerLinker},
 };
 use ring::digest;
@@ -321,6 +322,13 @@ impl ServerLinker for Linker {
 
     fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
         Box::pin(self.report(addresses))
+    }
+
+    fn watch_states(
+        &self,
+        user_id: i64,
+    ) -> BoxFuture<'_, Result<Vec<WatchStateChange>, PluginError>> {
+        Box::pin(self.pull(user_id))
     }
 }
 

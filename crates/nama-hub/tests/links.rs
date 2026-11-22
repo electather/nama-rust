@@ -1,6 +1,6 @@
 //! Registering a Server through the device flow, listing an Account's Servers with their Server
-//! Addresses, Unlinking one, Linking a Linked Server's Users to Accounts, and pushing their Watch
-//! State, against a real PostgreSQL.
+//! Addresses, Unlinking one, Linking a Linked Server's Users to Accounts, and pushing and pulling
+//! their Watch State, against a real PostgreSQL.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/hub.rs"]
@@ -18,8 +18,9 @@ use hub::TestHub;
 use linking::*;
 use nama_hub::titles;
 use nama_hub_proto::nama::hub::v1::{
-    ExternalId, ListLinkedServersRequest, ListSimilarTitlesRequest, PushWatchStatesRequest,
-    RefusalReason, SetServerAddressesRequest, TitleKind, UnlinkServerRequest, WatchStateChange,
+    ExternalId, ListLinkedServersRequest, ListSimilarTitlesRequest, PullWatchStatesRequest,
+    PushWatchStatesRequest, RefusalReason, SetServerAddressesRequest, TitleKind,
+    UnlinkServerRequest, WatchStateChange,
 };
 use refused::assert_refused;
 use sqlx::PgPool;
@@ -439,6 +440,53 @@ async fn a_push_breaking_a_limit_or_from_no_linked_server_is_refused(db: PgPool)
     assert_eq!(without_ids.field, "changes[0].ids");
     assert_refused(
         push(&hub, "no such credential", vec![alien_at(7, 3000, 1_000)]).await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+    );
+}
+
+/// The positions of the Watch State the Server presenting `credential` pulls for its User
+/// `user_id`, one per title and id.
+async fn pulled_positions(
+    hub: &TestHub,
+    credential: &str,
+    user_id: i64,
+) -> Result<Vec<u64>, connectrpc::ConnectError> {
+    let pulled = linked_server(hub, credential)
+        .pull_watch_states(PullWatchStatesRequest {
+            user_id,
+            ..Default::default()
+        })
+        .await?
+        .into_owned();
+    Ok((pulled.watch_states.iter())
+        .map(|state| state.position_ms)
+        .collect())
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_linked_server_pulls_only_the_account_its_user_is_linked_to(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let bea = create_proven(&hub, &mut inbox, "bea@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let ada_code = start_user(&hub, &server, 7).await.unwrap();
+    approve_user(&hub, &ada, &ada_code).await.unwrap();
+    let bea_code = start_user(&hub, &server, 8).await.unwrap();
+    approve_user(&hub, &bea, &bea_code).await.unwrap();
+    let pushed = vec![alien_at(7, 3000, 2_000), alien_at(8, 1000, 1_000)];
+    push(&hub, &server, pushed).await.unwrap();
+
+    assert_eq!(
+        pulled_positions(&hub, &server, 7).await.unwrap(),
+        [3000, 3000]
+    );
+    assert_eq!(
+        pulled_positions(&hub, &server, 9).await.unwrap(),
+        Vec::<u64>::new()
+    );
+    assert_refused(
+        pulled_positions(&hub, "no such credential", 7).await,
         ErrorCode::Unauthenticated,
         RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
     );
