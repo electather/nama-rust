@@ -5,6 +5,8 @@ mod api;
 pub mod config;
 pub mod db;
 pub mod titles;
+#[cfg(feature = "web")]
+mod web;
 
 use std::{future::Future, io, net::SocketAddr};
 
@@ -17,7 +19,7 @@ use tokio::net::TcpListener;
 /// from a peer in `trusted_proxies` (ADR 0018).
 ///
 /// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
-/// protobuf bodies.
+/// protobuf bodies. With the `web` feature, any other `GET` gets the Hub's web pages.
 ///
 /// # Errors
 ///
@@ -28,7 +30,10 @@ pub fn serve(
     trusted_proxies: &[IpRange],
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
-    let app = api::router(db, trusted_proxies).into_make_service_with_connect_info::<SocketAddr>();
+    let app = api::router(db, trusted_proxies);
+    #[cfg(feature = "web")]
+    let app = app.layer(axum::middleware::from_fn(web::serve));
+    let app = app.into_make_service_with_connect_info::<SocketAddr>();
     async move {
         axum::serve(listener, app)
             .with_graceful_shutdown(shutdown)

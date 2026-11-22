@@ -1,5 +1,6 @@
 # Steps dist runs before each release build (`github-build-setup` in dist-workspace.toml).
-# The `web` feature embeds web/dist, so the web app is built first (ADR 0004).
+# The `web` feature embeds web/dist in the Server and web/hub/dist in the Hub, so both apps are built
+# first (ADR 0004, 0010).
 # The Server's build.rs builds the Plugins it bundles for wasm32 (ADR 0003).
 - name: Add the wasm32 target
   run: rustup target add wasm32-unknown-unknown
@@ -11,3 +12,5 @@
 # dist drops `working-directory` from `run` steps, hence `-C`.
 - name: Build the web app
   run: vp -C web build
+- name: Build the Hub web app
+  run: vp -C web/hub build

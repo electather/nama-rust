@@ -6,7 +6,8 @@
       "spikes/**",
       "target/**",
       "**/target/**",
-      "web/src/gen/**"
+      "web/src/gen/**",
+      "web/hub/src/gen/**"
     ],
     "ignoreValues": []
   }

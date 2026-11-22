@@ -145,8 +145,9 @@ jobs:
           git add --all --intent-to-add
           git diff --exit-code || {
             echo "::error::crates/nama-proto/src/generated," \
-              "crates/nama-plugin-proto/src/generated, crates/nama-hub-proto/src/generated" \
-              "or web/src/gen is stale; run 'buf generate' in proto/ and commit the result"
+              "crates/nama-plugin-proto/src/generated, crates/nama-hub-proto/src/generated," \
+              "web/src/gen or web/hub/src/gen is stale; run 'buf generate' in proto/ and commit" \
+              "the result"
             exit 1
           }
       - uses: taiki-e/install-action@v2
@@ -199,6 +200,7 @@ jobs:
           vp check
           vp test
           vp build
+          vp -C hub build
           vp run fallow
       # For the test-report workflow (ADR 0022). Missing when the tests never ran. Named per
       # attempt, so a re-run records only the jobs it re-ran. `tree` names the code tested, which
@@ -215,9 +217,9 @@ jobs:
             web/test-results/tree
           if-no-files-found: ignore
       # From the repo root, where impeccable finds .impeccable/config.json (which ignores
-      # web/src/gen) and DESIGN.md. From web/ it would read neither.
+      # web/src/gen and web/hub/src/gen) and DESIGN.md. From web/ it would read neither.
       - name: Design check
-        run: vp dlx impeccable@4.8.0 detect --json web/src web/ui/src
+        run: vp dlx impeccable@4.8.0 detect --json web/src web/ui/src web/hub/src
 
   # Everything that type-checks the workspace: .sqlx query data, clippy and rustdoc.
   rust-check:
