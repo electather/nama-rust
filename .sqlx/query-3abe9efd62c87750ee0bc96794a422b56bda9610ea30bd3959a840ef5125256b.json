@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT server_url, lan_addresses FROM linked_servers WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "server_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "linked_servers",
+            "name": "server_url"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "lan_addresses",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "linked_servers",
+            "name": "lan_addresses"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "3abe9efd62c87750ee0bc96794a422b56bda9610ea30bd3959a840ef5125256b"
+}

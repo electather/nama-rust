@@ -34,13 +34,21 @@ impl Linker {
         })
     }
 
-    /// The User the sign-in `handle` signs in as, once approved, as the Hub's signed token names
-    /// them.
+    /// The User the sign-in `handle` signs in as, once approved and finished with the one-time
+    /// `code` the Hub sent the person back with, as the Hub's signed token names them.
     // ponytail: the token's `aud` isn't checked, as the Hub hands it only to this Server's
     // credential; check it once tokens reach the Server through a client.
-    pub(super) async fn finish_sign_in(&self, handle: &str) -> Result<Option<i64>, PluginError> {
+    pub(super) async fn finish_sign_in(
+        &self,
+        handle: &str,
+        code: &str,
+    ) -> Result<Option<i64>, PluginError> {
         let kept = self.linked().await?;
-        let Some(token) = self.hub.poll_sign_in(&kept.credential, handle).await? else {
+        let Some(token) = self
+            .hub
+            .poll_sign_in(&kept.credential, handle, code)
+            .await?
+        else {
             return Ok(None);
         };
         let user = self.verify(&token).await?.sub;

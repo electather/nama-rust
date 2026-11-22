@@ -292,7 +292,8 @@ impl SignInService for SignInServiceHandler {
         let request = request.to_owned_message();
         let delivery = delivery(request.delivery)?;
         let device = new_device(request.device_name, &ctx)?;
-        let user = server_link::account_signing_in(&self.points, &request.handle).await?;
+        let user =
+            server_link::account_signing_in(&self.points, &request.handle, &request.code).await?;
         let signed_in = self.sign_in.sign_in_with_account(user, device).await?;
         Ok(hand_out_session(
             signed_in,

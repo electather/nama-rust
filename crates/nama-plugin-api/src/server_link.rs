@@ -132,8 +132,9 @@ pub trait ServerLinker: Send + Sync + 'static {
     ) -> BoxFuture<'a, Result<AccountSignIn, PluginError>>;
 
     /// The id of the User the sign-in `handle` stands for, as the service vouches, once their
-    /// account approved it there: the User Linked to it. `None` while it isn't approved, or once
-    /// it expired or was used.
+    /// account approved it there: the User Linked to it. `code` is the one-time code the service
+    /// sent the person back with, which the service checks. `None` while it isn't approved, once
+    /// it expired or was used, or with a wrong code, which ends it.
     ///
     /// # Errors
     ///
@@ -142,6 +143,7 @@ pub trait ServerLinker: Send + Sync + 'static {
     fn finish_account_sign_in<'a>(
         &'a self,
         handle: &'a str,
+        code: &'a str,
     ) -> BoxFuture<'a, Result<Option<i64>, PluginError>>;
     /// Tells the Plugin the Server's `addresses`, for the service to hand its clients. The Kernel
     /// tells it every minute whether or not they changed, so the Plugin passes on only a change,

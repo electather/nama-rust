@@ -534,22 +534,22 @@ async fn an_account_approving_on_the_hub_signs_in_as_its_user() {
     );
     assert_eq!(
         linker
-            .finish_account_sign_in(&started.handle)
+            .finish_account_sign_in(&started.handle, "")
             .await
             .unwrap(),
         None
     );
-    hub.approve_sign_in(7);
+    let code = hub.approve_sign_in(7);
     assert_eq!(
         linker
-            .finish_account_sign_in(&started.handle)
+            .finish_account_sign_in(&started.handle, &code)
             .await
             .unwrap(),
         Some(7)
     );
     assert_eq!(
         linker
-            .finish_account_sign_in(&started.handle)
+            .finish_account_sign_in(&started.handle, &code)
             .await
             .unwrap(),
         None

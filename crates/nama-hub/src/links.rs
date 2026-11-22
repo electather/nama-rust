@@ -128,7 +128,7 @@ pub(crate) enum Error {
     SignInNotFound,
     #[error("your Account has no User on this Server; ask its Admin to create one from it")]
     NoUserOnServer,
-    #[error("the return address must be an http or https address")]
+    #[error("the return address must be on one of the Server's Server Addresses")]
     UrlInvalid,
     #[error(
         "a Server Address must be an http or https URL of up to {ADDRESS_LENGTH} characters, \

@@ -308,8 +308,9 @@ impl ServerLinker for Linker {
     fn finish_account_sign_in<'a>(
         &'a self,
         handle: &'a str,
+        code: &'a str,
     ) -> BoxFuture<'a, Result<Option<i64>, PluginError>> {
-        Box::pin(self.finish_sign_in(handle))
+        Box::pin(self.finish_sign_in(handle, code))
     }
 
     fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {

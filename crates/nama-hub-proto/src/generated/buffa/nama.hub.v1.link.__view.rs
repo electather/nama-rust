@@ -10003,7 +10003,8 @@ impl ::serde::Serialize for ApproveServerSignInRequestOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct ApproveServerSignInResponseView<'a> {
-    /// Where to send the person back to, on the Server.
+    /// Where to send the person back to, on the Server: the sign-in's `return_url`, with the one-time
+    /// code the Server finishes with added to its query as `code`.
     ///
     /// Field 1: `return_url`
     pub return_url: &'a str,
@@ -10222,7 +10223,8 @@ impl ApproveServerSignInResponseOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// Where to send the person back to, on the Server.
+    /// Where to send the person back to, on the Server: the sign-in's `return_url`, with the one-time
+    /// code the Server finishes with added to its query as `code`.
     ///
     /// Field 1: `return_url`
     #[must_use]
@@ -10804,8 +10806,9 @@ impl ::serde::Serialize for InviteUserResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct StartServerSignInRequestView<'a> {
-    /// Where the Hub's page sends the person once they approve: an `http` or `https` address on the
-    /// Server. Fails with `invalid_argument` for any other.
+    /// Where the Hub's page sends the person once they approve: an `http` or `https` address with the
+    /// scheme, host and port of one of the Server Addresses the Server reported. Fails with
+    /// `invalid_argument` and `REFUSAL_REASON_URL_INVALID` for any other.
     ///
     /// Field 1: `return_url`
     pub return_url: &'a str,
@@ -11024,8 +11027,9 @@ impl StartServerSignInRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// Where the Hub's page sends the person once they approve: an `http` or `https` address on the
-    /// Server. Fails with `invalid_argument` for any other.
+    /// Where the Hub's page sends the person once they approve: an `http` or `https` address with the
+    /// scheme, host and port of one of the Server Addresses the Server reported. Fails with
+    /// `invalid_argument` and `REFUSAL_REASON_URL_INVALID` for any other.
     ///
     /// Field 1: `return_url`
     #[must_use]
@@ -11388,6 +11392,10 @@ impl ::serde::Serialize for StartServerSignInResponseOwnedView {
 pub struct PollServerSignInRequestView<'a> {
     /// Field 1: `device_code`
     pub device_code: &'a str,
+    /// The one-time code approving added to `return_url`, once the sign-in was approved.
+    ///
+    /// Field 2: `code`
+    pub code: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for PollServerSignInRequestView<'a> {
@@ -11427,6 +11435,13 @@ impl<'a> ::buffa::MessageView<'a> for PollServerSignInRequestView<'a> {
                 )?;
                 view.device_code = ::buffa::types::borrow_str(&mut cur)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.code = ::buffa::types::borrow_str(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -11456,6 +11471,7 @@ impl<'a> ::buffa::MessageView<'a> for PollServerSignInRequestView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::PollServerSignInRequest {
             device_code: self.device_code.to_string(),
+            code: self.code.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -11470,6 +11486,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PollServerSignInRequestView<'a> {
         if !self.device_code.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.device_code) as u64;
         }
+        if !self.code.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.code) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -11483,6 +11502,9 @@ impl<'a> ::buffa::ViewEncode<'a> for PollServerSignInRequestView<'a> {
         use ::buffa::Enumeration as _;
         if !self.device_code.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.device_code, buf);
+        }
+        if !self.code.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.code, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -11507,6 +11529,9 @@ impl<'__a> ::serde::Serialize for PollServerSignInRequestView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !::buffa::json_helpers::skip_if::is_empty_str(self.device_code) {
             __map.serialize_entry("deviceCode", self.device_code)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.code) {
+            __map.serialize_entry("code", self.code)?;
         }
         __map.end()
     }
@@ -11607,6 +11632,13 @@ impl PollServerSignInRequestOwnedView {
     #[must_use]
     pub fn device_code(&self) -> &'_ str {
         self.0.reborrow().device_code
+    }
+    /// The one-time code approving added to `return_url`, once the sign-in was approved.
+    ///
+    /// Field 2: `code`
+    #[must_use]
+    pub fn code(&self) -> &'_ str {
+        self.0.reborrow().code
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<PollServerSignInRequestView<'static>>>

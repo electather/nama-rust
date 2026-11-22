@@ -913,11 +913,12 @@ pub trait SignInService: Send + Sync + 'static {
     > + Send;
     /// Starts signing the calling Device in with a Hub Account, on a Server Linked to the Hub (ADR
     /// 0092). The client sends the person to `url`, where they approve it on the Hub, which then sends
-    /// them to `return_url`; the client then finishes with `SignInWithAccount`. Fails with
-    /// `invalid_argument` and `REFUSAL_REASON_NOT_A_URL` if `return_url` isn't an `http` or `https`
-    /// URL, with `failed_precondition` and `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled
-    /// Plugin that links the Server, and with `unavailable` while the Server isn't Linked or the Hub
-    /// can't be reached, which a Device already signed in never needs.
+    /// them to `return_url` with a one-time code; the client then finishes with `SignInWithAccount`.
+    /// Fails with `invalid_argument` and `REFUSAL_REASON_NOT_A_URL` if `return_url` isn't an `http`
+    /// or `https` URL, with `failed_precondition` and `REFUSAL_REASON_NO_SERVER_LINKER` without an
+    /// enabled Plugin that links the Server, and with `unavailable` while the Server isn't Linked, the
+    /// Hub can't be reached, or the Hub refuses a `return_url` on none of the Server's Server
+    /// Addresses, which a Device already signed in never needs.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -941,8 +942,10 @@ pub trait SignInService: Send + Sync + 'static {
         >,
     > + Send;
     /// Signs the calling Device in as the User whose Account approved the sign-in `handle` stands
-    /// for, the way `SignIn` does, without Recent Authentication. Fails with `not_found` and
-    /// `REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND` if it wasn't approved, expired or was used, with
+    /// for, the way `SignIn` does, without Recent Authentication. Once it was approved, the first
+    /// call ends it, signing in only with the right `code`. Fails with `not_found` and
+    /// `REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND` if it wasn't approved, expired or was used, or the
+    /// code is wrong, with
     /// `not_found` and `REFUSAL_REASON_USER_NOT_FOUND` if the User was deleted, and like
     /// `StartAccountSignIn` otherwise.
     ///

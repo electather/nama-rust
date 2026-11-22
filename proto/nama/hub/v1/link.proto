@@ -59,8 +59,8 @@ service LinkService {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Approves a sign-in with the signed-in Account, as its User on that Server, and returns where to
-  // go back to. Fails like `GetServerSignIn`, and with `REFUSAL_REASON_NO_USER_ON_SERVER` if the
-  // Account has no User Linked on that Server.
+  // go back to, with the one-time code the Server finishes with. Fails like `GetServerSignIn`, and
+  // with `REFUSAL_REASON_NO_USER_ON_SERVER` if the Account has no User Linked on that Server.
   rpc ApproveServerSignIn(ApproveServerSignInRequest) returns (ApproveServerSignInResponse);
 }
 
@@ -96,13 +96,14 @@ service LinkedServerService {
   // which emails have Accounts. Asking again for the same User replaces the request.
   rpc InviteUser(InviteUserRequest) returns (InviteUserResponse);
   // Starts someone signing in to the Server with their Account, as an OAuth device flow: the
-  // person approves it on the Hub's page for `id`, which then sends them to `return_url`, and the
-  // Server collects the sign-in with `PollServerSignIn`. Both stop working after
-  // `expires_in_seconds`.
+  // person approves it on the Hub's page for `id`, which then sends them to `return_url` with a
+  // one-time code, and the Server collects the sign-in with `PollServerSignIn` and that code. Both
+  // stop working after `expires_in_seconds`.
   rpc StartServerSignIn(StartServerSignInRequest) returns (StartServerSignInResponse);
-  // Whether the sign-in was approved. Once it is, the first poll gets the token naming the User
-  // and every later one fails. Fails with `REFUSAL_REASON_LINK_EXPIRED` for a device code that
-  // expired, was used, or never existed.
+  // Whether the sign-in was approved. Once it is, the first poll ends it: it gets the token naming
+  // the User if it brings the code approving put in `return_url`, and fails otherwise, as every
+  // later one does. Fails with `REFUSAL_REASON_LINK_EXPIRED` for a device code that expired, was
+  // used, or never existed, and for a wrong code.
   rpc PollServerSignIn(PollServerSignInRequest) returns (PollServerSignInResponse);
   // Replaces the Server Addresses the calling Server reported before. The Server reports them
   // whenever they change. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an
@@ -327,7 +328,8 @@ message ApproveServerSignInRequest {
 }
 
 message ApproveServerSignInResponse {
-  // Where to send the person back to, on the Server.
+  // Where to send the person back to, on the Server: the sign-in's `return_url`, with the one-time
+  // code the Server finishes with added to its query as `code`.
   string return_url = 1;
 }
 
@@ -344,8 +346,9 @@ message InviteUserRequest {
 message InviteUserResponse {}
 
 message StartServerSignInRequest {
-  // Where the Hub's page sends the person once they approve: an `http` or `https` address on the
-  // Server. Fails with `invalid_argument` for any other.
+  // Where the Hub's page sends the person once they approve: an `http` or `https` address with the
+  // scheme, host and port of one of the Server Addresses the Server reported. Fails with
+  // `invalid_argument` and `REFUSAL_REASON_URL_INVALID` for any other.
   string return_url = 1;
 }
 
@@ -360,6 +363,8 @@ message StartServerSignInResponse {
 
 message PollServerSignInRequest {
   string device_code = 1;
+  // The one-time code approving added to `return_url`, once the sign-in was approved.
+  string code = 2;
 }
 
 message PollServerSignInResponse {
