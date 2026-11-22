@@ -4,7 +4,7 @@ use sqlx::PgPool;
 
 use super::RECENT_AUTHENTICATION_MINS;
 use crate::{
-    accounts::{Accounts, Error},
+    accounts::{Accounts, Caller, Error},
     db,
 };
 
@@ -17,8 +17,10 @@ async fn a_session_signed_in_over_10_minutes_ago_cant_set_the_password(db: PgPoo
         .create(
             "ada@example.com",
             "correct horse battery",
-            ip,
-            Instant::now(),
+            Caller {
+                ip,
+                now: Instant::now(),
+            },
         )
         .await
         .unwrap();
@@ -47,8 +49,10 @@ async fn a_session_signed_in_over_10_minutes_ago_cant_set_the_password(db: PgPoo
             "ada@example.com",
             "staple battery horse",
             None,
-            ip,
-            Instant::now(),
+            Caller {
+                ip,
+                now: Instant::now(),
+            },
         )
         .await
         .unwrap();
@@ -63,8 +67,10 @@ async fn a_session_ended_before_its_password_is_saved_cant_set_it(db: PgPool) {
         .create(
             "ada@example.com",
             "correct horse battery",
-            ip,
-            Instant::now(),
+            Caller {
+                ip,
+                now: Instant::now(),
+            },
         )
         .await
         .unwrap();
@@ -84,8 +90,10 @@ async fn a_session_ended_before_its_password_is_saved_cant_set_it(db: PgPool) {
             "ada@example.com",
             "correct horse battery",
             None,
-            ip,
-            Instant::now(),
+            Caller {
+                ip,
+                now: Instant::now(),
+            },
         )
         .await
         .unwrap();

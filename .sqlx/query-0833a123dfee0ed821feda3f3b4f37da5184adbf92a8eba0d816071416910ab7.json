@@ -1,0 +1,206 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT url, segment_folder, max_transcodes, keep_behind_minutes,\n                    hardware_acceleration, hardware_gpu, hardware_gpu_name, remote_playback_limit,\n                    resize_images, resized_cache_mib, image_store_plugin, default_home_layout,\n                    backup_folder, backups_kept, share_diagnostics, share_usage_analytics\n             FROM server_settings",
+  "describe": {
+    "columns": [
+      {
+        "name": "url",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "url"
+          }
+        }
+      },
+      {
+        "name": "segment_folder",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "segment_folder"
+          }
+        }
+      },
+      {
+        "name": "max_transcodes",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "max_transcodes"
+          }
+        }
+      },
+      {
+        "name": "keep_behind_minutes",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "keep_behind_minutes"
+          }
+        }
+      },
+      {
+        "name": "hardware_acceleration",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "hardware_acceleration"
+          }
+        }
+      },
+      {
+        "name": "hardware_gpu",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "hardware_gpu"
+          }
+        }
+      },
+      {
+        "name": "hardware_gpu_name",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "hardware_gpu_name"
+          }
+        }
+      },
+      {
+        "name": "remote_playback_limit",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "remote_playback_limit"
+          }
+        }
+      },
+      {
+        "name": "resize_images",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "resize_images"
+          }
+        }
+      },
+      {
+        "name": "resized_cache_mib",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "resized_cache_mib"
+          }
+        }
+      },
+      {
+        "name": "image_store_plugin",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "image_store_plugin"
+          }
+        }
+      },
+      {
+        "name": "default_home_layout",
+        "ordinal": 11,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "default_home_layout"
+          }
+        }
+      },
+      {
+        "name": "backup_folder",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "backup_folder"
+          }
+        }
+      },
+      {
+        "name": "backups_kept",
+        "ordinal": 13,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "backups_kept"
+          }
+        }
+      },
+      {
+        "name": "share_diagnostics",
+        "ordinal": 14,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "share_diagnostics"
+          }
+        }
+      },
+      {
+        "name": "share_usage_analytics",
+        "ordinal": 15,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "share_usage_analytics"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "0833a123dfee0ed821feda3f3b4f37da5184adbf92a8eba0d816071416910ab7"
+}

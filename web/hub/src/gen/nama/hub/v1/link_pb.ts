@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/hub/v1/link.proto.
  */
 export const file_nama_hub_v1_link: GenFile = /*@__PURE__*/
-  fileDesc("ChZuYW1hL2h1Yi92MS9saW5rLnByb3RvEgtuYW1hLmh1Yi52MSI7CgxMaW5rZWRTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglsaW5rZWRfYXQYAyABKAMiJgoWU3RhcnRTZXJ2ZXJMaW5rUmVxdWVzdBIMCgRuYW1lGAEgASgJIncKF1N0YXJ0U2VydmVyTGlua1Jlc3BvbnNlEhMKC2RldmljZV9jb2RlGAEgASgJEhEKCXVzZXJfY29kZRgCIAEoCRIaChJleHBpcmVzX2luX3NlY29uZHMYAyABKAUSGAoQaW50ZXJ2YWxfc2Vjb25kcxgEIAEoBSIsChVQb2xsU2VydmVyTGlua1JlcXVlc3QSEwoLZGV2aWNlX2NvZGUYASABKAkiSwoWUG9sbFNlcnZlckxpbmtSZXNwb25zZRIOCgZsaW5rZWQYASABKAgSEgoKY3JlZGVudGlhbBgCIAEoCRINCgV0b2tlbhgDIAEoCSIoChhBcHByb3ZlU2VydmVyTGlua1JlcXVlc3QSDAoEY29kZRgBIAEoCSJGChlBcHByb3ZlU2VydmVyTGlua1Jlc3BvbnNlEikKBnNlcnZlchgBIAEoCzIZLm5hbWEuaHViLnYxLkxpbmtlZFNlcnZlciIaChhMaXN0TGlua2VkU2VydmVyc1JlcXVlc3QiRwoZTGlzdExpbmtlZFNlcnZlcnNSZXNwb25zZRIqCgdzZXJ2ZXJzGAEgAygLMhkubmFtYS5odWIudjEuTGlua2VkU2VydmVyIhUKE1VubGlua1NlcnZlclJlcXVlc3QiFgoUVW5saW5rU2VydmVyUmVzcG9uc2UiLgoKRXh0ZXJuYWxJZBIRCgluYW1lc3BhY2UYASABKAkSDQoFdmFsdWUYAiABKAkiZgoYTGlzdFNpbWlsYXJUaXRsZXNSZXF1ZXN0EiQKBGtpbmQYASABKA4yFi5uYW1hLmh1Yi52MS5UaXRsZUtpbmQSJAoDaWRzGAIgAygLMhcubmFtYS5odWIudjEuRXh0ZXJuYWxJZCJGChlMaXN0U2ltaWxhclRpdGxlc1Jlc3BvbnNlEikKBnRpdGxlcxgBIAMoCzIZLm5hbWEuaHViLnYxLlNpbWlsYXJUaXRsZSJDCgxTaW1pbGFyVGl0bGUSIwoCaWQYASABKAsyFy5uYW1hLmh1Yi52MS5FeHRlcm5hbElkEg4KBndlaWdodBgCIAEoAipSCglUaXRsZUtpbmQSGgoWVElUTEVfS0lORF9VTlNQRUNJRklFRBAAEhQKEFRJVExFX0tJTkRfTU9WSUUQARITCg9USVRMRV9LSU5EX1NIT1cQAjLMAQoRU2VydmVyTGlua1NlcnZpY2USXAoPU3RhcnRTZXJ2ZXJMaW5rEiMubmFtYS5odWIudjEuU3RhcnRTZXJ2ZXJMaW5rUmVxdWVzdBokLm5hbWEuaHViLnYxLlN0YXJ0U2VydmVyTGlua1Jlc3BvbnNlElkKDlBvbGxTZXJ2ZXJMaW5rEiIubmFtYS5odWIudjEuUG9sbFNlcnZlckxpbmtSZXF1ZXN0GiMubmFtYS5odWIudjEuUG9sbFNlcnZlckxpbmtSZXNwb25zZTLaAQoLTGlua1NlcnZpY2USYgoRQXBwcm92ZVNlcnZlckxpbmsSJS5uYW1hLmh1Yi52MS5BcHByb3ZlU2VydmVyTGlua1JlcXVlc3QaJi5uYW1hLmh1Yi52MS5BcHByb3ZlU2VydmVyTGlua1Jlc3BvbnNlEmcKEUxpc3RMaW5rZWRTZXJ2ZXJzEiUubmFtYS5odWIudjEuTGlzdExpbmtlZFNlcnZlcnNSZXF1ZXN0GiYubmFtYS5odWIudjEuTGlzdExpbmtlZFNlcnZlcnNSZXNwb25zZSIDkAIBMtMBChNMaW5rZWRTZXJ2ZXJTZXJ2aWNlElMKDFVubGlua1NlcnZlchIgLm5hbWEuaHViLnYxLlVubGlua1NlcnZlclJlcXVlc3QaIS5uYW1hLmh1Yi52MS5VbmxpbmtTZXJ2ZXJSZXNwb25zZRJnChFMaXN0U2ltaWxhclRpdGxlcxIlLm5hbWEuaHViLnYxLkxpc3RTaW1pbGFyVGl0bGVzUmVxdWVzdBomLm5hbWEuaHViLnYxLkxpc3RTaW1pbGFyVGl0bGVzUmVzcG9uc2UiA5ACAWIGcHJvdG8z");
+  fileDesc("ChZuYW1hL2h1Yi92MS9saW5rLnByb3RvEgtuYW1hLmh1Yi52MSJbCgxMaW5rZWRTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglsaW5rZWRfYXQYAyABKAMSCwoDdXJsGAQgASgJEhEKCWFkZHJlc3NlcxgFIAMoCSImChZTdGFydFNlcnZlckxpbmtSZXF1ZXN0EgwKBG5hbWUYASABKAkidwoXU3RhcnRTZXJ2ZXJMaW5rUmVzcG9uc2USEwoLZGV2aWNlX2NvZGUYASABKAkSEQoJdXNlcl9jb2RlGAIgASgJEhoKEmV4cGlyZXNfaW5fc2Vjb25kcxgDIAEoBRIYChBpbnRlcnZhbF9zZWNvbmRzGAQgASgFIiwKFVBvbGxTZXJ2ZXJMaW5rUmVxdWVzdBITCgtkZXZpY2VfY29kZRgBIAEoCSJLChZQb2xsU2VydmVyTGlua1Jlc3BvbnNlEg4KBmxpbmtlZBgBIAEoCBISCgpjcmVkZW50aWFsGAIgASgJEg0KBXRva2VuGAMgASgJIigKGEFwcHJvdmVTZXJ2ZXJMaW5rUmVxdWVzdBIMCgRjb2RlGAEgASgJIkYKGUFwcHJvdmVTZXJ2ZXJMaW5rUmVzcG9uc2USKQoGc2VydmVyGAEgASgLMhkubmFtYS5odWIudjEuTGlua2VkU2VydmVyIhoKGExpc3RMaW5rZWRTZXJ2ZXJzUmVxdWVzdCJHChlMaXN0TGlua2VkU2VydmVyc1Jlc3BvbnNlEioKB3NlcnZlcnMYASADKAsyGS5uYW1hLmh1Yi52MS5MaW5rZWRTZXJ2ZXIiFQoTVW5saW5rU2VydmVyUmVxdWVzdCIWChRVbmxpbmtTZXJ2ZXJSZXNwb25zZSIuCgpFeHRlcm5hbElkEhEKCW5hbWVzcGFjZRgBIAEoCRINCgV2YWx1ZRgCIAEoCSJmChhMaXN0U2ltaWxhclRpdGxlc1JlcXVlc3QSJAoEa2luZBgBIAEoDjIWLm5hbWEuaHViLnYxLlRpdGxlS2luZBIkCgNpZHMYAiADKAsyFy5uYW1hLmh1Yi52MS5FeHRlcm5hbElkIkYKGUxpc3RTaW1pbGFyVGl0bGVzUmVzcG9uc2USKQoGdGl0bGVzGAEgAygLMhkubmFtYS5odWIudjEuU2ltaWxhclRpdGxlIkMKDFNpbWlsYXJUaXRsZRIjCgJpZBgBIAEoCzIXLm5hbWEuaHViLnYxLkV4dGVybmFsSWQSDgoGd2VpZ2h0GAIgASgCIk4KCkxpbmtlZFVzZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRITCgtzZXJ2ZXJfbmFtZRgDIAEoCRIRCglsaW5rZWRfYXQYBCABKAMiJgoWQXBwcm92ZVVzZXJMaW5rUmVxdWVzdBIMCgRjb2RlGAEgASgJIkAKF0FwcHJvdmVVc2VyTGlua1Jlc3BvbnNlEiUKBHVzZXIYASABKAsyFy5uYW1hLmh1Yi52MS5MaW5rZWRVc2VyIhgKFkxpc3RMaW5rZWRVc2Vyc1JlcXVlc3QiQQoXTGlzdExpbmtlZFVzZXJzUmVzcG9uc2USJgoFdXNlcnMYASADKAsyFy5uYW1hLmh1Yi52MS5MaW5rZWRVc2VyIiUKF1VubGlua0xpbmtlZFVzZXJSZXF1ZXN0EgoKAmlkGAEgASgJIhoKGFVubGlua0xpbmtlZFVzZXJSZXNwb25zZSI1ChRTdGFydFVzZXJMaW5rUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkiRgoVU3RhcnRVc2VyTGlua1Jlc3BvbnNlEhEKCXVzZXJfY29kZRgBIAEoCRIaChJleHBpcmVzX2luX3NlY29uZHMYAiABKAUiJQoSR2V0VXNlckxpbmtSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiJgoTR2V0VXNlckxpbmtSZXNwb25zZRIPCgdhY2NvdW50GAEgASgJIiQKEVVubGlua1VzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiFAoSVW5saW5rVXNlclJlc3BvbnNlIj8KGVNldFNlcnZlckFkZHJlc3Nlc1JlcXVlc3QSCwoDdXJsGAEgASgJEhUKDWxhbl9hZGRyZXNzZXMYAiADKAkiHAoaU2V0U2VydmVyQWRkcmVzc2VzUmVzcG9uc2UqUgoJVGl0bGVLaW5kEhoKFlRJVExFX0tJTkRfVU5TUEVDSUZJRUQQABIUChBUSVRMRV9LSU5EX01PVklFEAESEwoPVElUTEVfS0lORF9TSE9XEAIyzAEKEVNlcnZlckxpbmtTZXJ2aWNlElwKD1N0YXJ0U2VydmVyTGluaxIjLm5hbWEuaHViLnYxLlN0YXJ0U2VydmVyTGlua1JlcXVlc3QaJC5uYW1hLmh1Yi52MS5TdGFydFNlcnZlckxpbmtSZXNwb25zZRJZCg5Qb2xsU2VydmVyTGluaxIiLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVxdWVzdBojLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVzcG9uc2UygQQKC0xpbmtTZXJ2aWNlEmIKEUFwcHJvdmVTZXJ2ZXJMaW5rEiUubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXF1ZXN0GiYubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXNwb25zZRJnChFMaXN0TGlua2VkU2VydmVycxIlLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVxdWVzdBomLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVzcG9uc2UiA5ACARJcCg9BcHByb3ZlVXNlckxpbmsSIy5uYW1hLmh1Yi52MS5BcHByb3ZlVXNlckxpbmtSZXF1ZXN0GiQubmFtYS5odWIudjEuQXBwcm92ZVVzZXJMaW5rUmVzcG9uc2USYQoPTGlzdExpbmtlZFVzZXJzEiMubmFtYS5odWIudjEuTGlzdExpbmtlZFVzZXJzUmVxdWVzdBokLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRVc2Vyc1Jlc3BvbnNlIgOQAgESZAoQVW5saW5rTGlua2VkVXNlchIkLm5hbWEuaHViLnYxLlVubGlua0xpbmtlZFVzZXJSZXF1ZXN0GiUubmFtYS5odWIudjEuVW5saW5rTGlua2VkVXNlclJlc3BvbnNlIgOQAgIywgQKE0xpbmtlZFNlcnZlclNlcnZpY2USUwoMVW5saW5rU2VydmVyEiAubmFtYS5odWIudjEuVW5saW5rU2VydmVyUmVxdWVzdBohLm5hbWEuaHViLnYxLlVubGlua1NlcnZlclJlc3BvbnNlEmcKEUxpc3RTaW1pbGFyVGl0bGVzEiUubmFtYS5odWIudjEuTGlzdFNpbWlsYXJUaXRsZXNSZXF1ZXN0GiYubmFtYS5odWIudjEuTGlzdFNpbWlsYXJUaXRsZXNSZXNwb25zZSIDkAIBElYKDVN0YXJ0VXNlckxpbmsSIS5uYW1hLmh1Yi52MS5TdGFydFVzZXJMaW5rUmVxdWVzdBoiLm5hbWEuaHViLnYxLlN0YXJ0VXNlckxpbmtSZXNwb25zZRJVCgtHZXRVc2VyTGluaxIfLm5hbWEuaHViLnYxLkdldFVzZXJMaW5rUmVxdWVzdBogLm5hbWEuaHViLnYxLkdldFVzZXJMaW5rUmVzcG9uc2UiA5ACARJSCgpVbmxpbmtVc2VyEh4ubmFtYS5odWIudjEuVW5saW5rVXNlclJlcXVlc3QaHy5uYW1hLmh1Yi52MS5VbmxpbmtVc2VyUmVzcG9uc2UiA5ACAhJqChJTZXRTZXJ2ZXJBZGRyZXNzZXMSJi5uYW1hLmh1Yi52MS5TZXRTZXJ2ZXJBZGRyZXNzZXNSZXF1ZXN0GicubmFtYS5odWIudjEuU2V0U2VydmVyQWRkcmVzc2VzUmVzcG9uc2UiA5ACAmIGcHJvdG8z");
 
 /**
  * A Server registered with the Hub, owned by an Account.
@@ -38,6 +38,21 @@ export type LinkedServer = Message<"nama.hub.v1.LinkedServer"> & {
    * @generated from field: int64 linked_at = 3;
    */
   linkedAt: bigint;
+
+  /**
+   * The Server URL its Admin set, where people open its web app (ADR 0010), or empty for none.
+   *
+   * @generated from field: string url = 4;
+   */
+  url: string;
+
+  /**
+   * The Server Addresses a client tries, as the Server last reported them: its Server URL first,
+   * then its LAN addresses.
+   *
+   * @generated from field: repeated string addresses = 5;
+   */
+  addresses: string[];
 };
 
 /**
@@ -354,6 +369,310 @@ export const SimilarTitleSchema: GenMessage<SimilarTitle> = /*@__PURE__*/
   messageDesc(file_nama_hub_v1_link, 14);
 
 /**
+ * A User on a Linked Server, Linked to an Account.
+ *
+ * @generated from message nama.hub.v1.LinkedUser
+ */
+export type LinkedUser = Message<"nama.hub.v1.LinkedUser"> & {
+  /**
+   * The Link's id, a UUID.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The User's name on their Server when they Linked.
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * The name of the Linked Server the User is on.
+   *
+   * @generated from field: string server_name = 3;
+   */
+  serverName: string;
+
+  /**
+   * When they Linked, in seconds since the Unix epoch.
+   *
+   * @generated from field: int64 linked_at = 4;
+   */
+  linkedAt: bigint;
+};
+
+/**
+ * Describes the message nama.hub.v1.LinkedUser.
+ * Use `create(LinkedUserSchema)` to create a new message.
+ */
+export const LinkedUserSchema: GenMessage<LinkedUser> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 15);
+
+/**
+ * @generated from message nama.hub.v1.ApproveUserLinkRequest
+ */
+export type ApproveUserLinkRequest = Message<"nama.hub.v1.ApproveUserLinkRequest"> & {
+  /**
+   * The code the User's Server shows, in any case, with or without its hyphen.
+   *
+   * @generated from field: string code = 1;
+   */
+  code: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.ApproveUserLinkRequest.
+ * Use `create(ApproveUserLinkRequestSchema)` to create a new message.
+ */
+export const ApproveUserLinkRequestSchema: GenMessage<ApproveUserLinkRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 16);
+
+/**
+ * @generated from message nama.hub.v1.ApproveUserLinkResponse
+ */
+export type ApproveUserLinkResponse = Message<"nama.hub.v1.ApproveUserLinkResponse"> & {
+  /**
+   * The User just Linked.
+   *
+   * @generated from field: nama.hub.v1.LinkedUser user = 1;
+   */
+  user?: LinkedUser | undefined;
+};
+
+/**
+ * Describes the message nama.hub.v1.ApproveUserLinkResponse.
+ * Use `create(ApproveUserLinkResponseSchema)` to create a new message.
+ */
+export const ApproveUserLinkResponseSchema: GenMessage<ApproveUserLinkResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 17);
+
+/**
+ * @generated from message nama.hub.v1.ListLinkedUsersRequest
+ */
+export type ListLinkedUsersRequest = Message<"nama.hub.v1.ListLinkedUsersRequest"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.ListLinkedUsersRequest.
+ * Use `create(ListLinkedUsersRequestSchema)` to create a new message.
+ */
+export const ListLinkedUsersRequestSchema: GenMessage<ListLinkedUsersRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 18);
+
+/**
+ * @generated from message nama.hub.v1.ListLinkedUsersResponse
+ */
+export type ListLinkedUsersResponse = Message<"nama.hub.v1.ListLinkedUsersResponse"> & {
+  /**
+   * @generated from field: repeated nama.hub.v1.LinkedUser users = 1;
+   */
+  users: LinkedUser[];
+};
+
+/**
+ * Describes the message nama.hub.v1.ListLinkedUsersResponse.
+ * Use `create(ListLinkedUsersResponseSchema)` to create a new message.
+ */
+export const ListLinkedUsersResponseSchema: GenMessage<ListLinkedUsersResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 19);
+
+/**
+ * @generated from message nama.hub.v1.UnlinkLinkedUserRequest
+ */
+export type UnlinkLinkedUserRequest = Message<"nama.hub.v1.UnlinkLinkedUserRequest"> & {
+  /**
+   * The Link's id, as `LinkedUser.id`.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.UnlinkLinkedUserRequest.
+ * Use `create(UnlinkLinkedUserRequestSchema)` to create a new message.
+ */
+export const UnlinkLinkedUserRequestSchema: GenMessage<UnlinkLinkedUserRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 20);
+
+/**
+ * @generated from message nama.hub.v1.UnlinkLinkedUserResponse
+ */
+export type UnlinkLinkedUserResponse = Message<"nama.hub.v1.UnlinkLinkedUserResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.UnlinkLinkedUserResponse.
+ * Use `create(UnlinkLinkedUserResponseSchema)` to create a new message.
+ */
+export const UnlinkLinkedUserResponseSchema: GenMessage<UnlinkLinkedUserResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 21);
+
+/**
+ * @generated from message nama.hub.v1.StartUserLinkRequest
+ */
+export type StartUserLinkRequest = Message<"nama.hub.v1.StartUserLinkRequest"> & {
+  /**
+   * The User's id on the Server.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+
+  /**
+   * The User's name, which their Account's list of Users shows: up to 100 characters, cut there if
+   * longer.
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.StartUserLinkRequest.
+ * Use `create(StartUserLinkRequestSchema)` to create a new message.
+ */
+export const StartUserLinkRequestSchema: GenMessage<StartUserLinkRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 22);
+
+/**
+ * @generated from message nama.hub.v1.StartUserLinkResponse
+ */
+export type StartUserLinkResponse = Message<"nama.hub.v1.StartUserLinkResponse"> & {
+  /**
+   * What the User's Server shows and they enter on the Hub, such as `BDFH-JKLM`.
+   *
+   * @generated from field: string user_code = 1;
+   */
+  userCode: string;
+
+  /**
+   * How long the code works.
+   *
+   * @generated from field: int32 expires_in_seconds = 2;
+   */
+  expiresInSeconds: number;
+};
+
+/**
+ * Describes the message nama.hub.v1.StartUserLinkResponse.
+ * Use `create(StartUserLinkResponseSchema)` to create a new message.
+ */
+export const StartUserLinkResponseSchema: GenMessage<StartUserLinkResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 23);
+
+/**
+ * @generated from message nama.hub.v1.GetUserLinkRequest
+ */
+export type GetUserLinkRequest = Message<"nama.hub.v1.GetUserLinkRequest"> & {
+  /**
+   * The User's id on the Server.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+};
+
+/**
+ * Describes the message nama.hub.v1.GetUserLinkRequest.
+ * Use `create(GetUserLinkRequestSchema)` to create a new message.
+ */
+export const GetUserLinkRequestSchema: GenMessage<GetUserLinkRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 24);
+
+/**
+ * @generated from message nama.hub.v1.GetUserLinkResponse
+ */
+export type GetUserLinkResponse = Message<"nama.hub.v1.GetUserLinkResponse"> & {
+  /**
+   * The email of the Account the User is Linked to, or empty while they aren't.
+   *
+   * @generated from field: string account = 1;
+   */
+  account: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.GetUserLinkResponse.
+ * Use `create(GetUserLinkResponseSchema)` to create a new message.
+ */
+export const GetUserLinkResponseSchema: GenMessage<GetUserLinkResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 25);
+
+/**
+ * @generated from message nama.hub.v1.UnlinkUserRequest
+ */
+export type UnlinkUserRequest = Message<"nama.hub.v1.UnlinkUserRequest"> & {
+  /**
+   * The User's id on the Server.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+};
+
+/**
+ * Describes the message nama.hub.v1.UnlinkUserRequest.
+ * Use `create(UnlinkUserRequestSchema)` to create a new message.
+ */
+export const UnlinkUserRequestSchema: GenMessage<UnlinkUserRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 26);
+
+/**
+ * @generated from message nama.hub.v1.UnlinkUserResponse
+ */
+export type UnlinkUserResponse = Message<"nama.hub.v1.UnlinkUserResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.UnlinkUserResponse.
+ * Use `create(UnlinkUserResponseSchema)` to create a new message.
+ */
+export const UnlinkUserResponseSchema: GenMessage<UnlinkUserResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 27);
+
+/**
+ * @generated from message nama.hub.v1.SetServerAddressesRequest
+ */
+export type SetServerAddressesRequest = Message<"nama.hub.v1.SetServerAddressesRequest"> & {
+  /**
+   * The Server URL its Admin set, such as `https://nama.example.com`, or empty for none.
+   *
+   * @generated from field: string url = 1;
+   */
+  url: string;
+
+  /**
+   * The Server's LAN addresses, such as `http://192.168.1.10:7980`: at most 16.
+   *
+   * @generated from field: repeated string lan_addresses = 2;
+   */
+  lanAddresses: string[];
+};
+
+/**
+ * Describes the message nama.hub.v1.SetServerAddressesRequest.
+ * Use `create(SetServerAddressesRequestSchema)` to create a new message.
+ */
+export const SetServerAddressesRequestSchema: GenMessage<SetServerAddressesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 28);
+
+/**
+ * @generated from message nama.hub.v1.SetServerAddressesResponse
+ */
+export type SetServerAddressesResponse = Message<"nama.hub.v1.SetServerAddressesResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.SetServerAddressesResponse.
+ * Use `create(SetServerAddressesResponseSchema)` to create a new message.
+ */
+export const SetServerAddressesResponseSchema: GenMessage<SetServerAddressesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 29);
+
+/**
  * Whether a title is a Movie or a Show, whose External IDs are separate id spaces (ADR 0042).
  *
  * @generated from enum nama.hub.v1.TitleKind
@@ -444,7 +763,9 @@ export const LinkService: GenService<{
     output: typeof ApproveServerLinkResponseSchema;
   },
   /**
-   * Returns the signed-in Account's Linked Servers, oldest first.
+   * Returns the Linked Servers the signed-in Account owns or has a User on, oldest first, each
+   * with the Server Addresses a client tries. A client reaches a Server at those itself: the Hub
+   * never carries its calls or media (ADR 0094).
    *
    * @generated from rpc nama.hub.v1.LinkService.ListLinkedServers
    */
@@ -452,6 +773,38 @@ export const LinkService: GenService<{
     methodKind: "unary";
     input: typeof ListLinkedServersRequestSchema;
     output: typeof ListLinkedServersResponseSchema;
+  },
+  /**
+   * Links the User showing `code` on their Server to the signed-in Account. An Account may have
+   * Users on many Servers. Fails like `ApproveServerLink`, with `REFUSAL_REASON_LINK_CODE_NOT_FOUND`
+   * for a code no User is waiting on.
+   *
+   * @generated from rpc nama.hub.v1.LinkService.ApproveUserLink
+   */
+  approveUserLink: {
+    methodKind: "unary";
+    input: typeof ApproveUserLinkRequestSchema;
+    output: typeof ApproveUserLinkResponseSchema;
+  },
+  /**
+   * Returns the signed-in Account's Linked Users, oldest first.
+   *
+   * @generated from rpc nama.hub.v1.LinkService.ListLinkedUsers
+   */
+  listLinkedUsers: {
+    methodKind: "unary";
+    input: typeof ListLinkedUsersRequestSchema;
+    output: typeof ListLinkedUsersResponseSchema;
+  },
+  /**
+   * Unlinks one of the signed-in Account's Users. Unlinking one it doesn't have does nothing.
+   *
+   * @generated from rpc nama.hub.v1.LinkService.UnlinkLinkedUser
+   */
+  unlinkLinkedUser: {
+    methodKind: "unary";
+    input: typeof UnlinkLinkedUserRequestSchema;
+    output: typeof UnlinkLinkedUserResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_hub_v1_link, 1);
@@ -486,6 +839,52 @@ export const LinkedServerService: GenService<{
     methodKind: "unary";
     input: typeof ListSimilarTitlesRequestSchema;
     output: typeof ListSimilarTitlesResponseSchema;
+  },
+  /**
+   * Starts Linking one of the Server's Users: the code they enter on the Hub, which replaces any
+   * code they were waiting on and stops working after `expires_in_seconds`. Fails with
+   * `REFUSAL_REASON_USER_LINKED` for a User Linked already, since a User Links to one Account.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.StartUserLink
+   */
+  startUserLink: {
+    methodKind: "unary";
+    input: typeof StartUserLinkRequestSchema;
+    output: typeof StartUserLinkResponseSchema;
+  },
+  /**
+   * Returns the Account one of the Server's Users is Linked to, if any. The Server asks while the
+   * User waits for their code to be entered, and to see whether the Account Unlinked them.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.GetUserLink
+   */
+  getUserLink: {
+    methodKind: "unary";
+    input: typeof GetUserLinkRequestSchema;
+    output: typeof GetUserLinkResponseSchema;
+  },
+  /**
+   * Unlinks one of the Server's Users, or forgets the code they wait on. Unlinking a User who
+   * isn't Linked does nothing.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.UnlinkUser
+   */
+  unlinkUser: {
+    methodKind: "unary";
+    input: typeof UnlinkUserRequestSchema;
+    output: typeof UnlinkUserResponseSchema;
+  },
+  /**
+   * Replaces the Server Addresses the calling Server reported before. The Server reports them
+   * whenever they change. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an
+   * `http` or `https` URL, or for too many.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.SetServerAddresses
+   */
+  setServerAddresses: {
+    methodKind: "unary";
+    input: typeof SetServerAddressesRequestSchema;
+    output: typeof SetServerAddressesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_hub_v1_link, 2);

@@ -6,7 +6,10 @@ use bytes::Bytes;
 use connectrpc::client::{
     ClientBody, ClientConfig, ClientTransport as _, ServiceTransport, full_body,
 };
-use http::{Request, StatusCode};
+use http::{
+    Request, StatusCode,
+    header::{AUTHORIZATION, CONTENT_TYPE},
+};
 use http_body_util::{BodyExt as _, Limited};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use hyper_util::{
@@ -14,11 +17,13 @@ use hyper_util::{
     rt::TokioExecutor,
 };
 use nama_hub_proto::nama::hub::v1::{
-    LinkedServerServiceClient, ListSimilarTitlesRequest, ListSimilarTitlesResponse,
-    PollServerLinkRequest, PollServerLinkResponse, ServerLinkServiceClient, StartServerLinkRequest,
-    StartServerLinkResponse, UnlinkServerRequest,
+    GetUserLinkRequest, LinkedServerServiceClient, ListSimilarTitlesRequest,
+    ListSimilarTitlesResponse, PollServerLinkRequest, PollServerLinkResponse,
+    ServerLinkServiceClient, SetServerAddressesRequest, StartServerLinkRequest,
+    StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest,
+    UnlinkUserRequest,
 };
-use nama_plugin_api::PluginError;
+use nama_plugin_api::{PluginError, diagnostics_sharer::Signal, server_link::ServerAddresses};
 
 const TIMEOUT: Duration = Duration::from_secs(20);
 
@@ -102,36 +107,87 @@ impl Hub {
     /// Unlinks the Server whose credential is `credential`. One the Hub doesn't know any more is
     /// `REFUSAL_REASON_SERVER_NOT_LINKED`, the call's one `unauthenticated`, so Unlinked already.
     pub(crate) async fn unlink(&self, credential: &str) -> Result<(), PluginError> {
-        match self
-            .linked(credential)?
+        let unlinked = self
+            .linked_server(credential)?
             .unlink_server(UnlinkServerRequest::default())
-            .await
-        {
-            Ok(_) => Ok(()),
-            Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => Ok(()),
-            Err(err) => Err(err.into()),
-        }
+            .await;
+        unlinked_already(unlinked.map(drop))
     }
 
-    /// The titles like the one `request` names, asked as the Server whose credential is
-    /// `credential`. Empty if the Hub doesn't know the credential any more, as [`Hub::unlink`]
-    /// takes it: a Server no longer Linked has no answer, which isn't a failure.
-    pub(crate) async fn similar(
+    /// Starts Linking the User `user_id`, named `name`, of the Server whose credential is
+    /// `credential`: `None` if they are Linked already, the Hub's one `already_exists`.
+    pub(crate) async fn start_user(
         &self,
         credential: &str,
-        request: ListSimilarTitlesRequest,
-    ) -> Result<ListSimilarTitlesResponse, PluginError> {
-        match self.linked(credential)?.list_similar_titles(request).await {
-            Ok(similar) => Ok(similar.into_owned()),
-            Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => {
-                Ok(ListSimilarTitlesResponse::default())
-            }
+        user_id: i64,
+        name: &str,
+    ) -> Result<Option<StartUserLinkResponse>, PluginError> {
+        let started = self
+            .linked_server(credential)?
+            .start_user_link(StartUserLinkRequest {
+                user_id,
+                name: name.to_owned(),
+                ..Default::default()
+            })
+            .await;
+        match started {
+            Ok(started) => Ok(Some(started.into_owned())),
+            Err(err) if err.code == connectrpc::ErrorCode::AlreadyExists => Ok(None),
             Err(err) => Err(err.into()),
         }
     }
 
-    /// The Hub's API for Linked Servers, called as the one whose credential is `credential`.
-    fn linked(
+    /// The email of the Account the User `user_id` is Linked to, empty while they aren't.
+    pub(crate) async fn user_account(
+        &self,
+        credential: &str,
+        user_id: i64,
+    ) -> Result<String, PluginError> {
+        let got = self
+            .linked_server(credential)?
+            .get_user_link(GetUserLinkRequest {
+                user_id,
+                ..Default::default()
+            })
+            .await?;
+        Ok(got.into_owned().account)
+    }
+
+    /// Unlinks the User `user_id`. A Server the Hub doesn't know any more has no Linked Users.
+    pub(crate) async fn unlink_user(
+        &self,
+        credential: &str,
+        user_id: i64,
+    ) -> Result<(), PluginError> {
+        let unlinked = self
+            .linked_server(credential)?
+            .unlink_user(UnlinkUserRequest {
+                user_id,
+                ..Default::default()
+            })
+            .await;
+        unlinked_already(unlinked.map(drop))
+    }
+
+    /// Tells the Hub `addresses` are where clients reach the Server whose credential is
+    /// `credential`.
+    pub(crate) async fn set_addresses(
+        &self,
+        credential: &str,
+        addresses: &ServerAddresses,
+    ) -> Result<(), PluginError> {
+        self.linked_server(credential)?
+            .set_server_addresses(SetServerAddressesRequest {
+                url: addresses.url.clone(),
+                lan_addresses: addresses.lan.clone(),
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
+    }
+
+    /// The Hub's API for the Server whose credential is `credential`.
+    fn linked_server(
         &self,
         credential: &str,
     ) -> Result<LinkedServerServiceClient<Transport>, PluginError> {
@@ -142,6 +198,47 @@ impl Hub {
             self.transport.clone(),
             config,
         ))
+    }
+
+    /// Posts `batch`, an OTLP/HTTP protobuf export request of `signal`, to the Hub as the Server
+    /// whose credential is `credential`, for it to forward to Nama's developers (ADR 0054).
+    pub(crate) async fn share(
+        &self,
+        credential: &str,
+        signal: Signal,
+        batch: Vec<u8>,
+    ) -> Result<(), PluginError> {
+        let request = Request::post(format!("{}/otlp/{}", self.url, signal.path()))
+            .header(CONTENT_TYPE, "application/x-protobuf")
+            .header(AUTHORIZATION, format!("Bearer {credential}"))
+            .body(full_body(Bytes::from(batch)))?;
+        let status = tokio::time::timeout(TIMEOUT, self.transport.send(request))
+            .await??
+            .status();
+        if !status.is_success() {
+            return Err(format!("the Hub answered {status} for shared Diagnostics").into());
+        }
+        Ok(())
+    }
+
+    /// The titles like the one `request` names, asked as the Server whose credential is
+    /// `credential`. Empty if the Hub doesn't know the credential any more, as [`Hub::unlink`]
+    /// takes it: a Server no longer Linked has no answer, which isn't a failure.
+    pub(crate) async fn similar(
+        &self,
+        credential: &str,
+        request: ListSimilarTitlesRequest,
+    ) -> Result<ListSimilarTitlesResponse, PluginError> {
+        match (self.linked_server(credential)?)
+            .list_similar_titles(request)
+            .await
+        {
+            Ok(similar) => Ok(similar.into_owned()),
+            Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => {
+                Ok(ListSimilarTitlesResponse::default())
+            }
+            Err(err) => Err(err.into()),
+        }
     }
 
     /// The Hub's published key set, as JSON.
@@ -162,6 +259,15 @@ impl Hub {
             return Err(format!("the Hub answered {status} for its key set").into());
         }
         Ok(body)
+    }
+}
+
+/// `unlinked`, where the Hub not knowing the Server's credential, its one `unauthenticated`, means
+/// there is nothing left to Unlink.
+fn unlinked_already(unlinked: Result<(), connectrpc::ConnectError>) -> Result<(), PluginError> {
+    match unlinked {
+        Err(err) if err.code != connectrpc::ErrorCode::Unauthenticated => Err(err.into()),
+        _ => Ok(()),
     }
 }
 

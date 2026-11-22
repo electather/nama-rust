@@ -9,6 +9,7 @@ import {
   KeyRound,
   Link,
   Rows3,
+  Send,
   ScanSearch,
   Search,
   Server,
@@ -109,6 +110,12 @@ export const points: Partial<Record<ExtensionPoint, Shown & { means: string }>> 
     label: "Server Link",
     Icon: Link,
     means: "Links the Server to your Account on the Hub, from Settings’ Server section.",
+  },
+  [ExtensionPoint.DIAGNOSTICS_SHARER]: {
+    label: "Sharing",
+    Icon: Send,
+    means:
+      "Sends Nama’s developers the Diagnostics and Usage Analytics you share in Settings’ Server section.",
   },
 };
 

@@ -1,4 +1,4 @@
-import { ServerLinkState } from "@/features/settings/components/server-link-state";
+import { LinkControls } from "@/features/settings/components/link-controls";
 import { useServerLink } from "@/features/settings/data/use-server-link";
 import { useStartServerLink } from "@/features/settings/data/use-start-server-link";
 import { useUnlinkServer } from "@/features/settings/data/use-unlink-server";
@@ -26,21 +26,13 @@ export function ServerLink() {
           works just the same.
         </p>
       </div>
-      <ServerLinkState
+      <LinkControls
         link={link}
-        pending={start.isPending || unlink.isPending}
-        onStart={() => {
-          unlink.reset();
-          start.mutate({});
-        }}
-        onUnlink={() => {
-          start.reset();
-          unlink.mutate({});
-        }}
+        enterUnder="Link a Server"
+        start={start}
+        unlink={unlink}
+        failure={linkFailure(start.error ?? unlink.error)}
       />
-      <p role="alert" className="text-sm text-destructive empty:hidden">
-        {linkFailure(start.error ?? unlink.error)}
-      </p>
     </section>
   );
 }

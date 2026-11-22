@@ -170,15 +170,15 @@ pub async fn similar(
                WHERE titles.kind = $1
                ORDER BY titles.wikidata_id LIMIT 1),
            nearest AS (
-               SELECT similar.title_id, similar.embedding <=> asked.embedding AS distance
+               SELECT alike.title_id, alike.embedding <=> asked.embedding AS distance
                FROM asked
-               JOIN title_vectors AS similar ON similar.title_id <> asked.title_id
-               JOIN titles ON titles.id = similar.title_id
-               WHERE titles.kind = $1 AND similar.embedding <=> asked.embedding < $4
+               JOIN title_vectors AS alike ON alike.title_id <> asked.title_id
+               JOIN titles ON titles.id = alike.title_id
+               WHERE titles.kind = $1 AND alike.embedding <=> asked.embedding < $4
                    AND EXISTS (SELECT 1 FROM title_ids
-                               WHERE title_ids.title_id = similar.title_id
+                               WHERE title_ids.title_id = alike.title_id
                                AND title_ids.namespace = ANY($2))
-               ORDER BY distance, similar.title_id LIMIT $5)
+               ORDER BY distance, alike.title_id LIMIT $5)
            SELECT id.namespace AS "namespace!", id.value AS "value!",
                   (1 - nearest.distance)::real AS "weight!"
            FROM nearest

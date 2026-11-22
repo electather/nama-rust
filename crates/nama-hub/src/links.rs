@@ -1,5 +1,8 @@
 //! Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011), the Linked
-//! Server's opaque credential, Unlinking, and the token signed for a Server once it is Linked.
+//! Server's opaque credential, the Server Addresses it reports, Unlinking, and the token signed for
+//! a Server once it is Linked. Linking its Users to Accounts is in `users.rs`.
+
+mod users;
 
 use std::{
     fmt::{self, Write as _},
@@ -7,6 +10,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use axum::http::Uri;
 use serde::Serialize;
 use sha2::{Digest as _, Sha256};
 use sqlx::PgPool;
@@ -17,13 +21,15 @@ use crate::{
     signing::Keys,
 };
 
-/// How long a Server's codes work after it starts.
+pub(crate) use self::users::{LinkId, ListedUser};
+
+/// How long a Server's or a User's codes work after it starts.
 pub(crate) const CODE_LIFETIME_MINS: i32 = 10;
 
 /// How long a Server should wait between polls (RFC 8628 suggests 5 seconds).
 pub(crate) const POLL_INTERVAL_SECS: i32 = 5;
 
-/// How many characters of a Server's name are kept.
+/// How many characters of a Server's or a User's name are kept.
 const NAME_LENGTH: usize = 100;
 
 /// The letters a code is made of: consonants only, so a code never spells a word, and none that
@@ -33,12 +39,25 @@ const CODE_LETTERS: &[u8] = b"BCDFGHJKLMNPQRSTVWXZ";
 /// How many letters a code has: 20^8 codes, against the few waiting at once.
 const CODE_LENGTH: usize = 8;
 
+/// The most characters a Server Address may have.
+pub(crate) const ADDRESS_LENGTH: usize = 2000;
+
+/// The most LAN addresses a Server may report.
+pub(crate) const MAX_LAN_ADDRESSES: usize = 16;
+
 /// How long the token a newly Linked Server gets stays valid.
 const TOKEN_LIFETIME_SECS: u64 = 5 * 60;
 
 /// A Linked Server's id.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct LinkedServerId(Uuid);
+
+#[cfg(test)]
+impl From<Uuid> for LinkedServerId {
+    fn from(id: Uuid) -> Self {
+        Self(id)
+    }
+}
 
 impl fmt::Display for LinkedServerId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -59,6 +78,10 @@ pub(crate) struct ListedServer {
     pub(crate) name: String,
     /// In seconds since the Unix epoch.
     pub(crate) linked_at: i64,
+    /// The Server URL its Admin set, or empty for none.
+    pub(crate) url: String,
+    /// The Server Addresses a client tries, in order: the Server URL, then the LAN addresses.
+    pub(crate) addresses: Vec<String>,
 }
 
 /// A Server's codes, just made.
@@ -81,14 +104,21 @@ pub(crate) enum Polled {
 /// Why a Link couldn't be made or polled.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
-    #[error("sign in again to Link a Server")]
+    #[error("sign in again to Link")]
     RecentAuthenticationRequired,
-    #[error("prove your email with a Sign-in Link before Linking a Server")]
+    #[error("prove your email with a Sign-in Link before Linking")]
     EmailNotProven,
-    #[error("no Server is waiting on this code")]
+    #[error("nothing is waiting on this code")]
     CodeNotFound,
+    #[error("the User is Linked already; Unlink them first")]
+    UserLinked,
     #[error("the code expired; start Linking again")]
     Expired,
+    #[error(
+        "a Server Address must be an http or https URL of up to {ADDRESS_LENGTH} characters, \
+         and a Server has up to {MAX_LAN_ADDRESSES} LAN addresses"
+    )]
+    AddressInvalid,
     #[error("could not generate a code: {0}")]
     Random(#[from] getrandom::Error),
     #[error("database error: {0}")]
@@ -120,7 +150,7 @@ impl Links {
     /// Starts registering a Server named `name`, forgetting every Server whose codes expired, and
     /// every Linked Server whose codes expired before it collected its credential.
     pub(crate) async fn start(&self, name: &str) -> Result<Started, Error> {
-        let name: String = name.trim().chars().take(NAME_LENGTH).collect();
+        let name = kept_name(name);
         let device_code = random_token()?;
         let user_code = random_code()?;
         let mut tx = self.db.begin().await?;
@@ -144,9 +174,8 @@ impl Links {
         .execute(&mut *tx)
         .await?;
         tx.commit().await?;
-        let (first, second) = user_code.split_at(CODE_LENGTH / 2);
         Ok(Started {
-            user_code: format!("{first}-{second}"),
+            user_code: shown_code(&user_code),
             device_code,
         })
     }
@@ -158,17 +187,8 @@ impl Links {
         session: &AccountSession,
         code: &str,
     ) -> Result<ListedServer, Error> {
-        if !session.email_proven {
-            return Err(Error::EmailNotProven);
-        }
-        if !session.authenticated_recently {
-            return Err(Error::RecentAuthenticationRequired);
-        }
-        let code: String = code
-            .chars()
-            .filter(char::is_ascii_alphabetic)
-            .map(|letter| letter.to_ascii_uppercase())
-            .collect();
+        may_link(session)?;
+        let code = typed_code(code);
         let mut tx = self.db.begin().await?;
         let waiting = sqlx::query!(
             "SELECT id, server_name FROM server_link_codes
@@ -199,6 +219,8 @@ impl Links {
             id: LinkedServerId(linked.id),
             name: waiting.server_name,
             linked_at: linked.linked_at,
+            url: String::new(),
+            addresses: Vec::new(),
         })
     }
 
@@ -255,11 +277,14 @@ impl Links {
         Ok(Polled::Linked { credential, token })
     }
 
-    /// `account`'s Linked Servers, oldest first.
+    /// The Linked Servers `account` owns or has a User on, oldest first.
     pub(crate) async fn list(&self, account: AccountId) -> Result<Vec<ListedServer>, sqlx::Error> {
         let servers = sqlx::query!(
-            r#"SELECT id, name, extract(epoch FROM created_at)::bigint AS "linked_at!"
-             FROM linked_servers WHERE account_id = $1 ORDER BY created_at, id"#,
+            r#"SELECT id, name, server_url, lan_addresses,
+             extract(epoch FROM created_at)::bigint AS "linked_at!"
+             FROM linked_servers WHERE account_id = $1
+             OR id IN (SELECT linked_server_id FROM user_links WHERE account_id = $1)
+             ORDER BY created_at, id"#,
             account.0,
         )
         .fetch_all(&self.db)
@@ -270,8 +295,39 @@ impl Links {
                 id: LinkedServerId(server.id),
                 name: server.name,
                 linked_at: server.linked_at,
+                addresses: (!server.server_url.is_empty())
+                    .then(|| server.server_url.clone())
+                    .into_iter()
+                    .chain(server.lan_addresses)
+                    .collect(),
+                url: server.server_url,
             })
             .collect())
+    }
+
+    /// Replaces the Server Addresses `server` reported before with its Server URL `url`, empty
+    /// for none, and its `lan_addresses`.
+    pub(crate) async fn set_addresses(
+        &self,
+        server: &LinkedServer,
+        url: &str,
+        lan_addresses: &[String],
+    ) -> Result<(), Error> {
+        let addresses_valid = lan_addresses.len() <= MAX_LAN_ADDRESSES
+            && (url.is_empty() || is_address(url))
+            && lan_addresses.iter().all(|address| is_address(address));
+        if !addresses_valid {
+            return Err(Error::AddressInvalid);
+        }
+        sqlx::query!(
+            "UPDATE linked_servers SET server_url = $1, lan_addresses = $2 WHERE id = $3",
+            url,
+            lan_addresses,
+            server.id.0,
+        )
+        .execute(&self.db)
+        .await?;
+        Ok(())
     }
 
     /// The Linked Server whose credential is `credential`, if it is still Linked.
@@ -297,6 +353,46 @@ impl Links {
             .await?;
         Ok(())
     }
+}
+
+/// Whether `session` may Link: with a proven email (ADR 0100), checked first since signing in again
+/// can't fix it, then Recent Authentication.
+fn may_link(session: &AccountSession) -> Result<(), Error> {
+    if !session.email_proven {
+        return Err(Error::EmailNotProven);
+    }
+    if !session.authenticated_recently {
+        return Err(Error::RecentAuthenticationRequired);
+    }
+    Ok(())
+}
+
+/// Whether `address` may be a Server Address: an absolute `http` or `https` URL, so the Hub's pages
+/// never link to a `javascript:` one a Server sent, of at most [`ADDRESS_LENGTH`] characters.
+fn is_address(address: &str) -> bool {
+    address.len() <= ADDRESS_LENGTH
+        && address.parse::<Uri>().is_ok_and(|uri| {
+            matches!(uri.scheme_str(), Some("http" | "https")) && uri.authority().is_some()
+        })
+}
+
+/// `name` as the Hub keeps it: trimmed, and cut to [`NAME_LENGTH`] characters.
+fn kept_name(name: &str) -> String {
+    name.trim().chars().take(NAME_LENGTH).collect()
+}
+
+/// A code as typed, in any case and with or without its hyphen, as it is stored.
+fn typed_code(code: &str) -> String {
+    code.chars()
+        .filter(char::is_ascii_alphabetic)
+        .map(|letter| letter.to_ascii_uppercase())
+        .collect()
+}
+
+/// A code as stored, as it is shown, such as `BDFH-JKLM`.
+fn shown_code(code: &str) -> String {
+    let (first, second) = code.split_at(CODE_LENGTH / 2);
+    format!("{first}-{second}")
 }
 
 /// 32 random bytes in hex, for a device code or a credential.

@@ -484,7 +484,9 @@ impl Running {
         if self.fell_back.swap(true, Ordering::AcqRel) {
             return;
         }
+        // Shared with Diagnostics (`SHARED_LINES` in `src/diagnostics.rs`).
         tracing::warn!(
+            name: "hardware acceleration failed partway",
             plan = self.id,
             "hardware acceleration failed partway, so the rest Transcodes in software"
         );

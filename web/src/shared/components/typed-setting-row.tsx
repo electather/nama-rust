@@ -20,7 +20,8 @@ export function TypedSettingRow({
   input,
   onSave,
 }: {
-  setting: string;
+  /** The key `?setting=` finds the row by, if search lists it. */
+  setting?: string;
   label: string;
   hint: string | undefined;
   saved: string;

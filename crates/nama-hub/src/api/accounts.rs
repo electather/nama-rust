@@ -1,7 +1,7 @@
 //! Creating an Account, signing it in, with its password or a Sign-in Link, and out, and setting
 //! its password: `nama.hub.v1.AccountService`.
 
-use std::{future, net::IpAddr, time::Instant};
+use std::{future, time::Instant};
 
 use axum::http::{
     Extensions, HeaderMap, HeaderValue,
@@ -21,7 +21,7 @@ use nama_hub_proto::nama::hub::v1::{
 
 use super::{hub_failed, refuse};
 use crate::accounts::{
-    self, Account, AccountSession, Accounts, Blocked, EMAIL_LENGTH, PASSWORD_LENGTH,
+    self, Account, AccountSession, Accounts, Blocked, Caller, EMAIL_LENGTH, PASSWORD_LENGTH,
     RECENT_AUTHENTICATION_MINS, SESSION_DAYS, SignInLink, SignedIn, SignedInByLink,
 };
 
@@ -47,12 +47,7 @@ impl AccountService for AccountServiceHandler {
     ) -> ServiceResult<CreateAccountResponse> {
         let signed_in = self
             .accounts
-            .create(
-                request.email,
-                request.password,
-                client_ip(&ctx)?,
-                Instant::now(),
-            )
+            .create(request.email, request.password, caller(&ctx)?)
             .await
             .map_err(refused)?;
         Ok(hand_out_session(signed_in, &ctx, |account| {
@@ -74,8 +69,7 @@ impl AccountService for AccountServiceHandler {
                 request.email,
                 request.password,
                 ctx.extensions().get::<AccountSession>(),
-                client_ip(&ctx)?,
-                Instant::now(),
+                caller(&ctx)?,
             )
             .await
             .map_err(refused)?;
@@ -93,9 +87,9 @@ impl AccountService for AccountServiceHandler {
         request: ServiceRequest<'_, SendSignInLinkRequest>,
     ) -> impl Future<Output = ServiceResult<impl Encodable<SendSignInLinkResponse> + Send + use<'a>>>
     + Send {
-        let queued = client_ip(&ctx).and_then(|ip| {
+        let queued = caller(&ctx).and_then(|caller| {
             self.accounts
-                .send_sign_in_link(request.email, request.continue_to, ip, Instant::now())
+                .send_sign_in_link(request.email, request.continue_to, caller)
                 .map_err(refused)
         });
         future::ready(queued.and_then(|()| Response::ok(SendSignInLinkResponse::default())))
@@ -187,13 +181,17 @@ impl AccountService for AccountServiceHandler {
     }
 }
 
-/// The address of the client that sent the request `ctx` is for (ADR 0018).
-fn client_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
-    Ok(ctx
+/// The client that sent the request `ctx` is for (ADR 0018), asking now.
+fn caller(ctx: &RequestContext) -> Result<Caller, ConnectError> {
+    let ip = ctx
         .extensions()
         .get::<RequestSource>()
         .ok_or_else(|| hub_failed(&"a request came without its peer's address"))?
-        .client_ip)
+        .client_ip;
+    Ok(Caller {
+        ip,
+        now: Instant::now(),
+    })
 }
 
 /// The session the request `ctx` is for, or `REFUSAL_REASON_SIGN_IN_REQUIRED`.

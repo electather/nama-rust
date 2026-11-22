@@ -24,9 +24,23 @@ service LinkService {
   // email (ADR 0100), and with `REFUSAL_REASON_LINK_CODE_NOT_FOUND` for a code no Server is waiting
   // on.
   rpc ApproveServerLink(ApproveServerLinkRequest) returns (ApproveServerLinkResponse);
-  // Returns the signed-in Account's Linked Servers, oldest first.
+  // Returns the Linked Servers the signed-in Account owns or has a User on, oldest first, each
+  // with the Server Addresses a client tries. A client reaches a Server at those itself: the Hub
+  // never carries its calls or media (ADR 0094).
   rpc ListLinkedServers(ListLinkedServersRequest) returns (ListLinkedServersResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Links the User showing `code` on their Server to the signed-in Account. An Account may have
+  // Users on many Servers. Fails like `ApproveServerLink`, with `REFUSAL_REASON_LINK_CODE_NOT_FOUND`
+  // for a code no User is waiting on.
+  rpc ApproveUserLink(ApproveUserLinkRequest) returns (ApproveUserLinkResponse);
+  // Returns the signed-in Account's Linked Users, oldest first.
+  rpc ListLinkedUsers(ListLinkedUsersRequest) returns (ListLinkedUsersResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Unlinks one of the signed-in Account's Users. Unlinking one it doesn't have does nothing.
+  rpc UnlinkLinkedUser(UnlinkLinkedUserRequest) returns (UnlinkLinkedUserResponse) {
+    option idempotency_level = IDEMPOTENT;
   }
 }
 
@@ -43,6 +57,26 @@ service LinkedServerService {
   rpc ListSimilarTitles(ListSimilarTitlesRequest) returns (ListSimilarTitlesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Starts Linking one of the Server's Users: the code they enter on the Hub, which replaces any
+  // code they were waiting on and stops working after `expires_in_seconds`. Fails with
+  // `REFUSAL_REASON_USER_LINKED` for a User Linked already, since a User Links to one Account.
+  rpc StartUserLink(StartUserLinkRequest) returns (StartUserLinkResponse);
+  // Returns the Account one of the Server's Users is Linked to, if any. The Server asks while the
+  // User waits for their code to be entered, and to see whether the Account Unlinked them.
+  rpc GetUserLink(GetUserLinkRequest) returns (GetUserLinkResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Unlinks one of the Server's Users, or forgets the code they wait on. Unlinking a User who
+  // isn't Linked does nothing.
+  rpc UnlinkUser(UnlinkUserRequest) returns (UnlinkUserResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Replaces the Server Addresses the calling Server reported before. The Server reports them
+  // whenever they change. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an
+  // `http` or `https` URL, or for too many.
+  rpc SetServerAddresses(SetServerAddressesRequest) returns (SetServerAddressesResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
 
 // A Server registered with the Hub, owned by an Account.
@@ -53,6 +87,11 @@ message LinkedServer {
   string name = 2;
   // When it was Linked, in seconds since the Unix epoch.
   int64 linked_at = 3;
+  // The Server URL its Admin set, where people open its web app (ADR 0010), or empty for none.
+  string url = 4;
+  // The Server Addresses a client tries, as the Server last reported them: its Server URL first,
+  // then its LAN addresses.
+  repeated string addresses = 5;
 }
 
 message StartServerLinkRequest {
@@ -142,3 +181,78 @@ message SimilarTitle {
   // How alike, from 0.0 to 1.0.
   float weight = 2;
 }
+// A User on a Linked Server, Linked to an Account.
+message LinkedUser {
+  // The Link's id, a UUID.
+  string id = 1;
+  // The User's name on their Server when they Linked.
+  string name = 2;
+  // The name of the Linked Server the User is on.
+  string server_name = 3;
+  // When they Linked, in seconds since the Unix epoch.
+  int64 linked_at = 4;
+}
+
+message ApproveUserLinkRequest {
+  // The code the User's Server shows, in any case, with or without its hyphen.
+  string code = 1;
+}
+
+message ApproveUserLinkResponse {
+  // The User just Linked.
+  LinkedUser user = 1;
+}
+
+message ListLinkedUsersRequest {}
+
+message ListLinkedUsersResponse {
+  repeated LinkedUser users = 1;
+}
+
+message UnlinkLinkedUserRequest {
+  // The Link's id, as `LinkedUser.id`.
+  string id = 1;
+}
+
+message UnlinkLinkedUserResponse {}
+
+message StartUserLinkRequest {
+  // The User's id on the Server.
+  int64 user_id = 1;
+  // The User's name, which their Account's list of Users shows: up to 100 characters, cut there if
+  // longer.
+  string name = 2;
+}
+
+message StartUserLinkResponse {
+  // What the User's Server shows and they enter on the Hub, such as `BDFH-JKLM`.
+  string user_code = 1;
+  // How long the code works.
+  int32 expires_in_seconds = 2;
+}
+
+message GetUserLinkRequest {
+  // The User's id on the Server.
+  int64 user_id = 1;
+}
+
+message GetUserLinkResponse {
+  // The email of the Account the User is Linked to, or empty while they aren't.
+  string account = 1;
+}
+
+message UnlinkUserRequest {
+  // The User's id on the Server.
+  int64 user_id = 1;
+}
+
+message UnlinkUserResponse {}
+
+message SetServerAddressesRequest {
+  // The Server URL its Admin set, such as `https://nama.example.com`, or empty for none.
+  string url = 1;
+  // The Server's LAN addresses, such as `http://192.168.1.10:7980`: at most 16.
+  repeated string lan_addresses = 2;
+}
+
+message SetServerAddressesResponse {}

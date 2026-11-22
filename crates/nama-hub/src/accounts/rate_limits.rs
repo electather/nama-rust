@@ -73,6 +73,15 @@ pub(super) struct CreationLimits {
     creations: Mutex<Window<IpAddr>>,
 }
 
+/// Who asks, and when: what the rate limits count a request under.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Caller {
+    /// The client's address (ADR 0018).
+    pub(crate) ip: IpAddr,
+    /// When it asked.
+    pub(crate) now: Instant,
+}
+
 /// A request refused for too many recent ones.
 #[derive(Debug, thiserror::Error)]
 #[error("too many attempts lately; try again in {} seconds", self.retry_after_secs())]
@@ -89,12 +98,19 @@ impl Blocked {
 }
 
 impl SignInLimits {
-    /// Lets a sign-in from `ip` with `email` through at `now` unless too many have failed
-    /// recently, and counts it as failed until it succeeds.
-    pub(super) fn admit(&self, ip: IpAddr, email: &str, now: Instant) -> Result<Attempt, Blocked> {
-        let (ip, email) =
-            lock(&self.failures).count((ip, FAILURES_PER_IP), (email, FAILURES_PER_EMAIL), now)?;
-        Ok(Attempt { ip, email, at: now })
+    /// Lets a sign-in by `caller` with `email` through unless too many have failed recently, and
+    /// counts it as failed until it succeeds.
+    pub(super) fn admit(&self, caller: Caller, email: &str) -> Result<Attempt, Blocked> {
+        let (ip, email) = lock(&self.failures).count(
+            (caller.ip, FAILURES_PER_IP),
+            (email, FAILURES_PER_EMAIL),
+            caller.now,
+        )?;
+        Ok(Attempt {
+            ip,
+            email,
+            at: caller.now,
+        })
     }
 
     /// Un-counts `attempt`, which succeeded, and forgets every failure for its email.
@@ -106,24 +122,28 @@ impl SignInLimits {
 }
 
 impl LinkLimits {
-    /// Lets a request from `ip` for a Sign-in Link to `email` through at `now`, and counts it,
-    /// unless too many came lately.
-    pub(super) fn admit(&self, ip: IpAddr, email: &str, now: Instant) -> Result<(), Blocked> {
-        lock(&self.requests).count((ip, LINKS_PER_IP), (email, LINKS_PER_EMAIL), now)?;
+    /// Lets a request by `caller` for a Sign-in Link to `email` through, and counts it, unless too
+    /// many came lately.
+    pub(super) fn admit(&self, caller: Caller, email: &str) -> Result<(), Blocked> {
+        lock(&self.requests).count(
+            (caller.ip, LINKS_PER_IP),
+            (email, LINKS_PER_EMAIL),
+            caller.now,
+        )?;
         Ok(())
     }
 }
 
 impl CreationLimits {
-    /// Lets an Account creation from `ip` through at `now` unless too many have been let through
+    /// Lets an Account creation by `caller` through unless too many have been let through
     /// recently, and counts it.
-    pub(super) fn admit(&self, ip: IpAddr, now: Instant) -> Result<(), Blocked> {
-        let ip = counted_ip(ip);
+    pub(super) fn admit(&self, caller: Caller) -> Result<(), Blocked> {
+        let ip = counted_ip(caller.ip);
         let mut creations = lock(&self.creations);
-        if let Some(retry_after) = creations.wait(&ip, CREATIONS_PER_IP, now) {
+        if let Some(retry_after) = creations.wait(&ip, CREATIONS_PER_IP, caller.now) {
             return Err(Blocked { retry_after });
         }
-        creations.record(ip, now);
+        creations.record(ip, caller.now);
         Ok(())
     }
 }

@@ -35,7 +35,15 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
         "src/accounts",
         &["accounts", "account_sessions", "sign_in_links"],
     ),
-    ("src/links", &["linked_servers", "server_link_codes"]),
+    (
+        "src/links",
+        &[
+            "linked_servers",
+            "server_link_codes",
+            "user_links",
+            "user_link_codes",
+        ],
+    ),
     (
         "src/titles",
         &[

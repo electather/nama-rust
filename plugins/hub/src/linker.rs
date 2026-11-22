@@ -1,11 +1,17 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
-//! keeps in the Plugin's Store once someone entered it.
+//! keeps in the Plugin's Store once someone entered it, the Server Addresses it tells the Hub, and
+//! through it shares what the Admin chooses with Nama's developers (ADR 0054). Its Users' Links are
+//! in `users.rs`.
+
+mod users;
 
 use std::{
-    sync::Arc,
+    collections::HashMap,
+    sync::{Arc, PoisonError},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use nama_plugin_api::{
     BoxFuture, PluginError,
     automation::{
@@ -13,8 +19,10 @@ use nama_plugin_api::{
         functions::{StoreDelete, StoreGet, StorePut},
     },
     contract::{StoreEntry, StoreKey},
-    server_link::{ServerLink, ServerLinker},
+    diagnostics_sharer::{DiagnosticsSharer, Signal},
+    server_link::{Link, ServerAddresses, ServerLinker},
 };
+use ring::digest;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
@@ -48,6 +56,13 @@ struct Kept {
     account: Option<String>,
 }
 
+impl Kept {
+    /// Names this Link apart from the Server's earlier ones, without holding its credential.
+    fn id(&self) -> String {
+        URL_SAFE_NO_PAD.encode(digest::digest(&digest::SHA256, self.credential.as_bytes()))
+    }
+}
+
 /// Who a Link whose token couldn't be checked belongs to, as Settings shows it.
 const UNCONFIRMED_ACCOUNT: &str = "an Account the Hub didn't confirm";
 
@@ -57,6 +72,11 @@ pub(crate) struct Linker {
     kernel: Arc<dyn Kernel>,
     /// Held across a poll, so two polls never race for the one credential.
     waiting: Mutex<Option<Waiting>>,
+    /// What the Plugin knows of each User's Link but what it keeps in the Store.
+    users: std::sync::Mutex<HashMap<i64, users::UserState>>,
+    /// The Server Addresses the Hub has, with the [`Kept::id`] of the Link it got them through.
+    /// Held across telling the Hub, so a report never overtakes another.
+    reported: Mutex<Option<(String, ServerAddresses)>>,
 }
 
 impl Linker {
@@ -65,10 +85,12 @@ impl Linker {
             hub,
             kernel,
             waiting: Mutex::default(),
+            users: std::sync::Mutex::default(),
+            reported: Mutex::default(),
         }
     }
 
-    async fn current_link(&self) -> Result<ServerLink, PluginError> {
+    async fn current_link(&self) -> Result<Link, PluginError> {
         let mut waiting = self.waiting.lock().await;
         if let Some(code) = waiting.as_mut() {
             match self.poll(code).await? {
@@ -76,19 +98,19 @@ impl Linker {
                 None => *waiting = None,
             }
         }
-        Ok(match kept(self.kernel.as_ref()).await? {
-            Some(kept) => ServerLink::Linked {
+        Ok(match self.kept().await? {
+            Some(kept) => Link::Linked {
                 account: kept
                     .account
                     .unwrap_or_else(|| UNCONFIRMED_ACCOUNT.to_owned()),
             },
-            None => ServerLink::NotLinked,
+            None => Link::NotLinked,
         })
     }
 
     /// Asks the Hub whether `code` was entered, once its poll interval has passed. `Some` while
     /// it still waits, `None` once it is gone: expired, or entered and its Link kept.
-    async fn poll(&self, code: &mut Waiting) -> Result<Option<ServerLink>, PluginError> {
+    async fn poll(&self, code: &mut Waiting) -> Result<Option<Link>, PluginError> {
         let now = Instant::now();
         if now >= code.expires {
             return Ok(None);
@@ -119,11 +141,11 @@ impl Linker {
         Ok(None)
     }
 
-    async fn start(&self, server_name: &str) -> Result<ServerLink, PluginError> {
+    async fn start(&self, server_name: &str) -> Result<Link, PluginError> {
         // Held from the check on: a poll keeping a credential meanwhile would otherwise see its
         // Link overwritten by the next, leaving one on the Hub that nothing could Unlink.
         let mut waiting = self.waiting.lock().await;
-        if kept(self.kernel.as_ref()).await?.is_some() {
+        if self.kept().await?.is_some() {
             return Err("the Server is Linked already: Unlink it first".into());
         }
         let started = self.hub.start(server_name).await?;
@@ -142,17 +164,44 @@ impl Linker {
 
     async fn forget_link(&self) -> Result<(), PluginError> {
         *self.waiting.lock().await = None;
-        let Some(kept) = kept(self.kernel.as_ref()).await? else {
+        let Some(kept) = self.kept().await? else {
             return Ok(());
         };
         self.hub.unlink(&kept.credential).await?;
         self.kernel.ask::<StoreDelete>(store_key(LINK_KEY)).await?;
+        // The Hub Unlinked the Server's Users with it: their codes are gone, and what the Store
+        // keeps of their Links names this Link, so none shows once the Server is Linked again.
+        self.users
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
         Ok(())
     }
 
-    fn showing(&self, code: &Waiting) -> ServerLink {
-        ServerLink::Waiting {
-            code: code.code.clone(),
+    /// Tells the Hub `addresses`, unless the Server isn't Linked or the Hub has them already from
+    /// this Link. Forgotten on a restart, so the Hub hears them once more then.
+    async fn report(&self, addresses: ServerAddresses) -> Result<(), PluginError> {
+        let Some(kept) = self.kept().await? else {
+            return Ok(());
+        };
+        let mut reported = self.reported.lock().await;
+        let report = (kept.id(), addresses);
+        if reported.as_ref() == Some(&report) {
+            return Ok(());
+        }
+        self.hub.set_addresses(&kept.credential, &report.1).await?;
+        *reported = Some(report);
+        Ok(())
+    }
+
+    fn showing(&self, code: &Waiting) -> Link {
+        self.waiting_on(code.code.clone())
+    }
+
+    /// The Link that waits for someone to enter `code` on the Hub.
+    fn waiting_on(&self, code: String) -> Link {
+        Link::Waiting {
+            code,
             url: self.hub.url().to_owned(),
         }
     }
@@ -182,6 +231,18 @@ impl Linker {
         token::verify(&key_set, token, now).map_err(rejected)
     }
 
+    /// Sends `batch` to the Hub with the Link's credential, or drops it while not Linked.
+    async fn share_batch(&self, signal: Signal, batch: Vec<u8>) -> Result<(), PluginError> {
+        match self.kept().await? {
+            Some(kept) => self.hub.share(&kept.credential, signal, batch).await,
+            None => Ok(()),
+        }
+    }
+
+    async fn kept(&self) -> Result<Option<Kept>, PluginError> {
+        kept(self.kernel.as_ref()).await
+    }
+
     async fn keep(&self, kept: &Kept) -> Result<(), PluginError> {
         self.kernel
             .ask::<StorePut>(StoreEntry {
@@ -199,19 +260,42 @@ impl Linker {
 }
 
 impl ServerLinker for Linker {
-    fn link(&self) -> BoxFuture<'_, Result<ServerLink, PluginError>> {
+    fn link(&self) -> BoxFuture<'_, Result<Link, PluginError>> {
         Box::pin(self.current_link())
     }
 
-    fn start_link<'a>(
-        &'a self,
-        server_name: &'a str,
-    ) -> BoxFuture<'a, Result<ServerLink, PluginError>> {
+    fn start_link<'a>(&'a self, server_name: &'a str) -> BoxFuture<'a, Result<Link, PluginError>> {
         Box::pin(self.start(server_name))
     }
 
     fn unlink(&self) -> BoxFuture<'_, Result<(), PluginError>> {
         Box::pin(self.forget_link())
+    }
+
+    fn user_link(&self, user_id: i64) -> BoxFuture<'_, Result<Option<Link>, PluginError>> {
+        Box::pin(self.current_user_link(user_id))
+    }
+
+    fn start_user_link<'a>(
+        &'a self,
+        user_id: i64,
+        user_name: &'a str,
+    ) -> BoxFuture<'a, Result<Link, PluginError>> {
+        Box::pin(self.start_user(user_id, user_name))
+    }
+
+    fn unlink_user(&self, user_id: i64) -> BoxFuture<'_, Result<(), PluginError>> {
+        Box::pin(self.forget_user_link(user_id))
+    }
+
+    fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
+        Box::pin(self.report(addresses))
+    }
+}
+
+impl DiagnosticsSharer for Linker {
+    fn share(&self, signal: Signal, batch: Vec<u8>) -> BoxFuture<'_, Result<(), PluginError>> {
+        Box::pin(self.share_batch(signal, batch))
     }
 }
 

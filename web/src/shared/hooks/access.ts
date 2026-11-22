@@ -3,9 +3,8 @@ import { callUnaryMethod, createQueryOptions } from "@connectrpc/connect-query";
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
 
 import { ServerService } from "@/gen/nama/v1/server_pb";
-import { Permission, SignInService, type User } from "@/gen/nama/v1/sign_in_pb";
+import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 import { isCode } from "@/shared/lib/connect-errors";
-import { may } from "@/shared/lib/permissions";
 
 /** What every route's `beforeLoad` gets from the router. */
 export interface RouterContext {
@@ -14,7 +13,8 @@ export interface RouterContext {
 }
 
 // src/routes/AGENTS.md, "Access checks per route".
-// Both answers stay cached until signing in, signing out or setting up clears the cache.
+// Both answers stay cached until signing in, signing out or setting up clears the cache. Saving the
+// Server settings also resets the Server's info.
 
 /** Whether the Server has no Users yet, so the first Admin still has to be created. */
 export async function isSetupRequired(context: RouterContext) {
@@ -52,14 +52,4 @@ export function signedInQuery(transport: Transport) {
       }
     },
   });
-}
-
-/** The Admin pages, in the order the Admin nav lists them, each with the Permission it needs. */
-export const adminPages = [
-  { to: "/admin/libraries", label: "Libraries", permission: Permission.MANAGE_LIBRARIES },
-] as const;
-
-/** The Admin pages `user` may open. */
-export function adminPagesFor(user: User | undefined) {
-  return adminPages.filter(({ permission }) => may(user, permission));
 }

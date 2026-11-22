@@ -153,6 +153,9 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_SET_HOME_LAYOUT_SPEC.procedure,          Access::SignedIn),
     (proto::USER_SERVICE_REORDER_HOME_ROWS_SPEC.procedure,        Access::SignedIn),
     (proto::USER_SERVICE_RESET_HOME_LAYOUT_SPEC.procedure,        Access::SignedIn),
+    (proto::USER_SERVICE_GET_USER_LINK_SPEC.procedure,            Access::SignedIn),
+    (proto::USER_SERVICE_START_USER_LINK_SPEC.procedure,          Access::SignedIn),
+    (proto::USER_SERVICE_UNLINK_USER_SPEC.procedure,              Access::SignedIn),
     (proto::REQUEST_SERVICE_CREATE_REQUEST_SPEC.procedure,        REQUEST_MOVIE),
     (proto::REQUEST_SERVICE_CREATE_SEASON_REQUESTS_SPEC.procedure, REQUEST_TV),
     (proto::REQUEST_SERVICE_LIST_REQUESTS_SPEC.procedure,         Access::SignedIn),
@@ -240,7 +243,7 @@ pub(super) fn permission_required(needed: Permission) -> ConnectError {
 /// Authentication on top of their [`Access`] (ADR 0014, and see AGENTS.md). A list of its own, not
 /// an `Access` variant: `SetPermissions` needs a Permission as well, `ChangePassword` only a
 /// session.
-const NEEDS_RECENT_AUTHENTICATION: [&str; 9] = [
+const NEEDS_RECENT_AUTHENTICATION: [&str; 10] = [
     proto::USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_SET_PERMISSIONS_SPEC.procedure,
@@ -253,6 +256,8 @@ const NEEDS_RECENT_AUTHENTICATION: [&str; 9] = [
     // Linking hands the Server to an Account, and Unlinking takes it back (ADR 0011).
     proto::SERVER_SERVICE_START_SERVER_LINK_SPEC.procedure,
     proto::SERVER_SERVICE_UNLINK_SERVER_SPEC.procedure,
+    // Linking hands the User's Watch State and history to an Account (ADR 0008).
+    proto::USER_SERVICE_START_USER_LINK_SPEC.procedure,
 ];
 
 /// Why `caller` may not request `path` yet, if it needs Recent Authentication their Device lacks.

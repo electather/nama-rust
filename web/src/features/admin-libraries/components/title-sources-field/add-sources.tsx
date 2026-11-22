@@ -15,7 +15,7 @@ export function AddSources({
   setOrder: (order: string[]) => void;
 }) {
   return (
-    <div className="-ms-4 flex flex-wrap gap-1">
+    <div className="-ms-2.5 flex flex-wrap gap-1">
       {listed
         .filter((source) => source.running && !order.includes(source.namespace))
         .map((source) => (
