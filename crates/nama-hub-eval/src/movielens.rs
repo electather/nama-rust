@@ -9,7 +9,7 @@ use anyhow::{Context as _, anyhow, ensure};
 const URL: &str = "https://files.grouplens.org/datasets/movielens/ml-latest-small.zip";
 
 /// One MovieLens user's rating of a film.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub(crate) struct Rating {
     /// The MovieLens user who rated it.
     pub(crate) user: u32,
@@ -36,6 +36,9 @@ pub(crate) fn download() -> anyhow::Result<Vec<Rating>> {
             "--silent",
             "--show-error",
             "--location",
+            // The zip is about 1 MB, so a run that takes longer has stalled.
+            "--max-time",
+            "300",
             "--output",
         ])
         .arg(&zip)

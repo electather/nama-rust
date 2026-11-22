@@ -1,6 +1,6 @@
 # nama-hub-eval
 
-Scores the Hub's Similar titles against [MovieLens](https://grouplens.org/datasets/movielens/) ratings, so a change to the title vectors can be compared with what was there before, ahead of Nama having Viewing Events of its own. MovieLens is licensed for research, so it is used only here, in development: the harness downloads it each run, never commits it or puts it in the Hub's image, and never writes it to the database. Nothing the Hub serves is trained on it (ADR 0095).
+Scores the Hub's Similar titles against [MovieLens](https://grouplens.org/datasets/movielens/) ratings, so a change to the title vectors can be compared with what was there before, ahead of Nama having Viewing Events of its own. MovieLens is licensed for research only, so it stays in this crate ([`AGENTS.md`](AGENTS.md)).
 
 It needs a throwaway PostgreSQL that Wikidata's dump was imported into, such as the local one in [`nama-hub`'s README](../nama-hub/README.md) once the Hub has migrated it, and `curl` and `unzip`:
 
