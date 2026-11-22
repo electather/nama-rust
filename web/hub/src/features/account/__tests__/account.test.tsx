@@ -54,7 +54,7 @@ function openHub(path: string, signedIn = false) {
       },
     });
     // The Account page lists the Account's Servers.
-    service(LinkService, { listLinkedServers: () => ({}) });
+    service(LinkService, { listLinkedServers: () => ({}), listLinkedUsers: () => ({}) });
   });
   globalThis.history.replaceState(null, "", path);
   render(<RouterProvider router={getRouter(transport)} />);

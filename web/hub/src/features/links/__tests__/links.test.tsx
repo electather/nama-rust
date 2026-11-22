@@ -1,11 +1,11 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
 import { AccountSchema, AccountService } from "@hub/gen/nama/hub/v1/account_pb";
-import { LinkService, LinkedServerSchema } from "@hub/gen/nama/hub/v1/link_pb";
+import { LinkService, LinkedServerSchema, LinkedUserSchema } from "@hub/gen/nama/hub/v1/link_pb";
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
-import { cleanup, configure, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, configure, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, test } from "vite-plus/test";
 
 const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
@@ -13,6 +13,13 @@ const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
 const attic = create(LinkedServerSchema, {
   id: "0193-attic",
   name: "Attic",
+  linkedAt: 1_700_000_000n,
+});
+
+const grace = create(LinkedUserSchema, {
+  id: "0195-grace",
+  name: "Grace",
+  serverName: "Cabin",
   linkedAt: 1_700_000_000n,
 });
 
@@ -25,12 +32,14 @@ function refused(code: Code, reason: RefusalReason) {
 
 /**
  * Opens the Account page, signed in as Ada, on a fake Hub where one Server, "Living room", shows
- * the code BDFH-JKLM, and entering it is refused for `refusing`, if given. With `listFails`, the
- * Hub fails to list the Account's Servers.
+ * the code BDFH-JKLM, and its User Ida the code CDFG-HJKL, and entering either is refused for
+ * `refusing`, if given. Ada's Account has Grace on Cabin Linked. With `listFails`, the Hub fails to
+ * list the Account's Servers.
  */
 function openAccount(refusing?: RefusalReason, { listFails = false } = {}) {
   let session = true;
   const servers = [attic];
+  let users = [grace];
   const transport = createRouterTransport(({ service }) => {
     service(AccountService, {
       getAccount: () => {
@@ -66,15 +75,38 @@ function openAccount(refusing?: RefusalReason, { listFails = false } = {}) {
         servers.push(server);
         return { server };
       },
+      listLinkedUsers: () => ({ users }),
+      approveUserLink: ({ code }) => {
+        if (refusing !== undefined) {
+          throw refused(Code.AlreadyExists, refusing);
+        }
+        if (code !== "CDFG-HJKL") {
+          throw refused(Code.NotFound, RefusalReason.LINK_CODE_NOT_FOUND);
+        }
+        const user = create(LinkedUserSchema, {
+          id: "0196-ida",
+          name: "Ida",
+          serverName: "Living room",
+          linkedAt: 1_700_000_100n,
+        });
+        users = [...users, user];
+        return { user };
+      },
+      unlinkLinkedUser: ({ id }) => {
+        users = users.filter((user) => user.id !== id);
+        return {};
+      },
     });
   });
   globalThis.history.replaceState(null, "", "/");
   render(<RouterProvider router={getRouter(transport)} />);
 }
 
-async function enterCode(code: string) {
-  fireEvent.change(await screen.findByLabelText("Code"), { target: { value: code } });
-  fireEvent.click(screen.getByRole("button", { name: "Link Server" }));
+/** Enters `code` in the form for a Server's code, or with `form` the one it names. */
+async function enterCode(code: string, form = "Link a Server") {
+  const entering = within(await screen.findByRole("form", { name: form }));
+  fireEvent.change(entering.getByLabelText("Code"), { target: { value: code } });
+  fireEvent.click(entering.getByRole("button", { name: /^Link (?:Server|User)$/u }));
 }
 
 describe("linking a Server", () => {
@@ -145,5 +177,59 @@ describe("linking a Server", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Sign in again" }));
 
     await expect(screen.findByRole("heading", { name: "Sign in" })).resolves.toBeDefined();
+  });
+});
+
+describe("linking a User", () => {
+  beforeAll(() => {
+    configure({ asyncUtilTimeout: 5000 });
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  test("the code a User's Server shows Links them, and they join the Account's Users", async () => {
+    openAccount();
+    await expect(screen.findByText("Grace on Cabin")).resolves.toBeDefined();
+
+    await enterCode("CDFG-HJKL", "Link a User");
+
+    await expect(
+      screen.findByText("Ida on Living room is Linked to your Account."),
+    ).resolves.toBeDefined();
+    await expect(
+      screen.findByText("Ida on Living room", { selector: "span" }),
+    ).resolves.toBeDefined();
+  });
+
+  test("unlinking a User takes them off the Account's Users", async () => {
+    openAccount();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Unlink Grace on Cabin" }));
+
+    await expect(screen.findByText("No User is Linked yet.")).resolves.toBeDefined();
+  });
+
+  test("a User Linked to an Account already is said", async () => {
+    openAccount(RefusalReason.USER_LINKED);
+
+    await enterCode("CDFG-HJKL", "Link a User");
+
+    await expect(
+      screen.findByText(
+        "This User is Linked to an Account already. Unlink them in their Server’s Settings first.",
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  test("an Account whose email isn't proven is offered a Sign-in Link to prove it", async () => {
+    openAccount(RefusalReason.EMAIL_NOT_PROVEN);
+
+    await enterCode("CDFG-HJKL", "Link a User");
+
+    await expect(
+      screen.findByRole("link", { name: "Email me a Sign-in Link" }),
+    ).resolves.toBeDefined();
   });
 });

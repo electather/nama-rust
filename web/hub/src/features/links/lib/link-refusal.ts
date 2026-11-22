@@ -1,7 +1,7 @@
 import { refusalReason } from "@hub/features/account/lib/refusals";
 import { RefusalReason } from "@hub/gen/nama/hub/v1/refusal_pb";
 
-/** Why entering a Server's code failed: under the code, or for the whole form. */
+/** Why entering a code failed: under the code, or for the whole form. */
 export interface LinkErrors {
   code?: string;
   form?: string;
@@ -19,7 +19,7 @@ export function linkErrors(error: unknown): LinkErrors {
   const reason = refusalReason(error);
   return (
     (reason === undefined ? undefined : wording[reason]) ?? {
-      form: "The Hub couldn’t Link the Server just now. Try again.",
+      form: "The Hub couldn’t Link it just now. Try again.",
     }
   );
 }
@@ -35,16 +35,19 @@ const wording: Partial<Record<RefusalReason, LinkErrors>> = {
   [RefusalReason.LINK_CODE_NOT_FOUND]: {
     code: "No Server is showing this code. Check it, or get a new one in the Server’s Settings.",
   },
+  [RefusalReason.USER_LINKED]: {
+    form: "This User is Linked to an Account already. Unlink them in their Server’s Settings first.",
+  },
   [RefusalReason.EMAIL_NOT_PROVEN]: {
     form: "Linking needs your email proven first. Sign in with a Sign-in Link sent to it, then enter the code again.",
     proveEmail: true,
   },
   [RefusalReason.SIGN_IN_REQUIRED]: {
-    form: "You’re signed out. Sign in again to Link a Server.",
+    form: "You’re signed out. Sign in again to Link.",
     signInAgain: true,
   },
   [RefusalReason.RECENT_AUTHENTICATION_REQUIRED]: {
-    form: "To Link a Server, sign in again: your sign-in is over 10 minutes old.",
+    form: "To Link, sign in again: your sign-in is over 10 minutes old.",
     signInAgain: true,
   },
 };

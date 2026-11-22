@@ -1,14 +1,17 @@
 import { Button } from "nama-ui/components/button";
 
-import type { ServerLink } from "@/gen/nama/v1/server_pb";
+import type { ShownLink } from "@/features/settings/lib/server-link";
 
 /** The code the Server shows while it waits for someone to enter it on the Hub, and cancelling. */
 export function ServerLinkCode({
   link,
+  enterUnder,
   pending,
   onCancel,
 }: {
-  link: ServerLink;
+  link: ShownLink;
+  /** The Hub's form the code goes in, such as “Link a Server”. */
+  enterUnder: string;
   pending: boolean;
   onCancel: () => void;
 }) {
@@ -24,7 +27,7 @@ export function ServerLinkCode({
         >
           the Hub
         </a>
-        , sign in to your Account and enter this code:
+        , sign in to your Account and enter this code under “{enterUnder}”:
       </p>
       <p className="text-2xl font-medium tracking-wide tabular-nums">{link.code}</p>
       <p className="text-xs text-muted-foreground">
