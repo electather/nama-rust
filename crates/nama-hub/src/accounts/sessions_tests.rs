@@ -52,3 +52,39 @@ async fn a_session_signed_in_over_10_minutes_ago_cant_set_the_password(db: PgPoo
         .await
         .unwrap();
 }
+
+#[sqlx::test(migrations = false)]
+async fn a_session_ended_before_its_password_is_saved_cant_set_it(db: PgPool) {
+    db::migrate(&db).await.unwrap();
+    let accounts = Accounts::new(db, None);
+    let ip = "203.0.113.1".parse().unwrap();
+    let created = accounts
+        .create(
+            "ada@example.com",
+            "correct horse battery",
+            ip,
+            Instant::now(),
+        )
+        .await
+        .unwrap();
+    let session = accounts.session(&created.token).await.unwrap().unwrap();
+
+    // As a Sign-in Link's takeover would, while the password hashes.
+    accounts.sign_out(&session).await.unwrap();
+
+    assert!(matches!(
+        accounts
+            .set_password(&session, "staple battery horse")
+            .await,
+        Err(Error::RecentAuthenticationRequired)
+    ));
+    accounts
+        .sign_in(
+            "ada@example.com",
+            "correct horse battery",
+            ip,
+            Instant::now(),
+        )
+        .await
+        .unwrap();
+}

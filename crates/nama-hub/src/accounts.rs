@@ -206,6 +206,10 @@ impl Accounts {
         check_password_length(password)?;
         let password_hash = passwords::hash(password.to_owned()).await?;
         let mut tx = self.db.begin().await?;
+        // Checked again: the session may have ended, or aged, while the password hashed.
+        if !sessions::lock_while_recent(&mut tx, session).await? {
+            return Err(Error::RecentAuthenticationRequired);
+        }
         sqlx::query!(
             "UPDATE accounts SET password_hash = $1 WHERE id = $2",
             password_hash,
