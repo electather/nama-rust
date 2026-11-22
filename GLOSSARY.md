@@ -9,7 +9,7 @@ The self-hosted program that owns Libraries, streams media to clients, and handl
 _Avoid_: backend, instance, media server, command server
 
 **Hub**:
-The central service where Accounts live and where clients find the Servers they can reach. It also keeps a copy of each Account's Watch State, and takes in the Diagnostics and Usage Analytics that Servers share with Nama's developers.
+The central service, run by the project, where Accounts live and where clients find the Servers they can reach. It keeps each Account's Watch State, Watchlist and Viewing Events across Servers, learns recommendations from them, and takes in the Diagnostics and Usage Analytics that Servers share with Nama's developers. A Server never needs it.
 _Avoid_: command server, cloud, plex.tv
 
 **Relay**:
@@ -75,12 +75,16 @@ A single-use link that lets one person create a User on a Server, with the Permi
 _Avoid_: invitation code, share, referral
 
 **Account**:
-A person's identity on the Hub, which can be linked to Users on many Servers.
+A person's identity on the Hub, which can be linked to Users on many Servers. It is also a Sign-in Method: an Admin can create a User from an Account, and that User signs in through the Hub.
 _Avoid_: Hub user, login, profile
 
 **Link**:
-The connection between a User and an Account.
+The connection between a User and an Account, made when a User Links later or when a User is created from an Account.
 _Avoid_: pairing, binding
+
+**Viewing Event**:
+One play of a Movie or Episode by a Linked User, as the Hub records it: when it started and stopped, how far it got, whether it finished, and on what kind of Device.
+_Avoid_: play log, scrobble, watch history entry, telemetry
 
 **Watchlist**:
 A User's list of titles to watch later, whether or not their Server has them.
