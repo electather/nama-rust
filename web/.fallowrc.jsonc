@@ -177,6 +177,7 @@
         "allow": [
           "settings",
           "admin-plugins",
+          "admin-playback",
           "admin-backups",
           "admin-jobs",
           "shared-components",

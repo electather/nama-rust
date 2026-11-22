@@ -9,6 +9,7 @@ import { PlaybackPane } from "@/features/settings/components/playback-pane";
 import { PluginsPane } from "@/features/settings/components/plugins-pane";
 import { RequestsPane } from "@/features/settings/components/requests-pane";
 import { ServerPane } from "@/features/settings/components/server-pane";
+import { ServerPlaybackPane } from "@/features/settings/components/server-playback-pane";
 import { SigninPane } from "@/features/settings/components/signin-pane";
 import type { Section } from "@/features/settings/lib/sections";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
@@ -21,6 +22,7 @@ const panes: Record<Section, ComponentType<{ user: User | undefined }>> = {
   requests: RequestsPane,
   connections: ConnectionsPane,
   server: ServerPane,
+  "server-playback": ServerPlaybackPane,
   backups: BackupsPane,
   plugins: PluginsPane,
 };

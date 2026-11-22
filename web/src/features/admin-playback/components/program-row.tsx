@@ -24,13 +24,13 @@ export function ProgramRow({
         )
       }
     >
-      <h2 className="font-medium">{name}</h2>
+      <h5 className="text-sm font-semibold">{name}</h5>
       {found === undefined ? (
-        <p className="text-sm text-pretty wrap-anywhere text-muted-foreground">{problem}</p>
+        <p className="text-xs text-pretty wrap-anywhere text-muted-foreground">{problem}</p>
       ) : (
         <>
-          <p className="text-sm">version {found.version}</p>
-          <p className="text-sm break-all text-muted-foreground">{found.path}</p>
+          <p className="text-xs">version {found.version}</p>
+          <p className="text-xs break-all text-muted-foreground">{found.path}</p>
         </>
       )}
     </AdminRow>
