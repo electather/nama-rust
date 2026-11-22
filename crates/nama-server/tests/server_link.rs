@@ -29,11 +29,11 @@ use nama_plugin_api::{
 };
 use nama_proto::nama::v1::{
     self as proto, CreateUserFromAccountRequest, DeleteUserRequest, GetServerInfoRequest,
-    GetServerLinkRequest, GetUserLinkRequest, ListUsersRequest, Permission, RefusalReason,
-    ServerServiceClient, ServerSettings, SessionDelivery, SetPermissionsRequest,
+    GetServerLinkRequest, GetUserLinkRequest, ListUsersRequest, Permission, ReauthenticateRequest,
+    RefusalReason, ServerServiceClient, ServerSettings, SessionDelivery, SetPermissionsRequest,
     SignInServiceClient, SignInWithAccountRequest, StartAccountSignInRequest,
     StartServerLinkRequest, StartUserLinkRequest, UnlinkServerRequest, UnlinkUserRequest,
-    UpdateServerSettingsRequest, UserServiceClient, WhoAmIRequest,
+    UpdateServerSettingsRequest, UserServiceClient, WhoAmIRequest, reauthenticate_request::Proof,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -476,6 +476,20 @@ async fn sign_in_with_account(
         .into_owned())
 }
 
+/// Reauthenticates the signed-in `device` with the sign-in with an Account `handle` stands for.
+async fn reauthenticate_with_account(
+    device: ClientConfig,
+    handle: &str,
+) -> Result<(), ConnectError> {
+    SignInServiceClient::new(HttpClient::plaintext(), device)
+        .reauthenticate(ReauthenticateRequest {
+            proof: Some(Proof::AccountSignInHandle(handle.to_owned())),
+            ..Default::default()
+        })
+        .await
+        .map(drop)
+}
+
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -490,7 +504,7 @@ async fn offers_account_sign_in(server: &TestServer) -> bool {
 }
 
 #[tokio::test]
-async fn a_user_created_from_an_account_signs_in_once_the_account_approves() {
+async fn a_user_created_from_an_account_signs_in_and_reauthenticates_once_the_account_approves() {
     let linker = Scripted::default();
     let server = linked_server(&linker).await;
 
@@ -536,18 +550,34 @@ async fn a_user_created_from_an_account_signs_in_once_the_account_approves() {
     .unwrap()
     .into_owned();
     assert_eq!(who.user.into_option().unwrap().id, grace);
+    let device = server.client_config_as(&signed_in.token);
+    let start_user_link = async || {
+        users(device.clone())
+            .start_user_link(StartUserLinkRequest::default())
+            .await
+    };
     // Whoever approved on the Hub may not hold this Device, as with a Sign-in Code (ADR 0014).
     assert_refused(
-        users(server.client_config_as(&signed_in.token))
-            .start_user_link(StartUserLinkRequest::default())
-            .await,
+        start_user_link().await,
         ErrorCode::FailedPrecondition,
         RefusalReason::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
     );
+    let hedy = create_from_account(&server, "Hedy").await.unwrap();
+    linker.script().approved = Some(hedy);
+    assert_refused(
+        reauthenticate_with_account(device.clone(), &started.handle).await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_WRONG_ACCOUNT,
+    );
+    linker.script().approved = Some(grace);
+    reauthenticate_with_account(device.clone(), &started.handle)
+        .await
+        .unwrap();
+    start_user_link().await.unwrap();
 }
 
 #[tokio::test]
-async fn while_the_hub_is_down_devices_stay_signed_in_but_an_account_cant_sign_in() {
+async fn with_the_hub_down_devices_stay_signed_in_but_accounts_cant_sign_in_or_reauthenticate() {
     let linker = Scripted::default();
     let server = linked_server(&linker).await;
     let grace = create_from_account(&server, "Grace").await.unwrap();
@@ -559,12 +589,15 @@ async fn while_the_hub_is_down_devices_stay_signed_in_but_an_account_cant_sign_i
 
     linker.script().link = None;
 
-    let still = SignInServiceClient::new(
-        HttpClient::plaintext(),
-        server.client_config_as(&signed_in.token),
-    )
-    .who_am_i(WhoAmIRequest::default())
-    .await;
+    let device = server.client_config_as(&signed_in.token);
+    let not_reauthenticated = reauthenticate_with_account(device.clone(), &started.handle).await;
+    assert_eq!(
+        not_reauthenticated.unwrap_err().code,
+        ErrorCode::Unavailable
+    );
+    let still = SignInServiceClient::new(HttpClient::plaintext(), device)
+        .who_am_i(WhoAmIRequest::default())
+        .await;
     assert!(still.is_ok(), "{still:?}");
     let refused = start_account_sign_in(&server).await.unwrap_err();
     assert_eq!(refused.code, ErrorCode::Unavailable);

@@ -7,5 +7,6 @@ pub mod reauthenticate_request {
     #[derive(Clone, Debug)]
     pub enum Proof<'a> {
         Password(&'a str),
+        AccountSignInHandle(&'a str),
     }
 }

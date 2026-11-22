@@ -750,10 +750,15 @@ pub trait SignInService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Gives the calling Device Recent Authentication, once its User proves who they are again. The
-    /// Device keeps its session: no new token or cookie is handed out. Fails with `unauthenticated`
-    /// if the proof is wrong, the Device was signed out meanwhile, or without a valid session, and
-    /// with `invalid_argument` without a proof. A wrong proof counts toward the limits above.
+    /// Gives the calling Device Recent Authentication, once its User proves who they are again: with
+    /// their password, or with their Account approving a sign-in started with `StartAccountSignIn`,
+    /// the one way for a User created from an Account. The Device keeps its session: no new token or
+    /// cookie is handed out.
+    /// Fails with `unauthenticated` if the proof is wrong (`REFUSAL_REASON_WRONG_ACCOUNT` when
+    /// another User's Account approved), the Device was signed out meanwhile, or without a valid
+    /// session; with `invalid_argument` without a proof; and like `SignInWithAccount` for a sign-in
+    /// with an Account the Hub didn't approve or can't be asked about. Any failed proof counts toward
+    /// the limits above.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

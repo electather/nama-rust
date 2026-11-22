@@ -2479,6 +2479,11 @@ impl ::buffa::Message for ReauthenticateRequest {
                 __buffa::oneof::reauthenticate_request::Proof::Password(x) => {
                     size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
                 }
+                __buffa::oneof::reauthenticate_request::Proof::AccountSignInHandle(
+                    x,
+                ) => {
+                    size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
+                }
             }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -2495,6 +2500,11 @@ impl ::buffa::Message for ReauthenticateRequest {
             match v {
                 __buffa::oneof::reauthenticate_request::Proof::Password(x) => {
                     ::buffa::types::put_string_field(1u32, x, buf);
+                }
+                __buffa::oneof::reauthenticate_request::Proof::AccountSignInHandle(
+                    x,
+                ) => {
+                    ::buffa::types::put_string_field(2u32, x, buf);
                 }
             }
         }
@@ -2518,6 +2528,17 @@ impl ::buffa::Message for ReauthenticateRequest {
                 )?;
                 self.proof = ::core::option::Option::Some(
                     __buffa::oneof::reauthenticate_request::Proof::Password(
+                        ::buffa::types::decode_string(buf)?,
+                    ),
+                );
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                self.proof = ::core::option::Option::Some(
+                    __buffa::oneof::reauthenticate_request::Proof::AccountSignInHandle(
                         ::buffa::types::decode_string(buf)?,
                     ),
                 );
@@ -2587,6 +2608,32 @@ impl<'de> ::serde::Deserialize<'de> for ReauthenticateRequest {
                                 }
                                 __oneof_proof = Some(
                                     __buffa::oneof::reauthenticate_request::Proof::Password(v),
+                                );
+                            }
+                        }
+                        "accountSignInHandle" | "account_sign_in_handle" => {
+                            let v: ::core::option::Option<
+                                ::buffa::alloc::string::String,
+                            > = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            ::buffa::alloc::string::String,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_proof.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'proof'",
+                                        ),
+                                    );
+                                }
+                                __oneof_proof = Some(
+                                    __buffa::oneof::reauthenticate_request::Proof::AccountSignInHandle(
+                                        v,
+                                    ),
                                 );
                             }
                         }

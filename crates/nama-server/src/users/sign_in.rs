@@ -6,7 +6,7 @@
 //!
 //! Guessable requests go through it (the crate's `AGENTS.md`, "Guessable requests").
 
-use std::{net::IpAddr, time::Instant};
+use std::{future::Future, net::IpAddr, time::Instant};
 
 use super::{
     self as users, ApprovingDevice, Caller, NewDevice, Proved, SignedIn, Users,
@@ -79,6 +79,9 @@ pub(crate) enum Error {
     /// Reauthenticating gave no proof of who the caller is.
     #[error("the proof of who you are is missing")]
     ProofMissing,
+    /// Reauthenticating with an Account, the Account that approved isn't the caller's.
+    #[error("the Account that approved isn't the one Linked to you")]
+    WrongAccount,
 }
 
 impl SignIn {
@@ -300,6 +303,32 @@ impl SignIn {
         // Before recording, so a Device found signed out after the right password isn't a guess.
         self.limits.succeeded(&attempt);
         Ok(self.users.record_authentication(caller.device.id).await?)
+    }
+
+    /// Gives `caller`'s Device Recent Authentication once `approved` names their User as the one
+    /// whose Account approved a sign-in on the Hub (ADR 0092), as asked from `ip` at `now`. No
+    /// Device signs in. `approved` is awaited only once the attempt is let through, and its
+    /// failure, another User's Account included ([`Error::WrongAccount`]), counts as a guess.
+    pub(crate) async fn reauthenticate_with_account<E: From<Error>>(
+        &self,
+        caller: &Caller,
+        approved: impl Future<Output = Result<i64, E>>,
+        ip: IpAddr,
+        now: Instant,
+    ) -> Result<(), E> {
+        let attempt = self
+            .limits
+            .admit(ip, Some(&caller.user.name), now)
+            .map_err(Error::from)?;
+        // A Hub that can't be asked counts too: un-counting it would forget the name's failures.
+        if approved.await? != caller.user.id {
+            return Err(Error::WrongAccount.into());
+        }
+        self.limits.succeeded(&attempt);
+        self.users
+            .record_authentication(caller.device.id)
+            .await
+            .map_err(|err| Error::from(err).into())
     }
 
     /// Signs the Device `device` out, so its session stops working.

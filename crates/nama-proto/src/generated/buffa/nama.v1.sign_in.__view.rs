@@ -3270,6 +3270,17 @@ impl<'a> ::buffa::MessageView<'a> for ReauthenticateRequestView<'a> {
                     ),
                 );
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.proof = Some(
+                    super::super::__buffa::view::oneof::reauthenticate_request::Proof::AccountSignInHandle(
+                        ::buffa::types::borrow_str(&mut cur)?,
+                    ),
+                );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -3309,6 +3320,13 @@ impl<'a> ::buffa::MessageView<'a> for ReauthenticateRequestView<'a> {
                             v.to_string(),
                         )
                     }
+                    super::super::__buffa::view::oneof::reauthenticate_request::Proof::AccountSignInHandle(
+                        v,
+                    ) => {
+                        super::super::__buffa::oneof::reauthenticate_request::Proof::AccountSignInHandle(
+                            v.to_string(),
+                        )
+                    }
                 }),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
@@ -3324,6 +3342,11 @@ impl<'a> ::buffa::ViewEncode<'a> for ReauthenticateRequestView<'a> {
         if let ::core::option::Option::Some(ref v) = self.proof {
             match v {
                 super::super::__buffa::view::oneof::reauthenticate_request::Proof::Password(
+                    x,
+                ) => {
+                    size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
+                }
+                super::super::__buffa::view::oneof::reauthenticate_request::Proof::AccountSignInHandle(
                     x,
                 ) => {
                     size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
@@ -3347,6 +3370,11 @@ impl<'a> ::buffa::ViewEncode<'a> for ReauthenticateRequestView<'a> {
                     x,
                 ) => {
                     ::buffa::types::put_string_field(1u32, x, buf);
+                }
+                super::super::__buffa::view::oneof::reauthenticate_request::Proof::AccountSignInHandle(
+                    x,
+                ) => {
+                    ::buffa::types::put_string_field(2u32, x, buf);
                 }
             }
         }
@@ -3377,6 +3405,11 @@ impl<'__a> ::serde::Serialize for ReauthenticateRequestView<'__a> {
                     v,
                 ) => {
                     __map.serialize_entry("password", v)?;
+                }
+                super::super::__buffa::view::oneof::reauthenticate_request::Proof::AccountSignInHandle(
+                    v,
+                ) => {
+                    __map.serialize_entry("accountSignInHandle", v)?;
                 }
             }
         }
