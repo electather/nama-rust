@@ -1,8 +1,8 @@
 import { Button } from "nama-ui/components/button";
 
-import { useStartAccountSignIn } from "@/features/auth/data/use-start-account-sign-in";
-import { accountReturnUrl, accountSignInErrors } from "@/features/auth/lib/account-sign-in";
 import { FormNotices } from "@/shared/components/sign-in-layout/form-notices";
+import { useStartAccountSignIn } from "@/shared/hooks/use-start-account-sign-in";
+import { accountReturnUrl, accountSignInErrors } from "@/shared/lib/account-sign-in";
 
 /** The button that goes to the Hub to sign in with an Account, and why it couldn't. */
 export function StartAccountSignIn({ redirect }: { redirect: string | undefined }) {

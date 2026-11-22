@@ -4,10 +4,10 @@ import { useEffect, useRef } from "react";
 
 import { useFinishSignIn } from "@/features/auth/data/use-finish-sign-in";
 import { useSignInWithAccount } from "@/features/auth/data/use-sign-in-with-account";
-import { accountSignInErrors, takeAccountSignIn } from "@/features/auth/lib/account-sign-in";
 import { SessionDelivery } from "@/gen/nama/v1/sign_in_pb";
 import { FormNotices } from "@/shared/components/sign-in-layout/form-notices";
 import { SignInCard } from "@/shared/components/sign-in-layout/sign-in-card";
+import { accountSignInErrors, takeAccountSignIn } from "@/shared/lib/account-sign-in";
 
 /** Where the Hub sends this browser back to: finishing the sign-in with an Account it started. */
 export function FinishAccountSignIn({ redirect }: { redirect: string | undefined }) {

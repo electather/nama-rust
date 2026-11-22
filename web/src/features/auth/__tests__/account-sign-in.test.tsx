@@ -2,8 +2,8 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
-import { keepAccountSignIn } from "@/features/auth/lib/account-sign-in";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
+import { keepAccountSignIn } from "@/shared/lib/account-sign-in";
 import { fakeServer, newUser, openApp, type ServerState } from "@/test-app";
 import { refused } from "@/test-refusal";
 
