@@ -2,7 +2,7 @@ use std::{collections::BTreeSet, num::NonZeroU32};
 
 use nama_proto::nama::v1::PlaybackReasonKind as Kind;
 
-use super::{keyframes_unlisted, remux, too_busy_to_play};
+use super::{hdr_reason, keyframes_unlisted, remux, too_busy_to_play};
 #[cfg(unix)]
 use crate::ffmpeg::fake::{vaapi_on_two_gpus, vaapi_on_two_gpus_at};
 use crate::{
@@ -656,7 +656,7 @@ fn a_hardware_transcode_of_hdr_falls_back_to_tone_mapping_in_software_with_zscal
 }
 
 #[test]
-fn without_zscale_a_hardware_transcode_of_hdr_falls_back_without_tone_mapping_and_says_so() {
+fn without_zscale_hardware_hdr_falls_back_without_tone_mapping_or_its_reasons_and_says_so() {
     let mut facts = hevc_on(HardwareChoice::Automatic, vec![QSV], Some(Hdr::Hdr10));
     facts.can_do.zscale = false;
 
@@ -678,6 +678,14 @@ fn without_zscale_a_hardware_transcode_of_hdr_falls_back_without_tone_mapping_an
         "on hardware: {:?}",
         kinds(&plan)
     );
+    // No plan takes the encoder reason into a fallback that stops tone mapping, as Dolby Vision 5
+    // is reshaped in software, so it's handed in to pin the filter.
+    let for_encoder = Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_ENCODER;
+    let reasons = [hdr_reason(for_encoder, Hdr::Hdr10, String::new())];
+    let kept = super::fallback(&facts, &transcoded(&plan), &reasons)
+        .unwrap()
+        .reasons;
+    assert!(kept.iter().all(|reason| reason.kind != for_encoder));
 }
 
 #[test]
