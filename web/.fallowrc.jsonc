@@ -172,7 +172,7 @@
       },
       {
         "from": "settings",
-        // Its Plugins pane lists the Plugins page's rows.
+        // Its Plugins pane renders a Plugin's parts, whose code stays in admin-plugins.
         "allow": [
           "settings",
           "admin-plugins",
@@ -217,7 +217,6 @@
           "app",
           "auth",
           "admin-libraries",
-          "admin-plugins",
           "admin-needs-a-match",
           "admin-playback",
           "admin-jobs",

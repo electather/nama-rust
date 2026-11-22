@@ -9,7 +9,7 @@ import { hasSummary } from "@/shared/lib/plugins";
 
 /**
  * The Plugin `id` in place of the list: its header, what it is, and a card for its Extension Points
- * and per part of its setup, the sections its page has.
+ * and for each part of its setup.
  */
 export function PluginDetail({ id }: { id: string }) {
   const plugin = usePlugin(id);
@@ -17,8 +17,8 @@ export function PluginDetail({ id }: { id: string }) {
   if (!hasSummary(plugin)) {
     return null;
   }
-  // ponytail: the page's sections restyled from here, each a Card (DESIGN.md, "Cards"). Give them a
-  // look of their own to choose from if a third place shows them.
+  // ponytail: the sections, styled for the Plugin page they had, restyled from here as Cards
+  // (DESIGN.md, "Cards"). Now Settings alone shows them, move this into them as they next change.
   const cards = (
     <div className="mt-7.5 flex flex-col gap-3.5 *:mt-0 *:max-w-none *:rounded-xl *:border *:bg-card *:p-4.5">
       <PluginPoints extensionPoints={plugin.summary.extensionPoints} />

@@ -168,7 +168,26 @@ test.each([
   const view = await plugin("test-plugin");
   fireEvent.click(view.getByRole("button", { name: "Enable test-plugin" }));
 
-  await expect(view.findByText(text)).resolves.toBeDefined();
+  const alert = await view.findByText(text);
+  expect(alert.getAttribute("role")).toBe("alert");
+});
+
+test("a homepage that isn't http or https isn't linked from a Plugin's “…”", async () => {
+  openPlugin("tmdb", {
+    getPlugin: () => ({
+      plugin: {
+        summary: { id: "tmdb", name: "TMDB", enabled: true },
+        // oxlint-disable-next-line no-script-url -- the URL is the hostile input under test
+        homepageUrl: "javascript:alert(1)",
+      },
+    }),
+  });
+  const view = await plugin("TMDB");
+
+  fireEvent.click(view.getByRole("button", { name: "More for TMDB" }));
+
+  await screen.findByRole("menuitem", { name: "Disable" });
+  expect(screen.queryByRole("menuitem", { name: "Homepage" })).toBeNull();
 });
 
 test("enabling a Plugin in its view shows it enabled there and on the list", async () => {

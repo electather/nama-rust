@@ -55,7 +55,7 @@ export function openPlugin(
   changes: Partial<ServiceImpl<typeof PluginService>> = {},
   library: Partial<ServiceImpl<typeof LibraryService>> = {},
 ) {
-  openApp(`/code?settings=plugins&plugin=${id}`, pluginServer(listing(id, changes), library));
+  openApp(`/code?settings=plugins&plugin=${id}`, pluginServer(listingToo(id, changes), library));
 }
 
 /** Opens the Plugin `id` as `openPlugin` does, signed in as an Admin. */
@@ -63,17 +63,15 @@ export function openPluginAsAdmin(
   id: string,
   changes: Partial<ServiceImpl<typeof PluginService>> = {},
 ) {
-  openApp(
-    `/code?settings=plugins&plugin=${id}`,
-    pluginServer(listing(id, changes), {}, [Permission.ADMIN]),
-  );
+  const server = pluginServer(listingToo(id, changes), {}, [Permission.ADMIN]);
+  openApp(`/code?settings=plugins&plugin=${id}`, server);
 }
 
 /**
- * `changes`, listing `id` too where `plugins` lacks it, since Settings opens only a Plugin it lists
- * and a test's `getPlugin` may answer for one `plugins` lacks.
+ * `changes`, with `listPlugins` listing `id` too where `plugins` lacks it: Settings opens only a
+ * Plugin it lists, and a test's `getPlugin` may answer for one `plugins` lacks.
  */
-function listing(id: string, changes: Partial<ServiceImpl<typeof PluginService>>) {
+function listingToo(id: string, changes: Partial<ServiceImpl<typeof PluginService>>) {
   const listed = plugins.map((each) => summaryOf(each));
   const summaries = listed.some((each) => each.id === id) ? listed : [...listed, { id }];
   return { listPlugins: () => ({ summaries }), ...changes };
@@ -100,8 +98,8 @@ export async function input(name: string, label: string) {
 
 /** Sends the settings form in the view of the Plugin shown as `name`, as changing any does. */
 export async function saveSettings(name: string) {
-  const page = await plugin(name);
-  const form = page.getByRole("heading", { name: "Settings" }).closest("form");
+  const view = await plugin(name);
+  const form = view.getByRole("heading", { name: "Settings" }).closest("form");
   if (form === null) {
     throw new Error(`${name} has no settings form`);
   }

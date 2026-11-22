@@ -25,9 +25,8 @@ test.each([
   const testPlugin = await plugin("test-plugin");
   fireEvent.click(testPlugin.getByRole("button", { name: "Enable test-plugin" }));
 
-  await expect(
-    testPlugin.findByText("It refused to start: the key was turned down."),
-  ).resolves.toBeDefined();
+  const alert = await testPlugin.findByText("It refused to start: the key was turned down.");
+  expect(alert.getAttribute("role")).toBe("alert");
 });
 
 /**
