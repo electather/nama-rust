@@ -26,6 +26,7 @@ const SIZES: Record<ControlSize, string> = {
  * such as a row of choices, drops under its label on a phone, and a sized one then fills the row.
  */
 export function SettingRow({
+  setting,
   label,
   hint,
   error,
@@ -33,6 +34,8 @@ export function SettingRow({
   size = "own",
   children,
 }: {
+  /** The key `?setting=` finds the row by, from its Section's label map. */
+  setting?: string | undefined;
   label: string;
   hint?: ReactNode;
   /** What's wrong with the setting as it is, in red under its hint. */
@@ -43,7 +46,10 @@ export function SettingRow({
 }) {
   const id = useId();
   return (
-    <div className={wide ? `${ROW} max-md:flex-col max-md:items-stretch` : ROW}>
+    <div
+      data-setting={setting}
+      className={wide ? `${ROW} max-md:flex-col max-md:items-stretch` : ROW}
+    >
       <div className="min-w-0 flex-1">
         <label id={`${id}-label`} htmlFor={id} className="block text-sm">
           {label}

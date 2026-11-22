@@ -20,15 +20,6 @@ export interface PlaybackValues {
   remotePlaybackLimit: string;
 }
 
-/** Each setting's name, as its field says it and the toast names it when a change to it is refused. */
-export const playbackLabels: Record<keyof PlaybackValues, string> = {
-  segmentFolder: "Segment folder",
-  keepBehindMinutes: "Keep for skipping back",
-  hardwareAcceleration: "Hardware acceleration",
-  maxTranscodes: "Transcodes at once",
-  remotePlaybackLimit: "Default Playback Limit for remote playback",
-};
-
 /** The `saved` Playback settings as their fields hold them, given the hardware that `passed` its test. */
 export function savedPlayback(saved: PlaybackSettings, passed: Hardware[]): PlaybackValues {
   return {

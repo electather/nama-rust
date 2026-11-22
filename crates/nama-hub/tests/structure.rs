@@ -31,7 +31,10 @@ const CEILINGS: &[(&str, usize)] = &[];
 
 /// The tables each area owns, each with its owner's path without `.rs`.
 const OWNED_TABLES: &[(&str, &[&str])] = &[
-    ("src/accounts", &["accounts", "account_sessions"]),
+    (
+        "src/accounts",
+        &["accounts", "account_sessions", "sign_in_links"],
+    ),
     ("src/links", &["linked_servers", "server_link_codes"]),
 ];
 

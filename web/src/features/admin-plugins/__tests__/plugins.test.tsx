@@ -3,22 +3,11 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { openApp } from "@/test-app";
 import { tmdbLogo } from "@/test-plugin-list";
-import { input, openPlugin, openPluginSettings, plugin, pluginServer, row } from "@/test-plugins";
+import { input, openPlugin, openPluginSettings, plugin, row } from "@/test-plugins";
 import { refused } from "@/test-refusal";
 
 afterEach(cleanup);
-
-test.each([
-  ["/admin/plugins", "list", { name: "Enabled" }],
-  ["/admin/plugins/tmdb", "region", { name: "TMDB" }],
-] as const)("the old address %s opens Settings' Plugins section", async (path, role, named) => {
-  const router = openApp(path, pluginServer({}));
-
-  await expect(screen.findByRole(role, named)).resolves.toBeDefined();
-  expect(router.state.location.pathname).toBe("/");
-});
 
 test("a Plugin's view shows its name, its id and where it comes from", async () => {
   openPlugin("tmdb");

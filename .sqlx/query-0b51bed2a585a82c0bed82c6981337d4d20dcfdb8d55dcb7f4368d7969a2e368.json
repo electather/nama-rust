@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT ids.namespace, ids.value FROM item_match_ids AS ids\n         JOIN library_items ON library_items.id = ids.item_id\n         WHERE ids.item_id = ?\n           AND ids.scope = IIF(library_items.kind = 'movie', 'title', 'show')",
+  "describe": {
+    "columns": [
+      {
+        "name": "namespace",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_match_ids",
+            "name": "namespace"
+          }
+        }
+      },
+      {
+        "name": "value",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_match_ids",
+            "name": "value"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "0b51bed2a585a82c0bed82c6981337d4d20dcfdb8d55dcb7f4368d7969a2e368"
+}

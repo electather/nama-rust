@@ -1,5 +1,6 @@
 import { serverLabels, urlProblem } from "@/features/settings/lib/server-values";
 import { TypedSettingRow } from "@/shared/components/typed-setting-row";
+import { rowText } from "@/shared/lib/setting-text";
 
 /**
  * The Server URL on its row, saved once the field is left, never while it's typed: half an address
@@ -17,8 +18,7 @@ export function ServerUrlRow({
 }) {
   return (
     <TypedSettingRow
-      label={serverLabels.url}
-      hint="The address people reach this Server at. Links in messages and Invites start with it. Leave it empty for no links, and no Invites. It’s saved for everyone when you leave the field."
+      {...rowText(serverLabels, "url")}
       saved={saved}
       error={refused}
       check={urlProblem}

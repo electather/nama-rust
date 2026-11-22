@@ -5,10 +5,17 @@ use std::{
     future::Future,
     io::{self, IsTerminal},
     process::ExitCode,
+    sync::Arc,
 };
 
 use clap::{Parser, Subcommand};
-use nama_hub::{config::Config, db, signing::Keys, titles};
+use nama_hub::{
+    config::Config,
+    db,
+    mail::{Mail, MailError, Resend},
+    signing::Keys,
+    titles,
+};
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_otlp::{ExporterBuildError, LogExporter, SpanExporter};
@@ -33,10 +40,12 @@ const OTLP_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
     about,
     after_help = "Configured by environment variables only: NAMA_HUB_DATABASE_URL, the \
                   PostgreSQL database as a postgres:// URL, NAMA_HUB_LISTEN, the address to \
-                  listen on (0.0.0.0:7981 by default), and NAMA_HUB_TRUSTED_PROXIES, the \
-                  reverse proxies whose forwarded headers it believes, such as [\"10.0.0.0/8\"], and \
+                  listen on (0.0.0.0:7981 by default), NAMA_HUB_TRUSTED_PROXIES, the reverse \
+                  proxies whose forwarded headers it believes, such as [\"10.0.0.0/8\"], \
                   NAMA_HUB_SIGNING_KEYS, the Ed25519 private keys it signs with, as PEM blocks \
-                  one after another."
+                  one after another, and, to email Sign-in Links, NAMA_HUB_RESEND_API_KEY, \
+                  NAMA_HUB_MAIL_FROM, the address mail comes from, and NAMA_HUB_PUBLIC_URL, the \
+                  Hub's address that links lead to."
 )]
 struct Args {
     /// Serves the Hub when none is given.
@@ -86,6 +95,13 @@ async fn run() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    let mail = match mail(&config) {
+        Ok(mail) => mail,
+        Err(err) => {
+            error!("could not set up mail: {err}");
+            return ExitCode::FAILURE;
+        }
+    };
 
     if let Err(err) = db::migrate(&db).await {
         error!("could not migrate the database: {err}");
@@ -116,6 +132,7 @@ async fn run() -> ExitCode {
         db.clone(),
         keys,
         &config.trusted_proxies,
+        mail,
         shutdown,
     )
     .await;
@@ -125,6 +142,22 @@ async fn run() -> ExitCode {
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
+}
+
+/// Mail through Resend, if `config` has its API key, which [`Config::load`] has checked comes with
+/// the sender and the public URL.
+fn mail(config: &Config) -> Result<Option<Mail>, MailError> {
+    let (Some(api_key), Some(from), Some(public_url)) = (
+        &config.resend_api_key,
+        &config.mail_from,
+        &config.public_url,
+    ) else {
+        return Ok(None);
+    };
+    Ok(Some(Mail {
+        mailer: Arc::new(Resend::new(api_key.clone(), from.clone())?),
+        public_url: public_url.clone(),
+    }))
 }
 
 /// Imports Wikidata's dump from stdin, leaving the titles as they were if it fails.

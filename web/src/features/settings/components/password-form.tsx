@@ -1,7 +1,9 @@
 import { PasswordEnd } from "@/features/settings/components/password-end";
 import { PasswordRow } from "@/features/settings/components/password-row";
 import { usePasswordChange } from "@/features/settings/hooks/use-password-change";
+import { signinLabels } from "@/features/settings/lib/pane-labels";
 import { onSubmitted } from "@/shared/lib/forms";
+import { rowText } from "@/shared/lib/setting-text";
 
 /**
  * The form the signed-in User changes their own password with: their current one, which confirms
@@ -18,21 +20,19 @@ export function PasswordForm() {
       })}
     >
       <PasswordRow
-        label="Current password"
-        hint="Confirm it’s you."
+        {...rowText(signinLabels, "password")}
         name="password"
         autoComplete="current-password"
         error={errors.password}
       />
       <PasswordRow
-        label="New password"
-        hint="At least 8 characters."
+        {...rowText(signinLabels, "newPassword")}
         name="newPassword"
         autoComplete="new-password"
         error={errors.newPassword}
       />
       <PasswordRow
-        label="Confirm new password"
+        {...rowText(signinLabels, "confirm")}
         name="confirm"
         autoComplete="new-password"
         error={errors.confirm}

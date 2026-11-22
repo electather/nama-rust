@@ -1,3 +1,5 @@
+import type { UseNavigateResult } from "@tanstack/react-router";
+
 import type { IconName } from "@/features/action-bar/lib/rows";
 
 /** The pages "Jump to" lists, each with the key that, after G, goes there from anywhere. */
@@ -17,7 +19,8 @@ const pages = [
     icon: "requests",
   },
   {
-    to: "/settings",
+    // Settings is a modal over the page it's opened on (`goTo`), not a page of its own.
+    to: ".",
     label: "Settings",
     hint: "Your password, Devices and playback",
     key: "S",
@@ -26,7 +29,7 @@ const pages = [
   {
     to: "/admin",
     label: "Admin",
-    hint: "Libraries, Users and Plugins",
+    hint: "Libraries, Jobs and Now Playing",
     key: "A",
     icon: "admin",
   },
@@ -44,4 +47,11 @@ export type Page = (typeof pages)[number];
 /** The pages a User may jump to: Admin only for one who may open some Admin page. */
 export function pagesFor(hasAdminPages: boolean): Page[] {
   return pages.filter((page) => hasAdminPages || page.to !== "/admin");
+}
+
+/** Goes to `page`. Settings opens in a history entry of its own, so Back closes it. */
+export function goTo(navigate: UseNavigateResult<string>, page: Page) {
+  void (page.to === "."
+    ? navigate({ to: ".", search: (rest) => ({ ...rest, settings: "playback" }) })
+    : navigate({ to: page.to }));
 }

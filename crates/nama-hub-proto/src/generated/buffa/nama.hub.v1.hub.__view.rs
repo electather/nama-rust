@@ -232,6 +232,10 @@ pub struct GetHubInfoResponseView<'a> {
     ///
     /// Field 1: `version`
     pub version: &'a str,
+    /// Whether the Hub emails Sign-in Links, which it does once it has mail set up.
+    ///
+    /// Field 2: `sign_in_links`
+    pub sign_in_links: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetHubInfoResponseView<'a> {
@@ -271,6 +275,13 @@ impl<'a> ::buffa::MessageView<'a> for GetHubInfoResponseView<'a> {
                 )?;
                 view.version = ::buffa::types::borrow_str(&mut cur)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.sign_in_links = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -294,6 +305,7 @@ impl<'a> ::buffa::MessageView<'a> for GetHubInfoResponseView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::GetHubInfoResponse {
             version: self.version.to_string(),
+            sign_in_links: self.sign_in_links,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -308,6 +320,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetHubInfoResponseView<'a> {
         if !self.version.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.version) as u64;
         }
+        if self.sign_in_links {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -321,6 +336,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetHubInfoResponseView<'a> {
         use ::buffa::Enumeration as _;
         if !self.version.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.version, buf);
+        }
+        if self.sign_in_links {
+            ::buffa::types::put_bool_field(2u32, self.sign_in_links, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -345,6 +363,9 @@ impl<'__a> ::serde::Serialize for GetHubInfoResponseView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !::buffa::json_helpers::skip_if::is_empty_str(self.version) {
             __map.serialize_entry("version", self.version)?;
+        }
+        if self.sign_in_links {
+            __map.serialize_entry("signInLinks", &self.sign_in_links)?;
         }
         __map.end()
     }
@@ -447,6 +468,13 @@ impl GetHubInfoResponseOwnedView {
     #[must_use]
     pub fn version(&self) -> &'_ str {
         self.0.reborrow().version
+    }
+    /// Whether the Hub emails Sign-in Links, which it does once it has mail set up.
+    ///
+    /// Field 2: `sign_in_links`
+    #[must_use]
+    pub fn sign_in_links(&self) -> bool {
+        self.0.reborrow().sign_in_links
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<GetHubInfoResponseView<'static>>>

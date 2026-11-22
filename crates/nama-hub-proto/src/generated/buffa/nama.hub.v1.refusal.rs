@@ -14,8 +14,8 @@ pub enum RefusalReason {
     /// `unauthenticated`: no Account has this email and password. Which of the two is wrong isn't
     /// said.
     REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD = 2i32,
-    /// `resource_exhausted`: too many attempts failed lately. Params: `retryAfterSeconds`, also sent
-    /// as the `Retry-After` header.
+    /// `resource_exhausted`: too many attempts lately, such as failed sign-ins or Sign-in Links asked
+    /// for. Params: `retryAfterSeconds`, also sent as the `Retry-After` header.
     REFUSAL_REASON_TOO_MANY_ATTEMPTS = 3i32,
     /// `already_exists`: another Account has this email, compared without regard to case.
     REFUSAL_REASON_EMAIL_TAKEN = 4i32,
@@ -25,19 +25,23 @@ pub enum RefusalReason {
     /// `invalid_argument`: the password is too short or too long. Params: `minLength` and
     /// `maxLength`, in characters.
     REFUSAL_REASON_PASSWORD_LENGTH = 6i32,
+    /// `not_found`: the Sign-in Link expired, was used already, or never existed.
+    REFUSAL_REASON_SIGN_IN_LINK_EXPIRED = 7i32,
+    /// `failed_precondition`: the Hub has no mail set up, so it can't email Sign-in Links.
+    REFUSAL_REASON_SIGN_IN_LINKS_OFF = 8i32,
     /// `failed_precondition`: the call needs Recent Authentication: a session that signed in within
     /// the last 10 minutes. Sign in again.
-    REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED = 7i32,
+    REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED = 9i32,
     /// `failed_precondition`: the Account's email isn't proven yet, which only using a Sign-in Link
     /// sent to it does, and Linking needs it (ADR 0100).
-    REFUSAL_REASON_EMAIL_NOT_PROVEN = 8i32,
+    REFUSAL_REASON_EMAIL_NOT_PROVEN = 10i32,
     /// `not_found`: no Server is waiting on this code: it was mistyped, expired or used.
-    REFUSAL_REASON_LINK_CODE_NOT_FOUND = 9i32,
+    REFUSAL_REASON_LINK_CODE_NOT_FOUND = 11i32,
     /// `not_found`: the device code expired, was used, or never existed. Start again.
-    REFUSAL_REASON_LINK_EXPIRED = 10i32,
+    REFUSAL_REASON_LINK_EXPIRED = 12i32,
     /// `unauthenticated`: the call needs a Linked Server's credential, and none came or the Hub
     /// doesn't know it, such as once the Server was Unlinked.
-    REFUSAL_REASON_SERVER_NOT_LINKED = 11i32,
+    REFUSAL_REASON_SERVER_NOT_LINKED = 13i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -61,6 +65,12 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_PASSWORD_LENGTH`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const PasswordLength: Self = Self::REFUSAL_REASON_PASSWORD_LENGTH;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SignInLinkExpired: Self = Self::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_SIGN_IN_LINKS_OFF`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SignInLinksOff: Self = Self::REFUSAL_REASON_SIGN_IN_LINKS_OFF;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const RecentAuthenticationRequired: Self = Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED;
@@ -183,16 +193,20 @@ impl ::buffa::Enumeration for RefusalReason {
             5i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_EMAIL_INVALID),
             6i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PASSWORD_LENGTH),
             7i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED)
+            }
+            8i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_SIGN_IN_LINKS_OFF),
+            9i32 => {
                 ::core::option::Option::Some(
                     Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
                 )
             }
-            8i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_EMAIL_NOT_PROVEN),
-            9i32 => {
+            10i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_EMAIL_NOT_PROVEN),
+            11i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_LINK_CODE_NOT_FOUND)
             }
-            10i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_LINK_EXPIRED),
-            11i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_SERVER_NOT_LINKED),
+            12i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_LINK_EXPIRED),
+            13i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_SERVER_NOT_LINKED),
             _ => ::core::option::Option::None,
         }
     }
@@ -210,6 +224,10 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_EMAIL_TAKEN => "REFUSAL_REASON_EMAIL_TAKEN",
             Self::REFUSAL_REASON_EMAIL_INVALID => "REFUSAL_REASON_EMAIL_INVALID",
             Self::REFUSAL_REASON_PASSWORD_LENGTH => "REFUSAL_REASON_PASSWORD_LENGTH",
+            Self::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED => {
+                "REFUSAL_REASON_SIGN_IN_LINK_EXPIRED"
+            }
+            Self::REFUSAL_REASON_SIGN_IN_LINKS_OFF => "REFUSAL_REASON_SIGN_IN_LINKS_OFF",
             Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED => {
                 "REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED"
             }
@@ -246,6 +264,12 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_PASSWORD_LENGTH" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_PASSWORD_LENGTH)
             }
+            "REFUSAL_REASON_SIGN_IN_LINK_EXPIRED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED)
+            }
+            "REFUSAL_REASON_SIGN_IN_LINKS_OFF" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SIGN_IN_LINKS_OFF)
+            }
             "REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED" => {
                 ::core::option::Option::Some(
                     Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
@@ -275,6 +299,8 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_EMAIL_TAKEN,
             Self::REFUSAL_REASON_EMAIL_INVALID,
             Self::REFUSAL_REASON_PASSWORD_LENGTH,
+            Self::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED,
+            Self::REFUSAL_REASON_SIGN_IN_LINKS_OFF,
             Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
             Self::REFUSAL_REASON_EMAIL_NOT_PROVEN,
             Self::REFUSAL_REASON_LINK_CODE_NOT_FOUND,

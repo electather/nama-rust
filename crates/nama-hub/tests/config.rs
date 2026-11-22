@@ -88,3 +88,39 @@ fn the_environment_holds_the_signing_keys_as_pem_blocks() {
         Ok(())
     });
 }
+
+#[test]
+fn a_resend_key_without_the_public_url_or_sender_refuses_to_load_naming_it() {
+    Jail::expect_with(|jail| {
+        jail.set_env("NAMA_HUB_DATABASE_URL", "postgres://hub@db/hub");
+        jail.set_env("NAMA_HUB_RESEND_API_KEY", "re_secret");
+        jail.set_env("NAMA_HUB_MAIL_FROM", "Nama Hub <hub@example.com>");
+
+        let err = Config::load().unwrap_err();
+
+        assert!(err.to_string().contains("NAMA_HUB_PUBLIC_URL"), "{err}");
+        jail.set_env("NAMA_HUB_PUBLIC_URL", "https://hub.example.com");
+        let config = Config::load().unwrap();
+        assert_eq!(
+            config.public_url.as_deref(),
+            Some("https://hub.example.com")
+        );
+        assert!(!format!("{config:?}").contains("re_secret"));
+        Ok(())
+    });
+}
+
+#[test]
+fn without_a_resend_key_or_with_an_empty_one_the_hub_needs_no_mail_settings() {
+    Jail::expect_with(|jail| {
+        jail.set_env("NAMA_HUB_DATABASE_URL", "postgres://hub@db/hub");
+        assert_eq!(Config::load().unwrap().resend_api_key, None);
+
+        jail.set_env("NAMA_HUB_RESEND_API_KEY", "");
+
+        let config = Config::load().unwrap();
+
+        assert_eq!(config.resend_api_key, None);
+        Ok(())
+    });
+}

@@ -25,7 +25,7 @@ use nama_hub_proto::nama::hub::v1::{
 use sqlx::PgPool;
 use tracing::Instrument as _;
 
-use crate::{accounts::Accounts, db, links::Links, signing::Keys};
+use crate::{accounts::Accounts, db, links::Links, mail::Mail, signing::Keys};
 
 use self::{
     accounts::{AccountServiceHandler, COOKIE_NAME},
@@ -34,12 +34,21 @@ use self::{
 
 /// The Hub's routes: every service, each call in a span of its own, knowing where it came from
 /// through `trusted_proxies` (ADR 0018) and which Account or Linked Server, if any, sent it, and
-/// the public half of `keys` at `/.well-known/jwks.json`.
-pub(crate) fn router(db: PgPool, keys: Arc<Keys>, trusted_proxies: &[IpRange]) -> axum::Router {
-    let accounts = Accounts::new(db.clone());
+/// the public half of `keys` at `/.well-known/jwks.json`. Sign-in Links go out through `mail`, if
+/// it is set up.
+pub(crate) fn router(
+    db: PgPool,
+    keys: Arc<Keys>,
+    trusted_proxies: &[IpRange],
+    mail: Option<Mail>,
+) -> axum::Router {
+    let accounts = Accounts::new(db.clone(), mail);
     let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys));
     let rpcs = connectrpc::Router::new()
-        .add_service(Arc::new(HubServiceHandler { db }))
+        .add_service(Arc::new(HubServiceHandler {
+            db,
+            sends_sign_in_links: accounts.sends_sign_in_links(),
+        }))
         .add_service(Arc::new(AccountServiceHandler {
             accounts: accounts.clone(),
         }))
@@ -74,6 +83,7 @@ pub(crate) fn router(db: PgPool, keys: Arc<Keys>, trusted_proxies: &[IpRange]) -
 /// `nama.hub.v1.HubService`: facts about the Hub, for anyone.
 struct HubServiceHandler {
     db: PgPool,
+    sends_sign_in_links: bool,
 }
 
 #[expect(
@@ -93,6 +103,7 @@ impl HubService for HubServiceHandler {
         })?;
         connectrpc::Response::ok(GetHubInfoResponse {
             version: env!("CARGO_PKG_VERSION").to_owned(),
+            sign_in_links: self.sends_sign_in_links,
             ..Default::default()
         })
     }
@@ -205,12 +216,12 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD
         | R::REFUSAL_REASON_SERVER_NOT_LINKED => ErrorCode::Unauthenticated,
-        R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED | R::REFUSAL_REASON_EMAIL_NOT_PROVEN => {
-            ErrorCode::FailedPrecondition
-        }
-        R::REFUSAL_REASON_LINK_CODE_NOT_FOUND | R::REFUSAL_REASON_LINK_EXPIRED => {
-            ErrorCode::NotFound
-        }
+        R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED
+        | R::REFUSAL_REASON_EMAIL_NOT_PROVEN
+        | R::REFUSAL_REASON_SIGN_IN_LINKS_OFF => ErrorCode::FailedPrecondition,
+        R::REFUSAL_REASON_LINK_CODE_NOT_FOUND
+        | R::REFUSAL_REASON_LINK_EXPIRED
+        | R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED => ErrorCode::NotFound,
         R::REFUSAL_REASON_TOO_MANY_ATTEMPTS => ErrorCode::ResourceExhausted,
         R::REFUSAL_REASON_EMAIL_TAKEN => ErrorCode::AlreadyExists,
         R::REFUSAL_REASON_EMAIL_INVALID | R::REFUSAL_REASON_PASSWORD_LENGTH => {

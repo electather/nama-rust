@@ -4,7 +4,7 @@
 use std::net::SocketAddr;
 
 use connectrpc::client::ClientConfig;
-use nama_hub::{db, signing::Keys};
+use nama_hub::{db, mail::Mail, signing::Keys};
 use sqlx::PgPool;
 use tokio::{net::TcpListener, sync::oneshot};
 
@@ -27,16 +27,25 @@ pub(crate) struct TestHub {
     reason = "a test helper fails its test by panicking"
 )]
 impl TestHub {
-    /// Migrates `db`, as the Hub does at startup, and serves the Hub on it.
-    pub(crate) async fn start(db: PgPool) -> Self {
+    /// Migrates `db`, as the Hub does at startup, and serves the Hub on it, sending mail through
+    /// `mail`, if any, and trusting this machine as its reverse proxy, so a test can say in
+    /// `X-Forwarded-For` which client a request is from.
+    pub(crate) async fn start(db: PgPool, mail: Option<Mail>) -> Self {
         db::migrate(&db).await.unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let (stop, stopped) = oneshot::channel::<()>();
         let keys = Keys::from_pems(SIGNING_KEY).unwrap();
-        tokio::spawn(nama_hub::serve(listener, db.clone(), keys, &[], async {
-            let _: Result<(), oneshot::error::RecvError> = stopped.await;
-        }));
+        tokio::spawn(nama_hub::serve(
+            listener,
+            db.clone(),
+            keys,
+            &["127.0.0.1".parse().unwrap()],
+            mail,
+            async {
+                let _: Result<(), oneshot::error::RecvError> = stopped.await;
+            },
+        ));
         Self {
             addr,
             db,

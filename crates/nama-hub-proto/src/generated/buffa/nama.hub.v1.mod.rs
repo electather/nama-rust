@@ -33,6 +33,12 @@ pub mod __buffa {
         reg.register_json_any(super::__CREATE_ACCOUNT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SIGN_IN_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SIGN_IN_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SEND_SIGN_IN_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SEND_SIGN_IN_LINK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_SIGN_IN_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_SIGN_IN_LINK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SIGN_IN_WITH_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SIGN_IN_WITH_LINK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SIGN_OUT_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SIGN_OUT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_ACCOUNT_REQUEST_JSON_ANY);
@@ -73,6 +79,30 @@ pub use self::__buffa::view::SignInRequestOwnedView;
 pub use self::__buffa::view::SignInResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SignInResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SendSignInLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SendSignInLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SendSignInLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SendSignInLinkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetSignInLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetSignInLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetSignInLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetSignInLinkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithLinkResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SignOutRequestView;
 #[doc(inline)]

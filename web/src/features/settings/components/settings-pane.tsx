@@ -1,9 +1,10 @@
-import type { ComponentType } from "react";
+import { type ComponentType, useRef } from "react";
 
 import { BackupsPane } from "@/features/settings/components/backups-pane";
 import { ConnectionsPane } from "@/features/settings/components/connections-pane";
 import { DefaultHomePane } from "@/features/settings/components/default-home-pane";
 import { DevicesPane } from "@/features/settings/components/devices-pane";
+import { FoundSetting } from "@/features/settings/components/found-setting";
 import { HomePane } from "@/features/settings/components/home-pane";
 import { PaneBoundary } from "@/features/settings/components/pane-boundary";
 import { PlaybackPane } from "@/features/settings/components/playback-pane";
@@ -31,15 +32,23 @@ const panes: Record<Section, ComponentType<{ user: User | undefined }>> = {
   plugins: PluginsPane,
 };
 
-/** The pane of the `section` open: its title over its settings, which load on their own. */
+/**
+ * The pane of the `section` open: its title over its settings, which load on their own, landing on
+ * the setting the address names. On a phone, the search's results take its place while it has text.
+ */
 export function SettingsPane({ section, user }: { section: Section; user: User | undefined }) {
   const Pane = panes[section];
+  const pane = useRef<HTMLDivElement>(null);
   return (
     // Under what sticks at the top of a pane, a field scrolled to for focus would be hidden.
     // ponytail: one height for whatever sticks, the tallest. Measure it if one outgrows this.
-    <div className="flex min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain md:has-data-sticks:scroll-pt-48">
+    <div
+      ref={pane}
+      className="flex min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain max-md:group-has-data-searching/settings:hidden md:has-data-sticks:scroll-pt-48"
+    >
       <PaneBoundary section={section}>
         <Pane user={user} />
+        <FoundSetting pane={pane} section={section} />
       </PaneBoundary>
     </div>
   );

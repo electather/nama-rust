@@ -13,15 +13,13 @@ afterEach(cleanup);
 /** Settings' Users section, the address a test opens it at. */
 const usersSection = "/code?settings=users";
 
-test("the old Users page opens Settings on Users, for a User who manages Users", async () => {
-  const router = openApp(
-    "/admin/users",
+test("settings opens on Users for a User who manages Users", async () => {
+  openApp(
+    usersSection,
     fakeServer({ signedIn: [Permission.MANAGE_USERS] }, {}, { listUsers: () => ({}) }),
   );
 
   await expect(screen.findByRole("list", { name: "Users" })).resolves.toBeDefined();
-  expect(router.state.location.pathname).toBe("/");
-  expect(router.state.location.search).toMatchObject({ settings: "users" });
   expect(screen.getByRole("link", { name: "Users" }).getAttribute("aria-current")).toBe("page");
 });
 
