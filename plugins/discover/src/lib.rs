@@ -6,16 +6,15 @@
 use std::{
     cmp::Reverse,
     collections::{HashMap, HashSet},
-    iter,
     time::{Duration, UNIX_EPOCH},
 };
 
 use nama_pdk::{
     CheckedSettings, HomeRow, HomeRowSource, HomeRowTitle, HomeRows, Manifest, OutsideService,
-    Permission, Refusal, SettingField, SettingKind, Title, TitleId, TitleKind, TitleRefKind,
-    UserRowsAsked, WatchState, WatchlistTitle, checked_settings, choices_setting_field,
+    Permission, Refusal, SettingField, SettingKind, Title, TitleId, TitleKind, UserRowsAsked,
+    WatchState, WatchlistTitle, checked_settings, choices_setting_field,
     extism_pdk::{Error, HttpRequest, json},
-    kernel, services, setting_default, setting_field, setting_value,
+    ids_of_title, kernel, services, setting_default, setting_field, setting_value,
 };
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -385,29 +384,6 @@ impl Key {
         }
     }
 
-    /// Every id of the Movie `title` is, or of the Show whose Episode it is, the one the Kernel
-    /// prefers first; none for an Episode without its Show's id.
-    fn every_of_title(title: &Title) -> Vec<Self> {
-        let Some(title_ref) = title.title_ref.as_option() else {
-            return Vec::new();
-        };
-        let (kind, preferred, others) = match title_ref.kind.as_known() {
-            Some(TitleRefKind::TITLE_REF_KIND_MOVIE) => {
-                (TitleKind::TITLE_KIND_MOVIE, &title_ref.id, &title.ids)
-            }
-            Some(TitleRefKind::TITLE_REF_KIND_EPISODE) => {
-                (TitleKind::TITLE_KIND_SHOW, &title.show_id, &title.show_ids)
-            }
-            Some(TitleRefKind::TITLE_REF_KIND_UNSPECIFIED) | None => return Vec::new(),
-        };
-        let Some(preferred) = preferred.as_option() else {
-            return Vec::new();
-        };
-        (iter::once(preferred).chain(others))
-            .map(|id| Self::of(kind, id))
-            .collect()
-    }
-
     fn is_tmdb(&self) -> bool {
         self.namespace == TMDB_NAMESPACE
     }
@@ -500,7 +476,9 @@ impl History {
     // ponytail: a title whose ids join two entries already apart joins the first only; merge
     // them if one Show's Episodes ever share no id with each other but each one with a third.
     fn entry(&mut self, title: &Title) -> Option<&mut Watched> {
-        let keys = Key::every_of_title(title);
+        let keys = (ids_of_title(title).into_iter())
+            .map(|(kind, id)| Key::of(kind, id))
+            .collect::<Vec<_>>();
         let first = keys.first()?;
         let found = keys.iter().find_map(|key| self.places.get(key)).copied();
         let place = found.unwrap_or_else(|| {

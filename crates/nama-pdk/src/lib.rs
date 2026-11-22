@@ -137,6 +137,30 @@ pub fn title_id<'a>(ids: &'a [TitleId], namespace: &str) -> Option<&'a str> {
         .map(|id| id.value.as_str())
 }
 
+/// Every id of the Movie `title` is, or of the Show whose Episode it is, with the one the Kernel
+/// lists it under first, then all its `ids` (ADR 0042); none for an Episode without its Show's id.
+#[must_use]
+pub fn ids_of_title(title: &Title) -> Vec<(TitleKind, &TitleId)> {
+    let Some(title_ref) = title.title_ref.as_option() else {
+        return Vec::new();
+    };
+    let (kind, preferred, others) = match title_ref.kind.as_known() {
+        Some(TitleRefKind::TITLE_REF_KIND_MOVIE) => {
+            (TitleKind::TITLE_KIND_MOVIE, &title_ref.id, &title.ids)
+        }
+        Some(TitleRefKind::TITLE_REF_KIND_EPISODE) => {
+            (TitleKind::TITLE_KIND_SHOW, &title.show_id, &title.show_ids)
+        }
+        Some(TitleRefKind::TITLE_REF_KIND_UNSPECIFIED) | None => return Vec::new(),
+    };
+    let Some(preferred) = preferred.as_option() else {
+        return Vec::new();
+    };
+    (std::iter::once(preferred).chain(others))
+        .map(|id| (kind, id))
+        .collect()
+}
+
 /// Wraps a protobuf message so it crosses an Extism call encoded as protobuf, as an export's
 /// input or output.
 #[derive(Debug)]
@@ -1177,10 +1201,11 @@ fn clear_error() {
 #[cfg(test)]
 mod tests {
     use crate::{
-        Choice, SearchQuery, SearchResults, SettingField, SettingKind, SettingValue, Texts,
-        TitleSource, choices_setting_field,
+        Choice, SearchQuery, SearchResults, SettingField, SettingKind, SettingValue, Texts, Title,
+        TitleId, TitleKind, TitleRef, TitleRefKind, TitleSource, choices_setting_field,
         extism_pdk::Error,
-        library_ids, picked, picked_default, setting_default, setting_field, setting_value,
+        ids_of_title, library_ids, picked, picked_default, setting_default, setting_field,
+        setting_value,
         testing::{Kernel, with},
     };
 
@@ -1356,4 +1381,83 @@ mod tests {
         EverythingElse,
         [movie, show, season, episode, image, artwork]
     );
+
+    fn id(namespace: &str, value: &str) -> TitleId {
+        TitleId {
+            namespace: namespace.to_owned(),
+            value: value.to_owned(),
+            ..TitleId::default()
+        }
+    }
+
+    fn title(kind: TitleRefKind) -> Title {
+        Title {
+            title_ref: TitleRef {
+                kind: kind.into(),
+                id: id("tvdb", "1").into(),
+                ..TitleRef::default()
+            }
+            .into(),
+            ids: vec![id("tmdb", "2"), id("tvdb", "1")],
+            show_id: id("tvdb", "10").into(),
+            show_ids: vec![id("tmdb", "20"), id("tvdb", "10")],
+            ..Title::default()
+        }
+    }
+
+    #[test]
+    fn a_movies_ids_start_with_the_one_it_is_listed_under() {
+        let movie = title(TitleRefKind::TITLE_REF_KIND_MOVIE);
+
+        let movie_ids = [id("tvdb", "1"), id("tmdb", "2"), id("tvdb", "1")];
+        assert_eq!(
+            ids_of_title(&movie),
+            movie_ids
+                .iter()
+                .map(|id| (TitleKind::TITLE_KIND_MOVIE, id))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn an_episodes_ids_are_its_shows() {
+        let episode = title(TitleRefKind::TITLE_REF_KIND_EPISODE);
+
+        let show_ids = [id("tvdb", "10"), id("tmdb", "20"), id("tvdb", "10")];
+        assert_eq!(
+            ids_of_title(&episode),
+            show_ids
+                .iter()
+                .map(|id| (TitleKind::TITLE_KIND_SHOW, id))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn an_episode_without_its_shows_id_has_none() {
+        let episode = Title {
+            show_id: None.into(),
+            ..title(TitleRefKind::TITLE_REF_KIND_EPISODE)
+        };
+
+        assert_eq!(ids_of_title(&episode), []);
+    }
+
+    #[test]
+    fn a_title_of_no_kind_has_none() {
+        assert_eq!(
+            ids_of_title(&title(TitleRefKind::TITLE_REF_KIND_UNSPECIFIED)),
+            []
+        );
+    }
+
+    #[test]
+    fn a_title_without_a_title_ref_has_none() {
+        let untitled = Title {
+            title_ref: None.into(),
+            ..title(TitleRefKind::TITLE_REF_KIND_MOVIE)
+        };
+
+        assert_eq!(ids_of_title(&untitled), []);
+    }
 }
