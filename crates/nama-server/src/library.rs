@@ -31,9 +31,7 @@ pub(crate) use contents::{
 #[cfg(test)]
 pub(crate) use contents::{File, FileItem, Recorded, fixture};
 pub(crate) use country_tags::country_tag;
-pub(crate) use custom_images::{
-    CustomImages, Role, Slot, Urls as CustomImageUrls, router as custom_images_router,
-};
+pub(crate) use custom_images::{CustomImages, Role, Slot, router as custom_images_router};
 pub(crate) use folders::FolderProblem;
 pub(crate) use last_scans::LastScan;
 pub(crate) use libraries::{

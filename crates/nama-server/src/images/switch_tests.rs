@@ -287,7 +287,7 @@ async fn writes_during_a_switch_land_in_both_stores() {
 
     store.write(&["artwork", "new"], b"x").await.unwrap();
     let received = store
-        .receive(&["custom-images", "movie", "2"], Body::from(png()), false)
+        .receive(&["custom-images", "movie", "2"], Body::from(png()))
         .await
         .unwrap();
     release.send(()).unwrap();

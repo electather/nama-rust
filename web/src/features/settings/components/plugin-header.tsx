@@ -2,8 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeft, Ban } from "lucide-react";
 import { useEffect, useRef } from "react";
 
-import { useChangeLogo } from "@/features/admin-plugins/hooks/use-change-logo";
-import { LogoEdit } from "@/features/settings/components/logo-edit";
 import { PluginActions } from "@/features/settings/components/plugin-actions";
 import { PluginMore } from "@/features/settings/components/plugin-more";
 import { PluginLogo } from "@/shared/components/plugin-logo";
@@ -11,14 +9,13 @@ import { StateLabel } from "@/shared/components/state-label";
 import { kindAndVersion, type PluginDetails, pluginName } from "@/shared/lib/plugins";
 
 /**
- * The top of a Plugin's view, over a hairline: the link back to the list, then its logo with the
- * pencil that changes it, its name over its id and where it comes from, and at the end its "…" and,
- * while it's disabled, Enable. One the Server refused says so there instead, and keeps its logo. Where there's room it stays at the top of the pane while
+ * The top of a Plugin's view, over a hairline: the link back to the list, then its logo, its name
+ * over its id and where it comes from, and at the end its "…" and, while it's disabled, Enable. One
+ * the Server refused says so there instead. Where there's room it stays at the top of the pane while
  * the rest scrolls under it.
  */
 export function PluginHeader({ titleId, plugin }: { titleId: string; plugin: PluginDetails }) {
   const { summary } = plugin;
-  const logo = useChangeLogo(summary.id);
   const title = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     // The list this replaced held focus, so it moves to what took its place.
@@ -57,23 +54,14 @@ export function PluginHeader({ titleId, plugin }: { titleId: string; plugin: Plu
       <PluginMore plugin={plugin} />
     </div>
   );
-  const { start, end } =
-    summary.refusedReason === ""
-      ? {
-          start: <LogoEdit summary={summary} logo={logo} />,
-          end: <PluginActions plugin={plugin} />,
-        }
-      : { start: <PluginLogo large plugin={summary} />, end: refused };
+  const end = summary.refusedReason === "" ? <PluginActions plugin={plugin} /> : refused;
   return (
     <header data-sticks className="top-0 z-10 bg-background px-4 pt-4 md:sticky md:px-7.5 md:pt-5">
       {back}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 border-b pb-6">
-        {start}
+        <PluginLogo large plugin={summary} />
         {name}
         {end}
-        <p role="alert" className="w-full text-sm text-pretty text-destructive empty:hidden">
-          {logo.error}
-        </p>
       </div>
     </header>
   );

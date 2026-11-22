@@ -183,7 +183,6 @@ pub(crate) fn router(
         .add_service(Arc::new(plugins::PluginServiceHandler {
             plugin_settings: plugin_settings.clone(),
             settings: settings.clone(),
-            custom_images: custom_images.clone(),
             plugin_logos: plugin_logos.clone(),
             db: Arc::clone(&db),
         }))
@@ -203,8 +202,7 @@ pub(crate) fn router(
         .add_service(Arc::new(users::UserServiceHandler {
             users: users.clone(),
             connections,
-            plugin_settings: plugin_settings.clone(),
-            custom_images: custom_images.clone(),
+            plugin_settings,
             plugin_logos: plugin_logos.clone(),
             db,
             server_url,
@@ -220,7 +218,6 @@ pub(crate) fn router(
             custom_images,
             artwork,
             image_settings.clone(),
-            move |id| plugin_settings.has(id),
         ))
         .merge(local_images_router(local_images, image_settings))
         .merge(plugin_logos_router(plugin_logos))

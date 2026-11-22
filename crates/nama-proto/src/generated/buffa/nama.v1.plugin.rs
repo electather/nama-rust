@@ -4499,9 +4499,8 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
     pub extension_points: ::buffa::alloc::vec::Vec<::buffa::EnumValue<ExtensionPoint>>,
-    /// Its logo's URL on this Server, or empty if it has none: its Custom Image if it has one, else
-    /// its Manifest's. An SVG may be one an Installed Plugin's author wrote, so show it only as an
-    /// image, never inline in a page.
+    /// Its logo's URL on this Server, or empty if it has none: its Manifest's. An SVG may be one an
+    /// Installed Plugin's author wrote, so show it only as an image, never inline in a page.
     ///
     /// Field 11: `logo_url`
     #[serde(
@@ -4511,18 +4510,6 @@ pub struct PluginSummary {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub logo_url: ::buffa::alloc::string::String,
-    /// Whether `logo_url` is a Custom Image, which `DELETE /custom-images/plugin/<id>/logo` removes.
-    /// `PUT` there uploads one, a JPEG, PNG or WebP, or an SVG of at most 64 KiB, for a User with
-    /// `PERMISSION_MANAGE_SETTINGS`.
-    ///
-    /// Field 12: `custom_logo`
-    #[serde(
-        rename = "customLogo",
-        alias = "custom_logo",
-        with = "::buffa::json_helpers::proto_bool",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
-    )]
-    pub custom_logo: bool,
     /// The Plugin Permissions it asks for, which an Admin grants an Installed Plugin some or all of
     /// in `EnablePlugin`.
     ///
@@ -4566,7 +4553,6 @@ impl ::core::fmt::Debug for PluginSummary {
             .field("description", &self.description)
             .field("extension_points", &self.extension_points)
             .field("logo_url", &self.logo_url)
-            .field("custom_logo", &self.custom_logo)
             .field("requested_permissions", &self.requested_permissions)
             .field("granted_permissions", &self.granted_permissions)
             .finish()
@@ -4639,9 +4625,6 @@ impl ::buffa::Message for PluginSummary {
         if !self.logo_url.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.logo_url) as u64;
         }
-        if self.custom_logo {
-            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
-        }
         if !self.requested_permissions.is_empty() {
             let payload: u64 = self
                 .requested_permissions
@@ -4708,9 +4691,6 @@ impl ::buffa::Message for PluginSummary {
         }
         if !self.logo_url.is_empty() {
             ::buffa::types::put_string_field(11u32, &self.logo_url, buf);
-        }
-        if self.custom_logo {
-            ::buffa::types::put_bool_field(12u32, self.custom_logo, buf);
         }
         if !self.requested_permissions.is_empty() {
             let payload: u64 = self
@@ -4848,13 +4828,6 @@ impl ::buffa::Message for PluginSummary {
                 )?;
                 ::buffa::types::merge_string(&mut self.logo_url, buf)?;
             }
-            12u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::Varint,
-                )?;
-                self.custom_logo = ::buffa::types::decode_bool(buf)?;
-            }
             13u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
                     let len = ::buffa::encoding::decode_varint(buf)?;
@@ -4949,7 +4922,6 @@ impl ::buffa::Message for PluginSummary {
         self.description.clear();
         self.extension_points.clear();
         self.logo_url.clear();
-        self.custom_logo = false;
         self.requested_permissions.clear();
         self.granted_permissions.clear();
         self.__buffa_unknown_fields.clear();

@@ -1,5 +1,5 @@
-//! A Plugin's logo: its Manifest's, cleaned and served by URL, and the Custom Image an admin with
-//! Manage Settings uploads in its place (ADR 0036, ADR 0037), over a real socket.
+//! A Plugin's logo: always its Manifest's, cleaned and served by URL (ADR 0037), over a real
+//! socket.
 
 #[path = "support/http.rs"]
 mod http;
@@ -17,15 +17,11 @@ use http_body_util::Full;
 use hyper::{Method, Request, body::Bytes};
 use image::{ImageFormat, RgbImage};
 use nama_proto::nama::v1::{ListPluginsRequest, PluginServiceClient, PluginSummary};
-use nama_server::plugins::Registry;
+use nama_server::{backup, plugins::Registry};
 use server::TestServer;
 
-/// Where TMDB's logo is uploaded to and removed from.
+/// Where TMDB's logo was uploaded to and removed from while a Plugin's logo could be a Custom Image.
 const TMDB_LOGO: &str = "/custom-images/plugin/tmdb/logo";
-
-/// An SVG with a script and an event handler, which the Server strips.
-const SCRIPTED_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)">
-    <script>alert(2)</script><circle r="4"/></svg>"#;
 
 /// A running Server with its Built-in Plugins and no Installed ones yet.
 struct Fixture {
@@ -55,10 +51,9 @@ impl Fixture {
             .find(|plugin| plugin.id == id)
     }
 
-    /// The URL of the Plugin `id`'s logo and whether it is a Custom Image.
-    async fn logo(&self, id: &str) -> (String, bool) {
-        let plugin = self.listed(id).await.unwrap();
-        (plugin.logo_url, plugin.custom_logo)
+    /// The URL of the Plugin `id`'s logo.
+    async fn logo(&self, id: &str) -> String {
+        self.listed(id).await.unwrap().logo_url
     }
 
     /// Writes the test Plugin's Package into `plugins/` as `test.wasm`, or with `None` deletes it.
@@ -138,121 +133,54 @@ async fn a_packages_logo_is_served_by_url_without_its_script_and_only_with_a_ses
     let fx = Fixture::start().await;
     fx.package(Some(&test_plugin::build("")));
 
-    let (url, custom) = fx.logo("test-plugin").await;
+    let url = fx.logo("test-plugin").await;
 
     assert!(url.starts_with("/media/plugin-logos/test-plugin/"), "{url}");
-    assert!(!custom);
     assert_safe_svg(&fx.fetch(&url).await);
     assert_eq!(fetch(&fx.server, &url, None).await.status, 401);
 }
 
 #[tokio::test]
-async fn a_png_uploaded_as_a_plugins_logo_is_the_one_listed() {
+async fn uploading_or_removing_a_plugins_logo_is_not_found_and_keeps_its_manifests() {
     let fx = Fixture::start().await;
+    let manifests = fx.logo("tmdb").await;
 
     let uploaded = fx.upload(TMDB_LOGO, &png()).await;
-    let (url, custom) = fx.logo("tmdb").await;
-    let served = fx.fetch(&url).await;
+    let removed = fx.remove(TMDB_LOGO).await;
 
-    assert_eq!(uploaded.status, 204);
-    assert!(
-        url.starts_with("/media/custom-images/plugin/tmdb/logo/"),
-        "{url}"
-    );
-    assert!(custom);
-    assert_eq!(served.header("content-type"), "image/png");
-    assert_eq!(served.body, png());
-}
-
-#[tokio::test]
-async fn a_logo_for_a_plugin_the_server_lacks_is_not_found_and_kept_nowhere() {
-    let fx = Fixture::start().await;
-
-    let refused = fx
-        .upload("/custom-images/plugin/no-such/logo", &png())
-        .await;
-
-    assert_eq!(refused.status, 404);
+    assert_eq!((uploaded.status, removed.status), (404, 404));
+    assert_eq!(fx.logo("tmdb").await, manifests);
     assert!(!fx.server.data_dir().join("custom-images").exists());
 }
 
 #[tokio::test]
-async fn a_logo_is_taken_for_a_listed_plugin_that_is_not_enabled() {
+async fn startup_deletes_plugins_former_custom_images_so_a_backup_and_restore_hold_none() {
     let fx = Fixture::start().await;
-    fx.package(Some(&test_plugin::build("")));
-    let listed = fx.listed("test-plugin").await.unwrap();
-
-    let uploaded = fx
-        .upload("/custom-images/plugin/test-plugin/logo", &png())
-        .await;
-
-    assert!(!listed.enabled);
-    assert_eq!(uploaded.status, 204);
-    assert!(fx.logo("test-plugin").await.1);
-}
-
-#[tokio::test]
-async fn an_svg_uploaded_as_a_plugins_logo_is_listed_and_served_without_its_script() {
-    let fx = Fixture::start().await;
-
-    let uploaded = fx.upload(TMDB_LOGO, SCRIPTED_SVG.as_bytes()).await;
-    let (url, custom) = fx.logo("tmdb").await;
-
-    assert_eq!(uploaded.status, 204);
-    assert!(custom);
-    assert_safe_svg(&fx.fetch(&url).await);
-}
-
-#[tokio::test]
-async fn an_svg_over_64_kib_or_not_an_image_is_refused_as_a_plugins_logo_and_changes_nothing() {
-    let fx = Fixture::start().await;
-    let manifests = fx.logo("tmdb").await;
-    let padding = " ".repeat(64 * 1024);
-    let over_64_kib = format!(r#"<svg xmlns="http://www.w3.org/2000/svg">{padding}</svg>"#);
-
-    for (bytes, status) in [
-        (over_64_kib.into_bytes(), 413),
-        (
-            b"<html xmlns='http://www.w3.org/1999/xhtml'/>".to_vec(),
-            415,
-        ),
-        (b"a text file named logo.svg".to_vec(), 415),
-    ] {
-        let refused = fx.upload(TMDB_LOGO, &bytes).await;
-
-        assert_eq!(refused.status, status);
-        assert_eq!(fx.logo("tmdb").await, manifests);
+    let images = fx.server.data_dir().join("custom-images");
+    let (plugin_logo, poster) = ("plugin/tmdb/logo/v1", "movie/tmdb-348/poster/v1");
+    for stored in [plugin_logo, poster] {
+        let path = images.join(stored);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, png()).unwrap();
     }
-}
 
-#[tokio::test]
-async fn removing_a_plugins_custom_image_brings_its_manifests_logo_back() {
-    let fx = Fixture::start().await;
-    let manifests = fx.logo("tmdb").await;
-    fx.upload(TMDB_LOGO, &png()).await;
-    let (custom, _) = fx.logo("tmdb").await;
-
-    let removed = fx.remove(TMDB_LOGO).await;
-
-    assert_eq!(removed.status, 204);
-    assert_eq!(fx.logo("tmdb").await, manifests);
-    assert_eq!(fx.fetch(&custom).await.status, 404);
-    assert_eq!(fx.fetch(&manifests.0).await.status, 200);
-}
-
-#[tokio::test]
-async fn a_plugins_custom_image_outlives_its_package_being_removed_and_replaced() {
-    let fx = Fixture::start().await;
-    let wasm = test_plugin::build("");
-    fx.package(Some(&wasm));
-    fx.listed("test-plugin").await;
-    fx.upload("/custom-images/plugin/test-plugin/logo", &png())
+    let server = TestServer::builder()
+        .plugins(Registry::with_builtins())
+        .restart(fx.server)
         .await;
-    let (custom, _) = fx.logo("test-plugin").await;
+    let elsewhere = tempfile::tempdir().unwrap();
+    let (config, tar) = (
+        elsewhere.path().join("nama.toml"),
+        elsewhere.path().join("b.tar"),
+    );
+    backup::write(server.data_dir(), &config, &tar)
+        .await
+        .unwrap();
+    let restored = elsewhere.path().join("restored");
+    backup::restore(&restored, &config, &tar).await.unwrap();
 
-    fx.package(None);
-    assert_eq!(fx.listed("test-plugin").await, None);
-    fx.package(Some(&wasm));
-
-    assert_eq!(fx.logo("test-plugin").await, (custom, true));
+    assert!(!images.join("plugin").exists());
+    assert!(images.join(poster).is_file());
+    assert!(!restored.join("custom-images/plugin").exists());
+    assert!(restored.join("custom-images").join(poster).is_file());
 }
