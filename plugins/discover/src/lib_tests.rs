@@ -16,7 +16,8 @@ use super::{API_KEY, Discover, REGION, SHARED, SHARED_ROWS, check_settings, mani
 const VALID_KEY: &str = "fake-tmdb-key";
 
 /// TMDB's answer to a GET of `request`'s URL: this week's trending titles, a person among them,
-/// one Movie for a Movie list, one Show for a Show list, or its countries, refusing any key but [`VALID_KEY`] as TMDB does.
+/// one Movie for a Movie list, one Show for a Show list, or its countries, refusing any key but
+/// [`VALID_KEY`] as TMDB does.
 fn tmdb(request: &HttpRequest) -> Response {
     let url = Url::parse(&request.url).expect("the Plugin sends a URL");
     let key = url.query_pairs().find(|(name, _)| name == "api_key");
