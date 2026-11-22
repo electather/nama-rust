@@ -49,8 +49,8 @@ export function idParam(value: unknown) {
 export const closedSearch = { settings: undefined, ...settingsDetailParams };
 
 /**
- * The address of `section` in Settings, at its `setting` if one is asked for. A Plugin, User, Job or
- * Library open in another Section closes.
+ * The address of `section` in Settings, at its `setting` if one is asked for. A detail open in
+ * another Section closes.
  */
 export function sectionSearch(section: Section, setting?: string) {
   return { ...closedSearch, settings: section, setting };
