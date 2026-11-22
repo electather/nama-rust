@@ -9,12 +9,12 @@ mod refused;
 mod server;
 
 use std::{
-    future,
+    future, io,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
 use connectrpc::{
-    ErrorCode,
+    ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient},
 };
 use nama_plugin_api::{
@@ -22,9 +22,9 @@ use nama_plugin_api::{
     server_link::{Link, ServerLinker},
 };
 use nama_proto::nama::v1::{
-    self as proto, GetServerLinkRequest, GetUserLinkRequest, RefusalReason, ServerServiceClient,
-    StartServerLinkRequest, StartUserLinkRequest, UnlinkServerRequest, UnlinkUserRequest,
-    UserServiceClient,
+    self as proto, DeleteUserRequest, GetServerLinkRequest, GetUserLinkRequest, ListUsersRequest,
+    RefusalReason, ServerServiceClient, StartServerLinkRequest, StartUserLinkRequest,
+    UnlinkServerRequest, UnlinkUserRequest, UserServiceClient,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -44,6 +44,10 @@ struct Script {
     user_link: Option<Link>,
     /// The User it was last asked to start Linking, by id and name.
     user_started: Option<(i64, String)>,
+    /// The Users it was asked to Unlink, by id, in order.
+    unlinked_users: Vec<i64>,
+    /// Whether Unlinking a User fails, as with the service unreachable.
+    unlink_user_fails: bool,
 }
 
 impl Scripted {
@@ -117,8 +121,13 @@ impl ServerLinker for Scripted {
         Box::pin(future::ready(Ok(waiting)))
     }
 
-    fn unlink_user(&self, _user_id: i64) -> BoxFuture<'_, Result<(), PluginError>> {
-        self.script().user_link = Some(Link::NotLinked);
+    fn unlink_user(&self, user_id: i64) -> BoxFuture<'_, Result<(), PluginError>> {
+        let mut script = self.script();
+        script.unlinked_users.push(user_id);
+        if script.unlink_user_fails {
+            return Box::pin(future::ready(Err("the service is unreachable".into())));
+        }
+        script.user_link = Some(Link::NotLinked);
         Box::pin(future::ready(Ok(())))
     }
 }
@@ -163,6 +172,17 @@ async fn user_link(config: ClientConfig) -> Option<proto::UserLink> {
         .await
         .unwrap();
     got.into_owned().link.into_option()
+}
+
+/// Deletes the User `user_id` as the Admin.
+async fn delete(server: &TestServer, user_id: i64) -> Result<(), ConnectError> {
+    users(server.client_config())
+        .delete_user(DeleteUserRequest {
+            user_id,
+            ..Default::default()
+        })
+        .await
+        .map(drop)
 }
 
 #[tokio::test]
@@ -308,4 +328,96 @@ async fn a_plugin_that_cant_reach_its_service_leaves_the_server_as_it_was() {
 
     assert_eq!(started.unwrap_err().code, ErrorCode::Unavailable);
     assert_eq!(unlinked.unwrap_err().code, ErrorCode::Unavailable);
+}
+
+#[tokio::test]
+async fn deleting_a_user_unlinks_them_once() {
+    let linker = Scripted::default();
+    linker.script().user_link = Some(Link::Linked {
+        account: "grace@example.com".to_owned(),
+    });
+    let server = with_linker(&linker).await;
+    let grace = server.user_with_default_permissions("Grace").await;
+
+    delete(&server, grace.id).await.unwrap();
+
+    assert_eq!(linker.script().unlinked_users, [grace.id]);
+}
+
+#[tokio::test]
+async fn a_refused_delete_unlinks_no_one() {
+    let linker = Scripted::default();
+    let server = with_linker(&linker).await;
+
+    delete(&server, 9999).await.unwrap_err();
+
+    assert_eq!(linker.script().unlinked_users, Vec::<i64>::new());
+}
+
+#[tokio::test]
+async fn a_user_is_deleted_without_a_plugin_that_links_the_server() {
+    let server = TestServer::builder().start().await;
+    let grace = server.user_with_default_permissions("Grace").await;
+
+    delete(&server, grace.id).await.unwrap();
+}
+
+/// The subscriber is global, because a thread-local one races with other tests over which
+/// callsites are enabled, so it also sees what the other tests here log.
+#[tokio::test]
+async fn a_plugin_that_cant_unlink_a_deleted_user_leaves_them_deleted_and_warns() {
+    let log = Log::default();
+    let writer = log.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_writer(move || writer.clone())
+        .finish();
+    tracing::subscriber::set_global_default(subscriber).unwrap();
+    let linker = Scripted::default();
+    linker.script().unlink_user_fails = true;
+    let server = with_linker(&linker).await;
+    let grace = server.user_with_default_permissions("Grace").await;
+
+    delete(&server, grace.id).await.unwrap();
+
+    let listed = users(server.client_config())
+        .list_users(ListUsersRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .users;
+    assert!(listed.iter().all(|user| user.id != grace.id));
+    let logged = log.contents();
+    let user = format!("user={}", grace.id);
+    assert!(
+        logged
+            .lines()
+            .any(|line| line.contains("could not Unlink a deleted User")
+                && line.split_whitespace().any(|field| field == user)),
+        "no warning: {logged}"
+    );
+}
+
+/// Everything logged through a subscriber that writes here.
+#[derive(Clone, Default)]
+struct Log(Arc<Mutex<Vec<u8>>>);
+
+impl Log {
+    fn contents(&self) -> String {
+        String::from_utf8_lossy(&self.0.lock().unwrap_or_else(PoisonError::into_inner)).into_owned()
+    }
+}
+
+impl io::Write for Log {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }

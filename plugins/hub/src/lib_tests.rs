@@ -267,7 +267,8 @@ async fn a_linked_user_shows_linked_while_the_hub_is_unreachable() {
 #[tokio::test]
 async fn the_server_unlinking_a_user_unlinks_them_on_the_hub() {
     let hub = FakeHub::start().await;
-    let linker = enabled(&hub, &store());
+    let kernel = store();
+    let linker = enabled(&hub, &kernel);
     link(&hub, linker.as_ref()).await;
     link_user(&hub, linker.as_ref(), 7).await;
 
@@ -275,6 +276,14 @@ async fn the_server_unlinking_a_user_unlinks_them_on_the_hub() {
 
     assert!(!hub.user_linked(7));
     assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
+    let kept = kernel
+        .ask::<StoreGet>(StoreKey {
+            key: "user-link/7".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(kept.value, None);
 }
 
 #[tokio::test]
