@@ -355,12 +355,15 @@ jobs:
           dirname "$(find "$RUNNER_TEMP/jellyfin-ffmpeg" -name ffmpeg -type f)" >> "$GITHUB_PATH"
       - if: runner.os == 'Windows'
         uses: FedericoCarboni/setup-ffmpeg@37062fbf7149fc5578d6c57e08aed62458b375d6 # v3.1
-      # The tests of converting Dolby Vision 5 skip themselves without `tonemapx`, and PRs don't
-      # test on macOS, so a wrong install fails here, not as tests passing or failing on main.
+      # The tests of converting Dolby Vision 5 skip themselves without `tonemapx`, and of burning a
+      # text subtitle into HDR without `alphasrc`, and PRs don't test on macOS, so a wrong install
+      # fails here, not as tests passing or failing on main.
       - if: runner.os != 'Windows'
         run: |
           ffmpeg -hide_banner -filters | grep -w zscale
           ffmpeg -hide_banner -h filter=tonemapx | grep -w apply_dovi
+          ffmpeg -hide_banner -filters | grep -w alphasrc
+          ffmpeg -hide_banner -h filter=subtitles | grep -w sub2video
           ffmpeg -hide_banner -encoders | grep -w libx264
           ffmpeg -hide_banner -encoders | grep -w libx265
       # The tests that load the test Plugin build it themselves into `CARGO_TARGET_TMPDIR`'s

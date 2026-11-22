@@ -451,7 +451,8 @@ fn an_ass_sidecar_beside_a_file_with_fonts_is_burned_in_from_its_path_on_a_devic
             subtitle: TextSubtitle::Sidecar {
                 path: "/media/Alien.en.ass".to_owned(),
                 charset: None,
-            }
+            },
+            layer: None,
         })
     );
 }

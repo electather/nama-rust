@@ -129,6 +129,7 @@ pub(super) fn in_container(container: &str, tracks: Option<Vec<Track>>) -> Facts
             runs: true,
             zscale: true,
             tonemapx: false,
+            subtitle_layer: false,
             libx264: true,
             hardware: vec![],
             gpus: vec![],

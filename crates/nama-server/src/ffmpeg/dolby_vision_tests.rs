@@ -130,7 +130,7 @@ async fn dolby_vision_5_to_hdr10_is_10_bit_bt2020_pq_in_the_colours_its_rpu_resh
     let out = dir.path().join("hdr10.mp4");
     // VideoToolbox's frames stay in memory, so its filters run anywhere; libx265 stands in for the
     // GPU's HEVC encoder, which CI lacks.
-    let video = super::video_args(CLIP, &to_hdr10_on(Accel::VideoToolbox), false).video;
+    let video = super::video_args(CLIP, &to_hdr10_on(Accel::VideoToolbox), 0).video;
     let mut args: Vec<&str> = vec!["-v", "error", "-i", CLIP];
     args.extend(video.iter().map(String::as_str));
     args.extend(["-c:v", "libx265", "-tag:v", "hvc1", "-f", "mp4"]);
