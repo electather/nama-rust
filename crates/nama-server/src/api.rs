@@ -115,6 +115,11 @@ pub(crate) fn router(
     let similar = SimilarSources::new(plugins.clone());
     let pages = TitlePages::new(Arc::clone(&db), requests.clone(), similar);
     let server_url = settings.server_url();
+    let browser_spans = BrowserSpans::new(
+        config.otlp_endpoint.as_deref(),
+        settings.clone(),
+        plugins.clone(),
+    );
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(server::ServerServiceHandler {
             name: config.name.clone(),
@@ -127,7 +132,7 @@ pub(crate) fn router(
             home_rows: home_rows.clone(),
             data_dir: config.data_dir.clone(),
             backups: Backups::new(&config.data_dir, &config.file, settings.clone()),
-            exports_diagnostics: config.otlp_endpoint.is_some(),
+            browser_spans: browser_spans.clone(),
             running: running.clone(),
         }))
         .add_service(Arc::new(sign_in::SignInServiceHandler {
@@ -225,9 +230,7 @@ pub(crate) fn router(
         .merge(local_images_router(local_images, image_settings))
         .merge(plugin_logos_router(plugin_logos))
         .merge(media)
-        .merge(browser_spans::router(
-            config.otlp_endpoint.as_deref().map(BrowserSpans::new),
-        ))
+        .merge(browser_spans::router(browser_spans))
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
         .layer(middleware::from_fn_with_state(

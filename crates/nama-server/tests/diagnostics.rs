@@ -1,6 +1,6 @@
 //! The spans a ConnectRPC call is traced in, as an in-memory exporter receives them through the
-//! Server's own Diagnostics layer, and the web app's spans the Server forwards to its collector
-//! (ADR 0054).
+//! Server's own Diagnostics layer, and the web app's spans the Server forwards to its collector and,
+//! while the admin shares Diagnostics, to the enabled `DiagnosticsSharer` (ADR 0054).
 
 #[path = "support/http.rs"]
 #[expect(dead_code, reason = "this binary uses only some of the helpers")]
@@ -10,6 +10,7 @@ mod http;
 mod server;
 
 use std::{
+    future,
     sync::{Arc, Mutex, OnceLock, PoisonError},
     time::{Duration, Instant},
 };
@@ -19,11 +20,15 @@ use connectrpc::{ConnectError, client::HttpClient};
 use http::{Reply, send};
 use http_body_util::Full;
 use hyper::{Method, Request};
-use nama_proto::nama::v1::{
-    GetServerInfoRequest, ServerServiceClient, SessionDelivery, SignInRequest, SignInResponse,
-    SignInServiceClient,
+use nama_plugin_api::{
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    diagnostics_sharer::{DiagnosticsSharer, Signal},
 };
-use nama_server::config::Config;
+use nama_proto::nama::v1::{
+    GetServerInfoRequest, ServerServiceClient, ServerSettings, SessionDelivery, SignInRequest,
+    SignInResponse, SignInServiceClient, UpdateServerSettingsRequest,
+};
+use nama_server::{config::Config, plugins::Registry};
 use opentelemetry::trace::{SpanId, Status, TraceId};
 use opentelemetry_sdk::trace::{InMemorySpanExporter, SdkTracerProvider, SpanData};
 use server::{PASSWORD, TestServer, WAIT};
@@ -333,4 +338,165 @@ async fn a_device_posting_more_than_60_times_a_minute_is_refused_and_others_are_
     assert_eq!(refused.status, 429);
     assert_eq!(others.status, 200);
     assert_eq!(collector.received().len(), 61);
+}
+
+/// What the web app's exporter sends: OTLP/HTTP's protobuf encoding, the one a
+/// [`DiagnosticsSharer`] takes.
+const OTLP_PROTOBUF: &str = "application/x-protobuf";
+
+/// Each batch a [`RecordingSharer`] was handed, with its signal.
+type Shared = Arc<Mutex<Vec<(Signal, Vec<u8>)>>>;
+
+/// A Plugin standing in for the Hub Plugin, recording each batch it is handed to share.
+#[derive(Clone, Default)]
+struct RecordingSharer(Shared);
+
+impl RecordingSharer {
+    fn shared(&self) -> Vec<(Signal, Vec<u8>)> {
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+}
+
+impl Plugin for RecordingSharer {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            extension_points: vec![PointKey::provide::<dyn DiagnosticsSharer>()],
+            ..Manifest::new(PluginId::from_static("sharer"))
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        registrar.provide::<dyn DiagnosticsSharer>(Priority::DEFAULT, Arc::new(self.clone()));
+        Ok(())
+    }
+}
+
+impl DiagnosticsSharer for RecordingSharer {
+    fn share(&self, signal: Signal, batch: Vec<u8>) -> BoxFuture<'_, Result<(), PluginError>> {
+        (self.0.lock().unwrap_or_else(PoisonError::into_inner)).push((signal, batch));
+        Box::pin(future::ready(Ok(())))
+    }
+}
+
+/// A Server with `sharer` enabled, exporting its Diagnostics to `collector` if there is one.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn with_sharer(sharer: &RecordingSharer, collector: Option<&FakeCollector>) -> TestServer {
+    let plugins = Registry::new();
+    plugins.enable(Arc::new(sharer.clone())).unwrap();
+    TestServer::builder()
+        .plugins(plugins)
+        .config(Config {
+            otlp_endpoint: collector.map(|collector| collector.endpoint.clone()),
+            ..Config::default()
+        })
+        .start()
+        .await
+}
+
+/// Turns sharing Diagnostics on or off, as the admin does in Settings.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn set_sharing_diagnostics(server: &TestServer, on: bool) {
+    ServerServiceClient::new(HttpClient::plaintext(), server.client_config())
+        .update_server_settings(UpdateServerSettingsRequest {
+            settings: ServerSettings {
+                share_diagnostics: on,
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+}
+
+/// Posts `body` to the web app's traces path as OTLP protobuf, as the Device holding `token`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn post_protobuf(server: &TestServer, token: &str, body: Vec<u8>) -> Reply {
+    let request = Request::builder()
+        .method(Method::POST)
+        .uri(TRACES)
+        .header("content-type", OTLP_PROTOBUF)
+        .body(Full::new(Bytes::from(body)))
+        .unwrap();
+    send(server, request, Some(token)).await
+}
+
+#[tokio::test]
+async fn while_sharing_without_an_endpoint_a_device_s_spans_reach_the_sharer_unchanged() {
+    let sharer = RecordingSharer::default();
+    let server = with_sharer(&sharer, None).await;
+    let spans = b"\x0a\x00 spans".to_vec();
+
+    set_sharing_diagnostics(&server, true).await;
+    let exported = exports_diagnostics(&server).await;
+    let reply = post_protobuf(&server, &server.admin_token, spans.clone()).await;
+
+    assert!(exported);
+    assert_eq!(reply.status, 200);
+    assert_eq!(sharer.shared(), [(Signal::Traces, spans)]);
+}
+
+#[tokio::test]
+async fn turning_sharing_off_again_ends_it_without_a_restart() {
+    let sharer = RecordingSharer::default();
+    let server = with_sharer(&sharer, None).await;
+
+    set_sharing_diagnostics(&server, true).await;
+    set_sharing_diagnostics(&server, false).await;
+    let exported = exports_diagnostics(&server).await;
+    let reply = post_protobuf(&server, &server.admin_token, b"spans".to_vec()).await;
+
+    assert!(!exported);
+    assert_eq!(reply.status, 404);
+    assert_eq!(sharer.shared(), []);
+}
+
+#[tokio::test]
+async fn with_an_endpoint_spans_reach_the_sharer_only_while_sharing_and_the_collector_always() {
+    let collector = FakeCollector::start().await;
+    let sharer = RecordingSharer::default();
+    let server = with_sharer(&sharer, Some(&collector)).await;
+
+    let before = post_protobuf(&server, &server.admin_token, b"before".to_vec()).await;
+    set_sharing_diagnostics(&server, true).await;
+    let during = post_protobuf(&server, &server.admin_token, b"during".to_vec()).await;
+
+    assert_eq!((before.status, during.status), (200, 200));
+    let received: Vec<Bytes> = collector
+        .received()
+        .into_iter()
+        .map(|(_, body)| body)
+        .collect();
+    assert_eq!(received, [&b"before"[..], b"during"]);
+    assert_eq!(sharer.shared(), [(Signal::Traces, b"during".to_vec())]);
+}
+
+#[tokio::test]
+async fn the_shared_path_refuses_a_body_over_256_kib_and_a_device_posting_too_often() {
+    let sharer = RecordingSharer::default();
+    let server = with_sharer(&sharer, None).await;
+    set_sharing_diagnostics(&server, true).await;
+
+    let too_big = post_protobuf(&server, &server.admin_token, vec![0; 256 * 1024 + 1]).await;
+    for _ in 0..60 {
+        let reply = post_protobuf(&server, &server.admin_token, Vec::new()).await;
+        assert_eq!(reply.status, 200);
+    }
+    let refused = post_protobuf(&server, &server.admin_token, Vec::new()).await;
+
+    assert_eq!(too_big.status, 413);
+    assert_eq!(refused.status, 429);
+    assert_eq!(sharer.shared().len(), 60);
 }
