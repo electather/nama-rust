@@ -117,6 +117,31 @@ test("a User who manages settings turns resizing off and gives its copies more s
     ]);
 });
 
+test("sharing starts off, and turning Usage Analytics on saves it with the Server URL, nothing else shared", async () => {
+  const updates: UpdateServerSettingsRequest[] = [];
+  openServer({
+    getServerSettings: () => ({ settings: { url: "http://nama.lan" } }),
+    updateServerSettings: (request) => {
+      updates.push(request);
+      return { settings: request.settings };
+    },
+  });
+
+  const diagnostics = await screen.findByRole("switch", { name: "Share Diagnostics" });
+  const usage = screen.getByRole("switch", { name: "Share Usage Analytics" });
+  expect(diagnostics.getAttribute("aria-checked")).toBe("false");
+  expect(usage.getAttribute("aria-checked")).toBe("false");
+  fireEvent.click(usage);
+
+  await expect
+    .poll(() => updates)
+    .toMatchObject([
+      {
+        settings: { url: "http://nama.lan", shareDiagnostics: false, shareUsageAnalytics: true },
+      },
+    ]);
+});
+
 test("a saved space that isn't one of the sizes offered stays chosen", async () => {
   openServer({
     getImageSettings: () => ({ settings: { resizeImages: true, resizedCacheMib: 512 } }),

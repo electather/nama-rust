@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT url, segment_folder, max_transcodes, keep_behind_minutes,\n                    hardware_acceleration, hardware_gpu, hardware_gpu_name, remote_playback_limit,\n                    resize_images, resized_cache_mib, image_store_plugin, default_home_layout,\n                    backup_folder, backups_kept\n             FROM server_settings",
+  "query": "SELECT url, segment_folder, max_transcodes, keep_behind_minutes,\n                    hardware_acceleration, hardware_gpu, hardware_gpu_name, remote_playback_limit,\n                    resize_images, resized_cache_mib, image_store_plugin, default_home_layout,\n                    backup_folder, backups_kept, share_diagnostics, share_usage_analytics\n             FROM server_settings",
   "describe": {
     "columns": [
       {
@@ -156,6 +156,28 @@
             "name": "backups_kept"
           }
         }
+      },
+      {
+        "name": "share_diagnostics",
+        "ordinal": 14,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "share_diagnostics"
+          }
+        }
+      },
+      {
+        "name": "share_usage_analytics",
+        "ordinal": 15,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "share_usage_analytics"
+          }
+        }
       }
     ],
     "parameters": {
@@ -175,8 +197,10 @@
       false,
       true,
       false,
-      true
+      true,
+      false,
+      false
     ]
   },
-  "hash": "4676ff2555c7a31c8c8549fef1261e942c5b19bdca68850a16b412be1e9094b1"
+  "hash": "0833a123dfee0ed821feda3f3b4f37da5184adbf92a8eba0d816071416910ab7"
 }

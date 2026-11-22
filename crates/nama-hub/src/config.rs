@@ -35,6 +35,13 @@ pub struct Config {
     /// The Hub's address as people reach it, such as `https://hub.example.com`, which links in
     /// its mail lead to. Required with `resend_api_key`.
     pub public_url: Option<String>,
+    /// The OTLP/HTTP endpoint the Diagnostics and Usage Analytics Servers share go to, such as
+    /// `https://otlp.example.com/otlp` (ADR 0054). Without one, what they share is dropped.
+    pub diagnostics_endpoint: Option<String>,
+    /// The headers sent with each batch to `diagnostics_endpoint`, written as
+    /// `OTEL_EXPORTER_OTLP_HEADERS` is, such as `authorization=Basic abc`. None by default.
+    #[serde(default)]
+    pub diagnostics_headers: String,
 }
 
 impl Config {
@@ -48,6 +55,7 @@ impl Config {
         let mut config: Self = Figment::from(Env::prefixed(ENV_PREFIX)).extract()?;
         // A deploy that blanks the variable means no mail, not a key Resend would refuse.
         config.resend_api_key = config.resend_api_key.filter(|key| !key.is_empty());
+        config.diagnostics_endpoint = config.diagnostics_endpoint.filter(|url| !url.is_empty());
         match config.missing_for_mail() {
             Some(missing) => Err(Box::new(figment::Error::from(format!(
                 "{ENV_PREFIX}RESEND_API_KEY is set, so {ENV_PREFIX}{missing} must be too"
@@ -74,8 +82,8 @@ fn default_listen() -> SocketAddr {
     SocketAddr::from(([0, 0, 0, 0], 7981))
 }
 
-// The URL may hold the database's password, and the keys and the API key are secrets, so none
-// is printed.
+// The URL may hold the database's password, and the keys, the API key and the Diagnostics
+// backend's headers are secrets, so none is printed.
 impl fmt::Debug for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Config")
@@ -83,6 +91,7 @@ impl fmt::Debug for Config {
             .field("trusted_proxies", &self.trusted_proxies)
             .field("mail_from", &self.mail_from)
             .field("public_url", &self.public_url)
+            .field("diagnostics_endpoint", &self.diagnostics_endpoint)
             .finish_non_exhaustive()
     }
 }
