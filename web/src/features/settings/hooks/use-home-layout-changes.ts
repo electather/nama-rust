@@ -1,11 +1,11 @@
 import { create } from "@bufbuild/protobuf";
-import { useState } from "react";
 
 import { useReorderHomeRows } from "@/features/settings/data/use-reorder-home-rows";
 import { useSetHomeLayout } from "@/features/settings/data/use-set-home-layout";
 import { type HomeLayout, type HomeLayoutRow, HomeLayoutSchema } from "@/gen/nama/v1/server_pb";
 import { ReorderHomeRowsRequestSchema } from "@/gen/nama/v1/user_pb";
-import { moved, moveAnnouncement, rowKey } from "@/shared/lib/home-layout";
+import { useRowMoves } from "@/shared/hooks/use-row-moves";
+import { rowKey } from "@/shared/lib/home-layout";
 
 /**
  * The signed-in User's Home layout as they change it from `saved`, each change saved as it's made
@@ -15,7 +15,6 @@ import { moved, moveAnnouncement, rowKey } from "@/shared/lib/home-layout";
 export function useHomeLayoutChanges(saved: HomeLayout) {
   const save = useSetHomeLayout();
   const reorder = useReorderHomeRows();
-  const [announced, setAnnounced] = useState("");
   const ordered = reorder.isPending
     ? inOrder(saved, create(ReorderHomeRowsRequestSchema, reorder.variables).rows)
     : saved;
@@ -33,14 +32,9 @@ export function useHomeLayoutChanges(saved: HomeLayout) {
     save.mutate({ layout: { rows: [{ ...row, hidden: !shown }] } });
   };
   // A drop in place saves nothing, since the User's first order stops the default's moving theirs.
-  const move = (from: number, before: number) => {
-    const row = layout.rows[from];
-    const rows = moved(layout.rows, from, before);
-    if (row !== undefined && rows.indexOf(row) !== from) {
-      reorder.mutate({ rows });
-      setAnnounced(moveAnnouncement(row, rows));
-    }
-  };
+  const { move, announced } = useRowMoves(layout.rows, (rows) => {
+    reorder.mutate({ rows });
+  });
   return {
     layout,
     setFeaturedShown,

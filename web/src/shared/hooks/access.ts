@@ -59,7 +59,6 @@ export const adminPages = [
   { to: "/admin/libraries", label: "Libraries", permission: Permission.MANAGE_LIBRARIES },
   { to: "/admin/needs-a-match", label: "Needs a Match", permission: Permission.MANAGE_LIBRARIES },
   { to: "/admin/users", label: "Users", permission: Permission.MANAGE_USERS },
-  { to: "/admin/home", label: "Home", permission: Permission.MANAGE_SETTINGS },
   { to: "/admin/now-playing", label: "Now Playing", permission: Permission.ADMIN },
   { to: "/admin/jobs", label: "Jobs", permission: Permission.ADMIN },
 ] as const;

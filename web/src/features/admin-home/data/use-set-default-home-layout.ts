@@ -18,6 +18,8 @@ const changedKeys = [
 export function useSetDefaultHomeLayout() {
   const queryClient = useQueryClient();
   return useMutation(ServerService.method.setDefaultHomeLayout, {
+    // One at a time, so the newest whole layout is the one the Server keeps.
+    scope: { id: "set-default-home-layout" },
     onSuccess: async () => {
       await Promise.all(
         changedKeys.map(async (queryKey) => {
