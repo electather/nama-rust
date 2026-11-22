@@ -31,6 +31,9 @@ const MOST_PICKS: usize = 20;
 
 const TMDB: OutsideService = OutsideService::new("TMDB").credential("API key");
 
+/// The namespace of TMDB's ids, by which Discover's rows name titles.
+const TMDB_NAMESPACE: &str = "tmdb";
+
 /// Where TMDB's v3 API is.
 const API_URL: &str = "https://api.themoviedb.org/3/";
 
@@ -349,7 +352,7 @@ impl Key {
     }
 
     fn is_tmdb(&self) -> bool {
-        self.namespace == "tmdb"
+        self.namespace == TMDB_NAMESPACE
     }
 
     fn row_title(&self) -> HomeRowTitle {
@@ -562,7 +565,7 @@ fn title(listing: &Listing) -> Option<HomeRowTitle> {
     Some(HomeRowTitle {
         kind: kind.into(),
         id: TitleId {
-            namespace: "tmdb".to_owned(),
+            namespace: TMDB_NAMESPACE.to_owned(),
             value: listing.id.to_string(),
             ..TitleId::default()
         }

@@ -94,7 +94,7 @@ async fn a_page_lists_each_movie_once_by_id_after_the_one_named() {
 }
 
 #[tokio::test]
-async fn a_page_of_episodes_gives_their_show_numbers_every_id_and_added_time() {
+async fn a_page_of_episodes_gives_their_show_numbers_ids_and_added_time() {
     let fx = Fixture::shows().await;
     let dark = ExternalIds::from_iter([ExternalId::tmdb(70_523), ExternalId::tvdb(121)]);
     let before = db::now();
