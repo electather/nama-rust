@@ -146,7 +146,12 @@ pub(super) fn fallback(
     let stops_tone_mapping = tone_map.is_none() && video.tone_map.is_some();
     let still_holds = |reason: &&Reason| {
         reason.kind != Kind::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE
-            && (reason.kind != Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED || !stops_tone_mapping)
+            && !(stops_tone_mapping
+                && matches!(
+                    reason.kind,
+                    Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED
+                        | Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_ENCODER
+                ))
     };
     let failed = accel_reason(
         Kind::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY,
@@ -323,7 +328,8 @@ fn tone_mapping(facts: &Facts, video: &VideoConversion) -> Option<Reason> {
     if !tone_map.makes_sdr() {
         return None;
     }
-    // On an HDR Device, only a text Burn-in ffmpeg can't draw over HDR tone-maps.
+    // On an HDR Device, only a text Burn-in ffmpeg can't draw over HDR, or Dolby Vision 5 reshaped
+    // to H.264, tone-maps.
     let burns_text = matches!(video.burn_in, Some(BurnIn::Text { .. }));
     // Dolby Vision with no Base Layer is tone-mapped anyway unless the Transcode makes HEVC.
     let reshapes_anyway = !video.hevc && tone_map == (ToneMapper::Tonemapx { dolby_vision: true });
@@ -334,6 +340,14 @@ fn tone_mapping(facts: &Facts, video: &VideoConversion) -> Option<Reason> {
             hdr_name(hdr)
         );
         let kind = Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN;
+        return Some(hdr_reason(kind, hdr, text).deciding());
+    }
+    if facts.device.hdr {
+        let text = format!(
+            "Its {} picture is tone-mapped to SDR, as this Transcode can't make HEVC",
+            hdr_name(hdr)
+        );
+        let kind = Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_ENCODER;
         return Some(hdr_reason(kind, hdr, text).deciding());
     }
     let text = format!("Its {} picture is tone-mapped to SDR", hdr_name(hdr));

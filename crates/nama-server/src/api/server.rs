@@ -102,12 +102,14 @@ impl ServerService for ServerServiceHandler {
         _request: ServiceRequest<'_, GetServerInfoRequest>,
     ) -> ServiceResult<GetServerInfoResponse> {
         let setup_required = !self.users.any().await.map_err(database_failed)?;
+        let account_sign_in = server_link::account_sign_in(&self.points).await;
         Response::ok(GetServerInfoResponse {
             name: self.name.clone(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_required,
             image_widths: images::WIDTHS.to_vec(),
             exports_diagnostics: self.browser_spans.exports(),
+            account_sign_in,
             ..Default::default()
         })
     }

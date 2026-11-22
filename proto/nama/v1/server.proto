@@ -220,6 +220,9 @@ message GetServerInfoResponse {
   // Anyone could read this before sign-in; `PlaybackPlan.can_search_subtitles` says it instead.
   reserved 6;
   reserved "searches_subtitles";
+  // Whether the Server is Linked to the Hub, so its Users can sign in with their Accounts
+  // (`SignInService.StartAccountSignIn`).
+  bool account_sign_in = 7;
 }
 
 message GetServerSettingsRequest {}

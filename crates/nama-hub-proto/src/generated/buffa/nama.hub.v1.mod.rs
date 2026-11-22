@@ -75,6 +75,21 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_USER_LINK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__UNLINK_USER_REQUEST_JSON_ANY);
         reg.register_json_any(super::__UNLINK_USER_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__USER_INVITE_JSON_ANY);
+        reg.register_json_any(super::__LIST_USER_INVITES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_USER_INVITES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__ACCEPT_USER_INVITE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__ACCEPT_USER_INVITE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_SERVER_SIGN_IN_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_SERVER_SIGN_IN_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__APPROVE_SERVER_SIGN_IN_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__APPROVE_SERVER_SIGN_IN_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__INVITE_USER_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__INVITE_USER_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__START_SERVER_SIGN_IN_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__START_SERVER_SIGN_IN_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__POLL_SERVER_SIGN_IN_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__POLL_SERVER_SIGN_IN_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_SERVER_ADDRESSES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_SERVER_ADDRESSES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
@@ -268,6 +283,66 @@ pub use self::__buffa::view::UnlinkUserRequestOwnedView;
 pub use self::__buffa::view::UnlinkUserResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::UnlinkUserResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserInviteView;
+#[doc(inline)]
+pub use self::__buffa::view::UserInviteOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUserInvitesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUserInvitesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUserInvitesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListUserInvitesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::AcceptUserInviteRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::AcceptUserInviteRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::AcceptUserInviteResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::AcceptUserInviteResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetServerSignInRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetServerSignInRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetServerSignInResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetServerSignInResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveServerSignInRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveServerSignInRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveServerSignInResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveServerSignInResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::InviteUserRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::InviteUserRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::InviteUserResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::InviteUserResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartServerSignInRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StartServerSignInRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartServerSignInResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StartServerSignInResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PollServerSignInRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PollServerSignInRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PollServerSignInResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PollServerSignInResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SetServerAddressesRequestView;
 #[doc(inline)]

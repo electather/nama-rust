@@ -7788,6 +7788,4120 @@ impl ::serde::Serialize for UnlinkUserResponseOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
+/// A User an Admin created from an Account, waiting for it to accept them.
+#[derive(Clone, Debug, Default)]
+pub struct UserInviteView<'a> {
+    /// The invite's id, a UUID.
+    ///
+    /// Field 1: `id`
+    pub id: &'a str,
+    /// The User's name on their Server.
+    ///
+    /// Field 2: `name`
+    pub name: &'a str,
+    /// The name of the Linked Server the User is on.
+    ///
+    /// Field 3: `server_name`
+    pub server_name: &'a str,
+    /// When the Admin created them, in seconds since the Unix epoch.
+    ///
+    /// Field 4: `invited_at`
+    pub invited_at: i64,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for UserInviteView<'a> {
+    type Owned = super::super::UserInvite;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.name = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.server_name = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.invited_at = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::UserInvite, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::UserInvite, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::UserInvite {
+            id: self.id.to_string(),
+            name: self.name.to_string(),
+            server_name: self.server_name.to_string(),
+            invited_at: self.invited_at,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for UserInviteView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.id) as u64;
+        }
+        if !self.name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
+        }
+        if !self.server_name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.server_name) as u64;
+        }
+        if self.invited_at != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.invited_at) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.id, buf);
+        }
+        if !self.name.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.name, buf);
+        }
+        if !self.server_name.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.server_name, buf);
+        }
+        if self.invited_at != 0i64 {
+            ::buffa::types::put_int64_field(4u32, self.invited_at, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for UserInviteView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.id) {
+            __map.serialize_entry("id", self.id)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.name) {
+            __map.serialize_entry("name", self.name)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.server_name) {
+            __map.serialize_entry("serverName", self.server_name)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.invited_at) {
+            __map
+                .serialize_entry(
+                    "invitedAt",
+                    &::buffa::json_helpers::ProtoJson(&self.invited_at),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for UserInviteView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "UserInvite";
+    const FULL_NAME: &'static str = "nama.hub.v1.UserInvite";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.UserInvite";
+}
+::buffa::impl_default_view_instance!(UserInviteView);
+::buffa::impl_view_reborrow!(UserInviteView);
+/** Self-contained, `'static` owned view of a `UserInvite` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`UserInviteView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`UserInviteView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct UserInviteOwnedView(::buffa::OwnedView<UserInviteView<'static>>);
+impl UserInviteOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            UserInviteOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            UserInviteOwnedView(::buffa::OwnedView::decode_with_options(bytes, opts)?),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::UserInvite,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            UserInviteOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`UserInviteView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &UserInviteView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::UserInvite {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The invite's id, a UUID.
+    ///
+    /// Field 1: `id`
+    #[must_use]
+    pub fn id(&self) -> &'_ str {
+        self.0.reborrow().id
+    }
+    /// The User's name on their Server.
+    ///
+    /// Field 2: `name`
+    #[must_use]
+    pub fn name(&self) -> &'_ str {
+        self.0.reborrow().name
+    }
+    /// The name of the Linked Server the User is on.
+    ///
+    /// Field 3: `server_name`
+    #[must_use]
+    pub fn server_name(&self) -> &'_ str {
+        self.0.reborrow().server_name
+    }
+    /// When the Admin created them, in seconds since the Unix epoch.
+    ///
+    /// Field 4: `invited_at`
+    #[must_use]
+    pub fn invited_at(&self) -> i64 {
+        self.0.reborrow().invited_at
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<UserInviteView<'static>>>
+for UserInviteOwnedView {
+    fn from(inner: ::buffa::OwnedView<UserInviteView<'static>>) -> Self {
+        UserInviteOwnedView(inner)
+    }
+}
+impl ::core::convert::From<UserInviteOwnedView>
+for ::buffa::OwnedView<UserInviteView<'static>> {
+    fn from(wrapper: UserInviteOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<UserInviteView<'static>>>
+for UserInviteOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<UserInviteView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::UserInvite {
+    type View<'a> = UserInviteView<'a>;
+    type ViewHandle = UserInviteOwnedView;
+}
+impl ::serde::Serialize for UserInviteOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct ListUserInvitesRequestView<'a> {
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ListUserInvitesRequestView<'a> {
+    type Owned = super::super::ListUserInvitesRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::ListUserInvitesRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::ListUserInvitesRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ListUserInvitesRequest {
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ListUserInvitesRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ListUserInvitesRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ListUserInvitesRequestView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "ListUserInvitesRequest";
+    const FULL_NAME: &'static str = "nama.hub.v1.ListUserInvitesRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.ListUserInvitesRequest";
+}
+::buffa::impl_default_view_instance!(ListUserInvitesRequestView);
+::buffa::impl_view_reborrow!(ListUserInvitesRequestView);
+/** Self-contained, `'static` owned view of a `ListUserInvitesRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ListUserInvitesRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ListUserInvitesRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ListUserInvitesRequestOwnedView(
+    ::buffa::OwnedView<ListUserInvitesRequestView<'static>>,
+);
+impl ListUserInvitesRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ListUserInvitesRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ListUserInvitesRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ListUserInvitesRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ListUserInvitesRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ListUserInvitesRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ListUserInvitesRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ListUserInvitesRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ListUserInvitesRequestView<'static>>>
+for ListUserInvitesRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<ListUserInvitesRequestView<'static>>) -> Self {
+        ListUserInvitesRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ListUserInvitesRequestOwnedView>
+for ::buffa::OwnedView<ListUserInvitesRequestView<'static>> {
+    fn from(wrapper: ListUserInvitesRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ListUserInvitesRequestView<'static>>>
+for ListUserInvitesRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ListUserInvitesRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ListUserInvitesRequest {
+    type View<'a> = ListUserInvitesRequestView<'a>;
+    type ViewHandle = ListUserInvitesRequestOwnedView;
+}
+impl ::serde::Serialize for ListUserInvitesRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct ListUserInvitesResponseView<'a> {
+    /// Field 1: `invites`
+    pub invites: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::UserInviteView<'a>,
+    >,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ListUserInvitesResponseView<'a> {
+    type Owned = super::super::ListUserInvitesResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::UserInviteView>(),
+                )?;
+                view.invites
+                    .push(
+                        <super::super::__buffa::view::UserInviteView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::ListUserInvitesResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::ListUserInvitesResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ListUserInvitesResponse {
+            invites: self
+                .invites
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ListUserInvitesResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.invites {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.invites {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ListUserInvitesResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !self.invites.is_empty() {
+            __map.serialize_entry("invites", &*self.invites)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ListUserInvitesResponseView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "ListUserInvitesResponse";
+    const FULL_NAME: &'static str = "nama.hub.v1.ListUserInvitesResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.ListUserInvitesResponse";
+}
+::buffa::impl_default_view_instance!(ListUserInvitesResponseView);
+::buffa::impl_view_reborrow!(ListUserInvitesResponseView);
+/** Self-contained, `'static` owned view of a `ListUserInvitesResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ListUserInvitesResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ListUserInvitesResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ListUserInvitesResponseOwnedView(
+    ::buffa::OwnedView<ListUserInvitesResponseView<'static>>,
+);
+impl ListUserInvitesResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ListUserInvitesResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ListUserInvitesResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ListUserInvitesResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ListUserInvitesResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ListUserInvitesResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ListUserInvitesResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ListUserInvitesResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `invites`
+    #[must_use]
+    pub fn invites(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::UserInviteView<'_>> {
+        &self.0.reborrow().invites
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ListUserInvitesResponseView<'static>>>
+for ListUserInvitesResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<ListUserInvitesResponseView<'static>>) -> Self {
+        ListUserInvitesResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ListUserInvitesResponseOwnedView>
+for ::buffa::OwnedView<ListUserInvitesResponseView<'static>> {
+    fn from(wrapper: ListUserInvitesResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ListUserInvitesResponseView<'static>>>
+for ListUserInvitesResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ListUserInvitesResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ListUserInvitesResponse {
+    type View<'a> = ListUserInvitesResponseView<'a>;
+    type ViewHandle = ListUserInvitesResponseOwnedView;
+}
+impl ::serde::Serialize for ListUserInvitesResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct AcceptUserInviteRequestView<'a> {
+    /// The invite's id, as `UserInvite.id`.
+    ///
+    /// Field 1: `id`
+    pub id: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for AcceptUserInviteRequestView<'a> {
+    type Owned = super::super::AcceptUserInviteRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::AcceptUserInviteRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::AcceptUserInviteRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::AcceptUserInviteRequest {
+            id: self.id.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for AcceptUserInviteRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for AcceptUserInviteRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.id) {
+            __map.serialize_entry("id", self.id)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for AcceptUserInviteRequestView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "AcceptUserInviteRequest";
+    const FULL_NAME: &'static str = "nama.hub.v1.AcceptUserInviteRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.AcceptUserInviteRequest";
+}
+::buffa::impl_default_view_instance!(AcceptUserInviteRequestView);
+::buffa::impl_view_reborrow!(AcceptUserInviteRequestView);
+/** Self-contained, `'static` owned view of a `AcceptUserInviteRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`AcceptUserInviteRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`AcceptUserInviteRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct AcceptUserInviteRequestOwnedView(
+    ::buffa::OwnedView<AcceptUserInviteRequestView<'static>>,
+);
+impl AcceptUserInviteRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            AcceptUserInviteRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            AcceptUserInviteRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::AcceptUserInviteRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            AcceptUserInviteRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`AcceptUserInviteRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &AcceptUserInviteRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::AcceptUserInviteRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The invite's id, as `UserInvite.id`.
+    ///
+    /// Field 1: `id`
+    #[must_use]
+    pub fn id(&self) -> &'_ str {
+        self.0.reborrow().id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<AcceptUserInviteRequestView<'static>>>
+for AcceptUserInviteRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<AcceptUserInviteRequestView<'static>>) -> Self {
+        AcceptUserInviteRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<AcceptUserInviteRequestOwnedView>
+for ::buffa::OwnedView<AcceptUserInviteRequestView<'static>> {
+    fn from(wrapper: AcceptUserInviteRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<AcceptUserInviteRequestView<'static>>>
+for AcceptUserInviteRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<AcceptUserInviteRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::AcceptUserInviteRequest {
+    type View<'a> = AcceptUserInviteRequestView<'a>;
+    type ViewHandle = AcceptUserInviteRequestOwnedView;
+}
+impl ::serde::Serialize for AcceptUserInviteRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct AcceptUserInviteResponseView<'a> {
+    /// The User just Linked.
+    ///
+    /// Field 1: `user`
+    pub user: ::buffa::MessageFieldView<super::super::__buffa::view::LinkedUserView<'a>>,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for AcceptUserInviteResponseView<'a> {
+    type Owned = super::super::AcceptUserInviteResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.user.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.user = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::LinkedUserView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::AcceptUserInviteResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::AcceptUserInviteResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::AcceptUserInviteResponse {
+            user: match self.user.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::LinkedUser,
+                        ::buffa::Inline<super::super::LinkedUser>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for AcceptUserInviteResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.user.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.user.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.user.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.user.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for AcceptUserInviteResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        {
+            if let ::core::option::Option::Some(__v) = self.user.as_option() {
+                __map.serialize_entry("user", __v)?;
+            }
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for AcceptUserInviteResponseView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "AcceptUserInviteResponse";
+    const FULL_NAME: &'static str = "nama.hub.v1.AcceptUserInviteResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.AcceptUserInviteResponse";
+}
+::buffa::impl_default_view_instance!(AcceptUserInviteResponseView);
+::buffa::impl_view_reborrow!(AcceptUserInviteResponseView);
+/** Self-contained, `'static` owned view of a `AcceptUserInviteResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`AcceptUserInviteResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`AcceptUserInviteResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct AcceptUserInviteResponseOwnedView(
+    ::buffa::OwnedView<AcceptUserInviteResponseView<'static>>,
+);
+impl AcceptUserInviteResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            AcceptUserInviteResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            AcceptUserInviteResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::AcceptUserInviteResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            AcceptUserInviteResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`AcceptUserInviteResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &AcceptUserInviteResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::AcceptUserInviteResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The User just Linked.
+    ///
+    /// Field 1: `user`
+    #[must_use]
+    pub fn user(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::LinkedUserView<'_>> {
+        &self.0.reborrow().user
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<AcceptUserInviteResponseView<'static>>>
+for AcceptUserInviteResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<AcceptUserInviteResponseView<'static>>) -> Self {
+        AcceptUserInviteResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<AcceptUserInviteResponseOwnedView>
+for ::buffa::OwnedView<AcceptUserInviteResponseView<'static>> {
+    fn from(wrapper: AcceptUserInviteResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<AcceptUserInviteResponseView<'static>>>
+for AcceptUserInviteResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<AcceptUserInviteResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::AcceptUserInviteResponse {
+    type View<'a> = AcceptUserInviteResponseView<'a>;
+    type ViewHandle = AcceptUserInviteResponseOwnedView;
+}
+impl ::serde::Serialize for AcceptUserInviteResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct GetServerSignInRequestView<'a> {
+    /// The sign-in's id, from the page's address.
+    ///
+    /// Field 1: `id`
+    pub id: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for GetServerSignInRequestView<'a> {
+    type Owned = super::super::GetServerSignInRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::GetServerSignInRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::GetServerSignInRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::GetServerSignInRequest {
+            id: self.id.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for GetServerSignInRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for GetServerSignInRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.id) {
+            __map.serialize_entry("id", self.id)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for GetServerSignInRequestView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "GetServerSignInRequest";
+    const FULL_NAME: &'static str = "nama.hub.v1.GetServerSignInRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.GetServerSignInRequest";
+}
+::buffa::impl_default_view_instance!(GetServerSignInRequestView);
+::buffa::impl_view_reborrow!(GetServerSignInRequestView);
+/** Self-contained, `'static` owned view of a `GetServerSignInRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`GetServerSignInRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`GetServerSignInRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct GetServerSignInRequestOwnedView(
+    ::buffa::OwnedView<GetServerSignInRequestView<'static>>,
+);
+impl GetServerSignInRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            GetServerSignInRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            GetServerSignInRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::GetServerSignInRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            GetServerSignInRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`GetServerSignInRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &GetServerSignInRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::GetServerSignInRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The sign-in's id, from the page's address.
+    ///
+    /// Field 1: `id`
+    #[must_use]
+    pub fn id(&self) -> &'_ str {
+        self.0.reborrow().id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<GetServerSignInRequestView<'static>>>
+for GetServerSignInRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<GetServerSignInRequestView<'static>>) -> Self {
+        GetServerSignInRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<GetServerSignInRequestOwnedView>
+for ::buffa::OwnedView<GetServerSignInRequestView<'static>> {
+    fn from(wrapper: GetServerSignInRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<GetServerSignInRequestView<'static>>>
+for GetServerSignInRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<GetServerSignInRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::GetServerSignInRequest {
+    type View<'a> = GetServerSignInRequestView<'a>;
+    type ViewHandle = GetServerSignInRequestOwnedView;
+}
+impl ::serde::Serialize for GetServerSignInRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct GetServerSignInResponseView<'a> {
+    /// The name of the Linked Server it signs in to.
+    ///
+    /// Field 1: `server_name`
+    pub server_name: &'a str,
+    /// The name of the signed-in Account's User on that Server, or empty if it has none there.
+    ///
+    /// Field 2: `user_name`
+    pub user_name: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for GetServerSignInResponseView<'a> {
+    type Owned = super::super::GetServerSignInResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.server_name = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.user_name = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::GetServerSignInResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::GetServerSignInResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::GetServerSignInResponse {
+            server_name: self.server_name.to_string(),
+            user_name: self.user_name.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for GetServerSignInResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.server_name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.server_name) as u64;
+        }
+        if !self.user_name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.user_name) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.server_name.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.server_name, buf);
+        }
+        if !self.user_name.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.user_name, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for GetServerSignInResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.server_name) {
+            __map.serialize_entry("serverName", self.server_name)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.user_name) {
+            __map.serialize_entry("userName", self.user_name)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for GetServerSignInResponseView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "GetServerSignInResponse";
+    const FULL_NAME: &'static str = "nama.hub.v1.GetServerSignInResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.GetServerSignInResponse";
+}
+::buffa::impl_default_view_instance!(GetServerSignInResponseView);
+::buffa::impl_view_reborrow!(GetServerSignInResponseView);
+/** Self-contained, `'static` owned view of a `GetServerSignInResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`GetServerSignInResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`GetServerSignInResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct GetServerSignInResponseOwnedView(
+    ::buffa::OwnedView<GetServerSignInResponseView<'static>>,
+);
+impl GetServerSignInResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            GetServerSignInResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            GetServerSignInResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::GetServerSignInResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            GetServerSignInResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`GetServerSignInResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &GetServerSignInResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::GetServerSignInResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The name of the Linked Server it signs in to.
+    ///
+    /// Field 1: `server_name`
+    #[must_use]
+    pub fn server_name(&self) -> &'_ str {
+        self.0.reborrow().server_name
+    }
+    /// The name of the signed-in Account's User on that Server, or empty if it has none there.
+    ///
+    /// Field 2: `user_name`
+    #[must_use]
+    pub fn user_name(&self) -> &'_ str {
+        self.0.reborrow().user_name
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<GetServerSignInResponseView<'static>>>
+for GetServerSignInResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<GetServerSignInResponseView<'static>>) -> Self {
+        GetServerSignInResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<GetServerSignInResponseOwnedView>
+for ::buffa::OwnedView<GetServerSignInResponseView<'static>> {
+    fn from(wrapper: GetServerSignInResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<GetServerSignInResponseView<'static>>>
+for GetServerSignInResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<GetServerSignInResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::GetServerSignInResponse {
+    type View<'a> = GetServerSignInResponseView<'a>;
+    type ViewHandle = GetServerSignInResponseOwnedView;
+}
+impl ::serde::Serialize for GetServerSignInResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct ApproveServerSignInRequestView<'a> {
+    /// The sign-in's id, from the page's address.
+    ///
+    /// Field 1: `id`
+    pub id: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ApproveServerSignInRequestView<'a> {
+    type Owned = super::super::ApproveServerSignInRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::ApproveServerSignInRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::ApproveServerSignInRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ApproveServerSignInRequest {
+            id: self.id.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ApproveServerSignInRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.id.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ApproveServerSignInRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.id) {
+            __map.serialize_entry("id", self.id)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ApproveServerSignInRequestView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "ApproveServerSignInRequest";
+    const FULL_NAME: &'static str = "nama.hub.v1.ApproveServerSignInRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.ApproveServerSignInRequest";
+}
+::buffa::impl_default_view_instance!(ApproveServerSignInRequestView);
+::buffa::impl_view_reborrow!(ApproveServerSignInRequestView);
+/** Self-contained, `'static` owned view of a `ApproveServerSignInRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ApproveServerSignInRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ApproveServerSignInRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ApproveServerSignInRequestOwnedView(
+    ::buffa::OwnedView<ApproveServerSignInRequestView<'static>>,
+);
+impl ApproveServerSignInRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ApproveServerSignInRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ApproveServerSignInRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ApproveServerSignInRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ApproveServerSignInRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ApproveServerSignInRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ApproveServerSignInRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ApproveServerSignInRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The sign-in's id, from the page's address.
+    ///
+    /// Field 1: `id`
+    #[must_use]
+    pub fn id(&self) -> &'_ str {
+        self.0.reborrow().id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ApproveServerSignInRequestView<'static>>>
+for ApproveServerSignInRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<ApproveServerSignInRequestView<'static>>) -> Self {
+        ApproveServerSignInRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ApproveServerSignInRequestOwnedView>
+for ::buffa::OwnedView<ApproveServerSignInRequestView<'static>> {
+    fn from(wrapper: ApproveServerSignInRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ApproveServerSignInRequestView<'static>>>
+for ApproveServerSignInRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ApproveServerSignInRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ApproveServerSignInRequest {
+    type View<'a> = ApproveServerSignInRequestView<'a>;
+    type ViewHandle = ApproveServerSignInRequestOwnedView;
+}
+impl ::serde::Serialize for ApproveServerSignInRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct ApproveServerSignInResponseView<'a> {
+    /// Where to send the person back to, on the Server.
+    ///
+    /// Field 1: `return_url`
+    pub return_url: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for ApproveServerSignInResponseView<'a> {
+    type Owned = super::super::ApproveServerSignInResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.return_url = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::ApproveServerSignInResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::ApproveServerSignInResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::ApproveServerSignInResponse {
+            return_url: self.return_url.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for ApproveServerSignInResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.return_url.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.return_url) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.return_url.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.return_url, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for ApproveServerSignInResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.return_url) {
+            __map.serialize_entry("returnUrl", self.return_url)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for ApproveServerSignInResponseView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "ApproveServerSignInResponse";
+    const FULL_NAME: &'static str = "nama.hub.v1.ApproveServerSignInResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.ApproveServerSignInResponse";
+}
+::buffa::impl_default_view_instance!(ApproveServerSignInResponseView);
+::buffa::impl_view_reborrow!(ApproveServerSignInResponseView);
+/** Self-contained, `'static` owned view of a `ApproveServerSignInResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`ApproveServerSignInResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`ApproveServerSignInResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct ApproveServerSignInResponseOwnedView(
+    ::buffa::OwnedView<ApproveServerSignInResponseView<'static>>,
+);
+impl ApproveServerSignInResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ApproveServerSignInResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ApproveServerSignInResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::ApproveServerSignInResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            ApproveServerSignInResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`ApproveServerSignInResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &ApproveServerSignInResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::ApproveServerSignInResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Where to send the person back to, on the Server.
+    ///
+    /// Field 1: `return_url`
+    #[must_use]
+    pub fn return_url(&self) -> &'_ str {
+        self.0.reborrow().return_url
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<ApproveServerSignInResponseView<'static>>>
+for ApproveServerSignInResponseOwnedView {
+    fn from(
+        inner: ::buffa::OwnedView<ApproveServerSignInResponseView<'static>>,
+    ) -> Self {
+        ApproveServerSignInResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<ApproveServerSignInResponseOwnedView>
+for ::buffa::OwnedView<ApproveServerSignInResponseView<'static>> {
+    fn from(wrapper: ApproveServerSignInResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<ApproveServerSignInResponseView<'static>>>
+for ApproveServerSignInResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<ApproveServerSignInResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::ApproveServerSignInResponse {
+    type View<'a> = ApproveServerSignInResponseView<'a>;
+    type ViewHandle = ApproveServerSignInResponseOwnedView;
+}
+impl ::serde::Serialize for ApproveServerSignInResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct InviteUserRequestView<'a> {
+    /// The User's id on the Server.
+    ///
+    /// Field 1: `user_id`
+    pub user_id: i64,
+    /// The User's name, which the Account's list of invites shows: up to 100 characters, cut there if
+    /// longer.
+    ///
+    /// Field 2: `name`
+    pub name: &'a str,
+    /// The email of the Account to ask, in any case.
+    ///
+    /// Field 3: `email`
+    pub email: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for InviteUserRequestView<'a> {
+    type Owned = super::super::InviteUserRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.user_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.name = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.email = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::InviteUserRequest, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::InviteUserRequest, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::InviteUserRequest {
+            user_id: self.user_id,
+            name: self.name.to_string(),
+            email: self.email.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for InviteUserRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
+        }
+        if !self.name.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
+        }
+        if !self.email.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.email) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.user_id, buf);
+        }
+        if !self.name.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.name, buf);
+        }
+        if !self.email.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.email, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for InviteUserRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.user_id) {
+            __map
+                .serialize_entry(
+                    "userId",
+                    &::buffa::json_helpers::ProtoJson(&self.user_id),
+                )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.name) {
+            __map.serialize_entry("name", self.name)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.email) {
+            __map.serialize_entry("email", self.email)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for InviteUserRequestView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "InviteUserRequest";
+    const FULL_NAME: &'static str = "nama.hub.v1.InviteUserRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.InviteUserRequest";
+}
+::buffa::impl_default_view_instance!(InviteUserRequestView);
+::buffa::impl_view_reborrow!(InviteUserRequestView);
+/** Self-contained, `'static` owned view of a `InviteUserRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`InviteUserRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`InviteUserRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct InviteUserRequestOwnedView(
+    ::buffa::OwnedView<InviteUserRequestView<'static>>,
+);
+impl InviteUserRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            InviteUserRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            InviteUserRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::InviteUserRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            InviteUserRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`InviteUserRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &InviteUserRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::InviteUserRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The User's id on the Server.
+    ///
+    /// Field 1: `user_id`
+    #[must_use]
+    pub fn user_id(&self) -> i64 {
+        self.0.reborrow().user_id
+    }
+    /// The User's name, which the Account's list of invites shows: up to 100 characters, cut there if
+    /// longer.
+    ///
+    /// Field 2: `name`
+    #[must_use]
+    pub fn name(&self) -> &'_ str {
+        self.0.reborrow().name
+    }
+    /// The email of the Account to ask, in any case.
+    ///
+    /// Field 3: `email`
+    #[must_use]
+    pub fn email(&self) -> &'_ str {
+        self.0.reborrow().email
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<InviteUserRequestView<'static>>>
+for InviteUserRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<InviteUserRequestView<'static>>) -> Self {
+        InviteUserRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<InviteUserRequestOwnedView>
+for ::buffa::OwnedView<InviteUserRequestView<'static>> {
+    fn from(wrapper: InviteUserRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<InviteUserRequestView<'static>>>
+for InviteUserRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<InviteUserRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::InviteUserRequest {
+    type View<'a> = InviteUserRequestView<'a>;
+    type ViewHandle = InviteUserRequestOwnedView;
+}
+impl ::serde::Serialize for InviteUserRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct InviteUserResponseView<'a> {
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for InviteUserResponseView<'a> {
+    type Owned = super::super::InviteUserResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<super::super::InviteUserResponse, ::buffa::DecodeError> {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<super::super::InviteUserResponse, ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::InviteUserResponse {
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for InviteUserResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for InviteUserResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for InviteUserResponseView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "InviteUserResponse";
+    const FULL_NAME: &'static str = "nama.hub.v1.InviteUserResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.InviteUserResponse";
+}
+::buffa::impl_default_view_instance!(InviteUserResponseView);
+::buffa::impl_view_reborrow!(InviteUserResponseView);
+/** Self-contained, `'static` owned view of a `InviteUserResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`InviteUserResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`InviteUserResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct InviteUserResponseOwnedView(
+    ::buffa::OwnedView<InviteUserResponseView<'static>>,
+);
+impl InviteUserResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            InviteUserResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            InviteUserResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::InviteUserResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            InviteUserResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`InviteUserResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &InviteUserResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::InviteUserResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<InviteUserResponseView<'static>>>
+for InviteUserResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<InviteUserResponseView<'static>>) -> Self {
+        InviteUserResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<InviteUserResponseOwnedView>
+for ::buffa::OwnedView<InviteUserResponseView<'static>> {
+    fn from(wrapper: InviteUserResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<InviteUserResponseView<'static>>>
+for InviteUserResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<InviteUserResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::InviteUserResponse {
+    type View<'a> = InviteUserResponseView<'a>;
+    type ViewHandle = InviteUserResponseOwnedView;
+}
+impl ::serde::Serialize for InviteUserResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct StartServerSignInRequestView<'a> {
+    /// Where the Hub's page sends the person once they approve: an `http` or `https` address on the
+    /// Server. Fails with `invalid_argument` for any other.
+    ///
+    /// Field 1: `return_url`
+    pub return_url: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for StartServerSignInRequestView<'a> {
+    type Owned = super::super::StartServerSignInRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.return_url = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::StartServerSignInRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::StartServerSignInRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::StartServerSignInRequest {
+            return_url: self.return_url.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for StartServerSignInRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.return_url.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.return_url) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.return_url.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.return_url, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for StartServerSignInRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.return_url) {
+            __map.serialize_entry("returnUrl", self.return_url)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for StartServerSignInRequestView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "StartServerSignInRequest";
+    const FULL_NAME: &'static str = "nama.hub.v1.StartServerSignInRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.StartServerSignInRequest";
+}
+::buffa::impl_default_view_instance!(StartServerSignInRequestView);
+::buffa::impl_view_reborrow!(StartServerSignInRequestView);
+/** Self-contained, `'static` owned view of a `StartServerSignInRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`StartServerSignInRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`StartServerSignInRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct StartServerSignInRequestOwnedView(
+    ::buffa::OwnedView<StartServerSignInRequestView<'static>>,
+);
+impl StartServerSignInRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartServerSignInRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartServerSignInRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::StartServerSignInRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartServerSignInRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`StartServerSignInRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &StartServerSignInRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::StartServerSignInRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Where the Hub's page sends the person once they approve: an `http` or `https` address on the
+    /// Server. Fails with `invalid_argument` for any other.
+    ///
+    /// Field 1: `return_url`
+    #[must_use]
+    pub fn return_url(&self) -> &'_ str {
+        self.0.reborrow().return_url
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<StartServerSignInRequestView<'static>>>
+for StartServerSignInRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<StartServerSignInRequestView<'static>>) -> Self {
+        StartServerSignInRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<StartServerSignInRequestOwnedView>
+for ::buffa::OwnedView<StartServerSignInRequestView<'static>> {
+    fn from(wrapper: StartServerSignInRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<StartServerSignInRequestView<'static>>>
+for StartServerSignInRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<StartServerSignInRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::StartServerSignInRequest {
+    type View<'a> = StartServerSignInRequestView<'a>;
+    type ViewHandle = StartServerSignInRequestOwnedView;
+}
+impl ::serde::Serialize for StartServerSignInRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct StartServerSignInResponseView<'a> {
+    /// What the Server polls with. A secret: only the Server and the browser that started see it.
+    ///
+    /// Field 1: `device_code`
+    pub device_code: &'a str,
+    /// The sign-in's id: the Hub's page for it is `/server-sign-in/<id>`.
+    ///
+    /// Field 2: `id`
+    pub id: &'a str,
+    /// How long both work.
+    ///
+    /// Field 3: `expires_in_seconds`
+    pub expires_in_seconds: i32,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for StartServerSignInResponseView<'a> {
+    type Owned = super::super::StartServerSignInResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.device_code = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.expires_in_seconds = ::buffa::types::decode_int32(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::StartServerSignInResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::StartServerSignInResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::StartServerSignInResponse {
+            device_code: self.device_code.to_string(),
+            id: self.id.to_string(),
+            expires_in_seconds: self.expires_in_seconds,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for StartServerSignInResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.device_code.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.device_code) as u64;
+        }
+        if !self.id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.id) as u64;
+        }
+        if self.expires_in_seconds != 0i32 {
+            size
+                += 1u64
+                    + ::buffa::types::int32_encoded_len(self.expires_in_seconds) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.device_code.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.device_code, buf);
+        }
+        if !self.id.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.id, buf);
+        }
+        if self.expires_in_seconds != 0i32 {
+            ::buffa::types::put_int32_field(3u32, self.expires_in_seconds, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for StartServerSignInResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.device_code) {
+            __map.serialize_entry("deviceCode", self.device_code)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.id) {
+            __map.serialize_entry("id", self.id)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_i32(&self.expires_in_seconds) {
+            __map
+                .serialize_entry(
+                    "expiresInSeconds",
+                    &::buffa::json_helpers::ProtoJson(&self.expires_in_seconds),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for StartServerSignInResponseView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "StartServerSignInResponse";
+    const FULL_NAME: &'static str = "nama.hub.v1.StartServerSignInResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.StartServerSignInResponse";
+}
+::buffa::impl_default_view_instance!(StartServerSignInResponseView);
+::buffa::impl_view_reborrow!(StartServerSignInResponseView);
+/** Self-contained, `'static` owned view of a `StartServerSignInResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`StartServerSignInResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`StartServerSignInResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct StartServerSignInResponseOwnedView(
+    ::buffa::OwnedView<StartServerSignInResponseView<'static>>,
+);
+impl StartServerSignInResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartServerSignInResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartServerSignInResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::StartServerSignInResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            StartServerSignInResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`StartServerSignInResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &StartServerSignInResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::StartServerSignInResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// What the Server polls with. A secret: only the Server and the browser that started see it.
+    ///
+    /// Field 1: `device_code`
+    #[must_use]
+    pub fn device_code(&self) -> &'_ str {
+        self.0.reborrow().device_code
+    }
+    /// The sign-in's id: the Hub's page for it is `/server-sign-in/<id>`.
+    ///
+    /// Field 2: `id`
+    #[must_use]
+    pub fn id(&self) -> &'_ str {
+        self.0.reborrow().id
+    }
+    /// How long both work.
+    ///
+    /// Field 3: `expires_in_seconds`
+    #[must_use]
+    pub fn expires_in_seconds(&self) -> i32 {
+        self.0.reborrow().expires_in_seconds
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<StartServerSignInResponseView<'static>>>
+for StartServerSignInResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<StartServerSignInResponseView<'static>>) -> Self {
+        StartServerSignInResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<StartServerSignInResponseOwnedView>
+for ::buffa::OwnedView<StartServerSignInResponseView<'static>> {
+    fn from(wrapper: StartServerSignInResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<StartServerSignInResponseView<'static>>>
+for StartServerSignInResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<StartServerSignInResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::StartServerSignInResponse {
+    type View<'a> = StartServerSignInResponseView<'a>;
+    type ViewHandle = StartServerSignInResponseOwnedView;
+}
+impl ::serde::Serialize for StartServerSignInResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct PollServerSignInRequestView<'a> {
+    /// Field 1: `device_code`
+    pub device_code: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for PollServerSignInRequestView<'a> {
+    type Owned = super::super::PollServerSignInRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.device_code = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::PollServerSignInRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::PollServerSignInRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::PollServerSignInRequest {
+            device_code: self.device_code.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for PollServerSignInRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.device_code.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.device_code) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.device_code.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.device_code, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for PollServerSignInRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.device_code) {
+            __map.serialize_entry("deviceCode", self.device_code)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for PollServerSignInRequestView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "PollServerSignInRequest";
+    const FULL_NAME: &'static str = "nama.hub.v1.PollServerSignInRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PollServerSignInRequest";
+}
+::buffa::impl_default_view_instance!(PollServerSignInRequestView);
+::buffa::impl_view_reborrow!(PollServerSignInRequestView);
+/** Self-contained, `'static` owned view of a `PollServerSignInRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`PollServerSignInRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`PollServerSignInRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct PollServerSignInRequestOwnedView(
+    ::buffa::OwnedView<PollServerSignInRequestView<'static>>,
+);
+impl PollServerSignInRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PollServerSignInRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PollServerSignInRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::PollServerSignInRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PollServerSignInRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`PollServerSignInRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &PollServerSignInRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::PollServerSignInRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `device_code`
+    #[must_use]
+    pub fn device_code(&self) -> &'_ str {
+        self.0.reborrow().device_code
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<PollServerSignInRequestView<'static>>>
+for PollServerSignInRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<PollServerSignInRequestView<'static>>) -> Self {
+        PollServerSignInRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<PollServerSignInRequestOwnedView>
+for ::buffa::OwnedView<PollServerSignInRequestView<'static>> {
+    fn from(wrapper: PollServerSignInRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<PollServerSignInRequestView<'static>>>
+for PollServerSignInRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<PollServerSignInRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::PollServerSignInRequest {
+    type View<'a> = PollServerSignInRequestView<'a>;
+    type ViewHandle = PollServerSignInRequestOwnedView;
+}
+impl ::serde::Serialize for PollServerSignInRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct PollServerSignInResponseView<'a> {
+    /// Empty until the sign-in is approved. Then a JWT the Hub signed as `PollServerLinkResponse`'s
+    /// is: `sub` is the User's id on the Server, `aud` the Linked Server's id, and it expires 5
+    /// minutes after it was made.
+    ///
+    /// Field 1: `token`
+    pub token: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for PollServerSignInResponseView<'a> {
+    type Owned = super::super::PollServerSignInResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.token = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::PollServerSignInResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::PollServerSignInResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::PollServerSignInResponse {
+            token: self.token.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for PollServerSignInResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.token.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.token) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.token.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.token, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for PollServerSignInResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.token) {
+            __map.serialize_entry("token", self.token)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for PollServerSignInResponseView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "PollServerSignInResponse";
+    const FULL_NAME: &'static str = "nama.hub.v1.PollServerSignInResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PollServerSignInResponse";
+}
+::buffa::impl_default_view_instance!(PollServerSignInResponseView);
+::buffa::impl_view_reborrow!(PollServerSignInResponseView);
+/** Self-contained, `'static` owned view of a `PollServerSignInResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`PollServerSignInResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`PollServerSignInResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct PollServerSignInResponseOwnedView(
+    ::buffa::OwnedView<PollServerSignInResponseView<'static>>,
+);
+impl PollServerSignInResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PollServerSignInResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PollServerSignInResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::PollServerSignInResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PollServerSignInResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`PollServerSignInResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &PollServerSignInResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::PollServerSignInResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Empty until the sign-in is approved. Then a JWT the Hub signed as `PollServerLinkResponse`'s
+    /// is: `sub` is the User's id on the Server, `aud` the Linked Server's id, and it expires 5
+    /// minutes after it was made.
+    ///
+    /// Field 1: `token`
+    #[must_use]
+    pub fn token(&self) -> &'_ str {
+        self.0.reborrow().token
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<PollServerSignInResponseView<'static>>>
+for PollServerSignInResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<PollServerSignInResponseView<'static>>) -> Self {
+        PollServerSignInResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<PollServerSignInResponseOwnedView>
+for ::buffa::OwnedView<PollServerSignInResponseView<'static>> {
+    fn from(wrapper: PollServerSignInResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<PollServerSignInResponseView<'static>>>
+for PollServerSignInResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<PollServerSignInResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::PollServerSignInResponse {
+    type View<'a> = PollServerSignInResponseView<'a>;
+    type ViewHandle = PollServerSignInResponseOwnedView;
+}
+impl ::serde::Serialize for PollServerSignInResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
 #[derive(Clone, Debug, Default)]
 pub struct SetServerAddressesRequestView<'a> {
     /// The Server URL its Admin set, such as `https://nama.example.com`, or empty for none.

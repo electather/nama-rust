@@ -35,11 +35,11 @@ impl Users {
             .await
     }
 
-    /// Gives the User `user` exactly `permissions`, as `by` asks, unless that leaves no User with
-    /// `PERMISSION_ADMIN` or [`ensure_may_change`] refuses. Without `PERMISSION_ADMIN`, `by` may
-    /// neither grant it nor change their own Permissions. Their Devices stay signed in, and the
-    /// Permissions apply from their next request, which reads them afresh. Once the change commits,
-    /// [`Users::permissions_changed`] resolves for them.
+    /// Gives the User `user` exactly `permissions`, as `by` asks, unless that leaves no local Admin
+    /// ([`ensure_a_local_admin_left`]) or [`ensure_may_change`] refuses. Without
+    /// `PERMISSION_ADMIN`, `by` may neither grant it nor change their own Permissions. Their
+    /// Devices stay signed in, and the Permissions apply from their next request, which reads them
+    /// afresh. Once the change commits, [`Users::permissions_changed`] resolves for them.
     pub(crate) async fn set_permissions(
         &self,
         by: &User,
@@ -102,8 +102,8 @@ impl Users {
     }
 
     /// Deletes the User `user` with their Sign-in Methods and Devices, as `by` asks, unless that
-    /// leaves no User with `PERMISSION_ADMIN` or [`ensure_may_change`] refuses. Their Devices are
-    /// signed out as [`Users::sign_out`] does.
+    /// leaves no local Admin ([`ensure_a_local_admin_left`]) or [`ensure_may_change`] refuses.
+    /// Their Devices are signed out as [`Users::sign_out`] does.
     pub(crate) async fn delete(&self, by: &User, user: i64) -> Result<(), Error> {
         let by = by.clone();
         self.write_signing_out(move |tx| {
@@ -127,9 +127,9 @@ pub(super) async fn default_permissions(
     .await
 }
 
-/// Gives the User `user` exactly `permissions`, failing if that leaves no User with
-/// `PERMISSION_ADMIN`. Checked after the write, in the same transaction, so a refusal rolls the
-/// write back. Writes run one at a time, so two demotions at once can't both pass the check.
+/// Gives the User `user` exactly `permissions`, failing if that leaves no local Admin. Checked
+/// after the write, in the same transaction, so a refusal rolls the write back. Writes run one at
+/// a time, so two demotions at once can't both pass the check.
 async fn update_permissions(
     conn: &mut SqliteConnection,
     user: i64,
@@ -150,11 +150,11 @@ async fn update_permissions(
     if !permissions.allow(Permission::ManageUsers) {
         delete_invites_by(conn, user).await?;
     }
-    ensure_an_admin_left(conn).await
+    ensure_a_local_admin_left(conn).await
 }
 
 /// Deletes the User `user`, whose Sign-in Methods and Devices go with them, failing if that leaves
-/// no User with `PERMISSION_ADMIN`, as [`update_permissions`] does. Returns the IDs of the Devices
+/// no local Admin, as [`update_permissions`] does. Returns the IDs of the Devices
 /// it signed out.
 async fn delete_user(conn: &mut SqliteConnection, user: i64) -> Result<Vec<i64>, Error> {
     let devices = sqlx::query_scalar!(r#"SELECT id AS "id!" FROM devices WHERE user_id = ?"#, user)
@@ -167,7 +167,7 @@ async fn delete_user(conn: &mut SqliteConnection, user: i64) -> Result<Vec<i64>,
     if deleted.rows_affected() == 0 {
         return Err(Error::NoSuchUser);
     }
-    ensure_an_admin_left(conn).await?;
+    ensure_a_local_admin_left(conn).await?;
     Ok(devices)
 }
 
@@ -209,12 +209,17 @@ pub(super) fn ensure_may_grant(by: Permissions, permissions: Permissions) -> Res
     }
 }
 
-/// Fails with [`Error::LastAdmin`] if no User has `PERMISSION_ADMIN`, so the write before it, in
-/// the same transaction, is rolled back.
-async fn ensure_an_admin_left(conn: &mut SqliteConnection) -> Result<(), Error> {
+/// Fails with [`Error::LastAdmin`] if no User with `PERMISSION_ADMIN` has a Sign-in Method, so the
+/// write before it, in the same transaction, is rolled back. Every Sign-in Method the Kernel keeps
+/// is local, as a Hub Account signs in through its Link instead (ADR 0014), so an outage of the Hub
+/// never locks every Admin out (ADR 0092). The trigger in `0030_sign_in_methods.sql` refuses
+/// removing any User's last one.
+async fn ensure_a_local_admin_left(conn: &mut SqliteConnection) -> Result<(), Error> {
     let admin = Permissions::ADMIN.0;
     let any_admin = sqlx::query_scalar!(
-        r#"SELECT EXISTS (SELECT 1 FROM users WHERE permissions & ? != 0) AS "any!: bool""#,
+        r#"SELECT EXISTS (SELECT 1 FROM users u WHERE u.permissions & ? != 0
+               AND EXISTS (SELECT 1 FROM sign_in_methods m WHERE m.user_id = u.id))
+               AS "any!: bool""#,
         admin
     )
     .fetch_one(conn)

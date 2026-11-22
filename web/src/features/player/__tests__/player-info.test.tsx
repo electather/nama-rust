@@ -190,6 +190,8 @@ test("playback info words every kind of reason the schema has, naming its params
       "Direct Play failed on this Device.",
       "Its picture is larger than the 720p Playback Limit, so a Transcode scales it down to 1280×534.",
       "Its audio is converted to Dolby Digital Plus 5.1, the most a Remux or a Transcode makes.",
+      "Its Dolby Vision picture is converted to SDR, which this Device shows.",
+      "Its Dolby Vision picture is converted to SDR, as this Server can’t Transcode it to HEVC for this Device.",
       "It Transcodes on the GPU with NVIDIA NVENC.",
     ]),
   );

@@ -28,6 +28,7 @@ mod notification_preferences;
 mod passwords;
 mod permissions;
 mod personal_settings;
+mod proved;
 mod rate_limits;
 mod seeing;
 mod sessions;
@@ -53,6 +54,8 @@ pub(crate) use personal_settings::{
     get as personal_settings_of, recipients as personal_settings_recipients,
     replace as replace_personal_settings, text as personal_text, value as personal_value,
 };
+pub(crate) use proved::Proved;
+use proved::proved_user;
 pub(crate) use rate_limits::Blocked;
 pub(crate) use seeing::{is_requester, may_see};
 pub(crate) use sessions::{
@@ -150,14 +153,6 @@ impl From<&Caller> for ApprovingDevice {
             device_id: caller.device.id,
         }
     }
-}
-
-/// Who a Device signs in as, and how that was proved.
-pub(crate) enum Proved {
-    /// `user`, with their Sign-in Method `method`.
-    Method { user: User, method: i64 },
-    /// The User of the Device that approved a Sign-in Code.
-    Code(ApprovingDevice),
 }
 
 /// The session a request carried.
@@ -270,8 +265,9 @@ pub enum Error {
     /// its Device in.
     #[error("the Device that approved this code has since signed out")]
     ApprovingDeviceSignedOut,
-    /// The change would leave the Server with no Admin.
-    #[error("the Server must keep at least one Admin")]
+    /// The change would leave the Server with no Admin who can sign in with a password, without
+    /// the Hub (ADR 0092).
+    #[error("the Server must keep at least one Admin who can sign in with a password")]
     LastAdmin,
     /// Only a User with `PERMISSION_ADMIN` may make the change.
     #[error("only an Admin may change an Admin, make an Admin or change their own Permissions")]
@@ -348,18 +344,31 @@ impl Users {
     pub(crate) async fn create(&self, by: &User, name: &str, password: &str) -> Result<i64, Error> {
         let name = checked_name("name", "a User's name", name)?;
         let credential = self.hash_password("password", password).await?;
+        self.insert_created(by, name, Some(credential)).await
+    }
+
+    /// Creates a User named `name` with the default Permissions and no Sign-in Method, as `by`
+    /// asks, and returns their ID. They sign in once an Account accepts them on the Hub, which
+    /// Links them to it (ADR 0092). Refused as [`Users::create`] refuses.
+    pub(crate) async fn create_from_account(&self, by: &User, name: &str) -> Result<i64, Error> {
+        let name = checked_name("name", "a User's name", name)?;
+        self.insert_created(by, name, None).await
+    }
+
+    /// Stores a User named `name`, checked, with the default Permissions and `credential` as their
+    /// password if any, as `by` asks.
+    async fn insert_created(
+        &self,
+        by: &User,
+        name: String,
+        credential: Option<Credential>,
+    ) -> Result<i64, Error> {
         let by = by.permissions;
         self.db
             .write(move |tx| {
-                Box::pin(async move {
-                    // Read in the write's transaction, so the default can't gain ADMIN after the
-                    // check.
-                    let permissions = default_permissions(tx).await?;
-                    ensure_may_grant(by, permissions)?;
-                    let user = insert_user(tx, &name, permissions).await?;
-                    set_password(tx, user.id, &credential).await?;
-                    Ok(user.id)
-                })
+                Box::pin(
+                    async move { insert_with_defaults(tx, by, &name, credential.as_ref()).await },
+                )
             })
             .await
     }
@@ -610,74 +619,6 @@ async fn user_exists(conn: &mut SqliteConnection, user: i64) -> Result<bool, sql
     .await
 }
 
-/// The User `proved` signs a Device in as, and the Sign-in Method it proved, if any. Read in the
-/// write that inserts the Device, so a delete or sign-out since the proof was checked can't slip
-/// through.
-async fn proved_user(
-    conn: &mut SqliteConnection,
-    proved: Proved,
-) -> Result<(User, Option<i64>), Error> {
-    match proved {
-        Proved::Method { user, method } => {
-            ensure_method_exists(conn, user.id, method).await?;
-            Ok((user, Some(method)))
-        }
-        Proved::Code(approving) => Ok((approving_user(conn, approving).await?, None)),
-    }
-}
-
-/// Fails with [`Error::WrongNameOrPassword`] if the User `user` no longer has the Sign-in Method
-/// `method`, such as because the User was deleted, which deletes it too.
-async fn ensure_method_exists(
-    conn: &mut SqliteConnection,
-    user: i64,
-    method: i64,
-) -> Result<(), Error> {
-    let exists = sqlx::query_scalar!(
-        r#"SELECT EXISTS (SELECT 1 FROM sign_in_methods WHERE id = ? AND user_id = ?)
-               AS "exists!: bool""#,
-        method,
-        user
-    )
-    .fetch_one(conn)
-    .await?;
-    if exists {
-        Ok(())
-    } else {
-        Err(Error::WrongNameOrPassword)
-    }
-}
-
-/// The User of `approving`, failing if they were deleted or it signed out or expired.
-async fn approving_user(
-    conn: &mut SqliteConnection,
-    approving: ApprovingDevice,
-) -> Result<User, Error> {
-    let now = now();
-    let row = sqlx::query!(
-        r#"SELECT u.id AS "id!", u.display_username AS name,
-                  u.permissions AS "permissions: Permissions", u.created_at,
-                  EXISTS (SELECT 1 FROM devices WHERE id = ? AND user_id = u.id AND expires_at > ?)
-                      AS "signed_in!: bool"
-           FROM users u WHERE u.id = ?"#,
-        approving.device_id,
-        now,
-        approving.user_id
-    )
-    .fetch_optional(conn)
-    .await?
-    .ok_or(Error::ApprovingUserDeleted)?;
-    if !row.signed_in {
-        return Err(Error::ApprovingDeviceSignedOut);
-    }
-    Ok(User {
-        id: row.id,
-        name: row.name,
-        permissions: row.permissions,
-        created_at: row.created_at,
-    })
-}
-
 /// Stores the first Admin, named `name`, with `credential` as their password, and `device`
 /// signed in with it, with the hash of its session token, unless the Server already has a User.
 /// The names have been checked.
@@ -695,6 +636,24 @@ async fn insert_first_admin(
     let method = set_password(conn, user.id, credential).await?;
     let device = insert_device(conn, user.id, Some(method), device, token_hash).await?;
     Ok(Caller { user, device })
+}
+
+/// Stores a User named `name`, which has been checked, with the default Permissions, which a User
+/// holding `by` must be allowed to grant, and `credential` as their password if any.
+async fn insert_with_defaults(
+    conn: &mut SqliteConnection,
+    by: Permissions,
+    name: &str,
+    credential: Option<&Credential>,
+) -> Result<i64, Error> {
+    // Read in the write's transaction, so the default can't gain ADMIN after the check.
+    let permissions = default_permissions(conn).await?;
+    ensure_may_grant(by, permissions)?;
+    let user = insert_user(conn, name, permissions).await?;
+    if let Some(credential) = credential {
+        set_password(conn, user.id, credential).await?;
+    }
+    Ok(user.id)
 }
 
 /// Stores a User named `name`, which has been checked, with `permissions`, unless another has the
@@ -731,7 +690,7 @@ async fn insert_user(
 }
 
 /// Stores `device`, whose name has been checked, signed in as the User `user` with the Sign-in
-/// Method `method`, or by a Sign-in Code, and the hash of its session token.
+/// Method `method`, or by a Sign-in Code or an Account, and the hash of its session token.
 async fn insert_device(
     conn: &mut SqliteConnection,
     user: i64,
@@ -741,7 +700,8 @@ async fn insert_device(
 ) -> Result<Device, sqlx::Error> {
     let now = now();
     let expires_at = now + DEVICE_LIFETIME;
-    // A Device signed in by a Sign-in Code never proved who it is itself (ADR 0014).
+    // A Device signed in by a Sign-in Code or an Account never proved who it is itself (ADR 0014):
+    // whoever approved on the other Device, or on the Hub, may not be the one holding it.
     let authenticated_at = if method.is_some() { now } else { 0 };
     let token_hash = token_hash.as_slice();
     let ip_address = device.ip_address.to_string();

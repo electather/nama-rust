@@ -133,6 +133,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(sign_in::SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
+            points: plugins.clone(),
         }))
         .add_service(Arc::new(matches::MatchServiceHandler {
             matcher: scanner.matcher().clone(),
@@ -422,6 +423,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_NO_SERVER_LINKER => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_SIGN_IN_CODE_NOT_FOUND
         | R::REFUSAL_REASON_HANDLE_NOT_FOUND
+        | R::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND
         | R::REFUSAL_REASON_USER_NOT_FOUND
         | R::REFUSAL_REASON_DEVICE_NOT_FOUND
         | R::REFUSAL_REASON_LIBRARY_NOT_FOUND

@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE server_sign_ins SET user_link_id = (SELECT id FROM user_links\n             WHERE account_id = $2 AND linked_server_id = server_sign_ins.linked_server_id\n             ORDER BY created_at, id LIMIT 1)\n             WHERE id = $1 AND expires_at > now() AND user_link_id IS NULL\n             AND EXISTS (SELECT 1 FROM user_links WHERE account_id = $2\n             AND linked_server_id = server_sign_ins.linked_server_id)\n             RETURNING return_url",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "return_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "server_sign_ins",
+            "name": "return_url"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8d138b858cc5daf462a827ba47bba59a41b38fcc4d2169e6c820a9a25e729059"
+}
