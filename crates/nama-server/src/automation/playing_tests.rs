@@ -12,8 +12,8 @@ use super::super::testing::{
 use crate::{
     db::Database,
     library::{
-        Contents,
-        fixture::{MatchedMovie, movies_library, tmdb_movie},
+        Change, Contents, Decided, Item,
+        fixture::{self, MatchedMovie, movies_library, tmdb_movie},
     },
 };
 
@@ -71,4 +71,34 @@ async fn a_file_of_two_episodes_answers_both_in_order() {
             episode_ref(library, LIES_TMDB_ID)
         ]
     );
+}
+
+#[tokio::test]
+async fn a_version_whose_item_is_unmatched_answers_nothing() {
+    let data = tempfile::tempdir().unwrap();
+    let folder = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let library = movies_library(&db, folder.path()).await;
+    let path = folder.path().canonicalize().unwrap().join("home video.mkv");
+    let path = path.to_str().unwrap();
+    let contents = Contents::new(Arc::clone(&db));
+    let file = Change::Store {
+        edition: None,
+        path: path.to_owned(),
+        size: 10,
+        modified_ns: 0,
+        items: vec![Item::Movie {
+            title: "home video".to_owned(),
+            year: None,
+            hint: None,
+        }],
+    };
+    contents.apply(library, vec![file]).await.unwrap();
+    let decided = vec![Decided::Unmatched(None)];
+    let (version, _items) = fixture::decide(&contents, library, path, decided).await;
+    let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_LIBRARIES);
+
+    let titles = kernel.ask::<ListVersionTitles>(asked(version)).await;
+
+    assert_eq!(titles.unwrap(), VersionTitles::default());
 }

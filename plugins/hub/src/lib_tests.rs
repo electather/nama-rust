@@ -572,23 +572,26 @@ async fn plays_by_users_who_arent_linked_or_of_unmatched_items_send_nothing() {
 }
 
 #[tokio::test]
-async fn a_play_while_the_hub_is_down_is_sent_once_it_is_back_and_then_forgotten() {
+async fn a_play_while_the_hub_is_down_is_sent_once_it_is_back_after_a_restart_and_then_forgotten() {
     let hub = FakeHub::start().await;
+    let kernel = playing();
     let Points {
         linker,
         observer,
         jobs,
-    } = enabled_points(&hub, &playing());
+    } = enabled_points(&hub, &kernel);
     link(&hub, linker.as_ref()).await;
     link_user(&hub, linker.as_ref(), 7).await;
     hub.fail_recording(Some(ErrorCode::Unavailable));
     play(observer.as_ref(), 7, MATRIX_VERSION, 1).await;
     send(jobs.as_ref()).await.unwrap_err();
     assert_eq!(hub.viewing_events(), []);
+    // The Server restarts: a new Plugin over the same Store.
+    let restarted = enabled_points(&hub, &kernel);
 
     hub.fail_recording(None);
-    send(jobs.as_ref()).await.unwrap();
-    send(jobs.as_ref()).await.unwrap();
+    send(restarted.jobs.as_ref()).await.unwrap();
+    send(restarted.jobs.as_ref()).await.unwrap();
 
     assert_eq!(hub.viewing_events().len(), 1);
 }

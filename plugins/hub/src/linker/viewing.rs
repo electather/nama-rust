@@ -42,6 +42,9 @@ const MAX_UNSENT: usize = 1000;
 /// The most bytes the Store keeps under one key.
 const MAX_STORED_BYTES: usize = 64 * 1024;
 
+/// The most characters the Hub takes in an External ID (`ViewingEvent.external_id`).
+const MAX_EXTERNAL_ID_CHARS: usize = 100;
+
 /// When a play started, by the Server's clock.
 #[derive(Clone, Copy)]
 struct Started {
@@ -257,6 +260,11 @@ fn viewed(
     if state.updated_at_ms / 1000 < started.at || duration_ms == 0 {
         return None;
     }
+    let external_id = format!("{}-{}", id.namespace, id.value);
+    // The Hub refuses every event sent with a longer one, and `send` then forgets them all.
+    if external_id.chars().count() > MAX_EXTERNAL_ID_CHARS {
+        return None;
+    }
     let kind = match title_ref.kind {
         EnumValue::Known(TitleRefKind::TITLE_REF_KIND_MOVIE) => TitleKind::TITLE_KIND_MOVIE,
         EnumValue::Known(TitleRefKind::TITLE_REF_KIND_EPISODE) => TitleKind::TITLE_KIND_EPISODE,
@@ -266,7 +274,7 @@ fn viewed(
     };
     Some(ViewingEvent {
         kind: kind.into(),
-        external_id: format!("{}-{}", id.namespace, id.value),
+        external_id,
         started_at: started.at,
         time_of_day_minutes: started.time_of_day_minutes,
         stop_position_ms,
@@ -298,3 +306,7 @@ fn random_key() -> Result<String, PluginError> {
         .map_err(|_unspecified| "could not generate a Viewing Event's key")?;
     Ok(URL_SAFE_NO_PAD.encode(key))
 }
+
+#[cfg(test)]
+#[path = "viewing_tests.rs"]
+mod tests;
