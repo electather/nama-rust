@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { NotFound } from "@/app/route-error/not-found";
 import { LibraryPage } from "@/features/library/components/library-page";
 import { firstUnmatchedPage } from "@/features/library/lib/first-unmatched-page";
+import { firstBoxSetPage, viewFromSearch } from "@/features/library/lib/library-view";
 import { firstPageOf, listingFromSearch } from "@/features/library/lib/title-listing";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
@@ -15,12 +16,20 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/")({
   validateSearch: (search: Record<string, unknown>) => ({
     ...deletedFromSearch(search),
     ...listingFromSearch(search),
+    ...viewFromSearch(search),
   }),
-  loaderDeps: ({ search }) => listingFromSearch(search),
+  loaderDeps: ({ search }) => ({ ...listingFromSearch(search), ...viewFromSearch(search) }),
   loader: async ({ context, params, deps }) => {
     const library = await libraryFromParam(context, params.libraryId);
     const { queryClient, transport } = context;
     const libraryId = library.id;
+    const boxSets =
+      library.kind === LibraryKind.MOVIES && deps.view === "box-sets"
+        ? queryClient.infiniteQuery({
+            ...pagedQuery(BrowseService.method.listBoxSets, firstBoxSetPage(libraryId), transport),
+            staleTime: "static",
+          })
+        : undefined;
     const titles =
       library.kind === LibraryKind.SHOWS
         ? queryClient.infiniteQuery({
@@ -45,6 +54,7 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/")({
     });
     await Promise.all([
       titles,
+      boxSets,
       queryOrNotFound(context, BrowseService.method.listGenres, { libraryId }),
       unmatched,
     ]);
@@ -62,10 +72,16 @@ function Library() {
     <LibraryPage
       library={library}
       listing={listingFromSearch(search)}
+      view={search.view ?? "movies"}
       deleted={search.deleted}
       notTold={search.notTold ?? []}
       change={(changed) => {
         void navigate({ search: changed });
+      }}
+      switchView={(view) => {
+        // The Movies' sort and filter stay in the URL, so coming back to them finds them as left.
+        const listing = listingFromSearch(search);
+        void navigate({ search: view === "box-sets" ? { ...listing, view } : listing });
       }}
     />
   );

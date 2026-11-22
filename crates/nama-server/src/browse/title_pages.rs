@@ -6,7 +6,7 @@ use std::sync::Arc;
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::Permission;
 
-use super::{Browse, Error, Movie, Show};
+use super::{Browse, Error, Movie, SeenBoxSet, Show};
 use crate::{
     db::Database,
     library::{
@@ -27,6 +27,8 @@ pub(crate) struct MoviePage {
     pub(crate) roles: Roles,
     pub(crate) on_watchlist: bool,
     pub(crate) similar: Vec<OnServer>,
+    /// Its Box Set, if it has one the User can see.
+    pub(crate) box_set: Option<SeenBoxSet>,
     /// The Library's folder that refuses deleting it, told only to a User with Delete media:
     /// where a Library lives isn't every User's to see (`crates/nama-server/AGENTS.md`, "Clients
     /// name ids").
@@ -68,8 +70,9 @@ pub(crate) enum FoundPageError {
 /// Reads what a title's page shows a User.
 #[derive(Debug, Clone)]
 pub(crate) struct TitlePages {
-    browse: Browse,
-    requests: Requests,
+    pub(super) browse: Browse,
+    /// Looks up Found titles, and the open Requests of a Box Set's missing Movies.
+    pub(super) requests: Requests,
     similar: SimilarSources,
     db: Arc<Database>,
 }
@@ -98,6 +101,7 @@ impl TitlePages {
                 .await?,
             similar: self.stored_similar(TitleKind::Movie, &movie.ids).await?,
             roles: self.browse.contents.movie_roles(&movie).await?,
+            box_set: self.box_set_of(user, &movie).await?,
             read_only_folder: read_only_folder
                 .filter(|_| user.permissions.allow(Permission::DeleteMedia)),
             movie,

@@ -84,6 +84,39 @@ pub(crate) struct Movie {
     pub(crate) trailers: Vec<Trailer>,
     /// Its Cast and Crew.
     pub(crate) roles: Roles,
+    /// The Box Set it belongs to.
+    pub(crate) box_set: Option<BoxSet>,
+}
+
+/// A Box Set a Movie belongs to, as its title source gave it (`GLOSSARY.md`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct BoxSet {
+    pub(crate) id: ExternalId,
+    pub(crate) name: String,
+    pub(crate) overview: Option<String>,
+    /// The poster, as a path for the title source's `image`.
+    pub(crate) poster: Option<String>,
+    /// The backdrop, as a path for the title source's `image`.
+    pub(crate) backdrop: Option<String>,
+    /// Its Movies' ids in release order, empty when the source doesn't list them.
+    pub(crate) movies: Vec<ExternalId>,
+    /// `movies` as the title source had them when Matching last looked them up, or `None` if it
+    /// couldn't, to keep those stored. Matching fills it in; a title source never does.
+    pub(crate) looked_up: Option<Vec<ListedMovie>>,
+}
+
+/// A Movie a Box Set lists, kept as a Home row's missing titles are, so showing it when the Server
+/// lacks it never asks the title source. Its ids are text, as the stored JSON holds them.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct ListedMovie {
+    /// The id the Box Set lists it by.
+    pub(crate) listed_as: String,
+    /// The id its Request is kept under.
+    pub(crate) id: String,
+    pub(crate) title: String,
+    pub(crate) year: Option<i32>,
+    /// The poster, as a path for the Box Set's title source's `image`.
+    pub(crate) poster: Option<String>,
 }
 
 /// A Show's details.
@@ -334,6 +367,23 @@ pub(super) fn movie(movie: wire::Movie) -> Result<Movie, MetadataError> {
         original_language: movie.original_language,
         trailers: trailers(movie.trailers),
         roles: roles(movie.cast, movie.crew),
+        box_set: movie.box_set.into_option().and_then(box_set),
+    })
+}
+
+/// `box_set`, unless its id isn't valid, dropping any of its Movies whose id isn't: a bad Box Set
+/// is dropped rather than failing its Movie.
+fn box_set(box_set: wire::BoxSet) -> Option<BoxSet> {
+    Some(BoxSet {
+        id: external_id(box_set.id.as_option()?).ok()?,
+        name: box_set.name,
+        overview: box_set.overview,
+        poster: box_set.poster,
+        backdrop: box_set.backdrop,
+        movies: (box_set.movies.iter())
+            .filter_map(|id| external_id(id).ok())
+            .collect(),
+        looked_up: None,
     })
 }
 

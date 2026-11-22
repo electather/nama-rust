@@ -10,23 +10,27 @@ const radius = "rounded-3xl";
 
 /**
  * A title on a shelf: its poster alone, which carries its name, named `title` for assistive
- * technology and opening `link`, with `children`, such as a badge, over it.
+ * technology and opening `link`, with `children`, such as a badge, over it. `current` marks the
+ * title whose page the shelf is on.
  */
 export function ShelfPoster({
   link,
   title,
   art,
+  current = false,
   children,
 }: {
   link: LinkOptions;
   title: string;
   art: { url: string | undefined; thumbhash: Uint8Array | undefined };
+  current?: boolean;
   children?: ReactNode;
 }) {
   return (
     <Link
       {...link}
       aria-label={title}
+      aria-current={current ? "page" : undefined}
       className={`relative isolate block aspect-2/3 overflow-hidden bg-muted outline-none focus-visible:ring-3 focus-visible:ring-ring/50 ${radius}`}
     >
       <TileArt url={art.url} thumbhash={art.thumbhash} look={{ sizes: posterSizes, radius }} />

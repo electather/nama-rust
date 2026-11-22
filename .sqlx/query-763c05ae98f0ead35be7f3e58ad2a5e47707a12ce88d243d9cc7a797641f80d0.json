@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT namespace, value FROM title_details WHERE kind = 'movie' AND box_set = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "namespace",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_details",
+            "name": "namespace"
+          }
+        }
+      },
+      {
+        "name": "value",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_details",
+            "name": "value"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "763c05ae98f0ead35be7f3e58ad2a5e47707a12ce88d243d9cc7a797641f80d0"
+}

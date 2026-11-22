@@ -2,7 +2,7 @@
 
 use nama_plugin_api::{
     contract::{
-        Artwork, ArtworkKind, Candidate, Episode, Movie, Role, Season, Show, SimilarTitle,
+        Artwork, ArtworkKind, BoxSet, Candidate, Episode, Movie, Role, Season, Show, SimilarTitle,
         SimilarTitles, TitleId, Trailer,
     },
     metadata::{ExternalId, IMDB},
@@ -133,11 +133,61 @@ pub(crate) struct MovieDetails {
     credits: Credits,
     #[serde(default)]
     videos: Videos,
+    pub(crate) belongs_to_collection: Option<CollectionSummary>,
+}
+
+/// `belongs_to_collection` in a Movie's details: the Box Set it is in.
+#[derive(Debug, Deserialize)]
+pub(crate) struct CollectionSummary {
+    pub(crate) id: i64,
+    name: String,
+    poster_path: Option<String>,
+    backdrop_path: Option<String>,
+}
+
+/// `/collection/{id}`: a Box Set's overview and its Movies.
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct Collection {
+    overview: Option<String>,
+    #[serde(default)]
+    parts: Vec<CollectionPart>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct CollectionPart {
+    id: i64,
+    release_date: Option<String>,
+}
+
+impl CollectionSummary {
+    /// The Box Set, with the overview and Movies of `collection` if it was fetched.
+    fn into_box_set(self, collection: Option<Collection>) -> BoxSet {
+        let (overview, mut parts) =
+            collection.map_or_default(|collection| (collection.overview, collection.parts));
+        // TMDB lists parts in no promised order. `YYYY-MM-DD` sorts as text, and a part with no
+        // date, such as an announced one, goes last.
+        parts.sort_by_cached_key(|part| {
+            let date = present(part.release_date.clone());
+            (date.is_none(), date)
+        });
+        BoxSet {
+            id: title_id(&ExternalId::tmdb(self.id)).into(),
+            name: self.name,
+            overview: present(overview),
+            poster: present(self.poster_path),
+            backdrop: present(self.backdrop_path),
+            movies: (parts.iter())
+                .map(|part| title_id(&ExternalId::tmdb(part.id)))
+                .collect(),
+            ..Default::default()
+        }
+    }
 }
 
 impl MovieDetails {
-    /// The Movie, with its Content Rating in `country`.
-    pub(crate) fn into_movie(self, country: Option<&str>) -> Movie {
+    /// The Movie, with its Content Rating in `country`, and its Box Set with what `collection`
+    /// adds, if it was fetched.
+    pub(crate) fn into_movie(self, country: Option<&str>, collection: Option<Collection>) -> Movie {
         let mut wire = self.external_ids;
         wire.imdb_id = present(wire.imdb_id).or(self.imdb_id);
         let releases = in_country(self.release_dates.results, country, |it| &it.iso_3166_1);
@@ -163,6 +213,9 @@ impl MovieDetails {
                 .filter(|person| CREW_JOBS.contains(&person.job.as_str()))
                 .map(Role::from)
                 .collect(),
+            box_set: (self.belongs_to_collection)
+                .map(|summary| summary.into_box_set(collection))
+                .into(),
             ..Default::default()
         }
     }
