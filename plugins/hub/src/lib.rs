@@ -75,8 +75,8 @@ impl Plugin for Hub {
                 .to_owned(),
             extension_points: vec![
                 PointKey::provide::<dyn ServerLinker>(),
-                PointKey::provide::<dyn SimilarSource>(),
                 PointKey::provide::<dyn DiagnosticsSharer>(),
+                PointKey::provide::<dyn SimilarSource>(),
             ],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
             permissions: vec![Permission::PERMISSION_STORE],
