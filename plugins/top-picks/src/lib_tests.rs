@@ -238,6 +238,88 @@ fn a_watchlist_entry_of_another_kind_or_id_boosts_nothing() {
     assert_eq!(picks, ["3", "t2"]);
 }
 
+/// The Movie `tvdb_movie(tvdb_value, value)` as a Library preferring TMDB lists it, by `value`.
+fn tmdb_movie(value: &str, tvdb_value: &str, genres: &[&str]) -> Title {
+    Title {
+        ids: vec![id(value), tvdb(tvdb_value)],
+        ..movie(value, genres)
+    }
+}
+
+/// A Movie and a Show each listed by TVDB in one Library and TMDB in another, and the Movie `5`.
+fn listed_twice() -> [Title; 5] {
+    [
+        tvdb_movie("t2", "2"),
+        tvdb_episode("10", "ts1", &[id("s1")]),
+        tmdb_movie("2", "t2", &[]),
+        Title {
+            show_ids: vec![id("s1"), tvdb("ts1")],
+            ..episode("11", "s1")
+        },
+        movie("5", &[]),
+    ]
+}
+
+#[test]
+fn a_title_libraries_list_by_different_ids_is_picked_once_by_the_first_listed() {
+    let titles = listed_twice();
+    let states: Vec<_> = titles.iter().map(unwatched).collect();
+
+    let rows = rows(&ranked(&titles, &states, &[]), &DEFAULT_FAMILY_RATINGS);
+
+    assert_eq!(
+        summary(&rows),
+        [
+            ("top-picks", vec!["t2", "ts1", "5"]),
+            ("family-night", vec!["t2", "ts1", "5"])
+        ]
+    );
+}
+
+#[test]
+fn a_title_started_or_played_in_one_library_is_in_neither_row() {
+    let titles = listed_twice();
+    let mut states: Vec<_> = titles.iter().map(unwatched).collect();
+    states[2] = watched(&titles[2], false, 60_000);
+    states[3] = watched(&titles[3], true, 0);
+
+    let rows = rows(&ranked(&titles, &states, &[]), &DEFAULT_FAMILY_RATINGS);
+
+    assert_eq!(
+        summary(&rows),
+        [("top-picks", vec!["5"]), ("family-night", vec!["5"])]
+    );
+}
+
+#[test]
+fn a_movie_and_a_show_sharing_an_id_value_are_two_picks() {
+    let titles = [movie("5", &[]), episode("10", "5")];
+    let states: Vec<_> = titles.iter().map(unwatched).collect();
+
+    assert_eq!(top_picks(&titles, &states, &[]), ["5", "5"]);
+}
+
+#[test]
+fn a_title_played_in_two_libraries_counts_its_genres_once() {
+    let titles = [
+        Title {
+            genres: vec!["Horror".to_owned()],
+            ..tvdb_movie("t1", "1")
+        },
+        tmdb_movie("1", "t1", &["Horror"]),
+        movie("2", &["Comedy"]),
+        movie("3", &["Comedy"]),
+        movie("4", &["Horror"]),
+        movie("6", &["Comedy"]),
+    ];
+    let mut states: Vec<_> = titles.iter().map(unwatched).collect();
+    for (state, title) in states.iter_mut().zip(&titles).take(4) {
+        *state = watched(title, true, 0);
+    }
+
+    assert_eq!(top_picks(&titles, &states, &[]), ["6", "4"]);
+}
+
 #[test]
 fn a_title_the_user_started_or_played_is_in_neither_row() {
     let titles = [
