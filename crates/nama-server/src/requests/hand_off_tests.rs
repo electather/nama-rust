@@ -109,8 +109,7 @@ async fn approved_for_gated(tmdb_ids: &[i64]) -> (tempfile::TempDir, Requests, A
     (data, requests, gated)
 }
 
-/// How long a hand-off may take before a test calls it blocked on the Fulfiller: long, since
-/// it only runs out on failure, and a loaded full-suite run can take seconds of real SQLite work.
+/// Long: it only runs out on failure, and a loaded full-suite run can spend seconds in SQLite.
 const NOT_BLOCKED_WITHIN: Duration = Duration::from_secs(30);
 
 #[tokio::test]
