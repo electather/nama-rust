@@ -45,9 +45,9 @@ fn area_modules<'a>(paths: &[&'a str]) -> Vec<(&'a str, &'a str)> {
 
 /// `code`, `code_only`'s text, with `crate::` put before each path that starts at one of
 /// `areas`, so `crate_paths` reads paths a file names without `crate::`: the crate root's to its
-/// areas (`use library::Artwork;`), or an area root's to its own modules. One inside a `crate::{…}` group comes out as `crate::{crate::…}`:
-/// `crate_paths` reads it once as it is meant, and once under a first segment `crate`, which
-/// names no area.
+/// areas (`use library::Artwork;`), or an area root's to its own modules. One inside a
+/// `crate::{…}` group comes out as `crate::{crate::…}`: `crate_paths` reads it once as it is
+/// meant, and once under a first segment `crate`, which names no area.
 fn rooted(code: &str, areas: &[&str]) -> String {
     let mut out = String::with_capacity(code.len());
     let mut previous = None;
