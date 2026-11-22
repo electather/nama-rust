@@ -10,7 +10,7 @@ pub(crate) const SESSION_DAYS: i32 = 30;
 
 /// How many minutes after signing in a session has Recent Authentication. Every session starts
 /// at a sign-in, so its age is how long ago it signed in.
-pub(super) const RECENT_MINUTES: i32 = 10;
+pub(crate) const RECENT_MINUTES: i32 = 10;
 
 /// Starts a session for `account` and returns its token.
 pub(super) async fn start(conn: &mut PgConnection, account: AccountId) -> Result<String, Error> {

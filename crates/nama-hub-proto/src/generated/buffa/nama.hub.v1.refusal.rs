@@ -29,8 +29,8 @@ pub enum RefusalReason {
     REFUSAL_REASON_SIGN_IN_LINK_EXPIRED = 7i32,
     /// `failed_precondition`: the Hub has no mail set up, so it can't email Sign-in Links.
     REFUSAL_REASON_SIGN_IN_LINKS_OFF = 8i32,
-    /// `failed_precondition`: the call needs Recent Authentication, which the session hasn't had for
-    /// over 10 minutes. Signing in again gives it back.
+    /// `failed_precondition`: the call needs Recent Authentication, which the session lost
+    /// `recentMinutes` after it signed in. Signing in again gives it back. Params: `recentMinutes`.
     REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED = 9i32,
 }
 impl RefusalReason {

@@ -126,8 +126,8 @@ export const RefusalReason = {
   SIGN_IN_LINKS_OFF: 8,
 
   /**
-   * `failed_precondition`: the call needs Recent Authentication, which the session hasn't had for
-   * over 10 minutes. Signing in again gives it back.
+   * `failed_precondition`: the call needs Recent Authentication, which the session lost
+   * `recentMinutes` after it signed in. Signing in again gives it back. Params: `recentMinutes`.
    *
    * @generated from enum value: REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED = 9;
    */

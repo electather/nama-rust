@@ -21,8 +21,8 @@ use nama_hub_proto::nama::hub::v1::{
 
 use super::{hub_failed, refuse};
 use crate::accounts::{
-    self, Account, AccountSession, Accounts, Blocked, EMAIL_LENGTH, PASSWORD_LENGTH, SESSION_DAYS,
-    SignInLink, SignedIn, SignedInByLink,
+    self, Account, AccountSession, Accounts, Blocked, EMAIL_LENGTH, PASSWORD_LENGTH,
+    RECENT_MINUTES, SESSION_DAYS, SignInLink, SignedIn, SignedInByLink,
 };
 
 /// The cookie that holds a browser's session token.
@@ -258,6 +258,7 @@ fn refused(err: accounts::Error) -> ConnectError {
             .param("maxLength", PASSWORD_LENGTH.end()),
         E::RecentAuthenticationRequired => {
             refuse(R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED, message)
+                .param("recentMinutes", &RECENT_MINUTES)
         }
         E::WrongEmailOrPassword => refuse(R::REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD, message),
         E::SignInLinksOff => refuse(R::REFUSAL_REASON_SIGN_IN_LINKS_OFF, message),
@@ -289,3 +290,7 @@ fn too_many_attempts(blocked: &Blocked) -> ConnectError {
     )
     .with_headers(headers)
 }
+
+#[cfg(test)]
+#[path = "accounts_tests.rs"]
+mod tests;

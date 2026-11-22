@@ -9,9 +9,9 @@ import { afterEach, beforeAll, describe, expect, test } from "vite-plus/test";
 
 const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
 
-function refused(code: Code, reason: RefusalReason) {
+function refused(code: Code, reason: RefusalReason, params: Record<string, string> = {}) {
   return new ConnectError("refused", code, undefined, [
-    { desc: RefusalSchema, value: create(RefusalSchema, { reason }) },
+    { desc: RefusalSchema, value: create(RefusalSchema, { reason, params }) },
   ]);
 }
 
@@ -27,7 +27,9 @@ function openAccountPage(hasPassword: boolean, recent = true) {
       getAccount: () => ({ account: ada, hasPassword: password }),
       setPassword: (request) => {
         if (!recent) {
-          throw refused(Code.FailedPrecondition, RefusalReason.RECENT_AUTHENTICATION_REQUIRED);
+          throw refused(Code.FailedPrecondition, RefusalReason.RECENT_AUTHENTICATION_REQUIRED, {
+            recentMinutes: "12",
+          });
         }
         password = true;
         set.push(request.password);
@@ -77,12 +79,13 @@ describe("an Account's password", () => {
     expect(set).toStrictEqual(["staple battery horse"]);
   });
 
-  test("a sign-in over 10 minutes old is sent to sign in again", async () => {
+  test("a sign-in older than the Hub allows is sent to sign in again", async () => {
     const set = openAccountPage(true, false);
 
     await submit("New password", "Change password");
 
     const signInAgain = await screen.findByRole("link", { name: "Sign in again" });
+    expect(screen.getByText(/You signed in over 12 minutes ago/u)).toBeDefined();
     expect(signInAgain.getAttribute("href")).toBe("/sign-in");
     expect(set).toStrictEqual([]);
   });

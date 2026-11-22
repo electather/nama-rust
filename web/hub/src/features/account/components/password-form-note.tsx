@@ -7,7 +7,7 @@ export function PasswordFormNote({ error, saved }: { error: Error | null; saved:
   if (refusalReason(error) === RefusalReason.RECENT_AUTHENTICATION_REQUIRED) {
     return (
       <p role="alert" className="text-sm text-destructive">
-        You signed in over 10 minutes ago.{" "}
+        {credentialErrors(error).form}{" "}
         <Link to="/sign-in" className="text-primary underline underline-offset-3">
           Sign in again
         </Link>{" "}

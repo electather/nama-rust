@@ -14,7 +14,7 @@ export function OrEmailASignInLink() {
         Email me a Sign-in Link
       </Link>
       <p className="text-center text-xs text-pretty text-muted-foreground">
-        Forgot your password? Sign in with a link, then set a new one on your Account page.
+        Forgot your password? Sign in with a Sign-in Link, then set a new one on your Account page.
       </p>
     </>
   );

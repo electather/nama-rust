@@ -21,7 +21,7 @@ use crate::mail::Mail;
 pub(crate) use passwords::PASSWORD_LENGTH;
 pub(crate) use rate_limits::Blocked;
 use rate_limits::{CreationLimits, SignInLimits};
-pub(crate) use sessions::SESSION_DAYS;
+pub(crate) use sessions::{RECENT_MINUTES, SESSION_DAYS};
 use sign_in_links::Outbox;
 pub(crate) use sign_in_links::{SignInLink, SignedInByLink};
 
