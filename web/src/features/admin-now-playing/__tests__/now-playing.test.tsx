@@ -147,7 +147,12 @@ describe("where Now Playing is", () => {
       "Activity",
       "Admin",
     ]);
-    expect(nav.getAllByRole("link")[6]?.textContent).toBe("Now Playing");
+    const links = nav.getAllByRole("link").map((link) => link.textContent);
+    expect(links.slice(links.indexOf("Connections"), links.indexOf("Server") + 1)).toStrictEqual([
+      "Connections",
+      "Now Playing",
+      "Server",
+    ]);
     fireEvent.change(screen.getByRole("combobox", { name: "Search settings" }), {
       target: { value: "streams" },
     });
