@@ -7,7 +7,7 @@ use std::future::Future;
 use connectrpc::{ConnectError, Response, ServiceResult};
 use nama_plugin_api::{
     PluginError,
-    server_link::{Link, Reachability, ServerLinker},
+    server_link::{Link, ServerLinker},
 };
 use nama_proto::nama::v1::{
     self as proto, GetServerLinkResponse, GetUserLinkResponse, RefusalReason,
@@ -130,41 +130,37 @@ fn no_linker() -> ConnectError {
 }
 
 fn link_to_proto(link: Link) -> proto::ServerLink {
-    let reachability = if let Link::Linked {
-        reachability: Some(reachability),
-        ..
-    } = &link
-    {
-        reachability.clone()
-    } else {
-        Reachability::default()
-    };
-    let (code, url, account) = link_fields(link);
-    proto::ServerLink {
-        code,
-        url,
-        account,
-        public_address: reachability.address,
-        reachable: reachability.reachable,
-        ..Default::default()
+    match link {
+        Link::NotLinked => proto::ServerLink::default(),
+        Link::Waiting { code, url } => proto::ServerLink {
+            code,
+            url,
+            ..Default::default()
+        },
+        Link::Linked {
+            account,
+            reachability,
+        } => {
+            let reachability = reachability.unwrap_or_default();
+            proto::ServerLink {
+                account,
+                public_address: reachability.address,
+                reachable: reachability.reachable,
+                ..Default::default()
+            }
+        }
     }
 }
 
+/// A User's Link as the Server's shows it, but for where the service reached the Server.
 fn user_link_to_proto(link: Link) -> proto::UserLink {
-    let (code, url, account) = link_fields(link);
+    let proto::ServerLink {
+        code, url, account, ..
+    } = link_to_proto(link);
     proto::UserLink {
         code,
         url,
         account,
         ..Default::default()
-    }
-}
-
-/// A Link's `code`, `url` and `account`, as both messages hold them: each empty but those it has.
-fn link_fields(link: Link) -> (String, String, String) {
-    match link {
-        Link::NotLinked => Default::default(),
-        Link::Waiting { code, url } => (code, url, String::new()),
-        Link::Linked { account, .. } => (String::new(), String::new(), account),
     }
 }
