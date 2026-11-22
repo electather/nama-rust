@@ -1,5 +1,6 @@
 import { notFound } from "@tanstack/react-router";
 
+import { BoxSetRow } from "@/features/title/components/box-set-row";
 import { CastAndCrew } from "@/features/title/components/cast-and-crew";
 import { MovieDetails } from "@/features/title/components/movie-details";
 import { MovieHero } from "@/features/title/components/movie-hero";
@@ -11,8 +12,8 @@ import { similarMovies } from "@/features/title/lib/similar-titles";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 
 /**
- * A Movie of a Library: its top, with Play and what else may be done, its Trailers, the Similar
- * titles in a Library, then its Details.
+ * A Movie of a Library: its top, with Play and what else may be done, its Trailers, its Box Set,
+ * the Similar titles in a Library, then its Details.
  */
 export function MoviePage({
   libraryId,
@@ -23,7 +24,7 @@ export function MoviePage({
   movieId: ExternalId;
   params: { libraryId: string; movieId: string };
 }) {
-  const { movie, readOnlyFolder, similar } = useMovie({ libraryId, movieId });
+  const { movie, readOnlyFolder, similar, boxSet } = useMovie({ libraryId, movieId });
   if (!movie) {
     throw notFound();
   }
@@ -33,6 +34,7 @@ export function MoviePage({
         trailers={movie.trailers}
         art={{ url: movie.backdropUrl, thumbhash: movie.backdropThumbhash }}
       />
+      <BoxSetRow boxSet={boxSet} current={movie.id} />
       <SimilarTitles heading="Similar titles" titles={similarMovies(similar)} />
       <CastAndCrew cast={movie.cast} crew={movie.crew} />
       <MovieDetails libraryId={libraryId} movie={movie} />

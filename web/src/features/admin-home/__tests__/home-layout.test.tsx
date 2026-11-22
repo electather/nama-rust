@@ -161,3 +161,24 @@ test("an Admin drags a Home row to the end", async () => {
     expect(saves).toHaveLength(1);
   });
 });
+
+test("while a Home row is dragged it follows the pointer, and the rows it passes slide out of its way", async () => {
+  openDefaultHome({ rows: [continueWatching, picks, usersRows] });
+
+  await screen.findByText("Continue Watching");
+  const items = rowList().getAllByRole("listitem");
+  for (const [index, item] of items.entries()) {
+    vi.spyOn(item, "getBoundingClientRect").mockReturnValue(
+      DOMRect.fromRect({ y: index * 60, height: 60 }),
+    );
+  }
+  const handle = dragHandle("Continue Watching");
+  fireEvent.pointerDown(handle, { pointerId: 1, button: 0, clientY: 30 });
+  fireEvent.pointerMove(handle, { pointerId: 1, clientY: 100 });
+
+  expect(items.map((item) => item.style.getPropertyValue("--offset"))).toStrictEqual([
+    "70px",
+    "-60px",
+    "0px",
+  ]);
+});

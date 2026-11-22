@@ -1,16 +1,23 @@
-//! Continue Watching and Featured entries, the Episodes either side of one, and a title's Roles
-//! and Trailers, as clients see them.
+//! Continue Watching and Featured entries, the Episodes either side of one, a Home row's titles,
+//! and a title's Roles and Trailers, as clients see them.
 
 use connectrpc::ConnectError;
 use nama_proto::nama::v1 as proto;
 
 use crate::{
-    api::{ImageSources, database_failed},
+    api::{
+        ImageSources, database_failed,
+        requests::{missing_movie_to_proto, missing_show_to_proto},
+    },
     browse::{self, Episode, Featured, Started},
-    library::{Roles, ShownImages, Trailer, WatchState},
+    home_rows::RowTitle,
+    library::{OnServer, Roles, ShownImages, Trailer, WatchState},
 };
 
-use super::{Fields, episode_to_proto, movie_to_proto, refused, show_to_proto};
+use super::{
+    Fields, episode_to_proto, found_movie_to_proto, found_show_to_proto, movie_to_proto, refused,
+    show_to_proto,
+};
 
 /// The Episode `GetNextEpisode` or `GetPreviousEpisode` `found` beside the one asked about, with
 /// its images as `images` shows them, or the Refusal for the request.
@@ -139,4 +146,21 @@ pub(in crate::api) fn trailers_to_proto(trailers: Vec<Trailer>) -> Vec<proto::Tr
             ..Default::default()
         })
         .collect()
+}
+
+/// A Home row's title, or a Box Set's Movie, as clients see it.
+pub(super) fn row_title_to_proto(title: RowTitle, images: &ShownImages) -> proto::HomeRowTitle {
+    proto::HomeRowTitle {
+        movie_or_show: Some(match title {
+            RowTitle::OnServer(OnServer::Movie(movie)) => {
+                found_movie_to_proto(movie, images).into()
+            }
+            RowTitle::OnServer(OnServer::Show(show)) => found_show_to_proto(show, images).into(),
+            RowTitle::MissingMovie(movie, open) => {
+                missing_movie_to_proto(movie, open, images).into()
+            }
+            RowTitle::MissingShow(show) => missing_show_to_proto(show, images).into(),
+        }),
+        ..Default::default()
+    }
 }

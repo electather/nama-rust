@@ -15,6 +15,7 @@ export function useCloseSettings() {
         settings: undefined,
         plugin: undefined,
         user: undefined,
+        library: undefined,
         setting: undefined,
       }),
       replace: true,

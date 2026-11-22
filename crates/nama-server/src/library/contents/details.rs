@@ -1,11 +1,11 @@
-//! A title's Score and Trailers, stored once per title in `title_details` rather than on each of
-//! its Matches (ADR 0081). [`Contents::movies`](super::Contents::movies) and
+//! A title's Score, Trailers and Box Set, stored once per title in `title_details` rather than on
+//! each of its Matches (ADR 0081). [`Contents::movies`](super::Contents::movies) and
 //! [`Contents::shows`](super::Contents::shows) read them back by the same key.
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use sqlx::SqliteConnection;
 
-use super::{Metadata, similar};
+use super::{Metadata, box_sets, similar};
 use crate::library::title_source::{TitleKind, Trailer};
 
 impl Metadata {
@@ -19,8 +19,9 @@ impl Metadata {
     }
 }
 
-/// Stores the Score and Trailers that `matched` gives its title, a Movie or an Episode's Show, in
-/// place of what the same title source gave it before, and its Similar titles with them.
+/// Stores the Score, Trailers and Box Set that `matched` gives its title, a Movie or an Episode's
+/// Show, in place of what the same title source gave it before, and its Similar titles and the Box
+/// Set's details with them.
 pub(super) async fn store(
     conn: &mut SqliteConnection,
     matched: &Metadata,
@@ -31,22 +32,26 @@ pub(super) async fn store(
     let (namespace, value) = (id.namespace(), id.value());
     let trailers =
         serde_json::to_string(&matched.trailers).map_err(|err| sqlx::Error::Encode(err.into()))?;
+    let box_set = (matched.box_set.as_ref()).map(|box_set| box_set.id.to_string());
     sqlx::query!(
-        "INSERT OR REPLACE INTO title_details (plugin, kind, namespace, value, score, trailers)
-         VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO title_details
+             (plugin, kind, namespace, value, score, trailers, box_set)
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
         plugin,
         kind,
         namespace,
         value,
         matched.score,
         trailers,
+        box_set,
     )
     .execute(&mut *conn)
     .await?;
+    box_sets::store(conn, matched).await?;
     similar::store(conn, matched).await
 }
 
-/// Deletes the Scores and Trailers `plugin`'s title source gave.
+/// Deletes the Scores, Trailers and Movies' Box Sets `plugin`'s title source gave.
 pub(super) async fn forget_plugin(
     conn: &mut SqliteConnection,
     plugin: &str,

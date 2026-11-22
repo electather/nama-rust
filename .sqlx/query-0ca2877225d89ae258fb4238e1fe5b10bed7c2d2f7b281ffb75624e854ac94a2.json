@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM box_sets WHERE plugin = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "0ca2877225d89ae258fb4238e1fe5b10bed7c2d2f7b281ffb75624e854ac94a2"
+}

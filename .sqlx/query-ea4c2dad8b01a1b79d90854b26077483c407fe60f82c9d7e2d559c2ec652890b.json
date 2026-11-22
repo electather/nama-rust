@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE account_sessions SET created_at = now() - make_interval(mins => $1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ea4c2dad8b01a1b79d90854b26077483c407fe60f82c9d7e2d559c2ec652890b"
+}

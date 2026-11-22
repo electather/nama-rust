@@ -586,7 +586,7 @@ impl Matcher {
         outcomes: Outcomes,
         summary: &mut Summary,
     ) -> Result<(), sqlx::Error> {
-        let decided = tally(self.with_similar(outcomes).await, summary);
+        let decided = tally(self.with_lookups(outcomes).await, summary);
         if decided.items.is_empty() {
             return Ok(());
         }
@@ -605,7 +605,7 @@ impl Matcher {
         outcomes: Outcomes,
     ) -> Result<Summary, ManualError> {
         let mut summary = Summary::default();
-        let decided = tally(self.with_similar(outcomes).await, &mut summary);
+        let decided = tally(self.with_lookups(outcomes).await, &mut summary);
         tracing::info!(
             library = named.library,
             title = %named.name.title,

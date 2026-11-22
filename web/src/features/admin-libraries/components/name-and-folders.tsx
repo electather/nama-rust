@@ -1,31 +1,27 @@
-import { KindChoice } from "@/features/admin-libraries/components/kind-choice";
-import { TitleSourcesField } from "@/features/admin-libraries/components/title-sources-field/title-sources-field";
-import type { Library } from "@/gen/nama/v1/library_pb";
+import { foldersHint } from "@/features/admin-libraries/lib/library-form";
+import { Choices } from "@/shared/components/form-field/choices";
 import { FormField } from "@/shared/components/form-field/form-field";
 import { FormTextarea } from "@/shared/components/form-field/form-textarea";
 import type { FormErrors } from "@/shared/lib/forms";
 
-/** The name, folders and title sources fields, and for a new Library what it holds. */
-export function NameAndFolders({ errors, library }: { errors: FormErrors; library?: Library }) {
+const kinds: [value: string, label: string][] = [
+  ["movies", "Movies"],
+  ["shows", "Shows"],
+];
+
+/** A new Library's name, what it holds, which can't change after, and its folders. */
+export function NameAndFolders({ errors }: { errors: FormErrors }) {
   return (
     <>
-      <FormField
-        label="Name"
-        name="name"
-        autoComplete="off"
-        defaultValue={library?.name}
-        error={errors.name}
-      />
-      <KindChoice library={library} />
+      <FormField label="Name" name="name" autoComplete="off" error={errors.name} />
+      <Choices legend="Holds" name="kind" choices={kinds} />
       <FormTextarea
         label="Folders"
         name="folders"
         spellCheck={false}
-        defaultValue={library?.folders.join("\n")}
-        hint="Where its files are on the Server: one full path per line, such as /srv/media/films."
+        hint={foldersHint}
         error={errors.folders}
       />
-      <TitleSourcesField initial={library?.titleSources} error={errors.titleSources} />
     </>
   );
 }

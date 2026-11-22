@@ -17,8 +17,8 @@ mod titles;
 
 pub(crate) use titles::title_roles;
 pub(crate) use titles::{
-    Artwork, ArtworkKind, Candidate, Episode, Image, Movie, Role, Roles, SearchQuery, Season, Show,
-    TitleKind, Trailer,
+    Artwork, ArtworkKind, BoxSet, Candidate, Episode, Image, ListedMovie, Movie, Role, Roles,
+    SearchQuery, Season, Show, TitleKind, Trailer,
 };
 pub(super) use titles::{title_id, title_kind};
 
@@ -606,6 +606,7 @@ impl Metadata {
             similar: Vec::new(),
             trailers: movie.trailers,
             roles: movie.roles,
+            box_set: movie.box_set,
         }
     }
 }

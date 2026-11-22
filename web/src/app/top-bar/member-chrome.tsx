@@ -23,7 +23,7 @@ export function MemberChrome(props: Omit<ComponentProps<typeof TopBar>, "onSearc
   const open = useCallback((frame: Frame) => {
     setOpening({ frame, query: "" });
   }, []);
-  useActionBarKeys({ dialog, hasAdminPages: props.hasAdminPages, open });
+  useActionBarKeys({ dialog, adminSection: props.adminSection, open });
   return (
     <>
       <TopBar
@@ -37,7 +37,7 @@ export function MemberChrome(props: Omit<ComponentProps<typeof TopBar>, "onSearc
           <ActionBar
             ref={dialog}
             opening={opening}
-            hasAdminPages={props.hasAdminPages}
+            adminSection={props.adminSection}
             onClose={() => {
               setOpening(undefined);
             }}

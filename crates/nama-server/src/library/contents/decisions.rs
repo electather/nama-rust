@@ -11,12 +11,14 @@ use sqlx::SqliteConnection;
 
 use super::{
     Contents, Item, ItemKind, ItemRow, Pin, air_dates, details, ids_from_json, ids_sql,
-    insert_match_ids, parse_hint, primary_id_in, roles, searched_ids, searched_ids_changed,
+    insert_match_ids, primary_id_in,
+    reasons::{ReasonColumn, tied_json},
+    roles, searched_ids, searched_ids_changed,
     sort_titles::sort_title,
 };
 use crate::{
     db::now,
-    library::title_source::{Candidate, Roles, Season, Trailer},
+    library::title_source::{BoxSet, Candidate, Roles, Season, Trailer},
     library::versions::METADATA_VERSION,
     page::Page,
     requests::{make_available, make_seasons_available},
@@ -222,6 +224,8 @@ pub(crate) struct Metadata {
     pub(crate) trailers: Vec<Trailer>,
     pub(crate) similar: Vec<crate::library::SimilarAnswer>,
     pub(crate) roles: Roles,
+    /// A Movie's Box Set; an Episode has none.
+    pub(crate) box_set: Option<BoxSet>,
 }
 
 /// An image a Match stores: a path the title source of `plugin` serves.
@@ -608,62 +612,6 @@ pub(super) async fn insert_decisions(
 pub(super) enum MatchState {
     Matched,
     Unmatched,
-}
-
-/// An [`UnmatchedReason`] as `item_matches.unmatched_reason`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
-#[sqlx(rename_all = "snake_case")]
-enum ReasonColumn {
-    Ambiguous,
-    NoTitleFits,
-    UnknownIdHint,
-    NotInShow,
-}
-
-impl ReasonColumn {
-    const fn of(reason: &UnmatchedReason) -> Self {
-        match reason {
-            UnmatchedReason::Ambiguous(_) => Self::Ambiguous,
-            UnmatchedReason::NoTitleFits => Self::NoTitleFits,
-            UnmatchedReason::UnknownIdHint => Self::UnknownIdHint,
-            UnmatchedReason::NotInShow => Self::NotInShow,
-        }
-    }
-
-    /// The reason this column and `tied_titles`, the JSON the migration describes, store.
-    fn reason(self, tied_titles: Option<&str>) -> Result<UnmatchedReason, sqlx::Error> {
-        Ok(match self {
-            Self::Ambiguous => UnmatchedReason::Ambiguous(parse_tied(tied_titles.unwrap_or("[]"))?),
-            Self::NoTitleFits => UnmatchedReason::NoTitleFits,
-            Self::UnknownIdHint => UnmatchedReason::UnknownIdHint,
-            Self::NotInShow => UnmatchedReason::NotInShow,
-        })
-    }
-}
-
-fn parse_tied(json: &str) -> Result<Vec<TiedTitle>, sqlx::Error> {
-    let rows: Vec<(String, String, Option<String>, Option<i32>)> =
-        serde_json::from_str(json).map_err(|err| sqlx::Error::Decode(err.into()))?;
-    rows.into_iter()
-        .map(|(id, title, original_title, year)| {
-            let bad = || sqlx::Error::Decode(format!("bad tied title id {id}").into());
-            let id = parse_hint(&id).ok_or_else(bad)?;
-            Ok(TiedTitle {
-                id,
-                title,
-                original_title,
-                year,
-            })
-        })
-        .collect()
-}
-
-fn tied_json(tied: &[TiedTitle]) -> String {
-    let rows: Vec<serde_json::Value> = tied
-        .iter()
-        .map(|t| serde_json::json!([t.id.to_string(), t.title, t.original_title, t.year]))
-        .collect();
-    serde_json::Value::from(rows).to_string()
 }
 
 #[derive(Debug)]
