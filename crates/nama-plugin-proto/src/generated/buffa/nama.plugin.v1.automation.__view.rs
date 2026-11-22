@@ -7670,8 +7670,8 @@ impl ::serde::Serialize for WatchlistAskedOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// What `list_watchlist` answers: the User's Watchlist, empty for a User with none or no such
-/// User.
+/// What `list_watchlist` answers: the User's Watchlist, newest added first, empty for a User with
+/// none or no such User.
 #[derive(Clone, Debug, Default)]
 pub struct WatchlistView<'a> {
     /// Field 1: `titles`
