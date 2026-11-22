@@ -12,6 +12,10 @@ _Avoid_: backend, instance, media server, command server
 The central service, run by the project, where Accounts live and where clients find the Servers they can reach. It keeps each Account's Watch State, Watchlist and Viewing Events across Servers, learns recommendations from them, and takes in the Diagnostics and Usage Analytics that Servers share with Nama's developers. A Server never needs it.
 _Avoid_: command server, cloud, plex.tv
 
+**Linked Server**:
+A Server registered with the Hub and owned by the Account whose holder entered the code it showed. Only a Linked Server enables the Hub Plugin, so only its Users can Link.
+_Avoid_: registered server, connected server, claimed server
+
 **Relay**:
 An optional service that carries media traffic between a client and a Server when they can't connect directly.
 _Avoid_: proxy, tunnel
@@ -79,7 +83,7 @@ A person's identity on the Hub, which can be linked to Users on many Servers. It
 _Avoid_: Hub user, login, profile
 
 **Link**:
-The connection between a User and an Account, made when a User Links later or when a User is created from an Account.
+The connection between a User and an Account, made when a User Links later or when a User is created from an Account. A Server Links too, when it registers with the Hub, and becomes a Linked Server.
 _Avoid_: pairing, binding
 
 **Viewing Event**:
@@ -103,6 +107,10 @@ _Avoid_: addon, extension, module, agent
 **Built-in Plugin**:
 A Plugin that ships compiled into the Server.
 _Avoid_: core plugin, native plugin
+
+**Hub Plugin**:
+The Built-in Plugin through which a Linked Server does everything Hub-facing: Linking, syncing, Viewing Events, Account sign-in and the Hub's suggestions (ADR 0094).
+_Avoid_: Hub client, Hub integration
 
 **Installed Plugin**:
 A Plugin loaded into a running Server from a package, whether bundled with a release or added by an admin.
