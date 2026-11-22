@@ -80,6 +80,49 @@ test("an Admin's segment folder, Keep for skipping back and Transcodes at once a
   expect(updates).toHaveLength(3);
 });
 
+test("pressing Enter in a field saves it", async () => {
+  const updates = openPlayback({});
+
+  await screen.findByLabelText("Segment folder");
+  fill("Segment folder", "/dev/shm/nama");
+  fireEvent.keyDown(screen.getByLabelText("Segment folder"), { key: "Enter" });
+
+  await expect
+    .poll(() => updates)
+    .toMatchObject([{ settings: { segmentFolder: "/dev/shm/nama" } }]);
+});
+
+test("a change made while one is saving is saved after it, so the newer one is kept", async () => {
+  const sent: (number | undefined)[] = [];
+  const finish: (() => void)[] = [];
+  openPlayback(
+    {},
+    {
+      updatePlaybackSettings: async (request) => {
+        sent.push(request.settings?.maxTranscodes);
+        await new Promise<void>((resolve) => {
+          finish.push(resolve);
+        });
+        return { settings: request.settings };
+      },
+    },
+  );
+
+  await screen.findByLabelText("Transcodes at once");
+  change("Transcodes at once", "3");
+  await expect.poll(() => sent).toStrictEqual([3]);
+  change("Transcodes at once", "4");
+  // Not sent while the first is saving.
+  await new Promise((resolve) => {
+    setTimeout(resolve, 50);
+  });
+  expect(sent).toStrictEqual([3]);
+  finish[0]?.();
+
+  await expect.poll(() => sent).toStrictEqual([3, 4]);
+  finish[1]?.();
+});
+
 test("an Admin who empties Keep for skipping back and Transcodes at once sends them unset", async () => {
   const updates = openPlayback({ keepBehindMinutes: 12, maxTranscodes: 2 });
 

@@ -11,6 +11,7 @@ export function HardwareSection({ status }: { status: GetPlaybackStatusResponse 
         {hardwareIntro(status)} The Server tests VAAPI on each GPU, Intel QSV on each Intel one, and
         NVIDIA NVENC and Apple VideoToolbox when it starts, so restart it after adding a GPU.
       </p>
+      {/* A list is pulled out by its rows' own padding, so their words line up with the text above. */}
       {hardware.length === 0 ? (
         <p className="mt-4 max-w-prose text-sm text-pretty">
           {canTranscode
