@@ -53,7 +53,7 @@ test("while the Hub is down, signing in with an Account says why and what to do"
   const { transport } = linkedServer(true, {
     startAccountSignIn: () => {
       throw new ConnectError(
-        "Signing in with an Account needs the Hub, which can't be reached right now. Sign in with your password, or try again later.",
+        "Signing in with an Account needs the Hub, which can't be reached right now. Try again later.",
         Code.Unavailable,
       );
     },
@@ -62,11 +62,11 @@ test("while the Hub is down, signing in with an Account says why and what to do"
 
   fireEvent.click(await screen.findByRole("button", { name: "Sign in with your Account" }));
 
-  await expect(
-    screen.findByText(
-      /needs the Hub, which can't be reached right now\. Sign in with your password/u,
-    ),
-  ).resolves.toBeDefined();
+  const said = await screen.findByText(
+    /needs the Hub, which can't be reached right now\. Try again later\./u,
+  );
+  // A User created from an Account has no password to fall back on (ADR 0092).
+  expect(said.textContent).not.toMatch(/password/iu);
   expect(screen.getByRole("button", { name: "Sign in" })).toBeDefined();
 });
 
@@ -85,6 +85,23 @@ test("back from the Hub, the browser signs in and goes on", async () => {
     expect(router.state.location.pathname).toBe("/requests");
   });
   expect(sessionStorage.getItem("nama.account-sign-in")).toBeNull();
+});
+
+test("a Server no longer Linked says who can Link it again, not to use a password", async () => {
+  const { transport } = linkedServer(true, {
+    signInWithAccount: () => {
+      throw refused(Code.FailedPrecondition, "not linked", {
+        reason: RefusalReason.NO_SERVER_LINKER,
+      });
+    },
+  });
+  openApp("/sign-in/account", transport);
+
+  await expect(
+    screen.findByText(
+      "This Server isn’t Linked to the Hub any more. Ask whoever runs it to Link it again.",
+    ),
+  ).resolves.toBeDefined();
 });
 
 test("a sign-in the Hub didn't approve says so, with the way back", async () => {
