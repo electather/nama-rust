@@ -54,9 +54,9 @@ pub use points::ExtensionPoints;
 pub use registry::Registry;
 #[cfg(test)]
 pub(crate) use scripted_fulfiller::{ScriptedFulfiller, Told};
-pub(crate) use wasm::read as read_installed;
 #[cfg(test)]
-pub(crate) use wasm::{KERNEL_IMPORTS, installed_points};
+pub(crate) use wasm::installed_points;
+pub(crate) use wasm::read as read_installed;
 
 /// How long a Plugin's settings check may take before it counts as failed.
 pub const SETTINGS_CHECK_TIMEOUT: Duration = Duration::from_secs(10);

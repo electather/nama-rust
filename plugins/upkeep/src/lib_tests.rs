@@ -3,13 +3,16 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use buffa::Message;
 use nama_plugin_api::{
-    BoxFuture, Plugin, Registrar, Registration,
+    Plugin, Registrar, Registration,
     automation::{
-        BackUpAsked, BackedUp, ExpiredSignInsDeleted, ForgetGonePluginsAsked, ForgetHomeRowsAsked,
-        GonePluginsForgotten, HomeRowsForgotten, Kernel, KernelRefused, MetadataRefreshed,
-        Permission, RefreshMetadataAsked,
+        Kernel, KernelFunction, Permission, answering,
+        functions::{
+            BackUp, DeleteExpiredSignIns, ForgetGonePlugins, ForgetHomeRows, RefreshMetadata,
+        },
+    },
+    contract::{
+        BackedUp, ExpiredSignInsDeleted, GonePluginsForgotten, HomeRowsForgotten, MetadataRefreshed,
     },
     job::{JobRunner, RunJob},
     settings::{SettingValue, Settings},
@@ -20,77 +23,30 @@ use super::{
     HOME_ROWS_DAYS, REFRESH_METADATA, Upkeep,
 };
 
-/// Each Kernel function a Job called, with the days it asked with, or 0 for one asking none.
-type Asked = Arc<Mutex<Vec<(String, u32)>>>;
+/// The requests a Kernel function was asked, in order.
+type Asked<F> = Arc<Mutex<Vec<<F as KernelFunction>::Request>>>;
 
-/// Upkeep's Job runner, enabled with `settings` over a Kernel that records each function called
-/// with the days it asks with, and answers as if it forgot something.
-fn enabled(settings: Settings) -> (Arc<dyn JobRunner>, Asked) {
-    let asked = Asked::default();
+/// A Kernel answering `F` alone with `response`, and what it was asked.
+fn answering_with<F: KernelFunction + 'static>(
+    response: F::Response,
+) -> (Arc<dyn Kernel>, Asked<F>) {
+    let asked = Asked::<F>::default();
     let recorded = Arc::clone(&asked);
-    let kernel = move |function: &str,
-                       request: Vec<u8>|
-          -> BoxFuture<'static, Result<Vec<u8>, KernelRefused>> {
-        let (days, answer) = match function {
-            "forget_home_rows" => (
-                ForgetHomeRowsAsked::decode_from_slice(&request)
-                    .unwrap()
-                    .days,
-                HomeRowsForgotten {
-                    users: 2,
-                    ..HomeRowsForgotten::default()
-                }
-                .encode_to_vec(),
-            ),
-            "forget_gone_plugins" => (
-                ForgetGonePluginsAsked::decode_from_slice(&request)
-                    .unwrap()
-                    .days,
-                GonePluginsForgotten {
-                    plugin_ids: vec!["radarr".to_owned()],
-                    ..GonePluginsForgotten::default()
-                }
-                .encode_to_vec(),
-            ),
-            "delete_expired_sign_ins" => (
-                0,
-                ExpiredSignInsDeleted {
-                    devices: 3,
-                    invites: 1,
-                    ..ExpiredSignInsDeleted::default()
-                }
-                .encode_to_vec(),
-            ),
-            "refresh_metadata" => {
-                RefreshMetadataAsked::decode_from_slice(&request).unwrap();
-                let refreshed = MetadataRefreshed {
-                    titles: 3,
-                    ..MetadataRefreshed::default()
-                };
-                (0, refreshed.encode_to_vec())
-            }
-            "back_up" => {
-                BackUpAsked::decode_from_slice(&request).unwrap();
-                let backed_up = BackedUp {
-                    name: "nama-20261121T030000Z.tar".to_owned(),
-                    size_bytes: 4096,
-                    ..BackedUp::default()
-                };
-                (0, backed_up.encode_to_vec())
-            }
-            other => panic!("Upkeep called {other}"),
-        };
-        recorded.lock().unwrap().push((function.to_owned(), days));
-        Box::pin(async move { Ok(answer) })
-    };
+    let kernel = answering::<F>(move |request| {
+        recorded.lock().unwrap().push(request);
+        Ok(response.clone())
+    });
+    (kernel, asked)
+}
+
+/// Upkeep's Job runner, enabled with `settings` over `kernel`.
+fn enabled(settings: Settings, kernel: Arc<dyn Kernel>) -> Arc<dyn JobRunner> {
     let settings = settings.resolve(&Upkeep.manifest().settings).unwrap();
-    let kernel: Arc<dyn Kernel> = Arc::new(kernel);
     let mut registrar = Registrar::with_settings(settings).with_kernel(kernel);
     Upkeep.register(&mut registrar).unwrap();
-    let runner = (registrar.into_registrations().iter())
+    (registrar.into_registrations().iter())
         .find_map(Registration::provider::<dyn JobRunner>)
-        .unwrap();
-    (runner, asked)
+        .unwrap()
 }
 
 fn run(job_id: &str) -> RunJob {
@@ -107,27 +63,42 @@ async fn forgetting_home_rows_asks_the_kernel_with_the_days_set_30_unless_the_ad
         SettingValue::Integer(7),
     )]));
     for (settings, days) in [(Settings::default(), 30), (set, 7)] {
-        let (runner, asked) = enabled(settings);
+        let forgotten = HomeRowsForgotten {
+            users: 2,
+            ..HomeRowsForgotten::default()
+        };
+        let (kernel, asked) = answering_with::<ForgetHomeRows>(forgotten);
 
-        runner.run(&run(FORGET_HOME_ROWS)).await.unwrap();
+        enabled(settings, kernel)
+            .run(&run(FORGET_HOME_ROWS))
+            .await
+            .unwrap();
 
-        assert_eq!(
-            *asked.lock().unwrap(),
-            [("forget_home_rows".to_owned(), days)]
-        );
+        let asked: Vec<_> = asked
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|asked| asked.days)
+            .collect();
+        assert_eq!(asked, [days]);
     }
 }
 
 #[tokio::test]
-async fn deleting_expired_sign_ins_asks_the_kernel() {
-    let (runner, asked) = enabled(Settings::default());
+async fn deleting_expired_sign_ins_asks_the_kernel_once() {
+    let deleted = ExpiredSignInsDeleted {
+        devices: 3,
+        invites: 1,
+        ..ExpiredSignInsDeleted::default()
+    };
+    let (kernel, asked) = answering_with::<DeleteExpiredSignIns>(deleted);
 
-    runner.run(&run(DELETE_EXPIRED_SIGN_INS)).await.unwrap();
+    enabled(Settings::default(), kernel)
+        .run(&run(DELETE_EXPIRED_SIGN_INS))
+        .await
+        .unwrap();
 
-    assert_eq!(
-        *asked.lock().unwrap(),
-        [("delete_expired_sign_ins".to_owned(), 0)]
-    );
+    assert_eq!(asked.lock().unwrap().len(), 1);
 }
 
 #[tokio::test]
@@ -138,33 +109,61 @@ async fn forgetting_gone_plugins_asks_the_kernel_with_the_days_set_30_unless_the
         SettingValue::Integer(90),
     )]));
     for (settings, days) in [(Settings::default(), 30), (set, 90)] {
-        let (runner, asked) = enabled(settings);
+        let forgotten = GonePluginsForgotten {
+            plugin_ids: vec!["radarr".to_owned()],
+            ..GonePluginsForgotten::default()
+        };
+        let (kernel, asked) = answering_with::<ForgetGonePlugins>(forgotten);
 
-        runner.run(&run(FORGET_GONE_PLUGINS)).await.unwrap();
+        enabled(settings, kernel)
+            .run(&run(FORGET_GONE_PLUGINS))
+            .await
+            .unwrap();
 
-        assert_eq!(
-            *asked.lock().unwrap(),
-            [("forget_gone_plugins".to_owned(), days)]
-        );
+        let asked: Vec<_> = asked
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|asked| asked.days)
+            .collect();
+        assert_eq!(asked, [days]);
     }
 }
 
 #[tokio::test]
 async fn refreshing_metadata_asks_the_kernel_once() {
-    let (runner, asked) = enabled(Settings::default());
+    let refreshed = MetadataRefreshed {
+        titles: 3,
+        ..MetadataRefreshed::default()
+    };
+    let (kernel, asked) = answering_with::<RefreshMetadata>(refreshed);
 
-    runner.run(&run(REFRESH_METADATA)).await.unwrap();
+    enabled(Settings::default(), kernel)
+        .run(&run(REFRESH_METADATA))
+        .await
+        .unwrap();
 
-    assert_eq!(*asked.lock().unwrap(), [("refresh_metadata".to_owned(), 0)]);
+    assert_eq!(asked.lock().unwrap().len(), 1);
 }
 
 #[tokio::test]
 async fn backing_up_asks_the_kernel_once() {
-    let (runner, asked) = enabled(Settings::default());
+    let (kernel, asked) = answering_with::<BackUp>(backed_up());
 
-    runner.run(&run(BACK_UP)).await.unwrap();
+    enabled(Settings::default(), kernel)
+        .run(&run(BACK_UP))
+        .await
+        .unwrap();
 
-    assert_eq!(*asked.lock().unwrap(), [("back_up".to_owned(), 0)]);
+    assert_eq!(asked.lock().unwrap().len(), 1);
+}
+
+fn backed_up() -> BackedUp {
+    BackedUp {
+        name: "nama-20261121T030000Z.tar".to_owned(),
+        size_bytes: 4096,
+        ..BackedUp::default()
+    }
 }
 
 #[test]
@@ -177,9 +176,11 @@ fn it_requests_the_back_up_permission() {
 
 #[tokio::test]
 async fn a_job_upkeep_doesnt_declare_fails_without_asking_the_kernel() {
-    let (runner, asked) = enabled(Settings::default());
+    let (kernel, asked) = answering_with::<BackUp>(backed_up());
 
-    let failed = runner.run(&run("vacuum")).await;
+    let failed = enabled(Settings::default(), kernel)
+        .run(&run("vacuum"))
+        .await;
 
     assert_eq!(failed.unwrap_err().to_string(), "Upkeep has no Job vacuum");
     assert!(asked.lock().unwrap().is_empty());

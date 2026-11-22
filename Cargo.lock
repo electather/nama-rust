@@ -2193,8 +2193,10 @@ dependencies = [
 name = "nama-plugin-api"
 version = "0.2.0"
 dependencies = [
+ "buffa",
  "nama-plugin-proto",
  "serde",
+ "tokio",
  "url",
 ]
 
@@ -2388,7 +2390,6 @@ dependencies = [
 name = "nama-plugin-upkeep"
 version = "0.1.0"
 dependencies = [
- "buffa",
  "nama-plugin-api",
  "tokio",
  "tracing",

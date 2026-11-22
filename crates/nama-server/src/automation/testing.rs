@@ -5,10 +5,8 @@ use std::{collections::HashSet, fs, path::Path, sync::Arc};
 use buffa::MessageField;
 use nama_plugin_api::{
     PluginId,
-    automation::{
-        DeleteAsked, DeleteStarted, Kernel, KernelRefused, Permission, TitleRef, TitleRefKind,
-        TitlesAsked,
-    },
+    automation::{Kernel, KernelRefused, Permission, functions::DeleteMedia},
+    contract::{DeleteAsked, DeleteStarted, TitleRef, TitleRefKind, TitlesAsked},
     fulfiller::TitleId,
     metadata::{ExternalId, ExternalIds},
 };
@@ -33,10 +31,6 @@ use crate::{
     server_settings::{ServerUrl, Settings},
     users::{self, Permissions, User, Users},
 };
-
-#[path = "../../tests/support/kernel.rs"]
-mod kernel_support;
-pub(super) use kernel_support::ask;
 
 pub(super) const ALIEN_TMDB_ID: i64 = 348;
 
@@ -225,7 +219,7 @@ pub(super) async fn delete(
         title_ref: MessageField::some(title),
         ..DeleteAsked::default()
     };
-    ask(kernel, "delete_media", &asked).await
+    kernel.ask::<DeleteMedia>(asked).await
 }
 
 /// Leaves a row of `plugin`'s in each table `forget_gone_plugins` deletes from, one of them the

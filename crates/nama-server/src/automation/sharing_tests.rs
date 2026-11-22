@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use nama_plugin_api::{
-    automation::{Kernel, KernelRefused, Permission, SharingTitles, TitlesSharingAsked},
-    contract::TitleKind,
+    automation::{Kernel, KernelRefused, Permission, functions::ListTitlesSharing},
+    contract::{SharingTitles, TitleKind, TitlesSharingAsked},
 };
 
 use super::super::{
     Automation,
-    testing::{ALIEN_TMDB_ID, DARK_TMDB_ID, ask, kernel, two_episodes_in_one_file},
+    testing::{ALIEN_TMDB_ID, DARK_TMDB_ID, kernel, two_episodes_in_one_file},
 };
 use crate::{
     db::Database,
@@ -67,7 +67,7 @@ impl Fixture {
             limit,
             ..TitlesSharingAsked::default()
         };
-        let answer: SharingTitles = ask(&self.kernel, "list_titles_sharing", &asked).await?;
+        let answer: SharingTitles = self.kernel.ask::<ListTitlesSharing>(asked).await?;
         Ok((answer.titles.iter())
             .map(|title| title.ids[0].value.clone())
             .collect())
