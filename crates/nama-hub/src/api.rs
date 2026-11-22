@@ -2,6 +2,7 @@
 //! return their own, and this converts (ADR 0099).
 
 mod accounts;
+mod links;
 
 use std::sync::Arc;
 
@@ -11,6 +12,7 @@ use axum::{
     middleware,
     middleware::Next,
     response::{IntoResponse as _, Response},
+    routing::get,
 };
 use buffa::MessageName as _;
 use connectrpc::{
@@ -23,15 +25,25 @@ use nama_hub_proto::nama::hub::v1::{
 use sqlx::PgPool;
 use tracing::Instrument as _;
 
-use crate::{accounts::Accounts, db, mail::Mail};
+use crate::{accounts::Accounts, db, links::Links, mail::Mail, signing::Keys};
 
-use self::accounts::{AccountServiceHandler, COOKIE_NAME};
+use self::{
+    accounts::{AccountServiceHandler, COOKIE_NAME},
+    links::{LinkServiceHandler, LinkedServerServiceHandler, ServerLinkServiceHandler},
+};
 
 /// The Hub's routes: every service, each call in a span of its own, knowing where it came from
-/// through `trusted_proxies` (ADR 0018) and which Account, if any, sent it. Sign-in Links go out
-/// through `mail`, if it is set up.
-pub(crate) fn router(db: PgPool, trusted_proxies: &[IpRange], mail: Option<Mail>) -> axum::Router {
+/// through `trusted_proxies` (ADR 0018) and which Account or Linked Server, if any, sent it, and
+/// the public half of `keys` at `/.well-known/jwks.json`. Sign-in Links go out through `mail`, if
+/// it is set up.
+pub(crate) fn router(
+    db: PgPool,
+    keys: Arc<Keys>,
+    trusted_proxies: &[IpRange],
+    mail: Option<Mail>,
+) -> axum::Router {
     let accounts = Accounts::new(db.clone(), mail);
+    let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys));
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(HubServiceHandler {
             db,
@@ -40,10 +52,27 @@ pub(crate) fn router(db: PgPool, trusted_proxies: &[IpRange], mail: Option<Mail>
         .add_service(Arc::new(AccountServiceHandler {
             accounts: accounts.clone(),
         }))
+        .add_service(Arc::new(ServerLinkServiceHandler {
+            links: links.clone(),
+        }))
+        .add_service(Arc::new(LinkServiceHandler {
+            links: links.clone(),
+        }))
+        .add_service(Arc::new(LinkedServerServiceHandler {
+            links: links.clone(),
+        }))
         .into_axum_service();
+    let jwks = async move || {
+        let jwks = keys.jwks().to_owned();
+        ([(header::CONTENT_TYPE, "application/json")], jwks)
+    };
     axum::Router::new()
+        .route("/.well-known/jwks.json", get(jwks))
         .fallback_service(rpcs)
-        .layer(middleware::from_fn_with_state(accounts, identify_caller))
+        .layer(middleware::from_fn_with_state(
+            Callers { accounts, links },
+            identify_caller,
+        ))
         .layer(middleware::from_fn_with_state(
             Arc::from(trusted_proxies),
             identify_source,
@@ -80,31 +109,46 @@ impl HubService for HubServiceHandler {
     }
 }
 
-/// The Hub's one auth layer: adds the `AccountSession` the request's session cookie names to its
-/// extensions. A request without one is anonymous, and gets none.
+/// What the auth layer looks callers up in.
+#[derive(Clone)]
+struct Callers {
+    accounts: Accounts,
+    links: Links,
+}
+
+/// The Hub's one auth layer: adds to the request's extensions the `AccountSession` its session
+/// cookie names, or the `LinkedServer` its `Authorization: Bearer` credential names. A request
+/// with neither is anonymous, and gets none.
 async fn identify_caller(
-    State(accounts): State<Accounts>,
+    State(callers): State<Callers>,
     mut request: Request,
     next: Next,
 ) -> Response {
-    let token = request
-        .headers()
+    let headers = request.headers();
+    let session_token = headers
         .get_all(header::COOKIE)
         .iter()
         .filter_map(|value| value.to_str().ok())
         .flat_map(|cookies| cookies.split(';'))
-        .find_map(|cookie| cookie.trim().strip_prefix(COOKIE_NAME)?.strip_prefix('='));
-    let Some(token) = token else {
-        return next.run(request).await;
+        .find_map(|cookie| cookie.trim().strip_prefix(COOKIE_NAME)?.strip_prefix('='))
+        .map(str::to_owned);
+    let credential = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok()?.strip_prefix("Bearer "))
+        .map(str::to_owned);
+    let found = match (session_token, credential) {
+        (Some(token), _) => callers.accounts.session(&token).await.map(|session| {
+            session.map(|session| request.extensions_mut().insert(session));
+        }),
+        (None, Some(credential)) => callers.links.server(&credential).await.map(|server| {
+            server.map(|server| request.extensions_mut().insert(server));
+        }),
+        (None, None) => Ok(()),
     };
-    match accounts.session(token).await {
-        Ok(Some(session)) => {
-            request.extensions_mut().insert(session);
-            next.run(request).await
-        }
-        Ok(None) => next.run(request).await,
+    match found {
+        Ok(()) => next.run(request).await,
         Err(err) => {
-            tracing::error!("could not look up a session: {err}");
+            tracing::error!("could not look up a caller: {err}");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
@@ -169,17 +213,19 @@ impl From<Refused> for ConnectError {
 const fn refusal_code(reason: RefusalReason) -> ErrorCode {
     use RefusalReason as R;
     match reason {
-        R::REFUSAL_REASON_SIGN_IN_REQUIRED | R::REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD => {
-            ErrorCode::Unauthenticated
-        }
+        R::REFUSAL_REASON_SIGN_IN_REQUIRED
+        | R::REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD
+        | R::REFUSAL_REASON_SERVER_NOT_LINKED => ErrorCode::Unauthenticated,
+        R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED
+        | R::REFUSAL_REASON_EMAIL_NOT_PROVEN
+        | R::REFUSAL_REASON_SIGN_IN_LINKS_OFF => ErrorCode::FailedPrecondition,
+        R::REFUSAL_REASON_LINK_CODE_NOT_FOUND
+        | R::REFUSAL_REASON_LINK_EXPIRED
+        | R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED => ErrorCode::NotFound,
         R::REFUSAL_REASON_TOO_MANY_ATTEMPTS => ErrorCode::ResourceExhausted,
         R::REFUSAL_REASON_EMAIL_TAKEN => ErrorCode::AlreadyExists,
         R::REFUSAL_REASON_EMAIL_INVALID | R::REFUSAL_REASON_PASSWORD_LENGTH => {
             ErrorCode::InvalidArgument
-        }
-        R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED => ErrorCode::NotFound,
-        R::REFUSAL_REASON_SIGN_IN_LINKS_OFF | R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED => {
-            ErrorCode::FailedPrecondition
         }
         // Never sent; a client sees it only for a reason it doesn't know.
         R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,

@@ -12,15 +12,17 @@ use nama_proto::nama::v1::{
     GetBackupsResponse, GetDefaultHomeLayoutRequest, GetDefaultHomeLayoutResponse,
     GetImageSettingsRequest, GetImageSettingsResponse, GetPlaybackSettingsRequest,
     GetPlaybackSettingsResponse, GetPlaybackStatusRequest, GetPlaybackStatusResponse,
-    GetServerInfoRequest, GetServerInfoResponse, GetServerSettingsRequest,
-    GetServerSettingsResponse, HardwareAcceleration as HardwareAccelerationProto, HomeLayoutRow,
-    ImageStoreSwitch, ListPlaysRequest, ListPlaysResponse, Play, PlaybackMethod, RefusalReason,
-    ServerService, ServerSettings, SetDefaultHomeLayoutRequest, SetDefaultHomeLayoutResponse,
-    StopPlayRequest, StopPlayResponse, SwitchImageStoreRequest, SwitchImageStoreResponse,
-    ToneMapping, TranscodeHardware, UpdateBackupSettingsRequest, UpdateBackupSettingsResponse,
-    UpdateImageSettingsRequest, UpdateImageSettingsResponse, UpdatePlaybackSettingsRequest,
-    UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest, UpdateServerSettingsResponse,
-    home_layout_row::Row as LayoutRow,
+    GetServerInfoRequest, GetServerInfoResponse, GetServerLinkRequest, GetServerLinkResponse,
+    GetServerSettingsRequest, GetServerSettingsResponse,
+    HardwareAcceleration as HardwareAccelerationProto, HomeLayoutRow, ImageStoreSwitch,
+    ListPlaysRequest, ListPlaysResponse, Play, PlaybackMethod, RefusalReason, ServerService,
+    ServerSettings, SetDefaultHomeLayoutRequest, SetDefaultHomeLayoutResponse,
+    StartServerLinkRequest, StartServerLinkResponse, StopPlayRequest, StopPlayResponse,
+    SwitchImageStoreRequest, SwitchImageStoreResponse, ToneMapping, TranscodeHardware,
+    UnlinkServerRequest, UnlinkServerResponse, UpdateBackupSettingsRequest,
+    UpdateBackupSettingsResponse, UpdateImageSettingsRequest, UpdateImageSettingsResponse,
+    UpdatePlaybackSettingsRequest, UpdatePlaybackSettingsResponse, UpdateServerSettingsRequest,
+    UpdateServerSettingsResponse, home_layout_row::Row as LayoutRow,
 };
 
 use crate::{
@@ -39,7 +41,7 @@ use crate::{
     users::Users,
 };
 
-use super::{database_failed, playback::limit_from_proto, refuse, unknown_enum_value};
+use super::{database_failed, playback::limit_from_proto, refuse, server_link, unknown_enum_value};
 
 /// `nama.v1.ServerService`: facts about this Server, its settings, and the ffmpeg it found.
 pub(super) struct ServerServiceHandler {
@@ -66,6 +68,30 @@ pub(super) struct ServerServiceHandler {
               documents; the refined signature isn't visible outside this crate"
 )]
 impl ServerService for ServerServiceHandler {
+    async fn get_server_link(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, GetServerLinkRequest>,
+    ) -> ServiceResult<GetServerLinkResponse> {
+        server_link::get(&self.points).await
+    }
+
+    async fn start_server_link(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, StartServerLinkRequest>,
+    ) -> ServiceResult<StartServerLinkResponse> {
+        server_link::start(&self.points, &self.name).await
+    }
+
+    async fn unlink_server(
+        &self,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, UnlinkServerRequest>,
+    ) -> ServiceResult<UnlinkServerResponse> {
+        server_link::unlink(&self.points).await
+    }
+
     async fn get_server_info(
         &self,
         _ctx: RequestContext,
@@ -723,6 +749,8 @@ const fn tone_mapping_to_proto(tone_mapper: Option<ToneMapper>) -> ToneMapping {
     match tone_mapper {
         None => ToneMapping::TONE_MAPPING_NONE,
         Some(ToneMapper::Hardware) => ToneMapping::TONE_MAPPING_GPU,
-        Some(ToneMapper::Software) => ToneMapping::TONE_MAPPING_SOFTWARE,
+        Some(ToneMapper::Software | ToneMapper::Tonemapx { .. }) => {
+            ToneMapping::TONE_MAPPING_SOFTWARE
+        }
     }
 }

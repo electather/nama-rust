@@ -30,10 +30,13 @@ fn the_hub_keeps_its_structure() {
 const CEILINGS: &[(&str, usize)] = &[];
 
 /// The tables each area owns, each with its owner's path without `.rs`.
-const OWNED_TABLES: &[(&str, &[&str])] = &[(
-    "src/accounts",
-    &["accounts", "account_sessions", "sign_in_links"],
-)];
+const OWNED_TABLES: &[(&str, &[&str])] = &[
+    (
+        "src/accounts",
+        &["accounts", "account_sessions", "sign_in_links"],
+    ),
+    ("src/links", &["linked_servers", "server_link_codes"]),
+];
 
 /// The Hub's modules in rows of who may call whom, highest row first (ADR 0099).
 const ROWS: &[&[&str]] = &[
@@ -54,11 +57,7 @@ const ALLOWED_UPWARD: &[Allowed] = &[];
 
 /// The modules neighbours reach inside an area anyway, each with why re-exporting it would be
 /// wrong. An entry no import uses fails.
-const SURFACE_EXCEPTIONS: &[Exception] = &[(
-    "titles",
-    "import",
-    "`main` calls the function `titles::import`, which titles.rs re-exports under its module's name",
-)];
+const SURFACE_EXCEPTIONS: &[Exception] = &[];
 
 /// The crates only one area may name.
 const CONFINED_CRATES: &[Confined] = &[(

@@ -423,6 +423,9 @@ enum ExtensionPoint {
   EXTENSION_POINT_SEARCH_SOURCE = 15;
   // Says which titles are like a title, for its Similar titles (ADR 0084).
   EXTENSION_POINT_SIMILAR_SOURCE = 16;
+  // Links the Server to an outside service an Admin signs in to there, such as the Hub, through
+  // `ServerService.StartServerLink` (ADR 0011).
+  EXTENSION_POINT_SERVER_LINKER = 17;
 }
 
 // What kind of value a setting takes.

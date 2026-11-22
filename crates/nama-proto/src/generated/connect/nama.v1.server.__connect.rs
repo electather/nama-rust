@@ -118,6 +118,30 @@ pub type OwnedStopPlayRequestView = ::buffa::view::OwnedView<
 pub type OwnedStopPlayResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::StopPlayResponseView<'static>,
 >;
+///Shorthand for `OwnedView<GetServerLinkRequestView<'static>>`.
+pub type OwnedGetServerLinkRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetServerLinkRequestView<'static>,
+>;
+///Shorthand for `OwnedView<GetServerLinkResponseView<'static>>`.
+pub type OwnedGetServerLinkResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetServerLinkResponseView<'static>,
+>;
+///Shorthand for `OwnedView<StartServerLinkRequestView<'static>>`.
+pub type OwnedStartServerLinkRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StartServerLinkRequestView<'static>,
+>;
+///Shorthand for `OwnedView<StartServerLinkResponseView<'static>>`.
+pub type OwnedStartServerLinkResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StartServerLinkResponseView<'static>,
+>;
+///Shorthand for `OwnedView<UnlinkServerRequestView<'static>>`.
+pub type OwnedUnlinkServerRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UnlinkServerRequestView<'static>,
+>;
+///Shorthand for `OwnedView<UnlinkServerResponseView<'static>>`.
+pub type OwnedUnlinkServerResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UnlinkServerResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::v1::GetServerInfoResponse>
 for crate::messages::nama::v1::__buffa::view::GetServerInfoResponseView<'_> {
     fn encode(
@@ -628,6 +652,108 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetServerLinkResponse>
+for crate::messages::nama::v1::__buffa::view::GetServerLinkResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::GetServerLinkResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::GetServerLinkResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::StartServerLinkResponse>
+for crate::messages::nama::v1::__buffa::view::StartServerLinkResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::StartServerLinkResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StartServerLinkResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::UnlinkServerResponse>
+for crate::messages::nama::v1::__buffa::view::UnlinkServerResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::UnlinkServerResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::UnlinkServerResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const SERVER_SERVICE_SERVICE_NAME: &str = "nama.v1.ServerService";
 /// Static [`Spec`](::connectrpc::Spec) for the `GetServerInfo` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -720,6 +846,24 @@ pub const SERVER_SERVICE_STOP_PLAY_SPEC: ::connectrpc::Spec = ::connectrpc::Spec
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `GetServerLink` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SERVER_SERVICE_GET_SERVER_LINK_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.ServerService/GetServerLink",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `StartServerLink` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SERVER_SERVICE_START_SERVER_LINK_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.ServerService/StartServerLink",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `UnlinkServer` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SERVER_SERVICE_UNLINK_SERVER_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.ServerService/UnlinkServer",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Facts about a Server that any client can read, before signing in, and the Server's settings.
 ///
 /// # Implementing handlers
@@ -1152,6 +1296,84 @@ pub trait ServerService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::StopPlayResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Returns whether the Server is Linked, and to which Account, or the code it shows while it
+    /// waits for someone to enter it on the Hub (ADR 0011). Needs `PERMISSION_MANAGE_SETTINGS`. While
+    /// it waits, this is also what has the Plugin ask the Hub whether the code was entered. Without an
+    /// enabled Plugin that links the Server, such as the Hub Plugin, `link` is unset. Fails with
+    /// `unavailable` if the Plugin failed.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn get_server_link<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::GetServerLinkRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::GetServerLinkResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Starts Linking the Server, replacing a code it was showing, and returns the new one. Needs
+    /// `PERMISSION_MANAGE_SETTINGS` and Recent Authentication. Fails with
+    /// `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled Plugin that links the Server, and with
+    /// `unavailable` if the Plugin couldn't start, such as with the Hub unreachable.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn start_server_link<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::StartServerLinkRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::StartServerLinkResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Unlinks the Server, which revokes its identity on the Hub, or stops showing a code. Needs
+    /// `PERMISSION_MANAGE_SETTINGS` and Recent Authentication. Unlinking a Server that isn't Linked
+    /// does nothing. Fails like `StartServerLink`; the Server stays Linked if the Hub couldn't be told.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn unlink_server<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::UnlinkServerRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::UnlinkServerResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1622,6 +1844,93 @@ impl<S: ServerService> ServerServiceExt for S {
                 },
             )
             .with_spec(SERVER_SERVICE_STOP_PLAY_SPEC)
+            .route_view(
+                SERVER_SERVICE_SERVICE_NAME,
+                "GetServerLink",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::GetServerLinkRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::GetServerLinkRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.get_server_link(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::GetServerLinkResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SERVER_SERVICE_GET_SERVER_LINK_SPEC)
+            .route_view(
+                SERVER_SERVICE_SERVICE_NAME,
+                "StartServerLink",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::StartServerLinkRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::StartServerLinkRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.start_server_link(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::StartServerLinkResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SERVER_SERVICE_START_SERVER_LINK_SPEC)
+            .route_view(
+                SERVER_SERVICE_SERVICE_NAME,
+                "UnlinkServer",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::UnlinkServerRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::UnlinkServerRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.unlink_server(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::UnlinkServerResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SERVER_SERVICE_UNLINK_SERVER_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -1764,6 +2073,24 @@ impl<T: ServerService> ::connectrpc::Dispatcher for ServerServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(SERVER_SERVICE_STOP_PLAY_SPEC),
+                )
+            }
+            "GetServerLink" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SERVER_SERVICE_GET_SERVER_LINK_SPEC),
+                )
+            }
+            "StartServerLink" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SERVER_SERVICE_START_SERVER_LINK_SPEC),
+                )
+            }
+            "UnlinkServer" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SERVER_SERVICE_UNLINK_SERVER_SPEC),
                 )
             }
             _ => None,
@@ -2103,6 +2430,72 @@ impl<T: ServerService> ::connectrpc::Dispatcher for ServerServiceServer<T> {
                     svc.stop_play(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::StopPlayResponse>(format)
+                })
+            }
+            "GetServerLink" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::GetServerLinkRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::GetServerLinkRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::GetServerLinkRequest,
+                    >::from_parts(&req, &body);
+                    svc.get_server_link(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::GetServerLinkResponse,
+                        >(format)
+                })
+            }
+            "StartServerLink" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::StartServerLinkRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::StartServerLinkRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::StartServerLinkRequest,
+                    >::from_parts(&req, &body);
+                    svc.start_server_link(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::StartServerLinkResponse,
+                        >(format)
+                })
+            }
+            "UnlinkServer" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::UnlinkServerRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::UnlinkServerRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::UnlinkServerRequest,
+                    >::from_parts(&req, &body);
+                    svc.unlink_server(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::UnlinkServerResponse,
+                        >(format)
                 })
             }
             _ => ::connectrpc::dispatcher::codegen::unimplemented_unary(path),
@@ -2890,6 +3283,141 @@ where
                 &self.transport,
                 &self.config,
                 SERVER_SERVICE_STOP_PLAY_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetServerLink RPC. Sends a request to /nama.v1.ServerService/GetServerLink.
+    pub async fn get_server_link(
+        &self,
+        request: crate::messages::nama::v1::GetServerLinkRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetServerLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_server_link_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the GetServerLink RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_server_link_with_options(
+        &self,
+        request: crate::messages::nama::v1::GetServerLinkRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::GetServerLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SERVER_SERVICE_GET_SERVER_LINK_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the StartServerLink RPC. Sends a request to /nama.v1.ServerService/StartServerLink.
+    pub async fn start_server_link(
+        &self,
+        request: crate::messages::nama::v1::StartServerLinkRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::StartServerLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.start_server_link_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the StartServerLink RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn start_server_link_with_options(
+        &self,
+        request: crate::messages::nama::v1::StartServerLinkRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::StartServerLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SERVER_SERVICE_START_SERVER_LINK_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the UnlinkServer RPC. Sends a request to /nama.v1.ServerService/UnlinkServer.
+    pub async fn unlink_server(
+        &self,
+        request: crate::messages::nama::v1::UnlinkServerRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::UnlinkServerResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.unlink_server_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the UnlinkServer RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn unlink_server_with_options(
+        &self,
+        request: crate::messages::nama::v1::UnlinkServerRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::UnlinkServerResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SERVER_SERVICE_UNLINK_SERVER_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

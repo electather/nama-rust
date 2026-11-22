@@ -8,9 +8,8 @@ use super::{Account, AccountId, AccountSession, Error, new_token, token_hash};
 /// How many days a session lasts after it starts.
 pub(crate) const SESSION_DAYS: i32 = 30;
 
-/// How many minutes after signing in a session has Recent Authentication. Every session starts
-/// at a sign-in, so its age is how long ago it signed in.
-pub(crate) const RECENT_MINUTES: i32 = 10;
+/// How many minutes after signing in a session has Recent Authentication (GLOSSARY.md).
+pub(crate) const RECENT_AUTHENTICATION_MINS: i32 = 10;
 
 /// Starts a session for `account` and returns its token.
 pub(super) async fn start(conn: &mut PgConnection, account: AccountId) -> Result<String, Error> {
@@ -31,12 +30,14 @@ pub(super) async fn start(conn: &mut PgConnection, account: AccountId) -> Result
 pub(super) async fn find(db: &PgPool, token: &str) -> Result<Option<AccountSession>, sqlx::Error> {
     let found = sqlx::query!(
         r#"SELECT account_sessions.id, accounts.id AS account_id, accounts.email,
-           account_sessions.created_at > now() - make_interval(mins => $3) AS "recent!"
+             accounts.email_proven,
+             account_sessions.created_at > now() - make_interval(mins => $3)
+                 AS "authenticated_recently!"
          FROM account_sessions JOIN accounts ON accounts.id = account_sessions.account_id
          WHERE token_hash = $1 AND account_sessions.created_at > now() - make_interval(days => $2)"#,
         &token_hash(token)[..],
         SESSION_DAYS,
-        RECENT_MINUTES,
+        RECENT_AUTHENTICATION_MINS,
     )
     .fetch_optional(db)
     .await?;
@@ -45,8 +46,9 @@ pub(super) async fn find(db: &PgPool, token: &str) -> Result<Option<AccountSessi
             id: AccountId(found.account_id),
             email: found.email,
         },
+        email_proven: found.email_proven,
+        authenticated_recently: found.authenticated_recently,
         id: found.id,
-        recent: found.recent,
     }))
 }
 
@@ -86,7 +88,7 @@ pub(super) async fn lock_while_recent(
              WHERE id = $1 AND created_at > now() - make_interval(mins => $2)
            ) AS "recent!""#,
         session.id,
-        RECENT_MINUTES,
+        RECENT_AUTHENTICATION_MINS,
     )
     .fetch_one(conn)
     .await

@@ -16,7 +16,8 @@ Rules for every web package: the web app at the root, nama-ui, the design system
   - A function that returns a promise is `async`, and awaits rather than chaining `.then`.
   - At most 3 parameters, and JSX nested at most 2 deep, so a component that grows splits.
   - Named regex capture groups, explicit `public`/`private`, `globalThis`, no `reduce`, and no member access straight off an `await`.
-  - Tests compare with `toStrictEqual` and keep setup inside `describe` or the hook functions.
+  - Tests compare objects and arrays with `toStrictEqual`, primitives with `toBe` (`vitest/prefer-to-be`), and keep setup inside `describe` or the hook functions.
+- **File size.** A file holds at most 200 lines, and a test in `__tests__/` 400. Fallow enforces it.
 - **Read `src/AGENTS.md` before you add or move a file under `src/`.** It holds the feature layout and the rules for its folders.
 - **Read refusals by reason.** Choose a field or a reaction from the `Refusal` detail's `reason` and `field`, never from the message, which is only for showing.
 - **Spans carry ids, not words.** A Diagnostics span's name and attributes hold only ids, counts, sizes, durations and outcomes, never a title, file path, name, IP address, search text or an error's message, since the Hub forwards them as they are (ADR 0054). Name a page by its route id, not its URL.

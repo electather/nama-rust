@@ -1,0 +1,339 @@
+//! Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011), the Linked
+//! Server's opaque credential, Unlinking, and the token signed for a Server once it is Linked.
+
+use std::{
+    fmt::{self, Write as _},
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+use serde::Serialize;
+use sha2::{Digest as _, Sha256};
+use sqlx::PgPool;
+use uuid::Uuid;
+
+use crate::{
+    accounts::{AccountId, AccountSession, Accounts},
+    signing::Keys,
+};
+
+/// How long a Server's codes work after it starts.
+pub(crate) const CODE_LIFETIME_MINS: i32 = 10;
+
+/// How long a Server should wait between polls (RFC 8628 suggests 5 seconds).
+pub(crate) const POLL_INTERVAL_SECS: i32 = 5;
+
+/// How many characters of a Server's name are kept.
+const NAME_LENGTH: usize = 100;
+
+/// The letters a code is made of: consonants only, so a code never spells a word, and none that
+/// read alike (RFC 8628, section 6.1).
+const CODE_LETTERS: &[u8] = b"BCDFGHJKLMNPQRSTVWXZ";
+
+/// How many letters a code has: 20^8 codes, against the few waiting at once.
+const CODE_LENGTH: usize = 8;
+
+/// How long the token a newly Linked Server gets stays valid.
+const TOKEN_LIFETIME_SECS: u64 = 5 * 60;
+
+/// A Linked Server's id.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct LinkedServerId(Uuid);
+
+impl fmt::Display for LinkedServerId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+/// A Server calling with its credential: the caller kind `LinkedServerService` serves.
+#[derive(Clone, Debug)]
+pub(crate) struct LinkedServer {
+    pub(crate) id: LinkedServerId,
+}
+
+/// One of an Account's Linked Servers, as its list shows it.
+#[derive(Debug)]
+pub(crate) struct ListedServer {
+    pub(crate) id: LinkedServerId,
+    pub(crate) name: String,
+    /// In seconds since the Unix epoch.
+    pub(crate) linked_at: i64,
+}
+
+/// A Server's codes, just made.
+#[derive(Debug)]
+pub(crate) struct Started {
+    pub(crate) device_code: String,
+    /// As shown, such as `BDFH-JKLM`.
+    pub(crate) user_code: String,
+}
+
+/// What a poll found.
+#[derive(Debug)]
+pub(crate) enum Polled {
+    /// Nobody entered the code yet.
+    Waiting,
+    /// Linked: the credential for every later call, and the token naming the Account.
+    Linked { credential: String, token: String },
+}
+
+/// Why a Link couldn't be made or polled.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum Error {
+    #[error("sign in again to Link a Server")]
+    RecentAuthenticationRequired,
+    #[error("prove your email with a Sign-in Link before Linking a Server")]
+    EmailNotProven,
+    #[error("no Server is waiting on this code")]
+    CodeNotFound,
+    #[error("the code expired; start Linking again")]
+    Expired,
+    #[error("could not generate a code: {0}")]
+    Random(#[from] getrandom::Error),
+    #[error("database error: {0}")]
+    Database(#[from] sqlx::Error),
+}
+
+/// The claims of the token a newly Linked Server gets.
+#[derive(Serialize)]
+struct LinkedClaims<'a> {
+    sub: String,
+    email: &'a str,
+    iat: u64,
+    exp: u64,
+}
+
+/// The Linked Servers and the Servers waiting to be.
+#[derive(Clone)]
+pub(crate) struct Links {
+    db: PgPool,
+    accounts: Accounts,
+    keys: Arc<Keys>,
+}
+
+impl Links {
+    pub(crate) fn new(db: PgPool, accounts: Accounts, keys: Arc<Keys>) -> Self {
+        Self { db, accounts, keys }
+    }
+
+    /// Starts registering a Server named `name`, forgetting every Server whose codes expired, and
+    /// every Linked Server whose codes expired before it collected its credential.
+    pub(crate) async fn start(&self, name: &str) -> Result<Started, Error> {
+        let name: String = name.trim().chars().take(NAME_LENGTH).collect();
+        let device_code = random_token()?;
+        let user_code = random_code()?;
+        let mut tx = self.db.begin().await?;
+        sqlx::query!("DELETE FROM server_link_codes WHERE expires_at < now()")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query!(
+            "DELETE FROM linked_servers WHERE credential_hash IS NULL AND id NOT IN
+             (SELECT linked_server_id FROM server_link_codes WHERE linked_server_id IS NOT NULL)"
+        )
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query!(
+            "INSERT INTO server_link_codes (device_code_hash, user_code, server_name, expires_at)
+             VALUES ($1, $2, $3, now() + make_interval(mins => $4))",
+            &hash(&device_code)[..],
+            user_code,
+            name,
+            CODE_LIFETIME_MINS,
+        )
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        let (first, second) = user_code.split_at(CODE_LENGTH / 2);
+        Ok(Started {
+            user_code: format!("{first}-{second}"),
+            device_code,
+        })
+    }
+
+    /// Makes the Server waiting on `code` a Linked Server of `session`'s Account, if it has Recent
+    /// Authentication and a proven email.
+    pub(crate) async fn approve(
+        &self,
+        session: &AccountSession,
+        code: &str,
+    ) -> Result<ListedServer, Error> {
+        if !session.email_proven {
+            return Err(Error::EmailNotProven);
+        }
+        if !session.authenticated_recently {
+            return Err(Error::RecentAuthenticationRequired);
+        }
+        let code: String = code
+            .chars()
+            .filter(char::is_ascii_alphabetic)
+            .map(|letter| letter.to_ascii_uppercase())
+            .collect();
+        let mut tx = self.db.begin().await?;
+        let waiting = sqlx::query!(
+            "SELECT id, server_name FROM server_link_codes
+             WHERE user_code = $1 AND expires_at > now() AND linked_server_id IS NULL
+             FOR UPDATE",
+            code,
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(Error::CodeNotFound)?;
+        let linked = sqlx::query!(
+            r#"INSERT INTO linked_servers (account_id, name) VALUES ($1, $2)
+             RETURNING id, extract(epoch FROM created_at)::bigint AS "linked_at!""#,
+            session.account.id.0,
+            waiting.server_name,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        sqlx::query!(
+            "UPDATE server_link_codes SET linked_server_id = $1 WHERE id = $2",
+            linked.id,
+            waiting.id,
+        )
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(ListedServer {
+            id: LinkedServerId(linked.id),
+            name: waiting.server_name,
+            linked_at: linked.linked_at,
+        })
+    }
+
+    /// Whether the code of the Server polling with `device_code` was entered. The first poll after
+    /// it was hands out the Server's credential, and forgets the codes.
+    // ponytail: a Server that polls only after its codes expire never collects its credential,
+    // and its row stays on its Account's list until the next Server starts Linking.
+    pub(crate) async fn poll(&self, device_code: &str) -> Result<Polled, Error> {
+        let mut tx = self.db.begin().await?;
+        let device_code_hash = hash(device_code);
+        let linked_server_id = sqlx::query_scalar!(
+            "SELECT linked_server_id FROM server_link_codes
+             WHERE device_code_hash = $1 AND expires_at > now()
+             FOR UPDATE",
+            &device_code_hash[..],
+        )
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(Error::Expired)?;
+        let Some(linked_server_id) = linked_server_id else {
+            return Ok(Polled::Waiting);
+        };
+        let credential = random_token()?;
+        let account_id = sqlx::query_scalar!(
+            "UPDATE linked_servers SET credential_hash = $1 WHERE id = $2 RETURNING account_id",
+            &hash(&credential)[..],
+            linked_server_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        sqlx::query!(
+            "DELETE FROM server_link_codes WHERE device_code_hash = $1",
+            &device_code_hash[..],
+        )
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        // Its Account can't go meanwhile without taking this row along, by its foreign key.
+        let email = self
+            .accounts
+            .email(AccountId(account_id))
+            .await?
+            .unwrap_or_default();
+        let iat = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let token = self.keys.sign(&LinkedClaims {
+            sub: linked_server_id.to_string(),
+            email: &email,
+            iat,
+            exp: iat + TOKEN_LIFETIME_SECS,
+        });
+        Ok(Polled::Linked { credential, token })
+    }
+
+    /// `account`'s Linked Servers, oldest first.
+    pub(crate) async fn list(&self, account: AccountId) -> Result<Vec<ListedServer>, sqlx::Error> {
+        let servers = sqlx::query!(
+            r#"SELECT id, name, extract(epoch FROM created_at)::bigint AS "linked_at!"
+             FROM linked_servers WHERE account_id = $1 ORDER BY created_at, id"#,
+            account.0,
+        )
+        .fetch_all(&self.db)
+        .await?;
+        Ok(servers
+            .into_iter()
+            .map(|server| ListedServer {
+                id: LinkedServerId(server.id),
+                name: server.name,
+                linked_at: server.linked_at,
+            })
+            .collect())
+    }
+
+    /// The Linked Server whose credential is `credential`, if it is still Linked.
+    pub(crate) async fn server(
+        &self,
+        credential: &str,
+    ) -> Result<Option<LinkedServer>, sqlx::Error> {
+        let id = sqlx::query_scalar!(
+            "SELECT id FROM linked_servers WHERE credential_hash = $1",
+            &hash(credential)[..],
+        )
+        .fetch_optional(&self.db)
+        .await?;
+        Ok(id.map(|id| LinkedServer {
+            id: LinkedServerId(id),
+        }))
+    }
+
+    /// Unlinks `server`: its credential stops working at once.
+    pub(crate) async fn unlink(&self, server: &LinkedServer) -> Result<(), sqlx::Error> {
+        sqlx::query!("DELETE FROM linked_servers WHERE id = $1", server.id.0)
+            .execute(&self.db)
+            .await?;
+        Ok(())
+    }
+}
+
+/// 32 random bytes in hex, for a device code or a credential.
+fn random_token() -> Result<String, getrandom::Error> {
+    let mut bytes = [0; 32];
+    getrandom::fill(&mut bytes)?;
+    Ok(bytes.iter().fold(String::new(), |mut hex, byte| {
+        let _infallible = write!(hex, "{byte:02x}");
+        hex
+    }))
+}
+
+/// [`CODE_LENGTH`] random letters of [`CODE_LETTERS`], each as likely as another.
+fn random_code() -> Result<String, getrandom::Error> {
+    // A byte from here up is drawn again, as taking it modulo would favour the first letters.
+    const FAIR: usize = 256 / CODE_LETTERS.len() * CODE_LETTERS.len();
+    let mut code = String::with_capacity(CODE_LENGTH);
+    while code.len() < CODE_LENGTH {
+        let mut byte = [0];
+        getrandom::fill(&mut byte)?;
+        let [byte] = byte.map(usize::from);
+        if byte < FAIR {
+            code.extend(
+                CODE_LETTERS
+                    .get(byte % CODE_LETTERS.len())
+                    .map(|&letter| char::from(letter)),
+            );
+        }
+    }
+    Ok(code)
+}
+
+/// What the database keeps of a device code or credential.
+fn hash(token: &str) -> [u8; 32] {
+    Sha256::digest(token).into()
+}
+
+#[cfg(test)]
+#[path = "links/links_tests.rs"]
+mod tests;

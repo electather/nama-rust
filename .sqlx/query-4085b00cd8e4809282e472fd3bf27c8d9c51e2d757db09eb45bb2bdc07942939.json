@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT mine.file_id AS \"file_id!\" FROM library_items AS mine\n               WHERE mine.id = ?1\n                 AND mine.id = (SELECT id FROM library_items WHERE file_id = mine.file_id\n                                ORDER BY season, episode, id LIMIT 1)",
+  "describe": {
+    "columns": [
+      {
+        "name": "file_id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "library_items",
+            "name": "file_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4085b00cd8e4809282e472fd3bf27c8d9c51e2d757db09eb45bb2bdc07942939"
+}

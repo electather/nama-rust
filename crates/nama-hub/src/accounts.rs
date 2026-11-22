@@ -21,7 +21,7 @@ use crate::mail::Mail;
 pub(crate) use passwords::PASSWORD_LENGTH;
 pub(crate) use rate_limits::Blocked;
 use rate_limits::{CreationLimits, SignInLimits};
-pub(crate) use sessions::{RECENT_MINUTES, SESSION_DAYS};
+pub(crate) use sessions::{RECENT_AUTHENTICATION_MINS, SESSION_DAYS};
 use sign_in_links::Outbox;
 pub(crate) use sign_in_links::{SignInLink, SignedInByLink};
 
@@ -30,7 +30,7 @@ pub(crate) const EMAIL_LENGTH: usize = 254;
 
 /// An Account's id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct AccountId(Uuid);
+pub(crate) struct AccountId(pub(crate) Uuid);
 
 impl fmt::Display for AccountId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -50,9 +50,12 @@ pub(crate) struct Account {
 #[derive(Clone, Debug)]
 pub(crate) struct AccountSession {
     pub(crate) account: Account,
+    /// Whether a Sign-in Link proved the Account owns its email, which Linking needs (ADR 0100).
+    pub(crate) email_proven: bool,
+    /// Whether the session signed in within [`sessions::RECENT_AUTHENTICATION_MINS`]: Recent
+    /// Authentication, which Linking needs.
+    pub(crate) authenticated_recently: bool,
     id: Uuid,
-    /// Whether it has Recent Authentication.
-    recent: bool,
 }
 
 /// An Account just signed in, and the session token its browser presents from now on.
@@ -77,7 +80,7 @@ pub(crate) enum Error {
     PasswordLength,
     #[error(
         "this needs a sign-in in the last {} minutes: sign in again",
-        sessions::RECENT_MINUTES
+        sessions::RECENT_AUTHENTICATION_MINS
     )]
     RecentAuthenticationRequired,
     #[error("no Account has this email and password")]
@@ -200,7 +203,7 @@ impl Accounts {
         session: &AccountSession,
         password: &str,
     ) -> Result<(), Error> {
-        if !session.recent {
+        if !session.authenticated_recently {
             return Err(Error::RecentAuthenticationRequired);
         }
         check_password_length(password)?;
@@ -273,6 +276,13 @@ impl Accounts {
     /// The session `token` names, unless it has ended or expired.
     pub(crate) async fn session(&self, token: &str) -> Result<Option<AccountSession>, sqlx::Error> {
         sessions::find(&self.db, token).await
+    }
+
+    /// The email of the Account `id`, unless it was deleted.
+    pub(crate) async fn email(&self, id: AccountId) -> Result<Option<String>, sqlx::Error> {
+        sqlx::query_scalar!("SELECT email FROM accounts WHERE id = $1", id.0)
+            .fetch_optional(&self.db)
+            .await
     }
 
     /// Ends `session`: its token stops working at once.

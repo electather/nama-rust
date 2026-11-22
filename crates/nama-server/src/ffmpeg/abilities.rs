@@ -17,6 +17,10 @@ pub(crate) struct CanDo {
     pub(crate) runs: bool,
     /// Whether ffmpeg has zscale, which a Transcode tone-maps HDR to SDR with in software.
     pub(crate) zscale: bool,
+    /// Whether ffmpeg has jellyfin-ffmpeg's `tonemapx` and it applies Dolby Vision's RPU, which a
+    /// Transcode tone-maps with in software in place of zscale's, and converts Dolby Vision with
+    /// no Base Layer with (ADR 0102).
+    pub(crate) tonemapx: bool,
     /// Whether ffmpeg has libx264, which a Transcode encodes its video with in software.
     pub(crate) libx264: bool,
     /// The APIs on GPUs that passed their test, in the order Automatic picks.
@@ -40,15 +44,24 @@ impl CanDo {
     }
 
     /// What tone-maps HDR to SDR in a Transcode on `gpu`, or in software for `None`: the GPU if
-    /// it passed tone-mapping, or else zscale if ffmpeg has it.
+    /// it passed tone-mapping, or else `tonemapx`, or else zscale, if ffmpeg has it.
     pub(crate) const fn tone_mapper(&self, gpu: Option<&Hardware>) -> Option<ToneMapper> {
         match gpu {
             Some(Hardware {
                 tone_maps: true, ..
             }) => Some(ToneMapper::Hardware),
+            _ if self.converts_dolby_vision() => Some(ToneMapper::Tonemapx {
+                dolby_vision: false,
+            }),
             _ if self.zscale => Some(ToneMapper::Software),
             _ => None,
         }
+    }
+
+    /// Whether a Transcode converts Dolby Vision with no Base Layer to SDR: with `tonemapx`, and
+    /// zscale, which takes its output to BT.709.
+    pub(crate) const fn converts_dolby_vision(&self) -> bool {
+        self.tonemapx && self.zscale
     }
 }
 
@@ -63,6 +76,7 @@ pub(crate) struct Abilities {
 struct AbilitiesInner {
     ffmpeg: Arc<Ffmpeg>,
     zscale: tokio::sync::OnceCell<bool>,
+    tonemapx: tokio::sync::OnceCell<bool>,
     libx264: tokio::sync::OnceCell<bool>,
     hardware: tokio::sync::OnceCell<Vec<Hardware>>,
     /// The hardware test, so shutting down can wait for it.
@@ -79,6 +93,7 @@ impl Abilities {
             inner: Arc::new(AbilitiesInner {
                 ffmpeg,
                 zscale: tokio::sync::OnceCell::new(),
+                tonemapx: tokio::sync::OnceCell::new(),
                 libx264: tokio::sync::OnceCell::new(),
                 hardware: tokio::sync::OnceCell::new(),
                 tasks: TaskTracker::new(),
@@ -110,14 +125,16 @@ impl Abilities {
     pub(crate) async fn can_do(&self) -> CanDo {
         let ffmpeg = &self.inner.ffmpeg;
         // Together, so a busy host waits out one listing's timeout, not two.
-        let (zscale, libx264, hardware) = tokio::join!(
+        let (zscale, tonemapx, libx264, hardware) = tokio::join!(
             answered_once(&self.inner.zscale, "zscale", ffmpeg.has_zscale()),
+            answered_once(&self.inner.tonemapx, "tonemapx", ffmpeg.has_tonemapx()),
             answered_once(&self.inner.libx264, "libx264", ffmpeg.has_libx264()),
             self.hardware(),
         );
         CanDo {
             runs: ffmpeg.can_remux(),
             zscale,
+            tonemapx,
             libx264,
             hardware: hardware.to_vec(),
             gpus: ffmpeg.gpus.clone(),

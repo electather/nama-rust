@@ -22,7 +22,7 @@ use nama_hub_proto::nama::hub::v1::{
 use super::{hub_failed, refuse};
 use crate::accounts::{
     self, Account, AccountSession, Accounts, Blocked, EMAIL_LENGTH, PASSWORD_LENGTH,
-    RECENT_MINUTES, SESSION_DAYS, SignInLink, SignedIn, SignedInByLink,
+    RECENT_AUTHENTICATION_MINS, SESSION_DAYS, SignInLink, SignedIn, SignedInByLink,
 };
 
 /// The cookie that holds a browser's session token.
@@ -196,7 +196,7 @@ fn client_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
 }
 
 /// The session the request `ctx` is for, or `REFUSAL_REASON_SIGN_IN_REQUIRED`.
-fn signed_in(ctx: &RequestContext) -> Result<&AccountSession, ConnectError> {
+pub(super) fn signed_in(ctx: &RequestContext) -> Result<&AccountSession, ConnectError> {
     ctx.extensions().get::<AccountSession>().ok_or_else(|| {
         refuse(
             RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
@@ -258,7 +258,7 @@ fn refused(err: accounts::Error) -> ConnectError {
             .param("maxLength", PASSWORD_LENGTH.end()),
         E::RecentAuthenticationRequired => {
             refuse(R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED, message)
-                .param("recentMinutes", &RECENT_MINUTES)
+                .param("recentMinutes", &RECENT_AUTHENTICATION_MINS)
         }
         E::WrongEmailOrPassword => refuse(R::REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD, message),
         E::SignInLinksOff => refuse(R::REFUSAL_REASON_SIGN_IN_LINKS_OFF, message),

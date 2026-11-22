@@ -20,7 +20,7 @@ use super::{
 use crate::{
     ffmpeg::{
         Accel, AudioConversion, Gpu, Hardware, Remux, RemuxAudio, ToneMapper, Transcode,
-        TranscodeAudio, VideoConversion,
+        TranscodeAudio, VideoConversion, VideoTag,
     },
     server_settings::HardwareChoice,
 };
@@ -88,7 +88,8 @@ pub(super) fn device_decoding(facts: &Facts, candidates: Option<&Candidates>) ->
 }
 
 /// The step for the Server's ffmpeg: without it, only Direct Play (ADR 0026); without libx264, no
-/// Transcode; and no Transcode of a Dolby Vision picture with no Base Layer.
+/// Transcode; and without `tonemapx`, no Transcode of a Dolby Vision picture with no Base Layer
+/// (ADR 0102).
 pub(super) fn server_ffmpeg(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
     let reason = if !facts.can_do.runs {
         Reason::new(
@@ -102,17 +103,11 @@ pub(super) fn server_ffmpeg(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason
             "This Server's ffmpeg lacks libx264, so it can't Transcode",
         )
         .ruling_out([Method::Transcode])
-    } else if let Some(Hdr::DolbyVision {
-        base_layer: None, ..
-    }) = played_hdr(facts)
-    {
-        // Its picture is in Dolby Vision's own colours, which only a Dolby Vision player knows.
-        // ponytail: Dolby Vision profile 5 stays out of reach: none of the hardware APIs' ffmpeg
-        // filters reshape its colours, which only libplacebo does.
+    } else if !facts.can_do.converts_dolby_vision() && needs_reshaping(facts) {
         Reason::new(
             Kind::PLAYBACK_REASON_KIND_DOLBY_VISION_NEEDS_BASE_LAYER,
-            "This Server can't Transcode a Dolby Vision picture with no Base Layer, as in \
-             profile 5",
+            "This Server's ffmpeg lacks jellyfin-ffmpeg's tonemapx, so it can't Transcode a \
+             Dolby Vision picture with no Base Layer, as in profile 5",
         )
         .ruling_out([Method::Transcode])
     } else {
@@ -121,16 +116,31 @@ pub(super) fn server_ffmpeg(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason
     vec![reason]
 }
 
+/// Whether the played picture is Dolby Vision with no Base Layer, in Dolby Vision's own colours,
+/// which only its RPU reshapes into colours a player without Dolby Vision shows.
+fn needs_reshaping(facts: &Facts) -> bool {
+    matches!(
+        played_hdr(facts),
+        Some(Hdr::DolbyVision {
+            base_layer: None,
+            ..
+        })
+    )
+}
+
 /// What `transcode` goes on with in software if it runs on hardware: the same conversion,
-/// tone-mapping only if ffmpeg has zscale, with the plan's `reasons` but those that no longer
-/// hold, and why it fell back (ADR 0034).
+/// tone-mapping in software if it did on the GPU and ffmpeg can, with the plan's `reasons` but
+/// those that no longer hold, and why it fell back (ADR 0034).
 pub(super) fn fallback(
     facts: &Facts,
     transcode: &Transcode,
     reasons: &[Reason],
 ) -> Option<Fallback> {
     let accel = transcode.video.hardware.as_ref()?.accel;
-    let tone_map = (transcode.video.tone_map).and_then(|_| facts.can_do.tone_mapper(None));
+    let tone_map = match transcode.video.tone_map {
+        Some(ToneMapper::Hardware) => facts.can_do.tone_mapper(None),
+        in_software => in_software,
+    };
     let stops_tone_mapping = tone_map.is_none() && transcode.video.tone_map.is_some();
     let still_holds = |reason: &&Reason| {
         reason.kind != Kind::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE
@@ -167,8 +177,13 @@ pub(super) fn fallback(
 
 /// What tone-maps the played video's HDR to SDR in a Transcode, when the Device can't show it: the
 /// GPU, if a Transcode runs on one that passed its tone-map test and burns nothing in, which
-/// takes the frames off it, or else zscale, if ffmpeg has it.
+/// takes the frames off it, or else software, if ffmpeg can. Dolby Vision with no Base Layer is
+/// always reshaped and tone-mapped by `tonemapx`, whatever the Device shows.
 fn tone_mapper(facts: &Facts) -> Option<ToneMapper> {
+    if needs_reshaping(facts) {
+        return (facts.can_do.converts_dolby_vision())
+            .then_some(ToneMapper::Tonemapx { dolby_vision: true });
+    }
     if facts.device.hdr || played_hdr(facts).and_then(transcoded_hdr).is_none() {
         return None;
     }
@@ -265,13 +280,12 @@ fn fewer_channels(
     )
 }
 
-/// Whether a Transcode tone-maps the played picture to SDR with `tone_map`, when it's HDR the
-/// Device can't show and the Transcode keeps.
+/// Whether a Transcode tone-maps the played picture to SDR with `tone_map`, which only
+/// [`tone_mapper`] sets, or not when it's HDR the Device can't show and the Transcode keeps.
 fn tone_mapping(facts: &Facts, tone_map: Option<ToneMapper>) -> Option<Reason> {
-    let hdr =
-        played_hdr(facts).filter(|&hdr| !facts.device.hdr && transcoded_hdr(hdr).is_some())?;
+    let hdr = played_hdr(facts)?;
     if tone_map.is_none() {
-        return Some(not_tone_mapped(hdr));
+        return (!facts.device.hdr && transcoded_hdr(hdr).is_some()).then(|| not_tone_mapped(hdr));
     }
     let text = format!("Its {} picture is tone-mapped to SDR", hdr_name(hdr));
     Some(hdr_reason(Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED, hdr, text).deciding())
@@ -406,10 +420,12 @@ pub(super) fn remux(facts: &Facts, audio: Option<(usize, &Track)>) -> (Remux, Ve
         }
     });
     let video = facts.probe.as_ref().and_then(played_video);
-    let remux = Remux {
-        audio,
-        hevc: video.is_some_and(|video| video.codec == "hevc"),
+    let video_tag = match (video.map(|video| video.codec.as_str()), played_hdr(facts)) {
+        (Some("hevc"), Some(Hdr::DolbyVision { profile: 5, .. })) => Some(VideoTag::Dvh1),
+        (Some("hevc"), _) => Some(VideoTag::Hvc1),
+        _ => None,
     };
+    let remux = Remux { audio, video_tag };
     (remux, passed_over)
 }
 

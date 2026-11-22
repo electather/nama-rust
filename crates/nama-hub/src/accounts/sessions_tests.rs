@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use sqlx::PgPool;
 
-use super::RECENT_MINUTES;
+use super::RECENT_AUTHENTICATION_MINS;
 use crate::{
     accounts::{Accounts, Error},
     db,
@@ -30,7 +30,7 @@ async fn a_session_signed_in_over_10_minutes_ago_cant_set_the_password(db: PgPoo
 
     sqlx::query!(
         "UPDATE account_sessions SET created_at = now() - make_interval(mins => $1)",
-        RECENT_MINUTES,
+        RECENT_AUTHENTICATION_MINS,
     )
     .execute(&db)
     .await

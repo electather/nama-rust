@@ -32,6 +32,16 @@ pub enum RefusalReason {
     /// `failed_precondition`: the call needs Recent Authentication, which the session lost
     /// `recentMinutes` after it signed in. Signing in again gives it back. Params: `recentMinutes`.
     REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED = 9i32,
+    /// `failed_precondition`: the Account's email isn't proven yet, which only using a Sign-in Link
+    /// sent to it does, and Linking needs it (ADR 0100).
+    REFUSAL_REASON_EMAIL_NOT_PROVEN = 10i32,
+    /// `not_found`: no Server is waiting on this code: it was mistyped, expired or used.
+    REFUSAL_REASON_LINK_CODE_NOT_FOUND = 11i32,
+    /// `not_found`: the device code expired, was used, or never existed. Start again.
+    REFUSAL_REASON_LINK_EXPIRED = 12i32,
+    /// `unauthenticated`: the call needs a Linked Server's credential, and none came or the Hub
+    /// doesn't know it, such as once the Server was Unlinked.
+    REFUSAL_REASON_SERVER_NOT_LINKED = 13i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -64,6 +74,18 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const RecentAuthenticationRequired: Self = Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_EMAIL_NOT_PROVEN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const EmailNotProven: Self = Self::REFUSAL_REASON_EMAIL_NOT_PROVEN;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_LINK_CODE_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const LinkCodeNotFound: Self = Self::REFUSAL_REASON_LINK_CODE_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_LINK_EXPIRED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const LinkExpired: Self = Self::REFUSAL_REASON_LINK_EXPIRED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_SERVER_NOT_LINKED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ServerNotLinked: Self = Self::REFUSAL_REASON_SERVER_NOT_LINKED;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -179,6 +201,12 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
                 )
             }
+            10i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_EMAIL_NOT_PROVEN),
+            11i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_LINK_CODE_NOT_FOUND)
+            }
+            12i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_LINK_EXPIRED),
+            13i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_SERVER_NOT_LINKED),
             _ => ::core::option::Option::None,
         }
     }
@@ -203,6 +231,12 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED => {
                 "REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED"
             }
+            Self::REFUSAL_REASON_EMAIL_NOT_PROVEN => "REFUSAL_REASON_EMAIL_NOT_PROVEN",
+            Self::REFUSAL_REASON_LINK_CODE_NOT_FOUND => {
+                "REFUSAL_REASON_LINK_CODE_NOT_FOUND"
+            }
+            Self::REFUSAL_REASON_LINK_EXPIRED => "REFUSAL_REASON_LINK_EXPIRED",
+            Self::REFUSAL_REASON_SERVER_NOT_LINKED => "REFUSAL_REASON_SERVER_NOT_LINKED",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -241,6 +275,18 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
                 )
             }
+            "REFUSAL_REASON_EMAIL_NOT_PROVEN" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_EMAIL_NOT_PROVEN)
+            }
+            "REFUSAL_REASON_LINK_CODE_NOT_FOUND" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_LINK_CODE_NOT_FOUND)
+            }
+            "REFUSAL_REASON_LINK_EXPIRED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_LINK_EXPIRED)
+            }
+            "REFUSAL_REASON_SERVER_NOT_LINKED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SERVER_NOT_LINKED)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -256,6 +302,10 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED,
             Self::REFUSAL_REASON_SIGN_IN_LINKS_OFF,
             Self::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
+            Self::REFUSAL_REASON_EMAIL_NOT_PROVEN,
+            Self::REFUSAL_REASON_LINK_CODE_NOT_FOUND,
+            Self::REFUSAL_REASON_LINK_EXPIRED,
+            Self::REFUSAL_REASON_SERVER_NOT_LINKED,
         ]
     }
 }

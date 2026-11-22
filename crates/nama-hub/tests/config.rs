@@ -73,6 +73,23 @@ fn the_environment_lists_the_trusted_proxies_and_none_are_trusted_by_default() {
 }
 
 #[test]
+fn the_environment_holds_the_signing_keys_as_pem_blocks() {
+    let pems = "-----BEGIN PRIVATE KEY-----\n\
+                MC4CAQAwBQYDK2VwBCIEIJzJDsQn3SpQXPoFGl74lUI4L+huggYWuNcSt9vaCwTS\n\
+                -----END PRIVATE KEY-----\n";
+    Jail::expect_with(|jail| {
+        jail.set_env("NAMA_HUB_DATABASE_URL", "postgres://hub@db/hub");
+        jail.set_env("NAMA_HUB_SIGNING_KEYS", pems);
+
+        let config = Config::load().unwrap();
+
+        nama_hub::signing::Keys::from_pems(&config.signing_keys).unwrap();
+        assert!(!format!("{config:?}").contains("MC4C"));
+        Ok(())
+    });
+}
+
+#[test]
 fn a_resend_key_without_the_public_url_or_sender_refuses_to_load_naming_it() {
     Jail::expect_with(|jail| {
         jail.set_env("NAMA_HUB_DATABASE_URL", "postgres://hub@db/hub");
