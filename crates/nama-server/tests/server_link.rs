@@ -2,6 +2,9 @@
 //! here an in-process one scripted by each test, and a Server without one, which has nothing to
 //! Link.
 
+#[expect(dead_code, reason = "this binary only counts logged lines")]
+#[path = "support/log.rs"]
+mod log;
 #[path = "support/refused.rs"]
 mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
@@ -9,7 +12,7 @@ mod refused;
 mod server;
 
 use std::{
-    future, io,
+    future,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
@@ -17,6 +20,7 @@ use connectrpc::{
     ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient},
 };
+use log::Log;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     server_link::{Link, ServerLinker},
@@ -362,17 +366,9 @@ async fn a_user_is_deleted_without_a_plugin_that_links_the_server() {
     delete(&server, grace.id).await.unwrap();
 }
 
-/// The subscriber is global, because a thread-local one races with other tests over which
-/// callsites are enabled, so it also sees what the other tests here log.
 #[tokio::test]
 async fn a_plugin_that_cant_unlink_a_deleted_user_leaves_them_deleted_and_warns() {
-    let log = Log::default();
-    let writer = log.clone();
-    let subscriber = tracing_subscriber::fmt()
-        .with_ansi(false)
-        .with_writer(move || writer.clone())
-        .finish();
-    tracing::subscriber::set_global_default(subscriber).unwrap();
+    let log = Log::global();
     let linker = Scripted::default();
     linker.script().unlink_user_fails = true;
     let server = with_linker(&linker).await;
@@ -387,37 +383,5 @@ async fn a_plugin_that_cant_unlink_a_deleted_user_leaves_them_deleted_and_warns(
         .into_owned()
         .users;
     assert!(listed.iter().all(|user| user.id != grace.id));
-    let logged = log.contents();
-    let user = format!("user={}", grace.id);
-    assert!(
-        logged
-            .lines()
-            .any(|line| line.contains("could not Unlink a deleted User")
-                && line.split_whitespace().any(|field| field == user)),
-        "no warning: {logged}"
-    );
-}
-
-/// Everything logged through a subscriber that writes here.
-#[derive(Clone, Default)]
-struct Log(Arc<Mutex<Vec<u8>>>);
-
-impl Log {
-    fn contents(&self) -> String {
-        String::from_utf8_lossy(&self.0.lock().unwrap_or_else(PoisonError::into_inner)).into_owned()
-    }
-}
-
-impl io::Write for Log {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .extend_from_slice(buf);
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
+    assert_eq!(log.count(&["could not Unlink a deleted User", "linker"]), 1);
 }

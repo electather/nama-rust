@@ -88,8 +88,8 @@ pub(super) async fn unlink_user(
     Response::ok(UnlinkUserResponse::default())
 }
 
-/// Unlinks the User `user_id`, just deleted, if Linked, so the service forgets them too. A
-/// failure is logged, not answered: the User is gone either way, and the service being
+/// Unlinks the User `user_id`, just deleted, so the service forgets their Link or waiting code
+/// too. A failure is logged, not answered: the User is gone either way, and the service being
 /// unreachable mustn't fail their delete.
 pub(super) async fn unlink_deleted_user(points: &ExtensionPoints, user_id: i64) {
     let unlinked = points
