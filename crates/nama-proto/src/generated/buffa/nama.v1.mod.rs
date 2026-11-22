@@ -445,6 +445,10 @@ pub mod __buffa {
         reg.register_json_any(super::__ACCEPT_INVITE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__POLL_SIGN_IN_CODE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__POLL_SIGN_IN_CODE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__START_ACCOUNT_SIGN_IN_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__START_ACCOUNT_SIGN_IN_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SIGN_IN_WITH_ACCOUNT_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SIGN_IN_WITH_ACCOUNT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_USER_LINK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_USER_LINK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__USER_LINK_JSON_ANY);
@@ -454,6 +458,8 @@ pub mod __buffa {
         reg.register_json_any(super::__UNLINK_USER_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__CREATE_USER_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CREATE_USER_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__CREATE_USER_FROM_ACCOUNT_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__CREATE_USER_FROM_ACCOUNT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_USERS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_USERS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_PERMISSIONS_REQUEST_JSON_ANY);
@@ -1965,6 +1971,22 @@ pub use self::__buffa::view::PollSignInCodeResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::PollSignInCodeResponseOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::StartAccountSignInRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StartAccountSignInRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartAccountSignInResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StartAccountSignInResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithAccountRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithAccountRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithAccountResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithAccountResponseOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::GetUserLinkRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::GetUserLinkRequestOwnedView;
@@ -2000,6 +2022,14 @@ pub use self::__buffa::view::CreateUserRequestOwnedView;
 pub use self::__buffa::view::CreateUserResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::CreateUserResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateUserFromAccountRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateUserFromAccountRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateUserFromAccountResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateUserFromAccountResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListUsersRequestView;
 #[doc(inline)]

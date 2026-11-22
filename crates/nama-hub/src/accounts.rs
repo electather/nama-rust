@@ -285,6 +285,17 @@ impl Accounts {
             .await
     }
 
+    /// The Account whose email is `email`, compared without regard to case, if there is one.
+    pub(crate) async fn with_email(&self, email: &str) -> Result<Option<AccountId>, sqlx::Error> {
+        let found = sqlx::query!(
+            "SELECT id, email FROM accounts WHERE lower(email) = lower($1)",
+            email,
+        )
+        .fetch_optional(&self.db)
+        .await?;
+        Ok(found.map(|found| AccountId(found.id)))
+    }
+
     /// Ends `session`: its token stops working at once.
     pub(crate) async fn sign_out(&self, session: &AccountSession) -> Result<(), sqlx::Error> {
         sessions::end(&self.db, session).await

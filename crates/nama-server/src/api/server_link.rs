@@ -1,6 +1,7 @@
 //! Linking the Server, and its Users, through the enabled Plugin that links it, such as the Hub
 //! Plugin (ADR 0011, ADR 0094): `ServerService`'s `GetServerLink`, `StartServerLink` and
-//! `UnlinkServer`, and `UserService`'s `GetUserLink`, `StartUserLink` and `UnlinkUser`.
+//! `UnlinkServer`, `UserService`'s `GetUserLink`, `StartUserLink`, `UnlinkUser` and
+//! `CreateUserFromAccount`, and `SignInService`'s sign-in with an Account (ADR 0092).
 
 use std::future::Future;
 
@@ -10,13 +11,27 @@ use nama_plugin_api::{
     server_link::{Link, ServerLinker},
 };
 use nama_proto::nama::v1::{
-    self as proto, GetServerLinkResponse, GetUserLinkResponse, RefusalReason,
-    StartServerLinkResponse, StartUserLinkResponse, UnlinkServerResponse, UnlinkUserResponse,
+    self as proto, CreateUserFromAccountResponse, GetServerLinkResponse, GetUserLinkResponse,
+    RefusalReason, StartAccountSignInResponse, StartServerLinkResponse, StartUserLinkResponse,
+    UnlinkServerResponse, UnlinkUserResponse,
 };
 use tracing::Instrument;
 
 use super::refuse;
-use crate::{diagnostics, plugins::ExtensionPoints, users::User};
+use crate::{
+    diagnostics,
+    plugins::ExtensionPoints,
+    users::{User, Users},
+};
+
+/// What `unavailable` says when the Plugin that links the Server fails.
+const LINKING_FAILED: &str = "the Plugin that links the Server failed; its page says why";
+
+/// What `unavailable` says when a sign-in with an Account fails, such as while the Hub is down. A
+/// Device already signed in never needs the Hub (ADR 0092).
+const ACCOUNT_SIGN_IN_FAILED: &str = "Signing in with an Account needs the Hub, which can't be \
+                                      reached right now. Sign in with your password, or try \
+                                      again later.";
 
 /// Where Linking stands, unset without an enabled Plugin that links the Server.
 pub(super) async fn get(points: &ExtensionPoints) -> ServiceResult<GetServerLinkResponse> {
@@ -89,6 +104,103 @@ pub(super) async fn unlink_user(
     Response::ok(UnlinkUserResponse::default())
 }
 
+/// Creates a User named `name` from the Account with `email`, as `by` asks: the User, then asking
+/// the Account to accept them. A User the service couldn't be asked about is deleted again.
+pub(super) async fn create_user_from_account(
+    points: &ExtensionPoints,
+    users: &Users,
+    by: &User,
+    name: &str,
+    email: &str,
+) -> ServiceResult<CreateUserFromAccountResponse> {
+    let (points, users, by) = (points.clone(), users.clone(), by.clone());
+    let (name, email) = (name.to_owned(), email.to_owned());
+    // Spawned, so a client that leaves mid-way can't drop it between creating the User and
+    // deleting them again, which would leave a User with no way to sign in.
+    let created = tokio::spawn(async move {
+        let id = users.create_from_account(&by, &name).await?;
+        let invited = ask_or(
+            &points,
+            "the Server couldn't ask the Hub, so no User was created; try again later",
+            async |linker| linker.invite_user(id, name.trim(), &email).await,
+        )
+        .await
+        .and_then(|invited| invited.ok_or_else(no_linker));
+        if let Err(err) = invited {
+            if let Err(not_deleted) = users.delete(&by, id).await {
+                tracing::error!(
+                    user = id,
+                    "could not delete a User the Hub wasn't told of: {not_deleted}"
+                );
+            }
+            return Err(err);
+        }
+        Ok::<_, ConnectError>(id)
+    })
+    .await
+    .map_err(|panicked| {
+        tracing::error!("creating a User from an Account panicked: {panicked}");
+        ConnectError::internal("the Server failed to create the User")
+    })??;
+    Response::ok(CreateUserFromAccountResponse {
+        id: created,
+        ..Default::default()
+    })
+}
+
+/// Whether the Server is Linked, so its Users can sign in with their Accounts. A Plugin that fails
+/// to say counts as not Linked, and the sign-in page offers passwords alone.
+pub(super) async fn account_sign_in(points: &ExtensionPoints) -> bool {
+    let link = ask(points, async |linker| linker.link().await).await;
+    matches!(link, Ok(Some(Link::Linked { .. })))
+}
+
+/// Starts signing in with an Account, which the service sends back to `return_url`.
+pub(super) async fn start_account_sign_in(
+    points: &ExtensionPoints,
+    return_url: &str,
+) -> ServiceResult<StartAccountSignInResponse> {
+    // The Hub refuses any other, but its refusal would reach the client as the Hub failing.
+    if !is_web_address(return_url) {
+        return Err(refuse(
+            RefusalReason::REFUSAL_REASON_NOT_A_URL,
+            "the return URL must be an http or https URL",
+        )
+        .field("return_url")
+        .into());
+    }
+    let started = ask_or(points, ACCOUNT_SIGN_IN_FAILED, async |linker| {
+        linker.start_account_sign_in(return_url).await
+    })
+    .await?
+    .ok_or_else(no_linker)?;
+    Response::ok(StartAccountSignInResponse {
+        url: started.url,
+        handle: started.handle,
+        ..Default::default()
+    })
+}
+
+/// The id of the User the sign-in with an Account `handle` stands for, once it was approved.
+pub(super) async fn account_signing_in(
+    points: &ExtensionPoints,
+    handle: &str,
+) -> Result<i64, ConnectError> {
+    ask_or(points, ACCOUNT_SIGN_IN_FAILED, async |linker| {
+        linker.finish_account_sign_in(handle).await
+    })
+    .await?
+    .ok_or_else(no_linker)?
+    .ok_or_else(|| {
+        refuse(
+            RefusalReason::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND,
+            "the sign-in wasn't approved on the Hub, or it expired; start again",
+        )
+        .field("handle")
+        .into()
+    })
+}
+
 /// Unlinks the User `user_id`, just deleted, so the service forgets their Link or waiting code
 /// too, without waiting for it. A failure is logged, not answered: the User is gone either way,
 /// and the service being unreachable mustn't fail or hold up their delete (#1919). Must be called
@@ -127,13 +239,30 @@ async fn ask<R, F>(
 where
     F: Future<Output = Result<R, PluginError>>,
 {
+    ask_or(points, LINKING_FAILED, call).await
+}
+
+/// [`ask`], answering a failure `unavailable` with `unavailable` as its message.
+async fn ask_or<R, F>(
+    points: &ExtensionPoints,
+    unavailable: &'static str,
+    call: impl Fn(std::sync::Arc<dyn ServerLinker>) -> F,
+) -> Result<Option<R>, ConnectError>
+where
+    F: Future<Output = Result<R, PluginError>>,
+{
     let Some(answer) = points.ask_first::<dyn ServerLinker, _, _, _, _>(call).await else {
         return Ok(None);
     };
     answer.result.map(Some).map_err(|failure| {
         tracing::warn!(plugin = %answer.plugin, "Linking failed: {}", failure.message);
-        ConnectError::unavailable("the Plugin that links the Server failed; its page says why")
+        ConnectError::unavailable(unavailable)
     })
+}
+
+/// Whether `url` is an `http` or `https` URL with a host.
+fn is_web_address(url: &str) -> bool {
+    url::Url::parse(url).is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.has_host())
 }
 
 fn no_linker() -> ConnectError {

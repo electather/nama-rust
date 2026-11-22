@@ -1,17 +1,19 @@
 ## Links
 
-Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011), its credential, its Server Addresses, Unlinking, and the tokens signed for Servers (ADR 0099); and Linking a Linked Server's Users to Accounts (`users.rs`).
+Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011), its credential, its Server Addresses, Unlinking, and the tokens signed for Servers (ADR 0099); Linking a Linked Server's Users to Accounts (`users.rs`), Users created from an Account (`invites.rs`), and signing in to a Linked Server with an Account (`server_sign_ins.rs`).
 
-- **One owner.** Only this area reads or writes `linked_servers`, `server_link_codes`, `user_links` and `user_link_codes`, tests included.
+- **One owner.** Only this area reads or writes `linked_servers`, `server_link_codes`, `user_links`, `user_link_codes`, `user_invites` and `server_sign_ins`, tests included.
 - **The Server polls; the Hub never calls it**, but to check its public port. A Server starts with a device code it keeps and a code a person enters. Entering it makes the Linked Server; the Server's next poll collects its credential and deletes the codes.
 - **Credentials are opaque** (ADR 0098): 32 random bytes, stored only as their SHA-256 hash, revoked by deleting the row. The token a Server gets with it is the only thing signed, so it can check which Account it is Linked to.
 - **A User Links like a Server**, but their Server asks with its credential, so a User's code needs no device code: the Server asks `GetUserLink` until it is entered. A User Links to one Account, and an Account to Users on many Servers. Unlinking a Server Unlinks its Users.
 - **Server Addresses come from the Server**, which reports them as they change. The Hub keeps only the last ones, and checks each is an `http` or `https` URL, since its pages link to them. Clients reach Servers there themselves: the Hub never proxies a call or media (ADR 0094).
 - **The public port is checked where the report came from** (ADR 0057): the Hub opens a TCP connection to the request's own IP address, never one the Server names, so a Server can't have the Hub call anyone else, and sends nothing on it. Addresses go best first: the Server URL, the public address only if reached, then the LAN ones.
-- **Only a proven email Links** (ADR 0100), Servers and Users alike, and only from a session with Recent Authentication.
+- **Only a proven email Links** (ADR 0100), Servers and Users alike, accepting a User created from the Account included, and only from a session with Recent Authentication.
+- **Inviting reveals nothing** (ADR 0092): asking an email with no Account answers as one with an Account does.
+- **A sign-in is a device flow too.** The Server polls with a device code it got over its credential; the Account approves on the page for the sign-in's id. The token names the User through their Link, `aud` the Linked Server, and is handed out once. The page navigates to the return address, so only `http` and `https` ones are kept.
 - **Scoped by Account** (ADR 0097): an Account lists only the Linked Servers it owns or has a User on, lists and Unlinks only its own Linked Users, and a Linked Server Unlinks only itself and its own Users.
 
 ### Neighbours
 
-- Uses: `accounts` (an `AccountSession`'s proven email and Recent Authentication, an Account's email) and `signing` (the token).
+- Uses: `accounts` (an `AccountSession`'s proven email and Recent Authentication, an Account's email, the Account with an email) and `signing` (the token).
 - Used by: `api`, whose auth layer turns a bearer credential into a `LinkedServer`, and which converts what `links.rs` re-exports, and `diagnostics` (`LinkedServerId`, each Server's volume).

@@ -15,13 +15,22 @@ import "nama/v1/sign_in.proto";
 // User with it, grant it, put it in the default Permissions or create a User while they hold it, or
 // set their own Permissions; others fail with `permission_denied` and a Refusal naming
 // `PERMISSION_ADMIN`. `ChangePassword`, `ResetPassword`, `SetPermissions`, `SetDefaultPermissions`,
-// `DeleteUser` and `StartUserLink` also need Recent Authentication, as `SignInService` describes.
+// `DeleteUser`, `StartUserLink` and `CreateUserFromAccount` also need Recent Authentication, as
+// `SignInService` describes.
 // RPCs name Users by ID, not by name.
 service UserService {
   // Creates a User, who can sign in at once, with the default Permissions as they are now. Fails
   // with `invalid_argument` if the name or the password breaks the rules, and `already_exists` if
   // another User has the name, ignoring case.
   rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  // Creates a User from a Hub Account, with the default Permissions as they are now, on a Server
+  // Linked to the Hub (ADR 0092). They have no password: the Account with `email` accepts them on
+  // the Hub, which Links them to it, and from then on they sign in with it. It answers the same
+  // whether or not an Account has the email. Fails like `CreateUser` for the name, with
+  // `failed_precondition` and `REFUSAL_REASON_NO_SERVER_LINKER`, creating no User, without an
+  // enabled Plugin that links the Server, and with `unavailable`, creating no User, while the
+  // Server isn't Linked or the Hub can't be reached.
+  rpc CreateUserFromAccount(CreateUserFromAccountRequest) returns (CreateUserFromAccountResponse);
   // Lists every User on the Server, oldest first.
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -223,6 +232,18 @@ message CreateUserRequest {
 }
 
 message CreateUserResponse {
+  // The new User's ID.
+  int64 id = 1;
+}
+
+message CreateUserFromAccountRequest {
+  // As `CreateUserRequest.name`.
+  string name = 1;
+  // The email of the Account to create the User from, in any case.
+  string email = 2;
+}
+
+message CreateUserFromAccountResponse {
   // The new User's ID.
   int64 id = 1;
 }

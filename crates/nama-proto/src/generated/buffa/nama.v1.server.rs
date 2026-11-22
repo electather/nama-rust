@@ -2388,6 +2388,17 @@ pub struct GetServerInfoResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub exports_diagnostics: bool,
+    /// Whether the Server is Linked to the Hub, so its Users can sign in with their Accounts
+    /// (`SignInService.StartAccountSignIn`).
+    ///
+    /// Field 7: `account_sign_in`
+    #[serde(
+        rename = "accountSignIn",
+        alias = "account_sign_in",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub account_sign_in: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2400,6 +2411,7 @@ impl ::core::fmt::Debug for GetServerInfoResponse {
             .field("setup_required", &self.setup_required)
             .field("image_widths", &self.image_widths)
             .field("exports_diagnostics", &self.exports_diagnostics)
+            .field("account_sign_in", &self.account_sign_in)
             .finish()
     }
 }
@@ -2450,6 +2462,9 @@ impl ::buffa::Message for GetServerInfoResponse {
         if self.exports_diagnostics {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if self.account_sign_in {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2482,6 +2497,9 @@ impl ::buffa::Message for GetServerInfoResponse {
         }
         if self.exports_diagnostics {
             ::buffa::types::put_bool_field(5u32, self.exports_diagnostics, buf);
+        }
+        if self.account_sign_in {
+            ::buffa::types::put_bool_field(7u32, self.account_sign_in, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2564,6 +2582,13 @@ impl ::buffa::Message for GetServerInfoResponse {
                 )?;
                 self.exports_diagnostics = ::buffa::types::decode_bool(buf)?;
             }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.account_sign_in = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2577,6 +2602,7 @@ impl ::buffa::Message for GetServerInfoResponse {
         self.setup_required = false;
         self.image_widths.clear();
         self.exports_diagnostics = false;
+        self.account_sign_in = false;
         self.__buffa_unknown_fields.clear();
     }
 }

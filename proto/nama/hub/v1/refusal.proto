@@ -61,4 +61,15 @@ enum RefusalReason {
   // characters, the Server reported more than `maxLanAddresses` LAN addresses, or a public port
   // over `maxPort`. Params: `maxLength`, `maxLanAddresses` and `maxPort`.
   REFUSAL_REASON_SERVER_ADDRESS_INVALID = 15;
+  // `not_found`: the signed-in Account has no such User waiting for it: it was accepted already,
+  // or its Server Unlinked it.
+  REFUSAL_REASON_USER_INVITE_NOT_FOUND = 16;
+  // `not_found`: the sign-in expired, was approved already, or never existed. Start again on the
+  // Server.
+  REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND = 17;
+  // `failed_precondition`: the signed-in Account has no User Linked on that Server, so it can't
+  // sign in to it.
+  REFUSAL_REASON_NO_USER_ON_SERVER = 18;
+  // `invalid_argument`: the field isn't an `http` or `https` address.
+  REFUSAL_REASON_URL_INVALID = 19;
 }

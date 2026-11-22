@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT EXISTS (SELECT 1 FROM users WHERE permissions & ? != 0) AS \"any!: bool\"",
+  "query": "SELECT EXISTS (SELECT 1 FROM users u WHERE u.permissions & ? != 0\n               AND EXISTS (SELECT 1 FROM sign_in_methods m WHERE m.user_id = u.id))\n               AS \"any!: bool\"",
   "describe": {
     "columns": [
       {
@@ -17,5 +17,5 @@
       false
     ]
   },
-  "hash": "c6ebdf1a56ca9b82216468dc25ebcf33e05d9e079852fc2042eb0e475d855df8"
+  "hash": "b4babcdf92843ec55e6d70c8614c4ed6919ddf045ace9217ff827b4b5fef5351"
 }

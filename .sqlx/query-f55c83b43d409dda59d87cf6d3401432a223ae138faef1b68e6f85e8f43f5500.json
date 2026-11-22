@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO sign_in_methods\n                               (user_id, provider_id, subject, credential, name, created_at,\n                                updated_at)\n                           VALUES (?, 'test', ?, '', 'Test', 0, 0)\n                           RETURNING id AS \"id!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "sign_in_methods",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "f55c83b43d409dda59d87cf6d3401432a223ae138faef1b68e6f85e8f43f5500"
+}

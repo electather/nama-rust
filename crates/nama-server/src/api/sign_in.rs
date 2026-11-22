@@ -15,24 +15,30 @@ use nama_proto::nama::v1::{
     LookUpSignInCodeRequest, LookUpSignInCodeResponse, PollSignInCodeRequest,
     PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse, RefusalReason,
     SessionDelivery, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse,
-    SignInService, SignOutRequest, SignOutResponse, StartSignInCodeRequest,
+    SignInService, SignInWithAccountRequest, SignInWithAccountResponse, SignOutRequest,
+    SignOutResponse, StartAccountSignInRequest, StartAccountSignInResponse, StartSignInCodeRequest,
     StartSignInCodeResponse, WhoAmIRequest, WhoAmIResponse, reauthenticate_request::Proof,
 };
 
-use crate::users::{
-    self, Blocked, Caller, Delivery, NewDevice, Polled, SignIn, SignInCodeError, SignInError,
-    SignedIn, session_cookie,
+use crate::{
+    plugins::ExtensionPoints,
+    users::{
+        self, Blocked, Caller, Delivery, NewDevice, Polled, SignIn, SignInCodeError, SignInError,
+        SignedIn, session_cookie,
+    },
 };
 use nama_forwarded::RequestSource;
 
 use super::{
-    caller, database_failed, refuse, signed_out, unknown_enum_value,
+    caller, database_failed, refuse, server_link, signed_out, unknown_enum_value,
     users::{device_to_proto, user_to_proto},
 };
 
 /// `nama.v1.SignInService`: signing Devices in, and saying who is signed in.
 pub(super) struct SignInServiceHandler {
     pub(super) sign_in: SignIn,
+    /// The Plugin that links the Server, through which a User signs in with their Account.
+    pub(super) points: ExtensionPoints,
 }
 
 #[expect(
@@ -262,6 +268,37 @@ impl SignInService for SignInServiceHandler {
             delivery,
             &ctx,
             |caller, token| AcceptInviteResponse {
+                user: user_to_proto(caller.user).into(),
+                device: device_to_proto(caller.device, true).into(),
+                token,
+                ..Default::default()
+            },
+        ))
+    }
+
+    async fn start_account_sign_in(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, StartAccountSignInRequest>,
+    ) -> ServiceResult<StartAccountSignInResponse> {
+        server_link::start_account_sign_in(&self.points, request.return_url).await
+    }
+
+    async fn sign_in_with_account(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SignInWithAccountRequest>,
+    ) -> ServiceResult<SignInWithAccountResponse> {
+        let request = request.to_owned_message();
+        let delivery = delivery(request.delivery)?;
+        let device = new_device(request.device_name, &ctx)?;
+        let user = server_link::account_signing_in(&self.points, &request.handle).await?;
+        let signed_in = self.sign_in.sign_in_with_account(user, device).await?;
+        Ok(hand_out_session(
+            signed_in,
+            delivery,
+            &ctx,
+            |caller, token| SignInWithAccountResponse {
                 user: user_to_proto(caller.user).into(),
                 device: device_to_proto(caller.device, true).into(),
                 token,

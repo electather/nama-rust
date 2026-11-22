@@ -263,14 +263,18 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SERVER_NOT_LINKED => ErrorCode::Unauthenticated,
         R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED
         | R::REFUSAL_REASON_EMAIL_NOT_PROVEN
-        | R::REFUSAL_REASON_SIGN_IN_LINKS_OFF => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_SIGN_IN_LINKS_OFF
+        | R::REFUSAL_REASON_NO_USER_ON_SERVER => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_LINK_CODE_NOT_FOUND
         | R::REFUSAL_REASON_LINK_EXPIRED
-        | R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED => ErrorCode::NotFound,
+        | R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED
+        | R::REFUSAL_REASON_USER_INVITE_NOT_FOUND
+        | R::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND => ErrorCode::NotFound,
         R::REFUSAL_REASON_TOO_MANY_ATTEMPTS => ErrorCode::ResourceExhausted,
         R::REFUSAL_REASON_EMAIL_TAKEN | R::REFUSAL_REASON_USER_LINKED => ErrorCode::AlreadyExists,
         R::REFUSAL_REASON_EMAIL_INVALID
         | R::REFUSAL_REASON_PASSWORD_LENGTH
+        | R::REFUSAL_REASON_URL_INVALID
         | R::REFUSAL_REASON_SERVER_ADDRESS_INVALID
         // Never sent; a client sees it only for a reason it doesn't know.
         | R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,
