@@ -2,13 +2,14 @@
 // exports Diagnostics (ADR 0054). What a span may carry: "Spans carry ids, not words" in `web/AGENTS.md`.
 import { Code, ConnectError, type Interceptor } from "@connectrpc/connect";
 import { type Attributes, SpanKind, SpanStatusCode } from "@opentelemetry/api";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { resourceFromAttributes } from "@opentelemetry/resources";
 import { BatchSpanProcessor, TracerProvider } from "@opentelemetry/sdk-trace";
 
 const provider = new TracerProvider({
   resource: resourceFromAttributes({ "service.name": "nama-web" }),
-  // The Server forwards them to its collector, so the browser needs no CORS, address or key.
+  // The Server forwards them to its collector and the Hub, so the browser needs no CORS, address or
+  // key. Protobuf, since the Hub takes no other encoding.
   spanProcessors: [
     new BatchSpanProcessor({ exporter: new OTLPTraceExporter({ url: "/diagnostics/v1/traces" }) }),
   ],

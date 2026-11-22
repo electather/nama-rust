@@ -60,6 +60,10 @@ pub enum RefusalReason {
     REFUSAL_REASON_NO_USER_ON_SERVER = 18i32,
     /// `invalid_argument`: the field isn't an `http` or `https` address.
     REFUSAL_REASON_URL_INVALID = 19i32,
+    /// `invalid_argument`: a Watch State change breaks a limit `PushWatchStatesRequest` sets, such as
+    /// too many changes, an id too long, a position past the duration, or a time out of range. `field` names it. Params:
+    /// `maxChanges`, `maxIds` and `maxIdLength`.
+    REFUSAL_REASON_WATCH_STATE_INVALID = 20i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -122,6 +126,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_URL_INVALID`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const UrlInvalid: Self = Self::REFUSAL_REASON_URL_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_WATCH_STATE_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const WatchStateInvalid: Self = Self::REFUSAL_REASON_WATCH_STATE_INVALID;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -257,6 +264,9 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             18i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NO_USER_ON_SERVER),
             19i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_URL_INVALID),
+            20i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_WATCH_STATE_INVALID)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -299,6 +309,9 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_NO_USER_ON_SERVER => "REFUSAL_REASON_NO_USER_ON_SERVER",
             Self::REFUSAL_REASON_URL_INVALID => "REFUSAL_REASON_URL_INVALID",
+            Self::REFUSAL_REASON_WATCH_STATE_INVALID => {
+                "REFUSAL_REASON_WATCH_STATE_INVALID"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -369,6 +382,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_URL_INVALID" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_URL_INVALID)
             }
+            "REFUSAL_REASON_WATCH_STATE_INVALID" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_WATCH_STATE_INVALID)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -394,6 +410,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND,
             Self::REFUSAL_REASON_NO_USER_ON_SERVER,
             Self::REFUSAL_REASON_URL_INVALID,
+            Self::REFUSAL_REASON_WATCH_STATE_INVALID,
         ]
     }
 }

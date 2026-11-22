@@ -42,7 +42,10 @@ use crate::{
     users::Users,
 };
 
-use super::{database_failed, playback::limit_from_proto, refuse, server_link, unknown_enum_value};
+use super::{
+    BrowserSpans, database_failed, playback::limit_from_proto, refuse, server_link,
+    unknown_enum_value,
+};
 
 /// `nama.v1.ServerService`: facts about this Server, its settings, and the ffmpeg it found.
 pub(super) struct ServerServiceHandler {
@@ -58,8 +61,8 @@ pub(super) struct ServerServiceHandler {
     /// Where local disk keeps the images.
     pub(super) data_dir: PathBuf,
     pub(super) backups: Backups,
-    /// Whether the Server exports Diagnostics, so the web app records its own.
-    pub(super) exports_diagnostics: bool,
+    /// Says whether the web app's Diagnostics go anywhere, so it records its own.
+    pub(super) browser_spans: BrowserSpans,
     pub(super) running: RunningPlans,
 }
 
@@ -105,7 +108,7 @@ impl ServerService for ServerServiceHandler {
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_required,
             image_widths: images::WIDTHS.to_vec(),
-            exports_diagnostics: self.exports_diagnostics,
+            exports_diagnostics: self.browser_spans.exports(),
             account_sign_in,
             ..Default::default()
         })
