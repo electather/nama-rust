@@ -202,13 +202,12 @@ fn tone_mapper(facts: &Facts, hevc: bool) -> Option<ToneMapper> {
     facts.can_do.tone_mapper(gpu.as_ref())
 }
 
-/// Whether a Transcode for `facts` burns a text subtitle into an HDR Device's picture that the
-/// Server's ffmpeg can't draw on a layer of its own, so it tone-maps the picture to SDR as for an
-/// SDR Device, and the subtitle doesn't glare (ADR 0103).
+/// Whether a Transcode for `facts` burns a text subtitle into an HDR Device's picture with no
+/// layer of its own, as the Server's ffmpeg can't draw one or the picture's size or rate isn't
+/// known, so it tone-maps the picture to SDR as for an SDR Device, and the subtitle doesn't glare
+/// (ADR 0103).
 fn burns_text_into_sdr(facts: &Facts) -> bool {
-    facts.device.hdr
-        && !facts.can_do.subtitle_layer
-        && matches!(burn_in(facts), Some(BurnIn::Text { .. }))
+    facts.device.hdr && matches!(burn_in(facts), Some(BurnIn::Text { layer: None, .. }))
 }
 
 /// The reference white a Transcode for `facts` that tone-maps with `tone_map` maps a subtitle it

@@ -1,14 +1,14 @@
 //! Burning a subtitle into a Transcode for a Device that shows HDR (ADR 0103).
 
-use nama_proto::nama::v1::PlaybackReasonKind as Kind;
+use nama_proto::nama::v1::{PlaybackReasonKind as Kind, VideoCodec};
 
 use crate::{
-    ffmpeg::{BurnIn, ReferenceWhite, TextLayer, ToneMapper},
+    ffmpeg::{Accel, BurnIn, Hardware, ReferenceWhite, TextLayer, ToneMapper},
     playback::{
         Facts, build,
         tests::{
-            MP4, hdr_video, in_container, kind_and_params, kinds, reason_of, text_subtitle, track,
-            transcoded,
+            DOLBY_VISION_5, MP4, hdr_video, in_container, kind_and_params, kinds, reason_of,
+            text_subtitle, track, transcoded,
         },
         tracks::{Hdr, TrackKind},
     },
@@ -105,7 +105,7 @@ fn with_nothing_to_tone_map_a_text_burn_in_is_drawn_onto_hdr_as_before_without_a
 }
 
 #[test]
-fn a_text_burn_in_whose_picture_rate_isnt_known_keeps_hdr_drawn_as_before() {
+fn a_text_burn_in_whose_picture_rate_isnt_known_tone_maps_rather_than_glare_and_says_why() {
     let mut facts = burning_in(Hdr::Hdr10, "ass", false);
     facts.can_do.subtitle_layer = true;
     if let Some(TrackKind::Video { frame_rate, .. }) =
@@ -117,13 +117,14 @@ fn a_text_burn_in_whose_picture_rate_isnt_known_keeps_hdr_drawn_as_before() {
     let plan = build(&mut facts);
 
     let video = transcoded(&plan).video;
-    assert_eq!(video.tone_map, None);
+    assert_eq!(video.tone_map, Some(ToneMapper::Software));
+    assert_eq!(video.subtitle_white, None);
     assert!(
         matches!(video.burn_in, Some(BurnIn::Text { layer: None, .. })),
         "{:?}",
         video.burn_in
     );
-    assert!(!kinds(&plan).contains(&Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN));
+    assert!(kinds(&plan).contains(&Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN));
 }
 
 #[test]
@@ -163,4 +164,50 @@ fn a_burn_in_on_an_sdr_device_tone_maps_as_before_with_the_subtitle_as_it_is() {
         video.burn_in
     );
     assert!(kinds(&plan).contains(&Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED));
+}
+
+/// [`burning_in`] Dolby Vision 5 on a Device that decodes 10-bit HEVC, on a Server whose ffmpeg
+/// has `tonemapx` and whose VAAPI passed its HEVC test, so it's reshaped into HDR10 HEVC.
+fn burning_into_dolby_vision_5(codec: &str, image: bool) -> Facts {
+    let mut facts = burning_in(DOLBY_VISION_5, codec, image);
+    facts.device.video_codecs.push(VideoCodec::VIDEO_CODEC_HEVC);
+    facts.device.hevc_10bit = true;
+    facts.can_do.tonemapx = true;
+    facts.can_do.hardware = vec![Hardware {
+        accel: Accel::Vaapi,
+        gpu: None,
+        tone_maps: true,
+        hevc: true,
+    }];
+    facts
+}
+
+#[test]
+fn a_burn_in_on_dolby_vision_5_reshaped_to_hdr10_maps_its_subtitle_to_pqs_reference_white() {
+    let plan = build(&mut burning_into_dolby_vision_5("hdmv_pgs_subtitle", true));
+
+    let video = transcoded(&plan).video;
+    assert!(video.burn_in.is_some());
+    assert_eq!(video.tone_map, Some(ToneMapper::DolbyVisionToHdr10));
+    assert_eq!(video.subtitle_white, Some(ReferenceWhite::Pq));
+}
+
+#[test]
+fn a_text_burn_in_on_dolby_vision_5_ffmpeg_cant_draw_over_hdr_reshapes_it_to_sdr_and_says_why() {
+    let plan = build(&mut burning_into_dolby_vision_5("ass", false));
+
+    let video = transcoded(&plan).video;
+    assert_eq!(
+        video.tone_map,
+        Some(ToneMapper::Tonemapx { dolby_vision: true })
+    );
+    assert_eq!(video.subtitle_white, None);
+    let reason = reason_of(
+        &plan,
+        Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN,
+    );
+    assert_eq!(
+        kind_and_params(reason).1,
+        [("hdrFormat", "HDR_FORMAT_DOLBY_VISION")]
+    );
 }

@@ -186,7 +186,7 @@ pub(crate) enum BurnIn {
 
 /// A transparent picture the size and rate of the one transcoded, which libass draws a
 /// [`BurnIn::Text`] subtitle on so it can be mapped to [`ReferenceWhite`] before it's laid over
-/// (ADR 0103). Only jellyfin-ffmpeg's `alphasrc` and `subtitles=…:alpha=1` draw one.
+/// (ADR 0103). Only jellyfin-ffmpeg's `alphasrc` and `subtitles=…:alpha=1:sub2video=1` draw one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TextLayer {
     pub(crate) width: i64,
@@ -232,7 +232,7 @@ impl ReferenceWhite {
     /// The filters that map a subtitle layer to this reference white, then fit it with `fit`'s
     /// `scale` options, if any, and convert it to 10-bit BT.2020 YUV.
     // One `scale`: a second pass over a 4K frame cost about a third of the throughput.
-    // shortcut: the layer's BT.709 colours are read as BT.2020, so a coloured subtitle comes out
+    // ponytail: the layer's BT.709 colours are read as BT.2020, so a coloured subtitle comes out
     // more saturated; convert its primaries with zscale if that's seen (ADR 0103).
     fn mapped_layer(self, fit: Option<&str>) -> String {
         let lookup = self.lookup();
