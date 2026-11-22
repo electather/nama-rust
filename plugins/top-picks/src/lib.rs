@@ -7,8 +7,9 @@ use std::collections::{HashMap, HashSet};
 
 use nama_pdk::{
     FeaturedSuggestion, FeaturedSuggestions, HomeRow, HomeRowSource, HomeRowTitle, HomeRows,
-    Manifest, Permission, SettingField, Title, TitleId, TitleKind, TitleRefKind, TitleWatchStates,
-    UserFeaturedAsked, UserRowsAsked, WatchlistTitle, extism_pdk::Error, kernel, services,
+    Manifest, Permission, SettingField, Title, TitleId, TitleKind, TitleWatchStates,
+    UserFeaturedAsked, UserRowsAsked, WatchlistTitle, extism_pdk::Error, ids_of_title, kernel,
+    services,
 };
 
 // A new key, not the free-text `family_ratings`: the Server keeps that one's stored text, unused.
@@ -131,29 +132,6 @@ impl Key {
         }
     }
 
-    /// Every id of the Movie `title` is, or of the Show whose Episode it is, with the one the
-    /// Kernel lists it under first; none for an Episode without its Show's id.
-    fn every_of_title(title: &Title) -> Vec<Self> {
-        let Some(title_ref) = title.title_ref.as_option() else {
-            return Vec::new();
-        };
-        let (kind, preferred, others) = match title_ref.kind.as_known() {
-            Some(TitleRefKind::TITLE_REF_KIND_MOVIE) => {
-                (TitleKind::TITLE_KIND_MOVIE, &title_ref.id, &title.ids)
-            }
-            Some(TitleRefKind::TITLE_REF_KIND_EPISODE) => {
-                (TitleKind::TITLE_KIND_SHOW, &title.show_id, &title.show_ids)
-            }
-            Some(TitleRefKind::TITLE_REF_KIND_UNSPECIFIED) | None => return Vec::new(),
-        };
-        let Some(preferred) = preferred.as_option() else {
-            return Vec::new();
-        };
-        (std::iter::once(preferred).chain(others))
-            .map(|id| Self::of(kind, id))
-            .collect()
-    }
-
     fn id(&self) -> TitleId {
         TitleId {
             namespace: self.namespace.clone(),
@@ -208,7 +186,9 @@ fn ranked(
     let mut candidates: Vec<Candidate> = Vec::new();
     let mut places: HashMap<Key, usize> = HashMap::new();
     for (title, state) in titles.iter().zip(states) {
-        let ids = Key::every_of_title(title);
+        let ids = (ids_of_title(title).into_iter())
+            .map(|(kind, id)| Key::of(kind, id))
+            .collect::<Vec<_>>();
         let Some(key) = ids.first().filter(|_| state.title_ref == title.title_ref) else {
             continue;
         };
