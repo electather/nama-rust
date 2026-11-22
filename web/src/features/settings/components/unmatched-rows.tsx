@@ -10,7 +10,7 @@ export function UnmatchedRows({
   toggle,
 }: { items: UnmatchedItem[]; libraryId: bigint } & Fixing) {
   return (
-    <ul className="-mb-2.5 flex flex-col">
+    <ul className="-mb-1.5 flex flex-col">
       {items.map((item) => (
         <UnmatchedRow
           key={item.itemId}
