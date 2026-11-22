@@ -46,6 +46,16 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
             "server_sign_ins",
         ],
     ),
+    (
+        "src/titles",
+        &[
+            "titles",
+            "title_ids",
+            "title_facts",
+            "training_runs",
+            "title_vectors",
+        ],
+    ),
 ];
 
 /// The Hub's modules in rows of who may call whom, highest row first (ADR 0099).

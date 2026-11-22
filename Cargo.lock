@@ -2256,6 +2256,7 @@ dependencies = [
  "clap",
  "connectrpc",
  "figment",
+ "futures-util",
  "getrandom 0.4.3",
  "nama-forwarded",
  "nama-hub-proto",
