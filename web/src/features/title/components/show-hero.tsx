@@ -1,17 +1,10 @@
-import { Overview } from "@/features/title/components/overview";
 import { ShowMoreLoader } from "@/features/title/components/show-more-loader";
 import { ShowPlay } from "@/features/title/components/show-play";
-import { TitleActions } from "@/features/title/components/title-actions";
-import { TitleFacts } from "@/features/title/components/title-facts";
-import { TitleGenres } from "@/features/title/components/title-genres";
-import { TitleHero } from "@/features/title/components/title-hero";
-import { TitleName } from "@/features/title/components/title-name";
-import { TitleStarring } from "@/features/title/components/title-starring";
+import { TitleTop } from "@/features/title/components/title-top";
 import { seasonsOf } from "@/features/title/lib/seasons-of";
 import { titleBadges } from "@/features/title/lib/title-badges";
 import type { Episode, Season, Show } from "@/gen/nama/v1/browse_pb";
-import { type ExternalId, TitleKind } from "@/gen/nama/v1/match_pb";
-import { WatchlistButton } from "@/shared/components/watchlist-button";
+import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { yearOf } from "@/shared/lib/title-facts";
 
 /**
@@ -36,24 +29,20 @@ export function ShowHero({
   seasonNumber: number;
 }) {
   return (
-    <TitleHero backdrop={{ url: show.backdropUrl, thumbhash: show.backdropThumbhash }}>
-      <TitleName title={show.title} logoUrl={show.titleLogoUrl} />
-      <TitleGenres kind="Show" genres={show.genres} />
-      {show.overview !== undefined && <Overview text={show.overview} />}
-      <TitleStarring cast={show.cast} />
-      <TitleFacts
-        score={show.score}
-        facts={[yearOf(show.firstAirDate), seasonsOf(show.seasonCount)]}
-        boxed={[show.contentRating, ...titleBadges(episodes.flatMap(({ versions }) => versions))]}
-      />
-      <TitleActions>
-        {toPlay && <ShowPlay libraryId={libraryId} showId={showId} episode={toPlay} />}
-        <WatchlistButton watchlist={{ kind: TitleKind.SHOW, id: showId, on: show.onWatchlist }} />
+    <TitleTop
+      title={show}
+      kind="Show"
+      id={showId}
+      logoUrl={show.titleLogoUrl}
+      facts={[yearOf(show.firstAirDate), seasonsOf(show.seasonCount)]}
+      boxed={titleBadges(episodes.flatMap(({ versions }) => versions))}
+      actions={toPlay && <ShowPlay libraryId={libraryId} showId={showId} episode={toPlay} />}
+      more={
         <ShowMoreLoader
           {...{ libraryId, showId, show }}
           season={seasons.find(({ number }) => number === seasonNumber)}
         />
-      </TitleActions>
-    </TitleHero>
+      }
+    />
   );
 }

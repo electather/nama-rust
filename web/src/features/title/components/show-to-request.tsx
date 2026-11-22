@@ -2,10 +2,10 @@ import { notFound } from "@tanstack/react-router";
 
 import { CastAndCrew } from "@/features/title/components/cast-and-crew";
 import { SeasonPicker } from "@/features/title/components/season-picker";
-import { ShowRequestHero } from "@/features/title/components/show-request-hero";
 import { SimilarTitles } from "@/features/title/components/similar-titles";
 import { TitleDetails } from "@/features/title/components/title-details";
 import { TitlePage } from "@/features/title/components/title-page";
+import { TitleTop } from "@/features/title/components/title-top";
 import { TitleTrailers } from "@/features/title/components/title-trailers";
 import { useFoundShow } from "@/features/title/data/use-found-show";
 import { crewWithJob } from "@/features/title/lib/crew-with-job";
@@ -24,7 +24,9 @@ export function ShowToRequest({ showId, you }: { showId: ExternalId; you: bigint
     throw notFound();
   }
   return (
-    <TitlePage hero={<ShowRequestHero showId={showId} show={show} />}>
+    <TitlePage
+      hero={<TitleTop title={show} kind="Show" id={showId} facts={[show.year?.toString()]} />}
+    >
       <SeasonPicker show={show} you={you} />
       <TitleTrailers
         trailers={show.trailers}
