@@ -22,6 +22,7 @@ import { Route as SignedOutSignInRouteImport } from './routes/_signed-out/sign-i
 import { Route as MemberAdminBackupsRouteImport } from './routes/_member/admin.backups'
 import { Route as MemberAdminHomeRouteImport } from './routes/_member/admin.home'
 import { Route as MemberAdminPlaybackRouteImport } from './routes/_member/admin/playback'
+import { Route as MemberAdminUsersRouteImport } from './routes/_member/admin/users'
 import { Route as MemberCodeIndexRouteImport } from './routes/_member/code.index'
 import { Route as MemberCodeApproveRouteImport } from './routes/_member/code.approve'
 import { Route as MemberCodeDoneRouteImport } from './routes/_member/code.done'
@@ -35,7 +36,6 @@ import { Route as MemberAdminAdminIndexRouteImport } from './routes/_member/_adm
 import { Route as MemberAdminAdminJobsRouteImport } from './routes/_member/_admin/admin/jobs'
 import { Route as MemberAdminAdminNeedsAMatchRouteImport } from './routes/_member/_admin/admin/needs-a-match'
 import { Route as MemberAdminAdminNowPlayingRouteImport } from './routes/_member/_admin/admin/now-playing'
-import { Route as MemberAdminAdminUsersRouteImport } from './routes/_member/_admin/admin/users'
 import { Route as MemberAdminPluginsIndexRouteImport } from './routes/_member/admin.plugins.index'
 import { Route as MemberAdminPluginsPluginIdRouteImport } from './routes/_member/admin.plugins.$pluginId'
 import { Route as MemberLibrariesLibraryIdIndexRouteImport } from './routes/_member/libraries/$libraryId/index'
@@ -111,6 +111,11 @@ const MemberAdminPlaybackRoute = MemberAdminPlaybackRouteImport.update({
   path: '/admin/playback',
   getParentRoute: () => MemberRoute,
 } as any)
+const MemberAdminUsersRoute = MemberAdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
+  getParentRoute: () => MemberRoute,
+} as any)
 const MemberCodeIndexRoute = MemberCodeIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -178,11 +183,6 @@ const MemberAdminAdminNowPlayingRoute =
     path: '/admin/now-playing',
     getParentRoute: () => MemberAdminRoute,
   } as any)
-const MemberAdminAdminUsersRoute = MemberAdminAdminUsersRouteImport.update({
-  id: '/admin/users',
-  path: '/admin/users',
-  getParentRoute: () => MemberAdminRoute,
-} as any)
 const MemberAdminPluginsIndexRoute = MemberAdminPluginsIndexRouteImport.update({
   id: '/admin/plugins/',
   path: '/admin/plugins/',
@@ -268,6 +268,7 @@ export interface FileRoutesByFullPath {
   '/admin/backups': typeof MemberAdminBackupsRoute
   '/admin/home': typeof MemberAdminHomeRoute
   '/admin/playback': typeof MemberAdminPlaybackRoute
+  '/admin/users': typeof MemberAdminUsersRoute
   '/code/approve': typeof MemberCodeApproveRoute
   '/code/done': typeof MemberCodeDoneRoute
   '/movies/$movieId': typeof MemberMoviesMovieIdRoute
@@ -280,7 +281,6 @@ export interface FileRoutesByFullPath {
   '/admin/jobs': typeof MemberAdminAdminJobsRoute
   '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/admin/now-playing': typeof MemberAdminAdminNowPlayingRoute
-  '/admin/users': typeof MemberAdminAdminUsersRoute
   '/admin/plugins/$pluginId': typeof MemberAdminPluginsPluginIdRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/admin/': typeof MemberAdminAdminIndexRoute
@@ -304,6 +304,7 @@ export interface FileRoutesByTo {
   '/admin/backups': typeof MemberAdminBackupsRoute
   '/admin/home': typeof MemberAdminHomeRoute
   '/admin/playback': typeof MemberAdminPlaybackRoute
+  '/admin/users': typeof MemberAdminUsersRoute
   '/code/approve': typeof MemberCodeApproveRoute
   '/code/done': typeof MemberCodeDoneRoute
   '/movies/$movieId': typeof MemberMoviesMovieIdRoute
@@ -316,7 +317,6 @@ export interface FileRoutesByTo {
   '/admin/jobs': typeof MemberAdminAdminJobsRoute
   '/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/admin/now-playing': typeof MemberAdminAdminNowPlayingRoute
-  '/admin/users': typeof MemberAdminAdminUsersRoute
   '/admin/plugins/$pluginId': typeof MemberAdminPluginsPluginIdRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/admin': typeof MemberAdminAdminIndexRoute
@@ -346,6 +346,7 @@ export interface FileRoutesById {
   '/_member/admin/backups': typeof MemberAdminBackupsRoute
   '/_member/admin/home': typeof MemberAdminHomeRoute
   '/_member/admin/playback': typeof MemberAdminPlaybackRoute
+  '/_member/admin/users': typeof MemberAdminUsersRoute
   '/_member/code/approve': typeof MemberCodeApproveRoute
   '/_member/code/done': typeof MemberCodeDoneRoute
   '/_member/movies/$movieId': typeof MemberMoviesMovieIdRoute
@@ -358,7 +359,6 @@ export interface FileRoutesById {
   '/_member/_admin/admin/jobs': typeof MemberAdminAdminJobsRoute
   '/_member/_admin/admin/needs-a-match': typeof MemberAdminAdminNeedsAMatchRoute
   '/_member/_admin/admin/now-playing': typeof MemberAdminAdminNowPlayingRoute
-  '/_member/_admin/admin/users': typeof MemberAdminAdminUsersRoute
   '/_member/admin/plugins/$pluginId': typeof MemberAdminPluginsPluginIdRoute
   '/_signed-out/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/_member/_admin/admin/': typeof MemberAdminAdminIndexRoute
@@ -386,6 +386,7 @@ export interface FileRouteTypes {
     | '/admin/backups'
     | '/admin/home'
     | '/admin/playback'
+    | '/admin/users'
     | '/code/approve'
     | '/code/done'
     | '/movies/$movieId'
@@ -398,7 +399,6 @@ export interface FileRouteTypes {
     | '/admin/jobs'
     | '/admin/needs-a-match'
     | '/admin/now-playing'
-    | '/admin/users'
     | '/admin/plugins/$pluginId'
     | '/sign-in/code/waiting'
     | '/admin/'
@@ -422,6 +422,7 @@ export interface FileRouteTypes {
     | '/admin/backups'
     | '/admin/home'
     | '/admin/playback'
+    | '/admin/users'
     | '/code/approve'
     | '/code/done'
     | '/movies/$movieId'
@@ -434,7 +435,6 @@ export interface FileRouteTypes {
     | '/admin/jobs'
     | '/admin/needs-a-match'
     | '/admin/now-playing'
-    | '/admin/users'
     | '/admin/plugins/$pluginId'
     | '/sign-in/code/waiting'
     | '/admin'
@@ -463,6 +463,7 @@ export interface FileRouteTypes {
     | '/_member/admin/backups'
     | '/_member/admin/home'
     | '/_member/admin/playback'
+    | '/_member/admin/users'
     | '/_member/code/approve'
     | '/_member/code/done'
     | '/_member/movies/$movieId'
@@ -475,7 +476,6 @@ export interface FileRouteTypes {
     | '/_member/_admin/admin/jobs'
     | '/_member/_admin/admin/needs-a-match'
     | '/_member/_admin/admin/now-playing'
-    | '/_member/_admin/admin/users'
     | '/_member/admin/plugins/$pluginId'
     | '/_signed-out/sign-in/code/waiting'
     | '/_member/_admin/admin/'
@@ -589,6 +589,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberAdminPlaybackRouteImport
       parentRoute: typeof MemberRoute
     }
+    '/_member/admin/users': {
+      id: '/_member/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof MemberAdminUsersRouteImport
+      parentRoute: typeof MemberRoute
+    }
     '/_member/code/': {
       id: '/_member/code/'
       path: '/'
@@ -678,13 +685,6 @@ declare module '@tanstack/react-router' {
       path: '/admin/now-playing'
       fullPath: '/admin/now-playing'
       preLoaderRoute: typeof MemberAdminAdminNowPlayingRouteImport
-      parentRoute: typeof MemberAdminRoute
-    }
-    '/_member/_admin/admin/users': {
-      id: '/_member/_admin/admin/users'
-      path: '/admin/users'
-      fullPath: '/admin/users'
-      preLoaderRoute: typeof MemberAdminAdminUsersRouteImport
       parentRoute: typeof MemberAdminRoute
     }
     '/_member/admin/plugins/': {
@@ -778,7 +778,6 @@ interface MemberAdminRouteChildren {
   MemberAdminAdminJobsRoute: typeof MemberAdminAdminJobsRoute
   MemberAdminAdminNeedsAMatchRoute: typeof MemberAdminAdminNeedsAMatchRoute
   MemberAdminAdminNowPlayingRoute: typeof MemberAdminAdminNowPlayingRoute
-  MemberAdminAdminUsersRoute: typeof MemberAdminAdminUsersRoute
   MemberAdminAdminIndexRoute: typeof MemberAdminAdminIndexRoute
   MemberAdminAdminLibrariesLibraryIdRoute: typeof MemberAdminAdminLibrariesLibraryIdRoute
   MemberAdminAdminLibrariesIndexRoute: typeof MemberAdminAdminLibrariesIndexRoute
@@ -788,7 +787,6 @@ const MemberAdminRouteChildren: MemberAdminRouteChildren = {
   MemberAdminAdminJobsRoute: MemberAdminAdminJobsRoute,
   MemberAdminAdminNeedsAMatchRoute: MemberAdminAdminNeedsAMatchRoute,
   MemberAdminAdminNowPlayingRoute: MemberAdminAdminNowPlayingRoute,
-  MemberAdminAdminUsersRoute: MemberAdminAdminUsersRoute,
   MemberAdminAdminIndexRoute: MemberAdminAdminIndexRoute,
   MemberAdminAdminLibrariesLibraryIdRoute:
     MemberAdminAdminLibrariesLibraryIdRoute,
@@ -825,6 +823,7 @@ interface MemberRouteChildren {
   MemberAdminBackupsRoute: typeof MemberAdminBackupsRoute
   MemberAdminHomeRoute: typeof MemberAdminHomeRoute
   MemberAdminPlaybackRoute: typeof MemberAdminPlaybackRoute
+  MemberAdminUsersRoute: typeof MemberAdminUsersRoute
   MemberMoviesMovieIdRoute: typeof MemberMoviesMovieIdRoute
   MemberRequestsRequestIdRoute: typeof MemberRequestsRequestIdRoute
   MemberShowsShowIdRoute: typeof MemberShowsShowIdRoute
@@ -849,6 +848,7 @@ const MemberRouteChildren: MemberRouteChildren = {
   MemberAdminBackupsRoute: MemberAdminBackupsRoute,
   MemberAdminHomeRoute: MemberAdminHomeRoute,
   MemberAdminPlaybackRoute: MemberAdminPlaybackRoute,
+  MemberAdminUsersRoute: MemberAdminUsersRoute,
   MemberMoviesMovieIdRoute: MemberMoviesMovieIdRoute,
   MemberRequestsRequestIdRoute: MemberRequestsRequestIdRoute,
   MemberShowsShowIdRoute: MemberShowsShowIdRoute,

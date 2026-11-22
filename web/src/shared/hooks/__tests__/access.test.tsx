@@ -187,7 +187,7 @@ test("signing in never redirects to another site", async () => {
 });
 
 test("a User who manages nothing opening an Admin page is told they can't, and has no Admin link", async () => {
-  openApp("/admin/users", fakeServer({ signedIn: newUser }));
+  openApp("/admin/jobs", fakeServer({ signedIn: newUser }));
 
   await expect(
     screen.findByRole("heading", { name: "You can’t open this page" }),
@@ -203,16 +203,10 @@ test.each([
     pages: ["Libraries", "Needs a Match"],
   },
   {
-    name: "Manage Users",
-    permission: Permission.MANAGE_USERS,
-    landing: "/admin/users",
-    pages: ["Users"],
-  },
-  {
     name: "Admin",
     permission: Permission.ADMIN,
     landing: "/admin/libraries",
-    pages: ["Libraries", "Needs a Match", "Users", "Now Playing", "Jobs"],
+    pages: ["Libraries", "Needs a Match", "Now Playing", "Jobs"],
   },
 ])(
   "with only the $name Permission, Admin opens on $landing and lists only the pages it allows",
@@ -232,7 +226,7 @@ test.each([
   },
 );
 
-test.each(["/admin/users", "/admin/jobs", "/admin/now-playing"])(
+test.each(["/admin/jobs", "/admin/now-playing"])(
   "a User with only Manage Libraries opening %s is told they can't",
   async (path) => {
     openApp(path, fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }));

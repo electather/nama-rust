@@ -279,7 +279,7 @@ test("deleting one Version when Radarr couldn't be told says so on the Movie", a
 
 test("delete media is a Permission an Admin can give", async () => {
   openApp(
-    "/admin/users",
+    "/code?settings=users",
     fakeServer(
       { signedIn: admin },
       {},
@@ -287,7 +287,7 @@ test("delete media is a Permission an Admin can give", async () => {
     ),
   );
 
-  fireEvent.click(await screen.findByText("Alex"));
+  fireEvent.click(await screen.findByRole("link", { name: "Alex" }));
 
   await expect(screen.findByRole("checkbox", { name: "Delete media" })).resolves.toHaveProperty(
     "checked",

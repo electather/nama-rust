@@ -149,14 +149,7 @@
       },
       {
         "from": "admin-users",
-        "allow": [
-          "admin-users",
-          "invites",
-          "shared-components",
-          "shared-ui",
-          "shared-hooks",
-          "shared-lib",
-        ],
+        "allow": ["admin-users", "shared-components", "shared-ui", "shared-hooks", "shared-lib"],
       },
       {
         "from": "invites",
@@ -172,12 +165,14 @@
       },
       {
         "from": "settings",
-        // Its Plugins and Default Home panes render the admin features' parts; its Backups pane renders Backups' parts,
+        // Its Plugins, Default Home and Users panes render the admin features' parts (Users also renders Invites'); its Backups pane renders Backups' parts,
         // and each Backup's row says when it was written as a Job's Run does.
         "allow": [
           "settings",
           "admin-plugins",
           "admin-home",
+          "admin-users",
+          "invites",
           "admin-playback",
           "admin-backups",
           "admin-jobs",
@@ -226,7 +221,6 @@
           "admin-playback",
           "admin-jobs",
           "admin-now-playing",
-          "admin-users",
           "invites",
           "requests",
           "action-bar",

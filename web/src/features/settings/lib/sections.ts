@@ -10,6 +10,7 @@ const sections = [
   "requests",
   "connections",
   "server",
+  "users",
   "backups",
   "default-home",
   "server-playback",
@@ -36,6 +37,13 @@ export function pluginParam(value: unknown) {
   return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
 }
 
+/** The User `?user=` asks the Users section to open: none without it. */
+export function userParam(value: unknown) {
+  // A number, as the router writes a string of digits quoted: `user=%222%22`, not `user=2`.
+  const id = typeof value === "string" || typeof value === "number" ? Number(value) : Number.NaN;
+  return Number.isSafeInteger(id) ? id : undefined;
+}
+
 /** Each section's name, in the sidebar and over its pane. */
 export const sectionTitles: Record<Section, string> = {
   signin: "Sign-in",
@@ -45,6 +53,7 @@ export const sectionTitles: Record<Section, string> = {
   requests: "Requests",
   connections: "Connections",
   server: "Server",
+  users: "Users",
   backups: "Backups",
   "default-home": "Default Home",
   "server-playback": "Server Playback",
@@ -60,6 +69,7 @@ export const loadNouns: Record<Section, string> = {
   requests: "your Requests settings",
   connections: "your Connections",
   server: "the Server settings",
+  users: "the Users",
   backups: "the Backups",
   "default-home": "the default Home layout",
   "server-playback": "the Server’s Playback settings",
@@ -75,6 +85,7 @@ const searchWords: Record<Section, string> = {
   requests: "quality movies shows request",
   connections: "telegram plugin messages notifications personal",
   server: "server url address images resize space storage store",
+  users: "users people accounts invite invites permissions password",
   backups: "backup backups restore schedule database",
   "default-home": "default home rows layout order everyone",
   "server-playback": "transcode transcoding hardware ffmpeg remote bitrate segments intro credits",
@@ -91,6 +102,7 @@ export interface SectionGroup {
 const needs: Partial<Record<Section, Permission>> = {
   requests: Permission.CHOOSE_QUALITY,
   server: Permission.MANAGE_SETTINGS,
+  users: Permission.MANAGE_USERS,
   backups: Permission.ADMIN,
   "default-home": Permission.MANAGE_SETTINGS,
   "server-playback": Permission.ADMIN,
@@ -100,7 +112,10 @@ const needs: Partial<Record<Section, Permission>> = {
 const groups: SectionGroup[] = [
   { label: "You", items: ["signin", "devices"] },
   { label: "Preferences", items: ["playback", "home", "requests", "connections"] },
-  { label: "Admin", items: ["server", "backups", "default-home", "server-playback", "plugins"] },
+  {
+    label: "Admin",
+    items: ["server", "users", "backups", "default-home", "server-playback", "plugins"],
+  },
 ];
 
 /** The sections `user` may open, grouped as the sidebar lists them. */

@@ -107,7 +107,7 @@ test("refused again after you confirm it’s you, the change shows an error, not
 });
 
 /**
- * The Users page, with the Admin Sam and Alex and Kim, who aren't Admins, on a Server that refuses
+ * Settings' Users section, with the Admin Sam and Alex, who isn't one, on a Server that refuses
  * `ResetPassword` and `SetPermissions` for want of Recent Authentication until `Reauthenticate`. Returns
  * the resets it made and the Permissions it gave the Users it made Admin.
  */
@@ -116,7 +116,7 @@ function openUsersNeedingRecentAuthentication() {
   const resets: [bigint, string][] = [];
   const promoted: [bigint, Permission[]][] = [];
   openApp(
-    "/admin/users",
+    "/code?settings=users",
     fakeServer(
       { signedIn: admin },
       {
@@ -130,7 +130,6 @@ function openUsersNeedingRecentAuthentication() {
           users: [
             { id: 1n, name: "Sam", permissions: admin },
             { id: 2n, name: "Alex", permissions: newUser },
-            { id: 3n, name: "Kim", permissions: newUser },
           ],
         }),
         resetPassword: ({ userId, newPassword }) => {
@@ -158,7 +157,7 @@ function openUsersNeedingRecentAuthentication() {
 test("without Recent Authentication, an Admin resets a password once they confirm it’s them", async () => {
   const { resets } = openUsersNeedingRecentAuthentication();
 
-  fireEvent.click(await screen.findByText("Alex"));
+  fireEvent.click(await screen.findByRole("link", { name: "Alex" }));
   fireEvent.click(await screen.findByRole("button", { name: "Reset password for Alex" }));
   const reset = await screen.findByRole("alertdialog", { name: "Reset Alex’s password?" });
   fireEvent.change(within(reset).getByLabelText("New password"), {
@@ -174,26 +173,23 @@ test("without Recent Authentication, an Admin resets a password once they confir
 });
 
 test("changes refused together wait for one “Confirm it’s you”, then all go through", async () => {
-  const { promoted } = openUsersNeedingRecentAuthentication();
+  const { resets, promoted } = openUsersNeedingRecentAuthentication();
 
-  fireEvent.click(await screen.findByText("Alex"));
-  fireEvent.click(await screen.findByText("Kim"));
-  for (const checkbox of await screen.findAllByRole("checkbox", { name: "Admin" })) {
-    fireEvent.click(checkbox);
-  }
-  for (const save of screen.getAllByRole("button", { name: "Save Permissions" })) {
-    fireEvent.click(save);
-  }
+  fireEvent.click(await screen.findByRole("link", { name: "Alex" }));
+  const alex = await screen.findByRole("region", { name: "Alex" });
+  const promote = within(alex).getByRole("checkbox", { name: "Admin" });
+  fireEvent.click(screen.getByRole("button", { name: "Reset password for Alex" }));
+  const reset = await screen.findByRole("alertdialog", { name: "Reset Alex’s password?" });
+  fireEvent.change(within(reset).getByLabelText("New password"), {
+    target: { value: "battery staple" },
+  });
+  // Both before either is refused.
+  fireEvent.click(promote);
+  fireEvent.click(within(reset).getByRole("button", { name: "Reset password" }));
   await confirmItsYou();
 
   await waitFor(() => {
-    expect(promoted).toHaveLength(2);
+    expect(promoted).toStrictEqual([[2n, [...newUser, Permission.ADMIN]]]);
   });
-  const permissions = [...newUser, Permission.ADMIN];
-  expect(promoted).toStrictEqual(
-    expect.arrayContaining([
-      [2n, permissions],
-      [3n, permissions],
-    ]),
-  );
+  expect(resets).toStrictEqual([[2n, "battery staple"]]);
 });

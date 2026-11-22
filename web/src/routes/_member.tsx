@@ -1,7 +1,12 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { MemberLayout } from "@/app/member-layout";
-import { type Section, pluginParam, sectionParam } from "@/features/settings/lib/sections";
+import {
+  type Section,
+  pluginParam,
+  sectionParam,
+  userParam,
+} from "@/features/settings/lib/sections";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { adminPagesFor, isSetupRequired, serverInfo, whoIsSignedIn } from "@/shared/hooks/access";
 import { recordDiagnosticsIfExported } from "@/shared/lib/diagnostics";
@@ -9,12 +14,13 @@ import { may } from "@/shared/lib/permissions";
 import { wordsParam } from "@/shared/lib/words-param";
 
 // On any page: the words the action bar opens on (`src/app/top-bar/use-search-from-url.ts`), the
-// section Settings is open on (`src/app/settings-loader.tsx`), and the Plugin open in its Plugins
-// section.
+// section Settings is open on (`src/app/settings-loader.tsx`), and the Plugin or User open in its
+// Plugins or Users section.
 interface MemberSearch {
   search?: string | undefined;
   settings?: Section | undefined;
   plugin?: string | undefined;
+  user?: number | undefined;
 }
 
 /** Pages for signed-in Users. */
@@ -23,6 +29,7 @@ export const Route = createFileRoute("/_member")({
     search: wordsParam(search["search"]),
     settings: sectionParam(search["settings"]),
     plugin: pluginParam(search["plugin"]),
+    user: userParam(search["user"]),
   }),
   beforeLoad: async ({ context, location }) => {
     if (await isSetupRequired(context)) {

@@ -3,7 +3,7 @@ import { useId, useState } from "react";
 import { CreateInvite } from "@/features/invites/components/create-invite";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 
-/** A button opening the form that makes an Invite, as the Default Permissions' "Change" does. */
+/** A button opening the form that makes an Invite. */
 export function MakeAnInvite({ you }: { you: User | undefined }) {
   const [open, setOpen] = useState(false);
   const panel = useId();
@@ -16,7 +16,7 @@ export function MakeAnInvite({ you }: { you: User | undefined }) {
         onClick={() => {
           setOpen(!open);
         }}
-        className="mt-3 rounded-sm text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="mt-3 self-start rounded-sm text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         {open ? "Close" : "Make an Invite"}
       </button>

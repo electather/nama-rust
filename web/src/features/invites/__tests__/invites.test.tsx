@@ -27,7 +27,7 @@ function invite(id: bigint, note: string) {
   });
 }
 
-/** The Users page's own RPCs, with the Invites `listInvites` gives, and `more`. */
+/** Settings' Users section's own RPCs, with the Invites `listInvites` gives, and `more`. */
 function usersPage(
   listInvites: () => MessageInitShape<typeof ListInvitesResponseSchema>,
   more: Partial<ServiceImpl<typeof UserService>> = {},
@@ -35,9 +35,9 @@ function usersPage(
   return { listUsers: () => ({}), listInvites, ...more };
 }
 
-test("without a Server URL, the Users page offers no way to make an Invite", async () => {
+test("without a Server URL, Settings' Users section offers no way to make an Invite", async () => {
   openApp(
-    "/admin/users",
+    "/code?settings=users",
     fakeServer(
       { signedIn: admin },
       {},
@@ -52,7 +52,7 @@ test("without a Server URL, the Users page offers no way to make an Invite", asy
 test("making an Invite sends its note and the default Permissions, and shows its link", async () => {
   let sent: CreateInviteRequest | undefined;
   openApp(
-    "/admin/users",
+    "/code?settings=users",
     fakeServer(
       { signedIn: admin },
       {},
@@ -78,7 +78,7 @@ test("making an Invite sends its note and the default Permissions, and shows its
 
 test("an Invite offers only the Permissions you hold, and never Admin", async () => {
   openApp(
-    "/admin/users",
+    "/code?settings=users",
     fakeServer(
       { signedIn: [Permission.MANAGE_USERS, Permission.REQUEST] },
       {},
@@ -96,7 +96,7 @@ test("an Invite offers only the Permissions you hold, and never Admin", async ()
 test("revoking a pending Invite, once confirmed, removes it", async () => {
   let invites = [invite(1n, "Mum"), invite(2n, "")];
   openApp(
-    "/admin/users",
+    "/code?settings=users",
     fakeServer(
       { signedIn: admin },
       {},

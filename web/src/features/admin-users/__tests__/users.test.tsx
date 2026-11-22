@@ -4,19 +4,68 @@ import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { DeviceSchema } from "@/gen/nama/v1/sign_in_pb";
+import { DeviceSchema, Permission } from "@/gen/nama/v1/sign_in_pb";
 import { admin, fakeServer, fill, newUser, openApp } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
 
 afterEach(cleanup);
 
-test("a User deleted meanwhile is said to be gone, and the Users page stays", async () => {
+/** Settings' Users section, the address a test opens it at. */
+const usersSection = "/code?settings=users";
+
+test("the old Users page opens Settings on Users, for a User who manages Users", async () => {
+  const router = openApp(
+    "/admin/users",
+    fakeServer({ signedIn: [Permission.MANAGE_USERS] }, {}, { listUsers: () => ({}) }),
+  );
+
+  await expect(screen.findByRole("list", { name: "Users" })).resolves.toBeDefined();
+  expect(router.state.location.pathname).toBe("/");
+  expect(router.state.location.search).toMatchObject({ settings: "users" });
+  expect(screen.getByRole("link", { name: "Users" }).getAttribute("aria-current")).toBe("page");
+});
+
+test("users isn't in Settings for a User who doesn't manage Users", async () => {
+  openApp(usersSection, fakeServer({ signedIn: newUser }));
+
+  await screen.findByRole("link", { name: "Playback", current: "page" });
+  expect(screen.queryByRole("link", { name: "Users" })).toBeNull();
+});
+
+test("a User opens in place of the list, and the crumb over it goes back", async () => {
+  const router = openApp(
+    usersSection,
+    fakeServer(
+      { signedIn: admin },
+      {},
+      { listUsers: () => ({ users: [{ id: 2n, name: "Alex", permissions: newUser }] }) },
+    ),
+  );
+
+  fireEvent.click(await screen.findByRole("link", { name: "Alex" }));
+  const opened = await screen.findByRole("region", { name: "Alex" });
+  expect(router.state.location.search).toMatchObject({ settings: "users", user: 2 });
+  expect(router.state.location.searchStr).toBe("?settings=users&user=2");
+  const crumbs = within(opened).getByRole("navigation", { name: "Breadcrumb" });
+  expect(within(crumbs).getByText("Alex").getAttribute("aria-current")).toBe("page");
+  expect(
+    within(crumbs).getByRole("link", { name: "Users" }).getAttribute("aria-current"),
+  ).toBeNull();
+  expect(within(opened).getByRole("button", { name: "Delete Alex" })).toBeDefined();
+  expect(screen.queryByRole("list", { name: "Users" })).toBeNull();
+
+  fireEvent.click(within(crumbs).getByRole("link", { name: "Users" }));
+  await expect(screen.findByRole("list", { name: "Users" })).resolves.toBeDefined();
+  expect(router.state.location.search.user).toBeUndefined();
+});
+
+test("a User deleted meanwhile is said to be gone, and Settings stays", async () => {
   const sam = { id: 1n, name: "Sam", permissions: admin };
   let users = [sam, { id: 2n, name: "Alex", permissions: newUser }];
   const devices = [create(DeviceSchema, { id: 3n, name: "Phone", createdAt: 1_700_000_000n })];
   let listDevices = () => ({ devices });
   openApp(
-    "/admin/users",
+    usersSection,
     fakeServer(
       { signedIn: admin },
       {},
@@ -35,14 +84,14 @@ test("a User deleted meanwhile is said to be gone, and the Users page stays", as
     ),
   );
 
-  fireEvent.click(await screen.findByText("Alex"));
+  fireEvent.click(await screen.findByRole("link", { name: "Alex" }));
   fireEvent.click(await screen.findByRole("button", { name: "Revoke Phone" }));
   fireEvent.click(
     within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Revoke" }),
   );
 
   await expect(screen.findByText("Alex isn’t on this Server any more.")).resolves.toBeDefined();
-  expect(screen.getByRole("heading", { name: "Users" })).toBeDefined();
+  expect(screen.getByRole("heading", { name: "Settings" })).toBeDefined();
 });
 
 test.each([
@@ -66,7 +115,7 @@ test.each([
   "a refused %s for a new User is shown under its field",
   async (field, { label, message, shown }) => {
     openApp(
-      "/admin/users",
+      usersSection,
       fakeServer(
         { signedIn: admin },
         {},

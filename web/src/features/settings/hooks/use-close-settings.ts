@@ -10,7 +10,7 @@ export function useCloseSettings() {
     // was opened from this page.
     void navigate({
       to: ".",
-      search: (rest) => ({ ...rest, settings: undefined, plugin: undefined }),
+      search: (rest) => ({ ...rest, settings: undefined, plugin: undefined, user: undefined }),
       replace: true,
     });
   }, [navigate]);

@@ -11,7 +11,7 @@ export function CreateUser() {
 
   return (
     <form
-      className="mt-4 flex flex-col gap-5"
+      className="mt-4 flex max-w-sm flex-col gap-5"
       onSubmit={onSubmitted((typed, form) => {
         create.mutate(
           {

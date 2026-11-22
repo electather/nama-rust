@@ -12,6 +12,7 @@ import {
   Shield,
   SlidersHorizontal,
   Tv,
+  Users,
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 
@@ -25,6 +26,7 @@ const icons: Record<Section, LucideIcon> = {
   requests: Film,
   connections: Bell,
   server: HardDrive,
+  users: Users,
   "default-home": Rows3,
   "server-playback": Cpu,
   backups: DatabaseBackup,
@@ -51,8 +53,8 @@ export function SectionLink({ section, current }: { section: Section; current: b
     <Link
       ref={link}
       to="."
-      // A Plugin open in the Plugins section closes with it.
-      search={(rest) => ({ ...rest, settings: section, plugin: undefined })}
+      // A Plugin or User open in its section closes with it.
+      search={(rest) => ({ ...rest, settings: section, plugin: undefined, user: undefined })}
       // Sections share one history entry, so Back closes Settings.
       replace
       aria-current={current ? "page" : undefined}
