@@ -100,7 +100,7 @@ test("a User hides a Home row and Featured on Settings, then resets to the defau
   expect(shownSwitch(home, "Top picks").getAttribute("aria-checked")).toBe("false");
   expect(shownSwitch(home, "Continue Watching").getAttribute("aria-checked")).toBe("true");
 
-  fireEvent.click(within(home).getByRole("button", { name: "Reset to default" }));
+  fireEvent.click(screen.getByRole("button", { name: "Reset to default" }));
 
   await expect.poll(() => shownSwitch(home, "Top picks").getAttribute("aria-checked")).toBe("true");
   expect(shownSwitch(home, "Featured").getAttribute("aria-checked")).toBe("true");

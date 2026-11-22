@@ -9,10 +9,13 @@ import { rowText } from "@/shared/lib/setting-text";
 
 /** Where Backups go and how many are kept, each saved once its field is left. */
 export function BackupSettingRows({
+  inUse,
   values,
   refused,
   onEdit,
 }: {
+  /** The folder Backups are written to now, shown while the field is empty. */
+  inUse: string;
   values: BackupValues;
   /** Why the Server refused a change, under the field it's about. */
   refused: FormErrors;
@@ -24,7 +27,7 @@ export function BackupSettingRows({
         {...rowText(backupLabels, "folder")}
         saved={values.folder}
         error={refused.backupFolder}
-        input={{ autoComplete: "off", spellCheck: false, placeholder: "/mnt/backups/nama" }}
+        input={{ autoComplete: "off", spellCheck: false, placeholder: inUse }}
         onSave={(folder) => {
           onEdit({ folder });
         }}

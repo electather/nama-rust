@@ -5,11 +5,10 @@ import { PaneFrame } from "@/features/settings/components/pane-frame";
 export function DefaultHomePane() {
   return (
     <PaneFrame section="default-home">
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-3">
         <p className="text-xs text-pretty text-muted-foreground">
-          Every User’s Home shows these rows in this order, under Featured, until they change their
-          own. Drag a row, or use its arrows, to move it, and switch off what Home shouldn’t show. A
-          row from a Plugin enabled later goes at the end.
+          Every User starts with this Home until they change their own. A Plugin enabled later adds
+          its rows last.
         </p>
         <DefaultHomeRows />
       </div>

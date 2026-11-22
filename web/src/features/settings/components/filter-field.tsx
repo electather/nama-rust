@@ -12,7 +12,7 @@ export function FilterField({
 }) {
   return (
     // DESIGN.md, "Inputs", drawn around the icon and the field together.
-    <label className="flex h-11 min-w-0 flex-1 basis-50 items-center gap-2 rounded-lg border border-input bg-input/30 px-2.5 text-muted-foreground transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 md:h-8">
+    <label className="flex h-11 min-w-0 flex-1 basis-50 items-center gap-2 rounded-lg border border-input bg-input/30 px-2.5 text-muted-foreground transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 md:h-7">
       <Search aria-hidden strokeWidth={1.5} className="size-4 shrink-0" />
       <input
         type="search"

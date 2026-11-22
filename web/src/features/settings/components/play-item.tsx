@@ -7,8 +7,8 @@ import {
   type KnownPlay,
   positionWords,
 } from "@/features/admin-now-playing/lib/play-words";
-import { IconTile } from "@/features/settings/components/icon-tile";
 import { ItemRow } from "@/features/settings/components/item-row";
+import { IconTile } from "@/shared/components/icon-tile";
 import { reasonText } from "@/shared/lib/playback-wording";
 
 /** One play: its title over who plays it on which Device, how and how far in, and why; then Stop. */

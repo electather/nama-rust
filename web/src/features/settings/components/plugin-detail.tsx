@@ -39,7 +39,7 @@ export function PluginDetail({ summary }: { summary: PluginSummary }) {
   return (
     <section aria-labelledby={titleId} className="flex flex-col">
       <PluginHeader titleId={titleId} summary={summary} />
-      <div className="flex flex-col px-4 pt-6 pb-4 md:px-6 md:pb-6">
+      <div className="flex flex-col px-4 pt-6 pb-4 md:px-5 md:pb-6">
         <p className="max-w-prose text-sm/6 text-pretty text-muted-foreground empty:hidden">
           {summary.description}
         </p>

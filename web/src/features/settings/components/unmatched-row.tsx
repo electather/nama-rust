@@ -3,10 +3,10 @@ import { Button } from "nama-ui/components/button";
 import { useId } from "react";
 
 import { ItemFacts } from "@/features/admin-needs-a-match/components/item-facts";
-import { IconTile } from "@/features/settings/components/icon-tile";
 import { ItemRow } from "@/features/settings/components/item-row";
 import { TitleKind, type UnmatchedItem } from "@/gen/nama/v1/match_pb";
 import { FindAMatch } from "@/shared/components/find-a-match/find-a-match";
+import { IconTile } from "@/shared/components/icon-tile";
 import { PlayUnmatched } from "@/shared/components/play-unmatched";
 import { parsedAs } from "@/shared/lib/unmatched-names";
 

@@ -6,9 +6,9 @@ import { RunNowButton } from "@/features/admin-jobs/components/run-now-button";
 import { useRunJob } from "@/features/admin-jobs/data/use-run-job";
 import { runRefused } from "@/features/admin-jobs/lib/run-refused";
 import { nextAndLast } from "@/features/admin-jobs/lib/run-times";
-import { IconTile } from "@/features/settings/components/icon-tile";
 import { ItemRow } from "@/features/settings/components/item-row";
 import type { Job } from "@/gen/nama/v1/job_pb";
+import { IconTile } from "@/shared/components/icon-tile";
 import { jobKey } from "@/shared/lib/job-key";
 import { scheduleWords } from "@/shared/lib/schedule-words";
 

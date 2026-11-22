@@ -11,7 +11,7 @@ export function NowPlayingPane() {
       {plays.length === 0 ? (
         <p className="py-3.5 text-sm text-muted-foreground">Nothing is playing.</p>
       ) : (
-        <ul aria-label="Now Playing" className="-my-2.5 flex flex-col">
+        <ul aria-label="Now Playing" className="-my-1.5 flex flex-col">
           {plays.map((play) => (
             <PlayItem key={play.playback.planId} play={play} />
           ))}

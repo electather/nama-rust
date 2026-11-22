@@ -34,7 +34,7 @@ export function NeedsAMatchPane() {
         {sectionTitles["needs-a-match"]}
       </h3>
       {filter}
-      <div className="flex flex-col gap-6 p-4 md:px-6 md:pt-2 md:pb-6">
+      <div className="flex flex-col gap-4 p-4 md:px-5 md:pt-2 md:pb-6">
         <p className="text-sm text-pretty text-muted-foreground">
           Files the Server couldn’t Match to a Movie or Show. Find the right title for each, and it
           stays Matched.
