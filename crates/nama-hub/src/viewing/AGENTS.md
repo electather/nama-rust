@@ -1,0 +1,15 @@
+## Viewing
+
+Viewing Events (GLOSSARY.md): each play by a Linked User, recorded by their Linked Server under the Account they are Linked to, and listed and deleted by that Account (ADR 0093).
+
+- **One owner.** Only this area reads or writes `viewing_events`, tests included.
+- **Keyed by External ID**, as the Server keeps Watch State (ADR 0013). The Hub never stores a title's name: that is the title source's content (ADR 0094).
+- **Only Linked Users' plays.** An event for a User who isn't Linked is left out, not refused, so a Server's queue empties after an Unlink.
+- **Sent again, recorded once.** A Server names each event by a key, unique per Account, so a retry after a lost answer adds nothing.
+- **Kept as long as the Account.** No expiry: rows go with the Account, by foreign key, or one at a time when it deletes them.
+- **Scoped by Account** (ADR 0097): an Account lists and deletes only its own; a Linked Server records only under its own Users' Accounts.
+
+### Neighbours
+
+- Uses: `links` (the Account a Linked Server's User is Linked to) and `accounts` (`AccountId`).
+- Used by: `api`, which converts what `viewing.rs` defines.

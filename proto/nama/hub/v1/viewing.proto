@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package nama.hub.v1;
+
+// An Account's Viewing Events, for the Hub's web pages (ADR 0093). A Linked Server records them
+// through `LinkedServerService.RecordViewingEvents`. Every call fails with
+// `REFUSAL_REASON_SIGN_IN_REQUIRED` without a session.
+service ViewingEventService {
+  // Returns every one of the signed-in Account's Viewing Events, the latest started first.
+  rpc ListViewingEvents(ListViewingEventsRequest) returns (ListViewingEventsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Deletes one of the signed-in Account's Viewing Events. Deleting one it doesn't have does
+  // nothing.
+  rpc DeleteViewingEvent(DeleteViewingEventRequest) returns (DeleteViewingEventResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+}
+
+// One play of a Movie or Episode by a Linked User, kept under their Account for as long as it
+// exists.
+message ViewingEvent {
+  // The Viewing Event's id, a UUID. Ignored in what a Server records.
+  string id = 1;
+  // Whether it played an Episode rather than a Movie, whose External IDs are separate id spaces.
+  bool episode = 2;
+  // The Movie or Episode, by the External ID its Server keeps its Watch State under, such as
+  // `tmdb-603`: 1 to 100 characters.
+  string external_id = 3;
+  // When it started, in seconds since the Unix epoch.
+  int64 started_at = 4;
+  // The minute of the day it started, from 0 to 1439, in its Server's time zone.
+  int32 time_of_day_minutes = 5;
+  // How far in it stopped, in milliseconds, at most `duration_ms`.
+  int64 stop_position_ms = 6;
+  // How long the Movie or Episode is, in milliseconds. More than zero.
+  int64 duration_ms = 7;
+  // Whether it stopped past 90% of the way through, which marks a title played.
+  bool finished = 8;
+  // What kind of Device played it. Unspecified when its Server couldn't tell.
+  DeviceKind device_kind = 9;
+}
+
+// What kind of Device played, as its Server read it from the Device's browser.
+enum DeviceKind {
+  // One its Server couldn't tell.
+  DEVICE_KIND_UNSPECIFIED = 0;
+  DEVICE_KIND_COMPUTER = 1;
+  DEVICE_KIND_PHONE = 2;
+  DEVICE_KIND_TABLET = 3;
+  DEVICE_KIND_TV = 4;
+}
+
+message ListViewingEventsRequest {}
+
+message ListViewingEventsResponse {
+  repeated ViewingEvent events = 1;
+}
+
+message DeleteViewingEventRequest {
+  // The Viewing Event's id, as `ViewingEvent.id`.
+  string id = 1;
+}
+
+message DeleteViewingEventResponse {}
+
+// A Viewing Event a Linked Server records for one of its Users.
+message UserViewingEvent {
+  // The User's id on the Server. A User who isn't Linked records nothing.
+  int64 user_id = 1;
+  // Unique among the Server's Viewing Events, such as a random UUID, so sending one again
+  // records it once: 1 to 64 characters.
+  string key = 2;
+  ViewingEvent event = 3;
+}
+
+message RecordViewingEventsRequest {
+  // Up to 1000.
+  repeated UserViewingEvent events = 1;
+}
+
+message RecordViewingEventsResponse {}

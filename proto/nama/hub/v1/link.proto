@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package nama.hub.v1;
 
+import "nama/hub/v1/viewing.proto";
+
 // Registering a Server with the Hub, as an OAuth device flow (RFC 8628, ADR 0011): the Server
 // starts it and polls, and the holder of an Account enters the code it shows on the Hub's pages.
 // The Hub never calls a Server. Anyone may call it, since a Server not yet Linked has no identity.
@@ -116,6 +118,13 @@ service LinkedServerService {
   // whether its `public_port` can be reached. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID`
   // for one that isn't an `http` or `https` URL, for too many, or for a port over 65535.
   rpc SetServerAddresses(SetServerAddressesRequest) returns (SetServerAddressesResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Records a Viewing Event for each play by one of the Server's Users, under the Account they are
+  // Linked to (ADR 0093); one for a User who isn't Linked is left out. Sending one again by its
+  // `key` records it once. Fails with `REFUSAL_REASON_VIEWING_EVENT_INVALID`, recording none, when
+  // any breaks the rules `ViewingEvent` gives, or more than 1000 come at once.
+  rpc RecordViewingEvents(RecordViewingEventsRequest) returns (RecordViewingEventsResponse) {
     option idempotency_level = IDEMPOTENT;
   }
 }

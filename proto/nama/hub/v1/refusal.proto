@@ -76,4 +76,7 @@ enum RefusalReason {
   // too many changes, an id too long, a position past the duration, or a time out of range. `field` names it. Params:
   // `maxChanges`, `maxIds` and `maxIdLength`.
   REFUSAL_REASON_WATCH_STATE_INVALID = 20;
+  // `invalid_argument`: a Viewing Event breaks the rules `ViewingEvent` and `UserViewingEvent`
+  // give, or more than `maxEvents` came at once. Params: `maxEvents`.
+  REFUSAL_REASON_VIEWING_EVENT_INVALID = 21;
 }

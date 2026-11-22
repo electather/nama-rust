@@ -64,6 +64,9 @@ pub enum RefusalReason {
     /// too many changes, an id too long, a position past the duration, or a time out of range. `field` names it. Params:
     /// `maxChanges`, `maxIds` and `maxIdLength`.
     REFUSAL_REASON_WATCH_STATE_INVALID = 20i32,
+    /// `invalid_argument`: a Viewing Event breaks the rules `ViewingEvent` and `UserViewingEvent`
+    /// give, or more than `maxEvents` came at once. Params: `maxEvents`.
+    REFUSAL_REASON_VIEWING_EVENT_INVALID = 21i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -129,6 +132,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_WATCH_STATE_INVALID`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const WatchStateInvalid: Self = Self::REFUSAL_REASON_WATCH_STATE_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_VIEWING_EVENT_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ViewingEventInvalid: Self = Self::REFUSAL_REASON_VIEWING_EVENT_INVALID;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -267,6 +273,9 @@ impl ::buffa::Enumeration for RefusalReason {
             20i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_WATCH_STATE_INVALID)
             }
+            21i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_VIEWING_EVENT_INVALID)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -311,6 +320,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_URL_INVALID => "REFUSAL_REASON_URL_INVALID",
             Self::REFUSAL_REASON_WATCH_STATE_INVALID => {
                 "REFUSAL_REASON_WATCH_STATE_INVALID"
+            }
+            Self::REFUSAL_REASON_VIEWING_EVENT_INVALID => {
+                "REFUSAL_REASON_VIEWING_EVENT_INVALID"
             }
         }
     }
@@ -385,6 +397,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_WATCH_STATE_INVALID" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_WATCH_STATE_INVALID)
             }
+            "REFUSAL_REASON_VIEWING_EVENT_INVALID" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_VIEWING_EVENT_INVALID)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -411,6 +426,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_NO_USER_ON_SERVER,
             Self::REFUSAL_REASON_URL_INVALID,
             Self::REFUSAL_REASON_WATCH_STATE_INVALID,
+            Self::REFUSAL_REASON_VIEWING_EVENT_INVALID,
         ]
     }
 }

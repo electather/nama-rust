@@ -2,22 +2,30 @@ use std::{
     collections::HashMap,
     future,
     sync::{Arc, Mutex},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use buffa::Message as _;
+use connectrpc::ErrorCode;
+use nama_hub_proto::nama::hub::v1::{DeviceKind as HubDeviceKind, ViewingEvent};
 use nama_plugin_api::{
     BoxFuture, Observer, Registrar, Registration,
     automation::{
         Kernel, KernelFunction as _, KernelRefused,
-        functions::{StoreDelete, StoreGet, StorePut},
+        functions::{
+            ListDevices, ListVersionTitles, ListWatchStates, StoreDelete, StoreGet, StorePut,
+        },
     },
     contract::{
-        SimilarAsked, SimilarTitle, SimilarTitles, StoreEntry, StoreKey, StoreValue, Stored,
-        TitleId, TitleKind,
+        Device, DeviceKind, Devices, Event, Playback, PlaybackEnded, PlaybackStarted, StoreEntry,
+        StoreKey, StoreValue, Stored, TitleId, TitleRef, TitleRefKind, TitleWatchStates,
+        VersionTitles, VersionTitlesAsked, WatchState, WatchStates, WatchStatesAsked,
+        event::Event as Happened,
     },
+    contract::{SimilarAsked, SimilarTitle, SimilarTitles, TitleKind},
     diagnostics_sharer::{DiagnosticsSharer, Signal},
     job::RunJob,
-    points::{WatchStateChange, WatchStateChanges},
+    points::{ObservedEvents, WatchStateChange, WatchStateChanges},
     server_link::{Link, Reachability, ServerAddresses, ServerLinker},
     similar_source::SimilarSource,
 };
@@ -838,6 +846,235 @@ async fn addresses_the_hub_couldnt_take_are_reported_again() {
     linker.set_addresses(lan_only).await.unwrap();
 
     assert_eq!(hub.reported_addresses().len(), 1);
+}
+
+/// The Version holding the Movie `tmdb-603`.
+const MATRIX_VERSION: i64 = 1;
+
+/// A Version whose Item isn't Matched.
+const UNMATCHED_VERSION: i64 = 2;
+
+/// The TV each play is on.
+const TV: i64 = 3;
+
+/// How far into `tmdb-603` each play stops, and how long it is: past 90%, so finished.
+const STOPPED_MS: u64 = 7_500_000;
+const MATRIX_MS: u64 = 8_160_000;
+
+/// A Kernel keeping the Store as [`store`] does, which answers that [`MATRIX_VERSION`] holds the
+/// Movie `tmdb-603`, that any User asked about stopped it at [`STOPPED_MS`] just now, and that
+/// [`TV`] is a TV.
+fn playing() -> Arc<dyn Kernel> {
+    let store = store();
+    Arc::new(
+        move |function: &str,
+              request: Vec<u8>|
+              -> BoxFuture<'static, Result<Vec<u8>, KernelRefused>> {
+            let answer = if function == ListVersionTitles::NAME {
+                let asked = VersionTitlesAsked::decode_from_slice(&request).unwrap();
+                let matrix = TitleRef {
+                    library_id: 1,
+                    kind: TitleRefKind::TITLE_REF_KIND_MOVIE.into(),
+                    id: TitleId {
+                        namespace: "tmdb".to_owned(),
+                        value: "603".to_owned(),
+                        ..Default::default()
+                    }
+                    .into(),
+                    ..Default::default()
+                };
+                let titles = Vec::from_iter((asked.version_id == MATRIX_VERSION).then_some(matrix));
+                VersionTitles {
+                    titles,
+                    ..Default::default()
+                }
+                .encode_to_vec()
+            } else if function == ListWatchStates::NAME {
+                let asked = WatchStatesAsked::decode_from_slice(&request).unwrap();
+                let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+                let state = WatchState {
+                    user_id: asked.user_id.unwrap(),
+                    position_ms: STOPPED_MS,
+                    duration_ms: MATRIX_MS,
+                    updated_at_ms: i64::try_from(now.as_millis()).unwrap(),
+                    ..Default::default()
+                };
+                let titles = (asked.titles.into_iter())
+                    .map(|title_ref| TitleWatchStates {
+                        title_ref: title_ref.into(),
+                        states: vec![state.clone()],
+                        ..Default::default()
+                    })
+                    .collect();
+                WatchStates {
+                    titles,
+                    ..Default::default()
+                }
+                .encode_to_vec()
+            } else if function == ListDevices::NAME {
+                let tv = Device {
+                    id: TV,
+                    user_id: 7,
+                    kind: DeviceKind::DEVICE_KIND_TV.into(),
+                    ..Default::default()
+                };
+                Devices {
+                    devices: vec![tv],
+                    ..Default::default()
+                }
+                .encode_to_vec()
+            } else {
+                let (store, function) = (Arc::clone(&store), function.to_owned());
+                return Box::pin(async move { store.call(&function, request).await });
+            };
+            Box::pin(future::ready(Ok(answer)))
+        },
+    )
+}
+
+/// The Extension Points the Plugin serves.
+struct Points {
+    linker: Arc<dyn ServerLinker>,
+    observer: Arc<dyn Observer<Events>>,
+    jobs: Arc<dyn JobRunner>,
+}
+
+/// The Plugin enabled against `hub` with `kernel`.
+fn enabled_points(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Points {
+    let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
+    Hub::at(hub.url()).register(&mut registrar).unwrap();
+    let registrations = registrar.into_registrations();
+    let mut found = registrations.iter();
+    Points {
+        linker: (found.clone())
+            .find_map(Registration::provider::<dyn ServerLinker>)
+            .unwrap(),
+        observer: (found.clone())
+            .find_map(Registration::observer::<Events>)
+            .unwrap(),
+        jobs: found
+            .find_map(Registration::provider::<dyn JobRunner>)
+            .unwrap(),
+    }
+}
+
+/// The User `user_id` plays `version` on [`TV`] as the plan `plan_id`, and stops.
+async fn play(observer: &dyn Observer<Events>, user_id: i64, version: i64, plan_id: u64) {
+    let playback = Playback {
+        user_id,
+        device_id: TV,
+        version_id: version,
+        plan_id,
+        ..Default::default()
+    };
+    let event = |happened: Happened| Event {
+        event: Some(happened),
+        ..Default::default()
+    };
+    let started = PlaybackStarted {
+        playback: playback.clone().into(),
+        ..Default::default()
+    };
+    let ended = PlaybackEnded {
+        playback: playback.into(),
+        ..Default::default()
+    };
+    for happened in [started.into(), ended.into()] {
+        let batch = ObservedEvents {
+            events: vec![event(happened)],
+            ..Default::default()
+        };
+        observer.observe(&batch).await.unwrap();
+    }
+}
+
+/// Runs the Job that sends the Viewing Events the Hub hasn't had yet.
+async fn send(jobs: &dyn JobRunner) -> Result<(), PluginError> {
+    let run = RunJob {
+        job_id: "send-viewing-events".to_owned(),
+        ..Default::default()
+    };
+    jobs.run(&run).await
+}
+
+#[tokio::test]
+async fn a_linked_users_play_of_a_matched_title_goes_to_the_hub() {
+    let hub = FakeHub::start().await;
+    let Points {
+        linker, observer, ..
+    } = enabled_points(&hub, &playing());
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+    let before = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+
+    play(observer.as_ref(), 7, MATRIX_VERSION, 1).await;
+
+    let sent = hub.viewing_events();
+    let [sent] = sent.as_slice() else {
+        panic!("one Viewing Event: {sent:?}");
+    };
+    assert_eq!(sent.user_id, 7);
+    assert_ne!(sent.key, "");
+    let event = sent.event.as_option().unwrap();
+    let started_at = u64::try_from(event.started_at).unwrap();
+    assert!(started_at >= before.as_secs(), "{started_at}");
+    assert!((0..24 * 60).contains(&event.time_of_day_minutes));
+    assert_eq!(
+        event,
+        &ViewingEvent {
+            external_id: "tmdb-603".to_owned(),
+            started_at: event.started_at,
+            time_of_day_minutes: event.time_of_day_minutes,
+            stop_position_ms: 7_500_000,
+            duration_ms: 8_160_000,
+            finished: true,
+            device_kind: HubDeviceKind::DEVICE_KIND_TV.into(),
+            ..Default::default()
+        }
+    );
+}
+
+#[tokio::test]
+async fn plays_by_users_who_arent_linked_or_of_unmatched_items_send_nothing() {
+    let hub = FakeHub::start().await;
+    let Points {
+        linker,
+        observer,
+        jobs,
+    } = enabled_points(&hub, &playing());
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+
+    play(observer.as_ref(), 8, MATRIX_VERSION, 1).await;
+    play(observer.as_ref(), 7, UNMATCHED_VERSION, 2).await;
+    send(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(hub.viewing_events(), []);
+}
+
+#[tokio::test]
+async fn a_play_while_the_hub_is_down_is_sent_once_it_is_back_after_a_restart_and_then_forgotten() {
+    let hub = FakeHub::start().await;
+    let kernel = playing();
+    let Points {
+        linker,
+        observer,
+        jobs,
+    } = enabled_points(&hub, &kernel);
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+    hub.fail_recording(Some(ErrorCode::Unavailable));
+    play(observer.as_ref(), 7, MATRIX_VERSION, 1).await;
+    send(jobs.as_ref()).await.unwrap_err();
+    assert_eq!(hub.viewing_events(), []);
+    // The Server restarts: a new Plugin over the same Store.
+    let restarted = enabled_points(&hub, &kernel);
+
+    hub.fail_recording(None);
+    send(restarted.jobs.as_ref()).await.unwrap();
+    send(restarted.jobs.as_ref()).await.unwrap();
+
+    assert_eq!(hub.viewing_events().len(), 1);
 }
 
 #[tokio::test]

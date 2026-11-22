@@ -16,15 +16,16 @@ use nama_hub_proto::nama::hub::v1::{
     ListSimilarTitlesRequest, ListSimilarTitlesResponse, ListUserInvitesRequest,
     ListUserInvitesResponse, PollServerLinkRequest, PollServerLinkResponse,
     PollServerSignInRequest, PollServerSignInResponse, PushWatchStatesRequest,
-    PushWatchStatesResponse, RefusalReason, ServerLinkService, SetServerAddressesRequest,
-    SetServerAddressesResponse, StartServerLinkRequest, StartServerLinkResponse,
-    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
-    StartUserLinkResponse, UnlinkLinkedUserRequest, UnlinkLinkedUserResponse, UnlinkServerRequest,
-    UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
+    PushWatchStatesResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
+    RefusalReason, ServerLinkService, SetServerAddressesRequest, SetServerAddressesResponse,
+    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
+    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse,
+    UnlinkLinkedUserRequest, UnlinkLinkedUserResponse, UnlinkServerRequest, UnlinkServerResponse,
+    UnlinkUserRequest, UnlinkUserResponse,
 };
 use sqlx::PgPool;
 
-use super::{accounts::signed_in, hub_failed, refuse};
+use super::{accounts::signed_in, hub_failed, refuse, viewing};
 use crate::{
     links::{
         self, ADDRESS_LENGTH, CODE_LIFETIME_MINS, InviteId, LinkId, LinkedServer, Links,
@@ -33,6 +34,7 @@ use crate::{
     },
     sync::{MAX_CHANGED_AT_MS, MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, WatchStateChange, WatchStates},
     titles::{self, ExternalId, SimilarTitle, TitleKind},
+    viewing::Viewing,
 };
 
 /// `nama.hub.v1.ServerLinkService`: a Server not yet Linked, so anyone.
@@ -251,6 +253,7 @@ pub(super) struct LinkedServerServiceHandler {
     pub(super) links: Links,
     pub(super) watch_states: WatchStates,
     pub(super) db: PgPool,
+    pub(super) viewing: Viewing,
 }
 
 #[expect(
@@ -436,6 +439,19 @@ impl LinkedServerService for LinkedServerServiceHandler {
                 }
             }),
         )
+    }
+
+    async fn record_viewing_events(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, RecordViewingEventsRequest>,
+    ) -> ServiceResult<RecordViewingEventsResponse> {
+        let server = linked_server(&ctx)?;
+        let events = viewing::recorded_from_proto(request.to_owned_message().events)?;
+        (self.viewing.record(server, events))
+            .await
+            .map_err(|err| viewing::refused(&err))?;
+        Response::ok(RecordViewingEventsResponse::default())
     }
 }
 

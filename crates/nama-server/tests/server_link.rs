@@ -400,13 +400,11 @@ async fn with_the_hub_down_devices_stay_signed_in_but_accounts_cant_sign_in_or_r
     assert!(still.is_ok(), "{still:?}");
     let refused = start_account_sign_in(&server).await.unwrap_err();
     assert_eq!(refused.code, ErrorCode::Unavailable);
+    let message = refused.message.as_deref().unwrap_or_default();
+    assert!(message.contains("needs the Hub"), "{refused:?}");
     assert!(
-        refused
-            .message
-            .as_deref()
-            .unwrap_or_default()
-            .contains("needs the Hub"),
-        "{refused:?}"
+        !message.to_lowercase().contains("password"),
+        "a User created from an Account has none: {refused:?}"
     );
     assert!(!offers_account_sign_in(&server).await);
     let before = users(server.client_config())

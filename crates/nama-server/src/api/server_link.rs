@@ -29,9 +29,9 @@ const LINKING_FAILED: &str = "the Plugin that links the Server failed; its page 
 
 /// What `unavailable` says when a sign-in with an Account fails, such as while the Hub is down. A
 /// Device already signed in never needs the Hub (ADR 0092).
-const ACCOUNT_SIGN_IN_FAILED: &str = "Signing in with an Account needs the Hub, which can't be \
-                                      reached right now. Try again later, or use your password \
-                                      if you have one.";
+/// No password advice: a User whose only Sign-in Method is their Account has none.
+const ACCOUNT_SIGN_IN_FAILED: &str =
+    "Signing in with an Account needs the Hub, which can't be reached right now. Try again later.";
 
 /// Where Linking stands, unset without an enabled Plugin that links the Server.
 pub(super) async fn get(points: &ExtensionPoints) -> ServiceResult<GetServerLinkResponse> {
