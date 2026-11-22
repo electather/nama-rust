@@ -6,9 +6,14 @@ import { textLink } from "@/shared/lib/text-link-classes";
 /** Says the Server writes no Backups by itself while Upkeep, whose Job writes them, is disabled. */
 export function UpkeepDisabled() {
   return (
-    <p className="mt-6 max-w-prose text-pretty">
+    <p className="max-w-prose py-3.5 text-sm text-pretty">
       Upkeep is disabled, so the Server doesn’t back itself up.{" "}
-      <Link to="/admin/plugins/$pluginId" params={{ pluginId: UPKEEP }} className={textLink}>
+      <Link
+        to="."
+        search={(rest) => ({ ...rest, settings: "plugins", plugin: UPKEEP })}
+        replace
+        className={textLink}
+      >
         Enable Upkeep
       </Link>{" "}
       to back up every day, or now.

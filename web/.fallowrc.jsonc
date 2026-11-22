@@ -172,10 +172,12 @@
       },
       {
         "from": "settings",
-        // Its Plugins pane lists the Plugins page's rows.
+        // Its Plugins pane lists the Plugins page's rows, and its Backups pane renders Backups'.
         "allow": [
           "settings",
           "admin-plugins",
+          "admin-backups",
+          "admin-jobs",
           "shared-components",
           "shared-ui",
           "shared-hooks",

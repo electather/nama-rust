@@ -227,7 +227,6 @@ test.each([
       "Playback",
       "Now Playing",
       "Jobs",
-      "Backups",
     ],
   },
 ])(
