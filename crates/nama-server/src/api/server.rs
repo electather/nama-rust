@@ -27,6 +27,7 @@ use nama_proto::nama::v1::{
 
 use crate::{
     backup::Backups,
+    diagnostics::Sharing,
     ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
     home_rows::HomeRows,
     images::{self, Blobs, ImageStore, Persist, SwitchRefused, Switching},
@@ -116,7 +117,7 @@ impl ServerService for ServerServiceHandler {
         Output = ServiceResult<impl Encodable<GetServerSettingsResponse> + Send + use<'a>>,
     > + Send {
         future::ready(Response::ok(GetServerSettingsResponse {
-            settings: server_settings_to_proto(self.settings.now().url).into(),
+            settings: server_settings_to_proto(self.settings.now()).into(),
             ..Default::default()
         }))
     }
@@ -127,9 +128,14 @@ impl ServerService for ServerServiceHandler {
         request: ServiceRequest<'_, UpdateServerSettingsRequest>,
     ) -> ServiceResult<UpdateServerSettingsResponse> {
         let settings = required_settings(&request.settings)?;
-        let url = (self.settings.set_url(settings.url).await).map_err(settings_change_failed)?;
+        let sharing = Sharing {
+            diagnostics: settings.share_diagnostics,
+            usage_analytics: settings.share_usage_analytics,
+        };
+        (self.settings.change_server(settings.url, sharing).await)
+            .map_err(settings_change_failed)?;
         Response::ok(UpdateServerSettingsResponse {
-            settings: server_settings_to_proto(url).into(),
+            settings: server_settings_to_proto(self.settings.now()).into(),
             ..Default::default()
         })
     }
@@ -566,9 +572,11 @@ fn switch_refused(refused: &SwitchRefused, named: &str) -> ConnectError {
 }
 
 /// The Server settings as the API has them.
-fn server_settings_to_proto(url: String) -> ServerSettings {
+fn server_settings_to_proto(values: server_settings::Values) -> ServerSettings {
     ServerSettings {
-        url,
+        url: values.url,
+        share_diagnostics: values.sharing.diagnostics,
+        share_usage_analytics: values.sharing.usage_analytics,
         ..Default::default()
     }
 }
