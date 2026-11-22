@@ -22,7 +22,7 @@ fn the_server_keeps_its_structure() {
         must_find: MustFind {
             nested_folder: "src/playback/choices",
             area_module: Some(("library", "contents")),
-            crate_paths: 100,
+            crate_paths: 101,
             named_paths: 10,
         },
     }

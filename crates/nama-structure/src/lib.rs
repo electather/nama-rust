@@ -27,8 +27,7 @@ pub struct Structure {
     pub ceilings: &'static [(&'static str, usize)],
     /// The tables a "One owner" rule names, each with its owner's path without `.rs`.
     pub owned_tables: &'static [(&'static str, &'static [&'static str])],
-    /// The crate's modules in rows of who may call whom, highest row first. A module may call a
-    /// lower row, or a module to its right in its own row.
+    /// The crate's modules in rows of who may call whom, highest row first (ADR 0051).
     pub rows: &'static [&'static [&'static str]],
     /// Whether `rows` may name modules not written yet, as the Hub's name the areas ADR 0099
     /// plans. Otherwise a module `rows` names without a file fails.
@@ -42,7 +41,7 @@ pub struct Structure {
     /// The crates only one area's files under `src/` may name: the crate as code names it, the
     /// area, and why.
     pub confined_crates: &'static [(&'static str, &'static str, &'static str)],
-    /// What the walks must find, so a walk that breaks fails instead of checking nothing.
+    /// What the walks must find.
     pub must_find: MustFind,
 }
 
@@ -74,7 +73,7 @@ impl Structure {
         problems.extend(owned_table_problems(&files, self.owned_tables));
         problems.extend(unchecked_query_problems(&files));
         problems.extend(named_path_problems(root, self.must_find.named_paths));
-        problems.extend(self.placement_problems(&files));
+        problems.extend(self.row_placement_problems(&files));
         problems.extend(stray_test_problems(&files, self.must_find.nested_folder));
         problems.extend(self.upward_call_problems(&files));
         problems.extend(surfaces::deep_reach_problems(
@@ -92,7 +91,7 @@ impl Structure {
 
     /// What is wrong with where the `.rs` files directly under `src/` are placed in `rows` and
     /// `startup`.
-    fn placement_problems(&self, files: &[SourceFile]) -> Vec<String> {
+    fn row_placement_problems(&self, files: &[SourceFile]) -> Vec<String> {
         let modules: Vec<&str> = files
             .iter()
             .filter_map(|file| file.path.strip_prefix("src/")?.strip_suffix(".rs"))

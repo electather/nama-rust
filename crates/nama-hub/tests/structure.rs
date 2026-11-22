@@ -32,9 +32,7 @@ const CEILINGS: &[(&str, usize)] = &[];
 /// The tables each area owns, each with its owner's path without `.rs`.
 const OWNED_TABLES: &[(&str, &[&str])] = &[];
 
-/// The Hub's modules in rows of who may call whom, highest row first (ADR 0099). A module may
-/// call a lower row, or a module to its right in its own row; `STARTUP` calls any row. The calls
-/// allowed against the order are in `ALLOWED_UPWARD`.
+/// The Hub's modules in rows of who may call whom, highest row first (ADR 0099).
 const ROWS: &[&[&str]] = &[
     &["api"],
     &["recommendations", "diagnostics", "discovery"],
