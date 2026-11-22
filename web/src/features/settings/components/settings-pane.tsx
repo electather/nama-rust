@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 
+import { BackupsPane } from "@/features/settings/components/backups-pane";
 import { ConnectionsPane } from "@/features/settings/components/connections-pane";
 import { DevicesPane } from "@/features/settings/components/devices-pane";
 import { HomePane } from "@/features/settings/components/home-pane";
@@ -8,6 +9,7 @@ import { PlaybackPane } from "@/features/settings/components/playback-pane";
 import { PluginsPane } from "@/features/settings/components/plugins-pane";
 import { RequestsPane } from "@/features/settings/components/requests-pane";
 import { ServerPane } from "@/features/settings/components/server-pane";
+import { ServerPlaybackPane } from "@/features/settings/components/server-playback-pane";
 import { SigninPane } from "@/features/settings/components/signin-pane";
 import { UsersPane } from "@/features/settings/components/users-pane";
 import type { Section } from "@/features/settings/lib/sections";
@@ -22,6 +24,8 @@ const panes: Record<Section, ComponentType<{ user: User | undefined }>> = {
   connections: ConnectionsPane,
   server: ServerPane,
   users: UsersPane,
+  "server-playback": ServerPlaybackPane,
+  backups: BackupsPane,
   plugins: PluginsPane,
 };
 

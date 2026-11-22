@@ -58,12 +58,9 @@ export function signedInQuery(transport: Transport) {
 export const adminPages = [
   { to: "/admin/libraries", label: "Libraries", permission: Permission.MANAGE_LIBRARIES },
   { to: "/admin/needs-a-match", label: "Needs a Match", permission: Permission.MANAGE_LIBRARIES },
-  { to: "/admin/plugins", label: "Plugins", permission: Permission.MANAGE_SETTINGS },
   { to: "/admin/home", label: "Home", permission: Permission.MANAGE_SETTINGS },
-  { to: "/admin/playback", label: "Playback", permission: Permission.ADMIN },
   { to: "/admin/now-playing", label: "Now Playing", permission: Permission.ADMIN },
   { to: "/admin/jobs", label: "Jobs", permission: Permission.ADMIN },
-  { to: "/admin/backups", label: "Backups", permission: Permission.ADMIN },
 ] as const;
 
 /** The Admin pages `user` may open. */

@@ -19,9 +19,9 @@ export function HardwareRow({
 }) {
   return (
     <AdminRow end={<StateLabel label="Passed" Icon={CircleCheck} />}>
-      <h3 className="font-medium">{hardwareLabel(found)}</h3>
+      <h5 className="text-sm font-semibold">{hardwareLabel(found)}</h5>
       {canTranscode && (
-        <p className="text-sm text-pretty text-muted-foreground">
+        <p className="text-xs text-pretty text-muted-foreground">
           {toneMappings.get(found.toneMapping)}
           {found.automatic && " Automatic picks this one."}
         </p>

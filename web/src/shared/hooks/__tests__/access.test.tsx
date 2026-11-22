@@ -205,23 +205,14 @@ test.each([
   {
     name: "Manage settings",
     permission: Permission.MANAGE_SETTINGS,
-    landing: "/admin/plugins",
-    pages: ["Plugins", "Home"],
+    landing: "/admin/home",
+    pages: ["Home"],
   },
   {
     name: "Admin",
     permission: Permission.ADMIN,
     landing: "/admin/libraries",
-    pages: [
-      "Libraries",
-      "Needs a Match",
-      "Plugins",
-      "Home",
-      "Playback",
-      "Now Playing",
-      "Jobs",
-      "Backups",
-    ],
+    pages: ["Libraries", "Needs a Match", "Home", "Now Playing", "Jobs"],
   },
 ])(
   "with only the $name Permission, Admin opens on $landing and lists only the pages it allows",
@@ -241,7 +232,7 @@ test.each([
   },
 );
 
-test.each(["/admin/plugins", "/admin/plugins/tmdb", "/admin/jobs", "/admin/now-playing"])(
+test.each(["/admin/jobs", "/admin/now-playing"])(
   "a User with only Manage Libraries opening %s is told they can't",
   async (path) => {
     openApp(path, fakeServer({ signedIn: [Permission.MANAGE_LIBRARIES] }));

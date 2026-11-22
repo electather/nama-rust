@@ -11,7 +11,7 @@ import { expectUnderField, refused } from "@/test-refusal";
 afterEach(cleanup);
 
 /**
- * Opens the Plugin `id`'s details page to change its settings, answering `LibraryService` calls
+ * Opens the Plugin `id`'s view to change its settings, answering `LibraryService` calls
  * with `library` where it gives them: `sent` is the first request to save them the Server got, and
  * `requests` every one, in order.
  */
@@ -228,7 +228,7 @@ test("a Plugin no longer on the Server says so for the form", async () => {
   ).resolves.toBeDefined();
 });
 
-/** The Libraries setting of the cleanup Plugin's details page, once its Libraries show. */
+/** The Libraries setting in the cleanup Plugin's view, once its Libraries show. */
 async function librariesToClean() {
   const found101 = await plugin("cleanup");
   const group = found101.getByRole("group", { name: "Libraries to clean" });

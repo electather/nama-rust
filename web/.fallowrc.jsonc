@@ -165,12 +165,16 @@
       },
       {
         "from": "settings",
-        // Its Plugins and Users panes render parts of the Plugins, Users and Invites features.
+        // Its Plugins pane renders a Plugin's parts, whose code stays in admin-plugins; its Users pane renders parts of the Users and Invites features;
+        // its Backups pane renders Backups' parts, and each Backup's row says when it was written as a Job's Run does.
         "allow": [
           "settings",
           "admin-plugins",
           "admin-users",
           "invites",
+          "admin-playback",
+          "admin-backups",
+          "admin-jobs",
           "shared-components",
           "shared-ui",
           "shared-hooks",
@@ -212,11 +216,9 @@
           "app",
           "auth",
           "admin-libraries",
-          "admin-plugins",
           "admin-needs-a-match",
           "admin-playback",
           "admin-jobs",
-          "admin-backups",
           "admin-now-playing",
           "admin-home",
           "invites",
