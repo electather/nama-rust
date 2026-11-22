@@ -66,16 +66,18 @@ test("a level's button hides and shows that level's lines, and says how many sho
 
 test("a Plugin that has logged nothing has no Plugin Log", async () => {
   let listed = false;
-  openPluginAsAdmin("tmdb", {
+  const { queryClient } = openPluginAsAdmin("tmdb", {
     listPluginLogLines: () => {
       listed = true;
       return { lines: [] };
     },
-  });
+  }).options.context;
   const page = await plugin("TMDB");
 
+  // `listed` flips as the fake Server answers; the client has the answer once nothing is fetching.
   await waitFor(() => {
     expect(listed).toBe(true);
+    expect(queryClient.isFetching()).toBe(0);
   });
   expect(page.queryByRole("heading", { name: "Plugin Log" })).toBeNull();
 });
