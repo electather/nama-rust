@@ -192,8 +192,9 @@ export const GetAccountResponseSchema: GenMessage<GetAccountResponse> = /*@__PUR
 export const AccountService: GenService<{
   /**
    * Creates an Account with an email and a password, and signs it in. Fails with
-   * `REFUSAL_REASON_EMAIL_TAKEN` when another Account has the email, and with
-   * `REFUSAL_REASON_EMAIL_INVALID` or `REFUSAL_REASON_PASSWORD_LENGTH` when one breaks the rules.
+   * `REFUSAL_REASON_EMAIL_TAKEN` when another Account has the email, with
+   * `REFUSAL_REASON_EMAIL_INVALID` or `REFUSAL_REASON_PASSWORD_LENGTH` when one breaks the rules,
+   * and with `REFUSAL_REASON_TOO_MANY_ATTEMPTS` after too many creations from one client.
    *
    * @generated from rpc nama.hub.v1.AccountService.CreateAccount
    */

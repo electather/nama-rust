@@ -14,7 +14,7 @@ pub enum RefusalReason {
     /// `unauthenticated`: no Account has this email and password. Which of the two is wrong isn't
     /// said.
     REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD = 2i32,
-    /// `resource_exhausted`: too many attempts failed lately. Params: `retryAfterSeconds`, also sent
+    /// `resource_exhausted`: too many attempts lately. Params: `retryAfterSeconds`, also sent
     /// as the `Retry-After` header.
     REFUSAL_REASON_TOO_MANY_ATTEMPTS = 3i32,
     /// `already_exists`: another Account has this email, compared without regard to case.
