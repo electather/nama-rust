@@ -1,6 +1,6 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
-//! one Server's device flow, Unlinking, its Users' Links and Viewing Events, and a key set of one Ed25519 key it signs
-//! with, as the Hub's API (`proto/nama/hub/v1/link.proto`) says the Hub does.
+//! one Server's device flow, Unlinking, its Users' Links and Viewing Events, and a key set of one
+//! Ed25519 key it signs with, as the Hub's API (`proto/nama/hub/v1/`) says the Hub does.
 
 use std::{
     collections::HashMap,

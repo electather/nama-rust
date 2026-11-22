@@ -219,7 +219,7 @@ impl Viewing {
         &self,
         account: AccountId,
     ) -> Result<Vec<ListedViewingEvent>, sqlx::Error> {
-        // shortcut: every event in one answer, a few thousand after years of watching; page it
+        // ponytail: every event in one answer, a few thousand after years of watching; page it
         // once an Account's history outgrows one response.
         let rows = sqlx::query!(
             r#"SELECT id, kind, external_id, extract(epoch FROM started_at)::bigint AS "started_at!",

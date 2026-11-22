@@ -293,6 +293,21 @@ async fn an_account_lists_and_deletes_only_its_own_events(db: PgPool) {
 }
 
 #[sqlx::test(migrations = false)]
+async fn a_server_records_only_under_its_own_users_accounts(db: PgPool) {
+    let (hub, mut inbox, ada, _ada_server) = ada_watching(db).await;
+    let bea = create_proven(&hub, &mut inbox, "bea@example.com").await;
+    let beas_server = linked(&hub, &bea).await;
+
+    // Bea's Server has no User 7 Linked, whatever Ada's Server calls its User 7.
+    record(&hub, &beas_server, vec![played(7, "a", "tmdb-603")])
+        .await
+        .unwrap();
+
+    assert_eq!(listed_ids(&hub, &ada).await, Vec::<String>::new());
+    assert_eq!(listed_ids(&hub, &bea).await, Vec::<String>::new());
+}
+
+#[sqlx::test(migrations = false)]
 async fn an_invalid_event_records_none_of_its_batch(db: PgPool) {
     let (hub, _inbox, ada, server) = ada_watching(db).await;
 

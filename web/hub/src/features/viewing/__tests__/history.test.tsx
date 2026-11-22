@@ -18,7 +18,7 @@ import {
   screen,
   waitForElementToBeRemoved,
 } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, test } from "vite-plus/test";
+import { afterEach, beforeAll, describe, expect, test, vi } from "vite-plus/test";
 
 const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
 
@@ -69,6 +69,14 @@ function open(path: string, { events = [matrix, pilot], listFails = false } = {}
   render(<RouterProvider router={getRouter(transport)} />);
 }
 
+/** The text of `file`, which should be a Blob the page exported. */
+async function textOf(file: Blob | MediaSource | undefined) {
+  if (!(file instanceof Blob)) {
+    throw new TypeError("the page exported no Blob");
+  }
+  return file.text();
+}
+
 describe("viewing history", () => {
   beforeAll(() => {
     // A file's first `findBy…` waits while the route chunks load for the first time.
@@ -77,6 +85,7 @@ describe("viewing history", () => {
 
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
   });
 
   test("the Account page leads to the history", async () => {
@@ -107,15 +116,24 @@ describe("viewing history", () => {
   });
 
   test("exporting downloads every play as JSON", async () => {
+    const exported: (Blob | MediaSource)[] = [];
+    vi.spyOn(URL, "createObjectURL").mockImplementation((blob) => {
+      exported.push(blob);
+      return "blob:history";
+    });
+    const downloads: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function record(
+      this: HTMLAnchorElement,
+    ) {
+      downloads.push(this.download);
+    });
     open("/history");
 
-    const exported = await screen.findByRole("link", { name: "Export as JSON" });
+    fireEvent.click(await screen.findByRole("button", { name: "Export as JSON" }));
 
-    expect(exported.getAttribute("download")).toBe("nama-viewing-history.json");
-    const prefix = "data:application/json;charset=utf-8,";
-    const href = String(exported.getAttribute("href"));
-    expect(href.startsWith(prefix)).toBe(true);
-    const json: unknown = JSON.parse(decodeURIComponent(href.slice(prefix.length)));
+    expect(downloads).toStrictEqual(["nama-viewing-history.json"]);
+    const [file] = exported;
+    const json: unknown = JSON.parse(await textOf(file));
     expect(json).toStrictEqual({
       events: [
         {

@@ -1,7 +1,6 @@
+import { ExportButton } from "@hub/features/viewing/components/export-button";
 import { ViewingEventItem } from "@hub/features/viewing/components/viewing-event-item";
 import { useViewingEvents } from "@hub/features/viewing/data/viewing-events";
-import { exportedHistory } from "@hub/features/viewing/lib/viewing-event-text";
-import { buttonVariants } from "nama-ui/components/button";
 
 /** The signed-in Account's Viewing Events, exporting them, or what stands in for them. */
 export function ViewingHistory() {
@@ -21,13 +20,7 @@ export function ViewingHistory() {
   }
   return (
     <>
-      <a
-        href={exportedHistory(events.data)}
-        download="nama-viewing-history.json"
-        className={buttonVariants({ variant: "outline", size: "lg" })}
-      >
-        Export as JSON
-      </a>
+      <ExportButton history={events.data} />
       <ul className="flex flex-col divide-y">
         {events.data.events.map((event) => (
           <ViewingEventItem key={event.id} event={event} />

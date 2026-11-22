@@ -53,5 +53,5 @@ function twoDigits(part: number) {
 /** Every Viewing Event as the JSON the Hub API speaks, for an Account to keep. */
 export function exportedHistory(history: ListViewingEventsResponse) {
   const json = toJsonString(ListViewingEventsResponseSchema, history, { prettySpaces: 2 });
-  return `data:application/json;charset=utf-8,${encodeURIComponent(json)}`;
+  return new Blob([json], { type: "application/json" });
 }

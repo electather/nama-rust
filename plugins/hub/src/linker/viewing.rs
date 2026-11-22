@@ -158,7 +158,7 @@ impl ViewingEvents {
         let _held = self.unsent.lock().await;
         let mut unsent = self.unsent_events().await?;
         unsent.events.extend(events);
-        // shortcut: about 600 plays fit; past that, while the Hub stays down, the oldest go.
+        // ponytail: about 600 plays fit; past that, while the Hub stays down, the oldest go.
         // Keep them under a key each once Store keys can be listed.
         while unsent.events.len() > MAX_UNSENT
             || usize::try_from(unsent.encoded_len()).unwrap_or(usize::MAX) > MAX_STORED_BYTES
