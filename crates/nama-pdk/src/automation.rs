@@ -343,6 +343,8 @@ pub mod kernel {
             safe fn list_titles_sharing(request: u64) -> u64;
             safe fn refresh_metadata(request: u64) -> u64;
             safe fn back_up(request: u64) -> u64;
+            safe fn list_version_titles(request: u64) -> u64;
+            safe fn list_devices(request: u64) -> u64;
         }
 
         let import: extern "C" fn(u64) -> u64 = match name {
@@ -362,6 +364,8 @@ pub mod kernel {
             "list_titles_sharing" => list_titles_sharing,
             "refresh_metadata" => refresh_metadata,
             "back_up" => back_up,
+            "list_version_titles" => list_version_titles,
+            "list_devices" => list_devices,
             _ => return Err(Error::msg(format!("the Kernel has no function {name}"))),
         };
         // Freed when dropped, once the Kernel has read it.

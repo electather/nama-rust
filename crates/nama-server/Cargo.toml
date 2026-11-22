@@ -61,6 +61,8 @@ opentelemetry-http = { version = "0.33.1", default-features = false }
 opentelemetry-otlp = { version = "0.33.1", default-features = false, features = ["http-proto", "logs", "reqwest-blocking-client", "trace"] }
 opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["logs", "trace"] }
 regex = "1"
+# Reads the description a router answers UPnP with (`port_mapping`).
+roxmltree = "0.21"
 # ring, as the bundled Plugins already build it, for reqwest when the Hub's features reach it
 # (`diagnostics::use_ring_for_tls`).
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }

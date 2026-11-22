@@ -124,6 +124,11 @@ pub mod __buffa {
         reg.register_json_any(super::__USERS_ASKED_JSON_ANY);
         reg.register_json_any(super::__USERS_JSON_ANY);
         reg.register_json_any(super::__USER_JSON_ANY);
+        reg.register_json_any(super::__VERSION_TITLES_ASKED_JSON_ANY);
+        reg.register_json_any(super::__VERSION_TITLES_JSON_ANY);
+        reg.register_json_any(super::__DEVICES_ASKED_JSON_ANY);
+        reg.register_json_any(super::__DEVICES_JSON_ANY);
+        reg.register_json_any(super::__DEVICE_JSON_ANY);
         reg.register_json_any(super::__REQUESTERS_ASKED_JSON_ANY);
         reg.register_json_any(super::__REQUESTERS_JSON_ANY);
         reg.register_json_any(super::__TITLE_REQUESTERS_JSON_ANY);
@@ -439,6 +444,26 @@ pub use self::__buffa::view::UsersOwnedView;
 pub use self::__buffa::view::UserView;
 #[doc(inline)]
 pub use self::__buffa::view::UserOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::VersionTitlesAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::VersionTitlesAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::VersionTitlesView;
+#[doc(inline)]
+pub use self::__buffa::view::VersionTitlesOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DevicesAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::DevicesAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DevicesView;
+#[doc(inline)]
+pub use self::__buffa::view::DevicesOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeviceView;
+#[doc(inline)]
+pub use self::__buffa::view::DeviceOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RequestersAskedView;
 #[doc(inline)]

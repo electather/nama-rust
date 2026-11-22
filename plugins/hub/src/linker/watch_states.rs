@@ -10,7 +10,7 @@ use nama_plugin_api::{
     BoxFuture, Observer, PluginError,
     automation::functions::{StoreDelete, StorePut},
     contract::StoreEntry,
-    job::{Job, JobRunner, RunJob},
+    job::Job,
     points::{WatchStateChange, WatchStateChanges, WatchStatesChanged},
     server_link::Link,
 };
@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use super::{Linker, store_key};
 
 /// The id of the Job that sends the queue.
-const SYNC: &str = "sync";
+pub(super) const SYNC: &str = "sync";
 
 /// The Store key of the [`Queue`].
 const QUEUE_KEY: &str = "watch-state-queue";
@@ -53,8 +53,7 @@ pub(crate) fn sync_job() -> Job {
     }
 }
 
-/// Queues Linked Users' Watch State changes as the Kernel tells of them, and sends them as the Sync
-/// Job.
+/// Queues Linked Users' Watch State changes as the Kernel tells of them, for the Sync Job to send.
 pub(crate) struct WatchStateSync(pub(crate) Arc<Linker>);
 
 impl Observer<WatchStatesChanged> for WatchStateSync {
@@ -63,17 +62,6 @@ impl Observer<WatchStatesChanged> for WatchStateSync {
         event: &'a WatchStateChanges,
     ) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(self.0.queue_changes(event))
-    }
-}
-
-impl JobRunner for WatchStateSync {
-    fn run<'a>(&'a self, run: &'a RunJob) -> BoxFuture<'a, Result<(), PluginError>> {
-        Box::pin(async move {
-            if run.job_id != SYNC {
-                return Err(format!("the Hub Plugin has no Job {}", run.job_id).into());
-            }
-            self.0.send_queued().await
-        })
     }
 }
 
@@ -108,7 +96,7 @@ impl Linker {
 
     /// Sends the queue to the Hub, a page per push, forgetting each page the Hub took. Without the
     /// Server's Link, the queue has nowhere to go, and is forgotten.
-    async fn send_queued(&self) -> Result<(), PluginError> {
+    pub(super) async fn send_queued(&self) -> Result<(), PluginError> {
         let _queue = self.queue.lock().await;
         let Some(mut queue) = self.stored_json::<Queue>(QUEUE_KEY).await? else {
             return Ok(());

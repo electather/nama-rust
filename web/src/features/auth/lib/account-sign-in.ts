@@ -32,7 +32,7 @@ export function accountSignInErrors(error: unknown): FormErrors {
   return refusal(
     error,
     "sign in with your Account",
-    // The Server says the Hub can't be reached, and what to do instead.
+    // The Server says the Hub can't be reached, and what to do.
     { [Code.Unavailable]: { form: serverMessage(error) } },
     {
       [RefusalReason.ACCOUNT_SIGN_IN_NOT_FOUND]: {
@@ -42,7 +42,7 @@ export function accountSignInErrors(error: unknown): FormErrors {
         form: "Your User on this Server was deleted. Ask whoever runs it to add you again.",
       },
       [RefusalReason.NO_SERVER_LINKER]: {
-        form: "This Server isn’t Linked to the Hub any more. Sign in with your password.",
+        form: "This Server isn’t Linked to the Hub any more. Ask whoever runs it to Link it again.",
       },
     },
   );
