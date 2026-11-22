@@ -22,7 +22,7 @@
     "maxFileLines": 200,
     "thresholdOverrides": [
       {
-        "files": ["src/**/__tests__/**", "hub/src/**/__tests__/**"],
+        "files": ["**/__tests__/**"],
         "maxFileLines": 400,
         "reason": "A test file holds a feature's cases and the fixtures they share.",
       },
