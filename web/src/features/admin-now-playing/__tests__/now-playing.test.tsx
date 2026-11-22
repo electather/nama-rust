@@ -140,7 +140,8 @@ describe("where Now Playing is", () => {
   test("it's under Activity, before Admin, and searching Settings for streams finds it", async () => {
     openSettings("playback", fakeServer({ signedIn: admin }));
 
-    const nav = within(await screen.findByRole("navigation", { name: "Settings" }));
+    await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
+    const nav = within(screen.getByRole("navigation", { name: "Settings" }));
     expect(nav.getAllByRole("heading").map((heading) => heading.textContent)).toStrictEqual([
       "You",
       "Preferences",
