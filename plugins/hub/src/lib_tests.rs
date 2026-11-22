@@ -144,6 +144,26 @@ async fn unlinking_while_the_hub_is_unreachable_keeps_the_link() {
 }
 
 #[tokio::test]
+async fn a_credential_whose_token_cant_be_checked_is_kept_and_can_be_unlinked() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    linker.start_link("Living room").await.unwrap();
+    hub.enter_code();
+    hub.break_key_set();
+
+    linker.link().await.unwrap_err();
+
+    assert_eq!(
+        linker.link().await.unwrap(),
+        ServerLink::Linked {
+            account: "an Account the Hub didn't confirm".to_owned()
+        }
+    );
+    linker.unlink().await.unwrap();
+    assert!(!hub.linked());
+}
+
+#[tokio::test]
 async fn a_hub_signed_token_verifies_against_the_kept_key_set_while_the_hub_is_unreachable() {
     let hub = FakeHub::start().await;
     let kernel = store();

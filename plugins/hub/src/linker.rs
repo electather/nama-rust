@@ -43,9 +43,13 @@ struct Waiting {
 struct Kept {
     /// What the Server presents on every later Hub call (ADR 0098).
     credential: String,
-    /// The Account's email, as the Hub's signed token named it.
-    account: String,
+    /// The Account's email, as the Hub's signed token named it; `None` if the token couldn't be
+    /// checked when the credential came.
+    account: Option<String>,
 }
+
+/// Who a Link whose token couldn't be checked belongs to, as Settings shows it.
+const UNCONFIRMED_ACCOUNT: &str = "an Account the Hub didn't confirm";
 
 /// The Server's Link to the Hub.
 pub(crate) struct Linker {
@@ -74,7 +78,9 @@ impl Linker {
         }
         Ok(match self.kept().await? {
             Some(kept) => ServerLink::Linked {
-                account: kept.account,
+                account: kept
+                    .account
+                    .unwrap_or_else(|| UNCONFIRMED_ACCOUNT.to_owned()),
             },
             None => ServerLink::NotLinked,
         })
@@ -99,12 +105,15 @@ impl Linker {
         if !polled.linked {
             return Ok(Some(self.showing(code)));
         }
-        let account = self.verify(&polled.token).await?.email;
-        self.keep(&Kept {
+        // Kept before the token is checked: the Hub has handed it out for good, and a Link whose
+        // credential was lost could never be Unlinked.
+        let mut kept = Kept {
             credential: polled.credential,
-            account,
-        })
-        .await?;
+            account: None,
+        };
+        self.keep(&kept).await?;
+        kept.account = Some(self.verify(&polled.token).await?.email);
+        self.keep(&kept).await?;
         Ok(None)
     }
 

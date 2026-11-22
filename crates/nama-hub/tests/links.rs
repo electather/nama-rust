@@ -253,6 +253,34 @@ async fn an_account_lists_only_its_own_servers(db: PgPool) {
 }
 
 #[sqlx::test(migrations = false)]
+async fn a_server_unlinking_leaves_another_accounts_servers_linked(db: PgPool) {
+    let hub = TestHub::start(db.clone()).await;
+    let mut credentials = Vec::new();
+    for (email, name) in [("ada@example.com", "Ada's"), ("bea@example.com", "Bea's")] {
+        let token = create_proven(&hub, &db, email).await;
+        let started = start(&hub, name).await;
+        approve(&hub, &token, &started.user_code).await.unwrap();
+        credentials.push((
+            token,
+            poll(&hub, &started.device_code).await.unwrap().credential,
+        ));
+    }
+    let [(ada, ada_server), (bea, bea_server)] = <[_; 2]>::try_from(credentials).unwrap();
+
+    linked_server(&hub, &ada_server)
+        .unlink_server(UnlinkServerRequest::default())
+        .await
+        .unwrap();
+
+    assert_eq!(server_names(&hub, &ada).await, Vec::<String>::new());
+    assert_eq!(server_names(&hub, &bea).await, ["Bea's"]);
+    linked_server(&hub, &bea_server)
+        .unlink_server(UnlinkServerRequest::default())
+        .await
+        .unwrap();
+}
+
+#[sqlx::test(migrations = false)]
 async fn an_account_whose_email_isnt_proven_cant_link_a_server(db: PgPool) {
     let hub = TestHub::start(db).await;
     let ada = create(&hub, "ada@example.com").await;

@@ -181,7 +181,7 @@ impl Accounts {
 /// # Errors
 ///
 /// If the database fails.
-// shortcut: tests prove an email here until #1805's Sign-in Links can, then they use those.
+// ponytail: tests prove an email here until #1805's Sign-in Links can, then they use those.
 #[cfg(feature = "testing")]
 pub async fn prove_email(db: &PgPool, email: &str) -> Result<(), sqlx::Error> {
     sqlx::query!(

@@ -8,6 +8,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use axum::http::StatusCode;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_hub_proto::nama::hub::v1::{
@@ -39,6 +40,8 @@ struct State {
     /// Whether the Server holds a credential the fake knows.
     linked: bool,
     key_set_fetches: usize,
+    /// What the key set answers in place of the keys, if anything.
+    key_set_failure: Option<StatusCode>,
 }
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
@@ -67,8 +70,12 @@ impl FakeHub {
             .route(
                 "/.well-known/jwks.json",
                 axum::routing::get(async move || {
-                    lock(&key_set_state).key_set_fetches += 1;
-                    key_set.to_string()
+                    let mut fetched = lock(&key_set_state);
+                    fetched.key_set_fetches += 1;
+                    match fetched.key_set_failure {
+                        Some(failure) => (failure, String::new()),
+                        None => (StatusCode::OK, key_set.to_string()),
+                    }
                 }),
             )
             .fallback_service(rpcs);
@@ -90,6 +97,11 @@ impl FakeHub {
     /// Someone enters the code on the Hub.
     pub(super) fn enter_code(&self) {
         lock(&self.state).entered = true;
+    }
+
+    /// Has the key set fail, as if the Hub went down right after handing out a credential.
+    pub(super) fn break_key_set(&self) {
+        lock(&self.state).key_set_failure = Some(StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     /// The name the waiting Server started with.

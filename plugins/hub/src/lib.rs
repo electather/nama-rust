@@ -30,7 +30,7 @@ impl Hub {
     pub const ID: PluginId = PluginId::from_static("hub");
 
     /// The Plugin, calling the Hub that `NAMA_HUB_URL` names.
-    // shortcut: no default address until #1834 picks the Hub's domain; then default to it and
+    // ponytail: no default address until #1834 picks the Hub's domain; then default to it and
     // keep the variable as the development override ADR 0094 allows.
     #[must_use]
     pub fn from_env() -> Self {

@@ -117,7 +117,8 @@ impl Links {
         Self { db, accounts, keys }
     }
 
-    /// Starts registering a Server named `name`, forgetting every Server whose codes expired.
+    /// Starts registering a Server named `name`, forgetting every Server whose codes expired, and
+    /// every Linked Server whose codes expired before it collected its credential.
     pub(crate) async fn start(&self, name: &str) -> Result<Started, Error> {
         let name: String = name.trim().chars().take(NAME_LENGTH).collect();
         let device_code = random_token()?;
@@ -126,6 +127,12 @@ impl Links {
         sqlx::query!("DELETE FROM server_link_codes WHERE expires_at < now()")
             .execute(&mut *tx)
             .await?;
+        sqlx::query!(
+            "DELETE FROM linked_servers WHERE credential_hash IS NULL AND id NOT IN
+             (SELECT linked_server_id FROM server_link_codes WHERE linked_server_id IS NOT NULL)"
+        )
+        .execute(&mut *tx)
+        .await?;
         sqlx::query!(
             "INSERT INTO server_link_codes (device_code_hash, user_code, server_name, expires_at)
              VALUES ($1, $2, $3, now() + make_interval(mins => $4))",
@@ -197,8 +204,8 @@ impl Links {
 
     /// Whether the code of the Server polling with `device_code` was entered. The first poll after
     /// it was hands out the Server's credential, and forgets the codes.
-    // shortcut: a Server that polls only after its codes expire never collects its credential,
-    // and its row stays on its Account's list; Unlinking from the Hub's pages will remove it.
+    // ponytail: a Server that polls only after its codes expire never collects its credential,
+    // and its row stays on its Account's list until the next Server starts Linking.
     pub(crate) async fn poll(&self, device_code: &str) -> Result<Polled, Error> {
         let mut tx = self.db.begin().await?;
         let device_code_hash = hash(device_code);
