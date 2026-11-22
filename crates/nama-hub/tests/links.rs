@@ -635,26 +635,20 @@ async fn push(
     Ok(())
 }
 
-// What the Hub keeps of a push is checked where it merges, in `src/sync/sync_tests.rs`, until a
-// Server can read it back through the API.
+// Which Account a push reaches, and which change wins, is checked where it merges, in
+// `src/sync/sync_tests.rs`, since only `sync` reads its table.
 #[sqlx::test(migrations = false)]
-async fn two_servers_push_conflicting_changes_of_one_accounts_users(db: PgPool) {
+async fn a_linked_server_pushes_its_users_watch_state_linked_or_not(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
-    let first = linked(&hub, &ada, "Ada's").await;
-    let second = linked(&hub, &ada, "Ada's other").await;
-    for server in [&first, &second] {
-        let code = start_user(&hub, server, 7).await.unwrap();
-        approve_user(&hub, &ada, &code).await.unwrap();
-    }
+    let server = linked(&hub, &ada, "Ada's").await;
+    let code = start_user(&hub, &server, 7).await.unwrap();
+    approve_user(&hub, &ada, &code).await.unwrap();
 
-    push(&hub, &first, vec![alien_at(7, 3000, 2_000)])
-        .await
-        .unwrap();
     push(
         &hub,
-        &second,
-        vec![alien_at(7, 1000, 1_000), alien_at(8, 1000, 1_000)],
+        &server,
+        vec![alien_at(7, 3000, 2_000), alien_at(8, 1000, 1_000)],
     )
     .await
     .unwrap();

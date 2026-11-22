@@ -173,7 +173,7 @@ export const RefusalReason = {
 
   /**
    * `invalid_argument`: a Watch State change breaks a limit `PushWatchStatesRequest` sets, such as
-   * too many changes, an id too long, or a position past the duration. `field` names it. Params:
+   * too many changes, an id too long, a position past the duration, or a time out of range. `field` names it. Params:
    * `maxChanges`, `maxIds` and `maxIdLength`.
    *
    * @generated from enum value: REFUSAL_REASON_WATCH_STATE_INVALID = 15;

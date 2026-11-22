@@ -19,16 +19,22 @@ pub(crate) const MAX_IDS: usize = 20;
 /// The most characters one External ID may have.
 pub(crate) const MAX_ID_LENGTH: usize = 100;
 
+/// The latest time a change may be made at, in milliseconds since the Unix epoch: the end of 9999.
+pub(crate) const MAX_CHANGED_AT_MS: i64 = 253_402_300_799_999;
+
 /// One User's Watch State of a Movie or Episode, as a change on their Server left it.
 #[derive(Debug, Clone)]
 pub(crate) struct WatchStateChange {
     /// The User's id on their Server.
     pub(crate) user_id: i64,
+    /// Whether it is an Episode rather than a Movie, whose TMDB ids are a separate id space.
     pub(crate) episode: bool,
     /// Every External ID it is known by, such as `tmdb-348`.
     pub(crate) ids: Vec<String>,
+    /// Whether it was played; marking it unplayed leaves it unplayed at 0 of 0.
     pub(crate) played: bool,
     pub(crate) position_ms: i64,
+    /// How long it is; 0 if no player said.
     pub(crate) duration_ms: i64,
     /// When the Server made it, in milliseconds since the Unix epoch.
     pub(crate) changed_at_ms: i64,
@@ -42,6 +48,7 @@ pub(crate) struct WatchStates {
 }
 
 impl WatchStates {
+    /// The merged Watch State in `db`, of the Users `links` has Linked.
     pub(crate) fn new(db: PgPool, links: Links) -> Self {
         Self { db, links }
     }
@@ -53,16 +60,17 @@ impl WatchStates {
         server: &LinkedServer,
         changes: Vec<WatchStateChange>,
     ) -> Result<(), sqlx::Error> {
+        // Looked up before the transaction, which would otherwise hold a connection while asking
+        // the pool for another.
         let mut accounts = HashMap::new();
+        for change in &changes {
+            if let Entry::Vacant(unknown) = accounts.entry(change.user_id) {
+                unknown.insert(self.links.linked_account(server, change.user_id).await?);
+            }
+        }
         let mut tx = self.db.begin().await?;
         for change in changes {
-            let account = match accounts.entry(change.user_id) {
-                Entry::Occupied(known) => *known.get(),
-                Entry::Vacant(unknown) => {
-                    *unknown.insert(self.links.linked_account(server, change.user_id).await?)
-                }
-            };
-            if let Some(account) = account {
+            if let Some(&Some(account)) = accounts.get(&change.user_id) {
                 merge(&mut tx, account, &change).await?;
             }
         }

@@ -14,7 +14,7 @@ use nama_plugin_api::{
 };
 use sqlx::SqliteConnection;
 
-use crate::db::{Database, now};
+use crate::db::{Database, now_ms};
 
 // The `kind` of a Watch State, part of its key since Movie and Episode TMDB ids are separate id
 // spaces.
@@ -102,9 +102,9 @@ impl Watched {
         (kind, title, serde_json::Value::from(ids).to_string())
     }
 
-    /// The change that left it `played` at `progress` as of `now`, in seconds, as Plugins are told
-    /// of it.
-    fn changed(&self, played: bool, progress: Progress, now: i64) -> WatchStateChange {
+    /// The change that left it `played` at `progress` at `changed_at_ms`, as Plugins are told of
+    /// it.
+    fn changed(&self, played: bool, progress: Progress, changed_at_ms: i64) -> WatchStateChange {
         let (kind, title) = self.title.key();
         let others = self.ids.iter().filter(|&id| id != title).cloned();
         WatchStateChange {
@@ -113,17 +113,17 @@ impl Watched {
             played,
             position_ms: u64::try_from(progress.position_ms).unwrap_or_default(),
             duration_ms: u64::try_from(progress.duration_ms).unwrap_or_default(),
-            changed_at_ms: now.saturating_mul(1000),
+            changed_at_ms,
         }
     }
 
-    /// The change that forgot it as of `now`, in seconds: unplayed at 0 of 0.
-    fn forgotten(&self, now: i64) -> WatchStateChange {
+    /// The change that forgot it at `changed_at_ms`: unplayed at 0 of 0.
+    fn forgotten(&self, changed_at_ms: i64) -> WatchStateChange {
         let start = Progress {
             position_ms: 0,
             duration_ms: 0,
         };
-        self.changed(false, start, now)
+        self.changed(false, start, changed_at_ms)
     }
 }
 
@@ -396,7 +396,9 @@ async fn upsert(
     user: i64,
     titles: Vec<(Watched, Progress)>,
 ) -> Result<Vec<WatchStateChange>, sqlx::Error> {
-    let now = now();
+    // In milliseconds for the Plugins told, as two changes in one second must still order.
+    let changed_at_ms = now_ms();
+    let now = changed_at_ms.div_euclid(1000);
     let mut changes = Vec::with_capacity(titles.len());
     for (watched, progress) in titles {
         let (kind, title, ids) = watched.key();
@@ -435,7 +437,7 @@ async fn upsert(
         )
         .fetch_one(&mut *conn)
         .await?;
-        changes.push(watched.changed(stored.played, progress, now));
+        changes.push(watched.changed(stored.played, progress, changed_at_ms));
     }
     Ok(changes)
 }
@@ -446,16 +448,18 @@ async fn mark_each(
     titles: Vec<Watched>,
     played: bool,
 ) -> Result<Vec<WatchStateChange>, sqlx::Error> {
-    let now = now();
+    // In milliseconds for the Plugins told, as two changes in one second must still order.
+    let changed_at_ms = now_ms();
+    let now = changed_at_ms.div_euclid(1000);
     let mut changes = Vec::with_capacity(titles.len());
     for watched in titles {
         let (kind, title, ids) = watched.key();
         changes.push(if played {
             let kept = mark_played(&mut *conn, user, kind, title, now).await?;
-            watched.changed(true, kept, now)
+            watched.changed(true, kept, changed_at_ms)
         } else {
             forget(&mut *conn, user, kind, ids).await?;
-            watched.forgotten(now)
+            watched.forgotten(changed_at_ms)
         });
     }
     Ok(changes)
@@ -468,7 +472,7 @@ async fn forget_each(
     titles: Vec<Watched>,
     entry: Vec<Watched>,
 ) -> Result<Vec<WatchStateChange>, sqlx::Error> {
-    let now = now();
+    let changed_at_ms = now_ms();
     let mut forgot = false;
     for title in &titles {
         let (kind, _, ids) = title.key();
@@ -477,7 +481,10 @@ async fn forget_each(
     if forgot {
         hide_each(conn, user, entry, false).await?;
     }
-    Ok(titles.iter().map(|title| title.forgotten(now)).collect())
+    Ok(titles
+        .iter()
+        .map(|title| title.forgotten(changed_at_ms))
+        .collect())
 }
 
 async fn hide_each(

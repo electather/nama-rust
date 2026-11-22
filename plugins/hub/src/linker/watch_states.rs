@@ -23,13 +23,14 @@ const SYNC: &str = "sync";
 const QUEUE_KEY: &str = "watch-state-queue";
 
 /// The most changes a page of the queue holds, and so one push.
-// shortcut: counted, not measured, so a page stays under the Store's 64 KiB a value only while a
+// ponytail: counted, not measured, so a page stays under the Store's 64 KiB a value only while a
 // title has about 6 short ids, as Servers' Matches do; measure a page's bytes if that changes.
 const PAGE_CHANGES: usize = 100;
 
-/// The most ids a change sends, as many as the Hub keeps: more would have it refuse the page, which
-/// would hold back every later one.
+/// The most ids a change sends, and the most characters each may have, as the Hub takes them: past
+/// either it would refuse the page, which would hold back every later one.
 const MAX_IDS: usize = 20;
+const MAX_ID_LENGTH: usize = 100;
 
 /// Which pages of queued changes the Store keeps: `first..next`, oldest first.
 #[derive(Default, Serialize, Deserialize)]
@@ -93,7 +94,9 @@ impl Linker {
             Vec::new()
         };
         for change in &changed.changes {
-            enqueue(&mut page, change_to_proto(changed.user_id, change));
+            if let Some(change) = change_to_proto(changed.user_id, change) {
+                enqueue(&mut page, change);
+            }
         }
         for chunk in page.chunks(PAGE_CHANGES) {
             self.put_json(page_key(queue.next), &chunk).await?;
@@ -164,18 +167,26 @@ fn enqueue(page: &mut Vec<Change>, change: Change) {
     page.push(change);
 }
 
-/// The User `user_id`'s `change`, as the Hub takes it.
-fn change_to_proto(user_id: i64, change: &WatchStateChange) -> Change {
-    Change {
+/// The User `user_id`'s `change`, as the Hub takes it, or `None` if none of its ids fits.
+fn change_to_proto(user_id: i64, change: &WatchStateChange) -> Option<Change> {
+    let fits = |id: &&String| id.chars().count() <= MAX_ID_LENGTH;
+    let ids: Vec<_> = change
+        .ids
+        .iter()
+        .filter(fits)
+        .take(MAX_IDS)
+        .cloned()
+        .collect();
+    (!ids.is_empty()).then(|| Change {
         user_id,
         episode: change.episode,
-        ids: change.ids.iter().take(MAX_IDS).cloned().collect(),
+        ids,
         played: change.played,
         position_ms: change.position_ms,
         duration_ms: change.duration_ms,
         changed_at_ms: change.changed_at_ms,
         ..Default::default()
-    }
+    })
 }
 
 /// The Store key of the queue's page `nth`.

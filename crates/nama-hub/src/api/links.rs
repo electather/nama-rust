@@ -19,7 +19,7 @@ use crate::{
         self, CODE_LIFETIME_MINS, LinkId, LinkedServer, Links, ListedServer, ListedUser,
         POLL_INTERVAL_SECS, Polled,
     },
-    sync::{MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, WatchStateChange, WatchStates},
+    sync::{MAX_CHANGED_AT_MS, MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, WatchStateChange, WatchStates},
 };
 
 /// `nama.hub.v1.ServerLinkService`: a Server not yet Linked, so anyone.
@@ -337,6 +337,12 @@ fn change_from_proto(
         .ok_or_else(|| {
             invalid_change(&field("position_ms"), "the position is past the duration")
         })?;
+    if !(0..=MAX_CHANGED_AT_MS).contains(&change.changed_at_ms) {
+        return Err(invalid_change(
+            &field("changed_at_ms"),
+            "a change is dated from 1970 to the end of 9999",
+        ));
+    }
     Ok(WatchStateChange {
         user_id: change.user_id,
         episode: change.episode,

@@ -3576,7 +3576,8 @@ pub struct WatchStateChange {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u64"
     )]
     pub duration_ms: u64,
-    /// When it changed on the Server, in milliseconds since the Unix epoch.
+    /// When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+    /// 9999.
     ///
     /// Field 7: `changed_at_ms`
     #[serde(

@@ -224,6 +224,7 @@ message WatchStateChange {
   uint64 position_ms = 5;
   // How long it is, in milliseconds; 0 if no player said.
   uint64 duration_ms = 6;
-  // When it changed on the Server, in milliseconds since the Unix epoch.
+  // When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+  // 9999.
   int64 changed_at_ms = 7;
 }

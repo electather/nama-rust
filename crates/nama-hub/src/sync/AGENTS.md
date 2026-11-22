@@ -10,4 +10,4 @@ Sync (ADR 0008): each Account's merged Watch State, which its Linked Users' Serv
 ### Neighbours
 
 - Uses: `links` (the Account a Linked Server's User is Linked to) and `accounts` (`AccountId`).
-- Used by: `api`, which checks a push against `MAX_CHANGES`, `MAX_IDS` and `MAX_ID_LENGTH` and converts it.
+- Used by: `api`, which checks a push against `MAX_CHANGES`, `MAX_IDS`, `MAX_ID_LENGTH` and `MAX_CHANGED_AT_MS` and converts it.

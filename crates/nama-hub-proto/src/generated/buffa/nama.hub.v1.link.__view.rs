@@ -7074,7 +7074,8 @@ pub struct WatchStateChangeView<'a> {
     ///
     /// Field 6: `duration_ms`
     pub duration_ms: u64,
-    /// When it changed on the Server, in milliseconds since the Unix epoch.
+    /// When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+    /// 9999.
     ///
     /// Field 7: `changed_at_ms`
     pub changed_at_ms: i64,
@@ -7450,7 +7451,8 @@ impl WatchStateChangeOwnedView {
     pub fn duration_ms(&self) -> u64 {
         self.0.reborrow().duration_ms
     }
-    /// When it changed on the Server, in milliseconds since the Unix epoch.
+    /// When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+    /// 9999.
     ///
     /// Field 7: `changed_at_ms`
     #[must_use]

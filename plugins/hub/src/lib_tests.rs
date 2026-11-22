@@ -490,3 +490,28 @@ async fn a_write_of_many_changes_is_pushed_a_page_at_a_time_in_order() {
     assert_eq!(sizes, [100, 100, 50]);
     assert_eq!(ids, expected);
 }
+
+#[tokio::test]
+async fn ids_the_hub_wouldnt_take_are_left_out_and_a_change_with_none_stays_behind() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs) = syncing_user_7(&hub).await;
+    let long = format!("anidb-{}", "1".repeat(100));
+    let with_a_long_id = WatchStateChange {
+        ids: vec![long.clone(), "tmdb-348".to_owned()],
+        ..movie_at(348, 1000, 1_000)
+    };
+    let with_only_a_long_id = WatchStateChange {
+        ids: vec![long],
+        ..movie_at(679, 1000, 1_000)
+    };
+
+    tell(
+        observer.as_ref(),
+        7,
+        vec![with_a_long_id, with_only_a_long_id],
+    )
+    .await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(pushed(&hub), [[("tmdb-348".to_owned(), 1000, 1_000)]]);
+}

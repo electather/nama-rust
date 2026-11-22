@@ -601,7 +601,8 @@ export type WatchStateChange = Message<"nama.hub.v1.WatchStateChange"> & {
   durationMs: bigint;
 
   /**
-   * When it changed on the Server, in milliseconds since the Unix epoch.
+   * When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+   * 9999.
    *
    * @generated from field: int64 changed_at_ms = 7;
    */

@@ -391,7 +391,6 @@ async fn each_write_returns_the_watch_state_it_left_under_every_id_preferred_fir
         (rewound.played, rewound.position_ms, rewound.duration_ms),
         (true, 100, 2_000)
     );
-    assert_eq!(rewound.changed_at_ms % 1000, 0);
     assert_eq!(
         (
             marked[0].played,
