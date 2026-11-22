@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import {
   Bell,
+  Cpu,
   DatabaseBackup,
   Film,
   HardDrive,
@@ -25,6 +26,7 @@ const icons: Record<Section, LucideIcon> = {
   connections: Bell,
   server: HardDrive,
   "default-home": Rows3,
+  "server-playback": Cpu,
   backups: DatabaseBackup,
   plugins: Puzzle,
 };
