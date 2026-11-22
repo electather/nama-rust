@@ -142,7 +142,7 @@ test("sharing starts off, and turning Usage Analytics on saves it with the Serve
     ]);
 });
 
-test("turning Share Diagnostics on has the next page traced without a reload", async () => {
+test("once Share Diagnostics is turned on, the next page sends a traceparent without a reload", async () => {
   let sharing = false;
   const traceparents: (string | null)[] = [];
   const transport = fakeServer(

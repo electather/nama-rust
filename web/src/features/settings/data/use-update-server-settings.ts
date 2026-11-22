@@ -19,8 +19,8 @@ export function useUpdateServerSettings() {
         queryClient.invalidateQueries({ queryKey: serverSettingsKey }),
         // The Invites say whether one can be made, which takes a Server URL.
         queryClient.invalidateQueries({ queryKey: invitesKey }),
-        // Whether it exports Diagnostics follows Share Diagnostics. Its query is `static`, which
-        // `invalidateQueries` skips; other Devices' tabs see it only once reloaded.
+        // Share Diagnostics can change whether the Server exports Diagnostics (#1900). The info's
+        // query is `static`, which `invalidateQueries` skips; other Devices' tabs need a reload.
         queryClient.resetQueries({ queryKey: serverInfoKey }),
       ]);
     },
