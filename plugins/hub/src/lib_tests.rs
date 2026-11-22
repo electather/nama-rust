@@ -12,7 +12,8 @@ use nama_plugin_api::{
         functions::{StoreDelete, StoreGet, StorePut},
     },
     contract::{StoreEntry, StoreKey, StoreValue, Stored},
-    server_link::{Link, ServerLinker},
+    diagnostics_sharer::{DiagnosticsSharer, Signal},
+    server_link::{Link, ServerAddresses, ServerLinker},
 };
 use serde_json::json;
 
@@ -200,6 +201,52 @@ async fn a_hub_signed_token_verifies_against_the_kept_key_set_while_the_hub_is_u
     assert_eq!(hub.key_set_fetches(), 1);
 }
 
+/// The Plugin's sharer, enabled against `hub` with the Store in `kernel`.
+fn sharer(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Arc<dyn DiagnosticsSharer> {
+    let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
+    Hub::at(hub.url()).register(&mut registrar).unwrap();
+    registrar
+        .into_registrations()
+        .iter()
+        .find_map(nama_plugin_api::Registration::provider::<dyn DiagnosticsSharer>)
+        .unwrap()
+}
+
+#[tokio::test]
+async fn a_linked_server_sends_each_shared_batch_to_the_hub_unchanged_with_its_credential() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+
+    let sharer = sharer(&hub, &kernel);
+    sharer
+        .share(Signal::Traces, b"spans".to_vec())
+        .await
+        .unwrap();
+    sharer.share(Signal::Logs, b"lines".to_vec()).await.unwrap();
+
+    assert_eq!(
+        hub.shared(),
+        [
+            ("traces".to_owned(), b"spans".to_vec()),
+            ("logs".to_owned(), b"lines".to_vec())
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_server_that_isnt_linked_sends_nothing() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+
+    sharer(&hub, &kernel)
+        .share(Signal::Traces, b"spans".to_vec())
+        .await
+        .unwrap();
+
+    assert_eq!(hub.shared(), []);
+}
+
 #[test]
 fn without_the_hubs_address_the_plugin_refuses_to_start() {
     let mut registrar = Registrar::new().with_kernel(store());
@@ -267,7 +314,8 @@ async fn a_linked_user_shows_linked_while_the_hub_is_unreachable() {
 #[tokio::test]
 async fn the_server_unlinking_a_user_unlinks_them_on_the_hub() {
     let hub = FakeHub::start().await;
-    let linker = enabled(&hub, &store());
+    let kernel = store();
+    let linker = enabled(&hub, &kernel);
     link(&hub, linker.as_ref()).await;
     link_user(&hub, linker.as_ref(), 7).await;
 
@@ -275,6 +323,14 @@ async fn the_server_unlinking_a_user_unlinks_them_on_the_hub() {
 
     assert!(!hub.user_linked(7));
     assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
+    let kept = kernel
+        .ask::<StoreGet>(StoreKey {
+            key: "user-link/7".to_owned(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(kept.value, None);
 }
 
 #[tokio::test]
@@ -397,6 +453,42 @@ async fn an_account_approving_on_the_hub_signs_in_as_its_user() {
     );
 }
 
+fn addresses(url: &str, lan: &[&str]) -> ServerAddresses {
+    ServerAddresses {
+        url: url.to_owned(),
+        lan: lan.iter().map(|&address| address.to_owned()).collect(),
+    }
+}
+
+#[tokio::test]
+async fn the_server_reports_its_addresses_once_linked_and_then_only_when_they_change() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
+    linker.set_addresses(lan_only.clone()).await.unwrap();
+    assert_eq!(hub.reported_addresses(), []);
+    link(&hub, linker.as_ref()).await;
+
+    linker.set_addresses(lan_only.clone()).await.unwrap();
+    linker.set_addresses(lan_only.clone()).await.unwrap();
+    linker
+        .set_addresses(addresses(
+            "https://nama.example.com",
+            &["http://192.168.1.10:7980"],
+        ))
+        .await
+        .unwrap();
+
+    let lan = vec!["http://192.168.1.10:7980".to_owned()];
+    assert_eq!(
+        hub.reported_addresses(),
+        [
+            (String::new(), lan.clone()),
+            ("https://nama.example.com".to_owned(), lan),
+        ]
+    );
+}
+
 #[tokio::test]
 async fn signing_in_with_an_account_fails_while_the_hub_is_unreachable() {
     let hub = FakeHub::start().await;
@@ -442,4 +534,33 @@ async fn a_user_created_from_an_account_is_invited_on_the_hub() {
         hub.invite(7),
         Some(("Grace".to_owned(), "grace@example.com".to_owned()))
     );
+}
+
+#[tokio::test]
+async fn a_server_linked_again_reports_its_addresses_again() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
+    link(&hub, linker.as_ref()).await;
+    linker.set_addresses(lan_only.clone()).await.unwrap();
+    linker.unlink().await.unwrap();
+    link(&hub, linker.as_ref()).await;
+
+    linker.set_addresses(lan_only).await.unwrap();
+
+    assert_eq!(hub.reported_addresses().len(), 2);
+}
+
+#[tokio::test]
+async fn addresses_the_hub_couldnt_take_are_reported_again() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
+    hub.fail_next_addresses();
+    assert!(linker.set_addresses(lan_only.clone()).await.is_err());
+
+    linker.set_addresses(lan_only).await.unwrap();
+
+    assert_eq!(hub.reported_addresses().len(), 1);
 }

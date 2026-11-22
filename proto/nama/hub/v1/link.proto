@@ -24,7 +24,9 @@ service LinkService {
   // email (ADR 0100), and with `REFUSAL_REASON_LINK_CODE_NOT_FOUND` for a code no Server is waiting
   // on.
   rpc ApproveServerLink(ApproveServerLinkRequest) returns (ApproveServerLinkResponse);
-  // Returns the signed-in Account's Linked Servers, oldest first.
+  // Returns the Linked Servers the signed-in Account owns or has a User on, oldest first, each
+  // with the Server Addresses a client tries. A client reaches a Server at those itself: the Hub
+  // never carries its calls or media (ADR 0094).
   rpc ListLinkedServers(ListLinkedServersRequest) returns (ListLinkedServersResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
@@ -96,6 +98,12 @@ service LinkedServerService {
   // and every later one fails. Fails with `REFUSAL_REASON_LINK_EXPIRED` for a device code that
   // expired, was used, or never existed.
   rpc PollServerSignIn(PollServerSignInRequest) returns (PollServerSignInResponse);
+  // Replaces the Server Addresses the calling Server reported before. The Server reports them
+  // whenever they change. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an
+  // `http` or `https` URL, or for too many.
+  rpc SetServerAddresses(SetServerAddressesRequest) returns (SetServerAddressesResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
 }
 
 // A Server registered with the Hub, owned by an Account.
@@ -106,6 +114,11 @@ message LinkedServer {
   string name = 2;
   // When it was Linked, in seconds since the Unix epoch.
   int64 linked_at = 3;
+  // The Server URL its Admin set, where people open its web app (ADR 0010), or empty for none.
+  string url = 4;
+  // The Server Addresses a client tries, as the Server last reported them: its Server URL first,
+  // then its LAN addresses.
+  repeated string addresses = 5;
 }
 
 message StartServerLinkRequest {
@@ -315,3 +328,11 @@ message PollServerSignInResponse {
   // minutes after it was made.
   string token = 1;
 }
+message SetServerAddressesRequest {
+  // The Server URL its Admin set, such as `https://nama.example.com`, or empty for none.
+  string url = 1;
+  // The Server's LAN addresses, such as `http://192.168.1.10:7980`: at most 16.
+  repeated string lan_addresses = 2;
+}
+
+message SetServerAddressesResponse {}

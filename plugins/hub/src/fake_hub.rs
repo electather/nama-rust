@@ -1,6 +1,8 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
 //! one Server's device flow, Unlinking, its Users' Links, Users created from Accounts, one sign-in
-//! with an Account at a time, and a key set of one Ed25519 key it signs with, as the Hub's API (`proto/nama/hub/v1/link.proto`) says the Hub does.
+//! with an Account at a time, its Server Addresses, and a key set of one Ed25519 key it signs with,
+//! as the Hub's API (`proto/nama/hub/v1/link.proto`) says the Hub does, and takes shared
+//! Diagnostics.
 
 use std::{
     collections::HashMap,
@@ -9,13 +11,18 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use axum::http::StatusCode;
+use axum::{
+    body::Bytes,
+    extract::Path,
+    http::{HeaderMap, StatusCode},
+};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_hub_proto::nama::hub::v1::{
     GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest, InviteUserResponse,
     LinkedServerService, PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
-    PollServerSignInResponse, ServerLinkService, StartServerLinkRequest, StartServerLinkResponse,
+    PollServerSignInResponse, ServerLinkService, SetServerAddressesRequest,
+    SetServerAddressesResponse, StartServerLinkRequest, StartServerLinkResponse,
     StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
     StartUserLinkResponse, UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest,
     UnlinkUserResponse,
@@ -56,6 +63,8 @@ struct State {
     key_set_fetches: usize,
     /// What the key set answers in place of the keys, if anything.
     key_set_failure: Option<StatusCode>,
+    /// Each batch of shared Diagnostics, with the signal its path named.
+    shared: Vec<(String, Vec<u8>)>,
     /// The name each User waiting on a code started with, by id.
     user_codes: HashMap<i64, String>,
     /// The email of the Account each Linked User is Linked to, by id.
@@ -67,6 +76,10 @@ struct State {
     /// The sign-in with an Account waiting: where it returns to, and the User it signs in as once
     /// approved.
     sign_in: Option<(String, Option<i64>)>,
+    /// Each Server URL and LAN addresses the Server reported, in order.
+    reported_addresses: Vec<(String, Vec<String>)>,
+    /// How many of the next reports of Server Addresses fail.
+    addresses_failures: usize,
 }
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
@@ -100,6 +113,15 @@ impl FakeHub {
                     match fetched.key_set_failure {
                         Some(failure) => (failure, String::new()),
                         None => (StatusCode::OK, key_set.to_string()),
+                    }
+                }),
+            )
+            .route(
+                "/otlp/v1/{signal}",
+                axum::routing::post({
+                    let state = Arc::clone(&state);
+                    async move |Path(signal): Path<String>, headers: HeaderMap, batch: Bytes| {
+                        take_shared(&state, signal, &headers, &batch)
                     }
                 }),
             )
@@ -179,6 +201,16 @@ impl FakeHub {
         }
     }
 
+    /// Each Server URL and LAN addresses the Server reported, in order.
+    pub(super) fn reported_addresses(&self) -> Vec<(String, Vec<String>)> {
+        lock(&self.state).reported_addresses.clone()
+    }
+
+    /// Has the next report of Server Addresses fail, as if the Hub blinked.
+    pub(super) fn fail_next_addresses(&self) {
+        lock(&self.state).addresses_failures += 1;
+    }
+
     /// Has the key set fail, as if the Hub went down right after handing out a credential.
     pub(super) fn break_key_set(&self) {
         lock(&self.state).key_set_failure = Some(StatusCode::INTERNAL_SERVER_ERROR);
@@ -197,6 +229,11 @@ impl FakeHub {
     /// How often the key set was fetched.
     pub(super) fn key_set_fetches(&self) -> usize {
         lock(&self.state).key_set_fetches
+    }
+
+    /// Each batch of shared Diagnostics the Hub took, with the signal its path named.
+    pub(super) fn shared(&self) -> Vec<(String, Vec<u8>)> {
+        lock(&self.state).shared.clone()
     }
 
     /// `claims` signed as the Hub signs them.
@@ -400,6 +437,26 @@ impl LinkedServerService for Linked {
             ..Default::default()
         })
     }
+
+    async fn set_server_addresses(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetServerAddressesRequest>,
+    ) -> ServiceResult<SetServerAddressesResponse> {
+        let mut state = self.caller(&ctx)?;
+        if state.addresses_failures > 0 {
+            state.addresses_failures -= 1;
+            return Err(ConnectError::unavailable("the fake Hub blinked"));
+        }
+        let lan = request
+            .lan_addresses
+            .iter()
+            .map(|&address| address.to_owned());
+        state
+            .reported_addresses
+            .push((request.url.to_owned(), lan.collect()));
+        Response::ok(SetServerAddressesResponse::default())
+    }
 }
 
 impl Linked {
@@ -416,6 +473,23 @@ impl Linked {
         }
         Ok(state)
     }
+}
+
+/// Keeps a batch of shared Diagnostics from the Server holding the credential, as the Hub forwards
+/// it, and refuses anyone else.
+fn take_shared(
+    state: &Mutex<State>,
+    signal: String,
+    headers: &HeaderMap,
+    batch: &Bytes,
+) -> StatusCode {
+    let mut state = lock(state);
+    let bearer = format!("Bearer {}", credential(state.credentials));
+    if !state.linked || headers["authorization"] != bearer.as_str() {
+        return StatusCode::UNAUTHORIZED;
+    }
+    state.shared.push((signal, batch.to_vec()));
+    StatusCode::OK
 }
 
 /// The `nth` credential the fake hands out.

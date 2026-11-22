@@ -1,5 +1,5 @@
 import { Code } from "@connectrpc/connect";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
@@ -115,6 +115,71 @@ test("a User who manages settings turns resizing off and gives its copies more s
       { settings: { resizeImages: false, resizedCacheMib: 1024 } },
       { settings: { resizeImages: false, resizedCacheMib: 2048 } },
     ]);
+});
+
+test("sharing starts off, and turning Usage Analytics on saves it with the Server URL, nothing else shared", async () => {
+  const updates: UpdateServerSettingsRequest[] = [];
+  openServer({
+    getServerSettings: () => ({ settings: { url: "http://nama.lan" } }),
+    updateServerSettings: (request) => {
+      updates.push(request);
+      return { settings: request.settings };
+    },
+  });
+
+  const diagnostics = await screen.findByRole("switch", { name: "Share Diagnostics" });
+  const usage = screen.getByRole("switch", { name: "Share Usage Analytics" });
+  expect(diagnostics.getAttribute("aria-checked")).toBe("false");
+  expect(usage.getAttribute("aria-checked")).toBe("false");
+  fireEvent.click(usage);
+
+  await expect
+    .poll(() => updates)
+    .toMatchObject([
+      {
+        settings: { url: "http://nama.lan", shareDiagnostics: false, shareUsageAnalytics: true },
+      },
+    ]);
+});
+
+test("once Share Diagnostics is turned on, the next navigation sends a traceparent without a reload", async () => {
+  let sharing = false;
+  let rereadAfterSave = false;
+  const traceparents: (string | null)[] = [];
+  const transport = fakeServer(
+    {
+      signedIn: manageSettings,
+      serverService: {
+        getServerInfo: () => ({ name: "Living Room", exportsDiagnostics: sharing }),
+        getServerSettings: () => {
+          rereadAfterSave = sharing;
+          return { settings: { shareDiagnostics: sharing } };
+        },
+        updateServerSettings: (request) => {
+          sharing = Boolean(request.settings?.shareDiagnostics);
+          return { settings: request.settings };
+        },
+      },
+    },
+    {},
+    {
+      listDevices: (_request, context) => {
+        traceparents.push(context.requestHeader.get("traceparent"));
+        return {};
+      },
+    },
+  );
+  const router = openSettings("server", transport);
+
+  fireEvent.click(await screen.findByRole("switch", { name: "Share Diagnostics" }));
+  // The save rereads the settings in the same step that resets the Server's info, so navigating
+  // any sooner could still read the old info.
+  await expect.poll(() => rereadAfterSave).toBe(true);
+  await act(async () => {
+    await router.navigate({ to: ".", search: { settings: "devices" } });
+  });
+
+  await expect.poll(() => traceparents.at(-1)).toMatch(/^00-/u);
 });
 
 test("a saved space that isn't one of the sizes offered stays chosen", async () => {

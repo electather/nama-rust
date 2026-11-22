@@ -244,6 +244,14 @@ message ServerSettings {
   // The address people reach the Server at, such as `https://nama.example.com`, which links to the
   // web app in notifications start with. Empty, the default, for none: notifications have no links.
   string url = 1;
+  // Whether the Server shares its Diagnostics with Nama's developers, through the Hub once it is
+  // Linked: spans of ids, counts and durations, and the few log lines a reviewed list names (ADR
+  // 0054). Off by default.
+  bool share_diagnostics = 2;
+  // Whether the Server shares Usage Analytics with Nama's developers, through the Hub once it is
+  // Linked: named events saying a feature was used, with no titles or names (ADR 0054). Off by
+  // default.
+  bool share_usage_analytics = 3;
 }
 
 message GetPlaybackStatusRequest {}

@@ -1,6 +1,7 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
-//! keeps in the Plugin's Store once someone entered it. Its Users' Links are in `users.rs`, and
-//! signing in with an Account, and Users created from one, in `accounts.rs`.
+//! keeps in the Plugin's Store once someone entered it, the Server Addresses it tells the Hub, and
+//! through it shares what the Admin chooses with Nama's developers (ADR 0054). Its Users' Links are
+//! in `users.rs`, and signing in with an Account, and Users created from one, in `accounts.rs`.
 
 mod accounts;
 mod users;
@@ -19,7 +20,8 @@ use nama_plugin_api::{
         functions::{StoreDelete, StoreGet, StorePut},
     },
     contract::{StoreEntry, StoreKey},
-    server_link::{AccountSignIn, Link, ServerLinker},
+    diagnostics_sharer::{DiagnosticsSharer, Signal},
+    server_link::{AccountSignIn, Link, ServerAddresses, ServerLinker},
 };
 use ring::digest;
 use serde::{Deserialize, Serialize};
@@ -73,6 +75,9 @@ pub(crate) struct Linker {
     waiting: Mutex<Option<Waiting>>,
     /// What the Plugin knows of each User's Link but what it keeps in the Store.
     users: std::sync::Mutex<HashMap<i64, users::UserState>>,
+    /// The Server Addresses the Hub has, with the [`Kept::id`] of the Link it got them through.
+    /// Held across telling the Hub, so a report never overtakes another.
+    reported: Mutex<Option<(String, ServerAddresses)>>,
 }
 
 impl Linker {
@@ -82,6 +87,7 @@ impl Linker {
             kernel,
             waiting: Mutex::default(),
             users: std::sync::Mutex::default(),
+            reported: Mutex::default(),
         }
     }
 
@@ -173,6 +179,22 @@ impl Linker {
         Ok(())
     }
 
+    /// Tells the Hub `addresses`, unless the Server isn't Linked or the Hub has them already from
+    /// this Link. Forgotten on a restart, so the Hub hears them once more then.
+    async fn report(&self, addresses: ServerAddresses) -> Result<(), PluginError> {
+        let Some(kept) = self.kept().await? else {
+            return Ok(());
+        };
+        let mut reported = self.reported.lock().await;
+        let report = (kept.id(), addresses);
+        if reported.as_ref() == Some(&report) {
+            return Ok(());
+        }
+        self.hub.set_addresses(&kept.credential, &report.1).await?;
+        *reported = Some(report);
+        Ok(())
+    }
+
     fn showing(&self, code: &Waiting) -> Link {
         self.waiting_on(code.code.clone())
     }
@@ -208,6 +230,14 @@ impl Linker {
             })
             .await?;
         token::verify(&key_set, token, now).map_err(rejected)
+    }
+
+    /// Sends `batch` to the Hub with the Link's credential, or drops it while not Linked.
+    async fn share_batch(&self, signal: Signal, batch: Vec<u8>) -> Result<(), PluginError> {
+        match self.kept().await? {
+            Some(kept) => self.hub.share(&kept.credential, signal, batch).await,
+            None => Ok(()),
+        }
     }
 
     async fn kept(&self) -> Result<Option<Kept>, PluginError> {
@@ -283,6 +313,16 @@ impl ServerLinker for Linker {
         handle: &'a str,
     ) -> BoxFuture<'a, Result<Option<i64>, PluginError>> {
         Box::pin(self.finish_sign_in(handle))
+    }
+
+    fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
+        Box::pin(self.report(addresses))
+    }
+}
+
+impl DiagnosticsSharer for Linker {
+    fn share(&self, signal: Signal, batch: Vec<u8>) -> BoxFuture<'_, Result<(), PluginError>> {
+        Box::pin(self.share_batch(signal, batch))
     }
 }
 

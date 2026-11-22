@@ -1,8 +1,12 @@
 //! Linking the Server, and a User, through the enabled Plugin that links it (ADR 0011, ADR 0094),
 //! here an in-process one scripted by each test, and a Server without one, which has nothing to
-//! Link. Through it too, Users created from Accounts, signing in with an Account, and the Admin who
-//! can always sign in without the Hub (ADR 0092).
+//! Link. The Plugin is told the Server's Server Addresses. Through it too, Users created from
+//! Accounts, signing in with an Account, and the Admin who can always sign in without the Hub (ADR
+//! 0092).
 
+#[expect(dead_code, reason = "this binary only counts logged lines")]
+#[path = "support/log.rs"]
+mod log;
 #[path = "support/refused.rs"]
 mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
@@ -12,22 +16,25 @@ mod server;
 use std::{
     future,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
+    time::Duration,
 };
 
 use connectrpc::{
-    ErrorCode,
+    ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient},
 };
+use log::Log;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    server_link::{AccountSignIn, Link, ServerLinker},
+    server_link::{AccountSignIn, Link, ServerAddresses, ServerLinker},
 };
 use nama_proto::nama::v1::{
     self as proto, CreateUserFromAccountRequest, DeleteUserRequest, GetServerInfoRequest,
     GetServerLinkRequest, GetUserLinkRequest, ListUsersRequest, Permission, RefusalReason,
-    ServerServiceClient, SessionDelivery, SetPermissionsRequest, SignInServiceClient,
-    SignInWithAccountRequest, StartAccountSignInRequest, StartServerLinkRequest,
-    StartUserLinkRequest, UnlinkServerRequest, UnlinkUserRequest, UserServiceClient, WhoAmIRequest,
+    ServerServiceClient, ServerSettings, SessionDelivery, SetPermissionsRequest,
+    SignInServiceClient, SignInWithAccountRequest, StartAccountSignInRequest,
+    StartServerLinkRequest, StartUserLinkRequest, UnlinkServerRequest, UnlinkUserRequest,
+    UpdateServerSettingsRequest, UserServiceClient, WhoAmIRequest,
 };
 use nama_server::plugins::Registry;
 use refused::assert_refused;
@@ -53,6 +60,12 @@ struct Script {
     returns_to: Option<String>,
     /// The User an Account approved the sign-in as, until it is finished.
     approved: Option<i64>,
+    /// The Server Addresses it was last told.
+    addresses: Option<ServerAddresses>,
+    /// The Users it was asked to Unlink, by id, in order.
+    unlinked_users: Vec<i64>,
+    /// Whether Unlinking a User fails, as with the service unreachable.
+    unlink_user_fails: bool,
 }
 
 impl Scripted {
@@ -126,8 +139,13 @@ impl ServerLinker for Scripted {
         Box::pin(future::ready(Ok(waiting)))
     }
 
-    fn unlink_user(&self, _user_id: i64) -> BoxFuture<'_, Result<(), PluginError>> {
-        self.script().user_link = Some(Link::NotLinked);
+    fn unlink_user(&self, user_id: i64) -> BoxFuture<'_, Result<(), PluginError>> {
+        let mut script = self.script();
+        script.unlinked_users.push(user_id);
+        if script.unlink_user_fails {
+            return Box::pin(future::ready(Err("the service is unreachable".into())));
+        }
+        script.user_link = Some(Link::NotLinked);
         Box::pin(future::ready(Ok(())))
     }
 
@@ -166,16 +184,27 @@ impl ServerLinker for Scripted {
             .map(|_| self.script().approved.take().filter(|_| handle == "handle"));
         Box::pin(future::ready(finished))
     }
+    fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
+        self.script().addresses = Some(addresses);
+        Box::pin(future::ready(Ok(())))
+    }
+}
+
+async fn with_linker(linker: &Scripted) -> TestServer {
+    TestServer::builder()
+        .plugins(enabling(linker))
+        .start()
+        .await
 }
 
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn with_linker(linker: &Scripted) -> TestServer {
+fn enabling(linker: &Scripted) -> Registry {
     let plugins = Registry::new();
     plugins.enable(Arc::new(linker.clone())).unwrap();
-    TestServer::builder().plugins(plugins).start().await
+    plugins
 }
 
 fn settings(server: &TestServer) -> ServerServiceClient<HttpClient> {
@@ -208,6 +237,17 @@ async fn user_link(config: ClientConfig) -> Option<proto::UserLink> {
         .await
         .unwrap();
     got.into_owned().link.into_option()
+}
+
+/// Deletes the User `user_id`, calling as `who`.
+async fn delete(who: ClientConfig, user_id: i64) -> Result<(), ConnectError> {
+    users(who)
+        .delete_user(DeleteUserRequest {
+            user_id,
+            ..Default::default()
+        })
+        .await
+        .map(drop)
 }
 
 #[tokio::test]
@@ -374,10 +414,7 @@ async fn linked_server(linker: &Scripted) -> TestServer {
     with_linker(linker).await
 }
 
-async fn create_from_account(
-    server: &TestServer,
-    name: &str,
-) -> Result<i64, connectrpc::ConnectError> {
+async fn create_from_account(server: &TestServer, name: &str) -> Result<i64, ConnectError> {
     Ok(users(server.client_config())
         .create_user_from_account(CreateUserFromAccountRequest {
             name: name.to_owned(),
@@ -395,7 +432,7 @@ fn sign_in(server: &TestServer) -> SignInServiceClient<HttpClient> {
 
 async fn start_account_sign_in(
     server: &TestServer,
-) -> Result<proto::StartAccountSignInResponse, connectrpc::ConnectError> {
+) -> Result<proto::StartAccountSignInResponse, ConnectError> {
     Ok(sign_in(server)
         .start_account_sign_in(StartAccountSignInRequest {
             return_url: "https://nama.example/sign-in".to_owned(),
@@ -409,7 +446,7 @@ async fn start_account_sign_in(
 async fn sign_in_with_account(
     server: &TestServer,
     handle: &str,
-) -> Result<proto::SignInWithAccountResponse, connectrpc::ConnectError> {
+) -> Result<proto::SignInWithAccountResponse, ConnectError> {
     Ok(sign_in(server)
         .sign_in_with_account(SignInWithAccountRequest {
             handle: handle.to_owned(),
@@ -582,4 +619,112 @@ async fn the_last_admin_who_signs_in_with_a_password_cant_be_demoted_or_deleted(
     );
     // An Admin who signs in only with their Account may go.
     set(grace, &[Permission::PERMISSION_REQUEST]).await.unwrap();
+}
+
+#[tokio::test]
+async fn the_plugin_is_told_the_server_url_the_admin_set() {
+    let linker = Scripted::default();
+    let server = with_linker(&linker).await;
+    settings(&server)
+        .update_server_settings(UpdateServerSettingsRequest {
+            settings: ServerSettings {
+                url: "https://nama.example.com".to_owned(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let _restarted = TestServer::builder()
+        .plugins(enabling(&linker))
+        .restart(server)
+        .await;
+
+    // The test Server listens on 127.0.0.1, which no other device on its LAN can reach.
+    let told = ServerAddresses {
+        url: "https://nama.example.com/".to_owned(),
+        lan: vec![],
+    };
+    let waited = tokio::time::timeout(server::WAIT, async {
+        while linker.script().addresses.as_ref() != Some(&told) {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await;
+    assert!(waited.is_ok(), "told {:?}", linker.script().addresses);
+}
+
+#[tokio::test]
+async fn deleting_a_user_unlinks_them_once() {
+    let linker = Scripted::default();
+    linker.script().user_link = Some(Link::Linked {
+        account: "grace@example.com".to_owned(),
+    });
+    let server = with_linker(&linker).await;
+    let grace = server.user_with_default_permissions("Grace").await;
+
+    delete(server.client_config(), grace.id).await.unwrap();
+
+    assert_eq!(linker.script().unlinked_users, [grace.id]);
+}
+
+#[tokio::test]
+async fn an_admin_deleting_themselves_is_unlinked() {
+    let linker = Scripted::default();
+    let server = with_linker(&linker).await;
+    let ada = server.user("Ada", &[Permission::Admin]).await;
+
+    delete(ada.client_config(), ada.id).await.unwrap();
+
+    assert_eq!(linker.script().unlinked_users, [ada.id]);
+}
+
+#[tokio::test]
+async fn an_unlinked_user_is_deleted() {
+    let linker = Scripted::default();
+    linker.script().user_link = Some(Link::NotLinked);
+    let server = with_linker(&linker).await;
+    let grace = server.user_with_default_permissions("Grace").await;
+
+    delete(server.client_config(), grace.id).await.unwrap();
+}
+
+#[tokio::test]
+async fn a_refused_delete_unlinks_no_one() {
+    let linker = Scripted::default();
+    let server = with_linker(&linker).await;
+
+    delete(server.client_config(), 9999).await.unwrap_err();
+
+    assert_eq!(linker.script().unlinked_users, Vec::<i64>::new());
+}
+
+#[tokio::test]
+async fn a_user_is_deleted_without_a_plugin_that_links_the_server() {
+    let server = TestServer::builder().start().await;
+    let grace = server.user_with_default_permissions("Grace").await;
+
+    delete(server.client_config(), grace.id).await.unwrap();
+}
+
+#[tokio::test]
+async fn a_plugin_that_cant_unlink_a_deleted_user_leaves_them_deleted_and_warns() {
+    let log = Log::global();
+    let linker = Scripted::default();
+    linker.script().unlink_user_fails = true;
+    let server = with_linker(&linker).await;
+    let grace = server.user_with_default_permissions("Grace").await;
+
+    delete(server.client_config(), grace.id).await.unwrap();
+
+    let listed = users(server.client_config())
+        .list_users(ListUsersRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .users;
+    assert!(listed.iter().all(|user| user.id != grace.id));
+    assert_eq!(log.count(&["could not Unlink a deleted User", "linker"]), 1);
 }

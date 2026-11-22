@@ -12,5 +12,6 @@ A Dolby Vision 5 Track has no Base Layer, so only its RPU turns the picture into
 ## Consequences
 
 - `peak=100` pins the source peak at 1000 nits. Read from the RPU instead, a title mastered at 4000 nits comes out about a third darker in the midtones (Silo found this).
+- For a Device that shows HDR, on hardware making HEVC, `tonemapx` reshapes it to HDR10 instead, with `t=smpte2084`, which it allows only with `apply_dovi` and 10-bit output (#1853).
 - HDR10 and HLG tone-map through the same `tonemapx` settings when it's there, so every source looks alike. Upstream's zscale and Hable chain stays for other ffmpeg builds.
 - The tests use a small committed Dolby Vision 5 clip, made once with x265 from dovi_tool's MIT-licensed `profile5.bin`, because ffmpeg alone can't make one.

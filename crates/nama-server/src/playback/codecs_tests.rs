@@ -692,15 +692,52 @@ fn without_hevc_on_the_device_or_server_or_a_4k_or_hdr_picture_a_transcode_makes
 
 #[test]
 fn hdr_the_device_cant_show_is_tone_mapped_to_h264_even_in_4k() {
-    let mut facts = av1_on_hevc_hardware(3840, Some(Hdr::Hdr10));
-    facts.device.hdr = false;
+    for hdr in [Hdr::Hdr10, DOLBY_VISION_5] {
+        let mut facts = av1_on_hevc_hardware(3840, Some(hdr));
+        facts.device.hdr = false;
+        facts.can_do.tonemapx = true;
 
-    let plan = build(&mut facts);
+        let plan = build(&mut facts);
 
+        assert_eq!(
+            video_made(&plan),
+            ("h264", Some(8), None, "transcode/fmp4/h264/aac".to_owned()),
+            "{hdr:?}"
+        );
+    }
+}
+
+/// [`dolby_vision_5_with_tonemapx`] for an HDR Device decoding 10-bit HEVC but showing no Dolby
+/// Vision, on a Server whose VAAPI passed its HEVC test if `hevc`.
+fn dolby_vision_5_for_hdr_on(hevc: bool) -> Facts {
+    let mut facts = dolby_vision_5_with_tonemapx();
+    facts.device = safari_on_hdr();
+    facts.can_do.hardware = av1_on_hevc_hardware(1920, None).can_do.hardware;
+    facts.can_do.hardware[0].hevc = hevc;
+    facts
+}
+
+#[test]
+fn dolby_vision_5_transcodes_to_hdr10_hevc_reshaped_by_its_rpu_for_an_hdr_device() {
+    let plan = build(&mut dolby_vision_5_for_hdr_on(true));
+
+    let (codec, bit_depth, hdr, _) = video_made(&plan);
     assert_eq!(
-        video_made(&plan),
-        ("h264", Some(8), None, "transcode/fmp4/h264/aac".to_owned())
+        (codec, bit_depth, hdr),
+        ("hevc", Some(10), Some(Hdr::Hdr10))
     );
+    let tone_map = transcoded(&plan).video.tone_map;
+    assert_eq!(tone_map, Some(ToneMapper::DolbyVisionToHdr10));
+    assert!(!kinds(&plan).contains(&Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED));
+}
+
+#[test]
+fn without_hevc_hardware_dolby_vision_5_transcodes_to_sdr_for_an_hdr_device() {
+    let plan = build(&mut dolby_vision_5_for_hdr_on(false));
+
+    let (codec, bit_depth, hdr, _) = video_made(&plan);
+    assert_eq!((codec, bit_depth, hdr), ("h264", Some(8), None));
+    assert_eq!(transcoded(&plan).video.tone_map, RESHAPED);
 }
 
 #[test]

@@ -86,6 +86,8 @@ pub mod __buffa {
         reg.register_json_any(super::__START_SERVER_SIGN_IN_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__POLL_SERVER_SIGN_IN_REQUEST_JSON_ANY);
         reg.register_json_any(super::__POLL_SERVER_SIGN_IN_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_SERVER_ADDRESSES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_SERVER_ADDRESSES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
     }
 }
@@ -321,6 +323,14 @@ pub use self::__buffa::view::PollServerSignInRequestOwnedView;
 pub use self::__buffa::view::PollServerSignInResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::PollServerSignInResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetServerAddressesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetServerAddressesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetServerAddressesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetServerAddressesResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RefusalView;
 #[doc(inline)]

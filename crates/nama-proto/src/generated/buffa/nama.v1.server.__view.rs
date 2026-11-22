@@ -5416,6 +5416,18 @@ pub struct ServerSettingsView<'a> {
     ///
     /// Field 1: `url`
     pub url: &'a str,
+    /// Whether the Server shares its Diagnostics with Nama's developers, through the Hub once it is
+    /// Linked: spans of ids, counts and durations, and the few log lines a reviewed list names (ADR
+    /// 0054). Off by default.
+    ///
+    /// Field 2: `share_diagnostics`
+    pub share_diagnostics: bool,
+    /// Whether the Server shares Usage Analytics with Nama's developers, through the Hub once it is
+    /// Linked: named events saying a feature was used, with no titles or names (ADR 0054). Off by
+    /// default.
+    ///
+    /// Field 3: `share_usage_analytics`
+    pub share_usage_analytics: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ServerSettingsView<'a> {
@@ -5455,6 +5467,20 @@ impl<'a> ::buffa::MessageView<'a> for ServerSettingsView<'a> {
                 )?;
                 view.url = ::buffa::types::borrow_str(&mut cur)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.share_diagnostics = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.share_usage_analytics = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -5478,6 +5504,8 @@ impl<'a> ::buffa::MessageView<'a> for ServerSettingsView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::ServerSettings {
             url: self.url.to_string(),
+            share_diagnostics: self.share_diagnostics,
+            share_usage_analytics: self.share_usage_analytics,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -5492,6 +5520,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ServerSettingsView<'a> {
         if !self.url.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.url) as u64;
         }
+        if self.share_diagnostics {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.share_usage_analytics {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -5505,6 +5539,12 @@ impl<'a> ::buffa::ViewEncode<'a> for ServerSettingsView<'a> {
         use ::buffa::Enumeration as _;
         if !self.url.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.url, buf);
+        }
+        if self.share_diagnostics {
+            ::buffa::types::put_bool_field(2u32, self.share_diagnostics, buf);
+        }
+        if self.share_usage_analytics {
+            ::buffa::types::put_bool_field(3u32, self.share_usage_analytics, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -5529,6 +5569,12 @@ impl<'__a> ::serde::Serialize for ServerSettingsView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !::buffa::json_helpers::skip_if::is_empty_str(self.url) {
             __map.serialize_entry("url", self.url)?;
+        }
+        if self.share_diagnostics {
+            __map.serialize_entry("shareDiagnostics", &self.share_diagnostics)?;
+        }
+        if self.share_usage_analytics {
+            __map.serialize_entry("shareUsageAnalytics", &self.share_usage_analytics)?;
         }
         __map.end()
     }
@@ -5630,6 +5676,24 @@ impl ServerSettingsOwnedView {
     #[must_use]
     pub fn url(&self) -> &'_ str {
         self.0.reborrow().url
+    }
+    /// Whether the Server shares its Diagnostics with Nama's developers, through the Hub once it is
+    /// Linked: spans of ids, counts and durations, and the few log lines a reviewed list names (ADR
+    /// 0054). Off by default.
+    ///
+    /// Field 2: `share_diagnostics`
+    #[must_use]
+    pub fn share_diagnostics(&self) -> bool {
+        self.0.reborrow().share_diagnostics
+    }
+    /// Whether the Server shares Usage Analytics with Nama's developers, through the Hub once it is
+    /// Linked: named events saying a feature was used, with no titles or names (ADR 0054). Off by
+    /// default.
+    ///
+    /// Field 3: `share_usage_analytics`
+    #[must_use]
+    pub fn share_usage_analytics(&self) -> bool {
+        self.0.reborrow().share_usage_analytics
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ServerSettingsView<'static>>>

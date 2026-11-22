@@ -1,7 +1,9 @@
 //! The Hub Plugin (ADR 0094): the Built-in Plugin through which a Server does everything
 //! Hub-facing. It Links the Server to an Account, through a code an Admin enters on the Hub (ADR
-//! 0011), and keeps the credential the Server presents to the Hub from then on in its Store. Its
-//! Users then Link to their own Accounts the same way.
+//! 0011), keeps the credential the Server presents to the Hub from then on in its Store, and sends
+//! the Hub the Diagnostics and Usage Analytics the Admin shares (ADR 0054). Its Users then Link to
+//! their own Accounts the same way, and the Hub lists the Server, with its Server Addresses, to
+//! every Account it has a User on.
 
 mod hub;
 mod linker;
@@ -11,7 +13,7 @@ use std::{env, sync::Arc};
 
 use nama_plugin_api::{
     Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar, automation::Permission,
-    server_link::ServerLinker,
+    diagnostics_sharer::DiagnosticsSharer, server_link::ServerLinker,
 };
 
 use crate::{hub::Hub as HubApi, linker::Linker};
@@ -55,14 +57,21 @@ impl Plugin for Hub {
     fn manifest(&self) -> Manifest {
         Manifest {
             name: "Hub".to_owned(),
-            description: "Links the Server, and its Users, to Accounts on Nama's Hub.".to_owned(),
+            description: "Links the Server, and its Users, to Accounts on Nama's Hub, and sends \
+                          it the Diagnostics and Usage Analytics you share in Settings."
+                .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_markdown: "Enable it, then Link the Server under Settings, Server. The Server \
                              shows a code to enter on the Hub while signed in to your Account. \
                              Once it is Linked, each User can Link to their own Account the same \
-                             way, from their own Settings."
+                             way, from their own Settings. The Hub then lists the Server's Server \
+                             URL and LAN address to the Accounts its Users Linked to, so their \
+                             apps can find it."
                 .to_owned(),
-            extension_points: vec![PointKey::provide::<dyn ServerLinker>()],
+            extension_points: vec![
+                PointKey::provide::<dyn ServerLinker>(),
+                PointKey::provide::<dyn DiagnosticsSharer>(),
+            ],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
             permissions: vec![Permission::PERMISSION_STORE],
             ..Manifest::new(Self::ID)
@@ -76,8 +85,10 @@ impl Plugin for Hub {
         let kernel = registrar
             .kernel()
             .ok_or("the Kernel handed the Hub Plugin none of its functions")?;
-        let linker: Arc<dyn ServerLinker> = Arc::new(Linker::new(HubApi::new(url)?, kernel));
+        let linker = Arc::new(Linker::new(HubApi::new(url)?, kernel));
+        let sharer: Arc<dyn DiagnosticsSharer> = Arc::<Linker>::clone(&linker);
         registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, linker);
+        registrar.provide::<dyn DiagnosticsSharer>(Priority::DEFAULT, sharer);
         Ok(())
     }
 }

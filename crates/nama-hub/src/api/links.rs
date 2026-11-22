@@ -11,16 +11,16 @@ use nama_hub_proto::nama::hub::v1::{
     ListLinkedServersResponse, ListLinkedUsersRequest, ListLinkedUsersResponse,
     ListUserInvitesRequest, ListUserInvitesResponse, PollServerLinkRequest, PollServerLinkResponse,
     PollServerSignInRequest, PollServerSignInResponse, RefusalReason, ServerLinkService,
-    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
-    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse,
-    UnlinkLinkedUserRequest, UnlinkLinkedUserResponse, UnlinkServerRequest, UnlinkServerResponse,
-    UnlinkUserRequest, UnlinkUserResponse,
+    SetServerAddressesRequest, SetServerAddressesResponse, StartServerLinkRequest,
+    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
+    StartUserLinkRequest, StartUserLinkResponse, UnlinkLinkedUserRequest, UnlinkLinkedUserResponse,
+    UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
 };
 
 use super::{accounts::signed_in, hub_failed, refuse};
 use crate::links::{
-    self, CODE_LIFETIME_MINS, InviteId, LinkId, LinkedServer, Links, ListedInvite, ListedServer,
-    ListedUser, POLL_INTERVAL_SECS, Polled, SignInId,
+    self, ADDRESS_LENGTH, CODE_LIFETIME_MINS, InviteId, LinkId, LinkedServer, Links, ListedInvite,
+    ListedServer, ListedUser, MAX_LAN_ADDRESSES, POLL_INTERVAL_SECS, Polled, SignInId,
 };
 
 /// `nama.hub.v1.ServerLinkService`: a Server not yet Linked, so anyone.
@@ -352,6 +352,23 @@ impl LinkedServerService for LinkedServerServiceHandler {
             ..Default::default()
         })
     }
+
+    async fn set_server_addresses(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetServerAddressesRequest>,
+    ) -> ServiceResult<SetServerAddressesResponse> {
+        let lan_addresses: Vec<String> = request
+            .lan_addresses
+            .iter()
+            .map(|&address| address.to_owned())
+            .collect();
+        self.links
+            .set_addresses(linked_server(&ctx)?, request.url, &lan_addresses)
+            .await
+            .map_err(refused)?;
+        Response::ok(SetServerAddressesResponse::default())
+    }
 }
 
 /// The invite `id` names. One that isn't a UUID names none.
@@ -382,6 +399,8 @@ fn server_to_proto(server: ListedServer) -> proto::LinkedServer {
         id: server.id.to_string(),
         name: server.name,
         linked_at: server.linked_at,
+        url: server.url,
+        addresses: server.addresses,
         ..Default::default()
     }
 }
@@ -429,6 +448,9 @@ fn refused(err: links::Error) -> ConnectError {
         }
         E::NoUserOnServer => refuse(R::REFUSAL_REASON_NO_USER_ON_SERVER, message),
         E::UrlInvalid => refuse(R::REFUSAL_REASON_URL_INVALID, message).field("return_url"),
+        E::AddressInvalid => refuse(R::REFUSAL_REASON_SERVER_ADDRESS_INVALID, message)
+            .param("maxLength", &ADDRESS_LENGTH)
+            .param("maxLanAddresses", &MAX_LAN_ADDRESSES),
         E::Random(_) | E::Database(_) => return hub_failed(&err),
     };
     refused.into()

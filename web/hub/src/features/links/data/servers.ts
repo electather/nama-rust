@@ -8,7 +8,7 @@ const serversKey = createConnectQueryKey({
 });
 
 /**
- * The signed-in Account's Linked Servers, oldest first. It doesn't suspend: the Hub web app has no
+ * The Linked Servers the signed-in Account owns or has a User on, oldest first. It doesn't suspend: the Hub web app has no
  * boundary to catch a failure, and the rest of the Account page works without the list.
  */
 export function useLinkedServers() {

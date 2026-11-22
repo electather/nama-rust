@@ -1,13 +1,17 @@
 //! Diagnostics: the spans the Server records about itself, and the web app's that it forwards,
-//! exported only to an endpoint its admin sets (ADR 0054), and each Plugin's recent Plugin Log
-//! lines, kept for its Plugins page (ADR 0061). What a span may carry is a rule in
+//! exported only to an endpoint its admin sets, and shared with Nama's developers, with Usage
+//! Analytics, only if the admin shares them (ADR 0054); and each Plugin's recent Plugin Log lines,
+//! kept for its Plugins page (ADR 0061). What a span may carry is a rule in
 //! `crates/nama-server/AGENTS.md`.
 
 use std::{
     collections::{BTreeMap, HashMap, VecDeque},
     env,
     fmt::{self, Write as _},
-    sync::{Arc, Mutex, OnceLock, PoisonError},
+    sync::{
+        Arc, Mutex, OnceLock, PoisonError,
+        atomic::{AtomicBool, Ordering},
+    },
     time::{Duration, Instant, SystemTime},
 };
 
@@ -24,14 +28,16 @@ use connectrpc::{
 };
 use nama_plugin_api::PluginId;
 use opentelemetry::{
-    KeyValue,
+    Context as OtelContext, KeyValue,
     propagation::TextMapPropagator as _,
     trace::{Span as _, SpanKind, Status, Tracer as _, TracerProvider as _},
 };
 use opentelemetry_http::HeaderExtractor;
 use opentelemetry_sdk::{
+    Resource,
+    error::OTelSdkResult,
     propagation::TraceContextPropagator,
-    trace::{SdkTracer, SdkTracerProvider},
+    trace::{SdkTracer, SdkTracerProvider, Span as SdkSpan, SpanData, SpanProcessor},
 };
 use tracing::{
     Dispatch, Event, Instrument as _, Level, Span, Subscriber,
@@ -42,8 +48,8 @@ use tracing::{
 use tracing_opentelemetry::{OpenTelemetrySpanExt as _, SetParentError, get_otel_context};
 use tracing_subscriber::{
     EnvFilter, Layer,
-    filter::{FilterExt as _, filter_fn},
-    layer::Context,
+    filter::{FilterExt as _, LevelFilter, dynamic_filter_fn, filter_fn},
+    layer::{Context, Filter},
     registry::LookupSpan,
 };
 
@@ -154,32 +160,229 @@ pub fn layer<S>(provider: &SdkTracerProvider) -> impl Layer<S> + use<S>
 where
     S: Subscriber + for<'span> LookupSpan<'span>,
 {
+    recording_layer(provider, || true)
+}
+
+/// [`layer`], recording spans only while `switches` share Diagnostics, for a Server whose admin
+/// exports them nowhere else, so it records nothing it would only drop.
+#[must_use]
+pub fn sharing_layer<S>(
+    provider: &SdkTracerProvider,
+    switches: &'static SharingSwitches,
+) -> impl Layer<S> + use<S>
+where
+    S: Subscriber + for<'span> LookupSpan<'span>,
+{
+    recording_layer(provider, move || switches.diagnostics())
+}
+
+/// [`layer`], recording only while `recording` says so.
+fn recording_layer<S, R>(provider: &SdkTracerProvider, recording: R) -> impl Layer<S> + use<S, R>
+where
+    S: Subscriber + for<'span> LookupSpan<'span>,
+    R: Fn() -> bool + Clone + Send + Sync + 'static,
+{
+    let while_recording = move || {
+        let recording = recording.clone();
+        dynamic_filter_fn(move |_, _| recording())
+    };
     let tracer = provider.tracer(env!("CARGO_PKG_NAME"));
     let queries = SqlSpans {
         tracer: tracer.clone(),
         dispatch: OnceLock::new(),
     }
-    .with_filter(filter_fn(|metadata| metadata.target() == SQL_TARGET));
+    .with_filter(filter_fn(|metadata| metadata.target() == SQL_TARGET).and(while_recording()));
     // Lines logged for stdout quote file paths and names, which a span mustn't carry (ADR 0054).
     // The span naming a Built-in is for stdout: in a trace, the `plugin call` span inside it names
     // the Plugin already.
-    let spans_only = exported_filter().and(filter_fn(|metadata| {
-        metadata.is_span() && metadata.target() != PLUGIN_TARGET
-    }));
+    let spans_only = exported_filter()
+        .and(filter_fn(|metadata| {
+            metadata.is_span() && metadata.target() != PLUGIN_TARGET
+        }))
+        .and(while_recording());
     tracing_opentelemetry::layer()
         .with_tracer(tracer)
+        // For `SharedSpans`, which shares none finer than `info`.
+        .with_level(true)
         .with_filter(spans_only)
         .and_then(queries)
 }
 
-/// What is exported: `info`, or whatever `RUST_LOG` asks for, never Extism's own Plugin logs.
+/// Makes ring rustls's process-wide crypto provider, before the Server builds a reqwest Client.
+pub fn use_ring_for_tls() {
+    // The Hub turns on reqwest's `rustls-no-provider`, and Cargo unifies it into this crate's
+    // reqwest whenever the workspace builds as one (`cargo test --workspace`): every Client build
+    // then panics without a process default. A provider already installed is fine.
+    let _: Result<(), _> = rustls::crypto::ring::default_provider().install_default();
+}
+
+/// What an admin shares with Nama's developers (ADR 0054): neither, by default.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Sharing {
+    pub(crate) diagnostics: bool,
+    pub(crate) usage_analytics: bool,
+}
+
+/// What the Server shares as the subscriber reads it, on every span and line.
+#[derive(Debug, Default)]
+pub struct SharingSwitches {
+    diagnostics: AtomicBool,
+    usage_analytics: AtomicBool,
+}
+
+/// What the Server shares, as its settings last said. Process-wide, as the subscriber reading it.
+pub static SHARING: SharingSwitches = SharingSwitches::new();
+
+impl SharingSwitches {
+    /// Both off.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            diagnostics: AtomicBool::new(false),
+            usage_analytics: AtomicBool::new(false),
+        }
+    }
+
+    /// Shares what `sharing` says from now on.
+    pub(crate) fn set(&self, sharing: Sharing) {
+        self.diagnostics
+            .store(sharing.diagnostics, Ordering::Relaxed);
+        self.usage_analytics
+            .store(sharing.usage_analytics, Ordering::Relaxed);
+    }
+
+    fn diagnostics(&self) -> bool {
+        self.diagnostics.load(Ordering::Relaxed)
+    }
+
+    fn usage_analytics(&self) -> bool {
+        self.usage_analytics.load(Ordering::Relaxed)
+    }
+}
+
+/// The target Usage Analytics are recorded under, which stdout leaves out.
+pub const USAGE_TARGET: &str = "nama::usage";
+
+/// The log lines shared with Diagnostics, by their call site's `name:`
+/// (`crates/nama-server/AGENTS.md`).
+const SHARED_LINES: [&str; 2] = [
+    // `db.rs`
+    "database write panicked",
+    // `playback/running/run.rs`
+    "hardware acceleration failed partway",
+];
+
+/// The Usage Analytics the Server records (`crates/nama-server/AGENTS.md`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Usage {
+    /// A User made a Request.
+    RequestMade,
+    /// A User started playing a Version.
+    PlaybackStarted,
+}
+
+/// Records that `usage` happened, shared only while the admin shares Usage Analytics.
+pub(crate) fn record(usage: Usage) {
+    // A call site each, since an event's name is fixed where it's written.
+    match usage {
+        Usage::RequestMade => {
+            tracing::info!(name: "request made", target: USAGE_TARGET, "request made");
+        }
+        Usage::PlaybackStarted => {
+            tracing::info!(name: "playback started", target: USAGE_TARGET, "playback started");
+        }
+    }
+}
+
+/// What of the Server's logs is shared: the lines on the shared list while `switches` share
+/// Diagnostics, and Usage Analytics while they share those.
+#[must_use]
+pub fn shared_logs_filter<S>(switches: &'static SharingSwitches) -> impl Filter<S> {
+    dynamic_filter_fn(move |metadata, _| {
+        if metadata.target() == USAGE_TARGET {
+            switches.usage_analytics()
+        } else {
+            switches.diagnostics()
+                && metadata.is_event()
+                && SHARED_LINES.contains(&metadata.name())
+        }
+    })
+    // Every shared line is `info` or above, so `debug` lines stay as cheap as stdout makes them.
+    .with_max_level_hint(LevelFilter::INFO)
+}
+
+/// A span processor handing `P` only the spans that end while `switches` share Diagnostics.
+#[derive(Debug)]
+pub struct SharedSpans<P> {
+    processor: P,
+    switches: &'static SharingSwitches,
+}
+
+impl<P> SharedSpans<P> {
+    /// Hands `processor` what `switches` share.
+    pub const fn new(processor: P, switches: &'static SharingSwitches) -> Self {
+        Self {
+            processor,
+            switches,
+        }
+    }
+}
+
+impl<P: SpanProcessor> SpanProcessor for SharedSpans<P> {
+    fn on_start(&self, span: &mut SdkSpan, cx: &OtelContext) {
+        self.processor.on_start(span, cx);
+    }
+
+    fn on_end(&self, span: SpanData) {
+        if self.switches.diagnostics() && at_info_or_above(&span) {
+            self.processor.on_end(span);
+        }
+    }
+
+    fn force_flush(&self) -> OTelSdkResult {
+        self.processor.force_flush()
+    }
+
+    fn shutdown_with_timeout(&self, timeout: Duration) -> OTelSdkResult {
+        self.processor.shutdown_with_timeout(timeout)
+    }
+
+    fn set_resource(&mut self, _resource: &Resource) {
+        self.processor.set_resource(&shared_resource());
+    }
+}
+
+/// Whether `span` was recorded at `info` or above. An admin's `RUST_LOG` may record finer spans
+/// for their own collector, from crates no one reviewed for what their spans carry.
+fn at_info_or_above(span: &SpanData) -> bool {
+    !span.attributes.iter().any(|attribute| {
+        attribute.key.as_str() == "level"
+            && matches!(attribute.value.as_str().as_ref(), "DEBUG" | "TRACE")
+    })
+}
+
+/// The resource every shared span and log record names: the Server's version, never the admin's
+/// own resource attributes, such as a host name set through `OTEL_RESOURCE_ATTRIBUTES`.
+#[must_use]
+pub fn shared_resource() -> Resource {
+    Resource::builder_empty()
+        .with_service_name(env!("CARGO_PKG_NAME"))
+        .with_attribute(KeyValue::new("service.version", env!("CARGO_PKG_VERSION")))
+        .build()
+}
+
+/// What is exported to the admin's endpoint: `info`, or whatever `RUST_LOG` asks for, never
+/// Extism's own Plugin logs nor Usage Analytics.
 #[must_use]
 pub fn exported_filter() -> EnvFilter {
     let asked = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_owned());
     // Extism logs an Installed Plugin's error, and the lines it writes through Extism's own log
     // functions, as they are, which may quote a secret setting; the Server logs both itself with
-    // secrets blanked (ADR 0061). Forced here, unlike stdout, since this leaves the machine.
-    EnvFilter::builder().parse_lossy(format!("{asked},extism::plugin=off,extism::pdk=off"))
+    // secrets blanked (ADR 0061). Forced here, unlike stdout, since this leaves the machine. Usage
+    // Analytics are for sharing only, and the admin's collector gets what stdout does (ADR 0054).
+    EnvFilter::builder().parse_lossy(format!(
+        "{asked},extism::plugin=off,extism::pdk=off,{USAGE_TARGET}=off"
+    ))
 }
 
 /// Runs a ConnectRPC call in a span named after its service and method, continuing the trace a
@@ -519,6 +722,7 @@ impl BrowserSpans {
         // ponytail: ignores `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS`,
         // which the Server's own exporter reads; read them once a collector needs a key.
         let traces_url = format!("{}/v1/traces", endpoint.trim_end_matches('/'));
+        use_ring_for_tls();
         Self {
             traces_url,
             client: reqwest::Client::new(),
