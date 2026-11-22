@@ -1,11 +1,4 @@
-import { toJsonString } from "@bufbuild/protobuf";
-import {
-  DeviceKind,
-  type ListViewingEventsResponse,
-  ListViewingEventsResponseSchema,
-  TitleKind,
-  type ViewingEvent,
-} from "@hub/gen/nama/hub/v1/viewing_pb";
+import { DeviceKind, TitleKind, type ViewingEvent } from "@hub/gen/nama/hub/v1/viewing_pb";
 
 const startedAt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
@@ -48,10 +41,4 @@ function clock(ms: bigint) {
 
 function twoDigits(part: number) {
   return part.toString().padStart(2, "0");
-}
-
-/** Every Viewing Event as the JSON the Hub API speaks, for an Account to keep. */
-export function exportedHistory(history: ListViewingEventsResponse) {
-  const json = toJsonString(ListViewingEventsResponseSchema, history, { prettySpaces: 2 });
-  return new Blob([json], { type: "application/json" });
 }

@@ -1,5 +1,8 @@
-import { exportedHistory } from "@hub/features/viewing/lib/viewing-event-text";
-import type { ListViewingEventsResponse } from "@hub/gen/nama/hub/v1/viewing_pb";
+import { toJsonString } from "@bufbuild/protobuf";
+import {
+  type ListViewingEventsResponse,
+  ListViewingEventsResponseSchema,
+} from "@hub/gen/nama/hub/v1/viewing_pb";
 import { Button } from "nama-ui/components/button";
 
 /** Downloads every Viewing Event as one JSON file. */
@@ -24,4 +27,10 @@ export function ExportButton({ history }: { history: ListViewingEventsResponse }
       Export as JSON
     </Button>
   );
+}
+
+/** Every Viewing Event as the JSON the Hub API speaks, for an Account to keep. */
+function exportedHistory(history: ListViewingEventsResponse) {
+  const json = toJsonString(ListViewingEventsResponseSchema, history, { prettySpaces: 2 });
+  return new Blob([json], { type: "application/json" });
 }
