@@ -1398,9 +1398,9 @@ mod tests {
                 ..TitleRef::default()
             }
             .into(),
-            ids: vec![id("tvdb", "1"), id("tmdb", "2")],
+            ids: vec![id("tmdb", "2"), id("tvdb", "1")],
             show_id: id("tvdb", "10").into(),
-            show_ids: vec![id("tvdb", "10"), id("tmdb", "20")],
+            show_ids: vec![id("tmdb", "20"), id("tvdb", "10")],
             ..Title::default()
         }
     }
@@ -1409,7 +1409,7 @@ mod tests {
     fn a_movies_ids_start_with_the_one_it_is_listed_under() {
         let movie = title(TitleRefKind::TITLE_REF_KIND_MOVIE);
 
-        let movie_ids = [id("tvdb", "1"), id("tvdb", "1"), id("tmdb", "2")];
+        let movie_ids = [id("tvdb", "1"), id("tmdb", "2"), id("tvdb", "1")];
         assert_eq!(
             ids_of_title(&movie),
             movie_ids
@@ -1423,7 +1423,7 @@ mod tests {
     fn an_episodes_ids_are_its_shows() {
         let episode = title(TitleRefKind::TITLE_REF_KIND_EPISODE);
 
-        let show_ids = [id("tvdb", "10"), id("tvdb", "10"), id("tmdb", "20")];
+        let show_ids = [id("tvdb", "10"), id("tmdb", "20"), id("tvdb", "10")];
         assert_eq!(
             ids_of_title(&episode),
             show_ids
