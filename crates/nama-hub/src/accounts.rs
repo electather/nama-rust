@@ -152,11 +152,18 @@ impl Accounts {
     }
 
     /// Signs in the Account whose email is `email`, compared without regard to case, if
-    /// `password` is its password, from the client at `ip` at `now`.
+    /// `password` is its password, from the client at `ip` at `now`, in place of `replacing`, the
+    /// browser's session, if any.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the credentials, the session to end and the rate limit's inputs are unrelated; \
+                  a struct bundling them would exist only for this call"
+    )]
     pub(crate) async fn sign_in(
         &self,
         email: &str,
         password: &str,
+        replacing: Option<&AccountSession>,
         ip: IpAddr,
         now: Instant,
     ) -> Result<SignedIn, Error> {
@@ -183,8 +190,12 @@ impl Accounts {
             return Err(Error::WrongEmailOrPassword);
         }
         self.sign_ins.succeeded(&attempt);
-        let mut conn = self.db.acquire().await?;
-        let token = sessions::start(&mut conn, account.id).await?;
+        let mut tx = self.db.begin().await?;
+        if let Some(session) = replacing {
+            sessions::end(&mut *tx, session).await?;
+        }
+        let token = sessions::start(&mut tx, account.id).await?;
+        tx.commit().await?;
         Ok(SignedIn { account, token })
     }
 
