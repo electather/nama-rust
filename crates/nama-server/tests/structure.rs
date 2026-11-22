@@ -125,6 +125,7 @@ const ROWS: &[&[&str]] = &[
         "page",
         "config",
         "log_capture",
+        "port_mapping",
     ],
 ];
 

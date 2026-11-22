@@ -1,7 +1,10 @@
 //! Registering a Server, Linking its Users, and Unlinking either: `nama.hub.v1.ServerLinkService`,
 //! `LinkService` and `LinkedServerService`, one for each kind of caller.
 
+use std::net::SocketAddr;
+
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
+use nama_forwarded::RequestSource;
 use nama_hub_proto::nama::hub::v1::{
     self as proto, ApproveServerLinkRequest, ApproveServerLinkResponse, ApproveUserLinkRequest,
     ApproveUserLinkResponse, GetUserLinkRequest, GetUserLinkResponse, LinkService,
@@ -239,12 +242,37 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .iter()
             .map(|&address| address.to_owned())
             .collect();
-        self.links
-            .set_addresses(linked_server(&ctx)?, request.url, &lan_addresses)
+        let public = public_address(&ctx, request.public_port)?;
+        let checked = self
+            .links
+            .set_addresses(linked_server(&ctx)?, request.url, &lan_addresses, public)
             .await
             .map_err(refused)?;
-        Response::ok(SetServerAddressesResponse::default())
+        Response::ok(
+            checked.map_or_else(SetServerAddressesResponse::default, |checked| {
+                SetServerAddressesResponse {
+                    public_address: checked.address,
+                    reachable: checked.reachable,
+                    ..Default::default()
+                }
+            }),
+        )
     }
+}
+
+/// Where the Server that sent the request `ctx` is for says it is reached from outside: the IP
+/// address the request came from (ADR 0018), the only one the Hub connects to, so a Server can't
+/// have it call anyone else, with `port`. `None` for port 0.
+fn public_address(ctx: &RequestContext, port: u32) -> Result<Option<SocketAddr>, ConnectError> {
+    if port == 0 {
+        return Ok(None);
+    }
+    let port = u16::try_from(port).map_err(|_too_big| refused(links::Error::AddressInvalid))?;
+    let source = ctx
+        .extensions()
+        .get::<RequestSource>()
+        .ok_or_else(|| hub_failed(&"a request came without its peer's address"))?;
+    Ok(Some(SocketAddr::new(source.client_ip.to_canonical(), port)))
 }
 
 /// The Linked Server whose credential the request carried, which the auth layer found.

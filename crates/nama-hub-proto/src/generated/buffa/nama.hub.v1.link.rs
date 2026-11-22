@@ -43,8 +43,9 @@ pub struct LinkedServer {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub url: ::buffa::alloc::string::String,
-    /// The Server Addresses a client tries, as the Server last reported them: its Server URL first,
-    /// then its LAN addresses.
+    /// The Server Addresses a client tries, best first, as the Server last reported them: its Server
+    /// URL, then its public address if the Hub reached it there from outside, then its LAN addresses,
+    /// plain `http://<lan-ip>` (ADR 0057).
     ///
     /// Field 5: `addresses`
     #[serde(
@@ -3345,6 +3346,18 @@ pub struct SetServerAddressesRequest {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub lan_addresses: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// The port on its router's public IP address that reaches it: one it opened with UPnP or
+    /// NAT-PMP, or one its Admin forwarded. 0 for none. The Hub connects to it at the IP address the
+    /// request came from, the only one it checks, so a Server can't have the Hub call anyone else.
+    ///
+    /// Field 3: `public_port`
+    #[serde(
+        rename = "publicPort",
+        alias = "public_port",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub public_port: u32,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3354,6 +3367,7 @@ impl ::core::fmt::Debug for SetServerAddressesRequest {
         f.debug_struct("SetServerAddressesRequest")
             .field("url", &self.url)
             .field("lan_addresses", &self.lan_addresses)
+            .field("public_port", &self.public_port)
             .finish()
     }
 }
@@ -3390,6 +3404,9 @@ impl ::buffa::Message for SetServerAddressesRequest {
         for v in &self.lan_addresses {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.public_port != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.public_port) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3405,6 +3422,9 @@ impl ::buffa::Message for SetServerAddressesRequest {
         }
         for v in &self.lan_addresses {
             ::buffa::types::put_string_field(2u32, v, buf);
+        }
+        if self.public_port != 0u32 {
+            ::buffa::types::put_uint32_field(3u32, self.public_port, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3437,6 +3457,13 @@ impl ::buffa::Message for SetServerAddressesRequest {
                 )?;
                 self.lan_addresses.push(__elem);
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.public_port = ::buffa::types::decode_uint32(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3447,6 +3474,7 @@ impl ::buffa::Message for SetServerAddressesRequest {
     fn clear(&mut self) {
         self.url.clear();
         self.lan_addresses.clear();
+        self.public_port = 0u32;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3483,13 +3511,36 @@ pub const __SET_SERVER_ADDRESSES_REQUEST_JSON_ANY: ::buffa::type_registry::JsonA
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct SetServerAddressesResponse {
+    /// Where the Hub tried to reach the Server from outside, such as `http://203.0.113.7:7980`: the
+    /// IP address the request came from, with `public_port`. Empty without one.
+    ///
+    /// Field 1: `public_address`
+    #[serde(
+        rename = "publicAddress",
+        alias = "public_address",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub public_address: ::buffa::alloc::string::String,
+    /// Whether the Hub reached it there. Only then is it one of the Server's Server Addresses.
+    ///
+    /// Field 2: `reachable`
+    #[serde(
+        rename = "reachable",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub reachable: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for SetServerAddressesResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("SetServerAddressesResponse").finish()
+        f.debug_struct("SetServerAddressesResponse")
+            .field("public_address", &self.public_address)
+            .field("reachable", &self.reachable)
+            .finish()
     }
 }
 impl SetServerAddressesResponse {
@@ -3519,6 +3570,14 @@ impl ::buffa::Message for SetServerAddressesResponse {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
+        if !self.public_address.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.public_address) as u64;
+        }
+        if self.reachable {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3529,6 +3588,12 @@ impl ::buffa::Message for SetServerAddressesResponse {
     ) {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
+        if !self.public_address.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.public_address, buf);
+        }
+        if self.reachable {
+            ::buffa::types::put_bool_field(2u32, self.reachable, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
     fn merge_field(
@@ -3542,6 +3607,20 @@ impl ::buffa::Message for SetServerAddressesResponse {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.public_address, buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.reachable = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3550,6 +3629,8 @@ impl ::buffa::Message for SetServerAddressesResponse {
         ::core::result::Result::Ok(())
     }
     fn clear(&mut self) {
+        self.public_address.clear();
+        self.reachable = false;
         self.__buffa_unknown_fields.clear();
     }
 }

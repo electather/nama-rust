@@ -1,6 +1,7 @@
 //! Linking the Server, and a User, through the enabled Plugin that links it (ADR 0011, ADR 0094),
 //! here an in-process one scripted by each test, and a Server without one, which has nothing to
-//! Link. The Plugin is told the Server's Server Addresses.
+//! Link. The Plugin is told the Server's Server Addresses, and shows whether the service reached it
+//! from outside.
 
 #[expect(dead_code, reason = "this binary only counts logged lines")]
 #[path = "support/log.rs"]
@@ -13,6 +14,7 @@ mod server;
 
 use std::{
     future,
+    num::NonZeroU16,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::Duration,
 };
@@ -24,7 +26,7 @@ use connectrpc::{
 use log::Log;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    server_link::{Link, ServerAddresses, ServerLinker},
+    server_link::{Link, Reachability, ServerAddresses, ServerLinker},
 };
 use nama_proto::nama::v1::{
     self as proto, DeleteUserRequest, GetServerLinkRequest, GetUserLinkRequest, ListUsersRequest,
@@ -32,7 +34,7 @@ use nama_proto::nama::v1::{
     StartUserLinkRequest, UnlinkServerRequest, UnlinkUserRequest, UpdateServerSettingsRequest,
     UserServiceClient,
 };
-use nama_server::plugins::Registry;
+use nama_server::{config::Config, plugins::Registry};
 use refused::assert_refused;
 use server::TestServer;
 
@@ -281,6 +283,7 @@ async fn a_user_shows_the_code_the_plugin_starts_for_them_and_then_whose_they_ar
     assert_eq!(user_link(grace.client_config()).await, Some(waiting));
     linker.script().user_link = Some(Link::Linked {
         account: "grace@example.com".to_owned(),
+        reachability: None,
     });
     let shown = user_link(grace.client_config()).await.unwrap();
     assert_eq!(shown.account, "grace@example.com");
@@ -321,10 +324,16 @@ async fn the_server_shows_the_code_its_plugin_starts_and_then_whose_it_is() {
     assert_eq!(link(&server).await, Some(waiting));
     linker.script().link = Some(Link::Linked {
         account: "ada@example.com".to_owned(),
+        reachability: Some(Reachability {
+            address: "http://203.0.113.7:7980".to_owned(),
+            reachable: true,
+        }),
     });
     let shown = link(&server).await.unwrap();
     assert_eq!(shown.account, "ada@example.com");
     assert_eq!(shown.code, "");
+    assert_eq!(shown.public_address, "http://203.0.113.7:7980");
+    assert!(shown.reachable);
 
     settings(&server)
         .unlink_server(UnlinkServerRequest::default())
@@ -371,13 +380,23 @@ async fn the_plugin_is_told_the_server_url_the_admin_set() {
         .restart(server)
         .await;
 
-    // The test Server listens on 127.0.0.1, which no other device on its LAN can reach.
-    let told = ServerAddresses {
-        url: "https://nama.example.com/".to_owned(),
-        lan: vec![],
-    };
+    // The test Server listens on 127.0.0.1, which no other device on its LAN can reach, so it
+    // opens no port on the router either.
+    told(
+        &linker,
+        &ServerAddresses {
+            url: "https://nama.example.com/".to_owned(),
+            lan: vec![],
+            public_port: None,
+        },
+    )
+    .await;
+}
+
+/// Waits until `linker` was told `addresses`.
+async fn told(linker: &Scripted, addresses: &ServerAddresses) {
     let waited = tokio::time::timeout(server::WAIT, async {
-        while linker.script().addresses.as_ref() != Some(&told) {
+        while linker.script().addresses.as_ref() != Some(addresses) {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })
@@ -386,10 +405,34 @@ async fn the_plugin_is_told_the_server_url_the_admin_set() {
 }
 
 #[tokio::test]
+async fn the_plugin_is_told_the_port_the_admin_forwarded() {
+    let linker = Scripted::default();
+
+    let _server = TestServer::builder()
+        .config(Config {
+            forwarded_port: NonZeroU16::new(7443),
+            ..Config::default()
+        })
+        .plugins(enabling(&linker))
+        .start()
+        .await;
+
+    told(
+        &linker,
+        &ServerAddresses {
+            public_port: Some(7443),
+            ..ServerAddresses::default()
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn deleting_a_user_unlinks_them_once() {
     let linker = Scripted::default();
     linker.script().user_link = Some(Link::Linked {
         account: "grace@example.com".to_owned(),
+        reachability: None,
     });
     let server = with_linker(&linker).await;
     let grace = server.user_with_default_permissions("Grace").await;

@@ -46,7 +46,8 @@ pub enum RefusalReason {
     /// Unlink them first.
     REFUSAL_REASON_USER_LINKED = 14i32,
     /// `invalid_argument`: a Server Address isn't an `http` or `https` URL of at most `maxLength`
-    /// characters, or the Server reported more than `maxLanAddresses` LAN addresses. Params:
+    /// characters, the Server reported more than `maxLanAddresses` LAN addresses, or a public port
+    /// over 65535. Params:
     /// `maxLength` and `maxLanAddresses`.
     REFUSAL_REASON_SERVER_ADDRESS_INVALID = 15i32,
 }

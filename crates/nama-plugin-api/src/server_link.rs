@@ -24,7 +24,20 @@ pub enum Link {
     Linked {
         /// Who the Server or User belongs to at the service, as it names them.
         account: String,
+        /// Whether the service reached the Server from outside its LAN, once it tried. Always
+        /// `None` for a User.
+        reachability: Option<Reachability>,
     },
+}
+
+/// Where the service tried to reach the Server from outside its LAN, and whether it could.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Reachability {
+    /// The Server's public IP address with its [`ServerAddresses::public_port`], such as
+    /// `http://203.0.113.7:7980`.
+    pub address: String,
+    /// Whether the service reached it there, so clients outside the LAN try it.
+    pub reachable: bool,
 }
 
 /// How clients might reach the Server: its Server Addresses (GLOSSARY.md).
@@ -34,6 +47,9 @@ pub struct ServerAddresses {
     pub url: String,
     /// Its LAN addresses, such as `http://192.168.1.10:7980`.
     pub lan: Vec<String>,
+    /// The port on its router's public IP address that reaches it: one the Server opened with UPnP
+    /// or NAT-PMP, or the one its Admin forwarded. `None` without one.
+    pub public_port: Option<u16>,
 }
 
 /// A Provider that Links the Server, and its Users, to an outside service.
@@ -92,7 +108,8 @@ pub trait ServerLinker: Send + Sync + 'static {
 
     /// Tells the Plugin the Server's `addresses`, for the service to hand its clients. The Kernel
     /// tells it every minute whether or not they changed, so the Plugin passes on only a change,
-    /// and only while the Server is Linked.
+    /// or the same now and then for the service to check its public port again, and only while
+    /// the Server is Linked. [`ServerLinker::link`] then answers what the service found.
     ///
     /// # Errors
     ///

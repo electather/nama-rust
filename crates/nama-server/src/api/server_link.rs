@@ -7,7 +7,7 @@ use std::future::Future;
 use connectrpc::{ConnectError, Response, ServiceResult};
 use nama_plugin_api::{
     PluginError,
-    server_link::{Link, ServerLinker},
+    server_link::{Link, Reachability, ServerLinker},
 };
 use nama_proto::nama::v1::{
     self as proto, GetServerLinkResponse, GetUserLinkResponse, RefusalReason,
@@ -130,11 +130,22 @@ fn no_linker() -> ConnectError {
 }
 
 fn link_to_proto(link: Link) -> proto::ServerLink {
+    let reachability = if let Link::Linked {
+        reachability: Some(reachability),
+        ..
+    } = &link
+    {
+        reachability.clone()
+    } else {
+        Reachability::default()
+    };
     let (code, url, account) = link_fields(link);
     proto::ServerLink {
         code,
         url,
         account,
+        public_address: reachability.address,
+        reachable: reachability.reachable,
         ..Default::default()
     }
 }
@@ -154,6 +165,6 @@ fn link_fields(link: Link) -> (String, String, String) {
     match link {
         Link::NotLinked => Default::default(),
         Link::Waiting { code, url } => (code, url, String::new()),
-        Link::Linked { account } => (String::new(), String::new(), account),
+        Link::Linked { account, .. } => (String::new(), String::new(), account),
     }
 }

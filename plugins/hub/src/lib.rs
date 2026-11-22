@@ -66,7 +66,11 @@ impl Plugin for Hub {
                              Once it is Linked, each User can Link to their own Account the same \
                              way, from their own Settings. The Hub then lists the Server's Server \
                              URL and LAN address to the Accounts its Users Linked to, so their \
-                             apps can find it."
+                             apps can find it. While it is enabled, the Server also opens its \
+                             port on your router with UPnP or NAT-PMP, unless `forwarded_port` in \
+                             `nama.toml` names one you forwarded, and the Hub checks from outside \
+                             whether it reaches the Server there, and lists that address before the \
+                             LAN one if it does. Settings, Server shows what it found."
                 .to_owned(),
             extension_points: vec![
                 PointKey::provide::<dyn ServerLinker>(),

@@ -58,7 +58,10 @@ impl Linker {
             }
         }
         Ok(Some(match self.kept_account(user_id, &kept).await? {
-            Some(account) => Link::Linked { account },
+            Some(account) => Link::Linked {
+                account,
+                reachability: None,
+            },
             None => self
                 .user_code(user_id)
                 .map_or(Link::NotLinked, |code| self.waiting_on(code)),
@@ -78,7 +81,10 @@ impl Linker {
             return Ok(if account.is_empty() {
                 Link::NotLinked
             } else {
-                Link::Linked { account }
+                Link::Linked {
+                    account,
+                    reachability: None,
+                }
             });
         };
         let lasts = Duration::from_secs(started.expires_in_seconds.try_into().unwrap_or(0));

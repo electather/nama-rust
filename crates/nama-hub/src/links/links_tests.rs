@@ -33,3 +33,17 @@ fn a_server_address_is_an_http_or_https_url() {
         "a".repeat(ADDRESS_LENGTH)
     )));
 }
+
+#[tokio::test]
+async fn a_public_port_is_reached_only_while_something_listens_there() {
+    let listening = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let open = listening.local_addr().unwrap();
+    let closed = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .unwrap()
+        .local_addr()
+        .unwrap();
+
+    assert!(reaches(open).await);
+    assert!(!reaches(closed).await);
+}

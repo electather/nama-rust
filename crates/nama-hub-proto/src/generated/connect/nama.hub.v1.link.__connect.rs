@@ -2186,8 +2186,9 @@ pub trait LinkedServerService: Send + Sync + 'static {
         >,
     > + Send;
     /// Replaces the Server Addresses the calling Server reported before. The Server reports them
-    /// whenever they change. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an
-    /// `http` or `https` URL, or for too many.
+    /// whenever they change, and every half hour, since only then does the Hub check from outside
+    /// whether its `public_port` can be reached. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID`
+    /// for one that isn't an `http` or `https` URL, for too many, or for a port over 65535.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

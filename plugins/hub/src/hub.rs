@@ -22,7 +22,11 @@ use nama_hub_proto::nama::hub::v1::{
     StartServerLinkResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest,
     UnlinkUserRequest,
 };
-use nama_plugin_api::{PluginError, diagnostics_sharer::Signal, server_link::ServerAddresses};
+use nama_plugin_api::{
+    PluginError,
+    diagnostics_sharer::Signal,
+    server_link::{Reachability, ServerAddresses},
+};
 
 const TIMEOUT: Duration = Duration::from_secs(20);
 
@@ -168,20 +172,28 @@ impl Hub {
     }
 
     /// Tells the Hub `addresses` are where clients reach the Server whose credential is
-    /// `credential`.
+    /// `credential`, and answers whether the Hub reached its public port, if it has one.
     pub(crate) async fn set_addresses(
         &self,
         credential: &str,
         addresses: &ServerAddresses,
-    ) -> Result<(), PluginError> {
-        self.linked_server(credential)?
+    ) -> Result<Option<Reachability>, PluginError> {
+        let checked = self
+            .linked_server(credential)?
             .set_server_addresses(SetServerAddressesRequest {
                 url: addresses.url.clone(),
                 lan_addresses: addresses.lan.clone(),
+                public_port: addresses.public_port.map_or(0, u32::from),
                 ..Default::default()
             })
-            .await?;
-        Ok(())
+            .await?
+            .into_owned();
+        Ok(
+            (!checked.public_address.is_empty()).then_some(Reachability {
+                address: checked.public_address,
+                reachable: checked.reachable,
+            }),
+        )
     }
 
     /// The Hub's API for the Server whose credential is `credential`.
