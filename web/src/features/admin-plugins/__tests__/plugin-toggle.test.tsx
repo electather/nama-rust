@@ -4,7 +4,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { PluginKind, PluginPermission, type PluginService } from "@/gen/nama/v1/plugin_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
-import { openPlugin, openPlugins, plugin, row } from "@/test-plugins";
+import { openPlugin, plugin } from "@/test-plugins";
 import { refused } from "@/test-refusal";
 
 afterEach(cleanup);
@@ -13,7 +13,7 @@ test.each([
   ["ending in a full stop shows one", "the key was turned down."],
   ["without a full stop gets one", "the key was turned down"],
 ])("a refused-to-start reason %s", async (_, reason) => {
-  openPlugins({
+  openPlugin("test-plugin", {
     enablePlugin: () => {
       throw refused(Code.FailedPrecondition, "test-plugin refused to start", {
         reason: RefusalReason.PLUGIN_REFUSED_TO_START,
@@ -22,11 +22,12 @@ test.each([
       });
     },
   });
-  const testPlugin = await row("test-plugin");
+  const testPlugin = await plugin("test-plugin");
   fireEvent.click(testPlugin.getByRole("button", { name: "Enable test-plugin" }));
 
-  const alert = await testPlugin.findByRole("alert");
-  expect(alert.textContent).toBe("It refused to start: the key was turned down.");
+  await expect(
+    testPlugin.findByText("It refused to start: the key was turned down."),
+  ).resolves.toBeDefined();
 });
 
 /**
@@ -51,7 +52,7 @@ function cleanupPlugin(
   };
 }
 
-/** Opens the list with the cleanup Plugin and returns the `GrantedPermissions` each Enable sends. */
+/** Opens the cleanup Plugin and returns the `GrantedPermissions` each Enable sends. */
 function openWithCleanup(requested: PluginPermission[], kind: PluginKind = PluginKind.INSTALLED) {
   const sent: PluginPermission[][] = [];
   const changes: Partial<ServiceImpl<typeof PluginService>> = {
@@ -61,7 +62,7 @@ function openWithCleanup(requested: PluginPermission[], kind: PluginKind = Plugi
       return {};
     },
   };
-  openPlugins(changes);
+  openPlugin("cleanup", changes);
   return sent;
 }
 
@@ -71,7 +72,7 @@ test("enabling a Plugin that requests Plugin Permissions lists them, none checke
     PluginPermission.READ_USERS,
     PluginPermission.DELETE_MEDIA,
   ]);
-  const found1 = await row("cleanup");
+  const found1 = await plugin("cleanup");
   fireEvent.click(found1.getByRole("button", { name: "Enable cleanup" }));
 
   const dialog = within(await screen.findByRole("alertdialog", { name: "Enable cleanup?" }));
@@ -90,7 +91,7 @@ test("enabling sends only the Plugin Permissions checked", async () => {
     PluginPermission.READ_LIBRARIES,
     PluginPermission.DELETE_MEDIA,
   ]);
-  const found2 = await row("cleanup");
+  const found2 = await plugin("cleanup");
   fireEvent.click(found2.getByRole("button", { name: "Enable cleanup" }));
 
   const dialog = within(await screen.findByRole("alertdialog", { name: "Enable cleanup?" }));
@@ -105,7 +106,7 @@ test("enabling sends only the Plugin Permissions checked", async () => {
 
 test("a Plugin requesting no Plugin Permissions enables without a dialog", async () => {
   const sent = openWithCleanup([]);
-  const found3 = await row("cleanup");
+  const found3 = await plugin("cleanup");
   fireEvent.click(found3.getByRole("button", { name: "Enable cleanup" }));
 
   await waitFor(() => {
@@ -114,7 +115,7 @@ test("a Plugin requesting no Plugin Permissions enables without a dialog", async
   expect(screen.queryByRole("alertdialog")).toBeNull();
 });
 
-test("an enabled Plugin's details page lists the Plugin Permissions granted it", async () => {
+test("an enabled Plugin's view lists the Plugin Permissions granted it", async () => {
   openPlugin(
     "cleanup",
     cleanupPlugin([PluginPermission.READ_WATCH_STATES, PluginPermission.DELETE_MEDIA], {
@@ -129,7 +130,7 @@ test("an enabled Plugin's details page lists the Plugin Permissions granted it",
 
 test("a Built-in Plugin requesting Plugin Permissions enables without a dialog", async () => {
   const sent = openWithCleanup([PluginPermission.STORE], PluginKind.BUILT_IN);
-  const found5 = await row("cleanup");
+  const found5 = await plugin("cleanup");
   fireEvent.click(found5.getByRole("button", { name: "Enable cleanup" }));
 
   await waitFor(() => {
@@ -139,7 +140,7 @@ test("a Built-in Plugin requesting Plugin Permissions enables without a dialog",
 });
 
 test.each([true, false])(
-  "a Built-in Plugin's details page lists the Plugin Permissions it holds, enabled %s",
+  "a Built-in Plugin's view lists the Plugin Permissions it holds, enabled %s",
   async (enabled) => {
     openPlugin(
       "cleanup",

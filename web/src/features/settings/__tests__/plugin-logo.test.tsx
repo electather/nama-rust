@@ -48,8 +48,6 @@ test("the pencil on a Plugin's logo uploads an image to show in its place", asyn
   });
   const dialogOpened = vi.spyOn(HTMLInputElement.prototype, "click");
   const view = await openTmdbWithLogo(() => logo);
-  // The pencil stands in for the Logo card the Plugin's page has.
-  expect(view.queryByRole("heading", { name: "Logo" })).toBeNull();
 
   openLogoMenu(view);
   expect(screen.queryByRole("menuitem", { name: "Remove custom image" })).toBeNull();

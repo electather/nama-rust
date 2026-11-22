@@ -22,7 +22,7 @@ export function PluginDetail({ id }: { id: string }) {
   const cards = (
     <div className="mt-7.5 flex flex-col gap-3.5 *:mt-0 *:max-w-none *:rounded-xl *:border *:bg-card *:p-4.5">
       <PluginPoints extensionPoints={plugin.summary.extensionPoints} />
-      <PluginSections plugin={plugin} headed />
+      <PluginSections plugin={plugin} />
     </div>
   );
   return (
