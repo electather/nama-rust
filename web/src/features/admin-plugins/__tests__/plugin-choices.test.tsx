@@ -9,7 +9,7 @@ import type {
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { input, openPlugin, plugin, saveSettings } from "@/test-plugins";
 import { expectUnderField, refused } from "@/test-refusal";
-import { dropdown, offered, pick } from "@/test-settings";
+import { offered, pick } from "@/test-settings";
 
 afterEach(cleanup);
 
@@ -25,10 +25,10 @@ const profiles = {
   },
 };
 
-/** The dropdown for the test Plugin's Profile. */
+/** The dropdown for the test Plugin's Profile, once the Plugin's details show it. */
 async function profile() {
-  await plugin("test-choices");
-  return dropdown("Profile");
+  const page = await plugin("test-choices");
+  return page.findByRole("combobox", { name: "Profile" });
 }
 
 async function pressTest() {
