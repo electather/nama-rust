@@ -12,8 +12,8 @@ use std::{
 
 use nama_pdk::{
     CheckedSettings, HomeRow, HomeRowSource, HomeRowTitle, HomeRows, Manifest, OutsideService,
-    Permission, SettingField, SettingKind, Title, TitleId, TitleKind, TitleRefKind, UserRowsAsked,
-    WatchState, WatchlistTitle, checked_settings, choices_setting_field,
+    Permission, Refusal, SettingField, SettingKind, Title, TitleId, TitleKind, TitleRefKind,
+    UserRowsAsked, WatchState, WatchlistTitle, checked_settings, choices_setting_field,
     extism_pdk::{Error, HttpRequest, json},
     kernel, services, setting_default, setting_field, setting_value,
 };
@@ -85,6 +85,8 @@ const AWARDS_FRESH_FOR: Duration = Duration::from_hours(30 * 24);
 /// How long a shared row stays fresh: TMDB's charts move daily at most.
 const FRESH_FOR: Duration = Duration::from_hours(24);
 
+const STARRING: &str = "starring";
+const FROM: &str = "from";
 const BECAUSE: &str = "because";
 const MORE_GENRE: &str = "more-genre";
 const WATCH_AGAIN: &str = "watch-again";
@@ -95,14 +97,18 @@ const WATCHLIST: &str = "watchlist";
 const PER_USER: [(&str, &str); 6] = [
     (BECAUSE, "Because you watched"),
     (MORE_GENRE, "More genre"),
-    ("starring", "Starring"),
-    ("from", "From"),
+    (STARRING, "Starring"),
+    (FROM, "From"),
     (WATCH_AGAIN, "Watch it again"),
     (WATCHLIST, "Your Watchlist"),
 ];
 
 /// How long a User's row stays fresh. The Kernel asks again sooner once they play something.
 const USER_FRESH_FOR: Duration = Duration::from_hours(6);
+
+/// How many of a title's Cast, in TMDB's order, count towards a Starring row, so minor Cast who
+/// happen to appear in several titles never get one.
+const TOP_CAST: usize = 5;
 
 /// How many Because you watched rows a User gets, one for each title they played most recently.
 const BECAUSE_ROWS: usize = 3;
@@ -288,6 +294,12 @@ impl HomeRowSource for Discover {
     fn user_rows(asked: UserRowsAsked) -> Result<HomeRows, Error> {
         let picked = nama_pdk::setting_picked(USER_ROWS)?;
         let history = History::of(asked.user_id)?;
+        // Asked of TMDB only if a person row is picked.
+        let people = if picked.iter().any(|pick| pick == STARRING || pick == FROM) {
+            People::of(&history)?
+        } else {
+            People::default()
+        };
         let mut rows = Vec::new();
         for (key, heading) in picked_rows(&PER_USER, &picked) {
             // ponytail: a picked row Discover doesn't answer yet is left out until it's built.
@@ -311,6 +323,8 @@ impl HomeRowSource for Discover {
                     )?),
                     Err(err) => nama_pdk::warn!("leaving out Your Watchlist: {err}"),
                 },
+                STARRING => rows.extend(people.row(STARRING, Role::Cast, heading, &history)?),
+                FROM => rows.extend(people.row(FROM, Role::Maker, heading, &history)?),
                 _ => {}
             }
         }
@@ -503,6 +517,23 @@ impl History {
         Some(watched)
     }
 
+    /// The titles the User played, of a Movie or of any Episode of a Show.
+    fn played(&self) -> impl Iterator<Item = &Watched> {
+        self.titles.iter().filter(|title| title.played_episodes > 0)
+    }
+
+    /// `titles` but those the User played, each once, in their order.
+    ///
+    /// ponytail: a played title matches only by the id the Kernel lists it under, as in
+    /// [`Self::unstarted_of`].
+    fn unplayed(&self, titles: Vec<Key>) -> Vec<HomeRowTitle> {
+        let mut shown: HashSet<Key> = self.played().map(|title| title.key.clone()).collect();
+        (titles.into_iter())
+            .filter(|key| shown.insert(key.clone()))
+            .map(|key| key.row_title())
+            .collect()
+    }
+
     /// The titles of `watchlist` the User hasn't started or played, in its order.
     fn unstarted(&self, watchlist: &[WatchlistTitle]) -> Vec<HomeRowTitle> {
         self.unstarted_of(
@@ -674,6 +705,194 @@ fn media(kind: TitleKind) -> Option<&'static str> {
     }
 }
 
+/// The Roles that count in a User's played titles, most recently played first, each in TMDB's
+/// order.
+#[derive(Default)]
+struct People {
+    roles: Vec<Roles>,
+}
+
+/// Which of a title's Roles a person row follows.
+#[derive(Clone, Copy)]
+enum Role {
+    /// In the first [`TOP_CAST`] of its Cast.
+    Cast,
+    /// Its Director, or a Show's Creator.
+    Maker,
+}
+
+impl People {
+    /// The Roles of every title the User of `history` played that has a TMDB id.
+    ///
+    /// ponytail: asks TMDB once per played title not yet in the Store, so a User's first refresh
+    /// on a large Server makes many calls; count only their latest titles if that proves slow.
+    fn of(history: &History) -> Result<Self, Error> {
+        let api = Api::from_settings()?;
+        let mut played: Vec<&Watched> = (history.played())
+            .filter(|title| title.key.tmdb_path().is_some())
+            .collect();
+        played.sort_by_key(|title| Reverse(title.last_changed_ms));
+        let roles = (played.iter())
+            .map(|title| Roles::of(&api, &title.key))
+            .collect::<Result<_, _>>()?;
+        Ok(Self { roles })
+    }
+
+    /// The row `key` following the Person seen most as `role`, its `heading` naming them; `None`
+    /// if no title the User of `history` played has anyone so.
+    fn row(
+        &self,
+        key: &str,
+        role: Role,
+        heading: &str,
+        history: &History,
+    ) -> Result<Option<HomeRow>, Error> {
+        let Some(person) = self.most_seen(role) else {
+            return Ok(None);
+        };
+        let titles = Api::from_settings()?.titles_by(person, role)?;
+        let heading = format!("{heading} {}", person.name);
+        row(key, &heading, USER_FRESH_FOR, history.unplayed(titles)).map(Some)
+    }
+
+    /// The Person seen as `role` in the most titles; of as many, the one seen first.
+    fn most_seen(&self, role: Role) -> Option<&Person> {
+        let seen = (self.roles.iter()).flat_map(|roles| match role {
+            Role::Cast => &roles.cast,
+            Role::Maker => &roles.makers,
+        });
+        let mut tally: HashMap<u64, (usize, Reverse<usize>, &Person)> = HashMap::new();
+        for (first, person) in seen.enumerate() {
+            tally
+                .entry(person.id)
+                .or_insert((0, Reverse(first), person))
+                .0 += 1;
+        }
+        (tally.into_values())
+            .max_by_key(|(titles, first, _)| (*titles, *first))
+            .map(|(_, _, person)| person)
+    }
+}
+
+/// One title's Roles that count, each Person once, as the Store keeps them.
+#[derive(Default, Serialize, Deserialize)]
+struct Roles {
+    /// Its first [`TOP_CAST`] Cast.
+    cast: Vec<Person>,
+    /// Its Directors and, for a Show, its Creators.
+    makers: Vec<Person>,
+}
+
+/// A Person, by TMDB's id.
+#[derive(Clone, Serialize, Deserialize)]
+struct Person {
+    id: u64,
+    name: String,
+}
+
+/// A Movie's or Show's details, with its Cast and Crew, as TMDB answers them.
+#[derive(Deserialize)]
+struct Details {
+    /// A Show's Creators; a Movie has none.
+    #[serde(default)]
+    created_by: Vec<Person>,
+    credits: CastAndCrew,
+}
+
+#[derive(Deserialize)]
+struct CastAndCrew {
+    cast: Vec<CastRole>,
+    crew: Vec<CrewRole>,
+}
+
+#[derive(Deserialize)]
+struct CastRole {
+    #[serde(flatten)]
+    person: Person,
+    order: u32,
+}
+
+#[derive(Deserialize)]
+struct CrewRole {
+    #[serde(flatten)]
+    person: Person,
+    job: String,
+}
+
+impl Roles {
+    /// `title`'s Roles, from the Store, or else from TMDB and then kept in the Store, which
+    /// every User shares, so a refresh asks only for titles played since.
+    fn of(api: &Api, title: &Key) -> Result<Self, Error> {
+        let Some([media, id]) = title.tmdb_path() else {
+            return Ok(Self::default());
+        };
+        let store_key = format!("roles/{media}/{id}");
+        // A Store not granted only costs each refresh its calls.
+        if let Some(kept) = (kernel::store_get(&store_key, None).ok().flatten())
+            .and_then(|kept| json::from_slice(&kept).ok())
+        {
+            return Ok(kept);
+        }
+        let roles = match api.get::<Details>(&[media, id], &[("append_to_response", "credits")]) {
+            Ok(details) => Self::from(details),
+            // A title TMDB no longer has counts no one, kept so it fails no refresh.
+            Err(err)
+                if err
+                    .downcast_ref::<Refusal>()
+                    .is_some_and(|it| it.status() == 404) =>
+            {
+                Self::default()
+            }
+            Err(err) => return Err(err),
+        };
+        let _not_kept: Result<(), Error> =
+            kernel::store_put(&store_key, None, &json::to_vec(&roles)?);
+        Ok(roles)
+    }
+}
+
+impl From<Details> for Roles {
+    fn from(mut details: Details) -> Self {
+        // By place, not `order`'s value, which skips numbers in a Show's Cast.
+        details.credits.cast.sort_by_key(|cast| cast.order);
+        let cast = (details.credits.cast.into_iter())
+            .take(TOP_CAST)
+            .map(|cast| cast.person);
+        let directors = (details.credits.crew.into_iter())
+            .filter(|crew| crew.job == "Director")
+            .map(|crew| crew.person);
+        Self {
+            cast: each_once(cast),
+            makers: each_once(directors.chain(details.created_by)),
+        }
+    }
+}
+
+/// `people`, each once, in their order: TMDB lists one Person in several Roles.
+fn each_once(people: impl Iterator<Item = Person>) -> Vec<Person> {
+    let mut seen = HashSet::new();
+    people.filter(|person| seen.insert(person.id)).collect()
+}
+
+/// The Shows a Person is in the Cast or Crew of, as TMDB answers them.
+#[derive(Deserialize)]
+struct ShowRoles {
+    cast: Vec<ShowRole>,
+    crew: Vec<ShowRole>,
+}
+
+/// A Show a Person has a Role in.
+#[derive(Deserialize)]
+struct ShowRole {
+    id: u64,
+    genre_ids: Vec<u64>,
+    episode_count: u32,
+}
+
+/// TMDB's Talk, News and Reality genres, whose Shows list a guest in their Cast as if they
+/// starred.
+const NOT_STARRING_GENRES: [u64; 3] = [10767, 10763, 10764];
+
 /// TMDB's API, asked with the Admin's key.
 struct Api {
     key: String,
@@ -731,6 +950,34 @@ impl Api {
         Ok((page.results.iter())
             .map(|listing| Key::tmdb(kind, listing.id))
             .collect())
+    }
+
+    /// The Movies TMDB finds `person` in as `role`, then the Shows TMDB lists them in as it.
+    ///
+    /// ponytail: one page of Movies, TMDB's 20 most popular, as [`Self::titles`] asks.
+    fn titles_by(&self, person: &Person, role: Role) -> Result<Vec<Key>, Error> {
+        let id = person.id.to_string();
+        let by = match role {
+            Role::Cast => "with_cast",
+            Role::Maker => "with_crew",
+        };
+        let movies = self.titles_of(
+            TitleKind::TITLE_KIND_MOVIE,
+            &["discover", "movie"],
+            &[(by, &id)],
+        )?;
+        let shows: ShowRoles = self.get(&["person", &id, "tv_credits"], &[])?;
+        let mut shows = match role {
+            Role::Cast => shows.cast,
+            Role::Maker => shows.crew,
+        };
+        shows.retain(|show| {
+            !(show.genre_ids.iter()).any(|genre| NOT_STARRING_GENRES.contains(genre))
+        });
+        // TMDB lists them in no order: the Shows they did most first.
+        shows.sort_by_key(|show| Reverse(show.episode_count));
+        let shows = (shows.iter()).map(|show| Key::tmdb(TitleKind::TITLE_KIND_SHOW, show.id));
+        Ok(movies.into_iter().chain(shows).collect())
     }
 
     /// TMDB's genres of `kind`, by name.
