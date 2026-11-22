@@ -10,6 +10,7 @@ It reads its config from environment variables only:
 |---|---|
 | `NAMA_HUB_DATABASE_URL` | The PostgreSQL database, as a `postgres://` URL. Required. |
 | `NAMA_HUB_LISTEN` | The address to listen on. `0.0.0.0:7981` by default. |
+| `NAMA_HUB_SIGNING_KEYS` | The Ed25519 private keys it signs the tokens Servers check with, as PKCS#8 PEM blocks one after another, such as `openssl genpkey -algorithm ed25519` writes. Required. The first signs, and all are published at `/.well-known/jwks.json`: to rotate, put a new key first, and remove the old one once Servers have fetched the new set (ADR 0098). |
 | `NAMA_HUB_TRUSTED_PROXIES` | The reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` it believes, such as `["10.0.0.0/8"]` (ADR 0018). None by default, so rate limits count the peer's address and the session cookie is `Secure` only behind a listed proxy that says HTTPS. |
 | `NAMA_HUB_RESEND_API_KEY` | The [Resend](https://resend.com) API key it sends mail with, such as Sign-in Links. Unset by default, so it sends none and its sign-in page doesn't offer Sign-in Links, and no Account can prove its email (ADR 0100). Use a Resend test key while developing. |
 | `NAMA_HUB_MAIL_FROM` | The address its mail comes from, such as `Nama Hub <hub@example.com>`, on a domain verified with Resend. Required with a Resend key. |
@@ -26,8 +27,11 @@ At startup it applies every migration the database hasn't had, in one transactio
 ```sh
 docker compose up -d
 export NAMA_HUB_DATABASE_URL=postgres://nama:nama@localhost:5432/nama_hub
+export NAMA_HUB_SIGNING_KEYS="$(openssl genpkey -algorithm ed25519)"
 cargo run -p nama-hub
 ```
+
+A Server Links to it through its Hub Plugin, which calls the Hub that `NAMA_HUB_URL` names on the Server, such as `NAMA_HUB_URL=http://localhost:7981 cargo run -p nama-server`. Linking needs an Account whose email a Sign-in Link proved (ADR 0100).
 
 ## Importing Wikidata
 

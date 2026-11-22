@@ -13,6 +13,7 @@ use nama_hub::{
     config::Config,
     db,
     mail::{Mail, MailError, Resend},
+    signing::Keys,
     titles,
 };
 use opentelemetry::trace::TracerProvider as _;
@@ -40,9 +41,11 @@ const OTLP_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
     after_help = "Configured by environment variables only: NAMA_HUB_DATABASE_URL, the \
                   PostgreSQL database as a postgres:// URL, NAMA_HUB_LISTEN, the address to \
                   listen on (0.0.0.0:7981 by default), NAMA_HUB_TRUSTED_PROXIES, the reverse \
-                  proxies whose forwarded headers it believes, such as [\"10.0.0.0/8\"], and, to \
-                  email Sign-in Links, NAMA_HUB_RESEND_API_KEY, NAMA_HUB_MAIL_FROM, the address \
-                  mail comes from, and NAMA_HUB_PUBLIC_URL, the Hub's address that links lead to."
+                  proxies whose forwarded headers it believes, such as [\"10.0.0.0/8\"], \
+                  NAMA_HUB_SIGNING_KEYS, the Ed25519 private keys it signs with, as PEM blocks \
+                  one after another, and, to email Sign-in Links, NAMA_HUB_RESEND_API_KEY, \
+                  NAMA_HUB_MAIL_FROM, the address mail comes from, and NAMA_HUB_PUBLIC_URL, the \
+                  Hub's address that links lead to."
 )]
 struct Args {
     /// Serves the Hub when none is given.
@@ -85,6 +88,13 @@ async fn run() -> ExitCode {
         return ExitCode::FAILURE;
     };
     info!(listen = %config.listen, "loaded config");
+    let keys = match Keys::from_pems(&config.signing_keys) {
+        Ok(keys) => keys,
+        Err(err) => {
+            error!("could not read the signing keys: {err}");
+            return ExitCode::FAILURE;
+        }
+    };
     let mail = match mail(&config) {
         Ok(mail) => mail,
         Err(err) => {
@@ -120,6 +130,7 @@ async fn run() -> ExitCode {
     let served = nama_hub::serve(
         listener,
         db.clone(),
+        keys,
         &config.trusted_proxies,
         mail,
         shutdown,

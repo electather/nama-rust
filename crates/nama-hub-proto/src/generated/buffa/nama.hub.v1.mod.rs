@@ -2,6 +2,7 @@
 
 include!("nama.hub.v1.account.rs");
 include!("nama.hub.v1.hub.rs");
+include!("nama.hub.v1.link.rs");
 include!("nama.hub.v1.refusal.rs");
 #[allow(
     non_camel_case_types,
@@ -22,6 +23,7 @@ pub mod __buffa {
         use super::*;
         include!("nama.hub.v1.account.__view.rs");
         include!("nama.hub.v1.hub.__view.rs");
+        include!("nama.hub.v1.link.__view.rs");
         include!("nama.hub.v1.refusal.__view.rs");
     }
     /// Register this package's `Any` type entries and extension entries.
@@ -43,6 +45,17 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_ACCOUNT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_HUB_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_HUB_INFO_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LINKED_SERVER_JSON_ANY);
+        reg.register_json_any(super::__START_SERVER_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__START_SERVER_LINK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__POLL_SERVER_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__POLL_SERVER_LINK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__APPROVE_SERVER_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__APPROVE_SERVER_LINK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_LINKED_SERVERS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_LINKED_SERVERS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UNLINK_SERVER_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UNLINK_SERVER_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
     }
 }
@@ -114,6 +127,50 @@ pub use self::__buffa::view::GetHubInfoRequestOwnedView;
 pub use self::__buffa::view::GetHubInfoResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::GetHubInfoResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LinkedServerView;
+#[doc(inline)]
+pub use self::__buffa::view::LinkedServerOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartServerLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StartServerLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartServerLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StartServerLinkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PollServerLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PollServerLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PollServerLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PollServerLinkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveServerLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveServerLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveServerLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ApproveServerLinkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListLinkedServersRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListLinkedServersRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListLinkedServersResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListLinkedServersResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkServerRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkServerRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkServerResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UnlinkServerResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RefusalView;
 #[doc(inline)]

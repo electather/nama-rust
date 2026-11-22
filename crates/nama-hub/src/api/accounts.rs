@@ -178,7 +178,7 @@ fn client_ip(ctx: &RequestContext) -> Result<IpAddr, ConnectError> {
 }
 
 /// The session the request `ctx` is for, or `REFUSAL_REASON_SIGN_IN_REQUIRED`.
-fn signed_in(ctx: &RequestContext) -> Result<&AccountSession, ConnectError> {
+pub(super) fn signed_in(ctx: &RequestContext) -> Result<&AccountSession, ConnectError> {
     ctx.extensions().get::<AccountSession>().ok_or_else(|| {
         refuse(
             RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,

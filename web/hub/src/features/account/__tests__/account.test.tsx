@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
 import { AccountSchema, AccountService } from "@hub/gen/nama/hub/v1/account_pb";
+import { LinkService } from "@hub/gen/nama/hub/v1/link_pb";
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
@@ -52,6 +53,8 @@ function openHub(path: string, signedIn = false) {
         return {};
       },
     });
+    // The Account page lists the Account's Servers.
+    service(LinkService, { listLinkedServers: () => ({}) });
   });
   globalThis.history.replaceState(null, "", path);
   render(<RouterProvider router={getRouter(transport)} />);

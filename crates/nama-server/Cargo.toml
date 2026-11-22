@@ -45,6 +45,7 @@ jiff = { version = "0.2", default-features = false, features = ["std", "tz-syste
 jixel = { version = "0.5.7", default-features = false, features = ["avx", "neon", "sse"] }
 nama-forwarded = { version = "0.1.0", path = "../nama-forwarded" }
 nama-plugin-api = { version = "0.2.0", path = "../nama-plugin-api" }
+nama-plugin-hub = { version = "0.1.0", path = "../../plugins/hub" }
 nama-plugin-local-auth = { version = "0.1.0", path = "../../plugins/local-auth" }
 nama-plugin-log-events = { version = "0.1.0", path = "../../plugins/log-events" }
 nama-plugin-test-choices = { version = "0.1.0", path = "../../plugins/test-choices", optional = true }

@@ -27,6 +27,7 @@ pub mod points;
 pub mod recogniser;
 pub mod search_source;
 pub mod segment_source;
+pub mod server_link;
 pub mod settings;
 pub mod similar_source;
 pub mod subtitle_source;

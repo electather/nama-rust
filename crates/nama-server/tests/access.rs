@@ -67,7 +67,7 @@ const MANAGE_USERS: [&str; 10] = [
 ];
 
 /// Every RPC that manages the Server's settings, which needs `PERMISSION_MANAGE_SETTINGS`.
-const MANAGE_SETTINGS: [&str; 15] = [
+const MANAGE_SETTINGS: [&str; 18] = [
     "/nama.v1.ServerService/GetServerSettings",
     "/nama.v1.ServerService/UpdateServerSettings",
     "/nama.v1.ServerService/GetImageSettings",
@@ -75,6 +75,9 @@ const MANAGE_SETTINGS: [&str; 15] = [
     "/nama.v1.ServerService/SwitchImageStore",
     "/nama.v1.ServerService/GetDefaultHomeLayout",
     "/nama.v1.ServerService/SetDefaultHomeLayout",
+    "/nama.v1.ServerService/GetServerLink",
+    "/nama.v1.ServerService/StartServerLink",
+    "/nama.v1.ServerService/UnlinkServer",
     "/nama.v1.PluginService/ListPlugins",
     "/nama.v1.PluginService/GetPlugin",
     "/nama.v1.PluginService/UpdatePluginSettings",
@@ -182,9 +185,9 @@ const NEEDS_PERMISSION: [(Permission, &[&str]); 9] = [
 
 const SIGN_OUT: &str = "/nama.v1.SignInService/SignOut";
 
-/// The RPCs that change who can sign in as whom or delete media, which need Recent Authentication
-/// (ADR 0014).
-const SENSITIVE: [&str; 7] = [
+/// The RPCs that change who can sign in as whom, delete media or Link the Server, which need Recent
+/// Authentication (ADR 0014).
+const SENSITIVE: [&str; 9] = [
     "/nama.v1.UserService/ChangePassword",
     "/nama.v1.UserService/ResetPassword",
     "/nama.v1.UserService/SetPermissions",
@@ -192,6 +195,8 @@ const SENSITIVE: [&str; 7] = [
     "/nama.v1.UserService/DeleteUser",
     "/nama.v1.SignInService/ApproveSignInCode",
     "/nama.v1.LibraryService/DeleteMedia",
+    "/nama.v1.ServerService/StartServerLink",
+    "/nama.v1.ServerService/UnlinkServer",
 ];
 
 struct Reply {

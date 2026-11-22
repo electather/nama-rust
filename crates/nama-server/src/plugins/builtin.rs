@@ -2,7 +2,8 @@
 
 use std::sync::Arc;
 
-use nama_plugin_api::Plugin;
+use nama_plugin_api::{Plugin, PluginId};
+use nama_plugin_hub::Hub;
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_log_events::LogEvents;
 use nama_plugin_tmdb::Tmdb;
@@ -11,8 +12,13 @@ use nama_proto::nama::v1::PluginKind;
 
 use super::{Registry, drop_flawed_presentation, kept_logo, registry::Described, what_it_says};
 
+/// The Built-in Plugins that stay off until an Admin enables one; every other starts enabled.
+/// The Hub Plugin, since a Server that isn't Linked doesn't enable it (ADR 0094).
+pub(crate) const OFF_UNTIL_ENABLED: [PluginId; 1] = [Hub::ID];
+
 fn all() -> Vec<fn() -> Arc<dyn Plugin>> {
     vec![
+        || Arc::new(Hub::from_env()),
         || Arc::new(LocalAuth),
         || Arc::new(LogEvents),
         || Arc::new(Tmdb::new()),

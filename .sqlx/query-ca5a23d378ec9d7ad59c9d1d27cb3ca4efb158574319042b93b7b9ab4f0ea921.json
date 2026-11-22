@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM server_link_codes WHERE expires_at < now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "ca5a23d378ec9d7ad59c9d1d27cb3ca4efb158574319042b93b7b9ab4f0ea921"
+}
