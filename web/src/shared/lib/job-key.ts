@@ -13,6 +13,7 @@ export function jobSearch(pluginId: string, jobId: string) {
     plugin: undefined,
     user: undefined,
     setting: undefined,
+    library: undefined,
     job: jobKey(pluginId, jobId),
   };
 }
