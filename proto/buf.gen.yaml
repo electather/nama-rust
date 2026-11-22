@@ -1,6 +1,7 @@
-# Regenerates the checked-in Rust code in crates/nama-proto/src/generated/ (the client API) and
-# crates/nama-plugin-proto/src/generated/ (the Plugin contract), and the web app's TypeScript
-# client in web/src/gen/.
+# Regenerates the checked-in Rust code in crates/nama-proto/src/generated/ (the client API),
+# crates/nama-plugin-proto/src/generated/ (the Plugin contract) and
+# crates/nama-hub-proto/src/generated/ (the Hub API), and the web app's TypeScript client in
+# web/src/gen/.
 # Run from this directory: `buf generate`. Installing the plugins is described in
 # crates/nama-proto/README.md.
 version: v2
@@ -10,21 +11,21 @@ plugins:
   - local: protoc-gen-buffa
     out: ../crates/nama-proto/src/generated/buffa
     opt: [views=true, json=true]
-    exclude_types: [nama.plugin.v1]
+    exclude_types: [nama.plugin.v1, nama.hub.v1]
   - local: protoc-gen-buffa-packaging
     out: ../crates/nama-proto/src/generated/buffa
     strategy: all
-    exclude_types: [nama.plugin.v1]
+    exclude_types: [nama.plugin.v1, nama.hub.v1]
   # ConnectRPC service traits and clients.
   - local: protoc-gen-connect-rust
     out: ../crates/nama-proto/src/generated/connect
     opt: [buffa_module=crate::messages]
-    exclude_types: [nama.plugin.v1]
+    exclude_types: [nama.plugin.v1, nama.hub.v1]
   - local: protoc-gen-buffa-packaging
     out: ../crates/nama-proto/src/generated/connect
     strategy: all
     opt: [filter=services]
-    exclude_types: [nama.plugin.v1]
+    exclude_types: [nama.plugin.v1, nama.hub.v1]
   # The Plugin contract's message types, in a crate of their own (ADR 0041).
   - local: protoc-gen-buffa
     out: ../crates/nama-plugin-proto/src/generated/buffa
@@ -34,10 +35,29 @@ plugins:
     out: ../crates/nama-plugin-proto/src/generated/buffa
     strategy: all
     types: [nama.plugin.v1]
+  # The Hub API's messages, service traits and clients, in a crate of their own, which the Hub
+  # serves and the Hub Plugin calls.
+  - local: protoc-gen-buffa
+    out: ../crates/nama-hub-proto/src/generated/buffa
+    opt: [views=true, json=true]
+    types: [nama.hub.v1]
+  - local: protoc-gen-buffa-packaging
+    out: ../crates/nama-hub-proto/src/generated/buffa
+    strategy: all
+    types: [nama.hub.v1]
+  - local: protoc-gen-connect-rust
+    out: ../crates/nama-hub-proto/src/generated/connect
+    opt: [buffa_module=crate::messages]
+    types: [nama.hub.v1]
+  - local: protoc-gen-buffa-packaging
+    out: ../crates/nama-hub-proto/src/generated/connect
+    strategy: all
+    opt: [filter=services]
+    types: [nama.hub.v1]
   # TypeScript messages and service descriptors for the web app (ADR 0007), with enums as plain
   # objects so they compile under `erasableSyntaxOnly`. The plugin is a devDependency of web/, so
   # run `vp install` there first.
   - local: ../web/node_modules/.bin/protoc-gen-es
     out: ../web/src/gen
     opt: [target=ts, erasable_syntax=true]
-    exclude_types: [nama.plugin.v1]
+    exclude_types: [nama.plugin.v1, nama.hub.v1]

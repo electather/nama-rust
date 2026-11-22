@@ -1,0 +1,15 @@
+# A local PostgreSQL 18 with pgvector, the same image CI tests the Hub against (README.md).
+services:
+  postgres:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_USER: nama
+      POSTGRES_PASSWORD: nama
+      POSTGRES_DB: nama_hub
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres:/var/lib/postgresql
+
+volumes:
+  postgres:

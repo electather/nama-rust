@@ -1,5 +1,6 @@
-# Builds the Server's Docker image from the release's Linux binaries and pushes it to GHCR. The
-# Release workflow calls it once the GitHub Release exists (`publish-jobs` in dist-workspace.toml).
+# Builds the Server's and the Hub's Docker images from the release's Linux binaries and pushes them
+# to GHCR. The Release workflow calls it once the GitHub Release exists (`publish-jobs` in
+# dist-workspace.toml).
 name: Docker
 
 on:
@@ -12,6 +13,11 @@ on:
 
 jobs:
   image:
+    strategy:
+      matrix:
+        # Each is a dist app and a build target in docker/Dockerfile. The Hub shares the Server's
+        # version and tags until a deploy pipeline wants an image per commit.
+        app: [nama-server, nama-hub]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -26,20 +32,23 @@ jobs:
           path: target/distrib/
           merge-multiple: true
       - name: Put each architecture's binary where the Dockerfile copies it from
+        env:
+          APP: ${{ matrix.app }}
         run: |
           for pair in amd64:x86_64 arm64:aarch64; do
             IFS=: read -r docker_arch rust_arch <<<"$pair"
             mkdir -p "docker/$docker_arch"
             tar --extract --xz --strip-components=1 --directory="docker/$docker_arch" \
-              --file="target/distrib/nama-server-$rust_arch-unknown-linux-gnu.tar.xz"
+              --file="target/distrib/$APP-$rust_arch-unknown-linux-gnu.tar.xz"
           done
       - name: Name the image's tags
         id: tags
         env:
+          APP: ${{ matrix.app }}
           PLAN: ${{ inputs.plan }}
         run: |
-          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/nama-server"
-          version=$(jq --raw-output '.releases[] | select(.app_name == "nama-server") | .app_version' <<<"$PLAN")
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/$APP"
+          version=$(jq --raw-output --arg app "$APP" '.releases[] | select(.app_name == $app) | .app_version' <<<"$PLAN")
           echo "tags=$image:$version,$image:latest" >> "$GITHUB_OUTPUT"
       # apt-get runs inside the arm64 image too, hence QEMU.
       - uses: docker/setup-qemu-action@v4
@@ -52,6 +61,7 @@ jobs:
       - uses: docker/build-push-action@v7
         with:
           context: docker
+          target: ${{ matrix.app }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.tags.outputs.tags }}

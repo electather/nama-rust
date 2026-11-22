@@ -78,8 +78,9 @@ jobs:
               - '!proto/**/*.md'
 
   # The checks that build nothing: formatting, the schema in proto/ (ADR 0007: lint, no breaking
-  # changes to the client API against main but those declared in proto/BREAKING.md, generated
-  # code in crates/nama-proto, crates/nama-plugin-proto and web/src/gen is current), unused deps
+  # changes to the client or Hub API against main but those declared in proto/BREAKING.md,
+  # generated code in crates/nama-proto, crates/nama-plugin-proto, crates/nama-hub-proto and
+  # web/src/gen is current), unused deps
   # and cargo-deny. Runs on drafts too, as do `web` and `rust-check`.
   lint:
     needs: changes
@@ -143,7 +144,7 @@ jobs:
           git add --all --intent-to-add
           git diff --exit-code || {
             echo "::error::crates/nama-proto/src/generated," \
-              "crates/nama-plugin-proto/src/generated" \
+              "crates/nama-plugin-proto/src/generated, crates/nama-hub-proto/src/generated" \
               "or web/src/gen is stale; run 'buf generate' in proto/ and commit the result"
             exit 1
           }
@@ -222,6 +223,17 @@ jobs:
     needs: changes
     if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
+    # The Hub's queries are checked against PostgreSQL (crates/nama-hub/README.md), the same
+    # image as `hub`'s.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 30
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -236,28 +248,34 @@ jobs:
           key: ${{ hashFiles('Cargo.toml') }}
           # A PR's cache is only visible to that PR, and the repo's 10 GB would fill with them.
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      # sqlx-cli stays on the same minor version as the sqlx crate in crates/nama-server/Cargo.toml.
-      # Cached by version: it has no prebuilt binaries, and building it takes minutes.
+      # sqlx-cli stays on the same minor version as the sqlx crate in crates/nama-server/Cargo.toml
+      # and crates/nama-hub/Cargo.toml. Cached by version and features: it has no prebuilt
+      # binaries, and building it takes minutes.
       - id: sqlx-cache
         uses: actions/cache@v6
         with:
           path: |
             ${{ env.CARGO_HOME }}/bin/sqlx
             ${{ env.CARGO_HOME }}/bin/cargo-sqlx
-          key: sqlx-cli-${{ runner.os }}-0.9.0
+          key: sqlx-cli-${{ runner.os }}-0.9.0-sqlite-postgres
       - name: Install sqlx-cli
         if: steps.sqlx-cache.outputs.cache-hit != 'true'
-        run: cargo install --locked sqlx-cli@0.9.0 --no-default-features --features sqlite,rustls
+        run: cargo install --locked --force sqlx-cli@0.9.0 --no-default-features --features sqlite,postgres,rustls
       # Queries are checked at compile time against the query data in .sqlx/, so builds need
-      # no database. A scratch SQLite file with every migration applied checks it is current.
+      # no database. A scratch SQLite file and the PostgreSQL service, each with its crate's
+      # migrations applied, check it is current; crates/nama-hub/sqlx.toml has the Hub's queries
+      # read NAMA_HUB_DATABASE_URL.
       - name: .sqlx is up to date
+        env:
+          NAMA_HUB_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
         run: |
           export DATABASE_URL="sqlite://$RUNNER_TEMP/sqlx-check.db"
           sqlx database create
           sqlx migrate run --source crates/nama-server/migrations
+          sqlx migrate run --source crates/nama-hub/migrations --database-url "$NAMA_HUB_DATABASE_URL"
           cargo sqlx prepare --check --workspace -- --all-targets || {
             echo "::error::.sqlx is stale;" \
-              "see crates/nama-server/README.md for how to regenerate it"
+              "see crates/nama-hub/README.md for how to regenerate it"
             exit 1
           }
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
@@ -363,13 +381,14 @@ jobs:
       # nextest builds every target it runs, so there's no separate `cargo build`. The `ci` profile
       # (.config/nextest.toml) retries, kills hung tests and writes a JUnit report. `count`
       # deals each binary's tests out in turn, so its slow ones land on both shards.
-      # $EXCLUDED is unquoted so it splits into arguments.
+      # $EXCLUDED is unquoted so it splits into arguments. The Hub's tests need PostgreSQL in a
+      # service container, which only Linux runners have, so `hub` runs them.
       - run: >-
-          cargo nextest run --workspace $EXCLUDED --locked --profile ci
+          cargo nextest run --workspace --exclude nama-hub $EXCLUDED --locked --profile ci
           --partition count:${{ matrix.partition }}/2
       # nextest doesn't run doctests.
       - if: matrix.partition == 1
-        run: cargo test --workspace $EXCLUDED --doc --locked
+        run: cargo test --workspace --exclude nama-hub $EXCLUDED --doc --locked
       # For the test-report workflow (ADR 0022), as the vitest report in `web`.
       # ponytail: Linux only, since the history doesn't record the OS and a test failing on one OS
       # only would count as flaky. Add the OS to nama-test-report to record macOS and Windows.
@@ -402,7 +421,7 @@ jobs:
   # counts as passed, but a skipped matrix job reports under its unexpanded name
   # (`test (${{ matrix.os }}, ...)`), so the ruleset can't require `test` itself.
   ci-ok:
-    needs: [changes, lint, migrations, web, rust-check, test, web-test]
+    needs: [changes, lint, migrations, web, rust-check, test, web-test, hub]
     if: always() && github.event.action != 'closed'
     runs-on: ubuntu-latest
     steps:
@@ -442,6 +461,50 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: test-reports-${{ github.run_attempt }}-nextest-web
+          path: |
+            target/nextest/*/junit.xml
+            target/nextest/tree
+          if-no-files-found: ignore
+
+  # The Hub's tests, against PostgreSQL 18 with pgvector, the database it runs on (ADR 0005), in a
+  # service container. GitHub runs those only on Linux runners, so `test` leaves the Hub out.
+  hub:
+    needs: changes
+    if: >-
+      (github.event_name == 'push' || !github.event.pull_request.draft) &&
+      needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 30
+    env:
+      # `#[sqlx::test]` reads DATABASE_URL, and makes a database of its own there for each test.
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # As in `rust-check`.
+          key: ${{ hashFiles('Cargo.toml') }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: rm -rf target/nextest
+      - uses: taiki-e/install-action@nextest
+      - run: cargo nextest run -p nama-hub --locked --profile ci
+      # For the test-report workflow (ADR 0022), as in `test`.
+      - if: ${{ !cancelled() && hashFiles('target/nextest/*/junit.xml') != '' }}
+        run: git rev-parse 'HEAD^{tree}' > target/nextest/tree
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: test-reports-${{ github.run_attempt }}-nextest-hub
           path: |
             target/nextest/*/junit.xml
             target/nextest/tree
