@@ -193,7 +193,7 @@ pub(crate) fn router(
             contents: Contents::new(Arc::clone(&db)),
             images,
             title_sources: TitleSources::new(plugins.clone()),
-            plugins,
+            plugins: plugins.clone(),
             plugin_settings: plugin_settings.clone(),
         }))
         .add_service(Arc::new(events::EventServiceHandler {
@@ -209,6 +209,7 @@ pub(crate) fn router(
             server_url,
             home_rows,
             settings,
+            points: plugins,
         }))
         .into_axum_service()
         .with_interceptor(RecordFailures);

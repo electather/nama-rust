@@ -1,8 +1,9 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
-//! one Server's device flow, Unlinking, and a key set of one Ed25519 key it signs with, as the
-//! Hub's API (`proto/nama/hub/v1/link.proto`) says the Hub does.
+//! one Server's device flow, Unlinking, its Users' Links, and a key set of one Ed25519 key it signs
+//! with, as the Hub's API (`proto/nama/hub/v1/link.proto`) says the Hub does.
 
 use std::{
+    collections::HashMap,
     net::SocketAddr,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::{SystemTime, UNIX_EPOCH},
@@ -12,8 +13,10 @@ use axum::http::StatusCode;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_hub_proto::nama::hub::v1::{
-    LinkedServerService, PollServerLinkRequest, PollServerLinkResponse, ServerLinkService,
-    StartServerLinkRequest, StartServerLinkResponse, UnlinkServerRequest, UnlinkServerResponse,
+    GetUserLinkRequest, GetUserLinkResponse, LinkedServerService, PollServerLinkRequest,
+    PollServerLinkResponse, ServerLinkService, StartServerLinkRequest, StartServerLinkResponse,
+    StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest, UnlinkServerResponse,
+    UnlinkUserRequest, UnlinkUserResponse,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::{Value, json};
@@ -24,6 +27,9 @@ const DEVICE_CODE: &str = "device-code";
 
 /// The one code the fake shows.
 pub(super) const USER_CODE: &str = "BDFH-JKLM";
+
+/// The one code the fake gives a User.
+pub(super) const USER_LINK_CODE: &str = "CDFG-HJKL";
 
 /// The credential the fake hands out once the code is entered.
 pub(super) const CREDENTIAL: &str = "the-credential";
@@ -42,6 +48,12 @@ struct State {
     key_set_fetches: usize,
     /// What the key set answers in place of the keys, if anything.
     key_set_failure: Option<StatusCode>,
+    /// The name each User waiting on a code started with, by id.
+    user_codes: HashMap<i64, String>,
+    /// The email of the Account each Linked User is Linked to, by id.
+    user_accounts: HashMap<i64, String>,
+    /// How often a User's Link was asked about.
+    user_link_asks: usize,
 }
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
@@ -97,6 +109,34 @@ impl FakeHub {
     /// Someone enters the code on the Hub.
     pub(super) fn enter_code(&self) {
         lock(&self.state).entered = true;
+    }
+
+    /// The User `user_id` enters their code on the Hub, signed in to [`EMAIL`]'s Account.
+    pub(super) fn enter_user_code(&self, user_id: i64) {
+        let mut state = lock(&self.state);
+        if state.user_codes.remove(&user_id).is_some() {
+            state.user_accounts.insert(user_id, EMAIL.to_owned());
+        }
+    }
+
+    /// The Account Unlinks the User `user_id` on the Hub.
+    pub(super) fn unlink_user_on_hub(&self, user_id: i64) {
+        lock(&self.state).user_accounts.remove(&user_id);
+    }
+
+    /// The name the User `user_id` started Linking as, while their code waits.
+    pub(super) fn user_starting(&self, user_id: i64) -> Option<String> {
+        lock(&self.state).user_codes.get(&user_id).cloned()
+    }
+
+    /// Whether the Hub has the User `user_id` Linked.
+    pub(super) fn user_linked(&self, user_id: i64) -> bool {
+        lock(&self.state).user_accounts.contains_key(&user_id)
+    }
+
+    /// How often the Server asked about a User's Link.
+    pub(super) fn user_link_asks(&self) -> usize {
+        lock(&self.state).user_link_asks
     }
 
     /// Has the key set fail, as if the Hub went down right after handing out a credential.
@@ -213,7 +253,65 @@ impl LinkedServerService for Linked {
         ctx: RequestContext,
         _request: ServiceRequest<'_, UnlinkServerRequest>,
     ) -> ServiceResult<UnlinkServerResponse> {
-        let mut state = lock(&self.0.state);
+        let mut state = self.caller(&ctx)?;
+        state.linked = false;
+        state.user_codes.clear();
+        state.user_accounts.clear();
+        Response::ok(UnlinkServerResponse::default())
+    }
+
+    async fn start_user_link(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, StartUserLinkRequest>,
+    ) -> ServiceResult<StartUserLinkResponse> {
+        let mut state = self.caller(&ctx)?;
+        if state.user_accounts.contains_key(&request.user_id) {
+            return Err(ConnectError::already_exists("the User is Linked already"));
+        }
+        state
+            .user_codes
+            .insert(request.user_id, request.name.to_owned());
+        Response::ok(StartUserLinkResponse {
+            user_code: USER_LINK_CODE.to_owned(),
+            expires_in_seconds: 600,
+            ..Default::default()
+        })
+    }
+
+    async fn get_user_link(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, GetUserLinkRequest>,
+    ) -> ServiceResult<GetUserLinkResponse> {
+        let mut state = self.caller(&ctx)?;
+        state.user_link_asks += 1;
+        Response::ok(GetUserLinkResponse {
+            account: state
+                .user_accounts
+                .get(&request.user_id)
+                .cloned()
+                .unwrap_or_default(),
+            ..Default::default()
+        })
+    }
+
+    async fn unlink_user(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, UnlinkUserRequest>,
+    ) -> ServiceResult<UnlinkUserResponse> {
+        let mut state = self.caller(&ctx)?;
+        state.user_codes.remove(&request.user_id);
+        state.user_accounts.remove(&request.user_id);
+        Response::ok(UnlinkUserResponse::default())
+    }
+}
+
+impl Linked {
+    /// What the fake knows, if the call carries the credential of the Server it has Linked.
+    fn caller(&self, ctx: &RequestContext) -> Result<MutexGuard<'_, State>, ConnectError> {
+        let state = lock(&self.0.state);
         let bearer = format!("Bearer {CREDENTIAL}");
         if !state.linked
             || ctx
@@ -222,8 +320,7 @@ impl LinkedServerService for Linked {
         {
             return Err(ConnectError::unauthenticated("no Linked Server has it"));
         }
-        state.linked = false;
-        Response::ok(UnlinkServerResponse::default())
+        Ok(state)
     }
 }
 

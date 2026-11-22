@@ -1,6 +1,7 @@
 //! The Hub Plugin (ADR 0094): the Built-in Plugin through which a Server does everything
 //! Hub-facing. It Links the Server to an Account, through a code an Admin enters on the Hub (ADR
-//! 0011), and keeps the credential the Server presents to the Hub from then on in its Store.
+//! 0011), and keeps the credential the Server presents to the Hub from then on in its Store. Its
+//! Users then Link to their own Accounts the same way.
 
 mod hub;
 mod linker;
@@ -54,10 +55,12 @@ impl Plugin for Hub {
     fn manifest(&self) -> Manifest {
         Manifest {
             name: "Hub".to_owned(),
-            description: "Links the Server to an Account on Nama's Hub.".to_owned(),
+            description: "Links the Server, and its Users, to Accounts on Nama's Hub.".to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_markdown: "Enable it, then Link the Server under Settings, Server. The Server \
-                             shows a code to enter on the Hub while signed in to your Account."
+                             shows a code to enter on the Hub while signed in to your Account. \
+                             Once it is Linked, each User can Link to their own Account the same \
+                             way, from their own Settings."
                 .to_owned(),
             extension_points: vec![PointKey::provide::<dyn ServerLinker>()],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),

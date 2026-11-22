@@ -1,7 +1,10 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
-//! keeps in the Plugin's Store once someone entered it.
+//! keeps in the Plugin's Store once someone entered it. Its Users' Links are in `users.rs`.
+
+mod users;
 
 use std::{
+    collections::HashMap,
     sync::Arc,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -13,7 +16,7 @@ use nama_plugin_api::{
         functions::{StoreDelete, StoreGet, StorePut},
     },
     contract::{StoreEntry, StoreKey},
-    server_link::{ServerLink, ServerLinker},
+    server_link::{Link, ServerLinker},
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
@@ -57,6 +60,8 @@ pub(crate) struct Linker {
     kernel: Arc<dyn Kernel>,
     /// Held across a poll, so two polls never race for the one credential.
     waiting: Mutex<Option<Waiting>>,
+    /// What the Plugin knows of each User's Link but what it keeps in the Store.
+    users: std::sync::Mutex<HashMap<i64, users::UserState>>,
 }
 
 impl Linker {
@@ -65,10 +70,11 @@ impl Linker {
             hub,
             kernel,
             waiting: Mutex::default(),
+            users: std::sync::Mutex::default(),
         }
     }
 
-    async fn current_link(&self) -> Result<ServerLink, PluginError> {
+    async fn current_link(&self) -> Result<Link, PluginError> {
         let mut waiting = self.waiting.lock().await;
         if let Some(code) = waiting.as_mut() {
             match self.poll(code).await? {
@@ -77,18 +83,18 @@ impl Linker {
             }
         }
         Ok(match self.kept().await? {
-            Some(kept) => ServerLink::Linked {
+            Some(kept) => Link::Linked {
                 account: kept
                     .account
                     .unwrap_or_else(|| UNCONFIRMED_ACCOUNT.to_owned()),
             },
-            None => ServerLink::NotLinked,
+            None => Link::NotLinked,
         })
     }
 
     /// Asks the Hub whether `code` was entered, once its poll interval has passed. `Some` while
     /// it still waits, `None` once it is gone: expired, or entered and its Link kept.
-    async fn poll(&self, code: &mut Waiting) -> Result<Option<ServerLink>, PluginError> {
+    async fn poll(&self, code: &mut Waiting) -> Result<Option<Link>, PluginError> {
         let now = Instant::now();
         if now >= code.expires {
             return Ok(None);
@@ -119,7 +125,7 @@ impl Linker {
         Ok(None)
     }
 
-    async fn start(&self, server_name: &str) -> Result<ServerLink, PluginError> {
+    async fn start(&self, server_name: &str) -> Result<Link, PluginError> {
         // Held from the check on: a poll keeping a credential meanwhile would otherwise see its
         // Link overwritten by the next, leaving one on the Hub that nothing could Unlink.
         let mut waiting = self.waiting.lock().await;
@@ -150,9 +156,14 @@ impl Linker {
         Ok(())
     }
 
-    fn showing(&self, code: &Waiting) -> ServerLink {
-        ServerLink::Waiting {
-            code: code.code.clone(),
+    fn showing(&self, code: &Waiting) -> Link {
+        self.waiting_on(code.code.clone())
+    }
+
+    /// The Link that waits for someone to enter `code` on the Hub.
+    fn waiting_on(&self, code: String) -> Link {
+        Link::Waiting {
+            code,
             url: self.hub.url().to_owned(),
         }
     }
@@ -206,19 +217,32 @@ impl Linker {
 }
 
 impl ServerLinker for Linker {
-    fn link(&self) -> BoxFuture<'_, Result<ServerLink, PluginError>> {
+    fn link(&self) -> BoxFuture<'_, Result<Link, PluginError>> {
         Box::pin(self.current_link())
     }
 
-    fn start_link<'a>(
-        &'a self,
-        server_name: &'a str,
-    ) -> BoxFuture<'a, Result<ServerLink, PluginError>> {
+    fn start_link<'a>(&'a self, server_name: &'a str) -> BoxFuture<'a, Result<Link, PluginError>> {
         Box::pin(self.start(server_name))
     }
 
     fn unlink(&self) -> BoxFuture<'_, Result<(), PluginError>> {
         Box::pin(self.forget_link())
+    }
+
+    fn user_link(&self, user_id: i64) -> BoxFuture<'_, Result<Option<Link>, PluginError>> {
+        Box::pin(self.current_user_link(user_id))
+    }
+
+    fn start_user_link<'a>(
+        &'a self,
+        user_id: i64,
+        user_name: &'a str,
+    ) -> BoxFuture<'a, Result<Link, PluginError>> {
+        Box::pin(self.start_user(user_id, user_name))
+    }
+
+    fn unlink_user(&self, user_id: i64) -> BoxFuture<'_, Result<(), PluginError>> {
+        Box::pin(self.forget_user_link(user_id))
     }
 }
 

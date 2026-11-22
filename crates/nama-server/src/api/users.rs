@@ -11,19 +11,20 @@ use nama_proto::nama::v1::{
     CreateInviteResponse, CreateUserRequest, CreateUserResponse, DeletePersonalSettingsRequest,
     DeletePersonalSettingsResponse, DeletePluginConnectionRequest, DeletePluginConnectionResponse,
     DeleteUserRequest, DeleteUserResponse, GetDefaultPermissionsRequest,
-    GetDefaultPermissionsResponse, GetHomeLayoutRequest, GetHomeLayoutResponse, HomeLayoutRow,
-    ListDevicesRequest, ListDevicesResponse, ListInvitesRequest, ListInvitesResponse,
-    ListNotificationPreferencesRequest, ListNotificationPreferencesResponse,
-    ListPersonalSettingsRequest, ListPersonalSettingsResponse, ListPluginConnectionsRequest,
-    ListPluginConnectionsResponse, ListUsersRequest, ListUsersResponse, NotificationKind,
-    NotificationPreference, Permission, PluginConnection, PluginConnectionState, RefusalReason,
-    ReorderHomeRowsRequest, ReorderHomeRowsResponse, ResetHomeLayoutRequest,
-    ResetHomeLayoutResponse, ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest,
-    RevokeDeviceResponse, RevokeInviteRequest, RevokeInviteResponse, SetDefaultPermissionsRequest,
-    SetDefaultPermissionsResponse, SetHomeLayoutRequest, SetHomeLayoutResponse,
-    SetNotificationPreferenceRequest, SetNotificationPreferenceResponse, SetPermissionsRequest,
-    SetPermissionsResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
-    UpdatePersonalSettingsRequest, UpdatePersonalSettingsResponse, UserService,
+    GetDefaultPermissionsResponse, GetHomeLayoutRequest, GetHomeLayoutResponse, GetUserLinkRequest,
+    GetUserLinkResponse, HomeLayoutRow, ListDevicesRequest, ListDevicesResponse,
+    ListInvitesRequest, ListInvitesResponse, ListNotificationPreferencesRequest,
+    ListNotificationPreferencesResponse, ListPersonalSettingsRequest, ListPersonalSettingsResponse,
+    ListPluginConnectionsRequest, ListPluginConnectionsResponse, ListUsersRequest,
+    ListUsersResponse, NotificationKind, NotificationPreference, Permission, PluginConnection,
+    PluginConnectionState, RefusalReason, ReorderHomeRowsRequest, ReorderHomeRowsResponse,
+    ResetHomeLayoutRequest, ResetHomeLayoutResponse, ResetPasswordRequest, ResetPasswordResponse,
+    RevokeDeviceRequest, RevokeDeviceResponse, RevokeInviteRequest, RevokeInviteResponse,
+    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetHomeLayoutRequest,
+    SetHomeLayoutResponse, SetNotificationPreferenceRequest, SetNotificationPreferenceResponse,
+    SetPermissionsRequest, SetPermissionsResponse, StartPluginConnectionRequest,
+    StartPluginConnectionResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkUserRequest,
+    UnlinkUserResponse, UpdatePersonalSettingsRequest, UpdatePersonalSettingsResponse, UserService,
     home_layout_row::Row as LayoutRow, home_row::KernelOrPlugin,
 };
 
@@ -33,6 +34,7 @@ use crate::{
     home_rows::HomeRows,
     images::PluginLogos,
     plugin_settings::{Personal, PluginSettings},
+    plugins::ExtensionPoints,
     server_settings::{ServerUrl, Settings},
     users::{
         self, AskedHomeLayout, Caller, Permissions, User, UserHomeLayout, Users,
@@ -47,7 +49,7 @@ use super::{
     plugins::{change_refused, list_failed, logo_url, setting_to_proto, settings_from_proto},
     refuse,
     server::{home_layout_from_proto, home_row_from_proto},
-    signed_out, unknown_enum_value,
+    server_link, signed_out, unknown_enum_value,
 };
 
 /// `nama.v1.UserService`: managing the Server's Users, their Devices and Plugin Connections. Needs
@@ -69,6 +71,8 @@ pub(super) struct UserServiceHandler {
     pub(super) home_rows: HomeRows,
     /// Holds the default Home layout, which each User's follows but for what they change.
     pub(super) settings: Settings,
+    /// Asked to Link the caller to an Account.
+    pub(super) points: ExtensionPoints,
 }
 
 #[expect(
@@ -518,6 +522,30 @@ impl UserService for UserServiceHandler {
     ) -> ServiceResult<ResetHomeLayoutResponse> {
         (UserHomeLayout::reset(&self.db, caller(&ctx)?.user.id).await).map_err(database_failed)?;
         Response::ok(ResetHomeLayoutResponse::default())
+    }
+
+    async fn get_user_link(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, GetUserLinkRequest>,
+    ) -> ServiceResult<GetUserLinkResponse> {
+        server_link::get_user(&self.points, &caller(&ctx)?.user).await
+    }
+
+    async fn start_user_link(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, StartUserLinkRequest>,
+    ) -> ServiceResult<StartUserLinkResponse> {
+        server_link::start_user(&self.points, &caller(&ctx)?.user).await
+    }
+
+    async fn unlink_user(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, UnlinkUserRequest>,
+    ) -> ServiceResult<UnlinkUserResponse> {
+        server_link::unlink_user(&self.points, &caller(&ctx)?.user).await
     }
 }
 

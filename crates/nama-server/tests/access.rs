@@ -149,7 +149,7 @@ const BROWSE: [&str; 8] = [
 ];
 
 /// Every other unary RPC that needs a session.
-const SIGNED_IN: [&str; 17] = [
+const SIGNED_IN: [&str; 20] = [
     SIGN_OUT,
     "/nama.v1.SignInService/WhoAmI",
     "/nama.v1.SignInService/Reauthenticate",
@@ -167,6 +167,9 @@ const SIGNED_IN: [&str; 17] = [
     "/nama.v1.UserService/ListPersonalSettings",
     "/nama.v1.UserService/UpdatePersonalSettings",
     "/nama.v1.UserService/DeletePersonalSettings",
+    "/nama.v1.UserService/GetUserLink",
+    "/nama.v1.UserService/StartUserLink",
+    "/nama.v1.UserService/UnlinkUser",
 ];
 
 /// Each Permission some RPC needs, with every RPC that needs it: kept by hand, as a second
@@ -185,9 +188,9 @@ const NEEDS_PERMISSION: [(Permission, &[&str]); 9] = [
 
 const SIGN_OUT: &str = "/nama.v1.SignInService/SignOut";
 
-/// The RPCs that change who can sign in as whom, delete media or Link the Server, which need Recent
-/// Authentication (ADR 0014).
-const SENSITIVE: [&str; 9] = [
+/// The RPCs that change who can sign in as whom, delete media or Link the Server or a User, which
+/// need Recent Authentication (ADR 0014).
+const SENSITIVE: [&str; 10] = [
     "/nama.v1.UserService/ChangePassword",
     "/nama.v1.UserService/ResetPassword",
     "/nama.v1.UserService/SetPermissions",
@@ -197,6 +200,7 @@ const SENSITIVE: [&str; 9] = [
     "/nama.v1.LibraryService/DeleteMedia",
     "/nama.v1.ServerService/StartServerLink",
     "/nama.v1.ServerService/UnlinkServer",
+    "/nama.v1.UserService/StartUserLink",
 ];
 
 struct Reply {

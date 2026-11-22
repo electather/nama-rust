@@ -14,8 +14,9 @@ use hyper_util::{
     rt::TokioExecutor,
 };
 use nama_hub_proto::nama::hub::v1::{
-    LinkedServerServiceClient, PollServerLinkRequest, PollServerLinkResponse,
-    ServerLinkServiceClient, StartServerLinkRequest, StartServerLinkResponse, UnlinkServerRequest,
+    GetUserLinkRequest, LinkedServerServiceClient, PollServerLinkRequest, PollServerLinkResponse,
+    ServerLinkServiceClient, StartServerLinkRequest, StartServerLinkResponse, StartUserLinkRequest,
+    StartUserLinkResponse, UnlinkServerRequest, UnlinkUserRequest,
 };
 use nama_plugin_api::PluginError;
 
@@ -100,15 +101,76 @@ impl Hub {
     /// Unlinks the Server whose credential is `credential`. One the Hub doesn't know any more is
     /// `REFUSAL_REASON_SERVER_NOT_LINKED`, the call's one `unauthenticated`, so Unlinked already.
     pub(crate) async fn unlink(&self, credential: &str) -> Result<(), PluginError> {
+        let unlinked = self
+            .linked_server(credential)?
+            .unlink_server(UnlinkServerRequest::default())
+            .await;
+        unlinked_already(unlinked.map(drop))
+    }
+
+    /// Starts Linking the User `user_id`, named `name`, of the Server whose credential is
+    /// `credential`.
+    pub(crate) async fn start_user(
+        &self,
+        credential: &str,
+        user_id: i64,
+        name: &str,
+    ) -> Result<StartUserLinkResponse, PluginError> {
+        let started = self
+            .linked_server(credential)?
+            .start_user_link(StartUserLinkRequest {
+                user_id,
+                name: name.to_owned(),
+                ..Default::default()
+            })
+            .await?;
+        Ok(started.into_owned())
+    }
+
+    /// The email of the Account the User `user_id` is Linked to, empty while they aren't.
+    pub(crate) async fn user_account(
+        &self,
+        credential: &str,
+        user_id: i64,
+    ) -> Result<String, PluginError> {
+        let got = self
+            .linked_server(credential)?
+            .get_user_link(GetUserLinkRequest {
+                user_id,
+                ..Default::default()
+            })
+            .await?;
+        Ok(got.into_owned().account)
+    }
+
+    /// Unlinks the User `user_id`. A Server the Hub doesn't know any more has no Linked Users.
+    pub(crate) async fn unlink_user(
+        &self,
+        credential: &str,
+        user_id: i64,
+    ) -> Result<(), PluginError> {
+        let unlinked = self
+            .linked_server(credential)?
+            .unlink_user(UnlinkUserRequest {
+                user_id,
+                ..Default::default()
+            })
+            .await;
+        unlinked_already(unlinked.map(drop))
+    }
+
+    /// The Hub's API for the Server whose credential is `credential`.
+    fn linked_server(
+        &self,
+        credential: &str,
+    ) -> Result<LinkedServerServiceClient<Transport>, PluginError> {
         let config = self
             .config()?
             .with_default_header("authorization", format!("Bearer {credential}"));
-        let client = LinkedServerServiceClient::new(self.transport.clone(), config);
-        match client.unlink_server(UnlinkServerRequest::default()).await {
-            Ok(_) => Ok(()),
-            Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => Ok(()),
-            Err(err) => Err(err.into()),
-        }
+        Ok(LinkedServerServiceClient::new(
+            self.transport.clone(),
+            config,
+        ))
     }
 
     /// The Hub's published key set, as JSON.
@@ -129,6 +191,15 @@ impl Hub {
             return Err(format!("the Hub answered {status} for its key set").into());
         }
         Ok(body)
+    }
+}
+
+/// `unlinked`, where the Hub not knowing the Server's credential, its one `unauthenticated`, means
+/// there is nothing left to Unlink.
+fn unlinked_already(unlinked: Result<(), connectrpc::ConnectError>) -> Result<(), PluginError> {
+    match unlinked {
+        Err(err) if err.code != connectrpc::ErrorCode::Unauthenticated => Err(err.into()),
+        _ => Ok(()),
     }
 }
 
