@@ -8,8 +8,9 @@ import { inputSize } from "@/shared/lib/control-size";
 
 /**
  * A labelled text input in a native form, with its hint and the Server's error. It is required
- * unless `required` says otherwise. As a `row` it's drawn as a setting's row, for a form in Settings.
- * A `type="number"` one has − and + at its end (`ui/number-field.tsx`), which `onStep` hears.
+ * unless `required` says otherwise. As a `row` it's drawn as a setting's row, for a form in Settings,
+ * found by its `setting` key. A `type="number"` one has − and + at its end (`ui/number-field.tsx`),
+ * which `onStep` hears.
  */
 export function FormField({
   label,
@@ -18,11 +19,13 @@ export function FormField({
   aside,
   heading,
   row = false,
+  setting,
   onStep,
   ...input
 }: ComponentProps<typeof Input> &
   FieldText & {
     row?: boolean;
+    setting?: string;
     onStep?: (value: string, field: HTMLInputElement | null) => void;
   }) {
   const frame = { label, hint, error, aside, heading: heading ?? false };
@@ -34,7 +37,7 @@ export function FormField({
       <Input {...given} {...input} />
     );
   return row ? (
-    <RowField {...frame} size={inputSize(input.type)}>
+    <RowField setting={setting} {...frame} size={inputSize(input.type)}>
       {control}
     </RowField>
   ) : (

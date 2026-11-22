@@ -34,6 +34,8 @@ opentelemetry = { version = "0.33.1", default-features = false, features = ["tra
 opentelemetry-appender-tracing = "0.33.1"
 opentelemetry-otlp = { version = "0.33.1", default-features = false, features = ["http-proto", "logs", "reqwest-blocking-client", "trace"] }
 opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["logs", "trace"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
@@ -44,13 +46,14 @@ tracing = "0.1"
 tracing-opentelemetry = { version = "0.34.0", default-features = false }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 uuid = "1"
+webpki-roots = "1"
 
 [dev-dependencies]
 base64 = "0.23"
 connectrpc = { version = "0.9.1", features = ["client"] }
 figment = { version = "0.10", features = ["test"] }
 nama-structure = { path = "../nama-structure" }
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1", features = ["sync", "time"] }
 
 [lints]
 workspace = true

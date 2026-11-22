@@ -1,28 +1,20 @@
 //! Web sessions: a random opaque token the browser keeps in a cookie, which the Hub keeps only as
 //! its SHA-256 hash and ends by deleting its row (ADR 0098).
 
-use std::fmt::Write as _;
+use sqlx::{PgConnection, PgExecutor, PgPool};
 
-use sha2::{Digest as _, Sha256};
-use sqlx::{PgConnection, PgPool};
-
-use super::{Account, AccountId, AccountSession, Error};
+use super::{Account, AccountId, AccountSession, Error, new_token, token_hash};
 
 /// How many days a session lasts after it starts.
 pub(crate) const SESSION_DAYS: i32 = 30;
 
 /// Starts a session for `account` and returns its token.
 pub(super) async fn start(conn: &mut PgConnection, account: AccountId) -> Result<String, Error> {
-    let mut bytes = [0; 32];
-    getrandom::fill(&mut bytes)?;
-    let token = bytes.iter().fold(String::new(), |mut hex, byte| {
-        let _infallible = write!(hex, "{byte:02x}");
-        hex
-    });
+    let token = new_token()?;
     sqlx::query!(
         "INSERT INTO account_sessions (account_id, token_hash) VALUES ($1, $2)",
         account.0,
-        &hash(&token)[..],
+        &token_hash(&token)[..],
     )
     .execute(conn)
     .await?;
@@ -37,7 +29,7 @@ pub(super) async fn find(db: &PgPool, token: &str) -> Result<Option<AccountSessi
         "SELECT account_sessions.id, accounts.id AS account_id, accounts.email
          FROM account_sessions JOIN accounts ON accounts.id = account_sessions.account_id
          WHERE token_hash = $1 AND account_sessions.created_at > now() - make_interval(days => $2)",
-        &hash(token)[..],
+        &token_hash(token)[..],
         SESSION_DAYS,
     )
     .fetch_optional(db)
@@ -52,7 +44,10 @@ pub(super) async fn find(db: &PgPool, token: &str) -> Result<Option<AccountSessi
 }
 
 /// Ends `session`.
-pub(super) async fn end(db: &PgPool, session: &AccountSession) -> Result<(), sqlx::Error> {
+pub(super) async fn end(
+    db: impl PgExecutor<'_>,
+    session: &AccountSession,
+) -> Result<(), sqlx::Error> {
     sqlx::query!(
         "DELETE FROM account_sessions WHERE id = $1 AND account_id = $2",
         session.id,
@@ -63,7 +58,16 @@ pub(super) async fn end(db: &PgPool, session: &AccountSession) -> Result<(), sql
     Ok(())
 }
 
-/// What the database keeps of a session token.
-fn hash(token: &str) -> [u8; 32] {
-    Sha256::digest(token).into()
+/// Ends every session of `account`.
+pub(super) async fn end_all(
+    conn: &mut PgConnection,
+    account: AccountId,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "DELETE FROM account_sessions WHERE account_id = $1",
+        account.0
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
 }

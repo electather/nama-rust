@@ -21,7 +21,7 @@ const sections = [
 export type Section = (typeof sections)[number];
 
 /** The section Settings opens on when asked for one it doesn't have. */
-export const firstSection: Section = "playback";
+const firstSection: Section = "playback";
 
 /** The section `?settings=` asks for: none without it, and the first for a word no section has. */
 export function sectionParam(value: unknown): Section | undefined {
@@ -31,10 +31,15 @@ export function sectionParam(value: unknown): Section | undefined {
   return sections.find((each) => each === value) ?? firstSection;
 }
 
-/** The Plugin `?plugin=` asks the Plugins section to open: none without it. */
-export function pluginParam(value: unknown) {
+/** The Plugin `?plugin=` asks the Plugins section to open, or the setting `?setting=` asks for: none without it. */
+export function idParam(value: unknown) {
   // The router reads an id made of digits as a number.
   return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
+}
+
+/** The address of `section` in Settings, at its `setting` if one is asked for. A Plugin or User open in another Section closes. */
+export function sectionSearch(section: Section, setting?: string) {
+  return { settings: section, plugin: undefined, user: undefined, setting };
 }
 
 /** The User `?user=` asks the Users section to open: none without it. */
@@ -76,22 +81,6 @@ export const loadNouns: Record<Section, string> = {
   plugins: "the Plugins",
 };
 
-// Words each section answers to in the sidebar's search, beyond its name.
-const searchWords: Record<Section, string> = {
-  signin: "username password",
-  devices: "device revoke sign out tv phone",
-  playback: "audio language subtitles sdh forced size background autoplay next episode",
-  home: "rows featured layout order continue watching",
-  requests: "quality movies shows request",
-  connections: "telegram plugin messages notifications personal",
-  server: "server url address images resize space storage store",
-  users: "users people accounts invite invites permissions password",
-  backups: "backup backups restore schedule database",
-  "default-home": "default home rows layout order everyone",
-  "server-playback": "transcode transcoding hardware ffmpeg remote bitrate segments intro credits",
-  plugins: "plugin telegram install",
-};
-
 /** The sidebar's sections under a heading. */
 export interface SectionGroup {
   label: string;
@@ -124,17 +113,6 @@ export function groupsFor(user: User | undefined): SectionGroup[] {
     const permission = needs[section];
     return permission === undefined || may(user, permission);
   });
-}
-
-/** `from` narrowed to the sections that answer to the words `typed` in the sidebar's search. */
-export function matching(from: SectionGroup[], typed: string): SectionGroup[] {
-  const words = typed.trim().toLowerCase();
-  const shown = new Set(from.flatMap((group) => group.items));
-  return shownGroups(
-    (section) =>
-      shown.has(section) &&
-      `${sectionTitles[section]} ${searchWords[section]}`.toLowerCase().includes(words),
-  );
 }
 
 /** The groups with only the sections `keep` keeps, without the groups left empty. */

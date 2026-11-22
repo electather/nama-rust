@@ -3,6 +3,7 @@ use std::{
     time::Duration,
 };
 
+use nama_plugin_api::metadata::ExternalId;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar, TryAgainIn,
     contract::{
@@ -18,8 +19,8 @@ use super::{Segment, SegmentKind, Segments, Waits, keep, segments_of};
 use crate::{
     db::{self, Database},
     library::{
-        Contents, Libraries, Order, Stored,
-        fixture::{MatchedMovie, tmdb_movie},
+        Change, Contents, Decided, Item, Libraries, Metadata, NfoHints, Order, Stored,
+        fixture::{MatchedMovie, decide, tmdb_movie},
     },
     playback::{Chapter, Probe, Tracks},
     plugin_settings::PluginSettings,
@@ -107,6 +108,9 @@ struct Fixture {
     db: Arc<Database>,
     library: i64,
     version: i64,
+    /// The Movie's Item, and its file's path.
+    item: i64,
+    path: String,
     asked: Asked,
     plugins: Registry,
     _dirs: (TempDir, TempDir),
@@ -137,6 +141,11 @@ impl Fixture {
             db,
             library: alien.library,
             version: alien.version,
+            item: alien.item,
+            path: (media.path().canonicalize().unwrap().join("Alien.mkv"))
+                .to_str()
+                .unwrap()
+                .to_owned(),
             asked,
             _dirs: (data, media),
         }
@@ -162,6 +171,12 @@ impl Fixture {
         (libraries.update(self.library, &library.name, library.folders, order))
             .await
             .unwrap();
+    }
+
+    /// Records `decided` for the Movie, as Matching does on a scan or an Admin's fix.
+    async fn rematch(&self, decided: Decided) {
+        let contents = Contents::new(Arc::clone(&self.db));
+        decide(&contents, self.library, &self.path, vec![decided]).await;
     }
 
     async fn is_due(&self) -> bool {
@@ -222,6 +237,41 @@ async fn probe_file(db: &Arc<Database>, file: Stored, chapters: Vec<Chapter>) {
         .await
         .unwrap();
 }
+
+fn imdb(id: &str) -> ExternalId {
+    ExternalId::new("imdb", id).unwrap()
+}
+
+fn matched(metadata: Metadata) -> Decided {
+    Decided::Matched(Box::new(metadata))
+}
+
+/// A Fixture whose Version has an Intro from the source `found` and Credits from its Chapter
+/// names, asked about once.
+async fn asked_with_an_intro_and_named_credits() -> Fixture {
+    let chapters = vec![chapter(0, ""), chapter(3_500_000, "Ending")];
+    let found = fake(
+        "found",
+        Some(vec![result(SEGMENT_KIND_INTRO, 0, Some(60_000))]),
+    );
+    let fx = Fixture::new(chapters, &["found"], vec![found]).await;
+    fx.ask().await;
+    assert_eq!(fx.stored().await, [INTRO, CREDITS]);
+    assert!(!fx.is_due().await);
+    fx
+}
+
+const INTRO: Segment = Segment {
+    kind: SegmentKind::Intro,
+    start_ms: 0,
+    end_ms: Some(60_000),
+};
+
+const CREDITS: Segment = Segment {
+    kind: SegmentKind::Credits,
+    start_ms: 3_500_000,
+    end_ms: None,
+};
 
 fn fake(id: &'static str, answer: Option<Vec<SegmentResult>>) -> Fake {
     Fake {
@@ -495,4 +545,116 @@ async fn reordering_the_librarys_sources_leaves_a_version_asked_already_waiting(
     fx.list(&["second", "first"]).await;
 
     assert!(!fx.is_due().await);
+}
+
+#[tokio::test]
+async fn matching_again_to_the_same_ids_leaves_a_version_asked_already_waiting() {
+    let fx = asked_with_an_intro_and_named_credits().await;
+
+    fx.rematch(matched(tmdb_movie(348, "Alien"))).await;
+
+    assert!(!fx.is_due().await);
+    assert_eq!(fx.stored().await, [INTRO, CREDITS]);
+}
+
+#[tokio::test]
+async fn a_version_asked_while_unmatched_is_due_once_matched() {
+    let fx = Fixture::new(vec![], &["found"], vec![fake("found", Some(vec![]))]).await;
+    fx.rematch(Decided::Unmatched(None)).await;
+    fx.ask().await;
+    assert_eq!(fx.asked(), Vec::<&str>::new());
+    assert!(!fx.is_due().await);
+
+    fx.rematch(matched(tmdb_movie(348, "Alien"))).await;
+
+    assert!(fx.is_due().await);
+}
+
+#[tokio::test]
+async fn a_new_id_for_the_same_title_makes_a_version_due_and_keeps_its_segments() {
+    let fx = asked_with_an_intro_and_named_credits().await;
+    let mut alien = tmdb_movie(348, "Alien");
+    alien.ids.insert(imdb("tt0078748"));
+
+    fx.rematch(matched(alien)).await;
+
+    assert!(fx.is_due().await);
+    assert_eq!(fx.stored().await, [INTRO, CREDITS]);
+}
+
+#[tokio::test]
+async fn matching_again_to_another_title_drops_the_sources_segments_and_makes_it_due() {
+    let fx = asked_with_an_intro_and_named_credits().await;
+
+    fx.rematch(matched(tmdb_movie(679, "Aliens"))).await;
+
+    assert!(fx.is_due().await);
+    assert_eq!(fx.stored().await, [CREDITS]);
+}
+
+#[tokio::test]
+async fn unmatching_drops_the_sources_segments() {
+    let fx = asked_with_an_intro_and_named_credits().await;
+
+    fx.rematch(Decided::Unmatched(None)).await;
+
+    assert_eq!(fx.stored().await, [CREDITS]);
+}
+
+#[tokio::test]
+async fn a_match_change_to_a_versions_second_item_leaves_it_waiting_with_its_segments() {
+    let fx = asked_with_an_intro_and_named_credits().await;
+    let contents = Contents::new(Arc::clone(&fx.db));
+    let path = fx.path.replace("Alien.mkv", "Double.mkv");
+    let movie = |title: &str| Item::Movie {
+        title: title.to_owned(),
+        year: None,
+        hint: None,
+    };
+    let file = Change::Store {
+        edition: None,
+        path: path.clone(),
+        size: 10,
+        modified_ns: 0,
+        items: vec![movie("Alien"), movie("Aliens")],
+    };
+    contents.apply(fx.library, vec![file]).await.unwrap();
+    let first_two = vec![
+        matched(tmdb_movie(348, "Alien")),
+        matched(tmdb_movie(679, "Aliens")),
+    ];
+    let (double, _) = decide(&contents, fx.library, &path, first_two).await;
+    probe(
+        &fx.db,
+        double,
+        vec![chapter(0, ""), chapter(3_500_000, "Ending")],
+    )
+    .await;
+    (fx.segments.ask(double, &mut Waits::default()).await).unwrap();
+    assert!(!fx.segments.due().await.unwrap().contains(&double));
+
+    let second_changed = vec![
+        matched(tmdb_movie(348, "Alien")),
+        matched(tmdb_movie(8077, "Alien 3")),
+    ];
+    decide(&contents, fx.library, &path, second_changed).await;
+
+    assert!(!fx.segments.due().await.unwrap().contains(&double));
+    assert_eq!(segments_of(&fx.db, double).await.unwrap(), [INTRO, CREDITS]);
+}
+
+#[tokio::test]
+async fn an_nfo_naming_another_title_drops_the_sources_segments() {
+    let fx = asked_with_an_intro_and_named_credits().await;
+    let hints = NfoHints {
+        title: vec![ExternalId::tmdb(679)],
+        episode: vec![],
+    };
+
+    (Contents::new(Arc::clone(&fx.db)).set_nfo_hints(vec![(fx.item, hints)]))
+        .await
+        .unwrap();
+
+    assert!(fx.is_due().await);
+    assert_eq!(fx.stored().await, [CREDITS]);
 }

@@ -4,6 +4,7 @@ import {
   SubtitleKind,
   type UsersSubtitlePreference,
 } from "@/gen/nama/v1/playback_pb";
+import type { SettingText } from "@/shared/lib/setting-text";
 
 /** The Playback pane's settings, as its controls hold them. */
 export interface PlaybackValues {
@@ -21,16 +22,49 @@ export interface PlaybackValues {
   autoplay: boolean;
 }
 
-/** Each setting's name, as its row says it, and its pane's toast when a change to it is refused. */
-export const playbackLabels: Record<keyof PlaybackValues, string> = {
-  audio: "Audio language",
-  subtitles: "Subtitle language",
-  which: "Which subtitles",
-  sdh: "Include sounds (SDH)",
-  onlyOther: "Only for audio in another language",
-  size: "Subtitle size",
-  background: "Subtitle background",
-  autoplay: "Play the next Episode automatically",
+/**
+ * What each setting's row says, in the pane's order. The toast names a refused change by its
+ * label. Which subtitles and the switches under it show only while a language is picked.
+ */
+export const playbackLabels: Record<keyof PlaybackValues, SettingText> = {
+  audio: {
+    label: "Audio language",
+    hint: "Audio starts in this language when the file has it.",
+    words: "dub track",
+  },
+  subtitles: {
+    label: "Subtitle language",
+    hint: "Pick Off to start with no subtitles.",
+    words: "captions cc",
+  },
+  which: {
+    label: "Which subtitles",
+    hint: "Full is every line. Forced only is signs and lines in another language.",
+    shownBy: "subtitles",
+  },
+  onlyOther: {
+    label: "Only for audio in another language",
+    hint: "Subtitles stay off when the audio is already in your subtitle language.",
+    words: "foreign",
+    shownBy: "subtitles",
+  },
+  sdh: {
+    label: "Include sounds (SDH)",
+    hint: "Adds sounds like [door slams] when the file has them.",
+    words: "captions hearing deaf cc",
+    shownBy: "subtitles",
+  },
+  size: { label: "Subtitle size", hint: "How big text subtitles are.", words: "text font" },
+  background: {
+    label: "Subtitle background",
+    hint: "Outline is a dark edge around each letter, Box a dark box behind each line. Styled subtitles keep the look they came with.",
+    words: "appearance",
+  },
+  autoplay: {
+    label: "Play the next Episode automatically",
+    hint: "When an Episode ends, the next one starts after a countdown.",
+    words: "autoplay",
+  },
 };
 
 /** The pane's settings as the Server has them saved. */

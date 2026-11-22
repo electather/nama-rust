@@ -2,6 +2,7 @@ import { LanguageSelect } from "@/features/settings/components/language-select";
 import { WhichRows } from "@/features/settings/components/which-rows";
 import { type PlaybackValues, playbackLabels } from "@/features/settings/lib/playback-values";
 import { SettingRow } from "@/shared/components/setting-row";
+import { rowText } from "@/shared/lib/setting-text";
 
 /**
  * The rows of the User's own Subtitle Preference: the language, and while one is picked, which of
@@ -16,11 +17,7 @@ export function SubtitleRows({
 }) {
   return (
     <>
-      <SettingRow
-        label={playbackLabels.subtitles}
-        hint="Pick Off to start with no subtitles."
-        size="field"
-      >
+      <SettingRow {...rowText(playbackLabels, "subtitles")} size="field">
         {(control) => (
           <LanguageSelect
             control={control}

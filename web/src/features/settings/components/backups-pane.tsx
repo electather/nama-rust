@@ -39,7 +39,7 @@ export function BackupsPane() {
     refused && backupRefusalFields(refused.failure),
   );
   const schedule = (
-    <SettingGroup title="Schedule">
+    <SettingGroup setting="schedule" title={backupLabels.schedule.label}>
       <BackUpWhen job={job} />
     </SettingGroup>
   );
@@ -54,7 +54,7 @@ export function BackupsPane() {
     </SettingGroup>
   );
   const restoring = (
-    <SettingGroup title="Restoring a Backup">
+    <SettingGroup setting="restore" title={backupLabels.restore.label}>
       <RestoreNote folder={folder} newest={backups[0]?.name} />
     </SettingGroup>
   );

@@ -7,7 +7,7 @@ import { useListed } from "@/features/action-bar/hooks/use-listed";
 import { useRecents } from "@/features/action-bar/hooks/use-recents";
 import { groupsOf } from "@/features/action-bar/lib/groups";
 import { press } from "@/features/action-bar/lib/keys";
-import { type Page, pagesFor } from "@/features/action-bar/lib/pages";
+import { type Page, goTo, pagesFor } from "@/features/action-bar/lib/pages";
 import type { Frame, Opening, Row } from "@/features/action-bar/lib/rows";
 import type { FoundTitle } from "@/features/action-bar/lib/titles";
 import { TitleKind } from "@/gen/nama/v1/match_pb";
@@ -57,9 +57,9 @@ export function useActionBar({
   function back() {
     push("root");
   }
-  function go(to: Page["to"]) {
+  function go(page: Page) {
     dialog.close();
-    void navigate({ to });
+    goTo(navigate, page);
   }
   function openToRequest({ kind, titleId }: FoundTitle) {
     void (kind === "movie"

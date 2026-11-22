@@ -54,6 +54,30 @@
     /* What takes focus scrolls clear of the top bar, 72px tall, where it sticks (WCAG 2.4.11). */
     scroll-padding-top: calc(var(--spacing) * 18);
   }
+  /* A setting's row Settings' search landed on (`use-found-setting.ts`): lit for a moment, the fill
+     reaching a little past its ends, and ringed while focus came from the keyboard. */
+  [data-setting] {
+    transition:
+      background-color 300ms var(--ease-out-expo),
+      box-shadow 300ms var(--ease-out-expo),
+      border-radius 300ms var(--ease-out-expo);
+    &:focus {
+      outline: none;
+    }
+    &:focus-visible {
+      outline: 3px solid color-mix(in oklab, var(--ring) 50%, transparent);
+      outline-offset: calc(var(--spacing) * 2);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+    }
+  }
+  /* Rounded only while marked: a row's hairline is a border on one side, which a radius bends. */
+  [data-setting][data-found] {
+    border-radius: var(--radius-md);
+    background-color: var(--accent);
+    box-shadow: 0 0 0 calc(var(--spacing) * 2) var(--accent);
+  }
   /* Subtitles the browser draws, on the scrim in the app's type. `::cue` takes no padding or radius. */
   video::cue {
     background-color: var(--scrim);

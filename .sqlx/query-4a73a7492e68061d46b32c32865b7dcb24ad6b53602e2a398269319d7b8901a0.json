@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT library_files.path, library_files.library_id,\n                              library_items.kind AS \"kind: ItemKind\",\n                              library_items.season, library_items.episode, (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = IIF(library_items.kind = 'movie', 'title', 'show')) AS \"ids?: String\"\n                       FROM library_files\n                       JOIN library_items ON library_items.file_id = library_files.id\n                       LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n                                             AND item_matches.state = 'matched'\n                       WHERE library_files.id = ?\n                       ORDER BY library_items.season, library_items.episode\n                       LIMIT 1",
+  "query": "SELECT library_files.path, library_files.library_id,\n                              library_items.kind AS \"kind: ItemKind\",\n                              library_items.season, library_items.episode, (SELECT json_group_object(namespace, value) FROM item_match_ids\n              WHERE item_match_ids.item_id = item_matches.item_id AND scope = IIF(library_items.kind = 'movie', 'title', 'show')) AS \"ids?: String\"\n                       FROM library_files\n                       JOIN library_items ON library_items.file_id = library_files.id\n                       LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n                                             AND item_matches.state = 'matched'\n                       WHERE library_files.id = ?\n                       ORDER BY library_items.season, library_items.episode, library_items.id\n                       LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -77,5 +77,5 @@
       null
     ]
   },
-  "hash": "99453c636b53e87bdc01e46508bca3d237eb3c6cddd32cacac82382908e039c1"
+  "hash": "4a73a7492e68061d46b32c32865b7dcb24ad6b53602e2a398269319d7b8901a0"
 }

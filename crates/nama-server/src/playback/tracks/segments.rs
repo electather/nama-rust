@@ -17,6 +17,7 @@ use buffa::EnumValue;
 use nama_plugin_api::{
     PluginId,
     contract::{self, SegmentSearch, TitleId, TitleKind},
+    metadata::ExternalIds,
     segment_source::SegmentSource,
 };
 use regex::Regex;
@@ -32,8 +33,7 @@ use crate::{
 };
 
 /// How long a Version still missing a kind waits to be asked about again, as crowdsourced
-/// services fill in over time (ADR 0075).
-// ponytail: a Version Matched after it was asked waits out the rest of these 30 days too (#1650).
+/// services fill in over time, or its title's ids change (ADR 0075).
 const ASK_AGAIN_AFTER: Duration = Duration::from_hours(30 * 24);
 
 /// How long a Version a Segment source failed for waits to be asked about again, so a service
@@ -468,14 +468,49 @@ fn millis(wait: Duration) -> i64 {
 
 /// Makes the Versions in the Libraries `libraries` due straight away, inside the caller's write,
 /// for a Segment source they newly ask (ADR 0075). They're asked only for the kinds they lack.
-// ponytail: asked on the loop's next pass, up to an hour later; notify the loop from both triggers
-// if Admins expect it sooner. An ask already running for one of them writes its 30-day wait back
-// over this; have `keep` skip that write if a missed source shows up.
 pub(crate) async fn make_segments_due(
     conn: &mut SqliteConnection,
     libraries: &[i64],
 ) -> sqlx::Result<()> {
     let versions = Contents::versions_in(&mut *conn, libraries).await?;
+    clear_waits(conn, versions).await
+}
+
+/// Makes the Version whose first Item is the Item `item` due straight away, inside the caller's
+/// write, now that the ids of its title went from `old` to `new` (ADR 0075), since Segment sources
+/// find it by them. Ids sharing none name another title, or none, so the Segments the sources gave
+/// go first; those from Chapter names stay. The same ids change nothing, as every scan Matches
+/// again.
+pub(crate) async fn title_ids_changed(
+    conn: &mut SqliteConnection,
+    item: i64,
+    old: &ExternalIds,
+    new: &ExternalIds,
+) -> sqlx::Result<()> {
+    if old == new {
+        return Ok(());
+    }
+    let Some(version) = Contents::version_first_holding(&mut *conn, item).await? else {
+        return Ok(());
+    };
+    if !old
+        .iter()
+        .any(|id| new.get(id.namespace()).as_ref() == Some(&id))
+    {
+        sqlx::query!(
+            "DELETE FROM segments WHERE version_id = ? AND source IS NOT NULL",
+            version
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
+    clear_waits(conn, vec![version]).await
+}
+
+// ponytail: asked on the loop's next pass, up to an hour later; notify the loop from the triggers
+// if Admins expect it sooner. An ask already running for one of them writes its 30-day wait back
+// over this; have `keep` skip that write if a missed source shows up.
+async fn clear_waits(conn: &mut SqliteConnection, versions: Vec<i64>) -> sqlx::Result<()> {
     let versions = serde_json::Value::from(versions).to_string();
     sqlx::query!(
         "UPDATE version_probes SET segments_due_ms = NULL

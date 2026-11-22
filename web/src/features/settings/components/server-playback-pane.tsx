@@ -1,8 +1,8 @@
 import { usePlaybackSettings } from "@/features/admin-playback/data/use-playback-settings";
 import { usePlaybackStatus } from "@/features/admin-playback/data/use-playback-status";
 import { useUpdatePlaybackSettings } from "@/features/admin-playback/data/use-update-playback-settings";
+import { serverPlaybackLabels } from "@/features/admin-playback/lib/playback-labels";
 import {
-  playbackLabels,
   playbackRefusals,
   playbackSettings,
   savedPlayback,
@@ -30,7 +30,7 @@ export function ServerPlaybackPane() {
   );
   const errors = refusedWords(
     refused,
-    playbackLabels,
+    serverPlaybackLabels,
     refused && playbackRefusals(refused.failure),
   );
   return (
