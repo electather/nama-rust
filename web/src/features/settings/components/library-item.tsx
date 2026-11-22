@@ -4,9 +4,9 @@ import { Film, Tv } from "lucide-react";
 import { ScanButton } from "@/features/admin-libraries/components/scan-button";
 import { ScanStatus } from "@/features/admin-libraries/components/scan-status";
 import { lastScanned } from "@/features/admin-libraries/lib/scan-sentence";
-import { IconTile } from "@/features/settings/components/icon-tile";
 import { ItemRow } from "@/features/settings/components/item-row";
 import { type Library, LibraryKind } from "@/gen/nama/v1/library_pb";
+import { IconTile } from "@/shared/components/icon-tile";
 import { kindName } from "@/shared/lib/library-kind";
 
 /**
