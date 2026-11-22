@@ -56,7 +56,7 @@ export function PluginHeader({ titleId, summary }: { titleId: string; summary: P
       refused
     );
   return (
-    <header data-sticks className="top-0 z-10 bg-background px-4 pt-4 md:sticky md:px-6 md:pt-2">
+    <header data-sticks className="top-0 z-10 bg-background px-4 pt-4 md:sticky md:px-5 md:pt-2">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5 border-b pb-6">
         <PluginLogo large plugin={summary} />
         {name}

@@ -44,7 +44,7 @@ export function JobDetail({ job }: { job: Job }) {
     <>
       <section
         aria-labelledby={titleId}
-        className="flex flex-col gap-6 p-4 md:px-6 md:pt-2 md:pb-6"
+        className="flex flex-col gap-4 p-4 md:px-5 md:pt-2 md:pb-6"
       >
         <JobHeader job={job} titleId={titleId} />
         {when}

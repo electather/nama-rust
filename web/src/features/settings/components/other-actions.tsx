@@ -21,8 +21,9 @@ export function OtherActions({
     <div className="flex items-center gap-1">
       {others.length > 1 && <RevokeOthers others={others} />}
       {!adding && (
-        <Button variant="outline" onClick={onAdd}>
-          <Plus aria-hidden strokeWidth={1.5} />
+        // Quiet text beside the group's heading, as tall as it, with a phone's tap area kept around it.
+        <Button variant="link" size="link" onClick={onAdd}>
+          <Plus aria-hidden strokeWidth={1.5} className="size-3.5" />
           Sign in a Device
         </Button>
       )}

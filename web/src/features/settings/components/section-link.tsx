@@ -42,7 +42,7 @@ const icons: Record<Section, LucideIcon> = {
 };
 
 const LINK =
-  "flex h-11 flex-none items-center gap-2.5 rounded-sm px-2 text-sm whitespace-nowrap transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:h-8";
+  "flex h-11 flex-none items-center gap-2.5 rounded-sm px-2 text-sm whitespace-nowrap transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none md:h-7";
 // The open section is filled and bold, so it isn't marked by colour alone.
 const CURRENT = `${LINK} bg-popover font-medium text-foreground`;
 const OTHER = `${LINK} text-muted-foreground hover:bg-muted hover:text-foreground`;

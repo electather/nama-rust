@@ -22,6 +22,13 @@
   }
 }
 
+/* Interface text, every `text-sm` under it, at 13px: Settings is denser than the rest of the app
+   (DESIGN.md, "Settings"). */
+@utility text-sm-dense {
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.125rem;
+}
+
 /* A scrolling list's own scrollbar, as quiet as a hairline. */
 @utility scrollbar-quiet {
   scrollbar-width: thin;

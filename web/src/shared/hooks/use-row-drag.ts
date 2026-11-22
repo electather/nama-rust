@@ -1,10 +1,20 @@
 import { type PointerEvent, type RefObject, useState } from "react";
 
-/** A row being dragged by the pointer `pointerId`, from `from`, to drop before the row at `before`. */
+import { listRows } from "@/shared/lib/list-rows";
+
+/**
+ * A row being dragged by the pointer `pointerId`, from `from`, to drop before the row at `before`:
+ * how far it's been dragged, how tall it is, and each row's middle as the drag began, before any
+ * row slid out of its way.
+ */
 interface Drag {
   pointerId: number;
   from: number;
   before: number;
+  startY: number;
+  dy: number;
+  height: number;
+  middles: number[];
 }
 
 /** What the handle a row is dragged by listens to. */
@@ -15,20 +25,24 @@ export interface HandleProps {
   onLostPointerCapture: () => void;
 }
 
-/** What one row gets of a drag: its handle's props, the edge a drop marks, and whether it's dragged. */
+/**
+ * What one row gets of a drag: its handle's props, how far it's moved from its place, as the row
+ * dragged or one sliding out of its way, and whether it's the one dragged or one that slides.
+ */
 export interface RowDrag {
   handle: HandleProps;
-  marker: "top" | "bottom" | undefined;
+  offset: number;
   dragging: boolean;
+  sliding: boolean;
 }
 
 /**
- * Reordering a list of `count` rows by dragging each by its handle, which `drop` gets on release:
- * what the row at each index gets of it.
+ * Reordering a list of rows by dragging each by its handle, which `drop` gets on release: what the
+ * row at each index gets of it. The row dragged follows the pointer, and the rows it passes slide
+ * out of its way to open where it would drop.
  */
 export function useRowDrag(
   list: RefObject<HTMLUListElement | null>,
-  count: number,
   drop: (from: number, before: number) => void,
 ) {
   const [drag, setDrag] = useState<Drag>();
@@ -41,17 +55,19 @@ export function useRowDrag(
       }
       // Captured, so the drag goes on once the pointer leaves the handle.
       event.currentTarget.setPointerCapture(event.pointerId);
-      setDrag({ pointerId: event.pointerId, from: index, before: index });
+      const rects = listRows(list.current).map((row) => row.getBoundingClientRect());
+      setDrag(startDrag(rects, index, event));
     },
     onPointerMove: (event: PointerEvent) => {
       if (drag !== undefined && isOurs(event)) {
-        setDrag({ ...drag, before: dropSpot(list.current, event.clientY) });
+        const before = dropSpot(drag.middles, event.clientY);
+        setDrag({ ...drag, before, dy: event.clientY - drag.startY });
       }
     },
     onPointerUp: (event: PointerEvent) => {
       if (drag !== undefined && isOurs(event)) {
-        setDrag(undefined);
         drop(drag.from, drag.before);
+        setDrag(undefined);
       }
     },
     onLostPointerCapture: () => {
@@ -59,38 +75,53 @@ export function useRowDrag(
     },
   });
 
-  const before = dropBefore(drag);
   const rowDrag = (index: number): RowDrag => ({
     handle: handleProps(index),
-    marker: markerAt(index, before, count),
+    offset: offsetOf(drag, index),
     dragging: drag?.from === index,
+    sliding: drag !== undefined && drag.from !== index,
   });
   return rowDrag;
 }
 
-/** Where `drag` would drop, or `undefined` just before or after its own row, which stays put. */
-function dropBefore(drag: Drag | undefined) {
-  const staysPut = drag === undefined || drag.before === drag.from || drag.before === drag.from + 1;
-  return staysPut ? undefined : drag.before;
-}
-
-/** Which edge of the row at `index`, of `count`, marks a drop `before`, if either. */
-function markerAt(index: number, before: number | undefined, count: number) {
-  if (before === index) {
-    return "top";
-  }
-  return before === count && index === count - 1 ? "bottom" : undefined;
+/** A drag of the row at `index`, of the rows whose bounds are `rects`, by the pointer `event` pressed. */
+function startDrag(rects: DOMRect[], index: number, { pointerId, clientY }: PointerEvent): Drag {
+  return {
+    pointerId,
+    from: index,
+    before: index,
+    startY: clientY,
+    dy: 0,
+    height: rects[index]?.height ?? 0,
+    middles: rects.map(({ top, height }) => top + height / 2),
+  };
 }
 
 /**
- * Which row of `list` a pointer at `y` drops before: the first whose middle is below it, by
- * layout, or the row count to drop last.
+ * How far the row at `index` is from its place during `drag`: the row dragged, by as far as the
+ * pointer went; a row it passed, by its height, the other way.
  */
-function dropSpot(list: HTMLUListElement | null, y: number) {
-  const rows = [...(list?.children ?? [])];
-  const spot = rows.findIndex((row) => {
-    const { top, height } = row.getBoundingClientRect();
-    return y < top + height / 2;
-  });
-  return spot === -1 ? rows.length : spot;
+function offsetOf(drag: Drag | undefined, index: number) {
+  if (drag === undefined) {
+    return 0;
+  }
+  if (index === drag.from) {
+    return drag.dy;
+  }
+  const passedUp = within(drag.before, index, drag.from);
+  const passedDown = within(drag.from + 1, index, drag.before);
+  return drag.height * (Number(passedUp) - Number(passedDown));
+}
+
+function within(start: number, index: number, end: number) {
+  return start <= index && index < end;
+}
+
+/**
+ * Which row a pointer at `y` drops before: the first whose middle, as the drag began, is below it,
+ * or the row count to drop last.
+ */
+function dropSpot(middles: number[], y: number) {
+  const spot = middles.findIndex((middle) => y < middle);
+  return spot === -1 ? middles.length : spot;
 }

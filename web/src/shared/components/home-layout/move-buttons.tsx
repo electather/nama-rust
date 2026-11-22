@@ -34,7 +34,9 @@ export function MoveButtons({
     },
   ];
   return (
-    <div className="flex">
+    // Shown on the row under the pointer or holding focus, so each row at rest is its name and
+    // switch; always on a touch screen, which has no hover.
+    <div className="flex opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none pointer-coarse:opacity-100">
       {buttons.map(({ ref, other, direction, Icon, before, disabled }) => (
         <Button
           key={direction}
