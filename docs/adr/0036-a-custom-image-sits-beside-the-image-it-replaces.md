@@ -1,6 +1,6 @@
 # A Custom Image sits beside the image it replaces, and a title's belongs to the title
 
-_Amended by #1750: a Plugin's logo is always its Manifest's, and can no longer be a Custom Image._
+_Amended by #1750: a Plugin's logo is always its Manifest's, and can no longer be a Custom Image. Upgrading deleted the ones admins had uploaded, the one time a Custom Image went without an admin removing it._
 
 An admin can upload a Custom Image for a Movie's, Show's or Season's Poster or Backdrop, or a Library's Backdrop. The Server keeps it beside the image it would otherwise show, never in its place: the downloaded Poster or the newest title's Backdrop is still there underneath, and removing the Custom Image brings it back. A title's Custom Image is kept against the title's external ids, as Watch State is (ADR 0013), not against an Item. Items are replaced whenever a file changes, and a Poster is otherwise copied onto every Item's Match. So a title's Custom Image survives a rename, a rescan, a new Version and the title's last file leaving the Server, and the same Movie in two Libraries shows one.
 

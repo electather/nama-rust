@@ -4,8 +4,8 @@
 //!
 //! [`CustomImages`] owns `custom_images` (see `src/library/AGENTS.md`). It keeps a title's
 //! against the title's external id, as Watch State is (ADR 0013), never against an Item, so one
-//! outlives its title's files. A Library's goes with the Library. The bytes are in the [`ImageStore`], under a
-//! version taken from them.
+//! outlives its title's files. A Library's goes with the Library. The bytes are in the
+//! [`ImageStore`], under a version taken from them.
 //!
 //! An image is the body of one plain HTTP request (ADR 0007): `PUT /custom-images/<slot>` uploads
 //! it, or with `?artwork=<url>` keeps the image the Server offered at that URL (`Artwork::offer`),
@@ -14,8 +14,8 @@
 //! same admin can upload any bytes there anyway, so binding offers to slots would stop nothing.
 //! `DELETE` there removes it.
 //! `PREFIXES` in `src/api/access.rs` lets only Users with Manage Libraries do either. Anyone with
-//! a session fetches it at its [`Urls`] entry, under `/media/`, resized by `?width=` as a downloaded image is
-//! (`crate::library::artwork`).
+//! a session fetches it at its [`Urls`] entry, under `/media/`, resized by `?width=` as a
+//! downloaded image is (`crate::library::artwork`).
 
 use std::{collections::HashMap, io, iter, sync::Arc};
 
@@ -60,8 +60,8 @@ pub(crate) enum Role {
 
 /// Which image of which title or Library a Custom Image stands in for, as its paths name it:
 /// `movie/tmdb-348/poster`, `show/tmdb-1399/backdrop`, `show/tmdb-1399/season/2/poster` or
-/// `library/3/backdrop`. A title's id is one segment encoded as `encodeURIComponent` does, since it may hold any character, `/` and `%` among them, and the
-/// web builds these paths with it.
+/// `library/3/backdrop`. A title's id is one segment encoded as `encodeURIComponent` does, since
+/// it may hold any character, `/` and `%` among them, and the web builds these paths with it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct Slot(String);
 
