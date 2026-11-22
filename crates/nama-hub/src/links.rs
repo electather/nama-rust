@@ -308,7 +308,7 @@ fn may_link(session: &AccountSession) -> Result<(), Error> {
     Ok(())
 }
 
-/// The part of `name` that is kept.
+/// `name` as the Hub keeps it: trimmed, and cut to [`NAME_LENGTH`] characters.
 fn kept_name(name: &str) -> String {
     name.trim().chars().take(NAME_LENGTH).collect()
 }
