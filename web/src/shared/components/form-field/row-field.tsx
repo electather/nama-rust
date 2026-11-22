@@ -10,17 +10,20 @@ import type { ControlSize } from "@/shared/lib/control-size";
  * row has no aside and is never a heading.
  */
 export function RowField({
+  setting,
   label,
   hint,
   error,
   size = "field",
   children,
 }: Omit<FieldText, "name"> & {
+  /** The key `?setting=` finds the row by. */
+  setting?: string | undefined;
   size?: ControlSize;
   children: (control: FieldControl) => ReactNode;
 }) {
   return (
-    <SettingRow label={label} hint={hint} error={error} size={size}>
+    <SettingRow setting={setting} label={label} hint={hint} error={error} size={size}>
       {(control) => (
         <>
           {children({

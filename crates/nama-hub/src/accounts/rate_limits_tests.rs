@@ -1,8 +1,8 @@
 use std::{net::IpAddr, time::Instant};
 
 use super::{
-    FAILURES_PER_EMAIL, FAILURES_PER_IP, LINKS_PER_EMAIL, LINKS_PER_IP, LinkLimits, SignInLimits,
-    WINDOW,
+    CREATIONS_PER_IP, CreationLimits, FAILURES_PER_EMAIL, FAILURES_PER_IP, LINKS_PER_EMAIL,
+    LINKS_PER_IP, LinkLimits, SignInLimits, WINDOW,
 };
 
 fn ip(ip: &str) -> IpAddr {
@@ -131,4 +131,19 @@ fn a_client_asking_for_too_many_links_is_refused_counting_ipv6_by_its_64() {
     limits
         .admit(ip("2001:db8:0:1::1"), "new@example.com", now)
         .unwrap();
+}
+
+#[test]
+fn a_client_that_created_too_many_accounts_is_refused_until_the_window_passes() {
+    let limits = CreationLimits::default();
+    let now = Instant::now();
+    for _ in 0..CREATIONS_PER_IP {
+        limits.admit(ip("203.0.113.1"), now).unwrap();
+    }
+
+    let blocked = limits.admit(ip("203.0.113.1"), now).unwrap_err();
+
+    assert_eq!(blocked.retry_after_secs(), WINDOW.as_secs());
+    limits.admit(ip("198.51.100.1"), now).unwrap();
+    limits.admit(ip("203.0.113.1"), now + WINDOW).unwrap();
 }

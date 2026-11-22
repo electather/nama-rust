@@ -25,7 +25,7 @@ export function UserList({ users, you }: { users: User[]; you: User | undefined 
         <UserListGroups users={users} you={you} defaults={values.permissions} onChange={edit} />
       </PaneFrame>
       <SaveToast
-        says={refusedWords(refused, { permissions: "the default Permissions" }).form}
+        says={refusedWords(refused, { permissions: { label: "the default Permissions" } }).form}
         onDismiss={dismiss}
       />
     </>

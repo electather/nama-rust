@@ -4,6 +4,7 @@ import { SettingGroup } from "@/features/settings/components/setting-group";
 import { SubtitleRows } from "@/features/settings/components/subtitle-rows";
 import { SwitchRow } from "@/features/settings/components/switch-row";
 import { type PlaybackValues, playbackLabels } from "@/features/settings/lib/playback-values";
+import { rowText } from "@/shared/lib/setting-text";
 
 /** The Playback pane's rows, under what each group of them is about. */
 export function PlaybackRows({
@@ -24,8 +25,7 @@ export function PlaybackRows({
       </SettingGroup>
       <SettingGroup title="Episodes">
         <SwitchRow
-          label={playbackLabels.autoplay}
-          hint="When an Episode ends, the next one starts after a countdown."
+          {...rowText(playbackLabels, "autoplay")}
           checked={values.autoplay}
           onChange={(autoplay) => {
             onEdit({ autoplay });

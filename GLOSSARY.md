@@ -98,6 +98,14 @@ _Avoid_: play log, scrobble, watch history entry, telemetry
 A User's list of titles to watch later, whether or not their Server has them.
 _Avoid_: queue, favorites, wishlist
 
+**Setting**:
+One thing a User or Admin sets in Settings, shown as one row under a Section. A Personal setting is one kind. Settings, capitalised, is the window that holds them.
+_Avoid_: preference, option
+
+**Section**:
+One part of Settings, such as Playback or Backups, listed in its sidebar.
+_Avoid_: pane, tab, page
+
 ## Extensibility
 
 **Kernel**:
@@ -187,6 +195,14 @@ _Avoid_: linker, integration
 **Plugin Connection**:
 A User's identity at an outside service, such as their Telegram chat, that a Plugin acts on for them.
 _Avoid_: integration, link, account
+
+**Section**:
+One part of Settings, such as Playback or Backups, listed down its side. A User sees only the Sections their Permissions let them open.
+_Avoid_: tab, page
+
+**Setting**:
+One choice in a Section of Settings, such as the Subtitle language or a Personal setting, with its own row. Settings' search finds each one and opens its row.
+_Avoid_: option
 
 **Personal setting**:
 A setting a Plugin's Manifest declares for each User to set for themself, such as their ntfy topic or Discord webhook. The Admin sets the Plugin's own settings; only the User sees their Personal settings, and a Plugin gets them only in a call for that User (ADR 0046).
@@ -297,12 +313,16 @@ _Avoid_: clip, teaser, preview
 The Movies or Shows the Similar sources say are like a title, merged into one list. A User sees only those in their own Libraries.
 _Avoid_: recommendations, related, more like this
 
+**Box Set**:
+A group of Movies a title source says belong together, such as the Alien films, known by an External ID. It is a grouping, not a title. Its title source may also list the Movies the Server lacks, which a User who may Request Movies sees and can Request. A User sees a Box Set, its Movies in release order, only when at least one of them is in a Library they can reach and they see at least two. Only its title source says which Movies it holds.
+_Avoid_: collection, franchise, saga
+
 **Poster**:
-The tall image that stands for a Movie, Show or Season.
+The tall image that stands for a Movie, Show, Season or Box Set.
 _Avoid_: cover, thumbnail, primary image
 
 **Backdrop**:
-The wide image shown behind a Movie's or Show's page, and the one a Library is shown by. A Library's is that of the title most recently added to it.
+The wide image shown behind a Movie's, Show's or Box Set's page, and the one a Library is shown by. A Library's is that of the title most recently added to it.
 _Avoid_: fanart, art, background, banner
 
 **Still**:
@@ -330,7 +350,7 @@ A Match an admin set or cleared by hand. Automatic Matching follows it instead o
 _Avoid_: locked match, override, manual lock
 
 **External ID**:
-A title's or Person's id at a title source: a Namespace and a value that Namespace's owner defines, written `tmdb-603`. A title or Person may have several, at most one per Namespace, and any one of them identifies it.
+A title's, Person's or Box Set's id at a title source: a Namespace and a value that Namespace's owner defines, written `tmdb-603`. A title or Person may have several, at most one per Namespace, and any one of them identifies it.
 _Avoid_: title id (for an id the Server makes up), TMDB id (as the general word)
 
 **Namespace**:
@@ -396,7 +416,7 @@ A small picture of a Version at one time, shown while scrubbing.
 _Avoid_: trickplay, thumbnail, BIF
 
 **Base Layer**:
-The picture inside a Dolby Vision Track that a player without Dolby Vision shows instead: HDR10, HLG or SDR. Some Dolby Vision Tracks have none, and only a Dolby Vision player can show them.
+The picture inside a Dolby Vision Track that a player without Dolby Vision shows instead: HDR10, HLG or SDR. Some Dolby Vision Tracks have none: a Dolby Vision player shows them as they are, and any other player only through a Transcode.
 _Avoid_: fallback layer, compatibility layer
 
 **Direct Play**:
@@ -404,7 +424,7 @@ Playing a Version's file exactly as it is.
 _Avoid_: direct stream, original
 
 **Remux**:
-Playing a Version with its video copied untouched into a container the client can play, with its audio converted when the client can't play it.
+Playing a Version with its video copied, not re-encoded, into a container the client can play, with its audio converted when the client can't play it. A Dolby Vision Track may be changed to a profile the client plays, which the Playback Plan says.
 _Avoid_: direct stream, repackage
 
 **Transcode**:
@@ -420,7 +440,7 @@ How the Server will play one Version on one Device: which Version, when the clie
 _Avoid_: decision, profile, stream info
 
 **Recipe**:
-What sets a Playback Plan apart from another by the same method: the container it serves and the audio codec it sends, such as a Remux in fragmented MP4 sending E-AC-3. A Device that fails to play a plan names its Recipe, so the next plan rules out only that Recipe and plays the method another way if it can.
+What sets a Playback Plan apart from another by the same method: the container it serves, the video codec a Transcode makes, and the audio codec it sends, such as a Remux in fragmented MP4 sending E-AC-3, or a Transcode in fragmented MP4 making HEVC. A Device that fails to play a plan names its Recipe, so the next plan rules out only that Recipe and plays the method another way if it can.
 _Avoid_: attempt key, variant
 
 **Playback Reason**:

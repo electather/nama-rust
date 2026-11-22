@@ -45,7 +45,12 @@ impl AccountService for AccountServiceHandler {
     ) -> ServiceResult<CreateAccountResponse> {
         let signed_in = self
             .accounts
-            .create(request.email, request.password)
+            .create(
+                request.email,
+                request.password,
+                client_ip(&ctx)?,
+                Instant::now(),
+            )
             .await
             .map_err(refused)?;
         Ok(hand_out_session(signed_in, &ctx, |account| {

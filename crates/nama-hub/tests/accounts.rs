@@ -25,6 +25,18 @@ use sqlx::PgPool;
 
 const PASSWORD: &str = "correct horse battery";
 
+/// How many Accounts one client IP may create in the window: `rate_limits.rs`'s private
+/// `CREATIONS_PER_IP`, which a test outside the crate can't import.
+const CREATIONS_PER_IP: usize = 10;
+
+/// A client of `hub` whose requests come from `ip`, as `hub`'s reverse proxy says.
+fn accounts_from(hub: &TestHub, ip: &str) -> AccountServiceClient<HttpClient> {
+    let config = hub
+        .client_config()
+        .with_default_header("x-forwarded-for", ip.to_owned());
+    AccountServiceClient::new(HttpClient::plaintext(), config)
+}
+
 /// A client of `hub` that presents the session `token`, if any, in its cookie, as a browser does.
 fn accounts(hub: &TestHub, token: Option<&str>) -> AccountServiceClient<HttpClient> {
     let mut config = hub.client_config();
@@ -298,6 +310,59 @@ async fn too_many_failed_sign_ins_for_an_email_refuse_even_the_right_password(db
         .await;
 
     assert_too_many_attempts(blocked);
+}
+
+#[sqlx::test(migrations = false)]
+async fn too_many_creations_from_one_ip_are_refused_without_creating_the_account(db: PgPool) {
+    let hub = TestHub::start(db, None).await;
+    let client = accounts_from(&hub, "203.0.113.1");
+    for i in 0..CREATIONS_PER_IP {
+        client
+            .create_account(create_request(&format!("{i}@example.com"), PASSWORD))
+            .await
+            .unwrap();
+    }
+
+    let blocked = client
+        .create_account(create_request("ada@example.com", PASSWORD))
+        .await;
+
+    let refusal = assert_refused(
+        blocked,
+        ErrorCode::ResourceExhausted,
+        RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS,
+    );
+    assert!((1..=900).contains(&refusal.params["retryAfterSeconds"].parse::<u64>().unwrap()));
+    accounts_from(&hub, "198.51.100.1")
+        .create_account(create_request("ada@example.com", PASSWORD))
+        .await
+        .unwrap();
+}
+
+#[sqlx::test(migrations = false)]
+async fn creations_refused_for_a_taken_email_count_towards_the_limit(db: PgPool) {
+    let hub = TestHub::start(db, None).await;
+    let client = accounts_from(&hub, "203.0.113.1");
+    client
+        .create_account(create_request("ada@example.com", PASSWORD))
+        .await
+        .unwrap();
+    for _ in 1..CREATIONS_PER_IP {
+        let taken = client
+            .create_account(create_request("ada@example.com", PASSWORD))
+            .await;
+        assert_eq!(taken.unwrap_err().code, ErrorCode::AlreadyExists);
+    }
+
+    let blocked = client
+        .create_account(create_request("bea@example.com", PASSWORD))
+        .await;
+
+    assert_refused(
+        blocked,
+        ErrorCode::ResourceExhausted,
+        RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS,
+    );
 }
 
 #[sqlx::test(migrations = false)]

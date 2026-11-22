@@ -22,15 +22,22 @@ pub(crate) struct TestHub {
 )]
 impl TestHub {
     /// Migrates `db`, as the Hub does at startup, and serves the Hub on it, sending mail through
-    /// `mail`, if any.
+    /// `mail`, if any, and trusting this machine as its reverse proxy, so a test can say in
+    /// `X-Forwarded-For` which client a request is from.
     pub(crate) async fn start(db: PgPool, mail: Option<Mail>) -> Self {
         db::migrate(&db).await.unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let (stop, stopped) = oneshot::channel::<()>();
-        tokio::spawn(nama_hub::serve(listener, db.clone(), &[], mail, async {
-            let _: Result<(), oneshot::error::RecvError> = stopped.await;
-        }));
+        tokio::spawn(nama_hub::serve(
+            listener,
+            db.clone(),
+            &["127.0.0.1".parse().unwrap()],
+            mail,
+            async {
+                let _: Result<(), oneshot::error::RecvError> = stopped.await;
+            },
+        ));
         Self {
             addr,
             db,

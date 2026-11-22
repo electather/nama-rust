@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef } from "react";
 
-import { type Section, sectionTitles } from "@/features/settings/lib/sections";
+import { type Section, sectionSearch, sectionTitles } from "@/features/settings/lib/sections";
 
 const icons: Record<Section, LucideIcon> = {
   signin: Shield,
@@ -53,8 +53,7 @@ export function SectionLink({ section, current }: { section: Section; current: b
     <Link
       ref={link}
       to="."
-      // A Plugin or User open in its section closes with it.
-      search={(rest) => ({ ...rest, settings: section, plugin: undefined, user: undefined })}
+      search={(rest) => ({ ...rest, ...sectionSearch(section) })}
       // Sections share one history entry, so Back closes Settings.
       replace
       aria-current={current ? "page" : undefined}

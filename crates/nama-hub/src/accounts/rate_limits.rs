@@ -1,7 +1,9 @@
 //! Slowing down guesses at passwords, by refusing sign-ins after too many recent failures from one
 //! client IP or for one email, as the Server's `users/rate_limits.rs` does for User names, and
-//! mail floods, by refusing Sign-in Links asked for too often the same way. A client IP is counted
-//! by its /64 if it is IPv6.
+//! mail floods, by refusing Sign-in Links asked for too often the same way; and bounding the argon2
+//! work, throwaway Accounts and probing for taken emails one client can cause, by refusing Account
+//! creations after too many recent ones from its IP. A client IP is counted by its /64 if it is
+//! IPv6.
 //!
 //! ponytail: counts live in this process's memory (ADR 0096); they move to PostgreSQL once the Hub
 //! runs as replicas. They expire as the window slides past them and a restart forgets them, so
@@ -32,6 +34,10 @@ const LINKS_PER_EMAIL: usize = 3;
 /// How many Sign-in Links one client IP may ask for in the window.
 const LINKS_PER_IP: usize = 20;
 
+/// How many Account creations from one client IP, whether or not they succeeded, the window may
+/// hold before its creations are refused.
+const CREATIONS_PER_IP: usize = 10;
+
 /// The recent failed sign-ins, by client IP and by email.
 #[derive(Debug, Default)]
 pub(super) struct SignInLimits {
@@ -59,6 +65,12 @@ pub(super) struct Attempt {
     ip: IpAddr,
     email: String,
     at: Instant,
+}
+
+/// The recent Account creations, by client IP.
+#[derive(Debug, Default)]
+pub(super) struct CreationLimits {
+    creations: Mutex<Window<IpAddr>>,
 }
 
 /// A request refused for too many recent ones.
@@ -102,7 +114,21 @@ impl LinkLimits {
     }
 }
 
-fn lock(counts: &Mutex<Counts>) -> MutexGuard<'_, Counts> {
+impl CreationLimits {
+    /// Lets an Account creation from `ip` through at `now` unless too many have been let through
+    /// recently, and counts it.
+    pub(super) fn admit(&self, ip: IpAddr, now: Instant) -> Result<(), Blocked> {
+        let ip = counted_ip(ip);
+        let mut creations = lock(&self.creations);
+        if let Some(retry_after) = creations.wait(&ip, CREATIONS_PER_IP, now) {
+            return Err(Blocked { retry_after });
+        }
+        creations.record(ip, now);
+        Ok(())
+    }
+}
+
+fn lock<T>(counts: &Mutex<T>) -> MutexGuard<'_, T> {
     // Every change leaves the counts consistent, so a panic elsewhere doesn't spoil them.
     counts.lock().unwrap_or_else(PoisonError::into_inner)
 }

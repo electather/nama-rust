@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use sqlx::PgPool;
 
 use super::{CONTINUE_TO_LENGTH, LINK_MINUTES, find, hub_path, issue, use_up};
@@ -30,7 +32,12 @@ fn a_sign_in_continues_only_at_a_path_on_the_hub() {
 async fn a_link_older_than_15_minutes_neither_names_its_account_nor_signs_in(db: PgPool) {
     db::migrate(&db).await.unwrap();
     Accounts::new(db.clone(), None)
-        .create("ada@example.com", "correct horse battery")
+        .create(
+            "ada@example.com",
+            "correct horse battery",
+            "203.0.113.1".parse().unwrap(),
+            Instant::now(),
+        )
         .await
         .unwrap();
     let (_, token) = issue(&db, "ADA@example.com", "/").await.unwrap().unwrap();

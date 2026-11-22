@@ -1,10 +1,12 @@
 import { useSwitchImageStore } from "@/features/settings/data/use-switch-image-store";
 import { switchRefusal } from "@/features/settings/lib/image-store";
+import { serverLabels } from "@/features/settings/lib/server-values";
 import { storeOptions } from "@/features/settings/lib/store-options";
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
 import { FormEnd } from "@/shared/components/form-field/form-end";
 import { FormSelect } from "@/shared/components/form-field/form-select";
 import { formText, onSubmitted } from "@/shared/lib/forms";
+import { rowText } from "@/shared/lib/setting-text";
 
 /** The picker of stores, `current` chosen, and the button that switches to the one picked. */
 export function SwitchForm({
@@ -32,12 +34,11 @@ export function SwitchForm({
     >
       <FormSelect
         row
-        label="Keep images on"
+        {...rowText(serverLabels, "store")}
         name="pluginId"
         defaultValue={current}
         // Local disk is the empty value, which a required select would refuse.
         required={false}
-        hint="An enabled Blob store Plugin, such as S3, can keep them in place of local disk. Every image is copied across before the switch, and the old store keeps its copies."
         options={storeOptions(current, stores, nameOf)}
       />
       <FormEnd

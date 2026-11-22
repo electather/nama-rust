@@ -1,6 +1,7 @@
 import { HardwareSection } from "@/features/admin-playback/components/hardware-section";
 import { PlaybackSettingsFields } from "@/features/admin-playback/components/playback-settings-fields";
 import { Programs } from "@/features/admin-playback/components/programs";
+import { serverPlaybackLabels } from "@/features/admin-playback/lib/playback-labels";
 import type { PlaybackValues } from "@/features/admin-playback/lib/playback-settings-form";
 import { SettingGroup } from "@/features/settings/components/setting-group";
 import type { GetPlaybackStatusResponse } from "@/gen/nama/v1/server_pb";
@@ -20,7 +21,7 @@ export function ServerPlaybackRows({
 }) {
   return (
     <>
-      <SettingGroup title="ffmpeg and ffprobe">
+      <SettingGroup setting="programs" title={serverPlaybackLabels.programs.label}>
         <Programs status={status} />
       </SettingGroup>
       <SettingGroup title="Hardware acceleration">

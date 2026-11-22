@@ -390,8 +390,9 @@ pub const ACCOUNT_SERVICE_GET_ACCOUNT_SPEC: ::connectrpc::Spec = ::connectrpc::S
 #[allow(clippy::type_complexity)]
 pub trait AccountService: Send + Sync + 'static {
     /// Creates an Account with an email and a password, and signs it in. Fails with
-    /// `REFUSAL_REASON_EMAIL_TAKEN` when another Account has the email, and with
-    /// `REFUSAL_REASON_EMAIL_INVALID` or `REFUSAL_REASON_PASSWORD_LENGTH` when one breaks the rules.
+    /// `REFUSAL_REASON_EMAIL_TAKEN` when another Account has the email, with
+    /// `REFUSAL_REASON_EMAIL_INVALID` or `REFUSAL_REASON_PASSWORD_LENGTH` when one breaks the rules,
+    /// and with `REFUSAL_REASON_TOO_MANY_ATTEMPTS` after too many creations from one client.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
