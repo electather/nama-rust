@@ -166,7 +166,7 @@ test.each([
     },
   });
   const view = await plugin("test-plugin");
-  fireEvent.click(view.getByRole("button", { name: "Enable test-plugin" }));
+  fireEvent.click(await view.findByRole("button", { name: "Enable test-plugin" }));
 
   const alert = await view.findByText(text);
   expect(alert.getAttribute("role")).toBe("alert");
@@ -203,7 +203,7 @@ test("enabling a Plugin in its view shows it enabled there and on the list", asy
   });
   const view = await plugin("log-events");
 
-  fireEvent.click(view.getByRole("button", { name: "Enable log-events" }));
+  fireEvent.click(await view.findByRole("button", { name: "Enable log-events" }));
 
   await waitFor(() => {
     expect(view.queryByRole("button", { name: "Enable log-events" })).toBeNull();
