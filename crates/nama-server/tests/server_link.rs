@@ -183,10 +183,12 @@ impl ServerLinker for Scripted {
     fn finish_account_sign_in<'a>(
         &'a self,
         handle: &'a str,
+        code: &'a str,
     ) -> BoxFuture<'a, Result<Option<i64>, PluginError>> {
-        let finished = self
-            .answer()
-            .map(|_| self.script().approved.take().filter(|_| handle == "handle"));
+        let finished = self.answer().map(|_| {
+            let approved = self.script().approved.take();
+            approved.filter(|_| handle == "handle" && code == "code")
+        });
         Box::pin(future::ready(finished))
     }
     fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
@@ -470,14 +472,17 @@ async fn start_account_sign_in(
         .into_owned())
 }
 
-/// Finishes the sign-in `handle` stands for, and returns the session token.
+/// Finishes the sign-in `handle` stands for with the one-time code the service sent the person
+/// back with, and returns the session token.
 async fn sign_in_with_account(
     server: &TestServer,
     handle: &str,
+    code: &str,
 ) -> Result<proto::SignInWithAccountResponse, ConnectError> {
     Ok(sign_in(server)
         .sign_in_with_account(SignInWithAccountRequest {
             handle: handle.to_owned(),
+            code: code.to_owned(),
             delivery: SessionDelivery::SESSION_DELIVERY_TOKEN.into(),
             ..Default::default()
         })
@@ -527,12 +532,12 @@ async fn a_user_created_from_an_account_signs_in_once_the_account_approves() {
         RefusalReason::REFUSAL_REASON_NOT_A_URL,
     );
     assert_refused(
-        sign_in_with_account(&server, &started.handle).await,
+        sign_in_with_account(&server, &started.handle, "code").await,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND,
     );
     linker.script().approved = Some(grace);
-    let signed_in = sign_in_with_account(&server, &started.handle)
+    let signed_in = sign_in_with_account(&server, &started.handle, "code")
         .await
         .unwrap();
     assert_eq!(signed_in.user.into_option().unwrap().name, "Grace");
@@ -562,7 +567,7 @@ async fn while_the_hub_is_down_devices_stay_signed_in_but_an_account_cant_sign_i
     let grace = create_from_account(&server, "Grace").await.unwrap();
     let started = start_account_sign_in(&server).await.unwrap();
     linker.script().approved = Some(grace);
-    let signed_in = sign_in_with_account(&server, &started.handle)
+    let signed_in = sign_in_with_account(&server, &started.handle, "code")
         .await
         .unwrap();
 

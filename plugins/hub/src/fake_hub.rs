@@ -52,6 +52,9 @@ const SIGN_IN_DEVICE_CODE: &str = "sign-in-device-code";
 /// The id of that sign-in.
 pub(super) const SIGN_IN_ID: &str = "sign-in-id";
 
+/// The one-time code approving that sign-in sends the person back with.
+const SIGN_IN_CODE: &str = "sign-in-code";
+
 /// The email of the Account the code is entered by.
 pub(super) const EMAIL: &str = "ada@example.com";
 
@@ -229,11 +232,13 @@ impl FakeHub {
             .map(|(url, _)| url.clone())
     }
 
-    /// An Account approves the waiting sign-in as its User `user_id`.
-    pub(super) fn approve_sign_in(&self, user_id: i64) {
+    /// An Account approves the waiting sign-in as its User `user_id`, and gets the one-time code
+    /// that finishes it.
+    pub(super) fn approve_sign_in(&self, user_id: i64) -> String {
         if let Some((_, user)) = &mut lock(&self.state).sign_in {
             *user = Some(user_id);
         }
+        SIGN_IN_CODE.to_owned()
     }
 
     /// Each Server URL and LAN addresses the Server reported, in order.
@@ -485,6 +490,9 @@ impl LinkedServerService for Linked {
             return Response::ok(PollServerSignInResponse::default());
         };
         state.sign_in = None;
+        if request.code != SIGN_IN_CODE {
+            return Err(ConnectError::not_found("the code is wrong"));
+        }
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()

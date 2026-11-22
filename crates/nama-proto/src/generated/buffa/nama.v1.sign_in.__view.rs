@@ -6788,8 +6788,9 @@ impl ::serde::Serialize for PollSignInCodeResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct StartAccountSignInRequestView<'a> {
-    /// Where the Hub sends the person back to once they approve: an `http` or `https` address, such
-    /// as the client's sign-in page.
+    /// Where the Hub sends the person back to once they approve, adding the one-time code
+    /// `SignInWithAccount` needs to its query as `code`: such as the client's sign-in page, on one of
+    /// the Server's Server Addresses, since the Hub refuses any other address.
     ///
     /// Field 1: `return_url`
     pub return_url: &'a str,
@@ -7008,8 +7009,9 @@ impl StartAccountSignInRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
-    /// Where the Hub sends the person back to once they approve: an `http` or `https` address, such
-    /// as the client's sign-in page.
+    /// Where the Hub sends the person back to once they approve, adding the one-time code
+    /// `SignInWithAccount` needs to its query as `code`: such as the client's sign-in page, on one of
+    /// the Server's Server Addresses, since the Hub refuses any other address.
     ///
     /// Field 1: `return_url`
     #[must_use]
@@ -7351,6 +7353,10 @@ pub struct SignInWithAccountRequestView<'a> {
     ///
     /// Field 3: `delivery`
     pub delivery: ::buffa::EnumValue<super::super::SessionDelivery>,
+    /// The one-time code the Hub added to `return_url`'s query as `code`.
+    ///
+    /// Field 4: `code`
+    pub code: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for SignInWithAccountRequestView<'a> {
@@ -7406,6 +7412,13 @@ impl<'a> ::buffa::MessageView<'a> for SignInWithAccountRequestView<'a> {
                     ::buffa::types::decode_int32(&mut cur)?,
                 );
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.code = ::buffa::types::borrow_str(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -7437,6 +7450,7 @@ impl<'a> ::buffa::MessageView<'a> for SignInWithAccountRequestView<'a> {
             handle: self.handle.to_string(),
             device_name: self.device_name.to_string(),
             delivery: self.delivery,
+            code: self.code.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -7460,6 +7474,9 @@ impl<'a> ::buffa::ViewEncode<'a> for SignInWithAccountRequestView<'a> {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if !self.code.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.code) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -7482,6 +7499,9 @@ impl<'a> ::buffa::ViewEncode<'a> for SignInWithAccountRequestView<'a> {
             if val != 0 {
                 ::buffa::types::put_int32_field(3u32, val, buf);
             }
+        }
+        if !self.code.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.code, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -7512,6 +7532,9 @@ impl<'__a> ::serde::Serialize for SignInWithAccountRequestView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.delivery) {
             __map.serialize_entry("delivery", &self.delivery)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.code) {
+            __map.serialize_entry("code", self.code)?;
         }
         __map.end()
     }
@@ -7629,6 +7652,13 @@ impl SignInWithAccountRequestOwnedView {
     #[must_use]
     pub fn delivery(&self) -> ::buffa::EnumValue<super::super::SessionDelivery> {
         self.0.reborrow().delivery
+    }
+    /// The one-time code the Hub added to `return_url`'s query as `code`.
+    ///
+    /// Field 4: `code`
+    #[must_use]
+    pub fn code(&self) -> &'_ str {
+        self.0.reborrow().code
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<SignInWithAccountRequestView<'static>>>

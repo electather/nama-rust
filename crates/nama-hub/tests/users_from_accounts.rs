@@ -19,7 +19,7 @@ use linking::*;
 use nama_hub_proto::nama::hub::v1::{
     AcceptUserInviteRequest, ApproveServerSignInRequest, GetServerSignInRequest, InviteUserRequest,
     ListLinkedServersRequest, ListUserInvitesRequest, PollServerSignInRequest, RefusalReason,
-    StartServerSignInRequest, StartServerSignInResponse,
+    SetServerAddressesRequest, StartServerSignInRequest, StartServerSignInResponse,
 };
 use refused::assert_refused;
 use sqlx::PgPool;
@@ -131,34 +131,68 @@ async fn unlinking_a_user_forgets_the_account_asked_to_accept_them(db: PgPool) {
     assert_eq!(invites(&hub, &ada).await, []);
 }
 
+/// The Server URL the Servers in these tests report, and their sign-ins return to.
+const SERVER_URL: &str = "https://nama.example";
+
+/// Starts a sign-in to the Server presenting `credential`, returning to `return_url`.
+async fn start_sign_in_to(
+    hub: &TestHub,
+    credential: &str,
+    return_url: &str,
+) -> Result<StartServerSignInResponse, connectrpc::ConnectError> {
+    let server = linked_server(hub, credential);
+    server
+        .set_server_addresses(SetServerAddressesRequest {
+            url: SERVER_URL.to_owned(),
+            lan_addresses: vec!["http://192.168.1.10:7980".to_owned()],
+            ..Default::default()
+        })
+        .await?;
+    Ok(server
+        .start_server_sign_in(StartServerSignInRequest {
+            return_url: return_url.to_owned(),
+            ..Default::default()
+        })
+        .await?
+        .into_owned())
+}
+
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
 async fn start_sign_in(hub: &TestHub, credential: &str) -> StartServerSignInResponse {
-    linked_server(hub, credential)
-        .start_server_sign_in(StartServerSignInRequest {
-            return_url: "https://nama.example/sign-in".to_owned(),
-            ..Default::default()
-        })
+    start_sign_in_to(hub, credential, &format!("{SERVER_URL}/sign-in"))
         .await
         .unwrap()
-        .into_owned()
 }
 
 async fn poll_sign_in(
     hub: &TestHub,
     credential: &str,
     device_code: &str,
+    code: &str,
 ) -> Result<String, connectrpc::ConnectError> {
     Ok(linked_server(hub, credential)
         .poll_server_sign_in(PollServerSignInRequest {
             device_code: device_code.to_owned(),
+            code: code.to_owned(),
             ..Default::default()
         })
         .await?
         .into_owned()
         .token)
+}
+
+/// The one-time code in the address approving sends the person back to, which must be the
+/// sign-in's return address on [`SERVER_URL`] with only the code added.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn code_in(back: &str) -> &str {
+    back.strip_prefix(&format!("{SERVER_URL}/sign-in?code="))
+        .unwrap()
 }
 
 /// The Server and the Account's User there that the sign-in `id` names, as its page shows them.
@@ -198,11 +232,11 @@ async fn an_account_signs_in_to_a_server_as_its_user_there(db: PgPool) {
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
     let bea = create_proven(&hub, &mut inbox, "bea@example.com").await;
     let server = linked(&hub, &ada, "Ada's").await;
-    let code = start_user(&hub, &server, 7).await.unwrap();
-    approve_user(&hub, &bea, &code).await.unwrap();
+    let user_code = start_user(&hub, &server, 7).await.unwrap();
+    approve_user(&hub, &bea, &user_code).await.unwrap();
     let started = start_sign_in(&hub, &server).await;
     assert_eq!(
-        poll_sign_in(&hub, &server, &started.device_code)
+        poll_sign_in(&hub, &server, &started.device_code, "")
             .await
             .unwrap(),
         ""
@@ -214,8 +248,9 @@ async fn an_account_signs_in_to_a_server_as_its_user_there(db: PgPool) {
     );
     let back = approve_sign_in(&hub, &bea, &started.id).await.unwrap();
 
-    assert_eq!(back, "https://nama.example/sign-in");
-    let token = poll_sign_in(&hub, &server, &started.device_code)
+    let code = code_in(&back);
+    assert_eq!(code.len(), 64);
+    let token = poll_sign_in(&hub, &server, &started.device_code, code)
         .await
         .unwrap();
     let claims = verified_claims(&hub, &token).await;
@@ -227,7 +262,7 @@ async fn an_account_signs_in_to_a_server_as_its_user_there(db: PgPool) {
         .into_owned();
     assert_eq!(claims["aud"], servers.servers[0].id.as_str());
     assert_refused(
-        poll_sign_in(&hub, &server, &started.device_code).await,
+        poll_sign_in(&hub, &server, &started.device_code, code).await,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_LINK_EXPIRED,
     );
@@ -287,8 +322,8 @@ async fn an_account_with_two_users_on_a_server_signs_in_as_the_one_linked_first(
         sign_in_page(&hub, &ada, &started.id).await.unwrap(),
         ("Ada's".to_owned(), "Grace".to_owned())
     );
-    approve_sign_in(&hub, &ada, &started.id).await.unwrap();
-    let token = poll_sign_in(&hub, &server, &started.device_code)
+    let back = approve_sign_in(&hub, &ada, &started.id).await.unwrap();
+    let token = poll_sign_in(&hub, &server, &started.device_code, code_in(&back))
         .await
         .unwrap();
     assert_eq!(verified_claims(&hub, &token).await["sub"], "7");
@@ -303,11 +338,65 @@ async fn another_linked_server_cant_collect_a_sign_in(db: PgPool) {
     let code = start_user(&hub, &server, 7).await.unwrap();
     approve_user(&hub, &ada, &code).await.unwrap();
     let started = start_sign_in(&hub, &server).await;
-    approve_sign_in(&hub, &ada, &started.id).await.unwrap();
+    let back = approve_sign_in(&hub, &ada, &started.id).await.unwrap();
 
     assert_refused(
-        poll_sign_in(&hub, &other, &started.device_code).await,
+        poll_sign_in(&hub, &other, &started.device_code, code_in(&back)).await,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_LINK_EXPIRED,
     );
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_sign_in_returns_only_to_one_of_the_servers_addresses(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+
+    for elsewhere in [
+        "https://attacker.example/sign-in",
+        "http://nama.example/sign-in",
+        "http://192.168.1.10:7981/sign-in",
+    ] {
+        assert_refused(
+            start_sign_in_to(&hub, &server, elsewhere).await,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_URL_INVALID,
+        );
+    }
+    let user_code = start_user(&hub, &server, 7).await.unwrap();
+    approve_user(&hub, &ada, &user_code).await.unwrap();
+    let started = start_sign_in_to(&hub, &server, "http://192.168.1.10:7980/sign-in")
+        .await
+        .unwrap();
+    let back = approve_sign_in(&hub, &ada, &started.id).await.unwrap();
+    assert!(
+        back.starts_with("http://192.168.1.10:7980/sign-in?code="),
+        "{back}"
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_sign_in_polled_without_the_code_approving_sent_back_ends(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let user_code = start_user(&hub, &server, 7).await.unwrap();
+    approve_user(&hub, &ada, &user_code).await.unwrap();
+
+    for wrong in ["", "0".repeat(64).as_str()] {
+        let started = start_sign_in(&hub, &server).await;
+        let back = approve_sign_in(&hub, &ada, &started.id).await.unwrap();
+
+        assert_refused(
+            poll_sign_in(&hub, &server, &started.device_code, wrong).await,
+            ErrorCode::NotFound,
+            RefusalReason::REFUSAL_REASON_LINK_EXPIRED,
+        );
+        assert_refused(
+            poll_sign_in(&hub, &server, &started.device_code, code_in(&back)).await,
+            ErrorCode::NotFound,
+            RefusalReason::REFUSAL_REASON_LINK_EXPIRED,
+        );
+    }
 }
