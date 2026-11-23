@@ -384,9 +384,16 @@ jobs:
             | select(any(.dependencies[]; .name == "nama-pdk" or .name == "extism-pdk"))
             | "--exclude \(.name)"' | tr -d '\r' | tr '\n' ' ')
           echo "EXCLUDED=$excluded" >> "$GITHUB_ENV"
-      # nextest builds every target it runs, so there's no separate `cargo build`. The `ci` profile
-      # (.config/nextest.toml) retries, kills hung tests and writes a JUnit report. `count`
-      # deals each binary's tests out in turn, so its slow ones land on both shards.
+      # Listing the Plugins compiles every bundled one into the wasmtime cache the tests share
+      # (`write_cache_config` in crates/nama-server/src/plugins/wasm/load.rs). Into an empty
+      # cache, the first tests to list them each compiled them all at once, which took the
+      # personal settings tests 12 s; one test fills it here first. With the next step's
+      # arguments, so nextest builds the same targets once, and no `cargo build` is needed.
+      - run: >-
+          cargo nextest run --workspace --exclude nama-hub $EXCLUDED --locked
+          -E 'test(=plugin_settings::had::tests::while_the_server_holds_a_plugin_it_refused_every_plugin_it_had_stays_had)'
+      # The `ci` profile (.config/nextest.toml) retries, kills hung tests and writes a JUnit
+      # report. `count` deals each binary's tests out in turn, so its slow ones land on both shards.
       # $EXCLUDED is unquoted so it splits into arguments. The Hub's tests need PostgreSQL in a
       # service container, which only Linux runners have, so `hub` runs them.
       - run: >-
