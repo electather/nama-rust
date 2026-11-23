@@ -33,7 +33,7 @@ function server({ failures = 0, held = false } = {}) {
   let moviesAsked = 0;
   const holding: (() => void)[] = [];
   // A report sent after `landed` isn't held: the page may open before the report reaches here.
-  let holds = held;
+  let holdingReports = held;
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
   const transport = fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(BrowseService, {
@@ -56,7 +56,7 @@ function server({ failures = 0, held = false } = {}) {
     });
     router.service(WatchStateService, {
       reportProgress: async (request) => {
-        if (holds) {
+        if (holdingReports) {
           await new Promise<void>((resolve) => {
             holding.push(resolve);
           });
@@ -71,7 +71,7 @@ function server({ failures = 0, held = false } = {}) {
     });
   });
   const landed = () => {
-    holds = false;
+    holdingReports = false;
     for (const land of holding) {
       land();
     }

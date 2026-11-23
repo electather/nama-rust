@@ -1,4 +1,3 @@
-import { createQueryOptions } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { NotFound } from "@/app/route-error/not-found";
@@ -29,12 +28,7 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/")({
     };
     // Only the titles need the Library's kind, so these go out without waiting for the Libraries.
     // Awaited again below, which fails the page if they failed.
-    const genres = createQueryOptions(
-      BrowseService.method.listGenres,
-      { libraryId },
-      { transport },
-    );
-    void queryClient.query({ ...genres, staleTime: "static" }).catch(() => null);
+    void queryOrNotFound(context, BrowseService.method.listGenres, { libraryId }).catch(() => null);
     void queryClient.infiniteQuery(unmatched).catch(() => null);
     const library = await libraryFromParam(context, params.libraryId);
     const boxSets =

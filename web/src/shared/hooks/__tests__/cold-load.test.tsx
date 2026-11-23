@@ -20,7 +20,7 @@ const movie = {
 /** A fake Server in `state` that never lists its Libraries, and the RPCs the app asked it. */
 function withLibrariesHeldBack(state: ServerState) {
   const asked: string[] = [];
-  const ask = (name: string) => async () => {
+  const recordedAndHeld = (name: string) => async () => {
     asked.push(name);
     await neverAnswers();
     return {};
@@ -35,12 +35,12 @@ function withLibrariesHeldBack(state: ServerState) {
           asked.push("getMovie");
           return { movie };
         },
-        getShow: ask("getShow"),
-        listEpisodes: ask("listEpisodes"),
-        listGenres: ask("listGenres"),
-        listUnmatched: ask("listUnmatched"),
+        getShow: recordedAndHeld("getShow"),
+        listEpisodes: recordedAndHeld("listEpisodes"),
+        listGenres: recordedAndHeld("listGenres"),
+        listUnmatched: recordedAndHeld("listUnmatched"),
       });
-      router.service(PlaybackService, { planPlayback: ask("planPlayback") });
+      router.service(PlaybackService, { planPlayback: recordedAndHeld("planPlayback") });
     },
   );
   return { transport, asked };
