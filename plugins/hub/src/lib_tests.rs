@@ -1372,7 +1372,7 @@ async fn a_server_that_isnt_linked_has_no_trending_row_and_asks_the_hub_nothing(
 }
 
 #[tokio::test]
-async fn whats_trending_fails_while_the_hub_is_unreachable_so_the_last_row_stays() {
+async fn whats_trending_fails_while_the_hub_is_unreachable() {
     let hub = FakeHub::start().await;
     let kernel = with_movies(&["603"]);
     link(&hub, enabled(&hub, &kernel).as_ref()).await;

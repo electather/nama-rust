@@ -288,3 +288,37 @@ async fn an_account_with_pooling_off_adds_nothing_to_whats_trending(db: PgPool) 
 
     assert_eq!(trending_ids(&viewing).await, Vec::<String>::new());
 }
+
+#[sqlx::test(migrations = false)]
+async fn finishing_a_movie_again_after_deleting_the_counted_play_counts_its_account_once(
+    db: PgPool,
+) {
+    let (viewing, accounts) = pool_of(&db, 19).await;
+    let at = now();
+    for &account in &accounts {
+        finish_at(&db, account, "a", "tmdb-603", at).await;
+    }
+
+    for key in ["b", "c"] {
+        let [counted] = viewing.list(accounts[0]).await.unwrap().try_into().unwrap();
+        viewing.delete(accounts[0], counted.id).await.unwrap();
+        finish_at(&db, accounts[0], key, "tmdb-603", at).await;
+    }
+
+    assert_eq!(trending_ids(&viewing).await, Vec::<String>::new());
+}
+
+#[sqlx::test(migrations = false)]
+async fn deleting_the_counted_play_takes_its_account_out_of_the_weeks_count(db: PgPool) {
+    let (viewing, accounts) = pool_of(&db, 20).await;
+    let at = now();
+    for &account in &accounts {
+        finish_at(&db, account, "a", "tmdb-603", at).await;
+    }
+    assert_eq!(trending_ids(&viewing).await, ["tmdb-603"]);
+
+    let [counted] = viewing.list(accounts[0]).await.unwrap().try_into().unwrap();
+    viewing.delete(accounts[0], counted.id).await.unwrap();
+
+    assert_eq!(trending_ids(&viewing).await, Vec::<String>::new());
+}

@@ -695,3 +695,7 @@ fn invalid_change(field: &str, message: impl Into<String>) -> ConnectError {
         .param("maxIdLength", &MAX_ID_LENGTH)
         .into()
 }
+
+#[cfg(test)]
+#[path = "links_tests.rs"]
+mod tests;

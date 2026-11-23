@@ -353,14 +353,22 @@ impl Viewing {
         .await
     }
 
-    /// Deletes `account`'s Viewing Event `id`. Another Account's stays.
+    /// Deletes `account`'s Viewing Event `id`, and takes the Account back out of its week's count
+    /// if the event put it there. Another Account's stays.
     pub(crate) async fn delete(
         &self,
         account: AccountId,
         id: ViewingEventId,
     ) -> Result<(), sqlx::Error> {
+        // The week's count is read by every Linked Server, so finishing a Movie, deleting the play
+        // and finishing it again must not let one Account count as many (ADR 0093).
         sqlx::query!(
-            "DELETE FROM viewing_events WHERE id = $1 AND account_id = $2",
+            "WITH deleted AS (
+              DELETE FROM viewing_events WHERE id = $1 AND account_id = $2
+              RETURNING external_id, started_at, pooled_week)
+             UPDATE weekly_counts SET accounts = accounts - 1 FROM deleted
+             WHERE deleted.pooled_week AND title = deleted.external_id
+             AND week = date_trunc('week', deleted.started_at AT TIME ZONE 'UTC')::date",
             id.0,
             account.0,
         )
@@ -378,8 +386,9 @@ async fn record_one(
     key: &str,
     event: &ViewingEvent,
 ) -> Result<(), Error> {
-    // ponytail: deleting the counted play forgets the Movie was counted, so finishing it again
-    // counts the Account twice; keep a mark outside the history if inflated counts ever matter.
+    // ponytail: deleting the play counted for pairs forgets the Movie was counted, so finishing it
+    // again counts the Account twice there; keep a mark outside the history once recommendations
+    // read those counts (#1825).
     let Some(counted) = insert(tx, account, key, event).await? else {
         return Ok(());
     };
