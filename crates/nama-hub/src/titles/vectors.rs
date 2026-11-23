@@ -20,9 +20,12 @@ const DIMENSIONS: u64 = 1_000_000_000;
 
 const VECTORS_PER_STATEMENT: usize = 1_000;
 
+/// The most non-zero values pgvector allows a `sparsevec`.
+const MOST_NON_ZERO: usize = 16_000;
+
 /// The most titles a Similar or recommended answer holds: as many as the Server keeps of a
 /// Similar one (ADR 0084).
-const MOST_SIMILAR: i64 = 100;
+const MOST_ANSWERED: i64 = 100;
 
 /// A title recommended to an Account, by its id in a namespace the asking Server uses.
 #[derive(Clone, Debug, PartialEq)]
@@ -204,7 +207,7 @@ pub async fn similar(
         &values as _,
         // Under 1: sharing at least one fact, as every value is positive.
         1.0_f64,
-        MOST_SIMILAR,
+        MOST_ANSWERED,
     )
     .fetch_all(db)
     .await?;
@@ -289,7 +292,7 @@ pub async fn recommended(
         namespaces,
         // Under 1: sharing at least one fact, as every value is positive.
         1.0_f64,
-        MOST_SIMILAR,
+        MOST_ANSWERED,
     )
     .fetch_all(db)
     .await?;
@@ -308,7 +311,8 @@ pub async fn recommended(
 
 /// The taste vector of an Account that finished titles whose vectors, in pgvector's `sparsevec`
 /// text form, are `finished`: their sum, each at length 1 so a title with many facts weighs no more
-/// than one with few. `None` without any.
+/// than one with few, keeping the heaviest [`MOST_NON_ZERO`] values pgvector holds. `None` without
+/// any.
 ///
 /// ponytail: every finished title weighs the same, however often or long ago; weigh by recency
 /// once the offline evaluation (#1826) can measure it.
@@ -324,6 +328,12 @@ pub(super) fn taste<'a>(finished: impl IntoIterator<Item = &'a str>) -> Option<B
         for (dimension, value) in vector {
             *taste.entry(dimension).or_insert(0.0) += value / length;
         }
+    }
+    if taste.len() > MOST_NON_ZERO {
+        let mut heaviest: Vec<(u64, f32)> = taste.into_iter().collect();
+        heaviest.sort_by(|(_, a), (_, b)| b.total_cmp(a));
+        heaviest.truncate(MOST_NON_ZERO);
+        taste = heaviest.into_iter().collect();
     }
     (!taste.is_empty()).then_some(taste)
 }

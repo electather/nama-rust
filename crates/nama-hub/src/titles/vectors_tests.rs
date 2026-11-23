@@ -73,3 +73,17 @@ fn a_taste_vector_sums_the_finished_titles_vectors_each_at_length_one() {
 fn an_account_that_finished_nothing_has_no_taste_vector() {
     assert_eq!(taste([]), None);
 }
+
+#[test]
+fn a_taste_vector_past_what_pgvector_holds_keeps_its_heaviest_values() {
+    // One finished title whose value in each dimension is that dimension's number.
+    let values: Vec<String> = (1..=16_001)
+        .map(|dimension| format!("{dimension}:{dimension}"))
+        .collect();
+    let finished = format!("{{{}}}/1000000000", values.join(","));
+
+    let taste = taste([finished.as_str()]).unwrap();
+
+    assert_eq!(taste.len(), 16_000);
+    assert!(!taste.contains_key(&1), "the lightest is dropped");
+}

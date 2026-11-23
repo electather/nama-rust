@@ -2,15 +2,18 @@
 //! their Account's taste vector (ADR 0095), as a "Recommended for you" row and as Featured
 //! suggestions, by External ID with weights. The Kernel stores both with their time to live.
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use nama_hub_proto::nama::hub::v1::{self as hub, ListRecommendedTitlesRequest};
 use nama_plugin_api::{
     BoxFuture, PluginError,
-    automation::Kernel,
+    automation::{
+        Kernel,
+        functions::{ListLibraries, ListTitles},
+    },
     contract::{
-        FeaturedSuggestion, FeaturedSuggestions, HomeRow, HomeRowTitle, HomeRows, TitleId,
-        TitleKind, UserFeaturedAsked, UserRowsAsked,
+        FeaturedSuggestion, FeaturedSuggestions, HomeRow, HomeRowTitle, HomeRows, LibrariesAsked,
+        Title, TitleId, TitleKind, TitlesAsked, UserFeaturedAsked, UserRowsAsked,
     },
     home_row::{HomeRowMethod, HomeRowSource},
 };
@@ -23,7 +26,7 @@ const FRESH_FOR_SECONDS: u32 = 60 * 60;
 
 /// The namespaces the Hub answers in, most preferred first.
 ///
-/// shortcut: the ids the Server's Built-in title sources Match by, whatever the Libraries use;
+/// ponytail: the ids the Server's Built-in title sources Match by, whatever the Libraries use;
 /// ask the Kernel for the namespaces its titles have if a title source adds another.
 const NAMESPACES: [&str; 3] = ["tmdb", "tvdb", "imdb"];
 
@@ -80,8 +83,19 @@ impl Recommended {
         })
     }
 
+    /// The User `user_id`'s recommendations some Library has: the Kernel keeps only the first 20
+    /// suggestions before dropping those, since Featured's main button is Play (ADR 0072).
     async fn featured(&self, user_id: i64) -> Result<FeaturedSuggestions, PluginError> {
-        let suggestions = (self.titles(user_id).await?.into_iter())
+        let titles = self.titles(user_id).await?;
+        let on_server = if titles.is_empty() {
+            HashSet::new()
+        } else {
+            self.on_server().await?
+        };
+        let suggestions = (titles.into_iter())
+            .filter(|(kind, id, _weight)| {
+                on_server.contains(&(*kind, id.namespace.clone(), id.value.clone()))
+            })
             .map(|(kind, id, weight)| FeaturedSuggestion {
                 kind: kind.into(),
                 id: id.into(),
@@ -94,6 +108,29 @@ impl Recommended {
             ttl_seconds: FRESH_FOR_SECONDS,
             ..Default::default()
         })
+    }
+}
+
+impl Recommended {
+    /// Every id of every Movie and Show in the Server's Libraries, with its kind.
+    ///
+    /// ponytail: lists every title of every Library each time the Kernel asks for a User's
+    /// suggestions; ask the Kernel for the titles by id once that is measured slow.
+    async fn on_server(&self) -> Result<HashSet<(TitleKind, String, String)>, PluginError> {
+        let libraries = self
+            .kernel
+            .ask::<ListLibraries>(LibrariesAsked::default())
+            .await?;
+        let mut on_server = HashSet::new();
+        for library in libraries.libraries {
+            let asked = TitlesAsked {
+                library_id: library.id,
+                ..Default::default()
+            };
+            let titles = self.kernel.ask::<ListTitles>(asked).await?.titles;
+            on_server.extend(titles.into_iter().flat_map(kinded_ids));
+        }
+        Ok(on_server)
     }
 }
 
@@ -115,6 +152,18 @@ impl HomeRowSource for Recommended {
     fn gives(&self, method: HomeRowMethod) -> bool {
         method != HomeRowMethod::Shared
     }
+}
+
+/// Every id of `title`, with its kind. An Episode stands for its Show, which is what the Hub
+/// recommends.
+fn kinded_ids(title: Title) -> impl Iterator<Item = (TitleKind, String, String)> {
+    let (kind, ids) = if title.show_ids.is_empty() {
+        (TitleKind::TITLE_KIND_MOVIE, title.ids)
+    } else {
+        (TitleKind::TITLE_KIND_SHOW, title.show_ids)
+    };
+    ids.into_iter()
+        .map(move |id| (kind, id.namespace, id.value))
 }
 
 /// `recommended` as the Kernel takes it, or `None` without an id or a kind, which no title could

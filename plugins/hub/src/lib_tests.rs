@@ -13,14 +13,15 @@ use nama_plugin_api::{
     automation::{
         Kernel, KernelFunction as _, KernelRefused,
         functions::{
-            ListDevices, ListVersionTitles, ListWatchStates, StoreDelete, StoreGet, StorePut,
+            ListDevices, ListLibraries, ListTitles, ListVersionTitles, ListWatchStates,
+            StoreDelete, StoreGet, StorePut,
         },
     },
     contract::{
-        Device, DeviceKind, Devices, Event, Playback, PlaybackEnded, PlaybackStarted, StoreEntry,
-        StoreKey, StoreValue, Stored, TitleId, TitleRef, TitleRefKind, TitleWatchStates,
-        VersionTitles, VersionTitlesAsked, WatchState, WatchStates, WatchStatesAsked,
-        event::Event as Happened,
+        Device, DeviceKind, Devices, Event, Libraries, Library, Playback, PlaybackEnded,
+        PlaybackStarted, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleId, TitleRef,
+        TitleRefKind, TitleWatchStates, Titles, VersionTitles, VersionTitlesAsked, WatchState,
+        WatchStates, WatchStatesAsked, event::Event as Happened,
     },
     contract::{
         FeaturedSuggestions, HomeRows, SimilarAsked, SimilarTitle, SimilarTitles, TitleKind,
@@ -384,10 +385,56 @@ fn suggested(featured: &FeaturedSuggestions) -> Vec<(TitleKind, String, f32)> {
         .collect()
 }
 
+/// A Kernel keeping the Store as [`store`] does, whose one Library holds an Episode of the Show
+/// `tmdb-1396`, and no Movie.
+fn with_a_show() -> Arc<dyn Kernel> {
+    let store = store();
+    Arc::new(
+        move |function: &str,
+              request: Vec<u8>|
+              -> BoxFuture<'static, Result<Vec<u8>, KernelRefused>> {
+            let answer = if function == ListLibraries::NAME {
+                let shows = Library {
+                    id: 1,
+                    ..Default::default()
+                };
+                Libraries {
+                    libraries: vec![shows],
+                    ..Default::default()
+                }
+                .encode_to_vec()
+            } else if function == ListTitles::NAME {
+                let episode = Title {
+                    ids: vec![tmdb("62085")],
+                    show_ids: vec![tmdb("1396")],
+                    ..Default::default()
+                };
+                Titles {
+                    titles: vec![episode],
+                    ..Default::default()
+                }
+                .encode_to_vec()
+            } else {
+                let (store, function) = (Arc::clone(&store), function.to_owned());
+                return Box::pin(async move { store.call(&function, request).await });
+            };
+            Box::pin(future::ready(Ok(answer)))
+        },
+    )
+}
+
+fn tmdb(value: &str) -> TitleId {
+    TitleId {
+        namespace: "tmdb".to_owned(),
+        value: value.to_owned(),
+        ..Default::default()
+    }
+}
+
 #[tokio::test]
-async fn a_linked_user_gets_the_hubs_recommendations_as_a_row_and_featured_suggestions() {
+async fn a_linked_user_gets_the_hubs_recommendations_as_a_row_and_those_on_the_server_featured() {
     let hub = FakeHub::start().await;
-    let kernel = store();
+    let kernel = with_a_show();
     let linker = enabled(&hub, &kernel);
     link(&hub, linker.as_ref()).await;
     link_user(&hub, linker.as_ref(), 7).await;
@@ -398,12 +445,10 @@ async fn a_linked_user_gets_the_hubs_recommendations_as_a_row_and_featured_sugge
         rows_of(&rows),
         ["recommended: Recommended for you, 3600 s: movie tmdb-604, show tmdb-1396"]
     );
+    // Not the Movie, which no Library has, so Featured couldn't Play it (ADR 0072).
     assert_eq!(
         suggested(&featured),
-        [
-            (TitleKind::TITLE_KIND_MOVIE, "tmdb-604".to_owned(), 0.9),
-            (TitleKind::TITLE_KIND_SHOW, "tmdb-1396".to_owned(), 0.4),
-        ]
+        [(TitleKind::TITLE_KIND_SHOW, "tmdb-1396".to_owned(), 0.4)]
     );
     assert_eq!(featured.ttl_seconds, 3600);
     let source = provided::<dyn HomeRowSource>(&hub, &kernel);

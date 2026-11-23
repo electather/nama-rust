@@ -9,5 +9,5 @@ What the Hub recommends to a Linked User for their Featured and Home rows (ADR 0
 
 ### Neighbours
 
-- Uses: `links` (the Account a Linked Server's User is Linked to), `viewing` (the Account's Viewing Events) and `titles` (`recommended`).
+- Uses: `links` (the Account a Linked Server's User is Linked to), `viewing` (the Movies the Account finished) and `titles` (`recommended`).
 - Used by: `api`, which converts what it answers.

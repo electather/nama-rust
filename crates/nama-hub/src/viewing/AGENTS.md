@@ -11,5 +11,5 @@ Viewing Events (GLOSSARY.md): each play by a Linked User, recorded by their Link
 
 ### Neighbours
 
-- Uses: `links` (the Account a Linked Server's User is Linked to) and `accounts` (`AccountId`).
-- Used by: `api`, which converts what `viewing.rs` defines.
+- Uses: `links` (the Account a Linked Server's User is Linked to), `accounts` (`AccountId`) and `titles` (`ExternalId`).
+- Used by: `api`, which converts what `viewing.rs` defines, and `recommendations` (an Account's finished Movies).

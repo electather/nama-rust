@@ -65,3 +65,15 @@ fn each_device_kind_reads_back_as_stored() {
         assert_eq!(DeviceKind::stored(kind.as_str()), kind);
     }
 }
+
+#[test]
+fn an_external_id_splits_at_its_first_hyphen() {
+    let id = |namespace: &str, value: &str| ExternalId {
+        namespace: namespace.to_owned(),
+        value: value.to_owned(),
+    };
+
+    assert_eq!(external_id("imdb-tt0133093"), Some(id("imdb", "tt0133093")));
+    assert_eq!(external_id("anidb-12-a"), Some(id("anidb", "12-a")));
+    assert_eq!(external_id("603"), None);
+}

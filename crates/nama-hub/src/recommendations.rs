@@ -7,7 +7,7 @@ use sqlx::PgPool;
 use crate::{
     links::{LinkedServer, Links},
     titles::{self, ExternalId, RecommendedTitle, TitleKind},
-    viewing::{Kind, Viewing},
+    viewing::Viewing,
 };
 
 /// Every Linked User's recommendations.
@@ -35,22 +35,13 @@ impl Recommendations {
         let Some(account) = self.links.linked_account(server, user_id).await? else {
             return Ok(Vec::new());
         };
-        // shortcut: an Episode's Viewing Event names the Episode, not its Show, and the Hub's titles
+        // ponytail: an Episode's Viewing Event names the Episode, not its Show, and the Hub's titles
         // hold no Episodes, so only Movies count; count Shows once an event names its Show (#1950).
-        let finished: Vec<(TitleKind, ExternalId)> = (self.viewing.list(account).await?)
-            .into_iter()
-            .filter(|listed| listed.event.finished && listed.event.kind == Kind::Movie)
-            .filter_map(|listed| Some((TitleKind::Movie, external_id(&listed.event.external_id)?)))
-            .collect();
+        let finished: Vec<(TitleKind, ExternalId)> =
+            (self.viewing.finished_movies(account).await?)
+                .into_iter()
+                .map(|movie| (TitleKind::Movie, movie))
+                .collect();
         titles::recommended(&self.db, &finished, namespaces).await
     }
-}
-
-/// The External ID a Viewing Event names as `tmdb-603`: a namespace has no `-`, though a value may.
-fn external_id(id: &str) -> Option<ExternalId> {
-    let (namespace, value) = id.split_once('-')?;
-    Some(ExternalId {
-        namespace: namespace.to_owned(),
-        value: value.to_owned(),
-    })
 }

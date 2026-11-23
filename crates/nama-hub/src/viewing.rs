@@ -13,6 +13,7 @@ use uuid::Uuid;
 use crate::{
     accounts::AccountId,
     links::{LinkedServer, Links},
+    titles::ExternalId,
 };
 
 /// The most Viewing Events one call records.
@@ -247,6 +248,18 @@ impl Viewing {
             .collect())
     }
 
+    /// The Movies `account` finished, by the External ID of each of its finished Viewing Events:
+    /// one finished twice is named twice.
+    pub(crate) async fn finished_movies(
+        &self,
+        account: AccountId,
+    ) -> Result<Vec<ExternalId>, sqlx::Error> {
+        Ok((self.list(account).await?.into_iter())
+            .filter(|listed| listed.event.finished && listed.event.kind == Kind::Movie)
+            .filter_map(|listed| external_id(&listed.event.external_id))
+            .collect())
+    }
+
     /// Deletes `account`'s Viewing Event `id`. Another Account's stays.
     pub(crate) async fn delete(
         &self,
@@ -262,6 +275,15 @@ impl Viewing {
         .await?;
         Ok(())
     }
+}
+
+/// The External ID a Viewing Event names as `tmdb-603`: a namespace has no `-`, though a value may.
+fn external_id(id: &str) -> Option<ExternalId> {
+    let (namespace, value) = id.split_once('-')?;
+    Some(ExternalId {
+        namespace: namespace.to_owned(),
+        value: value.to_owned(),
+    })
 }
 
 /// Records `event` under `account` as `key`, unless it was already.
