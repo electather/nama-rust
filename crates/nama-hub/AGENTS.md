@@ -8,7 +8,7 @@
 
 ### Callers
 
-- **One auth layer** turns each request into `Anonymous`, `AccountSession`, `AccountToken` or `LinkedServer`, and each service's handlers receive only the type that service serves.
+- **One auth layer** turns each request into `Anonymous`, `AccountSession`, `AccountToken` or `LinkedServer`, and each service's handlers receive only the type that service serves. It refuses a caller by service, from the one table `api::SERVES`, before a handler runs, and a service missing from it serves no one. `AccountService` serves anyone, so its signed-in methods check per method.
 - **Newtyped ids.** Areas take `AccountId`, `LinkedServerId` and `LinkId`, each defined by the area that owns it.
 - **Refusals** are `nama.hub.v1.Refusal`, in ADR 0019's shape. Areas return their own `thiserror` enums, and `api` maps them.
 

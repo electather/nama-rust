@@ -403,20 +403,36 @@ async fn a_movie_naming_a_show_is_refused(db: PgPool) {
 }
 
 #[sqlx::test(migrations = false)]
-async fn the_history_needs_a_session_and_recording_a_linked_server(db: PgPool) {
-    let (hub, _inbox, ada, _server) = ada_watching(db).await;
+async fn each_service_refuses_a_caller_of_the_kind_it_doesnt_serve(db: PgPool) {
+    let (hub, _inbox, ada, server) = ada_watching(db).await;
+    let as_ada =
+        (hub.client_config()).with_default_header("cookie", format!("nama_hub_session={ada}"));
+    let as_server =
+        (hub.client_config()).with_default_header("authorization", format!("Bearer {server}"));
 
     assert_refused(
-        history(&hub, "not-a-session")
+        LinkedServerServiceClient::new(HttpClient::plaintext(), as_ada)
+            .record_viewing_events(RecordViewingEventsRequest {
+                events: vec![played(7, "a", "tmdb-603")],
+                ..Default::default()
+            })
+            .await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+    );
+    assert_refused(
+        ViewingEventServiceClient::new(HttpClient::plaintext(), as_server.clone())
             .list_viewing_events(ListViewingEventsRequest::default())
             .await,
         ErrorCode::Unauthenticated,
         RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
     );
     assert_refused(
-        record(&hub, "not-a-credential", vec![played(7, "a", "tmdb-603")]).await,
+        LinkServiceClient::new(HttpClient::plaintext(), as_server)
+            .approve_server_link(ApproveServerLinkRequest::default())
+            .await,
         ErrorCode::Unauthenticated,
-        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+        RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
     );
     assert_eq!(listed_ids(&hub, &ada).await, Vec::<String>::new());
 }
@@ -577,11 +593,6 @@ async fn a_server_gets_recommendations_only_for_its_own_linked_users(db: PgPool)
         recommended(&hub, &server, 8).await.unwrap(),
         Vec::<String>::new()
     );
-    assert_refused(
-        recommended(&hub, "not-a-credential", 7).await,
-        ErrorCode::Unauthenticated,
-        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
-    );
 }
 
 #[sqlx::test(migrations = false)]
@@ -603,27 +614,6 @@ async fn an_account_turns_off_only_its_own_pooling(db: PgPool) {
 }
 
 #[sqlx::test(migrations = false)]
-async fn pooling_needs_a_session(db: PgPool) {
-    let (hub, _inbox, ada, _server) = ada_watching(db).await;
-
-    assert_refused(
-        history(&hub, "not-a-session")
-            .set_pooling(SetPoolingRequest::default())
-            .await,
-        ErrorCode::Unauthenticated,
-        RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
-    );
-    assert_refused(
-        history(&hub, "not-a-session")
-            .get_pooling(GetPoolingRequest::default())
-            .await,
-        ErrorCode::Unauthenticated,
-        RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
-    );
-    assert!(pooling(&hub, &ada).await);
-}
-
-#[sqlx::test(migrations = false)]
 async fn a_movie_one_account_finished_this_week_isnt_trending(db: PgPool) {
     let (hub, _inbox, _ada, server) = ada_watching(db).await;
     let since_epoch = std::time::UNIX_EPOCH.elapsed().unwrap().as_secs();
@@ -641,17 +631,4 @@ async fn a_movie_one_account_finished_this_week_isnt_trending(db: PgPool) {
         .unwrap();
 
     assert_eq!(trending.into_owned().titles, []);
-}
-
-#[sqlx::test(migrations = false)]
-async fn whats_trending_needs_a_linked_server(db: PgPool) {
-    let (hub, _inbox, _ada, _server) = ada_watching(db).await;
-
-    assert_refused(
-        linked_server(&hub, "not-a-credential")
-            .list_trending_titles(ListTrendingTitlesRequest::default())
-            .await,
-        ErrorCode::Unauthenticated,
-        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
-    );
 }

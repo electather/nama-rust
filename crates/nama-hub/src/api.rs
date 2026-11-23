@@ -22,11 +22,15 @@ use axum::{
 };
 use buffa::MessageName as _;
 use connectrpc::{
-    ConnectError, ErrorCode, ErrorDetail, RequestContext, ServiceRequest, ServiceResult,
+    ConnectError, ErrorCode, ErrorDetail, Interceptor, PayloadStream, RequestContext,
+    ServiceRequest, ServiceResult,
+    interceptor::{self, StreamRequest, StreamResponse, UnaryRequest, UnaryResponse},
 };
 use nama_forwarded::{IpRange, identify_source};
 use nama_hub_proto::nama::hub::v1::{
-    GetHubInfoRequest, GetHubInfoResponse, HubService, Refusal, RefusalReason,
+    ACCOUNT_SERVICE_SERVICE_NAME, GetHubInfoRequest, GetHubInfoResponse, HUB_SERVICE_SERVICE_NAME,
+    HubService, LINK_SERVICE_SERVICE_NAME, LINKED_SERVER_SERVICE_SERVICE_NAME, Refusal,
+    RefusalReason, SERVER_LINK_SERVICE_SERVICE_NAME, VIEWING_EVENT_SERVICE_SERVICE_NAME,
 };
 use sqlx::PgPool;
 use tracing::Instrument as _;
@@ -44,7 +48,7 @@ use crate::{
 };
 
 use self::{
-    accounts::{AccountServiceHandler, COOKIE_NAME},
+    accounts::{AccountServiceHandler, COOKIE_NAME, signed_in},
     links::{LinkServiceHandler, LinkedServerServiceHandler, ServerLinkServiceHandler},
     viewing::ViewingEventServiceHandler,
 };
@@ -63,36 +67,9 @@ pub(crate) fn router(
 ) -> axum::Router {
     let accounts = Accounts::new(db.clone(), mail);
     let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys));
-    let viewing = Viewing::new(db.clone(), links.clone());
-    let watch_states = WatchStates::new(db.clone(), links.clone());
-    let recommendations = Recommendations::new(db.clone(), links.clone(), viewing.clone());
-    let track_preferences = TrackPreferences::new(db.clone(), links.clone());
-    let watchlists = Watchlists::new(db.clone(), links.clone(), viewing.clone());
-    let rpcs = connectrpc::Router::new()
-        .add_service(Arc::new(HubServiceHandler {
-            db: db.clone(),
-            sends_sign_in_links: accounts.sends_sign_in_links(),
-        }))
-        .add_service(Arc::new(AccountServiceHandler {
-            accounts: accounts.clone(),
-        }))
-        .add_service(Arc::new(ServerLinkServiceHandler {
-            links: links.clone(),
-        }))
-        .add_service(Arc::new(LinkServiceHandler {
-            links: links.clone(),
-        }))
-        .add_service(Arc::new(LinkedServerServiceHandler {
-            links: links.clone(),
-            watch_states,
-            track_preferences,
-            watchlists,
-            viewing: viewing.clone(),
-            recommendations,
-            db,
-        }))
-        .add_service(Arc::new(ViewingEventServiceHandler { viewing }))
-        .into_axum_service();
+    let rpcs = services(db, &accounts, &links)
+        .into_axum_service()
+        .with_interceptor(RefuseUnserved);
     let jwks = async move || {
         let jwks = keys.jwks().to_owned();
         ([(header::CONTENT_TYPE, "application/json")], jwks)
@@ -119,6 +96,39 @@ pub(crate) fn router(
             identify_source,
         ))
         .layer(middleware::from_fn(trace_call))
+}
+
+/// Every Hub service, on `db`, asking `accounts` and `links`.
+fn services(db: PgPool, accounts: &Accounts, links: &Links) -> connectrpc::Router {
+    let viewing = Viewing::new(db.clone(), links.clone());
+    let watch_states = WatchStates::new(db.clone(), links.clone());
+    let recommendations = Recommendations::new(db.clone(), links.clone(), viewing.clone());
+    let track_preferences = TrackPreferences::new(db.clone(), links.clone());
+    let watchlists = Watchlists::new(db.clone(), links.clone(), viewing.clone());
+    connectrpc::Router::new()
+        .add_service(Arc::new(HubServiceHandler {
+            db: db.clone(),
+            sends_sign_in_links: accounts.sends_sign_in_links(),
+        }))
+        .add_service(Arc::new(AccountServiceHandler {
+            accounts: accounts.clone(),
+        }))
+        .add_service(Arc::new(ServerLinkServiceHandler {
+            links: links.clone(),
+        }))
+        .add_service(Arc::new(LinkServiceHandler {
+            links: links.clone(),
+        }))
+        .add_service(Arc::new(LinkedServerServiceHandler {
+            links: links.clone(),
+            watch_states,
+            track_preferences,
+            watchlists,
+            viewing: viewing.clone(),
+            recommendations,
+            db,
+        }))
+        .add_service(Arc::new(ViewingEventServiceHandler { viewing }))
 }
 
 /// Takes a Linked Server's batch of `signal`, as OTLP/HTTP protobuf, and forwards it unchanged
@@ -216,6 +226,79 @@ async fn identify_caller(
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
+}
+
+/// The caller a Hub service serves.
+#[derive(Clone, Copy)]
+enum Serves {
+    /// Anyone, signed in or not.
+    Anyone,
+    /// A Linked Server, by its credential.
+    LinkedServer,
+    /// An Account, by its session.
+    AccountSession,
+}
+
+/// Who each Hub service serves (`AGENTS.md`, "Callers").
+const SERVES: [(&str, Serves); 6] = [
+    (HUB_SERVICE_SERVICE_NAME, Serves::Anyone),
+    // Its methods mix callers signed in with callers signing in, so its signed-in ones check.
+    (ACCOUNT_SERVICE_SERVICE_NAME, Serves::Anyone),
+    (SERVER_LINK_SERVICE_SERVICE_NAME, Serves::Anyone),
+    (LINK_SERVICE_SERVICE_NAME, Serves::AccountSession),
+    (VIEWING_EVENT_SERVICE_SERVICE_NAME, Serves::AccountSession),
+    (LINKED_SERVER_SERVICE_SERVICE_NAME, Serves::LinkedServer),
+];
+
+/// The auth layer's refusal, after [`identify_caller`], of a caller the service it calls doesn't
+/// serve, before the request is decoded: who calls is the first rule a request can break (ADR
+/// 0019).
+struct RefuseUnserved;
+
+#[connectrpc::async_trait]
+impl Interceptor for RefuseUnserved {
+    async fn intercept_unary(
+        &self,
+        req: UnaryRequest,
+        next: interceptor::Next<'_>,
+    ) -> Result<UnaryResponse, ConnectError> {
+        admit(&req.ctx)?;
+        next.run(req).await
+    }
+
+    async fn intercept_streaming(
+        &self,
+        req: StreamRequest,
+        inbound: PayloadStream,
+        next: interceptor::NextStream<'_>,
+    ) -> Result<StreamResponse, ConnectError> {
+        admit(&req.ctx)?;
+        next.run(req, inbound).await
+    }
+}
+
+/// Refuses the request `ctx` is for unless its service serves its caller.
+fn admit(ctx: &RequestContext) -> Result<(), ConnectError> {
+    let path = ctx.path().unwrap_or_default();
+    match service_and_method(path).and_then(|(service, _)| serves(service)) {
+        Some(Serves::Anyone) => Ok(()),
+        Some(Serves::LinkedServer) if ctx.extensions().get::<LinkedServer>().is_some() => Ok(()),
+        Some(Serves::LinkedServer) => Err(refuse(
+            RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+            "send a Linked Server's credential",
+        )
+        .into()),
+        Some(Serves::AccountSession) => signed_in(ctx).map(|_session| ()),
+        None => Err(hub_failed(&format_args!("{path} isn't in SERVES"))),
+    }
+}
+
+/// Who `service` serves, or `None` for a service missing from [`SERVES`], which serves no one.
+fn serves(service: &str) -> Option<Serves> {
+    SERVES
+        .iter()
+        .find(|&&(name, _)| name == service)
+        .map(|&(_, serves)| serves)
 }
 
 /// A refusal of a client's request on its way to becoming a [`ConnectError`]: [`refuse`] starts

@@ -125,15 +125,10 @@ async fn a_linked_server_pulls_only_the_preferences_of_the_account_its_user_is_l
         [],
         "User 9 isn't Linked"
     );
-    assert_refused(
-        pulled(&hub, "no such credential", 7).await,
-        ErrorCode::Unauthenticated,
-        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
-    );
 }
 
 #[sqlx::test(migrations = false)]
-async fn a_preference_push_breaking_a_limit_or_from_no_linked_server_is_refused(db: PgPool) {
+async fn a_preference_push_breaking_a_limit_is_refused(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
     let server = linked(&hub, &ada, "Ada's").await;
@@ -160,9 +155,4 @@ async fn a_preference_push_breaking_a_limit_or_from_no_linked_server_is_refused(
         RefusalReason::REFUSAL_REASON_TRACK_PREFERENCE_INVALID,
     );
     assert_eq!(too_long.field, "changes[0].language");
-    assert_refused(
-        push(&hub, "no such credential", vec![alien_in(7, "eng", 1_000)]).await,
-        ErrorCode::Unauthenticated,
-        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
-    );
 }
