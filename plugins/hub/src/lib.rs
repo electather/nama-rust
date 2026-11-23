@@ -98,8 +98,8 @@ impl Plugin for Hub {
                              Home's Trending on Nama row shows the Movies on the Server most \
                              Accounts finished this week and last, once at least 20 did, so it \
                              stays hidden until enough have. Most watchlisted on Nama shows the \
-                             Movies and Shows on most Accounts' Watchlists, once at least 20 have \
-                             one, and offers those the Server lacks as Requests."
+                             Movies and Shows on most Accounts' Watchlists, once at least 20 \
+                             Accounts have each, and offers those the Server lacks as Requests."
                 .to_owned(),
             extension_points: vec![
                 PointKey::provide::<dyn ServerLinker>(),

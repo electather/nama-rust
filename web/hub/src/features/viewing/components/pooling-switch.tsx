@@ -14,7 +14,7 @@ export function PoolingSwitch() {
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-3">
         <label htmlFor={id} className="text-sm font-medium">
-          Count the Movies you finish
+          Count your finished Movies and Watchlists
         </label>
         <Switch
           id={id}

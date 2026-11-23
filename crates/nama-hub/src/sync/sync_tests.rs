@@ -476,7 +476,7 @@ async fn titles_on_twenty_accounts_watchlists_are_most_watchlisted_first_and_rem
     db: PgPool,
 ) {
     let (watchlists, _viewing, accounts) = accounts_on(&db, 21).await;
-    let dark = WatchlistEntry {
+    let breaking_bad = WatchlistEntry {
         show: true,
         id: "tvdb-81189".to_owned(),
         removed: false,
@@ -487,7 +487,7 @@ async fn titles_on_twenty_accounts_watchlists_are_most_watchlisted_first_and_rem
         ..the_matrix(false, 1_000)
     };
     for (n, &account) in accounts.iter().enumerate() {
-        let mut entries = vec![the_matrix(n == 0, 1_000), dark.clone()];
+        let mut entries = vec![the_matrix(n == 0, 1_000), breaking_bad.clone()];
         if n < 19 {
             entries.push(alien.clone());
         }

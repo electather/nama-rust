@@ -95,7 +95,7 @@ One play of a Movie or Episode by a Linked User, as the Hub records it: when it 
 _Avoid_: play log, scrobble, watch history entry, telemetry
 
 **Watchlist**:
-A User's list of titles to watch later, whether or not their Server has them.
+A User's list of titles to watch later, whether or not their Server has them. Across Accounts, the Hub counts them only by the pooled counts' rules (ADR 0093).
 _Avoid_: queue, favorites, wishlist
 
 **Setting**:

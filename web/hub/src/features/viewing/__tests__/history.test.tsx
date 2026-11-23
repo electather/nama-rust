@@ -168,7 +168,9 @@ describe("viewing history", () => {
   test("the Account page shows the pooling switch, on, with what turning it off can’t undo", async () => {
     open("/");
 
-    const toggle = await screen.findByRole("switch", { name: "Count the Movies you finish" });
+    const toggle = await screen.findByRole("switch", {
+      name: "Count your finished Movies and Watchlists",
+    });
 
     expect(toggle.getAttribute("aria-checked")).toBe("true");
     const notice = screen.getByText(/already counted can’t be taken out\.$/u);
@@ -177,7 +179,9 @@ describe("viewing history", () => {
 
   test("turning pooling off on the history page keeps it off", async () => {
     open("/history");
-    const toggle = await screen.findByRole("switch", { name: "Count the Movies you finish" });
+    const toggle = await screen.findByRole("switch", {
+      name: "Count your finished Movies and Watchlists",
+    });
     await vi.waitFor(() => {
       expect(toggle.getAttribute("aria-disabled")).toBeNull();
     });
