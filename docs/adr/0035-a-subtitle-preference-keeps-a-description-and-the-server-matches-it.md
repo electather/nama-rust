@@ -1,5 +1,7 @@
 # A Subtitle Preference keeps a description, and the Server matches it
 
+_Amended by [ADR 0092](0092-a-user-can-be-created-from-an-account.md): a Linked User's Subtitle and Audio Preferences sync through the Hub, as descriptions each Server matches against its own Tracks, so "The Hub gets no copy" no longer holds._
+
 The subtitle a User picked lived only in the player, so it was off again in the next Episode. Now the Kernel keeps a Subtitle Preference for each User: that they turned subtitles off, or what describes the Track they picked, which is its language, whether it is forced-only, whether it is SDH, and its title. A Track's place isn't kept, because each Episode is its own file. One is kept for each Show or Movie, by its external id as Watch State is (ADR 0013), and one for everything the User plays, set in Settings.
 
 When a plan request names no subtitle, the Kernel takes the Preference for the Show or Movie, or else the User's, and matches it against the Version's subtitle Tracks. Language and forced must match. Among those Tracks it prefers the same SDH, then the same title, then a Track the Device shows itself over one that needs Burn-in. The Playback Plan says which subtitle playback starts with, even one the Device draws. That subtitle is still no input to how the Version plays (ADR 0033). A match that needs Burn-in is one of the User's choices, so the plan drops it when the Server can't Transcode (ADR 0031).

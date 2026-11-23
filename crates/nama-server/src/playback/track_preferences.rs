@@ -4,21 +4,28 @@
 //!
 //! [`TrackPreferences`] alone reads and writes `track_preferences` (`AGENTS.md`). It keeps
 //! a pick's against a Show's or Movie's external id, as Watch State is kept (ADR 0013), so an
-//! Unmatched Item keeps none, and the User's own at the `user` scope.
+//! Unmatched Item keeps none, and the User's own at the `user` scope. How they sync with the
+//! User's other Servers: `AGENTS.md` (ADR 0092).
 
 use std::sync::Arc;
 
 use isolang::Language;
+use nama_plugin_api::points::{TrackDescription, TrackPreference, TrackPreferenceFor};
+use sqlx::SqliteConnection;
 
 use super::tracks::Track;
 use crate::{
-    db::Database,
+    db::{Database, now_ms},
     library::{Contents, MatchedTo},
 };
 
 // The `kind` of a Preference, part of its key.
 const SUBTITLE: &str = "subtitle";
 const AUDIO: &str = "audio";
+
+// The `scope` of a Show's or Movie's Preference.
+const SHOW: &str = "show";
+const MOVIE: &str = "movie";
 
 /// Reads and keeps each User's Track Preferences.
 #[derive(Debug, Clone)]
@@ -83,6 +90,28 @@ impl KeptFor {
         scope: USER,
         title_id: String::new(),
     };
+
+    /// What `kept_for`, as another Server named it, is here. `None` for a Show or Movie with no id.
+    fn of(kept_for: &TrackPreferenceFor) -> Option<Self> {
+        let (scope, title_id) = match kept_for {
+            TrackPreferenceFor::User => return Some(Self::USERS_OWN),
+            TrackPreferenceFor::Show(id) => (SHOW, id),
+            TrackPreferenceFor::Movie(id) => (MOVIE, id),
+        };
+        (!title_id.is_empty()).then(|| Self {
+            scope,
+            title_id: title_id.clone(),
+        })
+    }
+
+    /// It, as the Plugins that sync Preferences name it.
+    fn told(&self) -> TrackPreferenceFor {
+        match self.scope {
+            SHOW => TrackPreferenceFor::Show(self.title_id.clone()),
+            MOVIE => TrackPreferenceFor::Movie(self.title_id.clone()),
+            _ => TrackPreferenceFor::User,
+        }
+    }
 }
 
 // The scope of a User's own Preference, kept with an empty `title_id`.
@@ -90,6 +119,62 @@ const USER: &str = "user";
 
 /// A `track_preferences` row: what describes the Track it wants, `None` for off, and whose it is.
 type Row = Preferred<Option<Description>>;
+
+/// One change to a User's `track_preferences`: the row it keeps, after the User.
+#[derive(Debug)]
+struct Change {
+    kept_for: KeptFor,
+    kind: &'static str,
+    /// What describes the Track wanted, `None` for off, or, for the User's own audio, for none
+    /// kept, as audio is never off.
+    like: Option<Description>,
+    foreign_audio_only: bool,
+    /// In milliseconds since the Unix epoch.
+    changed_at: i64,
+}
+
+impl Change {
+    /// `pulled`, as this Server keeps it, `None` for one its rows can't hold, which no Server
+    /// makes.
+    fn pulled(pulled: &TrackPreference) -> Option<Self> {
+        let kept_for = KeptFor::of(&pulled.kept_for)?;
+        let users_own = kept_for.scope == USER;
+        // Audio is never off, and a Show's or Movie's is always a Track's.
+        if pulled.audio && pulled.like.is_none() && !users_own {
+            return None;
+        }
+        let like = pulled.like.clone().map(|like| Description {
+            language: like.language,
+            // Audio is described by its language and title alone.
+            forced: like.forced && !pulled.audio,
+            sdh: like.sdh && !pulled.audio,
+            title: like.title,
+        });
+        Some(Self {
+            kept_for,
+            kind: if pulled.audio { AUDIO } else { SUBTITLE },
+            like,
+            foreign_audio_only: pulled.foreign_audio_only && users_own && !pulled.audio,
+            changed_at: pulled.changed_at_ms,
+        })
+    }
+
+    /// It, as the Plugins that sync Preferences are told.
+    fn told(self) -> TrackPreference {
+        TrackPreference {
+            audio: self.kind == AUDIO,
+            kept_for: self.kept_for.told(),
+            like: self.like.map(|like| TrackDescription {
+                language: like.language,
+                forced: like.forced,
+                sdh: like.sdh,
+                title: like.title,
+            }),
+            foreign_audio_only: self.foreign_audio_only,
+            changed_at_ms: self.changed_at,
+        }
+    }
+}
 
 /// Why what a Version is of couldn't be found.
 #[derive(Debug, thiserror::Error)]
@@ -115,7 +200,7 @@ impl TrackPreferences {
         user: i64,
         kept_for: KeptFor,
         preference: SubtitlePreference,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<TrackPreference, sqlx::Error> {
         self.keep(user, kept_for, SUBTITLE, like(preference), false)
             .await
     }
@@ -127,7 +212,7 @@ impl TrackPreferences {
         user: i64,
         preference: SubtitlePreference,
         foreign_audio_only: bool,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<TrackPreference, sqlx::Error> {
         let like = like(preference);
         self.keep(user, KeptFor::USERS_OWN, SUBTITLE, like, foreign_audio_only)
             .await
@@ -140,7 +225,7 @@ impl TrackPreferences {
         user: i64,
         kept_for: KeptFor,
         picked: Description,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<TrackPreference, sqlx::Error> {
         let description = Description {
             language: picked.language,
             title: picked.title,
@@ -177,9 +262,11 @@ impl TrackPreferences {
         &self,
         user: i64,
         language: Option<String>,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<TrackPreference, sqlx::Error> {
         let Some(language) = language else {
-            return self.forget_users_audio(user).await;
+            return self
+                .keep(user, KeptFor::USERS_OWN, AUDIO, None, false)
+                .await;
         };
         let description = Description {
             language: Some(language),
@@ -212,28 +299,9 @@ impl TrackPreferences {
         }))
     }
 
-    /// Removes the User `user`'s own Audio Preference, if they have one.
-    async fn forget_users_audio(&self, user: i64) -> Result<(), sqlx::Error> {
-        self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    sqlx::query!(
-                        "DELETE FROM track_preferences
-                         WHERE user_id = ? AND scope = ? AND kind = ?",
-                        user,
-                        USER,
-                        AUDIO,
-                    )
-                    .execute(&mut **tx)
-                    .await?;
-                    Ok::<_, sqlx::Error>(())
-                })
-            })
-            .await
-    }
-
     /// Keeps a Track like `like`, or `None` for off, as the User `user`'s `kind` Preference for
-    /// `kept_for`, wanting it only over audio in another language if `foreign_audio_only`.
+    /// `kept_for`, wanting it only over audio in another language if `foreign_audio_only`, and
+    /// returns the change. `None` for the User's own audio forgets it, as audio is never off.
     #[expect(
         clippy::too_many_arguments,
         reason = "the row's key and columns, each set by a different public `keep_*`"
@@ -241,41 +309,38 @@ impl TrackPreferences {
     async fn keep(
         &self,
         user: i64,
-        KeptFor { scope, title_id }: KeptFor,
+        kept_for: KeptFor,
         kind: &'static str,
         like: Option<Description>,
         foreign_audio_only: bool,
-    ) -> Result<(), sqlx::Error> {
-        let off = like.is_none();
-        let description = like.unwrap_or_default();
+    ) -> Result<TrackPreference, sqlx::Error> {
+        let change = Change {
+            kept_for,
+            kind,
+            like,
+            foreign_audio_only,
+            changed_at: now_ms(),
+        };
         self.db
             .write(move |tx| {
                 Box::pin(async move {
-                    sqlx::query!(
-                        "INSERT INTO track_preferences
-                             (user_id, scope, title_id, kind, off, language, forced, sdh, title,
-                              foreign_audio_only)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                         ON CONFLICT (user_id, scope, title_id, kind) DO UPDATE
-                         SET off = excluded.off, language = excluded.language,
-                             forced = excluded.forced, sdh = excluded.sdh, title = excluded.title,
-                             foreign_audio_only = excluded.foreign_audio_only",
-                        user,
-                        scope,
-                        title_id,
-                        kind,
-                        off,
-                        description.language,
-                        description.forced,
-                        description.sdh,
-                        description.title,
-                        foreign_audio_only,
-                    )
-                    .execute(&mut **tx)
-                    .await?;
-                    Ok::<_, sqlx::Error>(())
+                    write(tx, user, &change, Overwrite::Always).await?;
+                    Ok::<_, sqlx::Error>(change.told())
                 })
             })
+            .await
+    }
+
+    /// Takes each of `pulled`, the User `user`'s Preferences as their other Servers left them,
+    /// where it is newer than this Server's own. It tells no Plugin: the one that pulled has them.
+    pub(crate) async fn take_pulled(
+        &self,
+        user: i64,
+        pulled: Vec<TrackPreference>,
+    ) -> Result<(), sqlx::Error> {
+        let changes: Vec<_> = pulled.iter().filter_map(Change::pulled).collect();
+        self.db
+            .write(move |tx| Box::pin(take_each(tx, user, changes)))
             .await
     }
 
@@ -336,15 +401,92 @@ impl TrackPreferences {
             MatchedTo::NoSuchVersion => return Err(Error::NoSuchVersion),
             MatchedTo::Nothing => None,
             MatchedTo::Movie(movie) => Some(KeptFor {
-                scope: "movie",
+                scope: MOVIE,
                 title_id: movie.to_string(),
             }),
             MatchedTo::Episodes { show, .. } => show.map(|show| KeptFor {
-                scope: "show",
+                scope: SHOW,
                 title_id: show.to_string(),
             }),
         })
     }
+}
+
+/// When a write replaces the row kept.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Overwrite {
+    /// For the User's own change here, which wins even over a pulled one dated later by another
+    /// Server's clock.
+    Always,
+    /// For a pulled change, taken only where it is newer.
+    IfNewer,
+}
+
+/// Writes each of `changes`, pulled, to the User `user`'s `track_preferences` through `conn`.
+async fn take_each(
+    conn: &mut SqliteConnection,
+    user: i64,
+    changes: Vec<Change>,
+) -> Result<(), sqlx::Error> {
+    for change in &changes {
+        write(conn, user, change, Overwrite::IfNewer).await?;
+    }
+    Ok(())
+}
+
+/// Writes `change` to the User `user`'s `track_preferences` through `conn`, as `overwrite` says.
+async fn write(
+    conn: &mut SqliteConnection,
+    user: i64,
+    change: &Change,
+    overwrite: Overwrite,
+) -> Result<(), sqlx::Error> {
+    let KeptFor { scope, title_id } = &change.kept_for;
+    let always = overwrite == Overwrite::Always;
+    if change.kind == AUDIO && change.like.is_none() {
+        sqlx::query!(
+            "DELETE FROM track_preferences
+             WHERE user_id = ? AND scope = ? AND title_id = ? AND kind = ?
+                 AND (? OR changed_at < ?)",
+            user,
+            scope,
+            title_id,
+            change.kind,
+            always,
+            change.changed_at,
+        )
+        .execute(conn)
+        .await?;
+        return Ok(());
+    }
+    let off = change.like.is_none();
+    let description = change.like.clone().unwrap_or_default();
+    sqlx::query!(
+        "INSERT INTO track_preferences
+             (user_id, scope, title_id, kind, off, language, forced, sdh, title,
+              foreign_audio_only, changed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (user_id, scope, title_id, kind) DO UPDATE
+         SET off = excluded.off, language = excluded.language, forced = excluded.forced,
+             sdh = excluded.sdh, title = excluded.title,
+             foreign_audio_only = excluded.foreign_audio_only, changed_at = excluded.changed_at
+         WHERE ? OR excluded.changed_at > track_preferences.changed_at",
+        user,
+        scope,
+        title_id,
+        change.kind,
+        off,
+        description.language,
+        description.forced,
+        description.sdh,
+        description.title,
+        change.foreign_audio_only,
+        change.changed_at,
+        always,
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
 }
 
 /// The Subtitle Preference `row` keeps, and whose it is.

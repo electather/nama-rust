@@ -1,11 +1,13 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
 //! keeps in the Plugin's Store once someone entered it, the Server Addresses it tells the Hub, and
 //! through it shares what the Admin chooses with Nama's developers (ADR 0054). Its Users' Links are
-//! in `users.rs`, syncing their Watch State both ways in `watch_states.rs`, their plays as Viewing
+//! in `users.rs`, syncing their Watch State both ways in `watch_states.rs` and their Subtitle and
+//! Audio Preferences in `track_preferences.rs`, their plays as Viewing
 //! Events in `viewing.rs`, and signing in with an Account, and Users created from one, in
 //! `accounts.rs`.
 
 mod accounts;
+mod track_preferences;
 mod users;
 mod viewing;
 mod watch_states;
@@ -26,7 +28,7 @@ use nama_plugin_api::{
     contract::{StoreEntry, StoreKey},
     diagnostics_sharer::{DiagnosticsSharer, Signal},
     job::{JobRunner, RunJob},
-    points::WatchStateChange,
+    points::{TrackPreference, WatchStateChange},
     server_link::{AccountSignIn, Link, Reachability, ServerAddresses, ServerLinker},
 };
 use ring::digest;
@@ -39,6 +41,7 @@ use crate::{
 };
 
 pub(crate) use self::{
+    track_preferences::TrackPreferenceSync,
     viewing::{ViewingEvents, send_job},
     watch_states::{WatchStateSync, sync_job},
 };
@@ -54,7 +57,12 @@ impl JobRunner for Jobs {
     fn run<'a>(&'a self, run: &'a RunJob) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(async move {
             match run.job_id.as_str() {
-                watch_states::SYNC => self.linker.send_queued().await,
+                watch_states::SYNC => {
+                    // Each queue apart, so one the Hub refuses holds back only its own.
+                    let watch_states = self.linker.send_queued().await;
+                    let preferences = self.linker.send_queued_preferences().await;
+                    watch_states.and(preferences)
+                }
                 viewing::SEND_JOB => self.viewing.send().await,
                 other => Err(format!("the Hub Plugin has no Job {other}").into()),
             }
@@ -128,7 +136,8 @@ pub(crate) struct Linker {
     waiting: Mutex<Option<Waiting>>,
     /// What the Plugin knows of each User's Link but what it keeps in the Store.
     users: std::sync::Mutex<HashMap<i64, users::UserState>>,
-    /// Held while the queue of Watch State changes is read and written, so none is lost.
+    /// Held while a queue of Watch State or Track Preference changes is read and written, so none
+    /// is lost.
     queue: Mutex<()>,
     /// Held across telling the Hub, so a report never overtakes another.
     reported: Mutex<Option<Reported>>,
@@ -425,6 +434,13 @@ impl ServerLinker for Linker {
         user_id: i64,
     ) -> BoxFuture<'_, Result<Vec<WatchStateChange>, PluginError>> {
         Box::pin(self.pull(user_id))
+    }
+
+    fn track_preferences(
+        &self,
+        user_id: i64,
+    ) -> BoxFuture<'_, Result<Vec<TrackPreference>, PluginError>> {
+        Box::pin(self.pull_preferences(user_id))
     }
 }
 

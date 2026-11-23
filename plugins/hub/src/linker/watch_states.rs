@@ -31,7 +31,7 @@ const PAGE_CHANGES: usize = 100;
 /// The most ids a change sends, and the most characters each may have, as the Hub takes them: past
 /// either it would refuse the page, which would hold back every later one.
 const MAX_IDS: usize = 20;
-const MAX_ID_LENGTH: usize = 100;
+pub(super) const MAX_ID_LENGTH: usize = 100;
 
 /// Which pages of queued changes the Store keeps: `first..next`, oldest first.
 #[derive(Default, Serialize, Deserialize)]
@@ -45,8 +45,9 @@ pub(crate) fn sync_job() -> Job {
     Job {
         id: SYNC.to_owned(),
         name: "Sync with the Hub".to_owned(),
-        description: "Sends Linked Users' Watch State changes to the Hub. Those made while it \
-                      is unreachable are kept and sent, in order, once it is back."
+        description: "Sends Linked Users' Watch State and Subtitle and Audio Preference changes \
+                      to the Hub. Those made while it is unreachable are kept and sent, in \
+                      order, once it is back."
             .to_owned(),
         schedule: Some("* * * * *".to_owned()),
     }

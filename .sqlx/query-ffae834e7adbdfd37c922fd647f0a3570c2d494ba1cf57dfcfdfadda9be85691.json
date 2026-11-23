@@ -1,0 +1,131 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT audio, scope, title_id, off, language, forced, sdh, title, foreign_audio_only,\n                      (extract(epoch FROM changed_at) * 1000)::bigint AS \"changed_at_ms!\"\n               FROM track_preferences WHERE account_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "audio",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "audio"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "scope",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "scope"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "title_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "title_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "off",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "off"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "language",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "language"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "forced",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "forced"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "sdh",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "sdh"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "foreign_audio_only",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "foreign_audio_only"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "changed_at_ms!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "ffae834e7adbdfd37c922fd647f0a3570c2d494ba1cf57dfcfdfadda9be85691"
+}

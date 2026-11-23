@@ -138,6 +138,7 @@ pub(crate) fn router(
             sign_in: SignIn::new(users.clone(), setup_code),
             points: plugins.clone(),
             browse: Browse::new(Arc::clone(&db)),
+            preferences: TrackPreferences::new(Arc::clone(&db)),
             server_url: settings.server_url(),
             listening,
         }))
@@ -178,6 +179,7 @@ pub(crate) fn router(
                 Arc::clone(&db),
             ),
             preferences: TrackPreferences::new(Arc::clone(&db)),
+            points: plugins.clone(),
             downloads: SubtitleDownloads::new(&db, plugins.clone(), image_store),
             db: Arc::clone(&db),
         }))
@@ -216,6 +218,7 @@ pub(crate) fn router(
             plugin_settings,
             plugin_logos: plugin_logos.clone(),
             browse: Browse::new(Arc::clone(&db)),
+            preferences: TrackPreferences::new(Arc::clone(&db)),
             db,
             server_url,
             home_rows,

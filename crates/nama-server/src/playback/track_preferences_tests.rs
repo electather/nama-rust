@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
+use nama_plugin_api::points::{TrackDescription, TrackPreference, TrackPreferenceFor};
+
 use super::{
     Description, Preferred, SubtitlePreference, TrackPreferences, is_language, same_language,
 };
 use crate::{
-    db::Database,
+    db::{Database, now_ms},
     library::{
         Contents, Decided,
         fixture::{MatchedMovie, tmdb_movie},
@@ -208,6 +210,129 @@ async fn a_users_own_subtitles_kept_before_the_condition_start_over_any_audio_un
 
     assert!(!before);
     assert!(foreign_audio_only().await);
+}
+
+/// Full English subtitles for the Movie `tmdb-348`, as another Server changed them at
+/// `changed_at_ms`.
+fn pulled_english_for_alien(changed_at_ms: i64) -> TrackPreference {
+    TrackPreference {
+        kept_for: TrackPreferenceFor::Movie("tmdb-348".to_owned()),
+        like: Some(TrackDescription {
+            language: Some("en".to_owned()),
+            ..TrackDescription::default()
+        }),
+        changed_at_ms,
+        ..TrackPreference::default()
+    }
+}
+
+#[tokio::test]
+async fn a_pulled_movies_subtitle_preference_reaches_its_versions_as_a_description() {
+    let (data, media) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let (preferences, user) = track_preferences(&data).await;
+    let alien = MatchedMovie::new(&preferences.db, media.path(), tmdb_movie(348, "Alien")).await;
+
+    let pulled = pulled_english_for_alien(now_ms());
+    preferences.take_pulled(user, vec![pulled]).await.unwrap();
+
+    assert_eq!(
+        preferences.subtitle(user, alien.version).await.unwrap(),
+        Some(Preferred {
+            preference: english(),
+            users_own: false,
+            foreign_audio_only: false,
+        })
+    );
+}
+
+#[tokio::test]
+async fn a_pulled_preference_is_taken_only_where_newer_than_the_servers_own() {
+    let (data, media) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let (preferences, user) = track_preferences(&data).await;
+    let alien = MatchedMovie::new(&preferences.db, media.path(), tmdb_movie(348, "Alien")).await;
+    let movie = preferences.kept_for(alien.version).await.unwrap().unwrap();
+    let off = preferences
+        .keep_subtitle(user, movie, SubtitlePreference::Off)
+        .await
+        .unwrap();
+    let preference = async || preferences.subtitle(user, alien.version).await.unwrap();
+
+    let older = pulled_english_for_alien(off.changed_at_ms - 1);
+    preferences.take_pulled(user, vec![older]).await.unwrap();
+    let after_older = preference().await;
+    let newer = pulled_english_for_alien(off.changed_at_ms + 1);
+    preferences.take_pulled(user, vec![newer]).await.unwrap();
+
+    let preferred = |wanted| {
+        Some(Preferred {
+            preference: wanted,
+            users_own: false,
+            foreign_audio_only: false,
+        })
+    };
+    assert_eq!(after_older, preferred(SubtitlePreference::Off));
+    assert_eq!(preference().await, preferred(english()));
+}
+
+#[tokio::test]
+async fn a_users_own_audio_left_to_the_files_on_another_server_forgets_it_here() {
+    let data = tempfile::tempdir().unwrap();
+    let (preferences, user) = track_preferences(&data).await;
+    let german = preferences
+        .keep_users_audio(user, Some("de".to_owned()))
+        .await
+        .unwrap();
+
+    let files_own = TrackPreference {
+        audio: true,
+        changed_at_ms: german.changed_at_ms + 1,
+        ..TrackPreference::default()
+    };
+    preferences
+        .take_pulled(user, vec![files_own])
+        .await
+        .unwrap();
+
+    assert_eq!(preferences.users_audio(user).await.unwrap(), None);
+}
+
+#[tokio::test]
+async fn each_keep_tells_what_it_kept_and_for_what() {
+    let (data, media) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let (preferences, user) = track_preferences(&data).await;
+    let alien = MatchedMovie::new(&preferences.db, media.path(), tmdb_movie(348, "Alien")).await;
+    let movie = preferences.kept_for(alien.version).await.unwrap().unwrap();
+
+    let own = preferences
+        .keep_users_subtitle(user, english(), true)
+        .await
+        .unwrap();
+    let movies = preferences
+        .keep_subtitle(user, movie, SubtitlePreference::Off)
+        .await
+        .unwrap();
+    let files_audio = preferences.keep_users_audio(user, None).await.unwrap();
+
+    let english = TrackDescription {
+        language: Some("en".to_owned()),
+        ..TrackDescription::default()
+    };
+    assert_eq!(
+        (own.kept_for, own.like, own.foreign_audio_only),
+        (TrackPreferenceFor::User, Some(english), true)
+    );
+    assert_eq!(
+        (movies.kept_for, movies.like, movies.audio),
+        (
+            TrackPreferenceFor::Movie("tmdb-348".to_owned()),
+            None,
+            false
+        )
+    );
+    assert_eq!(
+        (files_audio.kept_for, files_audio.like, files_audio.audio),
+        (TrackPreferenceFor::User, None, true)
+    );
 }
 
 #[test]

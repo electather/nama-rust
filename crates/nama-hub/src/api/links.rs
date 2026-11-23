@@ -15,24 +15,29 @@ use nama_hub_proto::nama::hub::v1::{
     ListLinkedServersResponse, ListLinkedUsersRequest, ListLinkedUsersResponse,
     ListSimilarTitlesRequest, ListSimilarTitlesResponse, ListUserInvitesRequest,
     ListUserInvitesResponse, PollServerLinkRequest, PollServerLinkResponse,
-    PollServerSignInRequest, PollServerSignInResponse, PullWatchStatesRequest,
-    PullWatchStatesResponse, PushWatchStatesRequest, PushWatchStatesResponse,
-    RecordViewingEventsRequest, RecordViewingEventsResponse, RefusalReason, ServerLinkService,
-    SetServerAddressesRequest, SetServerAddressesResponse, StartServerLinkRequest,
-    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
-    StartUserLinkRequest, StartUserLinkResponse, UnlinkLinkedUserRequest, UnlinkLinkedUserResponse,
-    UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
+    PollServerSignInRequest, PollServerSignInResponse, PullTrackPreferencesRequest,
+    PullTrackPreferencesResponse, PullWatchStatesRequest, PullWatchStatesResponse,
+    PushTrackPreferencesRequest, PushTrackPreferencesResponse, PushWatchStatesRequest,
+    PushWatchStatesResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
+    RefusalReason, ServerLinkService, SetServerAddressesRequest, SetServerAddressesResponse,
+    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
+    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse,
+    UnlinkLinkedUserRequest, UnlinkLinkedUserResponse, UnlinkServerRequest, UnlinkServerResponse,
+    UnlinkUserRequest, UnlinkUserResponse,
 };
 use sqlx::PgPool;
 
-use super::{accounts::signed_in, hub_failed, refuse, viewing};
+use super::{accounts::signed_in, hub_failed, refuse, track_preferences, viewing};
 use crate::{
     links::{
         self, ADDRESS_LENGTH, CODE_LIFETIME_MINS, InviteId, LinkId, LinkedServer, Links,
         ListedInvite, ListedServer, ListedUser, MAX_LAN_ADDRESSES, POLL_INTERVAL_SECS, Polled,
         SignInId,
     },
-    sync::{MAX_CHANGED_AT_MS, MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, WatchStateChange, WatchStates},
+    sync::{
+        MAX_CHANGED_AT_MS, MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, TrackPreferences, WatchStateChange,
+        WatchStates,
+    },
     titles::{self, ExternalId, SimilarTitle, TitleKind},
     viewing::Viewing,
 };
@@ -252,6 +257,7 @@ impl LinkService for LinkServiceHandler {
 pub(super) struct LinkedServerServiceHandler {
     pub(super) links: Links,
     pub(super) watch_states: WatchStates,
+    pub(super) track_preferences: TrackPreferences,
     pub(super) db: PgPool,
     pub(super) viewing: Viewing,
 }
@@ -375,6 +381,38 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .map_err(|err| hub_failed(&err))?;
         Response::ok(PullWatchStatesResponse {
             watch_states: pulled.into_iter().map(change_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn push_track_preferences(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PushTrackPreferencesRequest>,
+    ) -> ServiceResult<PushTrackPreferencesResponse> {
+        let server = linked_server(&ctx)?;
+        let changes = track_preferences::changes_from_proto(request.to_owned_message().changes)?;
+        self.track_preferences
+            .push(server, changes)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(PushTrackPreferencesResponse::default())
+    }
+
+    async fn pull_track_preferences(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PullTrackPreferencesRequest>,
+    ) -> ServiceResult<PullTrackPreferencesResponse> {
+        let pulled = self
+            .track_preferences
+            .pull(linked_server(&ctx)?, request.user_id)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(PullTrackPreferencesResponse {
+            preferences: (pulled.into_iter())
+                .map(track_preferences::change_to_proto)
+                .collect(),
             ..Default::default()
         })
     }

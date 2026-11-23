@@ -133,7 +133,10 @@ impl Alien {
     }
 
     async fn keep(&self, pick: Pick) -> Result<(), PickError> {
-        self.plans.keep_pick(self.user(), self.version, pick).await
+        self.plans
+            .keep_pick(self.user(), self.version, pick)
+            .await
+            .map(drop)
     }
 
     /// The Subtitle Preference a plan of the Movie starts with for Ripley.

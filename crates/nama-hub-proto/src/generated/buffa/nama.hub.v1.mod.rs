@@ -94,6 +94,11 @@ pub mod __buffa {
         reg.register_json_any(super::__PULL_WATCH_STATES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__PULL_WATCH_STATES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__WATCH_STATE_CHANGE_JSON_ANY);
+        reg.register_json_any(super::__PUSH_TRACK_PREFERENCES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__PUSH_TRACK_PREFERENCES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PULL_TRACK_PREFERENCES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__PULL_TRACK_PREFERENCES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__TRACK_PREFERENCE_CHANGE_JSON_ANY);
         reg.register_json_any(super::__USER_INVITE_JSON_ANY);
         reg.register_json_any(super::__LIST_USER_INVITES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_USER_INVITES_RESPONSE_JSON_ANY);
@@ -370,6 +375,26 @@ pub use self::__buffa::view::PullWatchStatesResponseOwnedView;
 pub use self::__buffa::view::WatchStateChangeView;
 #[doc(inline)]
 pub use self::__buffa::view::WatchStateChangeOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PushTrackPreferencesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PushTrackPreferencesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PushTrackPreferencesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PushTrackPreferencesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PullTrackPreferencesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PullTrackPreferencesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PullTrackPreferencesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PullTrackPreferencesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TrackPreferenceChangeView;
+#[doc(inline)]
+pub use self::__buffa::view::TrackPreferenceChangeOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UserInviteView;
 #[doc(inline)]

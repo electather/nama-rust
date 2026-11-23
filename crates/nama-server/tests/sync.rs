@@ -1,5 +1,6 @@
-//! A User's Watch State on their other Servers coming back through the enabled Plugin that links
-//! the Server (ADR 0008), here a stand-in for the Hub that two Servers share.
+//! A User's Watch State and Track Preferences on their other Servers coming back through the
+//! enabled Plugin that links the Server (ADR 0008, ADR 0092), here a stand-in for the Hub that two
+//! Servers share.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
@@ -18,24 +19,41 @@ use browsing::{ALIEN_1080P, Fixture};
 use connectrpc::client::{ClientConfig, HttpClient};
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    points::{WatchStateChange, WatchStateChanges, WatchStatesChanged},
+    points::{
+        TrackPreference, TrackPreferenceChange, TrackPreferenceChanged, WatchStateChange,
+        WatchStateChanges, WatchStatesChanged,
+    },
     server_link::{AccountSignIn, Link, ServerAddresses, ServerLinker},
 };
 use nama_proto::nama::v1::{
-    BrowseServiceClient, LibraryKind, ListContinueWatchingRequest, ReportProgressRequest,
-    WatchStateServiceClient, continue_watching_entry::MovieOrEpisode,
+    BrowseServiceClient, GetTrackPreferencesRequest, GetTrackPreferencesResponse, LibraryKind,
+    ListContinueWatchingRequest, PlaybackServiceClient, ReportProgressRequest,
+    SetAudioPreferenceRequest, SetSubtitlePreferenceRequest, SubtitleKind, UsersAudioPreference,
+    UsersSubtitlePreference, WatchStateServiceClient, continue_watching_entry::MovieOrEpisode,
 };
 use nama_server::plugins::Registry;
 use server::{TestServer, WAIT, tmdb::ALIEN};
 
-/// A stand-in for the Hub, shared by every Server it's enabled on: it keeps each Watch State change
-/// a Server tells of, and hands them all back to every User's pull, as one Account's.
+/// A stand-in for the Hub, shared by every Server it's enabled on: it keeps each Watch State and
+/// Track Preference change a Server tells of, and hands them all back to every User's pull, as one
+/// Account's.
 #[derive(Clone, Default)]
-struct Hub(Arc<Mutex<Vec<WatchStateChange>>>);
+struct Hub {
+    watch_states: Arc<Mutex<Vec<WatchStateChange>>>,
+    preferences: Arc<Mutex<Vec<TrackPreference>>>,
+}
 
 impl Hub {
     fn kept(&self) -> MutexGuard<'_, Vec<WatchStateChange>> {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+        self.watch_states
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn kept_preferences(&self) -> MutexGuard<'_, Vec<TrackPreference>> {
+        self.preferences
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     /// A Server the Hub is enabled on, as `builder` starts it.
@@ -56,6 +74,7 @@ impl Plugin for Hub {
             extension_points: vec![
                 PointKey::provide::<dyn ServerLinker>(),
                 PointKey::observe::<WatchStatesChanged>(),
+                PointKey::observe::<TrackPreferenceChanged>(),
             ],
             ..Manifest::new(PluginId::from_static("hub"))
         }
@@ -64,6 +83,7 @@ impl Plugin for Hub {
     fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::new(self.clone()));
         registrar.observe::<WatchStatesChanged>(self.clone());
+        registrar.observe::<TrackPreferenceChanged>(self.clone());
         Ok(())
     }
 }
@@ -74,6 +94,16 @@ impl Observer<WatchStatesChanged> for Hub {
         event: &'a WatchStateChanges,
     ) -> BoxFuture<'a, Result<(), PluginError>> {
         self.kept().extend(event.changes.iter().cloned());
+        Box::pin(future::ready(Ok(())))
+    }
+}
+
+impl Observer<TrackPreferenceChanged> for Hub {
+    fn observe<'a>(
+        &'a self,
+        event: &'a TrackPreferenceChange,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
+        self.kept_preferences().push(event.preference.clone());
         Box::pin(future::ready(Ok(())))
     }
 }
@@ -138,6 +168,13 @@ impl ServerLinker for Hub {
 
     fn watch_states(&self, _: i64) -> BoxFuture<'_, Result<Vec<WatchStateChange>, PluginError>> {
         Box::pin(future::ready(Ok(self.kept().clone())))
+    }
+
+    fn track_preferences(
+        &self,
+        _: i64,
+    ) -> BoxFuture<'_, Result<Vec<TrackPreference>, PluginError>> {
+        Box::pin(future::ready(Ok(self.kept_preferences().clone())))
     }
 }
 
@@ -233,6 +270,62 @@ async fn progress_on_a_title_the_server_lacks_shows_once_a_scan_adds_it() {
 
     until("Continue Watching shows the progress", async || {
         alien_in_continue_watching(&ada.client_config()).await == Some(60_000)
+    })
+    .await;
+}
+
+/// The own Track Preferences of whoever `who` calls as, as the Server gives them.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn own_preferences(who: &ClientConfig) -> GetTrackPreferencesResponse {
+    PlaybackServiceClient::new(HttpClient::plaintext(), who.clone())
+        .get_track_preferences(GetTrackPreferencesRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+}
+
+#[tokio::test]
+async fn subtitle_and_audio_preferences_set_on_one_server_are_the_users_once_signed_in_on_another()
+{
+    let hub = Hub::default();
+    let first = hub.on(TestServer::builder()).start().await;
+    let second = hub.on(TestServer::builder()).start().await;
+    let english_sdh = UsersSubtitlePreference {
+        language: Some("eng".to_owned()),
+        kind: SubtitleKind::SUBTITLE_KIND_SDH.into(),
+        ..Default::default()
+    };
+    let japanese = UsersAudioPreference {
+        language: Some("jpn".to_owned()),
+        ..Default::default()
+    };
+
+    let playback = PlaybackServiceClient::new(HttpClient::plaintext(), first.client_config());
+    let subtitle = SetSubtitlePreferenceRequest {
+        subtitle: english_sdh.clone().into(),
+        ..Default::default()
+    };
+    playback.set_subtitle_preference(subtitle).await.unwrap();
+    let audio = SetAudioPreferenceRequest {
+        audio: japanese.clone().into(),
+        ..Default::default()
+    };
+    playback.set_audio_preference(audio).await.unwrap();
+    until("the Hub has both", async || {
+        hub.kept_preferences().len() == 2
+    })
+    .await;
+    let ada = second.user_with_default_permissions("Ada").await;
+
+    until("the second Server has them", async || {
+        let preferences = own_preferences(&ada.client_config()).await;
+        (
+            preferences.subtitle.into_option(),
+            preferences.audio.into_option(),
+        ) == (Some(english_sdh.clone()), Some(japanese.clone()))
     })
     .await;
 }

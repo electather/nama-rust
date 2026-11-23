@@ -19,10 +19,11 @@ use hyper_util::{
 use nama_hub_proto::nama::hub::v1::{
     GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient, ListSimilarTitlesRequest,
     ListSimilarTitlesResponse, PollServerLinkRequest, PollServerLinkResponse,
-    PollServerSignInRequest, PullWatchStatesRequest, PushWatchStatesRequest,
-    RecordViewingEventsRequest, ServerLinkServiceClient, SetServerAddressesRequest,
-    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
-    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest,
+    PollServerSignInRequest, PullTrackPreferencesRequest, PullWatchStatesRequest,
+    PushTrackPreferencesRequest, PushWatchStatesRequest, RecordViewingEventsRequest,
+    ServerLinkServiceClient, SetServerAddressesRequest, StartServerLinkRequest,
+    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
+    StartUserLinkRequest, StartUserLinkResponse, TrackPreferenceChange, UnlinkServerRequest,
     UnlinkUserRequest, WatchStateChange,
 };
 use nama_plugin_api::{
@@ -211,6 +212,39 @@ impl Hub {
             })
             .await?;
         Ok(pulled.into_owned().watch_states)
+    }
+
+    /// Merges `changes` to the Track Preferences of the Users of the Server whose credential is
+    /// `credential` into their Accounts'.
+    pub(crate) async fn push_track_preferences(
+        &self,
+        credential: &str,
+        changes: Vec<TrackPreferenceChange>,
+    ) -> Result<(), PluginError> {
+        self.linked_server(credential)?
+            .push_track_preferences(PushTrackPreferencesRequest {
+                changes,
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
+    }
+
+    /// The Track Preferences of the Account the User `user_id` of the Server whose credential is
+    /// `credential` is Linked to; empty while they aren't Linked.
+    pub(crate) async fn pull_track_preferences(
+        &self,
+        credential: &str,
+        user_id: i64,
+    ) -> Result<Vec<TrackPreferenceChange>, PluginError> {
+        let pulled = self
+            .linked_server(credential)?
+            .pull_track_preferences(PullTrackPreferencesRequest {
+                user_id,
+                ..Default::default()
+            })
+            .await?;
+        Ok(pulled.into_owned().preferences)
     }
 
     /// Asks the Account with `email`, if any, to accept the User `user_id`, named `name`, of the

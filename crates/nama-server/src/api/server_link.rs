@@ -2,9 +2,10 @@
 //! Plugin (ADR 0011, ADR 0094): `ServerService`'s `GetServerLink`, `StartServerLink` and
 //! `UnlinkServer`, `UserService`'s `GetUserLink`, `StartUserLink`, `UnlinkUser` and
 //! `CreateUserFromAccount`, and `SignInService`'s sign-in with an Account (ADR 0092). Through it
-//! too, a User's Watch State on their other Servers comes back (ADR 0008).
+//! too, a User's Watch State and Track Preferences on their other Servers come back (ADR 0008,
+//! ADR 0092).
 
-use std::{future::Future, net::SocketAddr, time::Duration};
+use std::{future::Future, net::SocketAddr, sync::Arc, time::Duration};
 
 use connectrpc::{ConnectError, Response, ServiceResult};
 use nama_plugin_api::{
@@ -24,13 +25,14 @@ use crate::{
     browse::Browse,
     diagnostics,
     events::EventBus,
+    playback::TrackPreferences,
     plugins::ExtensionPoints,
     server_addresses,
     server_settings::ServerUrl,
     users::{User, Users},
 };
 
-/// How long a pull of a User's Watch State may take.
+/// How long a pull of a User's Watch State or Track Preferences may take.
 const PULL_TIMEOUT: Duration = Duration::from_mins(1);
 
 /// What `unavailable` says when the Plugin that links the Server fails.
@@ -74,16 +76,17 @@ pub(super) async fn unlink(points: &ExtensionPoints) -> ServiceResult<UnlinkServ
 }
 
 /// Where Linking `user` stands, unset while they can't Link: without an enabled Plugin that links
-/// the Server, or before the Server is Linked. Once they are Linked, pulls their Watch State too,
-/// as it can't tell the look that finds a Link new from a later one.
+/// the Server, or before the Server is Linked. Once they are Linked, pulls their Watch State and
+/// Track Preferences too, as it can't tell the look that finds a Link new from a later one.
 pub(super) async fn get_user(
     points: &ExtensionPoints,
     browse: &Browse,
+    preferences: &TrackPreferences,
     user: &User,
 ) -> ServiceResult<GetUserLinkResponse> {
     let link = ask(points, async |linker| linker.user_link(user.id).await).await?;
     if let Some(Some(Link::Linked { .. })) = &link {
-        pull_watch_states_soon(points, browse, user.id);
+        pull_soon(points, browse, preferences, user.id);
     }
     Response::ok(GetUserLinkResponse {
         link: link.flatten().map(user_link_to_proto).into(),
@@ -91,11 +94,12 @@ pub(super) async fn get_user(
     })
 }
 
-/// Starts Linking `user`, whom the service lists by their name, or pulls their Watch State if
-/// they turn out to be Linked already.
+/// Starts Linking `user`, whom the service lists by their name, or pulls their Watch State and
+/// Track Preferences if they turn out to be Linked already.
 pub(super) async fn start_user(
     points: &ExtensionPoints,
     browse: &Browse,
+    preferences: &TrackPreferences,
     user: &User,
 ) -> ServiceResult<StartUserLinkResponse> {
     let link = ask(points, async |linker| {
@@ -104,7 +108,7 @@ pub(super) async fn start_user(
     .await?
     .ok_or_else(no_linker)?;
     if let Link::Linked { .. } = link {
-        pull_watch_states_soon(points, browse, user.id);
+        pull_soon(points, browse, preferences, user.id);
     }
     Response::ok(StartUserLinkResponse {
         link: user_link_to_proto(link).into(),
@@ -264,15 +268,26 @@ pub(super) fn unlink_deleted_user(points: &ExtensionPoints, user_id: i64) {
     tokio::spawn(unlinking.instrument(span));
 }
 
-/// Brings the User `user_id`'s Watch State up to date from the enabled Plugin that links the
-/// Server, as when they sign in or Link (ADR 0008), without waiting for it, so a slow or
-/// unreachable service holds up nothing. Must be called within a Tokio runtime.
-pub(super) fn pull_watch_states_soon(points: &ExtensionPoints, browse: &Browse, user_id: i64) {
-    let (points, browse) = (points.clone(), browse.clone());
-    let span =
-        diagnostics::following_current(tracing::info_span!(parent: None, "pull_watch_states"));
+/// Brings the User `user_id`'s Watch State and Track Preferences up to date from the enabled
+/// Plugin that links the Server, as when they sign in or Link (ADR 0008, ADR 0092), without
+/// waiting for it, so a slow or unreachable service holds up nothing. Must be called within a
+/// Tokio runtime.
+pub(super) fn pull_soon(
+    points: &ExtensionPoints,
+    browse: &Browse,
+    preferences: &TrackPreferences,
+    user_id: i64,
+) {
+    let (points, browse, preferences) = (points.clone(), browse.clone(), preferences.clone());
+    let span = diagnostics::following_current(
+        tracing::info_span!(parent: None, "pull_from_other_servers"),
+    );
     tokio::spawn(
-        async move { pull_watch_states(&points, &browse, user_id).await }.instrument(span),
+        async move {
+            pull_watch_states(&points, &browse, user_id).await;
+            pull_track_preferences(&points, &preferences, user_id).await;
+        }
+        .instrument(span),
     );
 }
 
@@ -315,21 +330,8 @@ pub(crate) fn pull_watch_states_after_scans(
 /// Takes the User `user_id`'s Watch State from the enabled Plugin that links the Server, where it
 /// is newer than the Server's own. A failure is logged: the next sign-in or scan pulls again.
 async fn pull_watch_states(points: &ExtensionPoints, browse: &Browse, user_id: i64) {
-    let Some(answer) = points
-        .ask_first::<dyn ServerLinker, _, _, _, _>(async |linker| {
-            // Bounded, so a Plugin that never answers can't hold up every later scan's pulls.
-            tokio::time::timeout(PULL_TIMEOUT, linker.watch_states(user_id))
-                .await
-                .unwrap_or_else(|_elapsed| Err("it didn't answer in time".into()))
-        })
-        .await
-    else {
-        return;
-    };
-    let Ok(pulled) = answer.result else {
-        // Ids only: `ask_first` already puts the failure's message on the Plugin's page.
-        let plugin = &answer.plugin;
-        tracing::warn!(%plugin, user = user_id, "could not pull a User's Watch State");
+    let pull = async |linker: Arc<dyn ServerLinker>| linker.watch_states(user_id).await;
+    let Some(pulled) = pulled(points, user_id, "Watch State", pull).await else {
         return;
     };
     if let Err(err) = browse.take_pulled(user_id, pulled).await {
@@ -340,11 +342,59 @@ async fn pull_watch_states(points: &ExtensionPoints, browse: &Browse, user_id: i
     }
 }
 
+/// Takes the User `user_id`'s Track Preferences from the enabled Plugin that links the Server,
+/// each where it is newer than the Server's own. A failure is logged: the next sign-in pulls again.
+async fn pull_track_preferences(
+    points: &ExtensionPoints,
+    preferences: &TrackPreferences,
+    user_id: i64,
+) {
+    let pull = async |linker: Arc<dyn ServerLinker>| linker.track_preferences(user_id).await;
+    let Some(pulled) = pulled(points, user_id, "Track Preferences", pull).await else {
+        return;
+    };
+    if let Err(err) = preferences.take_pulled(user_id, pulled).await {
+        tracing::error!(
+            user = user_id,
+            "taking a User's pulled Track Preferences failed: {err}"
+        );
+    }
+}
+
+/// What `pull` gets of the User `user_id`'s `what` from the enabled Plugin that links the Server,
+/// `None` without one, or when it fails, which is logged.
+async fn pulled<T, F>(
+    points: &ExtensionPoints,
+    user_id: i64,
+    what: &'static str,
+    pull: impl Fn(Arc<dyn ServerLinker>) -> F,
+) -> Option<T>
+where
+    F: Future<Output = Result<T, PluginError>>,
+{
+    let answer = points
+        .ask_first::<dyn ServerLinker, _, _, _, _>(async |linker| {
+            // Bounded, so a Plugin that never answers can't hold up every later scan's pulls.
+            tokio::time::timeout(PULL_TIMEOUT, pull(linker))
+                .await
+                .unwrap_or_else(|_elapsed| Err("it didn't answer in time".into()))
+        })
+        .await?;
+    let plugin = &answer.plugin;
+    answer
+        .result
+        .inspect_err(|_failure| {
+            // Ids only: `ask_first` already puts the failure's message on the Plugin's page.
+            tracing::warn!(%plugin, user = user_id, "could not pull a User's {what}");
+        })
+        .ok()
+}
+
 /// What `call` gets from the enabled Plugin that links the Server, or `None` without one. Its
 /// failure, such as the service being unreachable, is logged and answered `unavailable`.
 async fn ask<R, F>(
     points: &ExtensionPoints,
-    call: impl Fn(std::sync::Arc<dyn ServerLinker>) -> F,
+    call: impl Fn(Arc<dyn ServerLinker>) -> F,
 ) -> Result<Option<R>, ConnectError>
 where
     F: Future<Output = Result<R, PluginError>>,
@@ -356,7 +406,7 @@ where
 async fn ask_or<R, F>(
     points: &ExtensionPoints,
     unavailable: &'static str,
-    call: impl Fn(std::sync::Arc<dyn ServerLinker>) -> F,
+    call: impl Fn(Arc<dyn ServerLinker>) -> F,
 ) -> Result<Option<R>, ConnectError>
 where
     F: Future<Output = Result<R, PluginError>>,

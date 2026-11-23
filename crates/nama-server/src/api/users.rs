@@ -35,6 +35,7 @@ use crate::{
     db::Database,
     home_rows::HomeRows,
     images::PluginLogos,
+    playback::TrackPreferences,
     plugin_settings::{Personal, PluginSettings},
     plugins::ExtensionPoints,
     server_settings::{ServerUrl, Settings},
@@ -77,6 +78,8 @@ pub(super) struct UserServiceHandler {
     pub(super) points: ExtensionPoints,
     /// Takes the Watch State a User pulls once Linked.
     pub(super) browse: Browse,
+    /// Takes the Track Preferences a User pulls once Linked.
+    pub(super) preferences: TrackPreferences,
 }
 
 #[expect(
@@ -550,7 +553,8 @@ impl UserService for UserServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, GetUserLinkRequest>,
     ) -> ServiceResult<GetUserLinkResponse> {
-        server_link::get_user(&self.points, &self.browse, &caller(&ctx)?.user).await
+        let user = &caller(&ctx)?.user;
+        server_link::get_user(&self.points, &self.browse, &self.preferences, user).await
     }
 
     async fn start_user_link(
@@ -558,7 +562,8 @@ impl UserService for UserServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, StartUserLinkRequest>,
     ) -> ServiceResult<StartUserLinkResponse> {
-        server_link::start_user(&self.points, &self.browse, &caller(&ctx)?.user).await
+        let user = &caller(&ctx)?.user;
+        server_link::start_user(&self.points, &self.browse, &self.preferences, user).await
     }
 
     async fn unlink_user(
