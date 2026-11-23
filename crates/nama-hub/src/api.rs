@@ -5,6 +5,7 @@ mod accounts;
 mod links;
 mod track_preferences;
 mod viewing;
+mod watch_states;
 mod watchlists;
 
 use std::{sync::Arc, time::Instant};
