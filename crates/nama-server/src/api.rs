@@ -129,7 +129,7 @@ pub(crate) fn router(
         .add_service(Arc::new(server::ServerServiceHandler {
             name: config.name.clone(),
             users: users.clone(),
-            syncing: syncing.clone(),
+            linking: users.linking().clone(),
             browse: Browse::new(Arc::clone(&db), plugins.clone()),
             settings: settings.clone(),
             abilities: abilities.clone(),
@@ -144,7 +144,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(sign_in::SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
-            points: plugins.clone(),
+            linking: users.linking().clone(),
             syncing: syncing.clone(),
             server_url: settings.server_url(),
             listening,
@@ -174,7 +174,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(watchlist::WatchlistServiceHandler {
             db: Arc::clone(&db),
-            syncing: syncing.clone(),
+            syncing,
         }))
         .add_service(Arc::new(playback::PlaybackServiceHandler {
             plans: Plans::new(
@@ -223,13 +223,12 @@ pub(crate) fn router(
             connections,
             plugin_settings,
             plugin_logos: plugin_logos.clone(),
-            syncing,
-            browse: Browse::new(Arc::clone(&db), plugins.clone()),
+            linking: users.linking().clone(),
+            browse: Browse::new(Arc::clone(&db), plugins),
             db,
             server_url,
             home_rows,
             settings,
-            points: plugins,
         }))
         .into_axum_service()
         .with_interceptor(RecordFailures);

@@ -32,6 +32,7 @@ use crate::{
     ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
     home_rows::HomeRows,
     images::{self, Blobs, ImageStore, Persist, SwitchRefused, Switching},
+    link::Linking,
     playback::{
         MessageTooLong, PlayNow, RunningPlans, STOP_MESSAGE_LENGTH, accel_to_proto, limit_to_proto,
     },
@@ -40,7 +41,6 @@ use crate::{
         self, BackupValues, HardwareChoice, HomeLayout, HomeRowId, ImageValues, Invalid, PickedGpu,
         PlacedRow, PlaybackChange, PlaybackValues,
     },
-    sync::Syncing,
     users::Users,
 };
 
@@ -53,8 +53,8 @@ use super::{
 pub(super) struct ServerServiceHandler {
     pub(super) name: String,
     pub(super) users: Users,
-    /// Told when a look at the Server's Link finds it Linked.
-    pub(super) syncing: Syncing,
+    /// Asked about the Server's Link.
+    pub(super) linking: Linking,
     /// Lists each Library's Recently Added row for the default Home layout.
     pub(super) browse: Browse,
     pub(super) settings: server_settings::Settings,
@@ -83,7 +83,7 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, GetServerLinkRequest>,
     ) -> ServiceResult<GetServerLinkResponse> {
-        server_link::get(&self.points, &self.syncing).await
+        server_link::get(&self.linking).await
     }
 
     async fn start_server_link(
@@ -91,7 +91,7 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, StartServerLinkRequest>,
     ) -> ServiceResult<StartServerLinkResponse> {
-        server_link::start(&self.points, &self.name).await
+        server_link::start(&self.linking, &self.name).await
     }
 
     async fn unlink_server(
@@ -99,7 +99,7 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, UnlinkServerRequest>,
     ) -> ServiceResult<UnlinkServerResponse> {
-        server_link::unlink(&self.points).await
+        server_link::unlink(&self.linking).await
     }
 
     async fn get_server_info(
@@ -108,7 +108,7 @@ impl ServerService for ServerServiceHandler {
         _request: ServiceRequest<'_, GetServerInfoRequest>,
     ) -> ServiceResult<GetServerInfoResponse> {
         let setup_required = !self.users.any().await.map_err(database_failed)?;
-        let account_sign_in = server_link::account_sign_in(&self.points).await;
+        let account_sign_in = self.linking.is_server_linked().await;
         Response::ok(GetServerInfoResponse {
             name: self.name.clone(),
             version: env!("CARGO_PKG_VERSION").to_owned(),

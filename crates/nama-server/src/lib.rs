@@ -14,6 +14,7 @@ pub mod ffmpeg;
 mod home_rows;
 pub mod images;
 mod library;
+mod link;
 #[cfg(test)]
 mod log_capture;
 mod matching;
@@ -187,6 +188,7 @@ pub fn serve(
     // `listen` differs from the bound address only when it asks for port 0.
     let listening = listener.local_addr().unwrap_or(config.listen);
     let syncing = sync::Syncing::new(Arc::clone(&db), plugins.extension_points(), users.clone());
+    let linking = users.linking().clone();
     let forwarded_port = config.forwarded_port;
     let load_settings = load_settings(settings.clone(), images.clone(), plugins.clone());
     let app = api::router(
@@ -225,6 +227,8 @@ pub fn serve(
         fill_sort_titles(&contents).await;
         // Before the scans start, so it sees their Matching finish.
         let scan_follower = syncing.follow_scans(&events);
+        // Before serving, so it hears the first look at each Link.
+        let link_follower = syncing.follow_links();
         scanner.start_all().await;
         preview_frames.start();
         text_passes.start();
@@ -239,7 +243,7 @@ pub fn serve(
         let came_up = home_rows.refresh_as_plugins_come_up(plugins.take_came_up());
         requests.start(came_up, Duration::from_mins(1));
         let telling_addresses = server_addresses::keep_telling(
-            plugins.extension_points(),
+            linking,
             server_url,
             url_saves,
             listening,
@@ -277,8 +281,9 @@ pub fn serve(
         // Its calls run in the Plugin's scope, which shutting the Plugins down joins; telling it
         // again at the next start loses nothing.
         telling_addresses.abort();
-        // The next start's scans pull and sync again.
+        // The next start's scans pull and sync again, and its first looks push each Link again.
         scan_follower.abort();
+        link_follower.abort();
         plugins.shutdown().await;
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
         drop(automation);
