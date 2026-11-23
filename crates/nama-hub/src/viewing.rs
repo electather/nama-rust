@@ -128,13 +128,21 @@ pub(crate) struct ViewingEvent {
     pub(crate) duration_ms: i64,
     pub(crate) finished: bool,
     pub(crate) device_kind: DeviceKind,
+    /// An Episode's Show, by its External ID; `None` for a Movie, and for an Episode recorded
+    /// before the Hub took it.
+    pub(crate) show_external_id: Option<String>,
 }
 
 impl ViewingEvent {
     /// Whether it keeps the rules `nama.hub.v1.ViewingEvent` gives.
     fn is_valid(&self) -> bool {
-        let id_length = self.external_id.chars().count();
-        (1..=EXTERNAL_ID_LENGTH).contains(&id_length)
+        let show = self.show_external_id.as_deref();
+        let names_its_show = match self.kind {
+            Kind::Movie => show.is_none(),
+            Kind::Episode => show.is_some_and(has_external_id_length),
+        };
+        has_external_id_length(&self.external_id)
+            && names_its_show
             && (0..MINUTES_PER_DAY).contains(&self.time_of_day_minutes)
             && self.duration_ms > 0
             && (0..=self.duration_ms).contains(&self.stop_position_ms)
@@ -142,10 +150,15 @@ impl ViewingEvent {
 
     /// Whether pooled counts take it in, when its Account pools.
     fn is_poolable(&self) -> bool {
-        // ponytail: Movies only. An Episode isn't a title the Hub knows, and the Hub can't tell
-        // its Show; pool Shows once it can.
+        // ponytail: Movies only. An Episode isn't a title the Hub knows; pool its
+        // `show_external_id` once counts want Shows.
         self.finished && self.kind == Kind::Movie
     }
+}
+
+/// Whether `id` is as long as an External ID may be, 1 to 100 characters.
+fn has_external_id_length(id: &str) -> bool {
+    (1..=EXTERNAL_ID_LENGTH).contains(&id.chars().count())
 }
 
 /// A Viewing Event a Linked Server records for its User `user_id`, named by its `key`.
@@ -235,8 +248,9 @@ impl Viewing {
         // once an Account's history outgrows one response.
         let rows = sqlx::query!(
             r#"SELECT id, kind, external_id, extract(epoch FROM started_at)::bigint AS "started_at!",
-             time_of_day_minutes, stop_position_ms, duration_ms, finished, device_kind
-             FROM viewing_events WHERE account_id = $1 ORDER BY started_at DESC, id DESC"#,
+             time_of_day_minutes, stop_position_ms, duration_ms, finished, device_kind,
+             show_external_id FROM viewing_events WHERE account_id = $1
+             ORDER BY started_at DESC, id DESC"#,
             account.0,
         )
         .fetch_all(&self.db)
@@ -254,6 +268,7 @@ impl Viewing {
                     duration_ms: row.duration_ms,
                     finished: row.finished,
                     device_kind: DeviceKind::stored(&row.device_kind),
+                    show_external_id: row.show_external_id,
                 },
             })
             .collect())
@@ -377,9 +392,10 @@ async fn insert(
         i16::try_from(event.time_of_day_minutes).map_err(|_out_of_range| Error::Invalid)?;
     let pooled = sqlx::query_scalar!(
         "INSERT INTO viewing_events (account_id, server_key, kind, external_id, started_at,
-         time_of_day_minutes, stop_position_ms, duration_ms, finished, device_kind, pooled)
-         VALUES ($1, $2, $3, $4, to_timestamp($5::bigint), $6, $7, $8, $9, $10,
-         $11 AND coalesce((SELECT pooling FROM pooling_settings WHERE account_id = $1), true)
+         time_of_day_minutes, stop_position_ms, duration_ms, finished, device_kind,
+         show_external_id, pooled)
+         VALUES ($1, $2, $3, $4, to_timestamp($5::bigint), $6, $7, $8, $9, $10, $11,
+         $12 AND coalesce((SELECT pooling FROM pooling_settings WHERE account_id = $1), true)
          AND NOT EXISTS (SELECT 1 FROM viewing_events
           WHERE account_id = $1 AND external_id = $4 AND pooled))
          ON CONFLICT (account_id, server_key) DO NOTHING
@@ -394,6 +410,7 @@ async fn insert(
         event.duration_ms,
         event.finished,
         event.device_kind.as_str(),
+        event.show_external_id,
         event.is_poolable(),
     )
     .fetch_optional(&mut **tx)

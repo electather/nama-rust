@@ -50,6 +50,10 @@ message ViewingEvent {
   bool finished = 8;
   // What kind of Device played it. Unspecified when its Server couldn't tell.
   DeviceKind device_kind = 9;
+  // An Episode's Show, by its External ID formed as `external_id` is, such as `tmdb-1399`: 1 to
+  // 100 characters. Empty for a Movie, and in the list for an Episode recorded before the Hub
+  // took it.
+  string show_external_id = 10;
 }
 
 // What kind of Device played, as its Server read it from the Device's browser.
