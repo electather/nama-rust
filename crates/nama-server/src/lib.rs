@@ -230,7 +230,7 @@ pub fn serve(
         load_settings.await;
         fill_sort_titles(&contents).await;
         // Before the scans start, so it sees their Matching finish.
-        let syncing = syncing.follow_scans(&events);
+        let scan_follower = syncing.follow_scans(&events);
         scanner.start_all().await;
         preview_frames.start();
         text_passes.start();
@@ -284,7 +284,7 @@ pub fn serve(
         // again at the next start loses nothing.
         telling_addresses.abort();
         // The next start's scans pull and sync again.
-        syncing.abort();
+        scan_follower.abort();
         plugins.shutdown().await;
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
         drop(automation);

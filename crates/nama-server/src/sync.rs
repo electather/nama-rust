@@ -145,14 +145,14 @@ impl Syncing {
                 Ok(_) => continue,
                 Err(RecvError::Closed) => return,
             }
-            if self.links() {
+            if self.has_linker() {
                 self.pull_every_user().await;
             }
         }
     }
 
     /// Whether an enabled Plugin links the Server; most Servers have none, and sync nothing.
-    fn links(&self) -> bool {
+    fn has_linker(&self) -> bool {
         !self.points.providers::<dyn ServerLinker>().is_empty()
     }
 
@@ -162,7 +162,7 @@ impl Syncing {
     where
         F: Future<Output = ()> + Send + 'static,
     {
-        if self.links() {
+        if self.has_linker() {
             let span = diagnostics::following_current(span);
             tokio::spawn(work(self.clone()).instrument(span));
         }

@@ -329,8 +329,8 @@ impl TrackPreferences {
     /// Keeps a Track like `like`, or `None` for off, as the User `user`'s `kind` Preference for
     /// `kept_for`, wanting it only over audio in another language if `foreign_audio_only`, tells
     /// `TrackPreferenceChanged` Observers, and returns the change. `None` for the User's own audio
-    /// forgets it, as audio is never off. They're told in a task of its own, so even if the caller
-    /// stops waiting once the write is sent (ADR 0029).
+    /// forgets it, as audio is never off. They're told in a task of its own, so they're told even
+    /// if the caller stops waiting once the write is sent (ADR 0029).
     #[expect(
         clippy::too_many_arguments,
         reason = "the row's key and columns, each set by a different public `keep_*`"
@@ -487,7 +487,6 @@ enum Overwrite {
     IfNewer,
 }
 
-/// Writes each of `changes`, pulled, to the User `user`'s `track_preferences` through `conn`.
 /// Writes `change` of the User `user`'s Preferences over whatever they had, and returns it as
 /// Observers are told of it.
 async fn keep_change(
@@ -499,6 +498,7 @@ async fn keep_change(
     Ok(change.told())
 }
 
+/// Writes each of `changes`, pulled, to the User `user`'s `track_preferences` through `conn`.
 async fn take_each(
     conn: &mut SqliteConnection,
     user: i64,
