@@ -29,7 +29,7 @@ impl TitleKind {
 }
 
 /// A title's id at a metadata source: a namespace, such as `tmdb`, and a value (ADR 0042).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ExternalId {
     /// The metadata source, such as `tmdb`, `imdb` or `tvdb`.
     pub namespace: String,

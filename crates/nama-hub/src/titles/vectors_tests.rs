@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use uuid::Uuid;
 
-use super::{PooledCount, behaviours, blend, embed};
+use super::{ExternalId, PooledCount, Trained, behaviours, blend, embed};
 
 /// The vector of a title with `facts`, each with how many titles share it.
 fn vector(facts: &[(&str, i64)]) -> BTreeMap<u64, f32> {
@@ -54,8 +54,8 @@ fn a_title_without_facts_has_no_vector() {
     assert_eq!(embed([]), None);
 }
 
-const TITLE: Uuid = Uuid::from_u128(1);
-const FINISHED_WITH_IT: Uuid = Uuid::from_u128(3);
+const TITLE: Trained = Trained::Wikidata(Uuid::from_u128(1));
+const FINISHED_WITH_IT: Trained = Trained::Wikidata(Uuid::from_u128(3));
 
 fn pooled(a: &str, b: &str, accounts: i64) -> PooledCount {
     PooledCount {
@@ -66,7 +66,7 @@ fn pooled(a: &str, b: &str, accounts: i64) -> PooledCount {
 }
 
 /// The Movies the pooled counts below name, by the External IDs they name them by.
-fn movies() -> HashMap<String, Uuid> {
+fn movies() -> HashMap<String, Trained> {
     [
         ("tmdb-603", TITLE),
         ("imdb-tt0133093", TITLE),
@@ -138,4 +138,26 @@ fn a_title_finished_only_with_itself_under_another_id_has_no_behaviour() {
 #[test]
 fn a_title_without_facts_or_behaviour_has_no_vector() {
     assert_eq!(blend(None, None), None);
+}
+
+#[test]
+fn a_movie_wikidata_lacks_gets_behaviour_under_its_external_id() {
+    let lacking = Trained::Lacking(ExternalId {
+        namespace: "tmdb".to_owned(),
+        value: "999".to_owned(),
+    });
+    let mut movies = movies();
+    movies.insert("tmdb-999".to_owned(), lacking.clone());
+
+    let behaviours = behaviours(
+        &[
+            pooled("tmdb-603", "tmdb-603", 20),
+            pooled("tmdb-999", "tmdb-999", 20),
+            pooled("tmdb-603", "tmdb-999", 20),
+        ],
+        &movies,
+    );
+
+    assert!(behaviours.contains_key(&lacking));
+    assert!(behaviours.contains_key(&TITLE));
 }

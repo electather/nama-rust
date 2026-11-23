@@ -44,19 +44,21 @@ async fn trained(db: &PgPool) {
     titles::train(db, &[]).await.unwrap();
 }
 
+/// The pooled counts of `accounts` Accounts that finished both Movies `a` and `b`, the lesser
+/// first, as Servers name them.
+fn finished_together_by(accounts: i64, a: &str, b: &str) -> Vec<PooledCount> {
+    [(a, a), (b, b), (a, b)]
+        .map(|(a, b)| PooledCount {
+            a: a.to_owned(),
+            b: b.to_owned(),
+            accounts,
+        })
+        .into()
+}
+
 /// The pooled counts of `accounts` Accounts that finished both The Matrix and Alien.
 fn matrix_and_alien_finished_by(accounts: i64) -> Vec<PooledCount> {
-    [
-        ("tmdb-603", "tmdb-603"),
-        ("tmdb-348", "tmdb-348"),
-        ("tmdb-348", "tmdb-603"),
-    ]
-    .map(|(a, b)| PooledCount {
-        a: a.to_owned(),
-        b: b.to_owned(),
-        accounts,
-    })
-    .into()
+    finished_together_by(accounts, "tmdb-348", "tmdb-603")
 }
 
 /// The ids of `similar`, most alike first, checking their weights fall from at most 1.0.
@@ -267,4 +269,21 @@ async fn a_new_training_run_replaces_the_behaviour_the_previous_one_learnt(db: P
     let similar = like_the_matrix_after_training_on(&db, &[]).await;
 
     assert_eq!(similar, [id("tmdb", "604"), id("tmdb", "348")]);
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_movie_wikidata_lacks_gets_a_vector_from_behaviour_alone(db: PgPool) {
+    imported(&db).await;
+    let pooled = finished_together_by(20, "tmdb-603", "tmdb-999");
+
+    assert_eq!(titles::train(&db, &pooled).await.unwrap(), 5);
+
+    let lacking = [id("tmdb", "999")];
+    let like_it = titles::similar(&db, TitleKind::Movie, &lacking).await;
+    assert_eq!(ids_by_weight(&like_it.unwrap()), [id("tmdb", "603")]);
+    let like_the_matrix = titles::similar(&db, TitleKind::Movie, &[id("tmdb", "603")]).await;
+    assert!(ids_by_weight(&like_the_matrix.unwrap()).contains(&lacking[0]));
+    // Only Movies are pooled, so it isn't a Show.
+    let as_a_show = titles::similar(&db, TitleKind::Show, &lacking).await;
+    assert_eq!(as_a_show.unwrap(), []);
 }
