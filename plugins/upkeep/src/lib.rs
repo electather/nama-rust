@@ -67,7 +67,7 @@ impl Plugin for Upkeep {
                         GONE_PLUGINS_DAYS,
                         "Days to keep a removed Plugin's data",
                         "How many days to keep what a removed Plugin left behind before \
-                         deleting it. Reinstalling the Plugin sooner keeps it all.",
+                         deleting it. Reinstalling the Plugin sooner keeps it.",
                         DEFAULT_GONE_PLUGINS_DAYS,
                     ),
                 ],
