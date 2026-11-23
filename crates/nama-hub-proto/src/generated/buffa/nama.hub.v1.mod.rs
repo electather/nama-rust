@@ -62,6 +62,13 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_PASSKEYS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REMOVE_PASSKEY_REQUEST_JSON_ANY);
         reg.register_json_any(super::__REMOVE_PASSKEY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SESSION_JSON_ANY);
+        reg.register_json_any(super::__LIST_SESSIONS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_SESSIONS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SIGN_OUT_SESSION_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SIGN_OUT_SESSION_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SIGN_OUT_OTHER_SESSIONS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SIGN_OUT_OTHER_SESSIONS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_HUB_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_HUB_INFO_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__VIEWING_EVENT_JSON_ANY);
@@ -274,6 +281,34 @@ pub use self::__buffa::view::RemovePasskeyRequestOwnedView;
 pub use self::__buffa::view::RemovePasskeyResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::RemovePasskeyResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SessionView;
+#[doc(inline)]
+pub use self::__buffa::view::SessionOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListSessionsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListSessionsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListSessionsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListSessionsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignOutSessionRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SignOutSessionRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignOutSessionResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SignOutSessionResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignOutOtherSessionsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SignOutOtherSessionsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignOutOtherSessionsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SignOutOtherSessionsResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetHubInfoRequestView;
 #[doc(inline)]

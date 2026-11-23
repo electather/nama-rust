@@ -1,6 +1,6 @@
 //! Accounts: creating one with an email and a password, signing it in, with its password, a
-//! passkey or a Sign-in Link, and out, each sign-in a web session (ADR 0098), setting its password,
-//! its passkeys, and deleting it.
+//! passkey or a Sign-in Link, and out, each sign-in a web session (ADR 0098) it lists and can end,
+//! setting its password, its passkeys, and deleting it.
 
 mod passkeys;
 mod passwords;
@@ -24,7 +24,9 @@ pub(crate) use passkeys::{Assertion, NewPasskey, PASSKEY_NAME_LENGTH, Passkey};
 pub(crate) use passwords::PASSWORD_LENGTH;
 pub(crate) use rate_limits::{Blocked, Caller};
 use rate_limits::{ChallengeLimits, CreationLimits, SignInLimits};
-pub(crate) use sessions::{RECENT_AUTHENTICATION_MINS, RecentAuthenticationRequired, SESSION_DAYS};
+pub(crate) use sessions::{
+    ListedSession, RECENT_AUTHENTICATION_MINS, RecentAuthenticationRequired, SESSION_DAYS,
+};
 use sign_in_links::Outbox;
 pub(crate) use sign_in_links::{SignInLink, SignedInByLink};
 use webauthn::RelyingParty;

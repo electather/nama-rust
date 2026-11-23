@@ -1,19 +1,15 @@
 import type { TitleCandidate } from "@/gen/nama/v1/match_pb";
 import { CandidateRow } from "@/shared/components/find-a-match/candidate-row";
 import { useSetMatch } from "@/shared/hooks/use-set-match";
-import { notInShow, setMatchRefusal } from "@/shared/lib/find-a-match";
-import type { ItemToMatch } from "@/shared/lib/unmatched-names";
+import { type ToMatch, matchTarget, notInShow, setMatchRefusal } from "@/shared/lib/find-a-match";
 
 /** The titles found, each with a button that Matches `item` to it, and what Matching did. */
 export function Candidates({
   candidates,
   item,
   libraryId,
-}: {
-  candidates: TitleCandidate[];
-  item: ItemToMatch;
-  libraryId: bigint;
-}) {
+  onMatched,
+}: ToMatch & { candidates: TitleCandidate[] }) {
   const setMatch = useSetMatch(libraryId);
   return (
     <>
@@ -24,13 +20,20 @@ export function Candidates({
             candidate={candidate}
             pending={setMatch.isPending}
             onMatch={() => {
-              setMatch.mutate({ itemId: item.itemId, titleId: candidate.id });
+              setMatch.mutate(
+                { ...matchTarget(item), titleId: candidate.id },
+                {
+                  onSuccess: (matched) => {
+                    onMatched?.(candidate.id, matched);
+                  },
+                },
+              );
             }}
           />
         ))}
       </ul>
       <output className="block text-sm text-pretty empty:hidden">
-        {setMatch.data && notInShow(item, setMatch.data)}
+        {setMatch.data && "itemId" in item && notInShow(item, setMatch.data)}
       </output>
       <p role="alert" className="text-sm text-destructive empty:hidden">
         {setMatch.error && setMatchRefusal(setMatch.error)}

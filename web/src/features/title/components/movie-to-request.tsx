@@ -25,6 +25,7 @@ export function MovieToRequest({ movieId, you }: { movieId: ExternalId; you: big
   }
   return (
     <TitlePage
+      name={movie.title}
       hero={
         <TitleTop
           title={movie}

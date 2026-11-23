@@ -248,9 +248,10 @@ pub const MATCH_SERVICE_LIST_UNMATCHED_ITEMS_SPEC: ::connectrpc::Spec = ::connec
 /// example` doc.
 #[allow(clippy::type_complexity)]
 pub trait MatchService: Send + Sync + 'static {
-    /// Searches the enabled title sources for titles, best fit first. Fails with
-    /// `invalid_argument` if the kind is unspecified or the title blank, and with `unavailable` if
-    /// no title source is enabled or one failed.
+    /// Searches the enabled title sources for titles, best fit first, or only a Library's, in its
+    /// order. Fails with `invalid_argument` if the kind is unspecified or the title blank, with
+    /// `not_found` if there is no such Library, and with `unavailable` if no title source is enabled
+    /// or one failed.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -276,10 +277,11 @@ pub trait MatchService: Send + Sync + 'static {
     /// Matches an item to a title and pins the Match. For a Movie, the title is a Movie, and every
     /// item in the Library named the same way is Matched to it. For an Episode, the title is its
     /// Show, and every Episode in the Library named as being in the same Show is Matched again
-    /// through that Show's Seasons; an Episode the Show doesn't have is Unmatched. Fails with
-    /// `not_found` if there is no such item, with `invalid_argument` if the id is missing or names
-    /// no title, and with `unavailable` if no title source can answer, in which case nothing
-    /// changes.
+    /// through that Show's Seasons; an Episode the Show doesn't have is Unmatched. Given
+    /// `matched_title` in place of the item, it does so for each name the items Matched to that Movie
+    /// or Show bear, in one change. Fails with `not_found` if there is no such item, Library or
+    /// title, with `invalid_argument` if the id is missing or names no title, and with
+    /// `unavailable` if no title source can answer, in which case nothing changes.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -304,8 +306,10 @@ pub trait MatchService: Send + Sync + 'static {
     > + Send;
     /// Removes an item's Match and pins it Unmatched, so automatic Matching leaves it so. Like
     /// `SetMatch`, this applies to every item in the Library named the same way, and for an Episode
-    /// to every Episode of its Show. `ListUnmatchedItems` then lists them with
-    /// `UNMATCHED_REASON_CLEARED_BY_HAND`. Fails with `not_found` if there is no such item.
+    /// to every Episode of its Show, and given `matched_title`, to each name the items Matched to
+    /// that Movie or Show bear. `ListUnmatchedItems` then lists them with
+    /// `UNMATCHED_REASON_CLEARED_BY_HAND`. Fails with `not_found` if there is no such item, Library
+    /// or title.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

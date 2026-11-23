@@ -153,6 +153,7 @@ pub(crate) fn router(
             metadata: TitleSources::new(plugins.clone()),
             contents: Contents::new(Arc::clone(&db)),
             libraries: Libraries::new(Arc::clone(&db)),
+            artwork: artwork.clone(),
         }))
         .add_service(Arc::new(browse::BrowseServiceHandler {
             browse: Browse::new(Arc::clone(&db), plugins.clone()),
