@@ -40,7 +40,10 @@ export function useAccount() {
   return data;
 }
 
-/** The signed-in Account's query, for a page no access check guards, which works on without it. */
+/**
+ * The signed-in Account's query, for a page no access check guards: it doesn't suspend, and an
+ * error stays in the result instead of throwing, so the page still renders when the Hub is down.
+ */
 export function useAccountQuery() {
   return useQuery(accountQuery(useTransport()));
 }
