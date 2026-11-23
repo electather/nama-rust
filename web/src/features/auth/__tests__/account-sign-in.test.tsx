@@ -70,16 +70,16 @@ test("while the Hub is down, signing in with an Account says why and what to do"
   expect(screen.getByRole("button", { name: "Sign in" })).toBeDefined();
 });
 
-test("back from the Hub, the browser signs in and goes on", async () => {
+test("back from the Hub, the browser signs in with the Hub's code and goes on", async () => {
   keepAccountSignIn("secret");
   const { state, transport } = linkedServer(true, {
-    signInWithAccount: ({ handle }) => {
-      expect(handle).toBe("secret");
+    signInWithAccount: ({ handle, code }) => {
+      expect([handle, code]).toStrictEqual(["secret", "c0de"]);
       state.signedIn = newUser;
       return {};
     },
   });
-  const router = openApp("/sign-in/account?redirect=%2Frequests", transport);
+  const router = openApp("/sign-in/account?redirect=%2Frequests&code=c0de", transport);
 
   await vi.waitFor(() => {
     expect(router.state.location.pathname).toBe("/requests");
@@ -129,18 +129,18 @@ test("back from the Hub, “Confirm it’s you” finishes and goes back to the 
   const transport = fakeServer(
     { signedIn: newUser },
     {
-      reauthenticate: ({ proof }) => {
-        proofs.push(proof);
+      reauthenticate: ({ proof, accountSignInCode }) => {
+        proofs.push(proof, accountSignInCode);
         return {};
       },
     },
   );
-  const router = openApp("/reauthenticate/account?redirect=%2Fcode", transport);
+  const router = openApp("/reauthenticate/account?redirect=%2Fcode&code=c0de", transport);
 
   await vi.waitFor(() => {
     expect(router.state.location.pathname).toBe("/code");
   });
-  expect(proofs).toStrictEqual([{ case: "accountSignInHandle", value: "secret" }]);
+  expect(proofs).toStrictEqual([{ case: "accountSignInHandle", value: "secret" }, "c0de"]);
   expect(sessionStorage.getItem("nama.account-sign-in")).toBeNull();
 });
 
@@ -156,7 +156,7 @@ test("an approval by an Account not Linked to you says so, with the way back", a
       },
     },
   );
-  openApp("/reauthenticate/account?redirect=%2Fcode", transport);
+  openApp("/reauthenticate/account?redirect=%2Fcode&code=c0de", transport);
 
   await expect(
     screen.findByText(

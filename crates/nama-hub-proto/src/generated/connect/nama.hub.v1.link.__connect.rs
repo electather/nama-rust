@@ -1795,8 +1795,8 @@ pub trait LinkService: Send + Sync + 'static {
         >,
     > + Send;
     /// Approves a sign-in with the signed-in Account, as its User on that Server, and returns where to
-    /// go back to. Fails like `GetServerSignIn`, and with `REFUSAL_REASON_NO_USER_ON_SERVER` if the
-    /// Account has no User Linked on that Server.
+    /// go back to, with the one-time code the Server finishes with. Fails like `GetServerSignIn`, and
+    /// with `REFUSAL_REASON_NO_USER_ON_SERVER` if the Account has no User Linked on that Server.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -3262,9 +3262,9 @@ pub trait LinkedServerService: Send + Sync + 'static {
         >,
     > + Send;
     /// Starts someone signing in to the Server with their Account, as an OAuth device flow: the
-    /// person approves it on the Hub's page for `id`, which then sends them to `return_url`, and the
-    /// Server collects the sign-in with `PollServerSignIn`. Both stop working after
-    /// `expires_in_seconds`.
+    /// person approves it on the Hub's page for `id`, which then sends them to `return_url` with a
+    /// one-time code, and the Server collects the sign-in with `PollServerSignIn` and that code. Both
+    /// stop working after `expires_in_seconds`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -3287,9 +3287,10 @@ pub trait LinkedServerService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Whether the sign-in was approved. Once it is, the first poll gets the token naming the User
-    /// and every later one fails. Fails with `REFUSAL_REASON_LINK_EXPIRED` for a device code that
-    /// expired, was used, or never existed.
+    /// Whether the sign-in was approved. Once it is, the first poll ends it: it gets the token naming
+    /// the User if it brings the code approving put in `return_url`, and fails otherwise, as every
+    /// later one does. Fails with `REFUSAL_REASON_LINK_EXPIRED` for a device code that expired, was
+    /// used, or never existed, and for a wrong code.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

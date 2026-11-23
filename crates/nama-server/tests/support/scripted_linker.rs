@@ -162,10 +162,12 @@ impl ServerLinker for Scripted {
     fn finish_account_sign_in<'a>(
         &'a self,
         handle: &'a str,
+        code: &'a str,
     ) -> BoxFuture<'a, Result<Option<i64>, PluginError>> {
-        let finished = self
-            .answer()
-            .map(|_| self.script().approved.take().filter(|_| handle == "handle"));
+        let finished = self.answer().map(|_| {
+            let approved = self.script().approved.take();
+            approved.filter(|_| handle == "handle" && code == "code")
+        });
         Box::pin(future::ready(finished))
     }
     fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {

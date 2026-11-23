@@ -181,15 +181,17 @@ pub(super) async fn start_account_sign_in(
     })
 }
 
-/// The id of the User the sign-in with an Account `handle` stands for, once it was approved. A
-/// refusal names `field`, the request's field `handle` came in.
+/// The id of the User the sign-in with an Account `handle` stands for, once it was approved and
+/// finished with the one-time `code` the service sent the person back with. A refusal names
+/// `field`, the request's field `handle` came in.
 pub(super) async fn account_signing_in(
     points: &ExtensionPoints,
     handle: &str,
+    code: &str,
     field: &str,
 ) -> Result<i64, ConnectError> {
     ask_or(points, ACCOUNT_SIGN_IN_FAILED, async |linker| {
-        linker.finish_account_sign_in(handle).await
+        linker.finish_account_sign_in(handle, code).await
     })
     .await?
     .ok_or_else(no_linker)?

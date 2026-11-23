@@ -9,17 +9,26 @@ import { FormNotices } from "@/shared/components/sign-in-layout/form-notices";
 import { SignInCard } from "@/shared/components/sign-in-layout/sign-in-card";
 import { accountSignInErrors, takeAccountSignIn } from "@/shared/lib/account-sign-in";
 
-/** Where the Hub sends this browser back to: finishing the sign-in with an Account it started. */
-export function FinishAccountSignIn({ redirect }: { redirect: string | undefined }) {
+/**
+ * Where the Hub sends this browser back to: finishing the sign-in with an Account it started, with
+ * the Hub's one-time `code`.
+ */
+export function FinishAccountSignIn({
+  redirect,
+  code,
+}: {
+  redirect: string | undefined;
+  code: string;
+}) {
   const { mutate, error } = useSignInWithAccount(useFinishSignIn(redirect));
   // The secret works once, and StrictMode runs an effect twice.
   const finishing = useRef(false);
   useEffect(() => {
     if (!finishing.current) {
       finishing.current = true;
-      mutate({ handle: takeAccountSignIn(), delivery: SessionDelivery.COOKIE });
+      mutate({ handle: takeAccountSignIn(), code, delivery: SessionDelivery.COOKIE });
     }
-  }, [mutate]);
+  }, [mutate, code]);
 
   return (
     <SignInCard heading="Sign in with your Account">

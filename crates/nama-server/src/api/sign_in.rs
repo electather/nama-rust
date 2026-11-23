@@ -139,11 +139,13 @@ impl SignInService for SignInServiceHandler {
     ) -> ServiceResult<ReauthenticateResponse> {
         let caller = caller(&ctx)?;
         let (ip, now) = (client_ip(&ctx)?, Instant::now());
-        let proof = match request.to_owned_message().proof {
+        let request = request.to_owned_message();
+        let proof = match request.proof {
             Some(Proof::AccountSignInHandle(handle)) => {
                 let approved = server_link::account_signing_in(
                     &self.points,
                     &handle,
+                    &request.account_sign_in_code,
                     "account_sign_in_handle",
                 );
                 self.sign_in
@@ -302,7 +304,9 @@ impl SignInService for SignInServiceHandler {
         let request = request.to_owned_message();
         let delivery = delivery(request.delivery)?;
         let device = new_device(request.device_name, &ctx)?;
-        let user = server_link::account_signing_in(&self.points, &request.handle, "handle").await?;
+        let user =
+            server_link::account_signing_in(&self.points, &request.handle, &request.code, "handle")
+                .await?;
         let signed_in = self.sign_in.sign_in_with_account(user, device).await?;
         Ok(hand_out_session(
             signed_in,

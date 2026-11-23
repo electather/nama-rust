@@ -5,6 +5,7 @@
 
 use std::{fmt, str::FromStr};
 
+use reqwest::Url;
 use serde::Serialize;
 use uuid::Uuid;
 
@@ -63,13 +64,22 @@ struct SignInClaims {
 
 impl Links {
     /// Starts a sign-in to `server`, which the Hub's page sends back to `return_url`, forgetting
-    /// every expired one.
+    /// every expired one. Fails with [`Error::UrlInvalid`] unless `return_url` is on one of the
+    /// Server Addresses `server` reported.
     pub(crate) async fn start_sign_in(
         &self,
         server: &LinkedServer,
         return_url: &str,
     ) -> Result<StartedSignIn, Error> {
-        if !is_web_address(return_url) {
+        let addresses = sqlx::query!(
+            "SELECT server_url, lan_addresses FROM linked_servers WHERE id = $1",
+            server.id.0,
+        )
+        .fetch_one(&self.db)
+        .await?;
+        let server_addresses = std::iter::once(addresses.server_url.as_str())
+            .chain(addresses.lan_addresses.iter().map(String::as_str));
+        if !is_on_server(return_url, server_addresses) {
             return Err(Error::UrlInvalid);
         }
         let device_code = random_token()?;
@@ -124,7 +134,7 @@ impl Links {
     }
 
     /// Approves the sign-in `id` as `account`'s User on its Server, and answers where to send the
-    /// person back to.
+    /// person back to: its return address, with the one-time code the Server must finish with.
     pub(crate) async fn approve_sign_in(
         &self,
         account: AccountId,
@@ -133,32 +143,39 @@ impl Links {
         if self.sign_in(account, id).await?.user_name.is_none() {
             return Err(Error::NoUserOnServer);
         }
+        let code = random_token()?;
         // Nothing matches but a sign-in approved, or a User Unlinked, since the look above.
-        sqlx::query_scalar!(
+        let return_url = sqlx::query_scalar!(
             "UPDATE server_sign_ins SET user_link_id = (SELECT id FROM user_links
              WHERE account_id = $2 AND linked_server_id = server_sign_ins.linked_server_id
-             ORDER BY created_at, id LIMIT 1)
+             ORDER BY created_at, id LIMIT 1), code_hash = $3
              WHERE id = $1 AND expires_at > now() AND user_link_id IS NULL
              AND EXISTS (SELECT 1 FROM user_links WHERE account_id = $2
              AND linked_server_id = server_sign_ins.linked_server_id)
              RETURNING return_url",
             id.0,
             account.0,
+            &hash(&code)[..],
         )
         .fetch_optional(&self.db)
         .await?
-        .ok_or(Error::SignInNotFound)
+        .ok_or(Error::SignInNotFound)?;
+        // `start_sign_in` kept only an address that parses.
+        with_code(&return_url, &code).ok_or(Error::UrlInvalid)
     }
 
     /// The token naming the User `server`'s sign-in polled with `device_code` signs in as, once it
-    /// was approved, handed out once; `None` until then.
+    /// was approved, handed out once; `None` until then. Once it was approved, the first poll ends
+    /// it, so it fails with [`Error::Expired`] unless `code` is the one approving put in the return
+    /// address, and every later poll fails too.
     pub(crate) async fn poll_sign_in(
         &self,
         server: &LinkedServer,
         device_code: &str,
+        code: &str,
     ) -> Result<Option<String>, Error> {
         let found = sqlx::query!(
-            "SELECT id, (SELECT server_user_id FROM user_links
+            "SELECT id, code_hash, (SELECT server_user_id FROM user_links
              WHERE user_links.id = server_sign_ins.user_link_id) AS server_user_id
              FROM server_sign_ins
              WHERE device_code_hash = $1 AND linked_server_id = $2 AND expires_at > now()",
@@ -174,8 +191,11 @@ impl Links {
         let collected = sqlx::query!("DELETE FROM server_sign_ins WHERE id = $1", found.id)
             .execute(&self.db)
             .await?;
-        // Another poll collected it first.
-        if collected.rows_affected() == 0 {
+        // Another poll collected it first, or a wrong code ended it.
+        let right_code = found
+            .code_hash
+            .is_some_and(|code_hash| constant_time_eq(&code_hash, &hash(code)));
+        if collected.rows_affected() == 0 || !right_code {
             return Err(Error::Expired);
         }
         let iat = issued_at();
@@ -188,13 +208,32 @@ impl Links {
     }
 }
 
-/// Whether `url` is an `http` or `https` address short enough to keep. The Hub's page navigates to
-/// it, so any other scheme, such as `javascript:`, would run on the Hub's origin.
-fn is_web_address(url: &str) -> bool {
-    let scheme = url
-        .split_once("://")
-        .map(|(scheme, _)| scheme.to_ascii_lowercase());
-    url.len() <= URL_LENGTH && matches!(scheme.as_deref(), Some("http" | "https"))
+/// Whether `url` is an `http` or `https` address short enough to keep, with the scheme, host and
+/// port of one of the Server's `addresses`. The Hub's page sends the person there with the code
+/// that finishes the sign-in, so an address anyone else chose would hand it to them, and any other
+/// scheme, such as `javascript:`, would run on the Hub's origin.
+fn is_on_server<'a>(url: &str, addresses: impl IntoIterator<Item = &'a str>) -> bool {
+    // WHATWG's parser, as the browser reads the address the page navigates to.
+    let Ok(parsed) = Url::parse(url) else {
+        return false;
+    };
+    url.len() <= URL_LENGTH
+        && matches!(parsed.scheme(), "http" | "https")
+        && addresses.into_iter().any(|address| {
+            Url::parse(address).is_ok_and(|address| address.origin() == parsed.origin())
+        })
+}
+
+/// Whether `a` equals `b`, taking as long whatever bytes differ, so a guess's timing tells nothing.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).fold(0, |differ, (x, y)| differ | (x ^ y)) == 0
+}
+
+/// `return_url` with the approval `code` added to its query as `code`.
+fn with_code(return_url: &str, code: &str) -> Option<String> {
+    let mut url = Url::parse(return_url).ok()?;
+    url.query_pairs_mut().append_pair("code", code);
+    Some(url.into())
 }
 
 #[cfg(test)]

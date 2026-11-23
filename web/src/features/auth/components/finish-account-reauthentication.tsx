@@ -13,8 +13,10 @@ import { accountSignInErrors, takeAccountSignIn } from "@/shared/lib/account-sig
  */
 export function FinishAccountReauthentication({
   redirect = "/",
+  code,
 }: {
   redirect: string | undefined;
+  code: string;
 }) {
   const navigate = useNavigate();
   const { mutate, error } = useReauthenticate(() => {
@@ -25,9 +27,12 @@ export function FinishAccountReauthentication({
   useEffect(() => {
     if (!finishing.current) {
       finishing.current = true;
-      mutate({ proof: { case: "accountSignInHandle", value: takeAccountSignIn() } });
+      mutate({
+        proof: { case: "accountSignInHandle", value: takeAccountSignIn() },
+        accountSignInCode: code,
+      });
     }
-  }, [mutate]);
+  }, [mutate, code]);
 
   return (
     <CodeLayout heading="Confirm it’s you">

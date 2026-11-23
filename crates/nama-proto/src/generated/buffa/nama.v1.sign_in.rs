@@ -2438,13 +2438,27 @@ pub const __WHO_AM_I_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = :
 pub struct ReauthenticateRequest {
     #[serde(flatten)]
     pub proof: ::core::option::Option<__buffa::oneof::reauthenticate_request::Proof>,
+    /// The one-time code the Hub added to `return_url`'s query as `code`. Needed with
+    /// `account_sign_in_handle`.
+    ///
+    /// Field 3: `account_sign_in_code`
+    #[serde(
+        rename = "accountSignInCode",
+        alias = "account_sign_in_code",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub account_sign_in_code: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for ReauthenticateRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("ReauthenticateRequest").field("proof", &self.proof).finish()
+        f.debug_struct("ReauthenticateRequest")
+            .field("proof", &self.proof)
+            .field("account_sign_in_code", &self.account_sign_in_code)
+            .finish()
     }
 }
 impl ReauthenticateRequest {
@@ -2486,6 +2500,12 @@ impl ::buffa::Message for ReauthenticateRequest {
                 }
             }
         }
+        if !self.account_sign_in_code.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.account_sign_in_code)
+                        as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2507,6 +2527,9 @@ impl ::buffa::Message for ReauthenticateRequest {
                     ::buffa::types::put_string_field(2u32, x, buf);
                 }
             }
+        }
+        if !self.account_sign_in_code.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.account_sign_in_code, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2543,6 +2566,13 @@ impl ::buffa::Message for ReauthenticateRequest {
                     ),
                 );
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.account_sign_in_code, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2552,6 +2582,7 @@ impl ::buffa::Message for ReauthenticateRequest {
     }
     fn clear(&mut self) {
         self.proof = ::core::option::Option::None;
+        self.account_sign_in_code.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2584,6 +2615,9 @@ impl<'de> ::serde::Deserialize<'de> for ReauthenticateRequest {
             ) -> ::core::result::Result<ReauthenticateRequest, A::Error> {
                 let mut __oneof_proof: ::core::option::Option<
                     __buffa::oneof::reauthenticate_request::Proof,
+                > = None;
+                let mut __f_account_sign_in_code: ::core::option::Option<
+                    ::buffa::alloc::string::String,
                 > = None;
                 while let Some(key) = map.next_key::<::buffa::alloc::string::String>()? {
                     match key.as_str() {
@@ -2637,12 +2671,33 @@ impl<'de> ::serde::Deserialize<'de> for ReauthenticateRequest {
                                 );
                             }
                         }
+                        "accountSignInCode" | "account_sign_in_code" => {
+                            __f_account_sign_in_code = Some({
+                                struct _S;
+                                impl<'de> ::serde::de::DeserializeSeed<'de> for _S {
+                                    type Value = ::buffa::alloc::string::String;
+                                    fn deserialize<D: ::serde::Deserializer<'de>>(
+                                        self,
+                                        d: D,
+                                    ) -> ::core::result::Result<
+                                        ::buffa::alloc::string::String,
+                                        D::Error,
+                                    > {
+                                        ::buffa::json_helpers::proto_string::deserialize(d)
+                                    }
+                                }
+                                map.next_value_seed(_S)?
+                            });
+                        }
                         _ => {
                             map.next_value::<::serde::de::IgnoredAny>()?;
                         }
                     }
                 }
                 let mut __r = <ReauthenticateRequest as ::core::default::Default>::default();
+                if let ::core::option::Option::Some(v) = __f_account_sign_in_code {
+                    __r.account_sign_in_code = v;
+                }
                 __r.proof = __oneof_proof;
                 Ok(__r)
             }
@@ -4378,8 +4433,9 @@ pub const __POLL_SIGN_IN_CODE_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAny
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct StartAccountSignInRequest {
-    /// Where the Hub sends the person back to once they approve: an `http` or `https` address, such
-    /// as the client's sign-in page.
+    /// Where the Hub sends the person back to once they approve, adding the one-time code
+    /// `SignInWithAccount` needs to its query as `code`: such as the client's sign-in page, on one of
+    /// the Server's Server Addresses, since the Hub refuses any other address.
     ///
     /// Field 1: `return_url`
     #[serde(
@@ -4690,6 +4746,15 @@ pub struct SignInWithAccountRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub delivery: ::buffa::EnumValue<SessionDelivery>,
+    /// The one-time code the Hub added to `return_url`'s query as `code`.
+    ///
+    /// Field 4: `code`
+    #[serde(
+        rename = "code",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub code: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -4700,6 +4765,7 @@ impl ::core::fmt::Debug for SignInWithAccountRequest {
             .field("handle", &self.handle)
             .field("device_name", &self.device_name)
             .field("delivery", &self.delivery)
+            .field("code", &self.code)
             .finish()
     }
 }
@@ -4742,6 +4808,9 @@ impl ::buffa::Message for SignInWithAccountRequest {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if !self.code.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.code) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4763,6 +4832,9 @@ impl ::buffa::Message for SignInWithAccountRequest {
             if val != 0 {
                 ::buffa::types::put_int32_field(3u32, val, buf);
             }
+        }
+        if !self.code.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.code, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4800,6 +4872,13 @@ impl ::buffa::Message for SignInWithAccountRequest {
                     ::buffa::types::decode_int32(buf)?,
                 );
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.code, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4811,6 +4890,7 @@ impl ::buffa::Message for SignInWithAccountRequest {
         self.handle.clear();
         self.device_name.clear();
         self.delivery = ::buffa::EnumValue::from(0);
+        self.code.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

@@ -283,17 +283,20 @@ impl Hub {
     }
 
     /// The token naming the User the sign-in polled with `device_code` signs in as, once an
-    /// Account approved it; `None` before, and for one that expired or was used, the call's one
+    /// Account approved it and `code` is the one-time code the Hub sent the person back with;
+    /// `None` before, and for one that expired or was used or a wrong code, the call's one
     /// `not_found`.
     pub(crate) async fn poll_sign_in(
         &self,
         credential: &str,
         device_code: &str,
+        code: &str,
     ) -> Result<Option<String>, PluginError> {
         let polled = self
             .linked_server(credential)?
             .poll_server_sign_in(PollServerSignInRequest {
                 device_code: device_code.to_owned(),
+                code: code.to_owned(),
                 ..Default::default()
             })
             .await;
