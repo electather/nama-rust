@@ -14,11 +14,11 @@ mod server;
 use std::{
     fs::{self, File, FileTimes},
     io::Cursor,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
 
-use browsing::{Fixture, tmdb_id};
+use browsing::{ALIEN_1080P, Fixture, tmdb_id};
 use connectrpc::client::HttpClient;
 use http::{Reply, fetch, fetch_with};
 use image::{DynamicImage, ImageFormat, RgbImage, RgbaImage};
@@ -47,8 +47,13 @@ const STILL: &str = "artwork/tmdb/%2FgNnJBvHy3VBkGrsl9ffpkf6ucP3.jpg";
     reason = "a test helper fails its test by panicking"
 )]
 async fn alien_with_poster(poster: &[u8]) -> (Fixture, String) {
-    let fx = Fixture::alien().await;
+    let mut fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_MOVIES, TestServer::builder()).await;
+    // Off while the scan downloads, so no copy is made ahead of a request, from either Poster.
+    fx.server.set_image_settings(false, None).await;
+    fx.write(ALIEN_1080P, b"video");
+    fx.items = fx.scan_and_match().await;
     replace_once_downloaded(&fx, POSTER, poster).await;
+    fx.server.set_image_settings(true, None).await;
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
     (fx, movie.poster_url.unwrap())
 }
@@ -61,14 +66,19 @@ async fn alien_with_poster(poster: &[u8]) -> (Fixture, String) {
 )]
 async fn replace_once_downloaded(fx: &Fixture, key: &str, image: &[u8]) {
     let stored = fx.server.data_dir().join(key);
-    let downloaded = tokio::time::timeout(Duration::from_secs(10), async {
-        while !stored.exists() {
+    until_exists(&stored).await;
+    fs::write(&stored, image).unwrap();
+}
+
+/// Waits until a file is at `path`, failing the test after 10 seconds.
+async fn until_exists(path: &Path) {
+    let made = tokio::time::timeout(Duration::from_secs(10), async {
+        while !path.exists() {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })
     .await;
-    assert!(downloaded.is_ok(), "{key} was never downloaded");
-    fs::write(&stored, image).unwrap();
+    assert!(made.is_ok(), "{} was never made", path.display());
 }
 
 /// `image` encoded as `format`.
@@ -292,6 +302,26 @@ async fn the_cache_keeps_each_format_of_a_width_apart_within_the_one_limit() {
     assert_eq!(jxl_image(&jxl).dimensions(), (640, 960));
     assert_eq!(image::guess_format(&jpeg).unwrap(), ImageFormat::Jpeg);
     assert_eq!(again.body, b"kept");
+}
+
+#[tokio::test]
+async fn once_a_scan_has_finished_the_poster_grids_width_is_sent_without_resizing_on_request() {
+    let (fx, poster) = alien_with_poster(&jpeg(1000, 1500)).await;
+    let copies = fx.server.data_dir().join("resized").join(POSTER);
+
+    fx.scan_and_match().await;
+    until_exists(&copies.join("320.jpg")).await;
+    until_exists(&copies.join("320.jxl")).await;
+    // Resizing on request would replace these.
+    fs::write(copies.join("320.jpg"), b"\xff\xd8ahead").unwrap();
+    fs::write(copies.join("320.jxl"), b"ahead").unwrap();
+    let jpeg = fetch_at(&fx, &poster, 320).await;
+    let jxl = fetch_accepting(&fx, &poster, 320, ACCEPTS_JXL).await;
+    let other_width = fetch_at(&fx, &poster, 480).await;
+
+    assert_eq!(jpeg.body, b"\xff\xd8ahead");
+    assert_eq!(jxl.body, b"ahead");
+    assert_eq!(dimensions(&other_width), (480, 720));
 }
 
 #[tokio::test]

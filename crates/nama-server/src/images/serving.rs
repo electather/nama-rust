@@ -141,6 +141,15 @@ impl ImageStore {
             .map_err(io::Error::other)
     }
 
+    /// Makes the copy `resize` asks for of the image at `key` in each format a client may ask
+    /// for, where it isn't there, so the first request for it is sent from the cache. Each waits
+    /// its turn on the one resize thread, as a request's does (ADR 0039).
+    pub(crate) async fn copy_ahead(&self, key: &[&str], resize: Resize) {
+        for format in [Format::Jpeg, Format::Jxl] {
+            self.ensure_copy(key, resize, format).await;
+        }
+    }
+
     /// The format of the copy of the image at `key` to send for `resize`, made now if it wasn't
     /// there: `asked`, or JPEG where `make_copy` puts one in its place. `None` to send the image
     /// as stored, which an image that can't be resized or isn't stored also is, after a warning

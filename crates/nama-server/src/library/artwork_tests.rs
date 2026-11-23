@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -68,7 +68,9 @@ async fn no_more_than_two_images_download_at_once() {
     let artwork = artwork_on(&data, slow_images).await;
     let images = (0..5).map(|n| ("tmdb".to_owned(), format!("/{n}.jpg")));
 
-    artwork.download(images.collect()).await;
+    artwork
+        .download(images.collect(), &HashSet::new(), None)
+        .await;
     let _all_finished = artwork.downloads.acquire_many(2).await.unwrap();
 
     assert_eq!(running.most.load(Ordering::SeqCst), 2);
@@ -89,7 +91,11 @@ async fn deleting_unused_images_does_not_wait_for_a_download() {
     let artwork = artwork_on(&data, never_answers).await;
     let contents = Contents::new(Arc::new(Database::open(data.path()).await.unwrap()));
     artwork
-        .download(vec![("tmdb".to_owned(), "/slow.jpg".to_owned())])
+        .download(
+            vec![("tmdb".to_owned(), "/slow.jpg".to_owned())],
+            &HashSet::new(),
+            None,
+        )
         .await;
     while asked.load(Ordering::SeqCst) == 0 {
         tokio::time::sleep(Duration::from_millis(5)).await;
