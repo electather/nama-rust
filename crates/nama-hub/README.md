@@ -30,8 +30,10 @@ At startup it applies every migration the database hasn't had, in one transactio
 docker compose up -d
 export NAMA_HUB_DATABASE_URL=postgres://nama:nama@localhost:5432/nama_hub
 export NAMA_HUB_SIGNING_KEYS="$(openssl genpkey -algorithm ed25519)"
-cargo run -p nama-hub
+SQLX_OFFLINE=true cargo run -p nama-hub
 ```
+
+`SQLX_OFFLINE=true` has sqlx's macros check queries against `.sqlx/`: otherwise `sqlx.toml` has them check against `NAMA_HUB_DATABASE_URL`'s database, which the Hub migrates only once it is built.
 
 A Server Links to it through its Hub Plugin, which calls the Hub that `NAMA_HUB_URL` names on the Server, such as `NAMA_HUB_URL=http://localhost:7981 cargo run -p nama-server`. Linking needs an Account whose email a Sign-in Link proved (ADR 0100).
 
@@ -52,10 +54,10 @@ The dump is over 100 GiB compressed, so an import takes hours; it streams, holdi
 
 ## Tests
 
-The tests need that PostgreSQL. `#[sqlx::test]` reads `DATABASE_URL`, and makes a database of its own for each test:
+The tests need that PostgreSQL. `#[sqlx::test]` reads `DATABASE_URL`, and makes a database of its own for each test; `SQLX_OFFLINE=true` is there for the same reason as above:
 
 ```sh
-DATABASE_URL=$NAMA_HUB_DATABASE_URL cargo test -p nama-hub
+SQLX_OFFLINE=true DATABASE_URL=$NAMA_HUB_DATABASE_URL cargo test -p nama-hub
 ```
 
 ## Adding a migration
