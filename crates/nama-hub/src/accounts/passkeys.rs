@@ -79,14 +79,18 @@ impl Accounts {
         if !relying_party.answers(assertion.client_data_json, Ceremony::SignIn, now) {
             return Err(Error::PasskeyNotAccepted);
         }
+        let mut tx = self.db.begin().await?;
+        // The share lock holds a Sign-in Link's takeover, which deletes the passkey, until this
+        // session exists for it to end too (ADR 0100).
         let found = sqlx::query!(
             "SELECT account_passkeys.algorithm, account_passkeys.public_key,
                     accounts.id AS account_id, accounts.email
              FROM account_passkeys JOIN accounts ON accounts.id = account_passkeys.account_id
-             WHERE credential_id = $1",
+             WHERE credential_id = $1
+             FOR SHARE OF account_passkeys",
             assertion.credential_id,
         )
-        .fetch_optional(&self.db)
+        .fetch_optional(&mut *tx)
         .await?
         .ok_or(Error::PasskeyNotAccepted)?;
         let key =
@@ -105,7 +109,6 @@ impl Accounts {
             id: AccountId(found.account_id),
             email: found.email,
         };
-        let mut tx = self.db.begin().await?;
         if let Some(session) = replacing {
             sessions::end(&mut *tx, session).await?;
         }

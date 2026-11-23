@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT account_passkeys.algorithm, account_passkeys.public_key,\n                    accounts.id AS account_id, accounts.email\n             FROM account_passkeys JOIN accounts ON accounts.id = account_passkeys.account_id\n             WHERE credential_id = $1",
+  "query": "SELECT account_passkeys.algorithm, account_passkeys.public_key,\n                    accounts.id AS account_id, accounts.email\n             FROM account_passkeys JOIN accounts ON accounts.id = account_passkeys.account_id\n             WHERE credential_id = $1\n             FOR SHARE OF account_passkeys",
   "describe": {
     "columns": [
       {
@@ -60,5 +60,5 @@
       false
     ]
   },
-  "hash": "e50a38ede4dd4b8c4999cd529a33bc84a4acac8fef8764b45e804d1309047552"
+  "hash": "b80729c6f9486642c9822f69c05681fdd6d25cc476c38597e60d12cf5ecd86b8"
 }
