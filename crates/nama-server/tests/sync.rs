@@ -431,6 +431,28 @@ async fn linking_a_user_pushes_their_watch_state_from_before_dated_as_stored() {
 }
 
 #[tokio::test]
+async fn a_users_new_link_pushes_their_watch_state_once_however_often_looked_at_and_again_after_a_restart()
+ {
+    let hub = Hub::default();
+    let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
+    let stored = alien_watched_before_linking(&fx, &hub).await;
+
+    look_at_admins_link(&fx.server).await;
+    until("the Hub has the push", async || !hub.kept().is_empty()).await;
+    look_at_admins_link(&fx.server).await;
+    let restarted = hub.on(TestServer::builder()).restart(fx.server).await;
+    let before_restart_looked = hub.kept().len();
+    look_at_admins_link(&restarted).await;
+
+    assert_eq!(before_restart_looked, 1, "a second look pushed again");
+    until("the Hub has the restart's push", async || {
+        hub.kept().len() == 2
+    })
+    .await;
+    assert_eq!(*hub.kept(), [stored.clone(), stored]);
+}
+
+#[tokio::test]
 async fn linking_a_user_leaves_a_title_the_account_has_newer_as_the_account_has_it() {
     let hub = Hub::default();
     let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;

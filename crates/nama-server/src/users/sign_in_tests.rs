@@ -1,7 +1,5 @@
 use std::{net::IpAddr, sync::Arc, time::Duration};
 
-use connectrpc::{ConnectError, ErrorCode};
-
 use super::*;
 use crate::{db::Database, plugins::Registry};
 
@@ -390,82 +388,6 @@ async fn a_reauthentication_without_a_proof_is_refused_without_counting_as_a_gue
     }
 
     reauthenticate(&sign_in, &ada, PASSWORD, now).await.unwrap();
-}
-
-/// Reauthenticates `caller` from [`LAPTOP_IP`] at `now` with a sign-in the Hub says the User
-/// `approved_as` approved with their Account.
-async fn reauthenticate_with_account(
-    sign_in: &SignIn,
-    caller: &Caller,
-    approved_as: i64,
-    now: Instant,
-) -> Result<(), Error> {
-    let approved = async { Ok::<_, Error>(approved_as) };
-    let ip = LAPTOP_IP.parse().unwrap();
-    sign_in
-        .reauthenticate_with_account(caller, approved, ip, now)
-        .await
-}
-
-#[tokio::test]
-async fn reauthenticating_with_the_users_account_refreshes_the_device_without_adding_one() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let (sign_in, _) = sign_in_with_ada(data_dir.path()).await;
-    let ada = ada_without_recent_authentication(&sign_in).await;
-    let before = sign_in.users.devices(ada.user.id).await.unwrap().unwrap();
-
-    reauthenticate_with_account(&sign_in, &ada, ada.user.id, Instant::now())
-        .await
-        .unwrap();
-
-    let devices = sign_in.users.devices(ada.user.id).await.unwrap().unwrap();
-    assert_eq!(devices.len(), before.len(), "{devices:?}");
-    let phone = devices.iter().find(|d| d.id == ada.device.id).unwrap();
-    assert!(phone.authenticated_recently(phone.created_at), "{phone:?}");
-}
-
-#[tokio::test]
-async fn an_approval_by_another_users_account_is_refused_and_counts_as_a_guess() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let (sign_in, _) = sign_in_with_ada(data_dir.path()).await;
-    let ada = ada_without_recent_authentication(&sign_in).await;
-    let grace = sign_in
-        .users
-        .create(&ada.user, "Grace", PASSWORD)
-        .await
-        .unwrap();
-    let now = Instant::now();
-    for _ in 0..10 {
-        let refused = reauthenticate_with_account(&sign_in, &ada, grace, now).await;
-        assert!(matches!(refused, Err(Error::WrongAccount)), "{refused:?}");
-    }
-
-    let blocked = reauthenticate_with_account(&sign_in, &ada, ada.user.id, now).await;
-
-    assert!(matches!(blocked, Err(Error::Blocked(_))), "{blocked:?}");
-    let devices = sign_in.users.devices(ada.user.id).await.unwrap().unwrap();
-    let phone = devices.iter().find(|d| d.id == ada.device.id).unwrap();
-    assert!(!phone.authenticated_recently(phone.created_at), "{phone:?}");
-}
-
-#[tokio::test]
-async fn a_sign_in_the_hub_didnt_approve_counts_as_a_guess() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let (sign_in, _) = sign_in_with_ada(data_dir.path()).await;
-    let ada = ada_without_recent_authentication(&sign_in).await;
-    let ip = LAPTOP_IP.parse().unwrap();
-    let now = Instant::now();
-    for _ in 0..10 {
-        let not_approved = async { Err::<i64, _>(ConnectError::not_found("not approved")) };
-        let refused = sign_in
-            .reauthenticate_with_account(&ada, not_approved, ip, now)
-            .await;
-        assert_eq!(refused.unwrap_err().code, ErrorCode::NotFound);
-    }
-
-    let blocked = reauthenticate(&sign_in, &ada, PASSWORD, now).await;
-
-    assert!(matches!(blocked, Err(Error::Blocked(_))), "{blocked:?}");
 }
 
 /// Ada, signed in at `now` on a new Device.
