@@ -510,7 +510,7 @@ impl Hub {
 }
 
 /// `called`, where the Hub not knowing the Server's credential, its one `unauthenticated`, means
-/// there is nothing left to Unlink or push to.
+/// there is nothing left to Unlink.
 fn done_if_forgotten(called: Result<(), connectrpc::ConnectError>) -> Result<(), PluginError> {
     match called {
         Err(err) if err.code != connectrpc::ErrorCode::Unauthenticated => Err(err.into()),

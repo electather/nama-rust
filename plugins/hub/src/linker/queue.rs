@@ -133,8 +133,8 @@ impl<T: Queued> Queue<T> {
             return Ok(());
         }
         let old = self.header().await?;
-        // ponytail: every batch reads and rewrites the whole queue, which is short while the Sync
-        // Job drains it each minute and grows only while the Hub is down; past a few hundred
+        // ponytail: every batch reads and rewrites the whole queue, which is short while its Job
+        // drains it every few minutes and grows only while the Hub is down; past a few hundred
         // pages, keep an index of the queued keys beside the header instead.
         let mut items = Vec::new();
         for nth in old.first..old.next {

@@ -943,6 +943,28 @@ async fn more_preferences_than_one_store_value_holds_told_while_the_hub_is_down_
 }
 
 #[tokio::test]
+async fn a_preference_dated_past_what_the_hub_takes_or_under_an_empty_id_stays_behind() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs, _) = syncing_preferences_of_user_7(&hub).await;
+    let movie = |id: &str| TrackPreferenceFor::Movie(vec![id.to_owned()]);
+
+    let told = [
+        subtitles_in(7, movie("tmdb-348"), "eng", 1_000),
+        subtitles_in(7, movie("tmdb-679"), "eng", i64::MAX),
+        subtitles_in(7, movie(""), "eng", 1_000),
+    ];
+    for change in &told {
+        observer.observe(change).await.unwrap();
+    }
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(
+        pushed_preferences(&hub),
+        [[("tmdb-348".to_owned(), "eng".to_owned())]]
+    );
+}
+
+#[tokio::test]
 async fn a_pull_sends_the_queued_preferences_first_and_answers_them_under_each_id_as_descriptions()
 {
     let hub = FakeHub::start().await;
@@ -1221,7 +1243,7 @@ async fn ids_the_hub_wouldnt_take_are_left_out_and_a_change_with_none_stays_behi
         ..movie_at(348, 1000, 1_000)
     };
     let with_only_a_long_id = WatchStateChange {
-        ids: vec![long],
+        ids: vec![long, String::new()],
         ..movie_at(679, 1000, 1_000)
     };
 
@@ -1229,6 +1251,22 @@ async fn ids_the_hub_wouldnt_take_are_left_out_and_a_change_with_none_stays_behi
         observer.as_ref(),
         7,
         vec![with_a_long_id, with_only_a_long_id],
+    )
+    .await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(pushed(&hub), [[("tmdb-348".to_owned(), 1000, 1_000)]]);
+}
+
+#[tokio::test]
+async fn a_watch_state_change_dated_before_1970_stays_behind() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs, _) = syncing_user_7(&hub).await;
+
+    tell(
+        observer.as_ref(),
+        7,
+        vec![movie_at(348, 1000, 1_000), movie_at(679, 1000, -1)],
     )
     .await;
     run_sync(jobs.as_ref()).await.unwrap();
@@ -1618,7 +1656,18 @@ async fn a_watchlist_sync_answers_the_accounts_watchlist_and_a_users_leaves_only
         removed: true,
         ..watchlisted(1399, 2_000)
     };
-    let watchlist = vec![watchlisted(348, 1_000), removed.clone(), too_long];
+    let empty = WatchlistEntry {
+        id: String::new(),
+        ..watchlisted(0, 4_000)
+    };
+    let before_1970 = watchlisted(603, -1);
+    let watchlist = vec![
+        watchlisted(348, 1_000),
+        removed.clone(),
+        too_long,
+        empty,
+        before_1970,
+    ];
 
     let synced = linker.sync_watchlist(7, watchlist).await.unwrap();
 
