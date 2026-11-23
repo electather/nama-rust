@@ -1,14 +1,13 @@
 import { Link } from "@tanstack/react-router";
 
 import { LibraryArt } from "@/features/home/components/library-art";
-import { backdropTile } from "@/features/home/lib/shelf-tiles";
 import type { Library } from "@/gen/nama/v1/library_pb";
 import { kindName } from "@/shared/lib/library-kind";
 
 /** A Library's item in its shelf: its Backdrop and name, opening the Library, over its kind. */
 export function LibraryCard({ library }: { library: Library }) {
   return (
-    <li className={`shrink-0 snap-start ${backdropTile.width}`}>
+    <li className="w-tile-backdrop shrink-0 snap-start">
       <Link
         to="/libraries/$libraryId"
         params={{ libraryId: String(library.id) }}

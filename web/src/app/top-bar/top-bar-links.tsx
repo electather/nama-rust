@@ -8,7 +8,11 @@ import { useLoadedLibraries } from "@/shared/hooks/use-libraries-query";
 export function TopBarLinks() {
   const libraries = useLoadedLibraries();
   return (
-    <nav aria-label="Main" className="hidden items-center gap-0.5 sm:flex">
+    // Scrolls sideways rather than push search off a narrow bar; the padding keeps focus rings in.
+    <nav
+      aria-label="Main"
+      className="-m-1 hidden min-w-0 scrollbar-none items-center gap-0.5 overflow-x-auto p-1 sm:flex"
+    >
       <TopBarLink to="/" activeOptions={{ exact: true }}>
         Home
       </TopBarLink>
