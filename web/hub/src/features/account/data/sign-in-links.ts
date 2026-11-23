@@ -4,10 +4,10 @@ import { AccountService } from "@hub/gen/nama/hub/v1/account_pb";
 import { HubService } from "@hub/gen/nama/hub/v1/hub_pb";
 import { useRouter } from "@tanstack/react-router";
 
-/** Whether the Hub emails Sign-in Links; `false` until it has said so. */
-export function useSendsSignInLinks() {
+/** Whether the Hub emails Sign-in Links; `undefined` until it has said so, or if it failed to. */
+export function useSendsSignInLinks(): boolean | undefined {
   const { data } = useQuery(HubService.method.getHubInfo, {});
-  return data?.signInLinks ?? false;
+  return data?.signInLinks;
 }
 
 /** Asks the Hub to email a Sign-in Link. */

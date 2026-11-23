@@ -16,7 +16,10 @@ export function SignInPage({ continueTo }: { continueTo: string }) {
       onSubmit={(credentials) => {
         signIn.mutate(credentials);
       }}
-      alternative={sendsSignInLinks ? <OrEmailASignInLink continueTo={continueTo} /> : undefined}
+      // Unknown hides it: password sign-in works on every Hub, a Sign-in Link only on one with mail.
+      alternative={
+        sendsSignInLinks === true ? <OrEmailASignInLink continueTo={continueTo} /> : undefined
+      }
       footer={
         <>
           New to the Hub?{" "}

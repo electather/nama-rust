@@ -29,7 +29,7 @@ export function PasswordForm() {
   if (!status) {
     return null;
   }
-  const words = status.hasPassword ? wording.change : wording.set(sendsSignInLinks);
+  const words = status.hasPassword ? wording.change : wording.set(sendsSignInLinks === true);
   const errors = setPassword.error ? credentialErrors(setPassword.error) : {};
   return (
     <form
