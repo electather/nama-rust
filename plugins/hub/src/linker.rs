@@ -39,7 +39,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tokio::sync::Mutex;
 
 use crate::{
-    hub::{Hub, Polling},
+    hub::{Hub, LinkDropped, Polling},
     token::{self, Claims, Rejected},
 };
 
@@ -241,6 +241,25 @@ impl Linker {
             return Ok(());
         };
         self.hub.unlink(&kept.credential).await?;
+        self.forget_kept().await
+    }
+
+    /// Forgets `dropped`, the Link the Hub answered [`LinkDropped`] to, as Unlinking does, so the
+    /// Server can Link again. A Link kept since, under another credential, stays.
+    async fn forget_dropped(&self, dropped: &Kept) -> Result<(), PluginError> {
+        // Held so a poll can't keep a new Link between the check and the delete.
+        let _waiting = self.waiting.lock().await;
+        if self
+            .kept()
+            .await?
+            .is_some_and(|kept| kept.credential == dropped.credential)
+        {
+            self.forget_kept().await?;
+        }
+        Ok(())
+    }
+
+    async fn forget_kept(&self) -> Result<(), PluginError> {
         self.kernel.ask::<StoreDelete>(store_key(LINK_KEY)).await?;
         // The Hub Unlinked the Server's Users with it: their codes are gone, and what the Store
         // keeps of their Links names this Link, so none shows once the Server is Linked again.
@@ -248,12 +267,16 @@ impl Linker {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clear();
+        *self
+            .reachability
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = None;
         Ok(())
     }
 
     /// Tells the Hub `addresses`, unless the Server isn't Linked or the Hub has them already from
     /// this Link and checked them lately. Forgotten on a restart, so the Hub hears them once more
-    /// then.
+    /// then. A Link the Hub doesn't know any more is forgotten.
     async fn report(&self, addresses: ServerAddresses) -> Result<(), PluginError> {
         let Some(kept) = self.kept().await? else {
             return Ok(());
@@ -266,7 +289,13 @@ impl Linker {
         {
             return Ok(());
         }
-        let reachability = self.hub.set_addresses(&kept.credential, &addresses).await?;
+        let reachability = match self.hub.set_addresses(&kept.credential, &addresses).await {
+            Err(err) if err.is::<LinkDropped>() => {
+                *reported = None;
+                return self.forget_dropped(&kept).await;
+            }
+            answered => answered?,
+        };
         *self
             .reachability
             .lock()
