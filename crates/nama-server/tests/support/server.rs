@@ -459,8 +459,8 @@ impl TestServer {
         library
     }
 
-    /// [`Self::library`] without the scan, for a test that watches or times the scan itself: the
-    /// scan creating the Library is over before `files` are written.
+    /// [`Self::library`] with `files` left unscanned, for a test that watches or times the scan
+    /// itself: they're written only once the scan creating the Library has Matched.
     pub(crate) async fn create_library(&self, kind: LibraryKind, files: &[&str]) -> Library {
         self.create_library_searching(kind, files, &[]).await
     }

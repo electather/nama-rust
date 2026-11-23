@@ -102,7 +102,7 @@ impl Started {
     }
 
     /// Drops in the test Plugin with its Observer set to `observer` (`log`, `clock`, `loop`,
-    /// `hoard` or `panic`), enables it, and returns a Library to scan so it is told about Events.
+    /// `hoard` or `panic`), enables it, and returns a Library whose creation scan it is told about.
     async fn observing(&self, observer: &str) -> (i64, tempfile::TempDir) {
         self.drop_in("test.wasm", "");
         // Listing is what reads `plugins/`.
@@ -516,7 +516,6 @@ async fn an_observer_that_loops_forever_is_stopped_by_the_timeout_and_the_server
     let started = Started::new().await;
     let (library, _media) = started.observing("loop").await;
 
-    started.scan(library).await;
     log.wait_for(&["test-plugin is looping"], 1).await;
     // Served while its call loops, which the timeout stops only after 5 seconds.
     assert!(started.listed("test-plugin").await.is_some());
@@ -536,9 +535,8 @@ async fn an_observer_that_loops_forever_is_stopped_by_the_timeout_and_the_server
 async fn an_observer_that_runs_past_the_memory_cap_crashes_and_the_server_carries_on() {
     let log = Log::global();
     let started = Started::new().await;
-    let (library, _media) = started.observing("hoard").await;
+    let (_library, _media) = started.observing("hoard").await;
 
-    started.scan(library).await;
     log.wait_for(
         &[
             "observer failed",
