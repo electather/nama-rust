@@ -315,7 +315,7 @@ async fn list_watch_states_gives_each_users_watch_state_of_each_title() {
     let data = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let [ada, bo] = users(&db, ["Ada", "Bo"]).await;
-    let watch_states = WatchStates::new(Arc::clone(&db));
+    let watch_states = WatchStates::new(Arc::clone(&db), ExtensionPoints::default());
     let alien = MovieOrEpisode::movie(&ExternalId::tmdb(ALIEN_TMDB_ID));
     let halfway = Progress::new(500, 1000).unwrap();
     (watch_states.report(ada, vec![Some(alien.clone())], halfway))
@@ -355,7 +355,7 @@ async fn list_watch_states_for_one_user_gives_no_other_users_watch_state() {
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let [ada, bo] = users(&db, ["Ada", "Bo"]).await;
     let alien = MovieOrEpisode::movie(&ExternalId::tmdb(ALIEN_TMDB_ID));
-    let watch_states = WatchStates::new(Arc::clone(&db));
+    let watch_states = WatchStates::new(Arc::clone(&db), ExtensionPoints::default());
     for user in [ada, bo] {
         watch_states
             .mark(user, vec![alien.clone()], true)
@@ -395,9 +395,13 @@ async fn list_watch_states_finds_a_movies_watch_state_kept_under_another_of_its_
     matched.ids.insert(imdb.clone());
     let alien = MatchedMovie::new(&db, media.path(), matched).await;
     let under_imdb = MovieOrEpisode::movie(&imdb);
-    (WatchStates::new(Arc::clone(&db)).mark(ada, vec![under_imdb], true))
-        .await
-        .unwrap();
+    (WatchStates::new(Arc::clone(&db), ExtensionPoints::default()).mark(
+        ada,
+        vec![under_imdb],
+        true,
+    ))
+    .await
+    .unwrap();
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_WATCH_STATES);
 
     let asked = WatchStatesAsked {
@@ -419,9 +423,13 @@ async fn list_watch_states_finds_an_episodes_watch_state_kept_under_another_of_i
     let (library, _path) =
         two_episodes_in_one_file_also_known_as(&db, media.path(), |tmdb| Some(imdb(tmdb))).await;
     let under_imdb = MovieOrEpisode::episode(&imdb(LIES_TMDB_ID));
-    (WatchStates::new(Arc::clone(&db)).mark(ada, vec![under_imdb], true))
-        .await
-        .unwrap();
+    (WatchStates::new(Arc::clone(&db), ExtensionPoints::default()).mark(
+        ada,
+        vec![under_imdb],
+        true,
+    ))
+    .await
+    .unwrap();
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_WATCH_STATES);
 
     let asked = WatchStatesAsked {
@@ -439,7 +447,7 @@ async fn list_users_gives_every_user_with_their_id_and_display_name() {
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let [ada, bo] = users(&db, ["Ada", "Bo"]).await;
     let alien = MovieOrEpisode::movie(&ExternalId::tmdb(ALIEN_TMDB_ID));
-    (WatchStates::new(Arc::clone(&db)).mark(ada, vec![alien], true))
+    (WatchStates::new(Arc::clone(&db), ExtensionPoints::default()).mark(ada, vec![alien], true))
         .await
         .unwrap();
     let (_automation, kernel) = kernel(&db, data.path(), Permission::PERMISSION_READ_USERS);

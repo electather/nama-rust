@@ -1,6 +1,8 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
 //! keeps in the Plugin's Store once someone entered it, the Server Addresses it tells the Hub, and
-//! through it shares what the Admin chooses with Nama's developers (ADR 0054). Its Users' Links are
+//! through it shares what the Admin chooses with Nama's developers (ADR 0054). [`Linker`] holds
+//! the Link: it alone reads and writes it, and every Hub call made as the Server goes through
+//! [`Linker::call`], so one rule decides what a Link the Hub dropped means. Its Users' Links are
 //! in `users.rs`, syncing their Watch State both ways in `watch_states.rs`, their Subtitle and
 //! Audio Preferences in `track_preferences.rs`, and their Watchlists in `watchlist.rs`, their plays
 //! as Viewing Events in `viewing.rs`, and signing in with an Account, and Users created from one,
@@ -15,6 +17,7 @@ mod watchlist;
 
 use std::{
     collections::HashMap,
+    future::Future,
     sync::{Arc, PoisonError},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -39,7 +42,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tokio::sync::Mutex;
 
 use crate::{
-    hub::{Hub, LinkDropped, Polling},
+    hub::{Hub, LinkDropped, LinkedHub, Polling},
     token::{self, Claims, Rejected},
 };
 
@@ -238,11 +241,33 @@ impl Linker {
 
     async fn forget_link(&self) -> Result<(), PluginError> {
         *self.waiting.lock().await = None;
+        // `None` is not Linked, or a Link the Hub dropped, which `call` forgot already.
+        if self.call(LinkedHub::unlink).await?.is_some() {
+            self.forget_kept().await?;
+        }
+        Ok(())
+    }
+
+    /// Makes `call` to the Hub as the Linked Server: `None` while the Server isn't Linked, and
+    /// once the Hub answers it doesn't know the Link any more, which forgets the Link. A Hub that
+    /// is unreachable or fails is a failure, and keeps the Link.
+    pub(crate) async fn call<T, Called>(
+        &self,
+        call: impl FnOnce(LinkedHub) -> Called,
+    ) -> Result<Option<T>, PluginError>
+    where
+        Called: Future<Output = Result<T, PluginError>>,
+    {
         let Some(kept) = self.kept().await? else {
-            return Ok(());
+            return Ok(None);
         };
-        self.hub.unlink(&kept.credential).await?;
-        self.forget_kept().await
+        match call(self.hub.linked(&kept.credential)).await {
+            Err(err) if err.is::<LinkDropped>() => {
+                self.forget_dropped(&kept).await?;
+                Ok(None)
+            }
+            called => called.map(Some),
+        }
     }
 
     /// Forgets `dropped`, the Link the Hub answered [`LinkDropped`] to, as Unlinking does, so the
@@ -277,7 +302,7 @@ impl Linker {
 
     /// Tells the Hub `addresses`, unless the Server isn't Linked or the Hub has them already from
     /// this Link and checked them lately. Forgotten on a restart, so the Hub hears them once more
-    /// then. A Link the Hub doesn't know any more is forgotten.
+    /// then.
     async fn report(&self, addresses: ServerAddresses) -> Result<(), PluginError> {
         let Some(kept) = self.kept().await? else {
             return Ok(());
@@ -290,12 +315,8 @@ impl Linker {
         {
             return Ok(());
         }
-        let reachability = match self.hub.set_addresses(&kept.credential, &addresses).await {
-            Err(err) if err.is::<LinkDropped>() => {
-                *reported = None;
-                return self.forget_dropped(&kept).await;
-            }
-            answered => answered?,
+        let Some(reachability) = self.call(|hub| hub.set_addresses(&addresses)).await? else {
+            return Ok(());
         };
         *self
             .reachability
@@ -360,16 +381,14 @@ impl Linker {
         token::verify(&key_set, token, now).map_err(rejected)
     }
 
-    /// Sends `batch` to the Hub with the Link's credential, or drops it while not Linked.
+    /// Sends `batch` to the Hub as the Linked Server, or drops it while not Linked.
     async fn share_batch(&self, signal: Signal, batch: Vec<u8>) -> Result<(), PluginError> {
-        match self.kept().await? {
-            Some(kept) => self.hub.share(&kept.credential, signal, batch).await,
-            None => Ok(()),
-        }
+        self.call(|hub| hub.share(signal, batch)).await?;
+        Ok(())
     }
 
     async fn kept(&self) -> Result<Option<Kept>, PluginError> {
-        kept(self.kernel.as_ref()).await
+        self.stored_json(LINK_KEY).await
     }
 
     async fn keep(&self, kept: &Kept) -> Result<(), PluginError> {
@@ -490,19 +509,6 @@ impl DiagnosticsSharer for Linker {
     fn share(&self, signal: Signal, batch: Vec<u8>) -> BoxFuture<'_, Result<(), PluginError>> {
         Box::pin(self.share_batch(signal, batch))
     }
-}
-
-/// The credential the Server presents on every Hub call once it is Linked, as `kernel`'s Store
-/// keeps it; `None` while it isn't.
-pub(crate) async fn credential(kernel: &dyn Kernel) -> Result<Option<String>, PluginError> {
-    Ok(kept(kernel).await?.map(|kept| kept.credential))
-}
-
-async fn kept(kernel: &dyn Kernel) -> Result<Option<Kept>, PluginError> {
-    let Some(kept) = kernel.ask::<StoreGet>(store_key(LINK_KEY)).await?.value else {
-        return Ok(None);
-    };
-    Ok(Some(serde_json::from_slice(&kept)?))
 }
 
 fn store_key(key: &str) -> StoreKey {

@@ -13,6 +13,7 @@ use crate::{
         Contents, Libraries, Metadata,
         fixture::{MatchedMovie, movies_library, tmdb_movie},
     },
+    plugins::ExtensionPoints,
 };
 
 #[tokio::test]
@@ -28,7 +29,7 @@ async fn it_never_lists_more_than_five_titles() {
         MatchedMovie::store(&contents, library, path.to_str().unwrap(), matched).await;
     }
 
-    let featured = Browse::new(Arc::clone(&db))
+    let featured = Browse::new(Arc::clone(&db), ExtensionPoints::default())
         .featured(ada(&db).await, &Suggested::new())
         .await
         .unwrap();
@@ -58,7 +59,7 @@ async fn a_title_two_libraries_know_by_different_ids_is_listed_once() {
         MatchedMovie::store(&contents, library, path.to_str().unwrap(), matched).await;
     }
 
-    let featured = Browse::new(Arc::clone(&db))
+    let featured = Browse::new(Arc::clone(&db), ExtensionPoints::default())
         .featured(ada(&db).await, &Suggested::new())
         .await
         .unwrap();
@@ -106,7 +107,7 @@ async fn a_plugins_suggestion_at_the_top_weight_outranks_the_kernels_and_one_it_
     ]
     .into();
 
-    let featured = Browse::new(Arc::clone(&db))
+    let featured = Browse::new(Arc::clone(&db), ExtensionPoints::default())
         .featured(ada, &suggested)
         .await
         .unwrap();
@@ -119,7 +120,7 @@ async fn a_plugins_suggestion_at_the_top_weight_outranks_the_kernels_and_one_it_
 #[tokio::test]
 async fn a_plugins_suggestion_at_no_weight_shows_only_with_fewer_than_five_others() {
     let (_dirs, db, ada) = movies_added_now(6).await;
-    let browse = Browse::new(Arc::clone(&db));
+    let browse = Browse::new(Arc::clone(&db), ExtensionPoints::default());
     // Past the 14 days any of them counts as newly added, so only the Plugins weigh them.
     let later = db::now() + 15 * 24 * 60 * 60;
     let at = |weights: &[(i64, f64)]| -> Suggested {

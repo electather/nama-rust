@@ -15,7 +15,7 @@ use nama_plugin_api::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{Kept, LinkDropped, Linker, store_key};
+use super::{Kept, Linker, store_key};
 
 /// How long after the Hub was last asked of a User's Link the Plugin asks it again, so opening
 /// Settings or changing Watch State doesn't call the Hub every time (ADR 0094). While a code
@@ -53,12 +53,9 @@ impl Linker {
             return Ok(None);
         };
         if self.asks_hub(user_id) {
-            match self.hub.user_account(&kept.credential, user_id).await {
-                Ok(account) => self.remember_account(user_id, &kept, &account).await?,
-                Err(err) if err.is::<LinkDropped>() => {
-                    self.forget_dropped(&kept).await?;
-                    return Ok(None);
-                }
+            match self.call(|hub| hub.user_account(user_id)).await {
+                Ok(Some(account)) => self.remember_account(user_id, &kept, &account).await?,
+                Ok(None) => return Ok(None),
                 // What it said last stands, and it isn't asked again until it's due, so an outage
                 // doesn't make every Watch State change call it.
                 Err(_) => self.with_user(user_id, |user| user.asked = Some(Instant::now())),
@@ -75,15 +72,24 @@ impl Linker {
         }))
     }
 
+    /// Whether `user_id` is Linked, as Settings shows it: the one answer that decides whether
+    /// their Watch State, Subtitle and Audio Preferences, Watchlist and plays go to the Hub. A User
+    /// who never opened Settings, such as one who only signs in with their Account, has no kept
+    /// Link, so this asks the Hub as Settings would.
+    pub(super) async fn user_linked(&self, user_id: i64) -> Result<bool, PluginError> {
+        let link = self.current_user_link(user_id).await?;
+        Ok(matches!(link, Some(Link::Linked { .. })))
+    }
+
     /// Starts Linking `user_id`, whom the Hub lists as `name`, and answers the code they show.
     pub(super) async fn start_user(&self, user_id: i64, name: &str) -> Result<Link, PluginError> {
-        let kept = self
-            .kept()
-            .await?
-            .ok_or("the Server isn't Linked to the Hub, so its Users can't Link")?;
-        let Some(started) = self.hub.start_user(&kept.credential, user_id, name).await? else {
+        const NOT_LINKED: &str = "the Server isn't Linked to the Hub, so its Users can't Link";
+        let kept = self.kept().await?.ok_or(NOT_LINKED)?;
+        let started = self.call(|hub| hub.start_user(user_id, name)).await?;
+        let Some(started) = started.ok_or(NOT_LINKED)? else {
             // Linked since the Hub was last asked, so Settings shows that Link instead.
-            let account = self.hub.user_account(&kept.credential, user_id).await?;
+            let account = self.call(|hub| hub.user_account(user_id)).await?;
+            let account = account.ok_or(NOT_LINKED)?;
             self.remember_account(user_id, &kept, &account).await?;
             return Ok(if account.is_empty() {
                 Link::NotLinked
@@ -107,16 +113,12 @@ impl Linker {
         let Some(kept) = self.kept().await? else {
             return Ok(());
         };
-        self.hub.unlink_user(&kept.credential, user_id).await?;
+        self.call(|hub| hub.unlink_user(user_id)).await?;
         self.remember_account(user_id, &kept, "").await
     }
 
     /// The email of the Account `user_id` Linked to under the Server's Link `kept`, as last kept.
-    pub(super) async fn kept_account(
-        &self,
-        user_id: i64,
-        kept: &Kept,
-    ) -> Result<Option<String>, PluginError> {
+    async fn kept_account(&self, user_id: i64, kept: &Kept) -> Result<Option<String>, PluginError> {
         let Some(stored) = self.stored(&user_key(user_id)).await? else {
             return Ok(None);
         };

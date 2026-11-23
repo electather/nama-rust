@@ -1,20 +1,10 @@
-use std::{
-    sync::Arc,
-    time::{Instant, SystemTime, UNIX_EPOCH},
-};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use super::*;
 use crate::{
     accounts::{Accounts, Caller},
     db,
-    signing::Keys,
 };
-
-/// A signing key made with `openssl genpkey -algorithm ed25519`, which `Links` needs.
-const SIGNING_KEY: &str = "-----BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEIJzJDsQn3SpQXPoFGl74lUI4L+huggYWuNcSt9vaCwTS
------END PRIVATE KEY-----
-";
 
 fn played() -> ViewingEvent {
     ViewingEvent {
@@ -157,9 +147,7 @@ async fn pool_of(db: &PgPool, count: usize) -> (Viewing, Vec<AccountId>) {
             .await;
         created.push(account.unwrap().account.id);
     }
-    let keys = Arc::new(Keys::from_pems(SIGNING_KEY).unwrap());
-    let links = Links::new(db.clone(), Accounts::new(db.clone(), None), keys, None);
-    (Viewing::new(db.clone(), links), created)
+    (Viewing::new(db.clone()), created)
 }
 
 /// Records that `account` finished `movie`, as the play named `key`.
@@ -176,9 +164,11 @@ async fn finish_at(db: &PgPool, account: AccountId, key: &str, movie: &str, star
         finished: true,
         ..played()
     };
-    let mut tx = db.begin().await.unwrap();
-    record_one(&mut tx, account, key, &event).await.unwrap();
-    tx.commit().await.unwrap();
+    let recorded = vec![(account, key.to_owned(), event)];
+    Viewing::new(db.clone())
+        .record_under(recorded)
+        .await
+        .unwrap();
 }
 
 /// The Movie's own count, as recommendations would read it.
