@@ -403,9 +403,13 @@ pub(crate) fn match_bands(query: &str, title: &str, year: Option<&str>) -> impl 
 }
 
 /// Whether `name` has a word starting with each word of `query`, ignoring case, accents and the
-/// marks that join words, as a search finds a title.
+/// marks that join words, as a search finds a title. A query with no words, such as "!!!", fits
+/// none.
 pub(crate) fn has_word_starts(query: &str, name: &str) -> bool {
     let query = title_words(query);
+    if query.is_empty() {
+        return false;
+    }
     let joined = joined(name);
     [name, joined.as_str()].into_iter().any(|variant| {
         let words = title_words(variant);
