@@ -142,6 +142,29 @@ async fn a_passkey_added_by_a_fresh_session_signs_in_without_an_email_or_passwor
 }
 
 #[sqlx::test(migrations = false)]
+async fn one_client_is_handed_only_so_many_passkey_challenges(db: PgPool) {
+    let hub = TestHub::start(db, None).await;
+    let client = accounts(&hub);
+
+    let mut refused = None;
+    for _ in 0..100 {
+        if let Err(err) = client
+            .start_passkey_sign_in(StartPasskeySignInRequest::default())
+            .await
+        {
+            refused = Some(err);
+            break;
+        }
+    }
+
+    assert_refused(
+        refused.map_or(Ok(()), Err),
+        ErrorCode::ResourceExhausted,
+        RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS,
+    );
+}
+
+#[sqlx::test(migrations = false)]
 async fn a_used_challenge_an_unknown_passkey_a_forged_signature_or_no_user_handle_is_refused(
     db: PgPool,
 ) {

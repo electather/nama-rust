@@ -23,7 +23,7 @@ use crate::mail::Mail;
 pub(crate) use passkeys::{Assertion, NewPasskey, PASSKEY_NAME_LENGTH, Passkey};
 pub(crate) use passwords::PASSWORD_LENGTH;
 pub(crate) use rate_limits::{Blocked, Caller};
-use rate_limits::{CreationLimits, SignInLimits};
+use rate_limits::{ChallengeLimits, CreationLimits, SignInLimits};
 pub(crate) use sessions::{RECENT_AUTHENTICATION_MINS, SESSION_DAYS};
 use sign_in_links::Outbox;
 pub(crate) use sign_in_links::{SignInLink, SignedInByLink};
@@ -122,7 +122,7 @@ pub(crate) enum Error {
 }
 
 /// The Accounts kept in the database, the recent failed sign-ins and creations, the Sign-in Links
-/// being sent, and the passkey challenges waiting for an answer.
+/// being sent, and the passkey challenges handed out and waiting for an answer.
 #[derive(Clone)]
 pub(crate) struct Accounts {
     db: PgPool,
@@ -132,6 +132,7 @@ pub(crate) struct Accounts {
     outbox: Option<Outbox>,
     /// The Hub at its public address, without which it can't use passkeys.
     relying_party: Option<Arc<RelyingParty>>,
+    challenges: Arc<ChallengeLimits>,
 }
 
 impl Accounts {
@@ -144,6 +145,7 @@ impl Accounts {
             sign_ins: Arc::default(),
             creations: Arc::default(),
             relying_party: public_url.and_then(RelyingParty::new).map(Arc::new),
+            challenges: Arc::default(),
         }
     }
 

@@ -6,7 +6,7 @@ use std::{ops::RangeInclusive, time::Instant};
 use uuid::Uuid;
 
 use super::{
-    Account, AccountId, AccountSession, Accounts, Error, SignedIn, sessions,
+    Account, AccountId, AccountSession, Accounts, Caller, Error, SignedIn, sessions,
     webauthn::{Ceremony, RelyingParty, public_key},
 };
 
@@ -62,9 +62,9 @@ pub(crate) struct NewPasskey<'a> {
 }
 
 impl Accounts {
-    /// A challenge for signing in with any Account's passkey, from `now`.
-    pub(crate) fn start_passkey_sign_in(&self, now: Instant) -> Result<Challenge, Error> {
-        self.challenge(Ceremony::SignIn, now)
+    /// A challenge for `caller` to sign in with any Account's passkey.
+    pub(crate) fn start_passkey_sign_in(&self, caller: Caller) -> Result<Challenge, Error> {
+        self.challenge(Ceremony::SignIn, caller)
     }
 
     /// Signs in the Account whose passkey made `assertion` at `now`, in place of `replacing`, the
@@ -117,15 +117,15 @@ impl Accounts {
         Ok(SignedIn { account, token })
     }
 
-    /// A challenge for adding a passkey to `session`'s Account, from `now`.
+    /// A challenge for `caller` to add a passkey to `session`'s Account.
     pub(crate) async fn start_adding_passkey(
         &self,
         session: &AccountSession,
-        now: Instant,
+        caller: Caller,
     ) -> Result<Adding, Error> {
         require_recent(session)?;
         let account = session.account.id;
-        let challenge = self.challenge(Ceremony::Add(account), now)?;
+        let challenge = self.challenge(Ceremony::Add(account), caller)?;
         let exclude_credential_ids = sqlx::query_scalar!(
             "SELECT credential_id FROM account_passkeys WHERE account_id = $1",
             account.0,
@@ -241,10 +241,11 @@ impl Accounts {
         Ok(())
     }
 
-    fn challenge(&self, ceremony: Ceremony, now: Instant) -> Result<Challenge, Error> {
+    fn challenge(&self, ceremony: Ceremony, caller: Caller) -> Result<Challenge, Error> {
         let relying_party = self.relying_party()?;
+        self.challenges.admit(caller)?;
         Ok(Challenge {
-            bytes: relying_party.challenge(ceremony, now)?,
+            bytes: relying_party.challenge(ceremony, caller.now)?,
             rp_id: relying_party.id.clone(),
         })
     }

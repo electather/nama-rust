@@ -202,13 +202,14 @@ impl AccountService for AccountServiceHandler {
 
     fn start_passkey_sign_in<'a>(
         &'a self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         _request: ServiceRequest<'_, StartPasskeySignInRequest>,
     ) -> impl Future<
         Output = ServiceResult<impl Encodable<StartPasskeySignInResponse> + Send + use<'a>>,
     > + Send {
-        let started = self.accounts.start_passkey_sign_in(Instant::now());
-        future::ready(started.map_err(refused).and_then(|started| {
+        let started = caller(&ctx)
+            .and_then(|caller| self.accounts.start_passkey_sign_in(caller).map_err(refused));
+        future::ready(started.and_then(|started| {
             Response::ok(StartPasskeySignInResponse {
                 challenge: started.bytes.to_vec(),
                 rp_id: started.rp_id,
@@ -253,7 +254,7 @@ impl AccountService for AccountServiceHandler {
     ) -> ServiceResult<StartAddingPasskeyResponse> {
         let adding = self
             .accounts
-            .start_adding_passkey(signed_in(&ctx)?, Instant::now())
+            .start_adding_passkey(signed_in(&ctx)?, caller(&ctx)?)
             .await
             .map_err(refused)?;
         Response::ok(StartAddingPasskeyResponse {

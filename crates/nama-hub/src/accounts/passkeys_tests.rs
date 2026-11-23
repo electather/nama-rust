@@ -5,7 +5,7 @@ use url::Url;
 use uuid::Uuid;
 
 use super::can_sign_in;
-use crate::accounts::{Account, AccountId, AccountSession, Accounts, Error, NewPasskey};
+use crate::accounts::{Account, AccountId, AccountSession, Accounts, Caller, Error, NewPasskey};
 
 /// Accounts whose database is never reached: each call here fails before it would be.
 fn accounts(public_url: Option<&str>) -> Accounts {
@@ -15,6 +15,13 @@ fn accounts(public_url: Option<&str>) -> Accounts {
         None,
         public_url.map(|url| Url::parse(url).unwrap()).as_ref(),
     )
+}
+
+fn caller() -> Caller {
+    Caller {
+        ip: "203.0.113.1".parse().unwrap(),
+        now: Instant::now(),
+    }
 }
 
 fn session(recent: bool) -> AccountSession {
@@ -54,7 +61,7 @@ async fn adding_or_removing_a_passkey_needs_a_recent_sign_in_before_anything_els
 
     for refused in [
         accounts
-            .start_adding_passkey(&stale, Instant::now())
+            .start_adding_passkey(&stale, caller())
             .await
             .map(drop),
         accounts
@@ -75,12 +82,12 @@ async fn without_a_public_url_there_are_no_passkeys() {
     let accounts = accounts(None);
 
     assert!(matches!(
-        accounts.start_passkey_sign_in(Instant::now()),
+        accounts.start_passkey_sign_in(caller()),
         Err(Error::PasskeysOff)
     ));
     assert!(matches!(
         accounts
-            .start_adding_passkey(&session(true), Instant::now())
+            .start_adding_passkey(&session(true), caller())
             .await,
         Err(Error::PasskeysOff)
     ));
