@@ -165,7 +165,7 @@ describe("viewing history", () => {
     });
   });
 
-  test("linking a User shows the pooling switch, on, with what turning it off can’t undo", async () => {
+  test("the Account page shows the pooling switch, on, with what turning it off can’t undo", async () => {
     open("/");
 
     const toggle = await screen.findByRole("switch", { name: "Count the Movies you finish" });

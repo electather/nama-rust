@@ -336,20 +336,20 @@ async fn record_one(
 ) -> Result<(), Error> {
     // ponytail: deleting the counted play forgets the Movie was counted, so finishing it again
     // counts the Account twice; keep a mark outside the history if inflated counts ever matter.
-    if insert(tx, account, key, event).await? == Some(true) {
+    if insert(tx, account, key, event).await? {
         add_to_pool(tx, account, &event.external_id).await?;
     }
     Ok(())
 }
 
-/// Inserts `event` under `account` as `key`, and answers whether it is to be pooled, or `None` if
-/// the key was recorded already.
+/// Inserts `event` under `account` as `key`, unless it was already, and answers whether the new row
+/// is to be pooled.
 async fn insert(
     tx: &mut Transaction<'_, Postgres>,
     account: AccountId,
     key: &str,
     event: &ViewingEvent,
-) -> Result<Option<bool>, Error> {
+) -> Result<bool, Error> {
     // `is_valid` kept it within a day's minutes.
     let time_of_day =
         i16::try_from(event.time_of_day_minutes).map_err(|_out_of_range| Error::Invalid)?;
@@ -376,7 +376,7 @@ async fn insert(
     )
     .fetch_optional(&mut **tx)
     .await?;
-    Ok(pooled)
+    Ok(pooled == Some(true))
 }
 
 /// Counts `account` once more for `movie`, and for each pair it makes with a Movie the Account

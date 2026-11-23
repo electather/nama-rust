@@ -1,7 +1,8 @@
 -- How many Accounts finished each Movie and each pair of Movies, with nothing naming an Account
 -- (ADR 0093). What may be stored here: `src/viewing/AGENTS.md`.
 CREATE TABLE pooled_counts (
-    id uuid PRIMARY KEY DEFAULT uuidv7(),
+    -- Random, not `uuidv7()`: why is in `crates/nama-hub/AGENTS.md`.
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     -- The pair's External IDs, the lesser first. A Movie's own count is its pair with itself.
     title_a text NOT NULL,
     title_b text NOT NULL CHECK (title_a <= title_b),
