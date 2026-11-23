@@ -153,12 +153,7 @@ impl Browse {
         if pulled.is_empty() {
             return Ok(());
         }
-        // Each Movie or Episode here, by whether it's an Episode and each of its ids.
-        let mut here = HashMap::new();
-        // ponytail: whole-Library read
-        for library in self.libraries.list().await.map_err(finding_failed)? {
-            add_watched(&mut here, self.titles(&library).await?);
-        }
+        let here = self.watched_here().await?;
         let taken = (pulled.into_iter())
             .filter_map(|change| {
                 let found =
@@ -167,6 +162,28 @@ impl Browse {
             })
             .collect();
         Ok(self.watch_states.take_pulled(user, taken).await?)
+    }
+
+    /// Every Watch State of the User `user`, as Plugins are told of changes: each known by every
+    /// id a Library has its title under and dated when it last changed (see
+    /// [`crate::library::WatchStates::changes_of_user`]).
+    pub(crate) async fn watch_state_changes(
+        &self,
+        user: i64,
+    ) -> Result<Vec<WatchStateChange>, Error> {
+        let here = self.watched_here().await?;
+        Ok(self.watch_states.changes_of_user(user, &here).await?)
+    }
+
+    /// Each Movie or Episode here, by whether it's an Episode and each of its ids, in the oldest
+    /// Library that has that id.
+    async fn watched_here(&self) -> Result<HashMap<(bool, String), WatchedTitle>, Error> {
+        let mut here = HashMap::new();
+        // ponytail: whole-Library read
+        for library in self.libraries.list().await.map_err(finding_failed)? {
+            add_watched(&mut here, self.titles(&library).await?);
+        }
+        Ok(here)
     }
 
     /// A page of the User `user`'s Continue Watching, most recent first: the Movies they've

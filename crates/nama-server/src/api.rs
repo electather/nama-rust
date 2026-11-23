@@ -123,6 +123,7 @@ pub(crate) fn router(
         .add_service(Arc::new(server::ServerServiceHandler {
             name: config.name.clone(),
             users: users.clone(),
+            browse: Browse::new(Arc::clone(&db)),
             settings: settings.clone(),
             abilities: abilities.clone(),
             ffmpeg,

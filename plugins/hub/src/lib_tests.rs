@@ -874,6 +874,24 @@ async fn a_write_of_many_changes_is_pushed_a_page_at_a_time_in_order() {
 }
 
 #[tokio::test]
+async fn a_history_told_on_linking_is_pushed_whole_in_pages_behind_a_newer_change_queued() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs, _) = syncing_user_7(&hub).await;
+    let history: Vec<_> = (1..=250).map(|id| movie_at(id, 1000, 1_000)).collect();
+
+    tell(observer.as_ref(), 7, vec![movie_at(1, 3000, 5_000)]).await;
+    tell(observer.as_ref(), 7, history).await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    let pushes = pushed(&hub);
+    let sizes: Vec<_> = pushes.iter().map(Vec::len).collect();
+    assert_eq!(sizes, [100, 100, 50]);
+    let mut expected = vec![("tmdb-1".to_owned(), 3000, 5_000)];
+    expected.extend((2..=250).map(|id| (format!("tmdb-{id}"), 1000, 1_000)));
+    assert_eq!(pushes.concat(), expected);
+}
+
+#[tokio::test]
 async fn ids_the_hub_wouldnt_take_are_left_out_and_a_change_with_none_stays_behind() {
     let hub = FakeHub::start().await;
     let (observer, jobs, _) = syncing_user_7(&hub).await;
@@ -1382,10 +1400,10 @@ fn with_movies(tmdb: &'static [&'static str]) -> Arc<dyn Kernel> {
     )
 }
 
-/// The titles of `rows`' one row, each as its id's namespace and value.
-fn row_titles(rows: &HomeRows) -> Vec<(&str, &str)> {
-    let [row] = rows.rows.as_slice() else {
-        panic!("one row: {rows:?}");
+/// The titles of `rows`' row keyed `key`, each as its id's namespace and value.
+fn row_titles<'a>(rows: &'a HomeRows, key: &str) -> Vec<(&'a str, &'a str)> {
+    let Some(row) = rows.rows.iter().find(|row| row.key == key) else {
+        panic!("a row keyed {key}: {rows:?}");
     };
     (row.titles.iter())
         .map(|title: &HomeRowTitle| (title.id.namespace.as_str(), title.id.value.as_str()))
@@ -1403,7 +1421,10 @@ async fn a_linked_server_shares_the_trending_movies_its_libraries_have_in_the_hu
         .await
         .unwrap();
 
-    assert_eq!(row_titles(&rows), [("tmdb", "603"), ("tmdb", "862")]);
+    assert_eq!(
+        row_titles(&rows, "trending"),
+        [("tmdb", "603"), ("tmdb", "862")]
+    );
     let HomeRow {
         key,
         heading,
@@ -1432,7 +1453,33 @@ async fn trending_movies_no_library_has_leave_the_row_empty() {
         .await
         .unwrap();
 
-    assert_eq!(row_titles(&rows), []);
+    assert_eq!(row_titles(&rows, "trending"), []);
+}
+
+#[tokio::test]
+async fn a_linked_server_shares_the_most_watchlisted_titles_in_the_hubs_order_had_or_not() {
+    let hub = FakeHub::start().await;
+    let kernel = with_movies(&["603"]);
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+
+    let rows = provided::<dyn HomeRowSource>(&hub, &kernel)
+        .shared_rows(&SharedRowsAsked::default())
+        .await
+        .unwrap();
+
+    let Some(row) = (rows.rows.iter()).find(|row| row.key == "most-watchlisted") else {
+        panic!("a most watchlisted row: {rows:?}");
+    };
+    let titles: Vec<_> = (row.titles.iter())
+        .map(|title| (title.kind.as_known(), title.id.value.as_str()))
+        .collect();
+    let (movie, show) = (
+        Some(TitleKind::TITLE_KIND_MOVIE),
+        Some(TitleKind::TITLE_KIND_SHOW),
+    );
+    assert_eq!(titles, [(show, "70523"), (movie, "603"), (movie, "78")]);
+    assert_eq!(row.heading, "Most watchlisted on Nama");
+    assert_eq!(row.ttl_seconds, 24 * 60 * 60);
 }
 
 #[tokio::test]
