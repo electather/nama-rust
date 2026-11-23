@@ -109,6 +109,18 @@ describe("an Account", () => {
     });
   });
 
+  test.each([
+    { signedIn: true, way: "Your Account", href: "/" },
+    { signedIn: false, way: "Sign in", href: "/sign-in" },
+  ])("an unknown address offers $way", async ({ signedIn, way, href }) => {
+    openHub("/nothing-here", { signedIn });
+    await screen.findByRole("heading", { name: "Page not found" });
+
+    const link = await screen.findByRole("link", { name: way });
+    expect(link.getAttribute("href")).toBe(href);
+    expect(screen.getByRole("link", { name: "Nama Hub" }).getAttribute("href")).toBe("/");
+  });
+
   test("signing in opens the Account page, with the email and a sign-out button", async () => {
     openHub("/sign-in");
     await screen.findByRole("heading", { name: "Sign in" });
