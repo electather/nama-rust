@@ -1,9 +1,9 @@
 import { TopBarLink } from "@/app/top-bar/top-bar-link";
-import { useLoadedLibraries } from "@/shared/hooks/use-libraries-query";
+import { useLoadedLibraries } from "@/shared/hooks/use-loaded-libraries";
 
 /**
- * The top bar's links: Home, then each Library. A phone has no room for them: there the action
- * bar goes to each, and Home lists the Libraries.
+ * The top bar's links: Home, then each Library. A phone has no room for them: there the mark goes
+ * Home and `LibrariesMenu` to each Library.
  */
 export function TopBarLinks() {
   const libraries = useLoadedLibraries();

@@ -12,7 +12,7 @@ import type { Frame, Opening, Row } from "@/features/action-bar/lib/rows";
 import type { FoundTitle } from "@/features/action-bar/lib/titles";
 import type { Library } from "@/gen/nama/v1/library_pb";
 import { TitleKind } from "@/gen/nama/v1/match_pb";
-import { useLoadedLibraries } from "@/shared/hooks/use-libraries-query";
+import { useLoadedLibraries } from "@/shared/hooks/use-loaded-libraries";
 
 /** What a search from each frame asks the Server for. */
 const kinds = {

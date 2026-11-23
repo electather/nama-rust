@@ -1,4 +1,4 @@
-import { cleanup, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
@@ -29,4 +29,21 @@ test("the top bar links each Library after Home, marking the one open", async ()
       .getAllByRole("link", { current: "page" })
       .map((link) => link.textContent),
   ).toStrictEqual(["TV Shows"]);
+});
+
+test("on a phone the Libraries menu links each Library and is named by the one open", async () => {
+  const router = openApp("/code", fakeServer({ signedIn: newUser, libraries }));
+
+  fireEvent.click(await screen.findByRole("button", { name: "Libraries" }));
+  const items = await screen.findAllByRole("menuitem");
+  expect(items.map((item) => [item.textContent, item.getAttribute("href")])).toStrictEqual([
+    ["Movies", "/libraries/1"],
+    ["TV Shows", "/libraries/2"],
+  ]);
+
+  fireEvent.click(screen.getByRole("menuitem", { name: "TV Shows" }));
+  await waitFor(() => {
+    expect(router.state.location.pathname).toBe("/libraries/2");
+  });
+  await screen.findByRole("button", { name: "TV Shows" });
 });

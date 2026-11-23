@@ -13,13 +13,13 @@ const shownBySection = () => {};
 export const Route = createFileRoute("/_member/")({
   loader: async ({ context: { queryClient, transport } }) => {
     // The top of the page starts beside the layout rather than after it, and Home waits only on
-    // the layout, its rows and Libraries: each section shows its own skeleton until its titles
-    // arrive.
+    // its rows and Libraries, so neither shifts what's below once it shows: each section shows its
+    // own skeleton until its titles arrive.
     queryClient.query(featuredQuery(transport)).catch(shownBySection);
     queryClient.infiniteQuery(continueWatchingQuery(transport)).catch(shownBySection);
     await Promise.all([
       queryClient.query(homeRowsQuery(transport)),
-      queryClient.query(librariesQuery(transport)),
+      queryClient.query(librariesQuery(transport)).catch(shownBySection),
     ]);
   },
   pendingComponent: HomePending,

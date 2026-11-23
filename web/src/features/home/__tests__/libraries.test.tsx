@@ -1,3 +1,4 @@
+import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
@@ -12,6 +13,7 @@ beforeEach(layOutShelves);
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 const NEWEST = "/media/artwork/tmdb/%2Falien-backdrop.jpg";
@@ -40,4 +42,38 @@ test("home shows each Library by its Backdrop and kind, opening it, and one with
   expect(tv.getAttribute("href")).toBe("/libraries/2");
   expect(tv.querySelector("img")).toBeNull();
   expect(within(tv).getByText("Shows")).toBeDefined();
+});
+
+const alien = {
+  libraryId: 1n,
+  movieOrEpisode: {
+    case: "movie",
+    value: { id: { namespace: "tmdb", value: "348" }, title: "Alien" },
+  },
+} as const;
+
+test("home still shows its other rows when the Libraries fail to load", async () => {
+  const transport = fakeServer(
+    {
+      signedIn: newUser,
+      libraryService: {
+        listLibraries: () => {
+          throw new ConnectError("broken", Code.Internal);
+        },
+      },
+    },
+    {},
+    {},
+    (router) => {
+      router.service(BrowseService, {
+        listFeatured: () => ({}),
+        listContinueWatching: () => ({ entries: [alien] }),
+        listHomeRows: () => ({ rows: [continueWatchingRow] }),
+      });
+    },
+  );
+  openApp("/", transport);
+
+  await screen.findByRole("link", { name: /Alien/u });
+  expect(screen.queryByRole("region", { name: "Libraries" })).toBeNull();
 });

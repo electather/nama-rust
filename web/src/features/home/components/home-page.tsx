@@ -2,7 +2,7 @@ import { ContinueWatching } from "@/features/home/components/continue-watching";
 import { FeaturedSection } from "@/features/home/components/featured-section";
 import { HomeLayout } from "@/features/home/components/home-layout";
 import { HomeRowSection } from "@/features/home/components/home-row-section";
-import { LibraryShelf } from "@/features/home/components/library-shelf";
+import { LibrarySection } from "@/features/home/components/library-section";
 import { useHomeRows } from "@/features/home/data/use-home-rows";
 import { KernelHomeRow } from "@/gen/nama/v1/browse_pb";
 
@@ -20,7 +20,7 @@ export function HomePage() {
   const firstPluginRow = rows.findIndex(({ kernelOrPlugin }) => kernelOrPlugin.case === "plugin");
   return (
     <HomeLayout hero={<FeaturedSection />}>
-      <LibraryShelf />
+      <LibrarySection />
       {rows.map(({ kernelOrPlugin }, index) => {
         if (kernelOrPlugin.case === "plugin") {
           const row = kernelOrPlugin.value;
