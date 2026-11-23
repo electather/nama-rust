@@ -1,4 +1,5 @@
 import { createConnectQueryKey, useMutation, useQuery } from "@connectrpc/connect-query";
+import { serversKey } from "@hub/features/links/data/servers";
 import { usersKey } from "@hub/features/links/data/users";
 import { LinkService } from "@hub/gen/nama/hub/v1/link_pb";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,13 +17,17 @@ export function useUserInvites() {
   return useQuery(LinkService.method.listUserInvites, {});
 }
 
-/** Accepts a User created from the signed-in Account, then lists its invites and Users again. */
+/**
+ * Accepts a User created from the signed-in Account, then lists its invites, Users and Servers
+ * again.
+ */
 export function useAcceptUserInvite() {
   const queryClient = useQueryClient();
   return useMutation(LinkService.method.acceptUserInvite, {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: invitesKey });
       await queryClient.invalidateQueries({ queryKey: usersKey });
+      await queryClient.invalidateQueries({ queryKey: serversKey });
     },
   });
 }

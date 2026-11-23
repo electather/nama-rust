@@ -4,16 +4,23 @@ import { AccountSchema, AccountService } from "@hub/gen/nama/hub/v1/account_pb";
 import {
   type LinkedUser,
   LinkService,
+  LinkedServerSchema,
   LinkedUserSchema,
   UserInviteSchema,
 } from "@hub/gen/nama/hub/v1/link_pb";
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
-import { cleanup, configure, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, configure, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeAll, expect, test, vi } from "vite-plus/test";
 
 const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
+
+const cabin = create(LinkedServerSchema, {
+  id: "0193-cabin",
+  name: "Cabin",
+  linkedAt: 1_700_000_000n,
+});
 
 const grace = create(UserInviteSchema, {
   id: "0197-grace",
@@ -36,7 +43,10 @@ interface Hub {
   userOnServer?: string;
 }
 
-/** Opens the Hub at `path`, as Ada, with Grace on Cabin waiting for her to accept. */
+/**
+ * Opens the Hub at `path`, as Ada, with Grace on Cabin waiting for her to accept. Ada owns no
+ * Server, so Cabin is among her Servers only while she has a User on it.
+ */
 function openHub(path: string, hub: Hub = {}) {
   let invites = [grace];
   let users: LinkedUser[] = [];
@@ -50,7 +60,7 @@ function openHub(path: string, hub: Hub = {}) {
       },
     });
     service(LinkService, {
-      listLinkedServers: () => ({}),
+      listLinkedServers: () => ({ servers: users.length > 0 ? [cabin] : [] }),
       listLinkedUsers: () => ({ users }),
       listUserInvites: () => ({ invites }),
       acceptUserInvite: ({ id }) => {
@@ -66,6 +76,10 @@ function openHub(path: string, hub: Hub = {}) {
         });
         users = [user];
         return { user };
+      },
+      unlinkLinkedUser: ({ id }) => {
+        users = users.filter((user) => user.id !== id);
+        return {};
       },
       getServerSignIn: ({ id }) => {
         if (hub.userOnServer === undefined || id !== "0198-sign-in") {
@@ -103,6 +117,27 @@ test("accepting a User created from the Account Links them", async () => {
   await vi.waitFor(() => {
     expect(screen.queryByRole("heading", { name: "Users waiting for you" })).toBeNull();
   });
+});
+
+test("accepting a User on a Server the Account doesn't own adds it to the Account's Servers", async () => {
+  openHub("/");
+  const yourServers = within(await screen.findByRole("region", { name: "Your Servers" }));
+  await expect(yourServers.findByText("No Server is Linked yet.")).resolves.toBeDefined();
+
+  fireEvent.click(await screen.findByRole("button", { name: "Accept Grace on Cabin" }));
+
+  await expect(yourServers.findByText("Cabin")).resolves.toBeDefined();
+});
+
+test("unlinking the Account's only User on a Server takes it off the Account's Servers", async () => {
+  openHub("/");
+  fireEvent.click(await screen.findByRole("button", { name: "Accept Grace on Cabin" }));
+  const yourServers = within(await screen.findByRole("region", { name: "Your Servers" }));
+  await yourServers.findByText("Cabin");
+
+  fireEvent.click(await screen.findByRole("button", { name: "Unlink Grace on Cabin" }));
+
+  await expect(yourServers.findByText("No Server is Linked yet.")).resolves.toBeDefined();
 });
 
 test("an Account whose email isn't proven is offered a Sign-in Link before accepting", async () => {
