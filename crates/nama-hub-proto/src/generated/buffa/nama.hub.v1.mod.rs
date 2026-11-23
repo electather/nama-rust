@@ -43,6 +43,8 @@ pub mod __buffa {
         reg.register_json_any(super::__SIGN_IN_WITH_LINK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_PASSWORD_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_PASSWORD_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__DELETE_ACCOUNT_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DELETE_ACCOUNT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SIGN_OUT_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SIGN_OUT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_ACCOUNT_REQUEST_JSON_ANY);
@@ -180,6 +182,14 @@ pub use self::__buffa::view::SetPasswordRequestOwnedView;
 pub use self::__buffa::view::SetPasswordResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetPasswordResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteAccountRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteAccountRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteAccountResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteAccountResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SignOutRequestView;
 #[doc(inline)]

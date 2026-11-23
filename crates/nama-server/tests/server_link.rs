@@ -653,6 +653,35 @@ async fn while_the_hub_is_down_devices_stay_signed_in_but_an_account_cant_sign_i
     assert_eq!(after, before);
 }
 
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn cannot_sign_in(server: &TestServer) -> Vec<i64> {
+    let listed = users(server.client_config())
+        .list_users(ListUsersRequest::default())
+        .await
+        .unwrap();
+    listed.into_owned().cannot_sign_in_user_ids
+}
+
+#[tokio::test]
+async fn a_user_with_no_password_whose_account_unlinked_them_is_listed_as_unable_to_sign_in() {
+    let linker = Scripted::default();
+    let server = linked_server(&linker).await;
+    let grace = create_from_account(&server, "Grace").await.unwrap();
+    linker.script().user_link = Some(Link::Linked {
+        account: "grace@example.com".to_owned(),
+        reachability: None,
+    });
+    assert_eq!(cannot_sign_in(&server).await, Vec::<i64>::new());
+
+    // As when Grace's Account is deleted on the Hub.
+    linker.script().user_link = Some(Link::NotLinked);
+
+    assert_eq!(cannot_sign_in(&server).await, [grace]);
+}
+
 #[tokio::test]
 async fn the_last_admin_who_signs_in_with_a_password_cant_be_demoted_or_deleted() {
     let linker = Scripted::default();

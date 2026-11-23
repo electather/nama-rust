@@ -385,6 +385,18 @@ impl Users {
         .await
     }
 
+    /// The ids of the Users with no Sign-in Method, oldest first: each signs in only through their
+    /// Link to an Account, if they have one (ADR 0092).
+    pub(crate) async fn without_sign_in_method(&self) -> Result<Vec<i64>, sqlx::Error> {
+        sqlx::query_scalar!(
+            r#"SELECT id AS "id!" FROM users u
+               WHERE NOT EXISTS (SELECT 1 FROM sign_in_methods m WHERE m.user_id = u.id)
+               ORDER BY id"#
+        )
+        .fetch_all(self.db.reader())
+        .await
+    }
+
     /// The Devices of the User `user` that haven't expired, oldest first, or `None` if there is no
     /// such User.
     pub(crate) async fn devices(&self, user: i64) -> Result<Option<Vec<Device>>, sqlx::Error> {

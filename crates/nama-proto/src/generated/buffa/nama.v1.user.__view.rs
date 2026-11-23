@@ -3111,6 +3111,13 @@ impl ::serde::Serialize for ListUsersRequestOwnedView {
 pub struct ListUsersResponseView<'a> {
     /// Field 1: `users`
     pub users: ::buffa::RepeatedView<'a, super::super::__buffa::view::UserView<'a>>,
+    /// The IDs of those `users` who can't sign in: they have no Sign-in Method the Server keeps and
+    /// aren't Linked to an Account, such as one created from an Account that was since deleted or
+    /// Unlinked them. Asking whether they are Linked is how the Server learns of an Unlink. An Admin
+    /// gives them a way in with `ResetPassword`.
+    ///
+    /// Field 2: `cannot_sign_in_user_ids`
+    pub cannot_sign_in_user_ids: ::buffa::RepeatedView<'a, i64>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ListUsersResponseView<'a> {
@@ -3161,6 +3168,26 @@ impl<'a> ::buffa::MessageView<'a> for ListUsersResponseView<'a> {
                         )?,
                     );
             }
+            2u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    ::buffa::types::extend_packed_int64(
+                        payload,
+                        view.cannot_sign_in_user_ids.as_mut_vec(),
+                        ::buffa::encoding::count_varints(payload),
+                    )?;
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.cannot_sign_in_user_ids
+                        .push(::buffa::types::decode_int64(&mut cur)?);
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -3188,6 +3215,7 @@ impl<'a> ::buffa::MessageView<'a> for ListUsersResponseView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            cannot_sign_in_user_ids: self.cannot_sign_in_user_ids.to_vec(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -3207,6 +3235,14 @@ impl<'a> ::buffa::ViewEncode<'a> for ListUsersResponseView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if !self.cannot_sign_in_user_ids.is_empty() {
+            let payload: u64 = self
+                .cannot_sign_in_user_ids
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3225,6 +3261,17 @@ impl<'a> ::buffa::ViewEncode<'a> for ListUsersResponseView<'a> {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if !self.cannot_sign_in_user_ids.is_empty() {
+            let payload: u64 = self
+                .cannot_sign_in_user_ids
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(2u32, payload, buf);
+            for &v in &self.cannot_sign_in_user_ids {
+                ::buffa::types::encode_int64(v, buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3249,6 +3296,13 @@ impl<'__a> ::serde::Serialize for ListUsersResponseView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !self.users.is_empty() {
             __map.serialize_entry("users", &*self.users)?;
+        }
+        if !self.cannot_sign_in_user_ids.is_empty() {
+            __map
+                .serialize_entry(
+                    "cannotSignInUserIds",
+                    &::buffa::json_helpers::RepeatedJson(&self.cannot_sign_in_user_ids),
+                )?;
         }
         __map.end()
     }
@@ -3351,6 +3405,16 @@ impl ListUsersResponseOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::UserView<'_>> {
         &self.0.reborrow().users
+    }
+    /// The IDs of those `users` who can't sign in: they have no Sign-in Method the Server keeps and
+    /// aren't Linked to an Account, such as one created from an Account that was since deleted or
+    /// Unlinked them. Asking whether they are Linked is how the Server learns of an Unlink. An Admin
+    /// gives them a way in with `ResetPassword`.
+    ///
+    /// Field 2: `cannot_sign_in_user_ids`
+    #[must_use]
+    pub fn cannot_sign_in_user_ids(&self) -> &::buffa::RepeatedView<'_, i64> {
+        &self.0.reborrow().cannot_sign_in_user_ids
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ListUsersResponseView<'static>>>

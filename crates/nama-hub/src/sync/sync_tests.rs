@@ -167,6 +167,14 @@ async fn rows(db: &PgPool) -> i64 {
         .unwrap()
 }
 
+/// How many Watchlist entries every Account has together.
+async fn watchlist_rows(db: &PgPool) -> i64 {
+    sqlx::query_scalar!(r#"SELECT count(*) AS "rows!" FROM watchlists"#)
+        .fetch_one(db)
+        .await
+        .unwrap()
+}
+
 #[sqlx::test(migrations = false)]
 async fn two_servers_conflicting_changes_end_with_the_latest_whichever_arrives_last(db: PgPool) {
     let mut hub = Hub::on(&db).await;
@@ -428,6 +436,28 @@ async fn of_two_watchlist_changes_made_at_the_same_moment_the_removal_wins(db: P
         synced(watchlists, &first, 7, both).await,
         [the_matrix(true, 2_000)]
     );
+}
+
+#[sqlx::test(migrations = false)]
+async fn deleting_an_account_deletes_its_watch_state_and_watchlist_and_unlinks_its_users(
+    db: PgPool,
+) {
+    let mut hub = Hub::on(&db).await;
+    let ada = hub.proven("ada@example.com", "203.0.113.1").await;
+    let bea = hub.proven("bea@example.com", "203.0.113.2").await;
+    let server = hub.linked_server(&ada).await;
+    hub.link_user(&server, 7, &ada).await;
+    hub.link_user(&server, 8, &bea).await;
+    let changes = vec![alien_at(7, 1000, 1_000), alien_at(8, 2000, 1_000)];
+    hub.watch_states.push(&server, changes).await.unwrap();
+    synced(&hub.watchlists, &server, 8, vec![the_matrix(false, 1_000)]).await;
+
+    hub.accounts.delete(&bea).await.unwrap();
+
+    assert_eq!(rows(&db).await, 2, "Ada's Watch State of Alien, by each id");
+    assert_eq!(watchlist_rows(&db).await, 0);
+    assert_eq!(pulled(&hub.watch_states, &server, 8).await, [], "Unlinked");
+    assert_eq!(pulled(&hub.watch_states, &server, 7).await.len(), 2);
 }
 
 /// Watchlists on a migrated `db`, the Viewing whose pooling setting they count by, and `count` new

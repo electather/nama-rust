@@ -74,7 +74,8 @@ pub(super) struct UserServiceHandler {
     pub(super) home_rows: HomeRows,
     /// Holds the default Home layout, which each User's follows but for what they change.
     pub(super) settings: Settings,
-    /// Asked to Link the caller to an Account, and to Unlink a deleted User.
+    /// Asked to Link the caller to an Account, to Unlink a deleted User, and which Users with no
+    /// Sign-in Method are Linked.
     pub(super) points: ExtensionPoints,
     /// Takes the Watch State a User pulls once Linked.
     pub(super) browse: Browse,
@@ -126,8 +127,12 @@ impl UserService for UserServiceHandler {
         _request: ServiceRequest<'_, ListUsersRequest>,
     ) -> ServiceResult<ListUsersResponse> {
         let users = self.users.list().await.map_err(database_failed)?;
+        let without_sign_in_method =
+            (self.users.without_sign_in_method().await).map_err(database_failed)?;
         Response::ok(ListUsersResponse {
             users: users.into_iter().map(user_to_proto).collect(),
+            cannot_sign_in_user_ids: server_link::unlinked(&self.points, without_sign_in_method)
+                .await,
             ..Default::default()
         })
     }

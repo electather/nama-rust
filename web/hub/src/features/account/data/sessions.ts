@@ -29,6 +29,13 @@ export function useSignOut() {
   });
 }
 
+/** Deletes the signed-in Account, which signs this browser out, then opens the sign-in page. */
+export function useDeleteAccount() {
+  return useMutation(AccountService.method.deleteAccount, {
+    onSuccess: useGoAfterSession("/sign-in"),
+  });
+}
+
 /** Once the session changed: forgets what was cached for whoever was signed in, and goes `to`. */
 function useGoAfterSession(to: string) {
   const navigate = useNavigate();

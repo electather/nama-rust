@@ -252,6 +252,11 @@ message ListUsersRequest {}
 
 message ListUsersResponse {
   repeated User users = 1;
+  // The IDs of those `users` who can't sign in: they have no Sign-in Method the Server keeps and
+  // aren't Linked to an Account, such as one created from an Account that was since deleted or
+  // Unlinked them. Asking whether they are Linked is how the Server learns of an Unlink. An Admin
+  // gives them a way in with `ResetPassword`.
+  repeated int64 cannot_sign_in_user_ids = 2;
 }
 
 message SetPermissionsRequest {

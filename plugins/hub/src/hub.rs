@@ -125,7 +125,7 @@ impl Hub {
             .linked_server(credential)?
             .unlink_server(UnlinkServerRequest::default())
             .await;
-        unlinked_already(unlinked.map(drop))
+        done_if_forgotten(unlinked.map(drop))
     }
 
     /// Starts Linking the User `user_id`, named `name`, of the Server whose credential is
@@ -182,23 +182,25 @@ impl Hub {
                 ..Default::default()
             })
             .await;
-        unlinked_already(unlinked.map(drop))
+        done_if_forgotten(unlinked.map(drop))
     }
 
     /// Pushes `changes` to the Watch State of the Accounts the Users of the Server whose credential
-    /// is `credential` are Linked to, in order.
+    /// is `credential` are Linked to, in order. A Server the Hub doesn't know any more, such as one
+    /// whose Account was deleted, has no Linked Users to push to, so that counts as done.
     pub(crate) async fn push_watch_states(
         &self,
         credential: &str,
         changes: Vec<WatchStateChange>,
     ) -> Result<(), PluginError> {
-        self.linked_server(credential)?
+        let pushed = self
+            .linked_server(credential)?
             .push_watch_states(PushWatchStatesRequest {
                 changes,
                 ..Default::default()
             })
-            .await?;
-        Ok(())
+            .await;
+        done_if_forgotten(pushed.map(drop))
     }
 
     /// The Watch State of the Account the User `user_id` of the Server whose credential is
@@ -496,10 +498,10 @@ impl Hub {
     }
 }
 
-/// `unlinked`, where the Hub not knowing the Server's credential, its one `unauthenticated`, means
-/// there is nothing left to Unlink.
-fn unlinked_already(unlinked: Result<(), connectrpc::ConnectError>) -> Result<(), PluginError> {
-    match unlinked {
+/// `called`, where the Hub not knowing the Server's credential, its one `unauthenticated`, means
+/// there is nothing left to Unlink or push to.
+fn done_if_forgotten(called: Result<(), connectrpc::ConnectError>) -> Result<(), PluginError> {
+    match called {
         Err(err) if err.code != connectrpc::ErrorCode::Unauthenticated => Err(err.into()),
         _ => Ok(()),
     }

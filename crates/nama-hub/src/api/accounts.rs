@@ -1,5 +1,5 @@
-//! Creating an Account, signing it in, with its password or a Sign-in Link, and out, and setting
-//! its password: `nama.hub.v1.AccountService`.
+//! Creating an Account, signing it in, with its password or a Sign-in Link, and out, setting its
+//! password, and deleting it: `nama.hub.v1.AccountService`.
 
 use std::{future, time::Instant};
 
@@ -12,11 +12,11 @@ use connectrpc::{
 };
 use nama_forwarded::RequestSource;
 use nama_hub_proto::nama::hub::v1::{
-    self as proto, AccountService, CreateAccountRequest, CreateAccountResponse, GetAccountRequest,
-    GetAccountResponse, GetSignInLinkRequest, GetSignInLinkResponse, RefusalReason,
-    SendSignInLinkRequest, SendSignInLinkResponse, SetPasswordRequest, SetPasswordResponse,
-    SignInRequest, SignInResponse, SignInWithLinkRequest, SignInWithLinkResponse, SignOutRequest,
-    SignOutResponse,
+    self as proto, AccountService, CreateAccountRequest, CreateAccountResponse,
+    DeleteAccountRequest, DeleteAccountResponse, GetAccountRequest, GetAccountResponse,
+    GetSignInLinkRequest, GetSignInLinkResponse, RefusalReason, SendSignInLinkRequest,
+    SendSignInLinkResponse, SetPasswordRequest, SetPasswordResponse, SignInRequest, SignInResponse,
+    SignInWithLinkRequest, SignInWithLinkResponse, SignOutRequest, SignOutResponse,
 };
 
 use super::{hub_failed, refuse};
@@ -28,8 +28,8 @@ use crate::accounts::{
 /// The cookie that holds a browser's session token.
 pub(super) const COOKIE_NAME: &str = "nama_hub_session";
 
-/// `nama.hub.v1.AccountService`: creating an Account, signing it in and out, and setting its
-/// password.
+/// `nama.hub.v1.AccountService`: creating an Account, signing it in and out, setting its
+/// password, and deleting it.
 pub(super) struct AccountServiceHandler {
     pub(super) accounts: Accounts,
 }
@@ -149,6 +149,19 @@ impl AccountService for AccountServiceHandler {
         Response::ok(SetPasswordResponse::default())
     }
 
+    async fn delete_account(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, DeleteAccountRequest>,
+    ) -> ServiceResult<DeleteAccountResponse> {
+        self.accounts
+            .delete(signed_in(&ctx)?)
+            .await
+            .map_err(refused)?;
+        let cleared = cookie("", 0, ctx.extensions());
+        Ok(Response::new(DeleteAccountResponse::default()).with_header(SET_COOKIE, cleared))
+    }
+
     async fn sign_out(
         &self,
         ctx: RequestContext,
@@ -236,8 +249,8 @@ fn account_to_proto(account: Account) -> proto::Account {
     }
 }
 
-/// The Connect error a client gets for an Account that couldn't be created, signed in or given a
-/// password, or a Sign-in Link that couldn't be sent or used.
+/// The Connect error a client gets for an Account that couldn't be created, signed in, given a
+/// password or deleted, or a Sign-in Link that couldn't be sent or used.
 #[expect(
     clippy::needless_pass_by_value,
     reason = "by value, so callers can write `.map_err(refused)`"

@@ -1,13 +1,24 @@
 import { Link } from "@tanstack/react-router";
-import { UserRound } from "lucide-react";
+import { UserRound, UserRoundX } from "lucide-react";
 
 import { ItemRow } from "@/features/settings/components/item-row";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { IconTile } from "@/shared/components/icon-tile";
 import { labelsOf } from "@/shared/lib/permissions";
 
-/** One User on the list: their name over their Permissions. All of the row opens them. */
-export function UserItem({ user, isYou }: { user: User; isYou: boolean }) {
+/**
+ * One User on the list: their name over their Permissions, after whether they can't sign in. All
+ * of the row opens them.
+ */
+export function UserItem({
+  user,
+  isYou,
+  cantSignIn,
+}: {
+  user: User;
+  isYou: boolean;
+  cantSignIn: boolean;
+}) {
   const name = (
     <Link
       to="."
@@ -17,6 +28,11 @@ export function UserItem({ user, isYou }: { user: User; isYou: boolean }) {
       {user.name}
     </Link>
   );
-  const about = isYou ? `You · ${labelsOf(user.permissions)}` : labelsOf(user.permissions);
-  return <ItemRow linked start={<IconTile Icon={UserRound} />} name={name} meta={about} />;
+  const about = [
+    isYou && "You",
+    cantSignIn && "Can’t sign in until given a password",
+    labelsOf(user.permissions),
+  ].filter((words) => words !== false);
+  const icon = <IconTile Icon={cantSignIn ? UserRoundX : UserRound} />;
+  return <ItemRow linked start={icon} name={name} meta={about.join(" · ")} />;
 }
