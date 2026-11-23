@@ -30,15 +30,14 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    browse::Browse,
     connections::{self, Connections},
     db::Database,
     home_rows::HomeRows,
     images::PluginLogos,
-    playback::TrackPreferences,
     plugin_settings::{Personal, PluginSettings},
     plugins::ExtensionPoints,
     server_settings::{ServerUrl, Settings},
+    sync::Syncing,
     users::{
         self, AskedHomeLayout, Caller, Permissions, User, UserHomeLayout, Users,
         notification_preferences_of, set_notification_preference,
@@ -77,10 +76,8 @@ pub(super) struct UserServiceHandler {
     /// Asked to Link the caller to an Account, to Unlink a deleted User, and which Users with no
     /// Sign-in Method are Linked.
     pub(super) points: ExtensionPoints,
-    /// Takes the Watch State a User pulls once Linked.
-    pub(super) browse: Browse,
-    /// Takes the Track Preferences a User pulls once Linked.
-    pub(super) preferences: TrackPreferences,
+    /// Told when a look at, or start of, a User's Link finds them Linked.
+    pub(super) syncing: Syncing,
 }
 
 #[expect(
@@ -559,14 +556,7 @@ impl UserService for UserServiceHandler {
         _request: ServiceRequest<'_, GetUserLinkRequest>,
     ) -> ServiceResult<GetUserLinkResponse> {
         let user = &caller(&ctx)?.user;
-        server_link::get_user(
-            &self.points,
-            &self.browse,
-            &self.preferences,
-            &self.db,
-            user,
-        )
-        .await
+        server_link::get_user(&self.points, &self.syncing, user).await
     }
 
     async fn start_user_link(
@@ -575,14 +565,7 @@ impl UserService for UserServiceHandler {
         _request: ServiceRequest<'_, StartUserLinkRequest>,
     ) -> ServiceResult<StartUserLinkResponse> {
         let user = &caller(&ctx)?.user;
-        server_link::start_user(
-            &self.points,
-            &self.browse,
-            &self.preferences,
-            &self.db,
-            user,
-        )
-        .await
+        server_link::start_user(&self.points, &self.syncing, user).await
     }
 
     async fn unlink_user(

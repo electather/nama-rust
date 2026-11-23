@@ -15,11 +15,14 @@ use std::{
 
 use nama_plugin_api::{
     metadata::{ExternalId, ExternalIds},
-    points::WatchStateChange,
+    points::{WatchStateChange, WatchStateChanges, WatchStatesChanged},
 };
-use sqlx::SqliteConnection;
+use sqlx::{Sqlite, SqliteConnection, Transaction};
 
-use crate::db::{Database, now_ms};
+use crate::{
+    db::{BoxFuture, Database, detached, now_ms},
+    plugins::ExtensionPoints,
+};
 
 // The `kind` of a Watch State, part of its key since Movie and Episode TMDB ids are separate id
 // spaces.
@@ -29,6 +32,8 @@ const EPISODE: &str = "episode";
 #[derive(Debug, Clone)]
 pub(crate) struct WatchStates {
     db: Arc<Database>,
+    /// Told of each change a write makes, such as the Hub Plugin's, which syncs them (ADR 0008).
+    points: ExtensionPoints,
 }
 
 /// Whether a Watch State is a Movie's or an Episode's.
@@ -208,15 +213,15 @@ impl Progress {
 }
 
 impl WatchStates {
-    pub(crate) const fn new(db: Arc<Database>) -> Self {
-        Self { db }
+    pub(crate) const fn new(db: Arc<Database>, points: ExtensionPoints) -> Self {
+        Self { db, points }
     }
 
     /// Records, as of now, that the User `user` has got as far as `progress` through a file
     /// holding `titles`, in order, `None` for an Item that isn't Matched. The file plays as one, so
     /// its progress is split across them (ADR 0013), and one it hasn't reached is left alone, so
     /// rewinding keeps progress stored on a later one. One once played, under any of its ids, stays
-    /// played. Returns each change it made.
+    /// played. Returns each change it made, which Observers are told of.
     pub(crate) async fn report(
         &self,
         user: i64,
@@ -229,14 +234,13 @@ impl WatchStates {
             .zip(shares)
             .filter_map(|(title, share)| Some((title?.into(), share?)))
             .collect();
-        self.db
-            .write(move |tx| Box::pin(upsert(tx, user, reached)))
+        self.write_and_tell(user, move |tx| Box::pin(upsert(tx, user, reached)))
             .await
     }
 
     /// Marks, as of now, each of `titles` played or unplayed for the User `user`, in one write.
     /// Played keeps the position; unplayed forgets the Watch State under every id, so it starts
-    /// from the beginning. Returns each change it made.
+    /// from the beginning. Returns each change it made, which Observers are told of.
     pub(crate) async fn mark(
         &self,
         user: i64,
@@ -244,15 +248,16 @@ impl WatchStates {
         played: bool,
     ) -> Result<Vec<WatchStateChange>, sqlx::Error> {
         let titles = titles.into_iter().map(Into::into).collect();
-        self.db
-            .write(move |tx| Box::pin(mark_each(tx, user, titles, played)))
-            .await
+        self.write_and_tell(user, move |tx| {
+            Box::pin(mark_each(tx, user, titles, played))
+        })
+        .await
     }
 
     /// Marks, as of now, each of `titles` unplayed for the User `user`, as [`WatchStates::mark`]
     /// does, and where that forgot any Watch State shows each of `entry` again in their
     /// Continue Watching, in one write. Forgetting writes no Watch State that would show it again,
-    /// as playing it does. Returns each change it made.
+    /// as playing it does. Returns each change it made, which Observers are told of.
     pub(crate) async fn mark_unplayed(
         &self,
         user: i64,
@@ -261,9 +266,40 @@ impl WatchStates {
     ) -> Result<Vec<WatchStateChange>, sqlx::Error> {
         let titles = titles.into_iter().map(Into::into).collect();
         let entry = entry.into_iter().map(Into::into).collect();
-        self.db
-            .write(move |tx| Box::pin(forget_each(tx, user, titles, entry)))
-            .await
+        self.write_and_tell(user, move |tx| {
+            Box::pin(forget_each(tx, user, titles, entry))
+        })
+        .await
+    }
+
+    /// Runs `write` of the User `user`'s Watch State, then tells `WatchStatesChanged` Observers
+    /// of the changes it returns, in a task of its own, so they're told even if the caller stops
+    /// waiting once the write is sent (ADR 0029).
+    async fn write_and_tell<F>(
+        &self,
+        user: i64,
+        write: F,
+    ) -> Result<Vec<WatchStateChange>, sqlx::Error>
+    where
+        F: for<'t> FnOnce(
+                &'t mut Transaction<'_, Sqlite>,
+            ) -> BoxFuture<'t, Result<Vec<WatchStateChange>, sqlx::Error>>
+            + Send
+            + 'static,
+    {
+        let (db, points) = (Arc::clone(&self.db), self.points.clone());
+        detached(async move {
+            let changes = db.write(write).await?;
+            if !changes.is_empty() {
+                let told = WatchStateChanges {
+                    user_id: user,
+                    changes: changes.clone(),
+                };
+                points.notify::<WatchStatesChanged>(told);
+            }
+            Ok(changes)
+        })
+        .await
     }
 
     /// Takes the newest of `pulled`, other Servers' changes to the User `user`'s Watch State, of

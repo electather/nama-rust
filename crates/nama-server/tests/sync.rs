@@ -31,8 +31,8 @@ use nama_proto::nama::v1::{
     GetTrackPreferencesRequest, GetTrackPreferencesResponse, GetUserLinkRequest, LibraryKind,
     ListContinueWatchingRequest, PlaybackServiceClient, RemoveFromWatchlistRequest,
     ReportProgressRequest, ServerServiceClient, SetAudioPreferenceRequest,
-    SetSubtitlePreferenceRequest, SubtitleKind, TitleKind, UserServiceClient, UsersAudioPreference,
-    UsersSubtitlePreference, WatchStateServiceClient, WatchlistServiceClient,
+    SetSubtitlePreferenceRequest, StartUserLinkRequest, SubtitleKind, TitleKind, UserServiceClient,
+    UsersAudioPreference, UsersSubtitlePreference, WatchStateServiceClient, WatchlistServiceClient,
     continue_watching_entry::MovieOrEpisode,
 };
 use nama_server::plugins::Registry;
@@ -46,6 +46,8 @@ struct Hub {
     watch_states: Arc<Mutex<Vec<WatchStateChange>>>,
     preferences: Arc<Mutex<Vec<TrackPreference>>>,
     watchlist: Arc<Mutex<HashMap<(bool, String), WatchlistEntry>>>,
+    /// Each Watch State push (`"push"`) and pull (`"pull"`), in the order they came.
+    asked: Arc<Mutex<Vec<&'static str>>>,
 }
 
 impl Hub {
@@ -65,6 +67,10 @@ impl Hub {
         self.watchlist
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn asked(&self) -> MutexGuard<'_, Vec<&'static str>> {
+        self.asked.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// A Server the Hub is enabled on, as `builder` starts it.
@@ -105,6 +111,7 @@ impl Observer<WatchStatesChanged> for Hub {
         event: &'a WatchStateChanges,
     ) -> BoxFuture<'a, Result<(), PluginError>> {
         self.kept().extend(event.changes.iter().cloned());
+        self.asked().push("push");
         Box::pin(future::ready(Ok(())))
     }
 }
@@ -178,6 +185,7 @@ impl ServerLinker for Hub {
     }
 
     fn watch_states(&self, _: i64) -> BoxFuture<'_, Result<Vec<WatchStateChange>, PluginError>> {
+        self.asked().push("pull");
         Box::pin(future::ready(Ok(self.kept().clone())))
     }
 
@@ -446,6 +454,63 @@ async fn linking_a_user_leaves_a_title_the_account_has_newer_as_the_account_has_
         async || alien_in_continue_watching(&fx.server.client_config()).await == Some(90_000),
     )
     .await;
+}
+
+/// Starts Linking `server`'s Admin, as Settings does, which the Hub answers is Linked already.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn start_admins_link(server: &TestServer) {
+    let users = UserServiceClient::new(HttpClient::plaintext(), server.client_config());
+    users
+        .start_user_link(StartUserLinkRequest::default())
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn starting_a_link_already_made_pushes_then_pulls_and_syncs_the_watchlist() {
+    let hub = Hub::default();
+    let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
+    let stored = alien_watched_before_linking(&fx, &hub).await;
+    let watched_on_another_server = WatchStateChange {
+        position_ms: 90_000,
+        changed_at_ms: stored.changed_at_ms + 60_000,
+        ..stored.clone()
+    };
+    hub.kept().push(watched_on_another_server);
+    let added_on_another_server = WatchlistEntry {
+        show: false,
+        id: format!("tmdb-{ALIEN}"),
+        removed: false,
+        changed_at_ms: stored.changed_at_ms,
+    };
+    (hub.watchlist()).insert(
+        (false, added_on_another_server.id.clone()),
+        added_on_another_server,
+    );
+
+    start_admins_link(&fx.server).await;
+
+    until("the Hub has the push", async || hub.kept().len() == 2).await;
+    let admin = fx.server.client_config();
+    until(
+        "Continue Watching shows the Account's progress",
+        async || alien_in_continue_watching(&admin).await == Some(90_000),
+    )
+    .await;
+    until("the Watchlist has the Account's title", async || {
+        alien_on_watchlist(&fx, &admin).await
+    })
+    .await;
+    // Nothing pushes after the Link's push, so a pull last means it came after.
+    let asked = hub.asked().clone();
+    let last = |step: &str| asked.iter().rposition(|asked| *asked == step);
+    assert!(
+        last("pull") > last("push"),
+        "pulled before pushing: {asked:?}"
+    );
 }
 
 #[tokio::test]
