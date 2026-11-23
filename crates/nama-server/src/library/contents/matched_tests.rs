@@ -533,7 +533,11 @@ async fn a_versions_titles_come_with_every_id_and_an_unmatched_episode_as_none()
         movie,
         TitlesIn::Movie(Some((ExternalId::tmdb(348), alien_ids)))
     );
-    let train_job = (ExternalId::tmdb(1001), train_job_ids);
+    let train_job = (
+        ExternalId::tmdb(1001),
+        train_job_ids,
+        Some(ExternalId::tmdb(1437)),
+    );
     assert_eq!(episodes, TitlesIn::Episodes(vec![None, Some(train_job)]));
     assert_eq!(unknown, TitlesIn::NoSuchVersion);
 }
