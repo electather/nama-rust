@@ -8,6 +8,7 @@ use sqlx::{PgConnection, PgPool};
 use crate::{
     accounts::AccountId,
     links::{LinkedServer, Links},
+    viewing::{MIN_POOLED_ACCOUNTS, Viewing},
 };
 
 /// The most changes one push may hold.
@@ -24,6 +25,10 @@ pub(crate) const MAX_CHANGED_AT_MS: i64 = 253_402_300_799_999;
 
 /// The most entries one Watchlist sync may hold.
 pub(crate) const MAX_WATCHLIST_ENTRIES: usize = 5000;
+
+/// The most titles [`Watchlists::most_watchlisted`] answers: as many as a Home row holds (ADR
+/// 0058).
+const MAX_WATCHLISTED: i64 = 200;
 
 /// One User's Watch State of a Movie or Episode, as a change on their Server left it.
 #[derive(Debug, Clone)]
@@ -127,17 +132,30 @@ pub(crate) struct WatchlistEntry {
     pub(crate) changed_at_ms: i64,
 }
 
+/// A title on many Accounts' Watchlists.
+#[derive(Debug)]
+pub(crate) struct WatchlistedTitle {
+    /// Whether it is a Show rather than a Movie.
+    pub(crate) show: bool,
+    /// Such as `tmdb-603`.
+    pub(crate) external_id: String,
+    /// How watchlisted it is, from 0.0 to 1.0: its Accounts against the most watchlisted's.
+    pub(crate) weight: f32,
+}
+
 /// The Accounts' merged Watchlists.
 #[derive(Clone)]
 pub(crate) struct Watchlists {
     db: PgPool,
     links: Links,
+    viewing: Viewing,
 }
 
 impl Watchlists {
-    /// The merged Watchlists in `db`, of the Users `links` has Linked.
-    pub(crate) fn new(db: PgPool, links: Links) -> Self {
-        Self { db, links }
+    /// The merged Watchlists in `db`, of the Users `links` has Linked, counted across Accounts
+    /// only as `viewing` lets them pool.
+    pub(crate) fn new(db: PgPool, links: Links, viewing: Viewing) -> Self {
+        Self { db, links, viewing }
     }
 
     /// Merges `entries`, `server`'s User `user_id`'s whole Watchlist, into the Account they are
@@ -155,36 +173,8 @@ impl Watchlists {
         let Some(account) = self.links.linked_account(server, user_id).await? else {
             return Ok(Vec::new());
         };
-        let (mut shows, mut ids, mut removed, mut changed_at_ms) =
-            (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-        for entry in entries {
-            shows.push(entry.show);
-            ids.push(entry.id);
-            removed.push(entry.removed);
-            changed_at_ms.push(entry.changed_at_ms);
-        }
         let mut tx = self.db.begin().await?;
-        // DISTINCT ON, as an upsert may touch each row once: of one title's entries, the latest.
-        // A removal wins a tie, here and on the Server, or two Servers could each keep their own.
-        sqlx::query!(
-            "INSERT INTO watchlists (account_id, show, title_id, removed, changed_at)
-             SELECT DISTINCT ON (show, title_id) $1::uuid, show, title_id, removed,
-             'epoch'::timestamptz + changed_at_ms * interval '1 millisecond'
-             FROM unnest($2::boolean[], $3::text[], $4::boolean[], $5::bigint[])
-             AS entries (show, title_id, removed, changed_at_ms)
-             ORDER BY show, title_id, changed_at_ms DESC, removed DESC
-             ON CONFLICT (account_id, show, title_id) DO UPDATE
-             SET removed = excluded.removed, changed_at = excluded.changed_at
-             WHERE (excluded.changed_at, excluded.removed)
-                 > (watchlists.changed_at, watchlists.removed)",
-            account.0,
-            &shows,
-            &ids,
-            &removed,
-            &changed_at_ms,
-        )
-        .execute(&mut *tx)
-        .await?;
+        merge_watchlist(&mut tx, account, entries).await?;
         let rows = sqlx::query!(
             r#"SELECT show, title_id, removed,
                       (extract(epoch FROM changed_at) * 1000)::bigint AS "changed_at_ms!"
@@ -203,6 +193,73 @@ impl Watchlists {
             })
             .collect())
     }
+
+    /// The Movies and Shows on most Accounts' Watchlists, at most [`MAX_WATCHLISTED`], most
+    /// watchlisted first, by the pooled counts' rules (ADR 0093): a title is read only once
+    /// [`MIN_POOLED_ACCOUNTS`] Accounts have it, and an Account that turned pooling off isn't
+    /// counted.
+    // ponytail: counts every Watchlist, leaving out every opted-out Account by id, on each call,
+    // which each Linked Server makes about once a day; keep counts as Watchlists and pooling
+    // change once that's slow.
+    pub(crate) async fn most_watchlisted(&self) -> Result<Vec<WatchlistedTitle>, sqlx::Error> {
+        let not_pooling: Vec<_> = (self.viewing.not_pooling().await?)
+            .into_iter()
+            .map(|account| account.0)
+            .collect();
+        // An Account keeps one row per title and id, so each counts once.
+        sqlx::query_as!(
+            WatchlistedTitle,
+            r#"SELECT show, title_id AS external_id,
+             (count(*)::float8 / max(count(*)) OVER ())::real AS "weight!"
+             FROM watchlists WHERE NOT removed AND account_id <> ALL($1)
+             GROUP BY show, title_id HAVING count(*) >= $2
+             ORDER BY count(*) DESC, show, title_id LIMIT $3"#,
+            &not_pooling,
+            MIN_POOLED_ACCOUNTS,
+            MAX_WATCHLISTED,
+        )
+        .fetch_all(&self.db)
+        .await
+    }
+}
+
+/// Merges `entries` into `account`'s Watchlist. Per title and id, the change made last wins; of
+/// two made at the same moment, the removal.
+async fn merge_watchlist(
+    conn: &mut PgConnection,
+    account: AccountId,
+    entries: Vec<WatchlistEntry>,
+) -> Result<(), sqlx::Error> {
+    let (mut shows, mut ids, mut removed, mut changed_at_ms) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for entry in entries {
+        shows.push(entry.show);
+        ids.push(entry.id);
+        removed.push(entry.removed);
+        changed_at_ms.push(entry.changed_at_ms);
+    }
+    // DISTINCT ON, as an upsert may touch each row once: of one title's entries, the latest.
+    // A removal wins a tie, here and on the Server, or two Servers could each keep their own.
+    sqlx::query!(
+        "INSERT INTO watchlists (account_id, show, title_id, removed, changed_at)
+         SELECT DISTINCT ON (show, title_id) $1::uuid, show, title_id, removed,
+         'epoch'::timestamptz + changed_at_ms * interval '1 millisecond'
+         FROM unnest($2::boolean[], $3::text[], $4::boolean[], $5::bigint[])
+         AS entries (show, title_id, removed, changed_at_ms)
+         ORDER BY show, title_id, changed_at_ms DESC, removed DESC
+         ON CONFLICT (account_id, show, title_id) DO UPDATE
+         SET removed = excluded.removed, changed_at = excluded.changed_at
+         WHERE (excluded.changed_at, excluded.removed)
+             > (watchlists.changed_at, watchlists.removed)",
+        account.0,
+        &shows,
+        &ids,
+        &removed,
+        &changed_at_ms,
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
 }
 
 /// Keeps `change` as `account`'s Watch State under each of its ids, unless a later change is kept

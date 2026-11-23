@@ -117,6 +117,9 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_TRENDING_TITLES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_TRENDING_TITLES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__TRENDING_TITLE_JSON_ANY);
+        reg.register_json_any(super::__LIST_MOST_WATCHLISTED_TITLES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_MOST_WATCHLISTED_TITLES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__WATCHLISTED_TITLE_JSON_ANY);
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
     }
 }
@@ -468,6 +471,18 @@ pub use self::__buffa::view::ListTrendingTitlesResponseOwnedView;
 pub use self::__buffa::view::TrendingTitleView;
 #[doc(inline)]
 pub use self::__buffa::view::TrendingTitleOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListMostWatchlistedTitlesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListMostWatchlistedTitlesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListMostWatchlistedTitlesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListMostWatchlistedTitlesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchlistedTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchlistedTitleOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RefusalView;
 #[doc(inline)]

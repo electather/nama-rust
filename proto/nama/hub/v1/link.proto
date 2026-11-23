@@ -148,6 +148,13 @@ service LinkedServerService {
   rpc ListTrendingTitles(ListTrendingTitlesRequest) returns (ListTrendingTitlesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // The Movies and Shows on most Accounts' Watchlists, by the pooled counts' rules (ADR 0093):
+  // at most 200, most watchlisted first. A title counts only once 20 Accounts that pool have it
+  // on their Watchlist, so the answer is empty until there are enough. Servers may lack any of
+  // them. The Hub answers ids, never titles or artwork (ADR 0094).
+  rpc ListMostWatchlistedTitles(ListMostWatchlistedTitlesRequest) returns (ListMostWatchlistedTitlesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
 }
 
 // A Server registered with the Hub, owned by an Account.
@@ -506,4 +513,19 @@ message TrendingTitle {
   ExternalId id = 1;
   // How watched it is, from 0.0 to 1.0: its two weeks' counts summed, against the most watched's.
   float weight = 2;
+}
+
+message ListMostWatchlistedTitlesRequest {}
+
+message ListMostWatchlistedTitlesResponse {
+  repeated WatchlistedTitle titles = 1;
+}
+
+// A title on many Accounts' Watchlists.
+message WatchlistedTitle {
+  TitleKind kind = 1;
+  // Its id as Servers keep it on their Watchlists, such as `tmdb` `603`.
+  ExternalId id = 2;
+  // How watchlisted it is, from 0.0 to 1.0: its Accounts against the most watchlisted's.
+  float weight = 3;
 }
