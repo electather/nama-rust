@@ -20,18 +20,20 @@ use url::Url;
 
 use crate::{plugins::ExtensionPoints, port_mapping, server_settings::ServerUrl};
 
-/// How often the Plugin is told, so it hears of a new Server URL or LAN address, or tells a service
-/// it was just enabled or Linked to, within this long. It passes on only a change.
+/// How often the Plugin is told, so it hears of a new LAN address, or tells a service it was just
+/// enabled or Linked to, within this long. It passes on only a change.
 const EVERY: Duration = Duration::from_mins(1);
 
 /// How many times the Plugin is told between opening the port on the router again: half its
-/// [`port_mapping::LEASE`], so it never closes while the Server runs.
+/// [`port_mapping::LEASE`], so it never closes while the Server runs. Saving the Server URL tells it
+/// between minutes too, which only opens the port again sooner.
 const OPEN_PORT_EVERY: u64 = port_mapping::LEASE.as_secs() / 2 / EVERY.as_secs();
 
-/// Tells the enabled Plugin that links the Server its Server Addresses now and every minute: the
-/// Server URL `url` holds, the LAN address of `listening`, and the public port: `forwarded`, the
-/// one the Admin forwarded, or else one the Server opens on the router, only while such a Plugin
-/// has it Linked. Runs until the task is aborted; each call runs in the Plugin's scope, so
+/// Tells the enabled Plugin that links the Server its Server Addresses now, every minute, and as
+/// soon as the Server URL is saved, since the service refuses a sign-in returning anywhere else:
+/// the Server URL `url` holds, the LAN address of `listening`, and the public port: `forwarded`,
+/// the one the Admin forwarded, or else one the Server opens on the router, only while such a
+/// Plugin has it Linked. Runs until the task is aborted; each call runs in the Plugin's scope, so
 /// disabling it or shutting down cancels and joins the call. A Plugin that fails shows it on its
 /// page.
 pub(crate) fn tell_every_minute(
@@ -44,7 +46,10 @@ pub(crate) fn tell_every_minute(
         let mut ticks = tokio::time::interval(EVERY);
         let mut opened = OpenedPort::default();
         loop {
-            ticks.tick().await;
+            tokio::select! {
+                _ = ticks.tick() => {}
+                () = url.saved() => {}
+            }
             let Some(plugin) = points.ranked::<dyn ServerLinker>().into_iter().next() else {
                 // So enabling it again opens the port at once, whose lease may have run out since.
                 opened = OpenedPort::default();

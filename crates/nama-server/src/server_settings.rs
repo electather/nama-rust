@@ -20,6 +20,7 @@ use nama_plugin_api::{
 };
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 use thiserror::Error;
+use tokio::sync::Notify;
 use tracing::warn;
 use url::Url;
 
@@ -48,6 +49,8 @@ pub(crate) struct Settings {
     /// Where segment files go while no folder is set.
     default_folder: PathBuf,
     values: Arc<RwLock<Values>>,
+    /// Signalled each time the Server URL is saved.
+    url_saved: Arc<Notify>,
 }
 
 /// One value of every Server setting.
@@ -170,6 +173,7 @@ impl Settings {
             db,
             default_folder,
             values: Arc::default(),
+            url_saved: Arc::default(),
         }
     }
 
@@ -235,7 +239,10 @@ impl Settings {
 
     /// The Server URL, for building links.
     pub(crate) fn server_url(&self) -> ServerUrl {
-        ServerUrl(Arc::clone(&self.values))
+        ServerUrl {
+            values: Arc::clone(&self.values),
+            saved: Arc::clone(&self.url_saved),
+        }
     }
 
     /// The Playback settings, for planning and running plans.
@@ -294,6 +301,7 @@ impl Settings {
             },
         )
         .await?;
+        self.url_saved.notify_one();
         Ok(url)
     }
 
@@ -692,12 +700,21 @@ pub(super) fn read(values: &RwLock<Values>) -> std::sync::RwLockReadGuard<'_, Va
 
 /// The Server URL in use, for the event bus and Invites. Clones share it.
 #[derive(Debug, Clone, Default)]
-pub(crate) struct ServerUrl(Arc<RwLock<Values>>);
+pub(crate) struct ServerUrl {
+    values: Arc<RwLock<Values>>,
+    saved: Arc<Notify>,
+}
 
 impl ServerUrl {
     /// The Server URL, or empty with none set.
     pub(crate) fn url(&self) -> String {
-        read(&self.0).url.clone()
+        read(&self.values).url.clone()
+    }
+
+    /// Waits until the Server URL is saved, or returns at once if it was saved since the last wait
+    /// ended. Wakes one waiter.
+    pub(crate) async fn saved(&self) {
+        self.saved.notified().await;
     }
 
     /// Where the web app lists the Requests, in Settings, or `None` with no URL set.
@@ -707,7 +724,7 @@ impl ServerUrl {
 
     /// Where `path` is in the web app, or `None` with no URL set.
     pub(crate) fn link(&self, path: &str) -> Option<String> {
-        let values = read(&self.0);
+        let values = read(&self.values);
         let url = &values.url;
         // The URL may name a path the web app is served under, which a link keeps.
         (!url.is_empty()).then(|| format!("{}/{path}", url.trim_end_matches('/')))
