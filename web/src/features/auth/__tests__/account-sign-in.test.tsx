@@ -70,6 +70,24 @@ test("while the Hub is down, signing in with an Account says why and what to do"
   expect(screen.getByRole("button", { name: "Sign in" })).toBeDefined();
 });
 
+test("a Server opened off its reported addresses says to open it at its Server URL", async () => {
+  const { transport } = linkedServer(true, {
+    startAccountSignIn: () => {
+      throw refused(Code.InvalidArgument, "not a Server Address", {
+        reason: RefusalReason.NOT_A_SERVER_ADDRESS,
+        field: "return_url",
+      });
+    },
+  });
+  openApp("/sign-in", transport);
+
+  fireEvent.click(await screen.findByRole("button", { name: "Sign in with your Account" }));
+
+  await expect(
+    screen.findByText("Open the Server at its Server URL to sign in with an Account."),
+  ).resolves.toBeDefined();
+});
+
 test("back from the Hub, the browser signs in with the Hub's code and goes on", async () => {
   keepAccountSignIn("secret");
   const { state, transport } = linkedServer(true, {

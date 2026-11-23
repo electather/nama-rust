@@ -41,6 +41,24 @@ fn settings(server: &TestServer) -> ServerServiceClient<HttpClient> {
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
+async fn set_server_url(server: &TestServer, url: &str) {
+    settings(server)
+        .update_server_settings(UpdateServerSettingsRequest {
+            settings: ServerSettings {
+                url: url.to_owned(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+}
+
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
 async fn link(server: &TestServer) -> Option<proto::ServerLink> {
     let got = settings(server)
         .get_server_link(GetServerLinkRequest::default())
@@ -64,6 +82,7 @@ async fn user_link(config: ClientConfig) -> Option<proto::UserLink> {
 #[tokio::test]
 async fn a_server_without_a_plugin_that_links_it_has_nothing_to_link() {
     let server = TestServer::builder().start().await;
+    set_server_url(&server, "https://nama.example").await;
 
     assert_eq!(link(&server).await, None);
     assert_refused(
@@ -83,7 +102,7 @@ async fn a_server_without_a_plugin_that_links_it_has_nothing_to_link() {
     assert_eq!(user_link(server.client_config()).await, None);
     assert!(!offers_account_sign_in(&server).await);
     assert_refused(
-        start_account_sign_in(&server).await,
+        start_account_sign_in(&server, ON_SERVER).await,
         ErrorCode::FailedPrecondition,
         RefusalReason::REFUSAL_REASON_NO_SERVER_LINKER,
     );
@@ -224,13 +243,18 @@ async fn a_plugin_that_cant_reach_its_service_leaves_the_server_as_it_was() {
     assert_eq!(unlinked.unwrap_err().code, ErrorCode::Unavailable);
 }
 
-/// A Server whose Plugin has it Linked to an Account.
+/// A `return_url` on the Server URL [`linked_server`] sets.
+const ON_SERVER: &str = "https://nama.example/sign-in";
+
+/// A Server whose Plugin has it Linked to an Account, at the Server URL `https://nama.example`.
 async fn linked_server(linker: &Scripted) -> TestServer {
     linker.script().link = Some(Link::Linked {
         account: "ada@example.com".to_owned(),
         reachability: None,
     });
-    with_linker(linker).await
+    let server = with_linker(linker).await;
+    set_server_url(&server, "https://nama.example").await;
+    server
 }
 
 async fn create_from_account(server: &TestServer, name: &str) -> Result<i64, ConnectError> {
@@ -251,10 +275,11 @@ fn sign_in(server: &TestServer) -> SignInServiceClient<HttpClient> {
 
 async fn start_account_sign_in(
     server: &TestServer,
+    return_url: &str,
 ) -> Result<proto::StartAccountSignInResponse, ConnectError> {
     Ok(sign_in(server)
         .start_account_sign_in(StartAccountSignInRequest {
-            return_url: "https://nama.example/sign-in".to_owned(),
+            return_url: return_url.to_owned(),
             ..Default::default()
         })
         .await?
@@ -321,22 +346,22 @@ async fn a_user_created_from_an_account_signs_in_and_reauthenticates_once_the_ac
         Some((grace, "Grace".to_owned(), "grace@example.com".to_owned()))
     );
     assert!(offers_account_sign_in(&server).await);
-    let started = start_account_sign_in(&server).await.unwrap();
+    let started = start_account_sign_in(&server, ON_SERVER).await.unwrap();
     assert_eq!(started.url, "https://hub.example/server-sign-in/1");
-    assert_eq!(
-        linker.script().returns_to.as_deref(),
-        Some("https://nama.example/sign-in")
-    );
+    assert_eq!(linker.script().returns_to.as_deref(), Some(ON_SERVER));
     assert_refused(
-        sign_in(&server)
-            .start_account_sign_in(StartAccountSignInRequest {
-                return_url: "javascript:alert(1)".to_owned(),
-                ..Default::default()
-            })
-            .await,
+        start_account_sign_in(&server, "javascript:alert(1)").await,
         ErrorCode::InvalidArgument,
         RefusalReason::REFUSAL_REASON_NOT_A_URL,
     );
+    // Its Server URL is the one Server Address a Server listening on loopback reports.
+    let off_server = assert_refused(
+        start_account_sign_in(&server, "http://localhost:7980/sign-in").await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_NOT_A_SERVER_ADDRESS,
+    );
+    assert_eq!(off_server.params["serverUrl"], "https://nama.example");
+    assert_eq!(linker.script().returns_to.as_deref(), Some(ON_SERVER));
     assert_refused(
         sign_in_with_account(&server, &started.handle, "code").await,
         ErrorCode::NotFound,
@@ -369,14 +394,14 @@ async fn a_user_created_from_an_account_signs_in_and_reauthenticates_once_the_ac
         RefusalReason::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
     );
     let hedy = create_from_account(&server, "Hedy").await.unwrap();
-    let by_hedy = start_account_sign_in(&server).await.unwrap();
+    let by_hedy = start_account_sign_in(&server, ON_SERVER).await.unwrap();
     linker.script().approved = Some(hedy);
     assert_refused(
         reauthenticate_with_account(device.clone(), &by_hedy.handle, "code").await,
         ErrorCode::Unauthenticated,
         RefusalReason::REFUSAL_REASON_WRONG_ACCOUNT,
     );
-    let by_grace = start_account_sign_in(&server).await.unwrap();
+    let by_grace = start_account_sign_in(&server, ON_SERVER).await.unwrap();
     linker.script().approved = Some(grace);
     reauthenticate_with_account(device.clone(), &by_grace.handle, "code")
         .await
@@ -389,7 +414,7 @@ async fn with_the_hub_down_devices_stay_signed_in_but_accounts_cant_sign_in_or_r
     let linker = Scripted::default();
     let server = linked_server(&linker).await;
     let grace = create_from_account(&server, "Grace").await.unwrap();
-    let started = start_account_sign_in(&server).await.unwrap();
+    let started = start_account_sign_in(&server, ON_SERVER).await.unwrap();
     linker.script().approved = Some(grace);
     let signed_in = sign_in_with_account(&server, &started.handle, "code")
         .await
@@ -404,7 +429,7 @@ async fn with_the_hub_down_devices_stay_signed_in_but_accounts_cant_sign_in_or_r
         .who_am_i(WhoAmIRequest::default())
         .await;
     assert!(still.is_ok(), "{still:?}");
-    let refused = start_account_sign_in(&server).await.unwrap_err();
+    let refused = start_account_sign_in(&server, ON_SERVER).await.unwrap_err();
     assert_eq!(refused.code, ErrorCode::Unavailable);
     let message = refused.message.as_deref().unwrap_or_default();
     assert!(message.contains("needs the Hub"), "{refused:?}");
@@ -480,17 +505,7 @@ async fn the_last_admin_who_signs_in_with_a_password_cant_be_demoted_or_deleted(
 async fn the_plugin_is_told_the_server_url_and_port_the_admin_set() {
     let linker = Scripted::default();
     let server = with_linker(&linker).await;
-    settings(&server)
-        .update_server_settings(UpdateServerSettingsRequest {
-            settings: ServerSettings {
-                url: "https://nama.example.com".to_owned(),
-                ..Default::default()
-            }
-            .into(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    set_server_url(&server, "https://nama.example.com").await;
 
     let _restarted = TestServer::builder()
         .config(Config {

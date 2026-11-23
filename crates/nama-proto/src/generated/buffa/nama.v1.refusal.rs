@@ -291,9 +291,13 @@ pub enum RefusalReason {
     /// `not_found`: the sign-in with an Account wasn't approved on the Hub, expired or was used.
     /// Start again. `field` is `handle`, or `account_sign_in_handle` in `Reauthenticate`.
     REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND = 98i32,
+    /// `invalid_argument`: the address to return to after signing in with an Account is on neither the
+    /// Server URL nor the LAN address the Server reports, so the Hub would refuse it. Open the Server
+    /// at its Server URL. `field` is `return_url`. Params: `serverUrl`, empty with none set.
+    REFUSAL_REASON_NOT_A_SERVER_ADDRESS = 99i32,
     /// `unauthenticated`: the Account that approved signing in on the Hub isn't the one Linked to the
     /// calling User. `field` is `account_sign_in_handle`.
-    REFUSAL_REASON_WRONG_ACCOUNT = 99i32,
+    REFUSAL_REASON_WRONG_ACCOUNT = 100i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -584,6 +588,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const AccountSignInNotFound: Self = Self::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_NOT_A_SERVER_ADDRESS`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const NotAServerAddress: Self = Self::REFUSAL_REASON_NOT_A_SERVER_ADDRESS;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_WRONG_ACCOUNT`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const WrongAccount: Self = Self::REFUSAL_REASON_WRONG_ACCOUNT;
@@ -894,7 +901,10 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND,
                 )
             }
-            99i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_WRONG_ACCOUNT),
+            99i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_SERVER_ADDRESS)
+            }
+            100i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_WRONG_ACCOUNT),
             _ => ::core::option::Option::None,
         }
     }
@@ -1086,6 +1096,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_BOX_SET_NOT_FOUND => "REFUSAL_REASON_BOX_SET_NOT_FOUND",
             Self::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND => {
                 "REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND"
+            }
+            Self::REFUSAL_REASON_NOT_A_SERVER_ADDRESS => {
+                "REFUSAL_REASON_NOT_A_SERVER_ADDRESS"
             }
             Self::REFUSAL_REASON_WRONG_ACCOUNT => "REFUSAL_REASON_WRONG_ACCOUNT",
         }
@@ -1408,6 +1421,9 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND,
                 )
             }
+            "REFUSAL_REASON_NOT_A_SERVER_ADDRESS" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_SERVER_ADDRESS)
+            }
             "REFUSAL_REASON_WRONG_ACCOUNT" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_WRONG_ACCOUNT)
             }
@@ -1512,6 +1528,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_NO_SERVER_LINKER,
             Self::REFUSAL_REASON_BOX_SET_NOT_FOUND,
             Self::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND,
+            Self::REFUSAL_REASON_NOT_A_SERVER_ADDRESS,
             Self::REFUSAL_REASON_WRONG_ACCOUNT,
         ]
     }
