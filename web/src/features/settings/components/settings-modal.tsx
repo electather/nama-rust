@@ -4,6 +4,7 @@ import { SettingsHeader } from "@/features/settings/components/settings-header";
 import { SettingsPane } from "@/features/settings/components/settings-pane";
 import { SettingsSide } from "@/features/settings/components/settings-side";
 import { useCloseSettings } from "@/features/settings/hooks/use-close-settings";
+import { phoneWidth } from "@/features/settings/lib/phone-width";
 import { type Section, groupsFor, openSection } from "@/features/settings/lib/sections";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 
@@ -26,8 +27,8 @@ export function SettingsModal({ section, user }: { section: Section; user: User 
     if (opened?.open === false) {
       opened.showModal();
       // `showModal()` focuses the first control, Search, which on a phone opens the keyboard over
-      // Settings. `md` is 48rem.
-      if (!globalThis.matchMedia("(min-width: 48rem)").matches) {
+      // Settings.
+      if (phoneWidth()) {
         opened.focus();
       }
     }
