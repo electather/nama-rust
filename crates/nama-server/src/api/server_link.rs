@@ -404,8 +404,10 @@ async fn push_track_preferences(
             return;
         }
     };
-    // One at a time, so the Hub Plugin asks the Hub about the User's Link once, not once each.
-    let told = async {
+    // One at a time, so the Hub Plugin asks the Hub about the User's Link once, not once each, and
+    // in a task of its own, so the rest are still told after waiting on them times out.
+    let points = points.clone();
+    let telling = async move {
         for preference in stored {
             let change = TrackPreferenceChange {
                 user_id,
@@ -416,6 +418,7 @@ async fn push_track_preferences(
                 .await;
         }
     };
+    let told = tokio::spawn(telling.in_current_span());
     wait_until_told(told, user_id, "Track Preferences").await;
 }
 
