@@ -33,23 +33,33 @@ const grace = create(LinkedUserSchema, {
 });
 
 /** A Connect error as the Hub refuses with one. */
-function refused(code: Code, reason: RefusalReason) {
+function refused(code: Code, reason: RefusalReason, params: Record<string, string> = {}) {
   return new ConnectError("refused", code, undefined, [
-    { desc: RefusalSchema, value: create(RefusalSchema, { reason }) },
+    { desc: RefusalSchema, value: create(RefusalSchema, { reason, params }) },
   ]);
 }
 
 /**
  * Opens the Account page, signed in as Ada, on a fake Hub where one Server, "Living room", shows
  * the code BDFH-JKLM, and its User Ida the code CDFG-HJKL, and entering either is refused for
- * `refusing`, if given. Ada's Account has Attic Linked, and Grace on Cabin, whose Admin set its
+ * `refusing`, if given, with `refusalParams`. Ada's Account has Attic Linked, and Grace on Cabin, whose Admin set its
  * Server URL. With `listFails`, the Hub fails to list the Account's Servers. Without
  * `signInLinks`, the Hub has no mail to email Sign-in Links. With `hubInfoFails`, it fails to say
  * whether it has.
  */
 function openAccount(
   refusing?: RefusalReason,
-  { listFails = false, signInLinks = true, hubInfoFails = false } = {},
+  {
+    refusalParams = {},
+    listFails = false,
+    signInLinks = true,
+    hubInfoFails = false,
+  }: {
+    refusalParams?: Record<string, string>;
+    listFails?: boolean;
+    signInLinks?: boolean;
+    hubInfoFails?: boolean;
+  } = {},
 ) {
   let session = true;
   const servers = [attic, cabin];
@@ -84,7 +94,7 @@ function openAccount(
       },
       approveServerLink: ({ code }) => {
         if (refusing !== undefined) {
-          throw refused(Code.FailedPrecondition, refusing);
+          throw refused(Code.FailedPrecondition, refusing, refusalParams);
         }
         if (code.replace("-", "").toUpperCase() !== "BDFHJKLM") {
           throw refused(Code.NotFound, RefusalReason.LINK_CODE_NOT_FOUND);
@@ -101,7 +111,7 @@ function openAccount(
       listUserInvites: () => ({}),
       approveUserLink: ({ code }) => {
         if (refusing !== undefined) {
-          throw refused(Code.AlreadyExists, refusing);
+          throw refused(Code.AlreadyExists, refusing, refusalParams);
         }
         if (code !== "CDFG-HJKL") {
           throw refused(Code.NotFound, RefusalReason.LINK_CODE_NOT_FOUND);
@@ -227,10 +237,15 @@ describe("linking a Server", () => {
     expect(screen.getByRole("button", { name: "Link Server" })).toBeDefined();
   });
 
-  test("a sign-in over 10 minutes old is offered signing in again", async () => {
-    openAccount(RefusalReason.RECENT_AUTHENTICATION_REQUIRED);
+  test("a sign-in too old says how recent one must be and offers signing in again", async () => {
+    openAccount(RefusalReason.RECENT_AUTHENTICATION_REQUIRED, {
+      refusalParams: { recentMinutes: "12" },
+    });
     await enterCode("BDFH-JKLM");
 
+    await expect(
+      screen.findByText("To Link, sign in again: your sign-in is over 12 minutes old."),
+    ).resolves.toBeDefined();
     fireEvent.click(await screen.findByRole("button", { name: "Sign in again" }));
 
     await expect(screen.findByRole("heading", { name: "Sign in" })).resolves.toBeDefined();
@@ -288,5 +303,18 @@ describe("linking a User", () => {
     await expect(
       screen.findByRole("link", { name: "Email me a Sign-in Link" }),
     ).resolves.toBeDefined();
+  });
+
+  test("a sign-in too old says how recent one must be, as for a Server", async () => {
+    openAccount(RefusalReason.RECENT_AUTHENTICATION_REQUIRED, {
+      refusalParams: { recentMinutes: "12" },
+    });
+
+    await enterCode("CDFG-HJKL", "Link a User");
+
+    await expect(
+      screen.findByText("To Link, sign in again: your sign-in is over 12 minutes old."),
+    ).resolves.toBeDefined();
+    expect(screen.getByRole("button", { name: "Sign in again" })).toBeDefined();
   });
 });

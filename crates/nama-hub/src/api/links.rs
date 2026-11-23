@@ -30,7 +30,8 @@ use nama_hub_proto::nama::hub::v1::{
 use sqlx::PgPool;
 
 use super::{
-    accounts::signed_in, hub_failed, refuse, track_preferences, viewing, watch_states, watchlists,
+    accounts::{recent_authentication_required, signed_in},
+    hub_failed, refuse, track_preferences, viewing, watch_states, watchlists,
 };
 use crate::{
     links::{
@@ -714,9 +715,7 @@ fn refused(err: links::Error) -> ConnectError {
     use links::Error as E;
     let message = err.to_string();
     let refused = match err {
-        E::RecentAuthenticationRequired => {
-            refuse(R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED, message)
-        }
+        E::RecentAuthenticationRequired(ref err) => recent_authentication_required(err),
         E::EmailNotProven => refuse(R::REFUSAL_REASON_EMAIL_NOT_PROVEN, message),
         E::CodeNotFound => refuse(R::REFUSAL_REASON_LINK_CODE_NOT_FOUND, message).field("code"),
         E::Expired => refuse(R::REFUSAL_REASON_LINK_EXPIRED, message).field("device_code"),

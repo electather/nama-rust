@@ -1,4 +1,4 @@
-import { refusalReason } from "@hub/features/account/lib/refusals";
+import { refusalOf } from "@hub/features/account/lib/refusals";
 import { RefusalReason } from "@hub/gen/nama/hub/v1/refusal_pb";
 
 /** Why entering a code failed: under the code, or for the whole form. */
@@ -26,12 +26,11 @@ function refusalErrors(error: unknown): LinkErrors {
   if (error === null) {
     return {};
   }
-  const reason = refusalReason(error);
-  return (
-    (reason === undefined ? undefined : wording[reason]) ?? {
-      form: "The Hub couldn’t Link it just now. Try again.",
-    }
-  );
+  const refusal = refusalOf(error);
+  const say = refusal && wording[refusal.reason];
+  return say
+    ? say((key) => refusal.params[key] ?? "")
+    : { form: "The Hub couldn’t Link it just now. Try again." };
 }
 
 /** The code typed in `form`. */
@@ -44,27 +43,27 @@ const cannotProveEmail: LinkErrors = {
   form: "This Hub can’t prove emails, so Linking isn’t possible on it. Ask whoever runs it to set up email.",
 };
 
-/** What each reason a code can be refused for says. */
-const wording: Partial<Record<RefusalReason, LinkErrors>> = {
-  [RefusalReason.LINK_CODE_NOT_FOUND]: {
+/** What each reason a code can be refused for says, given the Refusal's params by key. */
+const wording: Partial<Record<RefusalReason, (param: (key: string) => string) => LinkErrors>> = {
+  [RefusalReason.LINK_CODE_NOT_FOUND]: () => ({
     code: "Nothing is waiting on this code. Check it, or get a new one in the Server’s Settings.",
-  },
-  [RefusalReason.USER_LINKED]: {
+  }),
+  [RefusalReason.USER_LINKED]: () => ({
     form: "This User is Linked to an Account already. Unlink them in their Server’s Settings first.",
-  },
-  [RefusalReason.EMAIL_NOT_PROVEN]: {
+  }),
+  [RefusalReason.EMAIL_NOT_PROVEN]: () => ({
     form: "Linking needs your email proven first. Sign in with a Sign-in Link sent to it, then try again.",
     proveEmail: true,
-  },
-  [RefusalReason.USER_INVITE_NOT_FOUND]: {
+  }),
+  [RefusalReason.USER_INVITE_NOT_FOUND]: () => ({
     form: "This User isn’t waiting for you any more. Reload the page.",
-  },
-  [RefusalReason.SIGN_IN_REQUIRED]: {
+  }),
+  [RefusalReason.SIGN_IN_REQUIRED]: () => ({
     form: "You’re signed out. Sign in again to Link.",
     signInAgain: true,
-  },
-  [RefusalReason.RECENT_AUTHENTICATION_REQUIRED]: {
-    form: "To Link, sign in again: your sign-in is over 10 minutes old.",
+  }),
+  [RefusalReason.RECENT_AUTHENTICATION_REQUIRED]: (param) => ({
+    form: `To Link, sign in again: your sign-in is over ${param("recentMinutes")} minutes old.`,
     signInAgain: true,
-  },
+  }),
 };

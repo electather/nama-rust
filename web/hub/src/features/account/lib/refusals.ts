@@ -50,6 +50,7 @@ const wording: Partial<
   }),
 };
 
-function refusalOf(error: unknown) {
+/** The Hub's Refusal in `error`, if it carries one (ADR 0019). */
+export function refusalOf(error: unknown) {
   return ConnectError.from(error).findDetails(RefusalSchema)[0];
 }
