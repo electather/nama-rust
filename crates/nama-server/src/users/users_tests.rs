@@ -583,6 +583,17 @@ async fn a_users_last_sign_in_method_cant_be_deleted() {
 }
 
 #[tokio::test]
+async fn only_a_user_created_with_a_password_has_a_sign_in_method() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let users = users_with_local_auth(data_dir.path()).await;
+    let ada = users.create(&admin(), "Ada", PASSWORD).await.unwrap();
+    let grace = create_user(&users.db, "Grace").await.unwrap().id;
+
+    assert!(users.has_sign_in_method(ada).await.unwrap());
+    assert!(!users.has_sign_in_method(grace).await.unwrap());
+}
+
+#[tokio::test]
 async fn resetting_the_password_of_a_user_without_one_adds_it_and_keeps_their_other_method() {
     let data_dir = tempfile::tempdir().unwrap();
     let users = users_with_local_auth(data_dir.path()).await;

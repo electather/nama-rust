@@ -153,9 +153,9 @@ pub(super) async fn start_user(
     })
 }
 
-/// Unlinks `user`, or stops showing their code, unless their Account is their last Sign-in Method,
-/// as for a User created from one. The service may still Unlink them (ADR 0099), and an Admin's
-/// `ResetPassword` gets them back in.
+/// Unlinks `user`, or stops showing their code, unless they're Linked and their Account is their
+/// last Sign-in Method, as for a User created from one. The service may still Unlink them (ADR
+/// 0099), and an Admin's `ResetPassword` gets them back in.
 pub(super) async fn unlink_user(
     points: &ExtensionPoints,
     users: &Users,
@@ -169,6 +169,8 @@ pub(super) async fn unlink_user(
         )
         .into());
     }
+    // ponytail: a code the Hub approves between the check and this Unlink is cancelled, and so
+    // Unlinked, unchecked; the window is one Hub round trip.
     ask(points, async |linker| linker.unlink_user(user.id).await)
         .await?
         .ok_or_else(no_linker)?;
@@ -176,18 +178,17 @@ pub(super) async fn unlink_user(
 }
 
 /// Whether the User `user_id` is Linked and has no Sign-in Method the Server keeps, so their Link
-/// is their only way in, which ADR 0014 says a User always keeps. Asks the Plugin only about a
-/// User with none.
+/// is their only way in, which ADR 0014 says a User always keeps.
 async fn signs_in_only_through_link(
     points: &ExtensionPoints,
     users: &Users,
     user_id: i64,
 ) -> Result<bool, ConnectError> {
-    let without_sign_in_method = users
-        .without_sign_in_method()
+    if users
+        .has_sign_in_method(user_id)
         .await
-        .map_err(database_failed)?;
-    if !without_sign_in_method.contains(&user_id) {
+        .map_err(database_failed)?
+    {
         return Ok(false);
     }
     let link = ask(points, async |linker| linker.user_link(user_id).await).await?;

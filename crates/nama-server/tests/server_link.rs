@@ -512,7 +512,7 @@ async fn a_user_who_signs_in_only_with_their_account_cant_unlink_from_it_but_can
         RefusalReason::REFUSAL_REASON_LAST_SIGN_IN_METHOD,
     );
     assert_eq!(linker.script().unlinked_users, Vec::<i64>::new());
-    // Unlinked on the Hub since, they can still stop showing the code they started to Link again.
+    // Unlinked on the Hub since, and Linking again, they can still stop showing their new code.
     linker.script().user_link = Some(Link::Waiting {
         code: "CDFG-HJKL".to_owned(),
         url: "https://hub.example".to_owned(),
