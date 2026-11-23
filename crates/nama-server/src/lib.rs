@@ -77,10 +77,10 @@ use crate::{
 /// Admins see the `ffmpeg` found at startup with `GetPlaybackStatus`. Plans running when
 /// `shutdown` resolves are stopped and their segment files deleted.
 ///
-/// The enabled Plugin that links the Server, if any, is told its Server Addresses every minute,
-/// and while there is one the Server keeps its port open on the router with UPnP or NAT-PMP,
-/// unless [`Config::forwarded_port`] names the one the Admin forwarded. It is asked for each User's
-/// Watch State on their other Servers after each scan.
+/// The enabled Plugin that links the Server, if any, is told its Server Addresses every minute
+/// and as soon as the Server URL is saved, and while there is one the Server keeps its port open
+/// on the router with UPnP or NAT-PMP, unless [`Config::forwarded_port`] names the one the Admin
+/// forwarded. It is asked for each User's Watch State on their other Servers after each scan.
 ///
 /// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, unless the
 /// peer is in [`Config::trusted_proxies`], whose `X-Forwarded-For` names the client.
@@ -183,6 +183,7 @@ pub fn serve(
     );
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
     let server_url = settings.server_url();
+    let url_saves = settings.url_saves();
     // `listen` differs from the bound address only when it asks for port 0.
     let listening = listener.local_addr().unwrap_or(config.listen);
     let (sync_browse, sync_db, sync_users) = (
@@ -251,9 +252,10 @@ pub fn serve(
         // Every minute, as Seerr asks how its Requests are progressing (ADR 0012).
         let came_up = home_rows.refresh_as_plugins_come_up(plugins.take_came_up());
         requests.start(came_up, Duration::from_mins(1));
-        let telling_addresses = server_addresses::tell_every_minute(
+        let telling_addresses = server_addresses::keep_telling(
             plugins.extension_points(),
             server_url,
+            url_saves,
             listening,
             forwarded_port,
         );

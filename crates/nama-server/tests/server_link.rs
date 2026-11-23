@@ -586,8 +586,27 @@ async fn the_plugin_is_told_the_server_url_and_port_the_admin_set() {
         lan: vec![],
         public_port: Some(7443),
     };
+    until_told(&linker, &told).await;
+}
+
+#[tokio::test]
+async fn the_plugin_is_told_a_new_server_url_as_soon_as_it_is_saved() {
+    let linker = Scripted::default();
+    let server = with_linker(&linker).await;
+    let mut told = ServerAddresses::default();
+    // The first telling, at startup, so the next one isn't due for a minute.
+    until_told(&linker, &told).await;
+
+    set_server_url(&server, "https://nama.example.com").await;
+
+    told.url = "https://nama.example.com/".to_owned();
+    until_told(&linker, &told).await;
+}
+
+/// Waits until `linker` was last told `told`, well within the minute between tellings.
+async fn until_told(linker: &Scripted, told: &ServerAddresses) {
     let waited = tokio::time::timeout(server::WAIT, async {
-        while linker.script().addresses.as_ref() != Some(&told) {
+        while linker.script().addresses.as_ref() != Some(told) {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })

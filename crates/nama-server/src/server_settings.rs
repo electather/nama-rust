@@ -20,6 +20,7 @@ use nama_plugin_api::{
 };
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 use thiserror::Error;
+use tokio::sync::watch;
 use tracing::warn;
 use url::Url;
 
@@ -48,6 +49,7 @@ pub(crate) struct Settings {
     /// Where segment files go while no folder is set.
     default_folder: PathBuf,
     values: Arc<RwLock<Values>>,
+    url_saved: watch::Sender<()>,
 }
 
 /// One value of every Server setting.
@@ -170,6 +172,7 @@ impl Settings {
             db,
             default_folder,
             values: Arc::default(),
+            url_saved: watch::Sender::new(()),
         }
     }
 
@@ -238,6 +241,12 @@ impl Settings {
         ServerUrl(Arc::clone(&self.values))
     }
 
+    /// Wakes once the Server URL was saved since it last woke, so the Plugin that links the Server
+    /// hears of it at once.
+    pub(crate) fn url_saves(&self) -> watch::Receiver<()> {
+        self.url_saved.subscribe()
+    }
+
     /// The Playback settings, for planning and running plans.
     pub(crate) fn playback(&self) -> PlaybackSettings {
         PlaybackSettings {
@@ -294,6 +303,7 @@ impl Settings {
             },
         )
         .await?;
+        self.url_saved.send_replace(());
         Ok(url)
     }
 
