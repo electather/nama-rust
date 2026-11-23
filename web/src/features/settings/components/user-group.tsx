@@ -1,7 +1,7 @@
 import { SettingGroup } from "@/features/settings/components/setting-group";
 import { UserItem } from "@/features/settings/components/user-item";
+import { useUsersWhoCantSignIn } from "@/features/settings/data/use-users-who-cant-sign-in";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
-import { useUsersWhoCantSignIn } from "@/shared/hooks/use-users";
 
 /** The Users, under "Users", `you` among them marked, and those who can't sign in. */
 export function UserGroup({ users, you }: { users: User[]; you: User | undefined }) {

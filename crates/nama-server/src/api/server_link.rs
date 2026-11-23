@@ -100,6 +100,8 @@ pub(super) async fn get_user(
 /// Which of `user_ids` aren't Linked to an Account, asking the enabled Plugin that links the
 /// Server about each at once, which is how it learns of an Unlink made on the service, such as by
 /// deleting the Account (ADR 0099). One it fails to answer about is left out, as it may be Linked.
+// ponytail: one call per User with no Sign-in Method, all at once, though the Plugin asks the
+// Hub about each at most once a minute; cap them if Servers come to have many such Users.
 pub(super) async fn unlinked(points: &ExtensionPoints, user_ids: Vec<i64>) -> Vec<i64> {
     let asked = user_ids.into_iter().map(|user_id| async move {
         let link = ask(points, async |linker| linker.user_link(user_id).await).await;
