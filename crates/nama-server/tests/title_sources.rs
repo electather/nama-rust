@@ -103,6 +103,17 @@ async fn a_curly_tag_no_title_source_looks_up_by_is_searched_for() {
 }
 
 #[tokio::test]
+async fn a_movie_named_without_a_year_in_a_folder_of_its_title_is_matched_by_title() {
+    let server = TestServer::builder().tmdb().start().await;
+
+    let library = server
+        .matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &["Alien/Alien.mkv"])
+        .await;
+
+    assert_eq!(movies(&server, &library).await, [tmdb(348)]);
+}
+
+#[tokio::test]
 async fn an_order_where_no_source_searches_is_refused_whether_it_is_enabled_or_not() {
     let server = TestServer::builder().start().await;
     let dir = tempfile::tempdir().unwrap();
