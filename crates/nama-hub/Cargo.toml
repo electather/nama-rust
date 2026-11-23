@@ -1,7 +1,7 @@
 [package]
 name = "nama-hub"
 # The Server's version: see "Releases" in `AGENTS.md`.
-version = "0.1.0"
+version = "0.2.0"
 description = "The Nama Hub: Accounts and Server discovery"
 license = "AGPL-3.0-only"
 edition.workspace = true
