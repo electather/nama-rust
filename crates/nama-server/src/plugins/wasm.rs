@@ -129,6 +129,9 @@ pub(super) enum Refused {
     HostWithPort(String),
     #[error("its id {0} is another Plugin's")]
     IdTaken(PluginId),
+    /// Refused before for this reason, and its file hasn't changed since.
+    #[error("{0}")]
+    Again(String),
     #[error(
         "its Manifest names no Extension Points, so it would do nothing; a Plugin built before \
          Extension Points became services must name them in points"

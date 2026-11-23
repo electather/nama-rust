@@ -252,8 +252,10 @@ impl PluginSettings {
         let starting = plugins.clone();
         // Blocking: reading an Installed Plugin compiles it, and so does enabling it.
         let settings = task::spawn_blocking(move || {
-            let mut loaded = lock_ignoring_poison(&starting.loaded);
-            (starting.registry).load_installed(&starting.data_dir, &mut loaded);
+            (starting.registry).load_installed(
+                &starting.data_dir,
+                &mut lock_ignoring_poison(&starting.loaded),
+            );
             starting.enable_stored(&settings, &grants);
             settings
         })
@@ -660,7 +662,8 @@ async fn detached<T: Send + 'static>(
         })
 }
 
-// No code that could panic runs while it is held, so a poisoned lock's handle is still whole.
+// A poisoned lock's value is still whole: nothing that could panic runs while the others are
+// held, and `loaded` drops a file's entry before compiling it again.
 fn lock_ignoring_poison<T>(mutex: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex
         .lock()

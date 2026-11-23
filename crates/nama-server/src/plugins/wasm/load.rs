@@ -74,10 +74,10 @@ pub(super) const MEMORY_MAX_PAGES: u32 = 2048;
 /// What every binary WASM module starts with.
 const WASM_MAGIC: &[u8] = b"\0asm";
 
-/// The Plugins read before, each with what its file held then, so reading again compiles only
-/// the files changed since: listing reads them on every call.
+/// The Plugins read before, each with what its file held then and what the Server made of it, so
+/// reading again compiles only the files changed since: listing reads them on every call.
 #[derive(Default)]
-pub(crate) struct Loaded(HashMap<PathBuf, (Stamp, Installed)>);
+pub(crate) struct Loaded(HashMap<PathBuf, (Stamp, Result<Installed, String>)>);
 
 /// A dropped-in file's size and modified time, which a new copy changes; `None` for a bundled
 /// Plugin, which never changes.
@@ -90,10 +90,11 @@ impl std::fmt::Debug for Loaded {
 }
 
 impl Loaded {
-    /// The Plugin read from `file` before if `stamp` still matches it, or else `load`'s, kept
-    /// for the next read unless refused.
-    // ponytail: a refused file is read again each time, and a copy keeping its size and modified
-    // time is missed until restart; keep refusals, or stamp ctime too, if either bites.
+    /// What the Server made of `file` before if `stamp` still matches it, or else `load`'s, kept
+    /// for the next read unless the file couldn't be read: making it readable stamps it no
+    /// differently.
+    // ponytail: a copy keeping its size and modified time is missed until restart; stamp ctime
+    // too if that bites.
     fn reuse_or(
         &mut self,
         file: &Path,
@@ -103,12 +104,17 @@ impl Loaded {
         if let Some((was, plugin)) = self.0.get(file)
             && *was == stamp
         {
-            return Ok(plugin.clone());
+            return plugin.clone().map_err(Refused::Again);
         }
         self.0.remove(file);
-        let plugin = load()?;
-        self.0.insert(file.to_owned(), (stamp, plugin.clone()));
-        Ok(plugin)
+        let plugin = load();
+        let kept = match &plugin {
+            Ok(plugin) => Ok(plugin.clone()),
+            Err(Refused::Read(_)) => return plugin,
+            Err(refused) => Err(refused.to_string()),
+        };
+        self.0.insert(file.to_owned(), (stamp, kept));
+        plugin
     }
 }
 
