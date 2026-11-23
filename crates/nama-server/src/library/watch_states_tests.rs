@@ -567,7 +567,8 @@ async fn a_change_whose_caller_stops_waiting_is_still_stored_and_told() {
     let watch_states = WatchStates::new(db, plugins.extension_points());
     let user = another_user(&watch_states, "Ada").await;
 
-    // Polled once, which queues the write, then dropped, as when a client hangs up (ADR 0029).
+    // Polled once, which sends the write on its way, then dropped, as when a client hangs up
+    // (ADR 0029).
     let mut marking = Box::pin(watch_states.mark(user, vec![alien()], true));
     let polled = marking
         .as_mut()

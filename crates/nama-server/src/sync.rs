@@ -1,5 +1,5 @@
 //! When a Linked User's Watch State, Track Preferences and Watchlist move between the Server and
-//! the enabled Plugin that links it, such as the Hub Plugin (ADR 0008, ADR 0056, ADR 0092).
+//! the enabled Plugin that links it (ADR 0008, ADR 0056, ADR 0092).
 //!
 //! Each trigger is one call on [`Syncing`], and what each runs is decided only here:
 //!
@@ -184,10 +184,10 @@ impl Syncing {
         }
     }
 
-    /// Tells the Plugins that observe Watch State, such as the Hub's, of the User `user_id`'s
-    /// whole Watch State, each change dated as stored, and waits until they have it queued, so a
-    /// pull after it sends it first. The Plugin queues it only for a Linked User, and the Hub keeps
-    /// the later of a title's changes (ADR 0008).
+    /// Tells the Plugins that observe Watch State of the User `user_id`'s whole Watch State, each
+    /// change dated as stored, and waits until they have it queued, so a pull after it sends it
+    /// first. The Plugin that links the Server queues it only for a Linked User, and the later of
+    /// a title's changes wins (ADR 0008).
     async fn push_watch_states(&self, user_id: i64) {
         let changes = match self.browse.watch_state_changes(user_id).await {
             Ok(changes) if changes.is_empty() => return,
@@ -202,9 +202,9 @@ impl Syncing {
         wait_until_told(told, user_id, "Watch State").await;
     }
 
-    /// Tells the Plugins that observe Track Preferences, such as the Hub's, of each of the User
-    /// `user_id`'s, dated as stored, as [`Syncing::push_watch_states`] does their Watch State, and
-    /// for the same reasons. The Hub keeps the change made last of each (ADR 0092).
+    /// Tells the Plugins that observe Track Preferences of each of the User `user_id`'s, dated as
+    /// stored, as [`Syncing::push_watch_states`] does their Watch State, and for the same reasons.
+    /// The change made last of each wins (ADR 0092).
     async fn push_track_preferences(&self, user_id: i64) {
         let stored = match self.preferences.changes_of_user(user_id).await {
             Ok(stored) => stored,
@@ -216,8 +216,9 @@ impl Syncing {
                 return;
             }
         };
-        // One at a time, so the Hub Plugin asks the Hub about the User's Link once, not once each,
-        // and in a task of its own, so the rest are still told after waiting on them times out.
+        // One at a time, so the Plugin that links the Server checks the User's Link once, not once
+        // each, and in a task of its own, so the rest are still told after waiting on them times
+        // out.
         let points = self.points.clone();
         let telling = async move {
             for preference in stored {

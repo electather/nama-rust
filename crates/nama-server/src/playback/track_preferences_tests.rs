@@ -521,7 +521,8 @@ async fn a_preference_whose_caller_stops_waiting_is_still_kept_and_told() {
     plugins.enable(Arc::new(Hears(heard))).unwrap();
     let (preferences, user) = track_preferences_telling(&data, plugins.extension_points()).await;
 
-    // Polled once, which queues the write, then dropped, as when a client hangs up (ADR 0029).
+    // Polled once, which sends the write on its way, then dropped, as when a client hangs up
+    // (ADR 0029).
     let mut keeping = Box::pin(preferences.keep_users_audio(user, Some("de".to_owned())));
     let polled = keeping
         .as_mut()

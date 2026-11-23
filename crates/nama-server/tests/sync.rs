@@ -46,6 +46,8 @@ struct Hub {
     watch_states: Arc<Mutex<Vec<WatchStateChange>>>,
     preferences: Arc<Mutex<Vec<TrackPreference>>>,
     watchlist: Arc<Mutex<HashMap<(bool, String), WatchlistEntry>>>,
+    /// Each Watch State push (`"push"`) and pull (`"pull"`), in the order they came.
+    asked: Arc<Mutex<Vec<&'static str>>>,
 }
 
 impl Hub {
@@ -65,6 +67,10 @@ impl Hub {
         self.watchlist
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn asked(&self) -> MutexGuard<'_, Vec<&'static str>> {
+        self.asked.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// A Server the Hub is enabled on, as `builder` starts it.
@@ -105,6 +111,7 @@ impl Observer<WatchStatesChanged> for Hub {
         event: &'a WatchStateChanges,
     ) -> BoxFuture<'a, Result<(), PluginError>> {
         self.kept().extend(event.changes.iter().cloned());
+        self.asked().push("push");
         Box::pin(future::ready(Ok(())))
     }
 }
@@ -178,6 +185,7 @@ impl ServerLinker for Hub {
     }
 
     fn watch_states(&self, _: i64) -> BoxFuture<'_, Result<Vec<WatchStateChange>, PluginError>> {
+        self.asked().push("pull");
         Box::pin(future::ready(Ok(self.kept().clone())))
     }
 
@@ -496,6 +504,13 @@ async fn starting_a_link_already_made_pushes_then_pulls_and_syncs_the_watchlist(
         alien_on_watchlist(&fx, &admin).await
     })
     .await;
+    // Nothing pushes after the Link's push, so a pull last means it came after.
+    let asked = hub.asked().clone();
+    let last = |step: &str| asked.iter().rposition(|asked| *asked == step);
+    assert!(
+        last("pull") > last("push"),
+        "pulled before pushing: {asked:?}"
+    );
 }
 
 #[tokio::test]
