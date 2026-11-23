@@ -27,7 +27,9 @@ use log::Log;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     points::WatchStateChange,
-    server_link::{AccountSignIn, Link, Reachability, ServerAddresses, ServerLinker},
+    server_link::{
+        AccountSignIn, Link, Reachability, ServerAddresses, ServerLinker, WatchlistEntry,
+    },
 };
 use nama_proto::nama::v1::{
     self as proto, CreateUserFromAccountRequest, DeleteUserRequest, GetServerInfoRequest,
@@ -202,6 +204,15 @@ impl ServerLinker for Scripted {
         &self,
         _user_id: i64,
     ) -> BoxFuture<'_, Result<Vec<WatchStateChange>, PluginError>> {
+        Box::pin(future::ready(Ok(Vec::new())))
+    }
+
+    /// Syncing is `tests/watch_state_sync.rs`'s.
+    fn sync_watchlist(
+        &self,
+        _user_id: i64,
+        _watchlist: Vec<WatchlistEntry>,
+    ) -> BoxFuture<'_, Result<Vec<WatchlistEntry>, PluginError>> {
         Box::pin(future::ready(Ok(Vec::new())))
     }
 }

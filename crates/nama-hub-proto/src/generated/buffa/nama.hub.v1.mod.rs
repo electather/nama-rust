@@ -94,6 +94,9 @@ pub mod __buffa {
         reg.register_json_any(super::__PULL_WATCH_STATES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__PULL_WATCH_STATES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__WATCH_STATE_CHANGE_JSON_ANY);
+        reg.register_json_any(super::__SYNC_WATCHLIST_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SYNC_WATCHLIST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__WATCHLIST_ENTRY_JSON_ANY);
         reg.register_json_any(super::__USER_INVITE_JSON_ANY);
         reg.register_json_any(super::__LIST_USER_INVITES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_USER_INVITES_RESPONSE_JSON_ANY);
@@ -373,6 +376,18 @@ pub use self::__buffa::view::PullWatchStatesResponseOwnedView;
 pub use self::__buffa::view::WatchStateChangeView;
 #[doc(inline)]
 pub use self::__buffa::view::WatchStateChangeOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SyncWatchlistRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SyncWatchlistRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SyncWatchlistResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SyncWatchlistResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchlistEntryView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchlistEntryOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UserInviteView;
 #[doc(inline)]

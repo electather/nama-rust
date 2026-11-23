@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT max(changed_at_ms) FROM watchlist\n         WHERE user_id = ? AND kind = ? AND title_id IN (SELECT value FROM json_each(?))",
+  "describe": {
+    "columns": [
+      {
+        "name": "max(changed_at_ms)",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "c77e8617dc4231dd518447917f3a94d71adbf0343dbf7305085098fb84b96af4"
+}

@@ -32,7 +32,7 @@ const PAGE_CHANGES: usize = 100;
 /// The most ids a change sends, and the most characters each may have, as the Hub takes them: past
 /// either it would refuse the page, which would hold back every later one.
 const MAX_IDS: usize = 20;
-const MAX_ID_LENGTH: usize = 100;
+pub(super) const MAX_ID_LENGTH: usize = 100;
 
 /// Which pages of queued changes the Store keeps: `first..next`, oldest first.
 #[derive(Default, Serialize, Deserialize)]

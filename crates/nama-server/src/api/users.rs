@@ -550,7 +550,7 @@ impl UserService for UserServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, GetUserLinkRequest>,
     ) -> ServiceResult<GetUserLinkResponse> {
-        server_link::get_user(&self.points, &self.browse, &caller(&ctx)?.user).await
+        server_link::get_user(&self.points, &self.browse, &self.db, &caller(&ctx)?.user).await
     }
 
     async fn start_user_link(
@@ -558,7 +558,7 @@ impl UserService for UserServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, StartUserLinkRequest>,
     ) -> ServiceResult<StartUserLinkResponse> {
-        server_link::start_user(&self.points, &self.browse, &caller(&ctx)?.user).await
+        server_link::start_user(&self.points, &self.browse, &self.db, &caller(&ctx)?.user).await
     }
 
     async fn unlink_user(
