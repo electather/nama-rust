@@ -42,9 +42,12 @@ describe("on a phone", () => {
     globalThis.happyDOM.setViewport({ width: 375 });
   });
   afterEach(() => {
+    // happy-dom's default.
     globalThis.happyDOM.setViewport({ width: 1024 });
   });
 
+  // happy-dom's `showModal()` focuses nothing, where a browser's focuses Search, so this checks only
+  // that Settings moves focus to itself, not that it does so after `showModal()`.
   test("opening Settings focuses the dialog, not Search", async () => {
     openSettings("playback", fakeServer({ signedIn: newUser }));
 
