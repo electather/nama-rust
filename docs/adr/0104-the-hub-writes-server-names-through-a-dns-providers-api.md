@@ -13,6 +13,7 @@ A Server's own name is its Linked Server id in hex, such as `0193b6f2c4d87a1e9f3
 - Every name that carries a LAN address is a stored record, and Cloudflare caps a zone's records by plan. The plan therefore limits how many Servers the zone can hold. If the Hub outgrows it, it moves to another provider, or to serving the zone itself, behind the same trait.
 - A Hub with no provider set up names no Server, just as a Hub without mail sends no Sign-in Links.
 - A report waits for the provider and fails if the provider is down, so the Server reports again. Unlinking also fails until the names are removed, so the Server stays Linked meanwhile.
+- Deleting an Account can't wait for the provider, so if the names of the Account's Servers can't be removed afterwards, they stay and the Hub logs an error.
 - The names keep resolving while the Hub is down. Renewing certificates still needs the Hub (ADR 0057).
 - Only private IPv4 addresses get a name, so a Server can't point one of its names at someone else's public host. IPv6 LAN addresses get no name yet.
 - The id is a uuidv7, so the name shows when the Server was Linked. Its certificate's entry in the Certificate Transparency logs shows about the same.

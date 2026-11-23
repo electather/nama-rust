@@ -49,7 +49,7 @@ pub(super) fn shown(own: &str, records: &[Record]) -> Vec<String> {
 
 /// The host of the LAN address `address`, if it is a private IPv4 address: a public one could
 /// point a name at someone else's host.
-// shortcut: IPv6 LAN addresses get no name; add unique local ones once Servers report them.
+// ponytail: IPv6 LAN addresses get no name; add unique local ones once Servers report them.
 fn lan_ip(address: &str) -> Option<Ipv4Addr> {
     let uri = address.parse::<Uri>().ok()?;
     let ip = uri.host()?.parse::<Ipv4Addr>().ok()?;

@@ -391,28 +391,27 @@ impl Links {
         let reached = probed
             .filter(|&(_, reachable)| reachable)
             .map(|(address, _)| address);
-        // The row stays locked until the names are written, so an Unlink waits, and removes them.
-        let mut tx = self.db.begin().await?;
+        let names = self
+            .name(
+                server.id,
+                reached.map(|address| address.ip()),
+                lan_addresses,
+            )
+            .await?;
+        // Named before this, so a Server Unlinked meanwhile is found gone here and its names go
+        // again; no transaction waits on the DNS provider holding one of the pool's connections.
         let still_linked = sqlx::query!(
             "UPDATE linked_servers SET public_address = $1 WHERE id = $2",
             reached.map_or_else(String::new, |address| format!("http://{address}")),
             server.id.0,
         )
-        .execute(&mut *tx)
+        .execute(&self.db)
         .await?
         .rows_affected()
             > 0;
-        let names = if still_linked {
-            self.name(
-                server.id,
-                reached.map(|address| address.ip()),
-                lan_addresses,
-            )
-            .await?
-        } else {
-            Vec::new()
-        };
-        tx.commit().await?;
+        if !still_linked {
+            self.forget_names(server.id).await?;
+        }
         Ok(Checked {
             public: probed.map(|(address, reachable)| PublicAddress {
                 address: format!("http://{address}"),
@@ -469,14 +468,14 @@ impl Links {
     /// Unlinks `server`: its credential stops working at once, and its names are gone. While its
     /// names can't be removed, it stays Linked.
     pub(crate) async fn unlink(&self, server: &LinkedServer) -> Result<(), Error> {
-        // Deleted before the names go, holding the row's lock, so a report naming the Server
-        // meanwhile waits and then finds it gone.
-        let mut tx = self.db.begin().await?;
-        sqlx::query!("DELETE FROM linked_servers WHERE id = $1", server.id.0)
-            .execute(&mut *tx)
-            .await?;
         self.forget_names(server.id).await?;
-        tx.commit().await?;
+        sqlx::query!("DELETE FROM linked_servers WHERE id = $1", server.id.0)
+            .execute(&self.db)
+            .await?;
+        // Again, for a report that named the Server between the first removal and the delete.
+        if let Err(err) = self.forget_names(server.id).await {
+            tracing::error!(server = %server.id, "an Unlinked Server's names may stay: {err}");
+        }
         Ok(())
     }
 
