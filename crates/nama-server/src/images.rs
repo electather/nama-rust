@@ -102,7 +102,7 @@ pub const MAX_UPLOAD_BYTES: u64 = 20 * 1024 * 1024;
 /// The most pixels an uploaded image may have: 12 megapixels (ADR 0039).
 pub const MAX_PIXELS: u64 = 12_000_000;
 
-/// The most bytes an SVG may have, a Plugin's logo being the one image that may be one: 64 KiB.
+/// The most bytes a Plugin's logo, an SVG, may have: 64 KiB.
 pub const MAX_SVG_BYTES: usize = 64 * 1024;
 
 /// The content type of an SVG, which [`ImageStore::serve`] sends with headers that keep its

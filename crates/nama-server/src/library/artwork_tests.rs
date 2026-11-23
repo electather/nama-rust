@@ -101,7 +101,7 @@ async fn deleting_unused_images_does_not_wait_for_a_download() {
 }
 
 #[tokio::test]
-async fn an_svg_is_never_served_as_an_image() {
+async fn an_svg_is_served_as_an_image_whose_script_cannot_run() {
     let data = tempfile::tempdir().unwrap();
     let key = ["artwork", "tmdb", "/logo.svg"];
     let db = Database::open(data.path()).await.unwrap();
@@ -116,8 +116,11 @@ async fn an_svg_is_never_served_as_an_image() {
         .unwrap();
 
     let headers = response.headers();
-    assert_eq!(headers[header::CONTENT_TYPE], "application/octet-stream");
-    assert_eq!(headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
+    assert_eq!(headers[header::CONTENT_TYPE], "image/svg+xml");
+    assert_eq!(
+        headers[header::CONTENT_SECURITY_POLICY],
+        "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+    );
 }
 
 /// The source of the Plugin `plugin`.

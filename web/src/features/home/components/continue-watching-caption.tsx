@@ -1,6 +1,6 @@
-import { TitleOrLogo } from "@/features/home/components/title-or-logo";
 import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
 import { PlayProgress } from "@/shared/components/backdrop-card/play-progress";
+import { TitleOrLogo } from "@/shared/components/title-or-logo";
 
 /**
  * A card's Title Logo: up to 48px tall and 60% of the card wide (DESIGN.md, "Backdrop cards"), with
