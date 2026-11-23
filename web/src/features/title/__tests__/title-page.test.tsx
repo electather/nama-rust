@@ -165,6 +165,17 @@ test("a title without a Title Logo shows its title as text", async () => {
   expect(within(heading).queryByRole("img")).toBeNull();
 });
 
+test("a Title Logo that fails to load gives way to its title as text", async () => {
+  openMovie({ titleLogoUrl: "/media/artwork/tmdb/%2Fparasite-logo.svg" });
+
+  const heading = await screen.findByRole("heading", { level: 1, name: "Parasite" });
+  fireEvent.error(within(heading).getByRole("img"));
+  expect([within(heading).queryByRole("img"), heading.textContent]).toStrictEqual([
+    null,
+    "Parasite",
+  ]);
+});
+
 test("a Movie shows 4K and HDR from one Version, and SDH from another's subtitles", async () => {
   openMovie({
     versions: [
