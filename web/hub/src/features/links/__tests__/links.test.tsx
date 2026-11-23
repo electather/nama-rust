@@ -187,7 +187,7 @@ describe("linking a Server", () => {
 
     await expect(
       screen.findByText(
-        "Linking needs your email proven, but this Hub can’t prove emails, so it can’t Link.",
+        "This Hub can’t prove emails, so Linking isn’t possible on it. Ask whoever runs it to set up email.",
       ),
     ).resolves.toBeDefined();
     expect(screen.queryByRole("link", { name: "Email me a Sign-in Link" })).toBeNull();

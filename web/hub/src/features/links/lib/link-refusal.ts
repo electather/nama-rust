@@ -39,7 +39,7 @@ export function typedCode(form: HTMLFormElement) {
 }
 
 const cannotProveEmail: LinkErrors = {
-  form: "Linking needs your email proven, but this Hub can’t prove emails, so it can’t Link.",
+  form: "This Hub can’t prove emails, so Linking isn’t possible on it. Ask whoever runs it to set up email.",
 };
 
 /** What each reason a code can be refused for says. */
