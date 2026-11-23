@@ -14,7 +14,7 @@ use nama_proto::nama::v1::{
     ListGenresResponse, ListHomeRowTitlesRequest, ListHomeRowTitlesResponse, ListHomeRowsRequest,
     ListHomeRowsResponse, ListMoviesRequest, ListMoviesResponse, ListShowsRequest,
     ListShowsResponse, ListUnmatchedRequest, ListUnmatchedResponse, MovieSort, ShowSort,
-    SortDirection, WatchedFilter, home_row::KernelOrPlugin,
+    SortDirection, WatchedFilter,
 };
 
 use crate::{
@@ -29,8 +29,8 @@ use crate::{
         ShownImages, TitleImage, TitleKind, TitleSort, Unmatched, WatchState, Watched,
     },
     playback::track_to_proto,
-    server_settings::{HomeRowId, Settings},
-    users::{User, UserHomeLayout},
+    server_settings::Settings,
+    users::UserHomeLayout,
     watchlist,
 };
 
@@ -40,10 +40,12 @@ use super::{
 };
 
 mod box_sets;
+mod home_rows;
 mod refusals;
 mod titles;
 
 use box_sets::box_set_to_proto;
+pub(super) use home_rows::{home_rows_of, recently_added_rows};
 use refusals::home_rows_refused;
 pub(super) use refusals::{Fields, not_found, refused};
 use titles::{episode_beside_to_proto, featured_to_proto, row_title_to_proto, started_to_proto};
@@ -62,32 +64,6 @@ pub(super) struct BrowseServiceHandler {
     /// Holds the Watchlists that say whether a Movie or Show is on the caller's, and each User's
     /// Home layout.
     pub(super) db: Arc<Database>,
-}
-
-/// Every Home row `reader` could see now, in no layout's order: Continue Watching, then the
-/// Plugins' rows.
-pub(super) async fn home_rows_of(
-    home_rows: &HomeRows,
-    reader: &User,
-) -> Result<Vec<(HomeRowId, KernelOrPlugin)>, ConnectError> {
-    let plugin_rows = home_rows.list(reader).await.map_err(home_rows_refused)?;
-    let plugin_rows = plugin_rows.into_iter().map(|(id, row)| {
-        let row = proto::PluginHomeRow {
-            plugin_id: id.plugin().map_or_default(ToString::to_string),
-            key: row.key,
-            heading: row.heading,
-            ..Default::default()
-        };
-        (id, row.into())
-    });
-    let continue_watching = proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING;
-    let continue_watching = (
-        HomeRowId::ContinueWatching,
-        KernelOrPlugin::Kernel(continue_watching.into()),
-    );
-    Ok(std::iter::once(continue_watching)
-        .chain(plugin_rows)
-        .collect())
 }
 
 impl BrowseServiceHandler {
@@ -408,7 +384,7 @@ impl BrowseService for BrowseServiceHandler {
         _request: ServiceRequest<'_, ListHomeRowsRequest>,
     ) -> ServiceResult<ListHomeRowsResponse> {
         let reader = &caller(&ctx)?.user;
-        let rows = home_rows_of(&self.home_rows, reader).await?;
+        let rows = home_rows_of(&self.home_rows, &self.browse, reader).await?;
         let own = UserHomeLayout::of(&self.db, reader.id).await;
         let own = own.map_err(database_failed)?;
         let rows = own.arrange(&self.settings.now().default_home_layout, rows);
