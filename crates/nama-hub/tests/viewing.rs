@@ -1,5 +1,5 @@
 //! A Linked Server recording its Users' Viewing Events, and an Account listing and deleting its
-//! own and turning pooling off, against a real PostgreSQL.
+//! own and turning pooling off, and what's trending, against a real PostgreSQL.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/hub.rs"]
@@ -17,10 +17,10 @@ use mail::{Inbox, fake_mail};
 use nama_hub_proto::nama::hub::v1::{
     AccountServiceClient, ApproveServerLinkRequest, ApproveUserLinkRequest, CreateAccountRequest,
     DeleteViewingEventRequest, DeviceKind, GetPoolingRequest, LinkServiceClient,
-    LinkedServerServiceClient, ListViewingEventsRequest, PollServerLinkRequest,
-    RecordViewingEventsRequest, RefusalReason, SendSignInLinkRequest, ServerLinkServiceClient,
-    SetPoolingRequest, SignInWithLinkRequest, StartServerLinkRequest, StartUserLinkRequest,
-    UserViewingEvent, ViewingEvent, ViewingEventServiceClient,
+    LinkedServerServiceClient, ListTrendingTitlesRequest, ListViewingEventsRequest,
+    PollServerLinkRequest, RecordViewingEventsRequest, RefusalReason, SendSignInLinkRequest,
+    ServerLinkServiceClient, SetPoolingRequest, SignInWithLinkRequest, StartServerLinkRequest,
+    StartUserLinkRequest, UserViewingEvent, ViewingEvent, ViewingEventServiceClient,
 };
 use refused::assert_refused;
 use sqlx::PgPool;
@@ -395,4 +395,37 @@ async fn pooling_needs_a_session(db: PgPool) {
         RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
     );
     assert!(pooling(&hub, &ada).await);
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_movie_one_account_finished_this_week_isnt_trending(db: PgPool) {
+    let (hub, _inbox, _ada, server) = ada_watching(db).await;
+    let since_epoch = std::time::UNIX_EPOCH.elapsed().unwrap().as_secs();
+    let mut event = played(7, "a", "tmdb-603").event.into_option().unwrap();
+    event.started_at = i64::try_from(since_epoch).unwrap();
+    let this_week = UserViewingEvent {
+        event: event.into(),
+        ..played(7, "a", "tmdb-603")
+    };
+    record(&hub, &server, vec![this_week]).await.unwrap();
+
+    let trending = linked_server(&hub, &server)
+        .list_trending_titles(ListTrendingTitlesRequest::default())
+        .await
+        .unwrap();
+
+    assert_eq!(trending.into_owned().titles, []);
+}
+
+#[sqlx::test(migrations = false)]
+async fn whats_trending_needs_a_linked_server(db: PgPool) {
+    let (hub, _inbox, _ada, _server) = ada_watching(db).await;
+
+    assert_refused(
+        linked_server(&hub, "not-a-credential")
+            .list_trending_titles(ListTrendingTitlesRequest::default())
+            .await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+    );
 }

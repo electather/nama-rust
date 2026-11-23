@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT title AS external_id,\n             (sum(accounts) / max(sum(accounts)) OVER ())::real AS \"weight!\"\n             FROM weekly_counts\n             WHERE week >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '1 week')::date\n             AND week <= (date_trunc('week', now() AT TIME ZONE 'UTC'))::date\n             AND accounts >= $1\n             GROUP BY title ORDER BY sum(accounts) DESC, title LIMIT $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "external_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "weekly_counts",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "weight!",
+        "type_info": "Float4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "2eaf33663ed7dd6907f2712bb385915e8e3701b33a570f7411c899894016a905"
+}

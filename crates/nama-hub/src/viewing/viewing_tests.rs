@@ -1,4 +1,7 @@
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::Arc,
+    time::{Instant, SystemTime, UNIX_EPOCH},
+};
 
 use super::*;
 use crate::{
@@ -103,8 +106,14 @@ async fn pool_of(db: &PgPool, count: usize) -> (Viewing, Vec<AccountId>) {
 
 /// Records that `account` finished `movie`, as the play named `key`.
 async fn finish(db: &PgPool, account: AccountId, key: &str, movie: &str) {
+    finish_at(db, account, key, movie, played().started_at).await;
+}
+
+/// Records that `account` finished `movie`, as the play named `key` that started at `started_at`.
+async fn finish_at(db: &PgPool, account: AccountId, key: &str, movie: &str, started_at: i64) {
     let event = ViewingEvent {
         external_id: movie.to_owned(),
+        started_at,
         stop_position_ms: 8_000_000,
         finished: true,
         ..played()
@@ -196,4 +205,82 @@ async fn twenty_accounts_finishing_two_movies_count_the_pair_either_way(db: PgPo
     assert_eq!(pair("tmdb-603", "tmdb-78").await.unwrap(), Some(20));
     assert_eq!(pair("tmdb-78", "tmdb-603").await.unwrap(), Some(20));
     assert_eq!(count_of(&viewing, "tmdb-78").await, Some(20));
+}
+
+/// Now, in seconds since the Unix epoch.
+fn now() -> i64 {
+    let since_epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    i64::try_from(since_epoch.as_secs()).unwrap()
+}
+
+/// A week, in seconds.
+const WEEK: i64 = 7 * 24 * 60 * 60;
+
+/// The External IDs trending, most watched first.
+async fn trending_ids(viewing: &Viewing) -> Vec<String> {
+    let trending = viewing.trending().await.unwrap();
+    trending
+        .into_iter()
+        .map(|title| title.external_id)
+        .collect()
+}
+
+#[sqlx::test(migrations = false)]
+async fn movies_twenty_accounts_finished_this_week_trend_most_watched_first(db: PgPool) {
+    let (viewing, accounts) = pool_of(&db, 21).await;
+    for (n, &account) in accounts.iter().enumerate() {
+        finish_at(&db, account, "a", "tmdb-78", now()).await;
+        if n < 20 {
+            finish_at(&db, account, "b", "tmdb-603", now()).await;
+        }
+        if n < 19 {
+            finish_at(&db, account, "c", "tmdb-1", now()).await;
+        }
+    }
+
+    let trending = viewing.trending().await.unwrap();
+
+    let ids: Vec<&str> = (trending.iter())
+        .map(|title| title.external_id.as_str())
+        .collect();
+    assert_eq!(ids, ["tmdb-78", "tmdb-603"]);
+    assert!((trending[0].weight - 1.0).abs() < 1e-6);
+    assert!((trending[1].weight - 20.0 / 21.0).abs() < 1e-6);
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_movie_finished_again_the_same_week_counts_its_account_once(db: PgPool) {
+    let (viewing, accounts) = pool_of(&db, 19).await;
+    for &account in &accounts {
+        finish_at(&db, account, "a", "tmdb-603", now()).await;
+    }
+
+    finish_at(&db, accounts[0], "b", "tmdb-603", now()).await;
+
+    assert_eq!(trending_ids(&viewing).await, Vec::<String>::new());
+}
+
+#[sqlx::test(migrations = false)]
+async fn last_weeks_count_still_trends_and_the_week_before_doesnt(db: PgPool) {
+    let (viewing, accounts) = pool_of(&db, 20).await;
+    for &account in &accounts {
+        finish_at(&db, account, "a", "tmdb-603", now() - WEEK).await;
+        finish_at(&db, account, "b", "tmdb-78", now() - 2 * WEEK).await;
+    }
+
+    assert_eq!(trending_ids(&viewing).await, ["tmdb-603"]);
+}
+
+#[sqlx::test(migrations = false)]
+async fn an_account_with_pooling_off_adds_nothing_to_whats_trending(db: PgPool) {
+    let (viewing, accounts) = pool_of(&db, 20).await;
+    let (opted_out, first_nineteen) = accounts.split_last().unwrap();
+    for &account in first_nineteen {
+        finish_at(&db, account, "a", "tmdb-603", now()).await;
+    }
+
+    viewing.set_pooling(*opted_out, false).await.unwrap();
+    finish_at(&db, *opted_out, "a", "tmdb-603", now()).await;
+
+    assert_eq!(trending_ids(&viewing).await, Vec::<String>::new());
 }
