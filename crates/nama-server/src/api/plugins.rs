@@ -1,9 +1,6 @@
 //! The Server's Plugins and their settings: `nama.v1.PluginService`.
 
-use std::{
-    collections::{BTreeMap, HashSet},
-    sync::Arc,
-};
+use std::collections::{BTreeMap, HashSet};
 
 use buffa::{EnumValue, Enumeration};
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
@@ -21,14 +18,12 @@ use nama_proto::nama::v1::{
 use tracing::Level;
 
 use crate::{
-    db::Database,
     diagnostics::{self, PluginLine},
     images::PluginLogos,
     plugin_settings::{ChangeError, ListError, PluginSettings, StoredPlugin},
     plugins::{CheckError, EnableError, Listed},
     requests::{QUALITY_PROFILE, QUALITY_PROFILE_FIELD, QualitiesInvalid},
     server_settings,
-    users::UserHomeLayout,
 };
 
 use super::{database_failed, refuse};
@@ -46,8 +41,6 @@ pub(super) struct PluginServiceHandler {
     /// Holds the default Home layout, whose rows of a Plugin uninstalled go once a listing finds
     /// it gone.
     pub(super) settings: server_settings::Settings,
-    /// Holds each User's Home layout, whose rows of a Plugin uninstalled go with the default's.
-    pub(super) db: Arc<Database>,
     /// The Manifests' logos, stored as their URLs are handed out.
     pub(super) plugin_logos: PluginLogos,
 }
@@ -65,15 +58,9 @@ impl PluginService for PluginServiceHandler {
     ) -> ServiceResult<ListPluginsResponse> {
         let listed = self.plugin_settings.list().await.map_err(list_failed)?;
         // Listing is when the Server finds a Package gone from `plugins/`.
-        let installed = |plugin: &PluginId| self.plugin_settings.has(plugin);
-        if let Err(err) = self.settings.forget_uninstalled(installed).await {
-            tracing::error!("could not drop uninstalled Plugins' rows from the Home layout: {err}");
-        }
-        if let Err(err) = UserHomeLayout::forget_uninstalled(&self.db, installed).await {
-            tracing::error!(
-                "could not drop uninstalled Plugins' rows from Users' Home layouts: {err}"
-            );
-        }
+        self.plugin_settings
+            .forget_uninstalled(&self.settings)
+            .await;
         let mut summaries = Vec::with_capacity(listed.len());
         for StoredPlugin {
             plugin,

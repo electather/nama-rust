@@ -230,8 +230,8 @@ impl Contents {
             .unwrap();
     }
 
-    /// Stores a Score, Similar titles and a Role for a Movie, and an air date for a Show's
-    /// Episode, as if `plugin`'s title source had Matched them.
+    /// Stores a Score, Similar titles, a Role and a Box Set for a Movie, and an air date for a
+    /// Show's Episode, as if `plugin`'s title source had Matched them.
     pub(crate) async fn leave_title_rows(&self, plugin: &'static str) {
         self.db
             .write(move |tx| {
@@ -258,6 +258,14 @@ impl Contents {
                     )
                     .execute(&mut **tx)
                     .await?;
+                    // Namespaced by the Plugin, as each title source keeps its own Box Sets.
+                    sqlx::query!(
+                        "INSERT INTO box_sets (namespace, value, plugin, name, movies, looked_up)
+                         VALUES (?1, '8091', ?1, 'Alien Collection', '[]', '[]')",
+                        plugin
+                    )
+                    .execute(&mut **tx)
+                    .await?;
                     sqlx::query!(
                         "INSERT INTO title_roles (plugin, kind, namespace, value, crew, billed,
                                                   person_namespace, person_value, name, part)
@@ -274,15 +282,16 @@ impl Contents {
             .unwrap();
     }
 
-    /// Whether `plugin` still has Score and Trailers, Similar titles, Roles and air dates stored,
-    /// in that order.
-    pub(crate) async fn title_rows_of(&self, plugin: &str) -> [bool; 4] {
+    /// Whether `plugin` still has Score and Trailers, Similar titles, Roles, air dates and Box Sets
+    /// stored, in that order.
+    pub(crate) async fn title_rows_of(&self, plugin: &str) -> [bool; 5] {
         let stored = sqlx::query!(
             r#"SELECT EXISTS (SELECT 1 FROM title_details WHERE plugin = ?1) AS "details: bool",
                       EXISTS (SELECT 1 FROM similar_titles WHERE plugin = ?1) AS "similar: bool",
                       EXISTS (SELECT 1 FROM title_roles WHERE plugin = ?1) AS "roles: bool",
                       EXISTS (SELECT 1 FROM episode_air_dates WHERE plugin = ?1)
-                          AS "air_dates: bool""#,
+                          AS "air_dates: bool",
+                      EXISTS (SELECT 1 FROM box_sets WHERE plugin = ?1) AS "box_sets: bool""#,
             plugin
         )
         .fetch_one(self.db.reader())
@@ -293,6 +302,7 @@ impl Contents {
             stored.similar,
             stored.roles,
             stored.air_dates,
+            stored.box_sets,
         ]
     }
 }
