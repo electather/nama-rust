@@ -23,9 +23,9 @@ export function EpisodesPanel({
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button variant="secondary" size="tall" />}>
+      <PopoverTrigger render={<Button variant="secondary" size="round-on-phone" />}>
         <ListVideo aria-hidden />
-        {/* On a phone the Show's name needs the room, so the button is its icon. */}
+        {/* On a phone the Show's name needs the room, so the button shows only its icon. */}
         <span className="max-sm:sr-only">Episodes</span>
       </PopoverTrigger>
       <PopoverContent
