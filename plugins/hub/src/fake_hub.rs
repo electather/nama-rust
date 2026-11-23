@@ -92,6 +92,8 @@ struct State {
     user_accounts: HashMap<i64, String>,
     /// How often a User's Link was asked about.
     user_link_asks: usize,
+    /// How many calls came with a Server's credential, known or not.
+    server_calls: usize,
     /// Why asking about a User's Link fails, as if the Hub were down, while it does.
     user_link_failure: Option<&'static str>,
     /// Each Viewing Event recorded, in order.
@@ -224,6 +226,11 @@ impl FakeHub {
     /// How often the Server asked about a User's Link.
     pub(super) fn user_link_asks(&self) -> usize {
         lock(&self.state).user_link_asks
+    }
+
+    /// How many calls the Server made with its credential, whether the fake knew it or not.
+    pub(super) fn server_calls(&self) -> usize {
+        lock(&self.state).server_calls
     }
 
     /// Has asking about a User's Link fail, though counted, as if the Hub were down.
@@ -766,7 +773,8 @@ impl LinkedServerService for Linked {
 impl Linked {
     /// What the fake knows, if the call carries the credential of the Server it has Linked.
     fn caller(&self, ctx: &RequestContext) -> Result<MutexGuard<'_, State>, ConnectError> {
-        let state = lock(&self.0.state);
+        let mut state = lock(&self.0.state);
+        state.server_calls += 1;
         let bearer = format!("Bearer {}", credential(state.credentials));
         if !state.linked
             || ctx

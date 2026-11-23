@@ -6,10 +6,7 @@
 use std::cmp::Reverse;
 
 use nama_hub_proto::nama::hub::v1::{TitleKind, WatchlistEntry as Entry};
-use nama_plugin_api::{
-    PluginError,
-    server_link::{Link, WatchlistEntry},
-};
+use nama_plugin_api::{PluginError, server_link::WatchlistEntry};
 
 use super::{Linker, watch_states::MAX_ID_LENGTH};
 
@@ -27,24 +24,21 @@ impl Linker {
         user_id: i64,
         mut watchlist: Vec<WatchlistEntry>,
     ) -> Result<Vec<WatchlistEntry>, PluginError> {
-        let Some(kept) = self.kept().await? else {
+        if !self.user_linked(user_id).await? {
             return Ok(Vec::new());
-        };
-        // Asked as Settings would, as with Watch State: a User who only signs in with their
-        // Account has no kept Link.
-        let Some(Link::Linked { .. }) = self.current_user_link(user_id).await? else {
-            return Ok(Vec::new());
-        };
+        }
         watchlist.sort_by_key(|entry| Reverse(entry.changed_at_ms));
         let entries = (watchlist.iter())
             .filter(|entry| entry.id.chars().count() <= MAX_ID_LENGTH)
             .take(MAX_ENTRIES)
             .map(entry_to_proto)
             .collect();
-        let synced = (self.hub)
-            .sync_watchlist(&kept.credential, user_id, entries)
+        let synced = self
+            .call(|hub| hub.sync_watchlist(user_id, entries))
             .await?;
-        Ok(synced.into_iter().filter_map(entry_from_proto).collect())
+        Ok((synced.unwrap_or_default().into_iter())
+            .filter_map(entry_from_proto)
+            .collect())
     }
 }
 

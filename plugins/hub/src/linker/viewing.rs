@@ -104,11 +104,7 @@ impl ViewingEvents {
         let Some(started) = started else {
             return Ok(());
         };
-        let Some(kept) = self.linker.kept().await? else {
-            return Ok(());
-        };
-        let user = playback.user_id;
-        if self.linker.kept_account(user, &kept).await?.is_none() {
+        if !self.linker.user_linked(playback.user_id).await? {
             return Ok(());
         }
         let events = self.viewing_events(playback, started).await?;
@@ -189,18 +185,17 @@ impl ViewingEvents {
     }
 
     /// Sends the Hub the Viewing Events it hasn't had yet, and forgets them once it has, or once
-    /// the Server isn't Linked, when nothing can take them.
+    /// the Server isn't Linked, such as once the Hub dropped its Link, when nothing can take
+    /// them.
     pub(super) async fn send(&self) -> Result<(), PluginError> {
         let _held = self.unsent.lock().await;
         let unsent = self.unsent_events().await?;
         if unsent.events.is_empty() {
             return Ok(());
         }
-        if let Some(kept) = self.linker.kept().await? {
-            (self.linker.hub)
-                .record_viewing_events(&kept.credential, unsent)
-                .await?;
-        }
+        (self.linker)
+            .call(|hub| hub.record_viewing_events(unsent))
+            .await?;
         (self.linker.kernel)
             .ask::<StoreDelete>(store_key(UNSENT_KEY))
             .await?;
