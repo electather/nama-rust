@@ -1,4 +1,4 @@
-//! A Linked Server's names in the zone of Server Names, which the Hub writes as the Server reports
+//! A Linked Server's names in the Server-names zone, which the Hub writes as the Server reports
 //! its addresses and removes as it Unlinks (ADR 0104), against a real PostgreSQL.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
@@ -15,7 +15,9 @@ use connectrpc::ConnectError;
 use hub::{TestHub, ZONE};
 use linking::*;
 use nama_hub::dns::Record;
-use nama_hub_proto::nama::hub::v1::{SetServerAddressesRequest, UnlinkServerRequest};
+use nama_hub_proto::nama::hub::v1::{
+    ListLinkedServersRequest, SetServerAddressesRequest, UnlinkServerRequest,
+};
 use sqlx::PgPool;
 
 /// Reports `lan_addresses` and `public_port` as the Server Addresses of the Server presenting
@@ -160,4 +162,29 @@ async fn a_server_stays_linked_while_its_names_cant_be_removed(db: PgPool) {
     hub.set_zone_down(false);
     unlink(&hub, &living_room).await.unwrap();
     assert_eq!(hub.zone(), []);
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_report_the_dns_provider_fails_still_lists_the_public_address_reached(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    // The test's calls come from 127.0.0.1, so the Hub tries the Server's port there.
+    let open = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = open.local_addr().unwrap().port();
+    hub.set_zone_down(true);
+
+    names_after_reporting(&hub, &living_room, &[], port)
+        .await
+        .unwrap_err();
+
+    let listed = links(&hub, &ada)
+        .list_linked_servers(ListLinkedServersRequest::default())
+        .await
+        .unwrap()
+        .into_owned();
+    assert_eq!(
+        listed.servers[0].addresses,
+        [format!("http://127.0.0.1:{port}")]
+    );
 }

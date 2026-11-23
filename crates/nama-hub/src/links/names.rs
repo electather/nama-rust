@@ -1,4 +1,4 @@
-//! A Linked Server's names in the zone of Server Names (ADR 0057, ADR 0104).
+//! A Linked Server's names in the Server-names zone (ADR 0057, ADR 0104).
 
 use std::{
     collections::BTreeSet,

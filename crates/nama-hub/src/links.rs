@@ -1,6 +1,6 @@
 //! Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011), the Linked
 //! Server's opaque credential, the Server Addresses it reports and whether its public port can be
-//! reached, its names in the zone of Server Names (`names.rs`), Unlinking, and the token signed
+//! reached, its names in the Server-names zone (`names.rs`), Unlinking, and the token signed
 //! for a Server once it is Linked.
 //! Linking its Users to Accounts is in `users.rs`, Users created from an Account in `invites.rs`,
 //! and signing in to a Server with an Account in `server_sign_ins.rs`.
@@ -391,25 +391,25 @@ impl Links {
         let reached = probed
             .filter(|&(_, reachable)| reachable)
             .map(|(address, _)| address);
+        let public_address =
+            reached.map_or_else(String::new, |address| format!("http://{address}"));
+        // Stored before naming too, so a DNS provider that is down holds back only the names.
+        self.store_public_address(server.id, &public_address)
+            .await?;
         let names = self
-            .name(
+            .write_names(
                 server.id,
                 reached.map(|address| address.ip()),
                 lan_addresses,
             )
             .await?;
-        // Named before this, so a Server Unlinked meanwhile is found gone here and its names go
-        // again; no transaction waits on the DNS provider holding one of the pool's connections.
-        let still_linked = sqlx::query!(
-            "UPDATE linked_servers SET public_address = $1 WHERE id = $2",
-            reached.map_or_else(String::new, |address| format!("http://{address}")),
-            server.id.0,
-        )
-        .execute(&self.db)
-        .await?
-        .rows_affected()
-            > 0;
-        if !still_linked {
+        // Stored again after naming, so a Server Unlinked meanwhile is found gone here and its
+        // names go again; no transaction waits on the DNS provider holding one of the pool's
+        // connections.
+        if !self
+            .store_public_address(server.id, &public_address)
+            .await?
+        {
             self.forget_names(server.id).await?;
         }
         Ok(Checked {
@@ -421,10 +421,26 @@ impl Links {
         })
     }
 
+    /// Stores `address` as `server`'s public address, and answers whether it is still Linked.
+    async fn store_public_address(
+        &self,
+        server: LinkedServerId,
+        address: &str,
+    ) -> Result<bool, sqlx::Error> {
+        let stored = sqlx::query!(
+            "UPDATE linked_servers SET public_address = $1 WHERE id = $2",
+            address,
+            server.0,
+        )
+        .execute(&self.db)
+        .await?;
+        Ok(stored.rows_affected() > 0)
+    }
+
     /// Points `server`'s own name at `public`, if any, and a name under it at each private IPv4
     /// address among its `lan_addresses`, and answers its names: none while the Hub names no
     /// Server.
-    async fn name(
+    async fn write_names(
         &self,
         server: LinkedServerId,
         public: Option<IpAddr>,

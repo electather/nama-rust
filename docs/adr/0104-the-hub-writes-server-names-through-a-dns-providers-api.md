@@ -1,4 +1,4 @@
-# The Hub writes Server Names through a DNS provider's API
+# The Hub writes Server names through a DNS provider's API
 
 Each Linked Server gets its own names in the zone ADR 0057 sets up (#1829). Either the Hub answers the zone's DNS queries itself, computing each answer the way plex.direct's servers do, or a DNS provider serves the zone and the Hub writes its records through the provider's API. We chose the provider, Cloudflare to start. The Hub reaches it through a trait in `dns.rs`, so another provider needs only a new adapter.
 
@@ -12,7 +12,7 @@ A Server's own name is its Linked Server id in hex, such as `0193b6f2c4d87a1e9f3
 
 - Every name that carries a LAN address is a stored record, and Cloudflare caps a zone's records by plan. The plan therefore limits how many Servers the zone can hold. If the Hub outgrows it, it moves to another provider, or to serving the zone itself, behind the same trait.
 - A Hub with no provider set up names no Server, just as a Hub without mail sends no Sign-in Links.
-- A report waits for the provider and fails if the provider is down, so the Server reports again. Unlinking also fails until the names are removed, so the Server stays Linked meanwhile.
+- A report waits for the provider and fails if the provider is down, so the Server reports again. Its addresses are stored all the same, so clients still find it meanwhile. Unlinking also fails until the names are removed, so the Server stays Linked meanwhile.
 - Deleting an Account can't wait for the provider, so if the names of the Account's Servers can't be removed afterwards, they stay and the Hub logs an error.
 - The names keep resolving while the Hub is down. Renewing certificates still needs the Hub (ADR 0057).
 - Only private IPv4 addresses get a name, so a Server can't point one of its names at someone else's public host. IPv6 LAN addresses get no name yet.
