@@ -7,16 +7,29 @@ import { useCloseSettings } from "@/features/settings/hooks/use-close-settings";
 import { type Section, groupsFor, openSection } from "@/features/settings/lib/sections";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 
-/** Where typed text lives; a field of another kind, such as a checkbox, loses nothing to Escape. */
-const textField =
+/** A field of another kind, such as a checkbox, loses nothing to Escape. */
+const textFieldSelector =
   "textarea, input:is(:not([type]), [type=text], [type=search], [type=email], [type=url], [type=tel], [type=password], [type=number])";
 
-function holdsText(target: EventTarget) {
+function textField(target: EventTarget) {
   const isField = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
-  return isField && target.matches(textField) && target.value !== "";
+  return isField && target.matches(textFieldSelector) ? target : undefined;
 }
 
-/** Keeps Settings open on Escape in a field holding text, so the text isn't thrown away. */
+/**
+ * Whether closing from the text field `target` would throw typed text away. Its whole form counts:
+ * Escape at the autofill list of an empty Starting password would lose the Username typed above it.
+ */
+function holdsText(target: EventTarget) {
+  const field = textField(target);
+  if (field === undefined) {
+    return false;
+  }
+  const fields = field.form === null ? [field] : [...field.form.elements];
+  return fields.some((each) => (textField(each)?.value ?? "") !== "");
+}
+
+/** Keeps Settings open on Escape in a text field while it or its form holds text. */
 function keepTypedText(event: KeyboardEvent<HTMLDialogElement>) {
   // Preventing Escape's keydown stops the browser asking the dialog to cancel.
   if (event.key === "Escape" && holdsText(event.target)) {

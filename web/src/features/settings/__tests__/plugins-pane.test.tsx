@@ -47,6 +47,18 @@ test("typing narrows the list, and so does where Plugins come from", async () =>
   expect(screen.getByText("No Plugin matches.")).toBeDefined();
 });
 
+test("pressing Escape in the filter clears it, and Settings stays open", async () => {
+  openPluginSettings();
+
+  const filter = await screen.findByRole("searchbox", { name: "Filter Plugins" });
+  fireEvent.change(filter, { target: { value: "title source" } });
+
+  // The dialog closes on an Escape keydown whose default nobody prevented.
+  expect(fireEvent.keyDown(filter, { key: "Escape" })).toBe(false);
+  expect(listed("Enabled")).toStrictEqual(["local-auth", "TMDB", "test-choices"]);
+  expect(fireEvent.keyDown(filter, { key: "Escape" })).toBe(true);
+});
+
 test("a Plugin opens in place of the list, and the Plugins crumb goes back", async () => {
   const router = openPluginSettings();
 

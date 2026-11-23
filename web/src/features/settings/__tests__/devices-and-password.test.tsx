@@ -81,7 +81,7 @@ test("the Devices pane signs in another Device in place", async () => {
   expect(within(settings).getByRole("textbox", { name: "Sign-in Code" })).toBeDefined();
 });
 
-test("pressing Escape in the Sign-in Code cancels signing in a Device, and Settings stays open", async () => {
+test("pressing Escape in the Sign-in Code cancels signing in a Device, back on its button, and Settings stays open", async () => {
   openSettings("devices", fakeServer({ signedIn: newUser }));
 
   fireEvent.click(await screen.findByRole("button", { name: "Sign in a Device" }));
