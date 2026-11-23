@@ -122,6 +122,34 @@ pub type OwnedRemovePasskeyRequestView = ::buffa::view::OwnedView<
 pub type OwnedRemovePasskeyResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::RemovePasskeyResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ListSessionsRequestView<'static>>`.
+pub type OwnedListSessionsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListSessionsRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListSessionsResponseView<'static>>`.
+pub type OwnedListSessionsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListSessionsResponseView<'static>,
+>;
+///Shorthand for `OwnedView<SignOutSessionRequestView<'static>>`.
+pub type OwnedSignOutSessionRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SignOutSessionRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SignOutSessionResponseView<'static>>`.
+pub type OwnedSignOutSessionResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SignOutSessionResponseView<'static>,
+>;
+///Shorthand for `OwnedView<SignOutOtherSessionsRequestView<'static>>`.
+pub type OwnedSignOutOtherSessionsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SignOutOtherSessionsRequestView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<SignOutOtherSessionsResponseView<'static>>`.
+pub type OwnedSignOutOtherSessionsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SignOutOtherSessionsResponseView<
+        'static,
+    >,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::CreateAccountResponse>
 for crate::messages::nama::hub::v1::__buffa::view::CreateAccountResponseView<'_> {
     fn encode(
@@ -636,6 +664,114 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::ListSessionsResponse>
+for crate::messages::nama::hub::v1::__buffa::view::ListSessionsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::ListSessionsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListSessionsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SignOutSessionResponse>
+for crate::messages::nama::hub::v1::__buffa::view::SignOutSessionResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SignOutSessionResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SignOutSessionResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::messages::nama::hub::v1::SignOutOtherSessionsResponse,
+>
+for crate::messages::nama::hub::v1::__buffa::view::SignOutOtherSessionsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::messages::nama::hub::v1::SignOutOtherSessionsResponse,
+>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SignOutOtherSessionsResponseView<
+        'static,
+    >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const ACCOUNT_SERVICE_SERVICE_NAME: &str = "nama.hub.v1.AccountService";
 /// Static [`Spec`](::connectrpc::Spec) for the `CreateAccount` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -728,6 +864,24 @@ pub const ACCOUNT_SERVICE_REMOVE_PASSKEY_SPEC: ::connectrpc::Spec = ::connectrpc
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListSessions` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const ACCOUNT_SERVICE_LIST_SESSIONS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.AccountService/ListSessions",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `SignOutSession` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const ACCOUNT_SERVICE_SIGN_OUT_SESSION_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.AccountService/SignOutSession",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `SignOutOtherSessions` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const ACCOUNT_SERVICE_SIGN_OUT_OTHER_SESSIONS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.AccountService/SignOutOtherSessions",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Creating an Account, signing it in and out, and its passkeys, for the Hub's web pages. A session
 /// is an HttpOnly `SameSite=Strict` cookie (ADR 0015), never in a response body. Failures a client
 /// can cause carry a `nama.hub.v1.Refusal`.
@@ -736,9 +890,10 @@ pub const ACCOUNT_SERVICE_REMOVE_PASSKEY_SPEC: ::connectrpc::Spec = ::connectrpc
 /// one, the passkey calls fail with `REFUSAL_REASON_PASSKEYS_OFF`. A challenge a `Start…` call
 /// returns works once, for 5 minutes.
 ///
-/// Adding or removing a passkey needs Recent Authentication: the session signed in within the last
-/// 10 minutes. Without it, those calls fail with `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED`
-/// before anything in the request is checked, and signing in again gives it.
+/// Adding or removing a passkey, and signing out other sessions, need Recent Authentication: the
+/// session signed in within the last 10 minutes. Without it, those calls fail with
+/// `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` before anything in the request is checked, and
+/// signing in again gives it.
 ///
 /// # Implementing handlers
 ///
@@ -1161,6 +1316,76 @@ pub trait AccountService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::hub::v1::RemovePasskeyResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Lists the signed-in Account's live sessions, the most recently used first.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_sessions<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::ListSessionsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::ListSessionsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Ends one of the signed-in Account's other sessions, so its next request is signed out. An id
+    /// naming no other live session of the Account, such as the calling one's, changes nothing.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn sign_out_session<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::SignOutSessionRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::SignOutSessionResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Ends every session of the signed-in Account but the calling one.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn sign_out_other_sessions<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::SignOutOtherSessionsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::SignOutOtherSessionsResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1631,6 +1856,93 @@ impl<S: AccountService> AccountServiceExt for S {
                 },
             )
             .with_spec(ACCOUNT_SERVICE_REMOVE_PASSKEY_SPEC)
+            .route_view_idempotent(
+                ACCOUNT_SERVICE_SERVICE_NAME,
+                "ListSessions",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::ListSessionsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::ListSessionsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_sessions(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::ListSessionsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(ACCOUNT_SERVICE_LIST_SESSIONS_SPEC)
+            .route_view(
+                ACCOUNT_SERVICE_SERVICE_NAME,
+                "SignOutSession",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::SignOutSessionRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::SignOutSessionRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.sign_out_session(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::SignOutSessionResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(ACCOUNT_SERVICE_SIGN_OUT_SESSION_SPEC)
+            .route_view(
+                ACCOUNT_SERVICE_SERVICE_NAME,
+                "SignOutOtherSessions",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::SignOutOtherSessionsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::SignOutOtherSessionsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.sign_out_other_sessions(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::SignOutOtherSessionsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(ACCOUNT_SERVICE_SIGN_OUT_OTHER_SESSIONS_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -1773,6 +2085,24 @@ impl<T: AccountService> ::connectrpc::Dispatcher for AccountServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(ACCOUNT_SERVICE_REMOVE_PASSKEY_SPEC),
+                )
+            }
+            "ListSessions" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(ACCOUNT_SERVICE_LIST_SESSIONS_SPEC),
+                )
+            }
+            "SignOutSession" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(ACCOUNT_SERVICE_SIGN_OUT_SESSION_SPEC),
+                )
+            }
+            "SignOutOtherSessions" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(ACCOUNT_SERVICE_SIGN_OUT_OTHER_SESSIONS_SPEC),
                 )
             }
             _ => None,
@@ -2115,6 +2445,72 @@ impl<T: AccountService> ::connectrpc::Dispatcher for AccountServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::hub::v1::RemovePasskeyResponse,
+                        >(format)
+                })
+            }
+            "ListSessions" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::ListSessionsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::ListSessionsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::ListSessionsRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_sessions(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::ListSessionsResponse,
+                        >(format)
+                })
+            }
+            "SignOutSession" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::SignOutSessionRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::SignOutSessionRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::SignOutSessionRequest,
+                    >::from_parts(&req, &body);
+                    svc.sign_out_session(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::SignOutSessionResponse,
+                        >(format)
+                })
+            }
+            "SignOutOtherSessions" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::SignOutOtherSessionsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::SignOutOtherSessionsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::SignOutOtherSessionsRequest,
+                    >::from_parts(&req, &body);
+                    svc.sign_out_other_sessions(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::SignOutOtherSessionsResponse,
                         >(format)
                 })
             }
@@ -2909,6 +3305,141 @@ where
                 &self.transport,
                 &self.config,
                 ACCOUNT_SERVICE_REMOVE_PASSKEY_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListSessions RPC. Sends a request to /nama.hub.v1.AccountService/ListSessions.
+    pub async fn list_sessions(
+        &self,
+        request: crate::messages::nama::hub::v1::ListSessionsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::ListSessionsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_sessions_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListSessions RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_sessions_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::ListSessionsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::ListSessionsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                ACCOUNT_SERVICE_LIST_SESSIONS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SignOutSession RPC. Sends a request to /nama.hub.v1.AccountService/SignOutSession.
+    pub async fn sign_out_session(
+        &self,
+        request: crate::messages::nama::hub::v1::SignOutSessionRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SignOutSessionResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.sign_out_session_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SignOutSession RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn sign_out_session_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::SignOutSessionRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SignOutSessionResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                ACCOUNT_SERVICE_SIGN_OUT_SESSION_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SignOutOtherSessions RPC. Sends a request to /nama.hub.v1.AccountService/SignOutOtherSessions.
+    pub async fn sign_out_other_sessions(
+        &self,
+        request: crate::messages::nama::hub::v1::SignOutOtherSessionsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SignOutOtherSessionsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.sign_out_other_sessions_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SignOutOtherSessions RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn sign_out_other_sessions_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::SignOutOtherSessionsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SignOutOtherSessionsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                ACCOUNT_SERVICE_SIGN_OUT_OTHER_SESSIONS_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

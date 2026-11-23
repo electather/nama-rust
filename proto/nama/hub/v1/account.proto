@@ -10,9 +10,10 @@ package nama.hub.v1;
 // one, the passkey calls fail with `REFUSAL_REASON_PASSKEYS_OFF`. A challenge a `Start…` call
 // returns works once, for 5 minutes.
 //
-// Adding or removing a passkey needs Recent Authentication: the session signed in within the last
-// 10 minutes. Without it, those calls fail with `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED`
-// before anything in the request is checked, and signing in again gives it.
+// Adding or removing a passkey, and signing out other sessions, need Recent Authentication: the
+// session signed in within the last 10 minutes. Without it, those calls fail with
+// `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` before anything in the request is checked, and
+// signing in again gives it.
 service AccountService {
   // Creates an Account with an email and a password, and signs it in. Fails with
   // `REFUSAL_REASON_EMAIL_TAKEN` when another Account has the email, with
@@ -79,6 +80,16 @@ service AccountService {
   // when it has none with the id, and `REFUSAL_REASON_LAST_SIGN_IN_METHOD` when the Account would
   // have no other way to sign in.
   rpc RemovePasskey(RemovePasskeyRequest) returns (RemovePasskeyResponse);
+
+  // Lists the signed-in Account's live sessions, the most recently used first.
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Ends one of the signed-in Account's other sessions, so its next request is signed out. An id
+  // naming no other live session of the Account, such as the calling one's, changes nothing.
+  rpc SignOutSession(SignOutSessionRequest) returns (SignOutSessionResponse);
+  // Ends every session of the signed-in Account but the calling one.
+  rpc SignOutOtherSessions(SignOutOtherSessionsRequest) returns (SignOutOtherSessionsResponse);
 }
 
 // A person's identity on the Hub.
@@ -249,3 +260,33 @@ message RemovePasskeyRequest {
 }
 
 message RemovePasskeyResponse {}
+
+// One place the Account is signed in: a browser's session.
+message Session {
+  // The session's id, a UUID. Never its token.
+  string id = 1;
+  // The browser and OS it was last used from, read from its `User-Agent`, such as "Firefox on
+  // Windows", or "Unknown browser".
+  string name = 2;
+  // When it was last used, in seconds since the Unix epoch, to within 5 minutes.
+  int64 last_used_at = 3;
+  // Whether it's the calling session.
+  bool is_current = 4;
+}
+
+message ListSessionsRequest {}
+
+message ListSessionsResponse {
+  repeated Session sessions = 1;
+}
+
+message SignOutSessionRequest {
+  // The `Session.id`.
+  string session_id = 1;
+}
+
+message SignOutSessionResponse {}
+
+message SignOutOtherSessionsRequest {}
+
+message SignOutOtherSessionsResponse {}

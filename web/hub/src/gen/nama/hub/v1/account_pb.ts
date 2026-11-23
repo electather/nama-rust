@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/hub/v1/account.proto.
  */
 export const file_nama_hub_v1_account: GenFile = /*@__PURE__*/
-  fileDesc("ChluYW1hL2h1Yi92MS9hY2NvdW50LnByb3RvEgtuYW1hLmh1Yi52MSIkCgdBY2NvdW50EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJIjcKFENyZWF0ZUFjY291bnRSZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIj4KFUNyZWF0ZUFjY291bnRSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudCIwCg1TaWduSW5SZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIjcKDlNpZ25JblJlc3BvbnNlEiUKB2FjY291bnQYASABKAsyFC5uYW1hLmh1Yi52MS5BY2NvdW50IjsKFVNlbmRTaWduSW5MaW5rUmVxdWVzdBINCgVlbWFpbBgBIAEoCRITCgtjb250aW51ZV90bxgCIAEoCSIYChZTZW5kU2lnbkluTGlua1Jlc3BvbnNlIiUKFEdldFNpZ25JbkxpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFUdldFNpZ25JbkxpbmtSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudBIUCgxlbWFpbF9wcm92ZW4YAiABKAgiJgoVU2lnbkluV2l0aExpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFlNpZ25JbldpdGhMaW5rUmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQSEwoLY29udGludWVfdG8YAiABKAkiJgoSU2V0UGFzc3dvcmRSZXF1ZXN0EhAKCHBhc3N3b3JkGAEgASgJIhUKE1NldFBhc3N3b3JkUmVzcG9uc2UiFgoURGVsZXRlQWNjb3VudFJlcXVlc3QiFwoVRGVsZXRlQWNjb3VudFJlc3BvbnNlIhAKDlNpZ25PdXRSZXF1ZXN0IhEKD1NpZ25PdXRSZXNwb25zZSITChFHZXRBY2NvdW50UmVxdWVzdCJRChJHZXRBY2NvdW50UmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQSFAoMaGFzX3Bhc3N3b3JkGAIgASgIIiMKB1Bhc3NrZXkSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCSIbChlTdGFydFBhc3NrZXlTaWduSW5SZXF1ZXN0Ij4KGlN0YXJ0UGFzc2tleVNpZ25JblJlc3BvbnNlEhEKCWNoYWxsZW5nZRgBIAEoDBINCgVycF9pZBgCIAEoCSKPAQoYU2lnbkluV2l0aFBhc3NrZXlSZXF1ZXN0EhUKDWNyZWRlbnRpYWxfaWQYASABKAwSGAoQY2xpZW50X2RhdGFfanNvbhgCIAEoDBIaChJhdXRoZW50aWNhdG9yX2RhdGEYAyABKAwSEQoJc2lnbmF0dXJlGAQgASgMEhMKC3VzZXJfaGFuZGxlGAUgASgMIkIKGVNpZ25JbldpdGhQYXNza2V5UmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQiGwoZU3RhcnRBZGRpbmdQYXNza2V5UmVxdWVzdCJvChpTdGFydEFkZGluZ1Bhc3NrZXlSZXNwb25zZRIRCgljaGFsbGVuZ2UYASABKAwSDQoFcnBfaWQYAiABKAkSDwoHdXNlcl9pZBgDIAEoDBIeChZleGNsdWRlX2NyZWRlbnRpYWxfaWRzGAQgAygMIoQBChFBZGRQYXNza2V5UmVxdWVzdBIMCgRuYW1lGAEgASgJEhUKDWNyZWRlbnRpYWxfaWQYAiABKAwSGAoQY2xpZW50X2RhdGFfanNvbhgDIAEoDBISCgpwdWJsaWNfa2V5GAQgASgMEhwKFHB1YmxpY19rZXlfYWxnb3JpdGhtGAUgASgRIjsKEkFkZFBhc3NrZXlSZXNwb25zZRIlCgdwYXNza2V5GAEgASgLMhQubmFtYS5odWIudjEuUGFzc2tleSIVChNMaXN0UGFzc2tleXNSZXF1ZXN0Ij4KFExpc3RQYXNza2V5c1Jlc3BvbnNlEiYKCHBhc3NrZXlzGAEgAygLMhQubmFtYS5odWIudjEuUGFzc2tleSIqChRSZW1vdmVQYXNza2V5UmVxdWVzdBISCgpwYXNza2V5X2lkGAEgASgJIhcKFVJlbW92ZVBhc3NrZXlSZXNwb25zZTKwCgoOQWNjb3VudFNlcnZpY2USVgoNQ3JlYXRlQWNjb3VudBIhLm5hbWEuaHViLnYxLkNyZWF0ZUFjY291bnRSZXF1ZXN0GiIubmFtYS5odWIudjEuQ3JlYXRlQWNjb3VudFJlc3BvbnNlEkEKBlNpZ25JbhIaLm5hbWEuaHViLnYxLlNpZ25JblJlcXVlc3QaGy5uYW1hLmh1Yi52MS5TaWduSW5SZXNwb25zZRJZCg5TZW5kU2lnbkluTGluaxIiLm5hbWEuaHViLnYxLlNlbmRTaWduSW5MaW5rUmVxdWVzdBojLm5hbWEuaHViLnYxLlNlbmRTaWduSW5MaW5rUmVzcG9uc2USVgoNR2V0U2lnbkluTGluaxIhLm5hbWEuaHViLnYxLkdldFNpZ25JbkxpbmtSZXF1ZXN0GiIubmFtYS5odWIudjEuR2V0U2lnbkluTGlua1Jlc3BvbnNlElkKDlNpZ25JbldpdGhMaW5rEiIubmFtYS5odWIudjEuU2lnbkluV2l0aExpbmtSZXF1ZXN0GiMubmFtYS5odWIudjEuU2lnbkluV2l0aExpbmtSZXNwb25zZRJQCgtTZXRQYXNzd29yZBIfLm5hbWEuaHViLnYxLlNldFBhc3N3b3JkUmVxdWVzdBogLm5hbWEuaHViLnYxLlNldFBhc3N3b3JkUmVzcG9uc2USVgoNRGVsZXRlQWNjb3VudBIhLm5hbWEuaHViLnYxLkRlbGV0ZUFjY291bnRSZXF1ZXN0GiIubmFtYS5odWIudjEuRGVsZXRlQWNjb3VudFJlc3BvbnNlEkQKB1NpZ25PdXQSGy5uYW1hLmh1Yi52MS5TaWduT3V0UmVxdWVzdBocLm5hbWEuaHViLnYxLlNpZ25PdXRSZXNwb25zZRJSCgpHZXRBY2NvdW50Eh4ubmFtYS5odWIudjEuR2V0QWNjb3VudFJlcXVlc3QaHy5uYW1hLmh1Yi52MS5HZXRBY2NvdW50UmVzcG9uc2UiA5ACARJlChJTdGFydFBhc3NrZXlTaWduSW4SJi5uYW1hLmh1Yi52MS5TdGFydFBhc3NrZXlTaWduSW5SZXF1ZXN0GicubmFtYS5odWIudjEuU3RhcnRQYXNza2V5U2lnbkluUmVzcG9uc2USYgoRU2lnbkluV2l0aFBhc3NrZXkSJS5uYW1hLmh1Yi52MS5TaWduSW5XaXRoUGFzc2tleVJlcXVlc3QaJi5uYW1hLmh1Yi52MS5TaWduSW5XaXRoUGFzc2tleVJlc3BvbnNlEmUKElN0YXJ0QWRkaW5nUGFzc2tleRImLm5hbWEuaHViLnYxLlN0YXJ0QWRkaW5nUGFzc2tleVJlcXVlc3QaJy5uYW1hLmh1Yi52MS5TdGFydEFkZGluZ1Bhc3NrZXlSZXNwb25zZRJNCgpBZGRQYXNza2V5Eh4ubmFtYS5odWIudjEuQWRkUGFzc2tleVJlcXVlc3QaHy5uYW1hLmh1Yi52MS5BZGRQYXNza2V5UmVzcG9uc2USWAoMTGlzdFBhc3NrZXlzEiAubmFtYS5odWIudjEuTGlzdFBhc3NrZXlzUmVxdWVzdBohLm5hbWEuaHViLnYxLkxpc3RQYXNza2V5c1Jlc3BvbnNlIgOQAgESVgoNUmVtb3ZlUGFzc2tleRIhLm5hbWEuaHViLnYxLlJlbW92ZVBhc3NrZXlSZXF1ZXN0GiIubmFtYS5odWIudjEuUmVtb3ZlUGFzc2tleVJlc3BvbnNlYgZwcm90bzM");
+  fileDesc("ChluYW1hL2h1Yi92MS9hY2NvdW50LnByb3RvEgtuYW1hLmh1Yi52MSIkCgdBY2NvdW50EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJIjcKFENyZWF0ZUFjY291bnRSZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIj4KFUNyZWF0ZUFjY291bnRSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudCIwCg1TaWduSW5SZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIjcKDlNpZ25JblJlc3BvbnNlEiUKB2FjY291bnQYASABKAsyFC5uYW1hLmh1Yi52MS5BY2NvdW50IjsKFVNlbmRTaWduSW5MaW5rUmVxdWVzdBINCgVlbWFpbBgBIAEoCRITCgtjb250aW51ZV90bxgCIAEoCSIYChZTZW5kU2lnbkluTGlua1Jlc3BvbnNlIiUKFEdldFNpZ25JbkxpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFUdldFNpZ25JbkxpbmtSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudBIUCgxlbWFpbF9wcm92ZW4YAiABKAgiJgoVU2lnbkluV2l0aExpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFlNpZ25JbldpdGhMaW5rUmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQSEwoLY29udGludWVfdG8YAiABKAkiJgoSU2V0UGFzc3dvcmRSZXF1ZXN0EhAKCHBhc3N3b3JkGAEgASgJIhUKE1NldFBhc3N3b3JkUmVzcG9uc2UiFgoURGVsZXRlQWNjb3VudFJlcXVlc3QiFwoVRGVsZXRlQWNjb3VudFJlc3BvbnNlIhAKDlNpZ25PdXRSZXF1ZXN0IhEKD1NpZ25PdXRSZXNwb25zZSITChFHZXRBY2NvdW50UmVxdWVzdCJRChJHZXRBY2NvdW50UmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQSFAoMaGFzX3Bhc3N3b3JkGAIgASgIIiMKB1Bhc3NrZXkSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCSIbChlTdGFydFBhc3NrZXlTaWduSW5SZXF1ZXN0Ij4KGlN0YXJ0UGFzc2tleVNpZ25JblJlc3BvbnNlEhEKCWNoYWxsZW5nZRgBIAEoDBINCgVycF9pZBgCIAEoCSKPAQoYU2lnbkluV2l0aFBhc3NrZXlSZXF1ZXN0EhUKDWNyZWRlbnRpYWxfaWQYASABKAwSGAoQY2xpZW50X2RhdGFfanNvbhgCIAEoDBIaChJhdXRoZW50aWNhdG9yX2RhdGEYAyABKAwSEQoJc2lnbmF0dXJlGAQgASgMEhMKC3VzZXJfaGFuZGxlGAUgASgMIkIKGVNpZ25JbldpdGhQYXNza2V5UmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQiGwoZU3RhcnRBZGRpbmdQYXNza2V5UmVxdWVzdCJvChpTdGFydEFkZGluZ1Bhc3NrZXlSZXNwb25zZRIRCgljaGFsbGVuZ2UYASABKAwSDQoFcnBfaWQYAiABKAkSDwoHdXNlcl9pZBgDIAEoDBIeChZleGNsdWRlX2NyZWRlbnRpYWxfaWRzGAQgAygMIoQBChFBZGRQYXNza2V5UmVxdWVzdBIMCgRuYW1lGAEgASgJEhUKDWNyZWRlbnRpYWxfaWQYAiABKAwSGAoQY2xpZW50X2RhdGFfanNvbhgDIAEoDBISCgpwdWJsaWNfa2V5GAQgASgMEhwKFHB1YmxpY19rZXlfYWxnb3JpdGhtGAUgASgRIjsKEkFkZFBhc3NrZXlSZXNwb25zZRIlCgdwYXNza2V5GAEgASgLMhQubmFtYS5odWIudjEuUGFzc2tleSIVChNMaXN0UGFzc2tleXNSZXF1ZXN0Ij4KFExpc3RQYXNza2V5c1Jlc3BvbnNlEiYKCHBhc3NrZXlzGAEgAygLMhQubmFtYS5odWIudjEuUGFzc2tleSIqChRSZW1vdmVQYXNza2V5UmVxdWVzdBISCgpwYXNza2V5X2lkGAEgASgJIhcKFVJlbW92ZVBhc3NrZXlSZXNwb25zZSJNCgdTZXNzaW9uEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSFAoMbGFzdF91c2VkX2F0GAMgASgDEhIKCmlzX2N1cnJlbnQYBCABKAgiFQoTTGlzdFNlc3Npb25zUmVxdWVzdCI+ChRMaXN0U2Vzc2lvbnNSZXNwb25zZRImCghzZXNzaW9ucxgBIAMoCzIULm5hbWEuaHViLnYxLlNlc3Npb24iKwoVU2lnbk91dFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkiGAoWU2lnbk91dFNlc3Npb25SZXNwb25zZSIdChtTaWduT3V0T3RoZXJTZXNzaW9uc1JlcXVlc3QiHgocU2lnbk91dE90aGVyU2Vzc2lvbnNSZXNwb25zZTLSDAoOQWNjb3VudFNlcnZpY2USVgoNQ3JlYXRlQWNjb3VudBIhLm5hbWEuaHViLnYxLkNyZWF0ZUFjY291bnRSZXF1ZXN0GiIubmFtYS5odWIudjEuQ3JlYXRlQWNjb3VudFJlc3BvbnNlEkEKBlNpZ25JbhIaLm5hbWEuaHViLnYxLlNpZ25JblJlcXVlc3QaGy5uYW1hLmh1Yi52MS5TaWduSW5SZXNwb25zZRJZCg5TZW5kU2lnbkluTGluaxIiLm5hbWEuaHViLnYxLlNlbmRTaWduSW5MaW5rUmVxdWVzdBojLm5hbWEuaHViLnYxLlNlbmRTaWduSW5MaW5rUmVzcG9uc2USVgoNR2V0U2lnbkluTGluaxIhLm5hbWEuaHViLnYxLkdldFNpZ25JbkxpbmtSZXF1ZXN0GiIubmFtYS5odWIudjEuR2V0U2lnbkluTGlua1Jlc3BvbnNlElkKDlNpZ25JbldpdGhMaW5rEiIubmFtYS5odWIudjEuU2lnbkluV2l0aExpbmtSZXF1ZXN0GiMubmFtYS5odWIudjEuU2lnbkluV2l0aExpbmtSZXNwb25zZRJQCgtTZXRQYXNzd29yZBIfLm5hbWEuaHViLnYxLlNldFBhc3N3b3JkUmVxdWVzdBogLm5hbWEuaHViLnYxLlNldFBhc3N3b3JkUmVzcG9uc2USVgoNRGVsZXRlQWNjb3VudBIhLm5hbWEuaHViLnYxLkRlbGV0ZUFjY291bnRSZXF1ZXN0GiIubmFtYS5odWIudjEuRGVsZXRlQWNjb3VudFJlc3BvbnNlEkQKB1NpZ25PdXQSGy5uYW1hLmh1Yi52MS5TaWduT3V0UmVxdWVzdBocLm5hbWEuaHViLnYxLlNpZ25PdXRSZXNwb25zZRJSCgpHZXRBY2NvdW50Eh4ubmFtYS5odWIudjEuR2V0QWNjb3VudFJlcXVlc3QaHy5uYW1hLmh1Yi52MS5HZXRBY2NvdW50UmVzcG9uc2UiA5ACARJlChJTdGFydFBhc3NrZXlTaWduSW4SJi5uYW1hLmh1Yi52MS5TdGFydFBhc3NrZXlTaWduSW5SZXF1ZXN0GicubmFtYS5odWIudjEuU3RhcnRQYXNza2V5U2lnbkluUmVzcG9uc2USYgoRU2lnbkluV2l0aFBhc3NrZXkSJS5uYW1hLmh1Yi52MS5TaWduSW5XaXRoUGFzc2tleVJlcXVlc3QaJi5uYW1hLmh1Yi52MS5TaWduSW5XaXRoUGFzc2tleVJlc3BvbnNlEmUKElN0YXJ0QWRkaW5nUGFzc2tleRImLm5hbWEuaHViLnYxLlN0YXJ0QWRkaW5nUGFzc2tleVJlcXVlc3QaJy5uYW1hLmh1Yi52MS5TdGFydEFkZGluZ1Bhc3NrZXlSZXNwb25zZRJNCgpBZGRQYXNza2V5Eh4ubmFtYS5odWIudjEuQWRkUGFzc2tleVJlcXVlc3QaHy5uYW1hLmh1Yi52MS5BZGRQYXNza2V5UmVzcG9uc2USWAoMTGlzdFBhc3NrZXlzEiAubmFtYS5odWIudjEuTGlzdFBhc3NrZXlzUmVxdWVzdBohLm5hbWEuaHViLnYxLkxpc3RQYXNza2V5c1Jlc3BvbnNlIgOQAgESVgoNUmVtb3ZlUGFzc2tleRIhLm5hbWEuaHViLnYxLlJlbW92ZVBhc3NrZXlSZXF1ZXN0GiIubmFtYS5odWIudjEuUmVtb3ZlUGFzc2tleVJlc3BvbnNlElgKDExpc3RTZXNzaW9ucxIgLm5hbWEuaHViLnYxLkxpc3RTZXNzaW9uc1JlcXVlc3QaIS5uYW1hLmh1Yi52MS5MaXN0U2Vzc2lvbnNSZXNwb25zZSIDkAIBElkKDlNpZ25PdXRTZXNzaW9uEiIubmFtYS5odWIudjEuU2lnbk91dFNlc3Npb25SZXF1ZXN0GiMubmFtYS5odWIudjEuU2lnbk91dFNlc3Npb25SZXNwb25zZRJrChRTaWduT3V0T3RoZXJTZXNzaW9ucxIoLm5hbWEuaHViLnYxLlNpZ25PdXRPdGhlclNlc3Npb25zUmVxdWVzdBopLm5hbWEuaHViLnYxLlNpZ25PdXRPdGhlclNlc3Npb25zUmVzcG9uc2ViBnByb3RvMw");
 
 /**
  * A person's identity on the Hub.
@@ -696,6 +696,137 @@ export const RemovePasskeyResponseSchema: GenMessage<RemovePasskeyResponse> = /*
   messageDesc(file_nama_hub_v1_account, 31);
 
 /**
+ * One place the Account is signed in: a browser's session.
+ *
+ * @generated from message nama.hub.v1.Session
+ */
+export type Session = Message<"nama.hub.v1.Session"> & {
+  /**
+   * The session's id, a UUID. Never its token.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The browser and OS it was last used from, read from its `User-Agent`, such as "Firefox on
+   * Windows", or "Unknown browser".
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * When it was last used, in seconds since the Unix epoch, to within 5 minutes.
+   *
+   * @generated from field: int64 last_used_at = 3;
+   */
+  lastUsedAt: bigint;
+
+  /**
+   * Whether it's the calling session.
+   *
+   * @generated from field: bool is_current = 4;
+   */
+  isCurrent: boolean;
+};
+
+/**
+ * Describes the message nama.hub.v1.Session.
+ * Use `create(SessionSchema)` to create a new message.
+ */
+export const SessionSchema: GenMessage<Session> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 32);
+
+/**
+ * @generated from message nama.hub.v1.ListSessionsRequest
+ */
+export type ListSessionsRequest = Message<"nama.hub.v1.ListSessionsRequest"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.ListSessionsRequest.
+ * Use `create(ListSessionsRequestSchema)` to create a new message.
+ */
+export const ListSessionsRequestSchema: GenMessage<ListSessionsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 33);
+
+/**
+ * @generated from message nama.hub.v1.ListSessionsResponse
+ */
+export type ListSessionsResponse = Message<"nama.hub.v1.ListSessionsResponse"> & {
+  /**
+   * @generated from field: repeated nama.hub.v1.Session sessions = 1;
+   */
+  sessions: Session[];
+};
+
+/**
+ * Describes the message nama.hub.v1.ListSessionsResponse.
+ * Use `create(ListSessionsResponseSchema)` to create a new message.
+ */
+export const ListSessionsResponseSchema: GenMessage<ListSessionsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 34);
+
+/**
+ * @generated from message nama.hub.v1.SignOutSessionRequest
+ */
+export type SignOutSessionRequest = Message<"nama.hub.v1.SignOutSessionRequest"> & {
+  /**
+   * The `Session.id`.
+   *
+   * @generated from field: string session_id = 1;
+   */
+  sessionId: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.SignOutSessionRequest.
+ * Use `create(SignOutSessionRequestSchema)` to create a new message.
+ */
+export const SignOutSessionRequestSchema: GenMessage<SignOutSessionRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 35);
+
+/**
+ * @generated from message nama.hub.v1.SignOutSessionResponse
+ */
+export type SignOutSessionResponse = Message<"nama.hub.v1.SignOutSessionResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.SignOutSessionResponse.
+ * Use `create(SignOutSessionResponseSchema)` to create a new message.
+ */
+export const SignOutSessionResponseSchema: GenMessage<SignOutSessionResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 36);
+
+/**
+ * @generated from message nama.hub.v1.SignOutOtherSessionsRequest
+ */
+export type SignOutOtherSessionsRequest = Message<"nama.hub.v1.SignOutOtherSessionsRequest"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.SignOutOtherSessionsRequest.
+ * Use `create(SignOutOtherSessionsRequestSchema)` to create a new message.
+ */
+export const SignOutOtherSessionsRequestSchema: GenMessage<SignOutOtherSessionsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 37);
+
+/**
+ * @generated from message nama.hub.v1.SignOutOtherSessionsResponse
+ */
+export type SignOutOtherSessionsResponse = Message<"nama.hub.v1.SignOutOtherSessionsResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.SignOutOtherSessionsResponse.
+ * Use `create(SignOutOtherSessionsResponseSchema)` to create a new message.
+ */
+export const SignOutOtherSessionsResponseSchema: GenMessage<SignOutOtherSessionsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 38);
+
+/**
  * Creating an Account, signing it in and out, and its passkeys, for the Hub's web pages. A session
  * is an HttpOnly `SameSite=Strict` cookie (ADR 0015), never in a response body. Failures a client
  * can cause carry a `nama.hub.v1.Refusal`.
@@ -704,9 +835,10 @@ export const RemovePasskeyResponseSchema: GenMessage<RemovePasskeyResponse> = /*
  * one, the passkey calls fail with `REFUSAL_REASON_PASSKEYS_OFF`. A challenge a `Start…` call
  * returns works once, for 5 minutes.
  *
- * Adding or removing a passkey needs Recent Authentication: the session signed in within the last
- * 10 minutes. Without it, those calls fail with `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED`
- * before anything in the request is checked, and signing in again gives it.
+ * Adding or removing a passkey, and signing out other sessions, need Recent Authentication: the
+ * session signed in within the last 10 minutes. Without it, those calls fail with
+ * `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` before anything in the request is checked, and
+ * signing in again gives it.
  *
  * @generated from service nama.hub.v1.AccountService
  */
@@ -890,6 +1022,37 @@ export const AccountService: GenService<{
     methodKind: "unary";
     input: typeof RemovePasskeyRequestSchema;
     output: typeof RemovePasskeyResponseSchema;
+  },
+  /**
+   * Lists the signed-in Account's live sessions, the most recently used first.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.ListSessions
+   */
+  listSessions: {
+    methodKind: "unary";
+    input: typeof ListSessionsRequestSchema;
+    output: typeof ListSessionsResponseSchema;
+  },
+  /**
+   * Ends one of the signed-in Account's other sessions, so its next request is signed out. An id
+   * naming no other live session of the Account, such as the calling one's, changes nothing.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.SignOutSession
+   */
+  signOutSession: {
+    methodKind: "unary";
+    input: typeof SignOutSessionRequestSchema;
+    output: typeof SignOutSessionResponseSchema;
+  },
+  /**
+   * Ends every session of the signed-in Account but the calling one.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.SignOutOtherSessions
+   */
+  signOutOtherSessions: {
+    methodKind: "unary";
+    input: typeof SignOutOtherSessionsRequestSchema;
+    output: typeof SignOutOtherSessionsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_hub_v1_account, 0);
