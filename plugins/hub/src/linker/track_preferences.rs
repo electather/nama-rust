@@ -14,7 +14,6 @@ use nama_plugin_api::{
         TrackDescription, TrackPreference, TrackPreferenceChange, TrackPreferenceChanged,
         TrackPreferenceFor,
     },
-    server_link::Link,
 };
 
 use super::{Linker, store_key, watch_states::MAX_ID_LENGTH};
@@ -51,9 +50,9 @@ impl Observer<TrackPreferenceChanged> for TrackPreferenceSync {
 impl Linker {
     /// Queues `changed`, if its User is Linked, asking the Hub as Watch State changes do.
     async fn queue_preference(&self, changed: &TrackPreferenceChange) -> Result<(), PluginError> {
-        let Some(Link::Linked { .. }) = self.current_user_link(changed.user_id).await? else {
+        if !self.user_linked(changed.user_id).await? {
             return Ok(());
-        };
+        }
         let under_each_id = changes_to_proto(changed);
         if under_each_id.is_empty() {
             return Ok(());
@@ -66,20 +65,16 @@ impl Linker {
         self.put_json(QUEUE_KEY.to_owned(), &queued).await
     }
 
-    /// Sends the queue to the Hub and forgets it. Without the Server's Link, the queue has
-    /// nowhere to go, and is forgotten.
+    /// Sends the queue to the Hub and forgets it. Without the Server's Link, such as once the Hub
+    /// dropped it, the queue has nowhere to go, and is forgotten.
     pub(super) async fn send_queued_preferences(&self) -> Result<(), PluginError> {
         let _queue = self.queue.lock().await;
         let Some(queued) = self.stored_json::<Vec<Change>>(QUEUE_KEY).await? else {
             return Ok(());
         };
-        if let Some(kept) = self.kept().await? {
-            // A chunk sent again after a later one fails is merged the same way twice.
-            for chunk in queued.chunks(PUSH_CHANGES) {
-                (self.hub)
-                    .push_track_preferences(&kept.credential, chunk.to_vec())
-                    .await?;
-            }
+        // A chunk sent again after a later one fails is merged the same way twice.
+        for chunk in queued.chunks(PUSH_CHANGES) {
+            (self.call(|hub| hub.push_track_preferences(chunk.to_vec()))).await?;
         }
         self.kernel.ask::<StoreDelete>(store_key(QUEUE_KEY)).await?;
         Ok(())
@@ -93,13 +88,10 @@ impl Linker {
         user_id: i64,
     ) -> Result<Vec<TrackPreference>, PluginError> {
         self.send_queued_preferences().await?;
-        let Some(kept) = self.kept().await? else {
-            return Ok(Vec::new());
-        };
-        let pulled = (self.hub)
-            .pull_track_preferences(&kept.credential, user_id)
-            .await?;
-        Ok(pulled.into_iter().filter_map(change_from_proto).collect())
+        let pulled = self.call(|hub| hub.pull_track_preferences(user_id)).await?;
+        Ok((pulled.unwrap_or_default().into_iter())
+            .filter_map(change_from_proto)
+            .collect())
     }
 }
 

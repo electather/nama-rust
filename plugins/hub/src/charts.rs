@@ -19,41 +19,44 @@ use nama_plugin_api::{
     home_row::{HomeRowMethod, HomeRowSource},
 };
 
-use crate::{hub::Hub, linker};
+use crate::{hub::LinkedHub, linker::Linker};
 
 /// How long a row stays fresh: the charts move over weeks, so a day costs them little.
 const TTL_SECONDS: u32 = 24 * 60 * 60;
 
 /// Asks the Hub, as the Linked Server, for Nama's charts.
 pub(crate) struct Charts {
-    hub: Hub,
+    linker: Arc<Linker>,
     kernel: Arc<dyn Kernel>,
 }
 
 impl Charts {
-    /// Nama's charts from `hub`, as the Server `kernel` serves.
-    pub(crate) fn new(hub: Hub, kernel: Arc<dyn Kernel>) -> Self {
-        Self { hub, kernel }
+    /// Nama's charts from the Hub the Server's `linker` holds the Link to, as the Server `kernel`
+    /// serves.
+    pub(crate) fn new(linker: Arc<Linker>, kernel: Arc<dyn Kernel>) -> Self {
+        Self { linker, kernel }
     }
 
     /// The rows: none while the Server isn't Linked, and each empty, which home hides, until the
     /// Hub has enough counts.
     async fn rows(&self) -> Result<HomeRows, PluginError> {
-        let Some(credential) = linker::credential(self.kernel.as_ref()).await? else {
+        let Some(trending) = self.linker.call(LinkedHub::trending).await? else {
+            return Ok(HomeRows::default());
+        };
+        let Some(watchlisted) = self.linker.call(LinkedHub::most_watchlisted).await? else {
             return Ok(HomeRows::default());
         };
         Ok(HomeRows {
             rows: vec![
-                self.trending(&credential).await?,
-                self.most_watchlisted(&credential).await?,
+                self.trending(trending.titles).await?,
+                most_watchlisted(watchlisted.titles),
             ],
             ..Default::default()
         })
     }
 
-    /// "Trending on Nama", empty too while the Libraries have none of what the Hub answers.
-    async fn trending(&self, credential: &str) -> Result<HomeRow, PluginError> {
-        let trending = self.hub.trending(credential).await?.titles;
+    /// "Trending on Nama" of `trending`, empty too while the Libraries have none of them.
+    async fn trending(&self, trending: Vec<TrendingTitle>) -> Result<HomeRow, PluginError> {
         let movies = self.movies().await?;
         // Missing titles would show as Requests, but this row is only what Users can play.
         let titles = (trending.into_iter())
@@ -66,17 +69,6 @@ impl Charts {
             })
             .collect();
         Ok(row("trending", "Trending on Nama", titles))
-    }
-
-    /// "Most watchlisted on Nama", in the Hub's order, whether or not the Server has each.
-    async fn most_watchlisted(&self, credential: &str) -> Result<HomeRow, PluginError> {
-        let watchlisted = self.hub.most_watchlisted(credential).await?.titles;
-        let titles = watchlisted.into_iter().filter_map(watchlisted_title);
-        Ok(row(
-            "most-watchlisted",
-            "Most watchlisted on Nama",
-            titles.collect(),
-        ))
     }
 
     /// The namespace and value of the id each Movie in the Server's Libraries keeps its Watch
@@ -115,6 +107,17 @@ impl HomeRowSource for Charts {
     fn gives(&self, method: HomeRowMethod) -> bool {
         method == HomeRowMethod::Shared
     }
+}
+
+/// "Most watchlisted on Nama" of `watchlisted`, in the Hub's order, whether or not the Server has
+/// each.
+fn most_watchlisted(watchlisted: Vec<WatchlistedTitle>) -> HomeRow {
+    let titles = watchlisted.into_iter().filter_map(watchlisted_title);
+    row(
+        "most-watchlisted",
+        "Most watchlisted on Nama",
+        titles.collect(),
+    )
 }
 
 /// `trending`'s id as the Kernel takes it, or `None` without one.

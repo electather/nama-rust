@@ -6,24 +6,16 @@ use std::sync::Arc;
 use nama_hub_proto::nama::hub::v1::{self as hub, ListSimilarTitlesRequest};
 use nama_plugin_api::{
     BoxFuture, PluginError,
-    automation::Kernel,
     contract::{SimilarAsked, SimilarTitle, SimilarTitles, TitleId, TitleKind},
     similar_source::SimilarSource,
 };
 
-use crate::{hub::Hub, linker};
+use crate::linker::Linker;
 
 /// Asks the Hub, as the Linked Server, which titles are like one.
-pub(crate) struct Similar {
-    hub: Hub,
-    kernel: Arc<dyn Kernel>,
-}
+pub(crate) struct Similar(pub(crate) Arc<Linker>);
 
 impl Similar {
-    pub(crate) fn new(hub: Hub, kernel: Arc<dyn Kernel>) -> Self {
-        Self { hub, kernel }
-    }
-
     /// The Hub's answer for `asked`: none while the Server isn't Linked, which isn't a failure, so
     /// the Server's other Similar sources answer alone.
     async fn ask(&self, asked: &SimilarAsked) -> Result<SimilarTitles, PluginError> {
@@ -31,9 +23,6 @@ impl Similar {
             Some(TitleKind::TITLE_KIND_MOVIE) => hub::TitleKind::TITLE_KIND_MOVIE,
             Some(TitleKind::TITLE_KIND_SHOW) => hub::TitleKind::TITLE_KIND_SHOW,
             Some(TitleKind::TITLE_KIND_UNSPECIFIED) | None => return Ok(SimilarTitles::default()),
-        };
-        let Some(credential) = linker::credential(self.kernel.as_ref()).await? else {
-            return Ok(SimilarTitles::default());
         };
         let request = ListSimilarTitlesRequest {
             kind: kind.into(),
@@ -48,10 +37,9 @@ impl Similar {
                 .collect(),
             ..Default::default()
         };
-        let similar = self.hub.similar(&credential, request).await?;
+        let similar = self.0.call(|hub| hub.similar(request)).await?;
         Ok(SimilarTitles {
-            titles: similar
-                .titles
+            titles: (similar.unwrap_or_default().titles)
                 .into_iter()
                 .filter_map(similar_title)
                 .collect(),

@@ -83,6 +83,15 @@ impl Hub {
         &self.url
     }
 
+    /// The Hub's API for the Linked Server whose credential is `credential`. Only the Link holder
+    /// has one to give.
+    pub(crate) fn linked(&self, credential: &str) -> LinkedHub {
+        LinkedHub {
+            hub: self.clone(),
+            credential: credential.to_owned(),
+        }
+    }
+
     fn config(&self) -> Result<ClientConfig, PluginError> {
         Ok(ClientConfig::new(self.url.parse()?).with_default_timeout(TIMEOUT))
     }
@@ -119,383 +128,6 @@ impl Hub {
         }
     }
 
-    /// Unlinks the Server whose credential is `credential`. One the Hub doesn't know any more is
-    /// `REFUSAL_REASON_SERVER_NOT_LINKED`, the call's one `unauthenticated`, so Unlinked already.
-    pub(crate) async fn unlink(&self, credential: &str) -> Result<(), PluginError> {
-        let unlinked = self
-            .linked_server(credential)?
-            .unlink_server(UnlinkServerRequest::default())
-            .await;
-        done_if_forgotten(unlinked.map(drop))
-    }
-
-    /// Starts Linking the User `user_id`, named `name`, of the Server whose credential is
-    /// `credential`: `None` if they are Linked already, the Hub's one `already_exists`.
-    pub(crate) async fn start_user(
-        &self,
-        credential: &str,
-        user_id: i64,
-        name: &str,
-    ) -> Result<Option<StartUserLinkResponse>, PluginError> {
-        let started = self
-            .linked_server(credential)?
-            .start_user_link(StartUserLinkRequest {
-                user_id,
-                name: name.to_owned(),
-                ..Default::default()
-            })
-            .await;
-        match started {
-            Ok(started) => Ok(Some(started.into_owned())),
-            Err(err) if err.code == connectrpc::ErrorCode::AlreadyExists => Ok(None),
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    /// The email of the Account the User `user_id` is Linked to, empty while they aren't; a
-    /// [`LinkDropped`] error if the Hub doesn't know `credential` any more.
-    pub(crate) async fn user_account(
-        &self,
-        credential: &str,
-        user_id: i64,
-    ) -> Result<String, PluginError> {
-        let got = self
-            .linked_server(credential)?
-            .get_user_link(GetUserLinkRequest {
-                user_id,
-                ..Default::default()
-            })
-            .await
-            .map_err(link_dropped)?;
-        Ok(got.into_owned().account)
-    }
-
-    /// Unlinks the User `user_id`. A Server the Hub doesn't know any more has no Linked Users.
-    pub(crate) async fn unlink_user(
-        &self,
-        credential: &str,
-        user_id: i64,
-    ) -> Result<(), PluginError> {
-        let unlinked = self
-            .linked_server(credential)?
-            .unlink_user(UnlinkUserRequest {
-                user_id,
-                ..Default::default()
-            })
-            .await;
-        done_if_forgotten(unlinked.map(drop))
-    }
-
-    /// Pushes `changes` to the Watch State of the Accounts the Users of the Server whose credential
-    /// is `credential` are Linked to, in order. A Server the Hub doesn't know any more, such as one
-    /// whose Account was deleted, has no Linked Users to push to, so that counts as done.
-    pub(crate) async fn push_watch_states(
-        &self,
-        credential: &str,
-        changes: Vec<WatchStateChange>,
-    ) -> Result<(), PluginError> {
-        let pushed = self
-            .linked_server(credential)?
-            .push_watch_states(PushWatchStatesRequest {
-                changes,
-                ..Default::default()
-            })
-            .await;
-        done_if_forgotten(pushed.map(drop))
-    }
-
-    /// The Watch State of the Account the User `user_id` of the Server whose credential is
-    /// `credential` is Linked to, each title by each id apart; empty while they aren't Linked.
-    pub(crate) async fn pull_watch_states(
-        &self,
-        credential: &str,
-        user_id: i64,
-    ) -> Result<Vec<WatchStateChange>, PluginError> {
-        let pulled = self
-            .linked_server(credential)?
-            .pull_watch_states(PullWatchStatesRequest {
-                user_id,
-                ..Default::default()
-            })
-            .await?;
-        Ok(pulled.into_owned().watch_states)
-    }
-
-    /// Merges `changes` to the Track Preferences of the Users of the Server whose credential is
-    /// `credential` into their Accounts'.
-    pub(crate) async fn push_track_preferences(
-        &self,
-        credential: &str,
-        changes: Vec<TrackPreferenceChange>,
-    ) -> Result<(), PluginError> {
-        self.linked_server(credential)?
-            .push_track_preferences(PushTrackPreferencesRequest {
-                changes,
-                ..Default::default()
-            })
-            .await?;
-        Ok(())
-    }
-
-    /// The Track Preferences of the Account the User `user_id` of the Server whose credential is
-    /// `credential` is Linked to; empty while they aren't Linked.
-    pub(crate) async fn pull_track_preferences(
-        &self,
-        credential: &str,
-        user_id: i64,
-    ) -> Result<Vec<TrackPreferenceChange>, PluginError> {
-        let pulled = self
-            .linked_server(credential)?
-            .pull_track_preferences(PullTrackPreferencesRequest {
-                user_id,
-                ..Default::default()
-            })
-            .await?;
-        Ok(pulled.into_owned().preferences)
-    }
-
-    /// Merges `entries`, the whole Watchlist of the User `user_id` of the Server whose credential
-    /// is `credential`, into the Account they are Linked to, and answers the Account's, each title
-    /// by each id apart; empty while they aren't Linked.
-    pub(crate) async fn sync_watchlist(
-        &self,
-        credential: &str,
-        user_id: i64,
-        entries: Vec<WatchlistEntry>,
-    ) -> Result<Vec<WatchlistEntry>, PluginError> {
-        let synced = self
-            .linked_server(credential)?
-            .sync_watchlist(SyncWatchlistRequest {
-                user_id,
-                entries,
-                ..Default::default()
-            })
-            .await?;
-        Ok(synced.into_owned().entries)
-    }
-
-    /// Asks the Account with `email`, if any, to accept the User `user_id`, named `name`, of the
-    /// Server whose credential is `credential`.
-    pub(crate) async fn invite_user(
-        &self,
-        credential: &str,
-        user_id: i64,
-        name: &str,
-        email: &str,
-    ) -> Result<(), PluginError> {
-        self.linked_server(credential)?
-            .invite_user(InviteUserRequest {
-                user_id,
-                name: name.to_owned(),
-                email: email.to_owned(),
-                ..Default::default()
-            })
-            .await?;
-        Ok(())
-    }
-
-    /// Tells the Hub `addresses` are where clients reach the Server whose credential is
-    /// `credential`, and answers whether the Hub reached its public port, if it has one; a
-    /// [`LinkDropped`] error if the Hub doesn't know `credential` any more.
-    pub(crate) async fn set_addresses(
-        &self,
-        credential: &str,
-        addresses: &ServerAddresses,
-    ) -> Result<Option<Reachability>, PluginError> {
-        let checked = self
-            .linked_server(credential)?
-            .set_server_addresses(SetServerAddressesRequest {
-                url: addresses.url.clone(),
-                lan_addresses: addresses.lan.clone(),
-                public_port: addresses.public_port.map_or(0, u32::from),
-                ..Default::default()
-            })
-            .await
-            .map_err(link_dropped)?
-            .into_owned();
-        Ok(
-            (!checked.public_address.is_empty()).then_some(Reachability {
-                address: checked.public_address,
-                reachable: checked.reachable,
-            }),
-        )
-    }
-
-    /// Records `events`, Viewing Events of the Server whose credential is `credential`. A refusal
-    /// sending them again would meet too, the Hub not knowing the credential or finding an event
-    /// invalid, counts as done, so they aren't kept forever.
-    pub(crate) async fn record_viewing_events(
-        &self,
-        credential: &str,
-        events: RecordViewingEventsRequest,
-    ) -> Result<(), PluginError> {
-        let recorded = (self.linked_server(credential)?)
-            .record_viewing_events(events)
-            .await;
-        match recorded {
-            Err(err)
-                if !matches!(
-                    err.code,
-                    connectrpc::ErrorCode::Unauthenticated | connectrpc::ErrorCode::InvalidArgument
-                ) =>
-            {
-                Err(err.into())
-            }
-            _ => Ok(()),
-        }
-    }
-
-    /// Starts a sign-in with an Account to the Server whose credential is `credential`, which the
-    /// Hub's page sends back to `return_url`.
-    pub(crate) async fn start_sign_in(
-        &self,
-        credential: &str,
-        return_url: &str,
-    ) -> Result<StartServerSignInResponse, PluginError> {
-        let started = self
-            .linked_server(credential)?
-            .start_server_sign_in(StartServerSignInRequest {
-                return_url: return_url.to_owned(),
-                ..Default::default()
-            })
-            .await?;
-        Ok(started.into_owned())
-    }
-
-    /// The token naming the User the sign-in polled with `device_code` signs in as, once an
-    /// Account approved it and `code` is the one-time code the Hub sent the person back with;
-    /// `None` before, and for one that expired or was used or a wrong code, the call's one
-    /// `not_found`.
-    pub(crate) async fn poll_sign_in(
-        &self,
-        credential: &str,
-        device_code: &str,
-        code: &str,
-    ) -> Result<Option<String>, PluginError> {
-        let polled = self
-            .linked_server(credential)?
-            .poll_server_sign_in(PollServerSignInRequest {
-                device_code: device_code.to_owned(),
-                code: code.to_owned(),
-                ..Default::default()
-            })
-            .await;
-        match polled {
-            Ok(polled) => Ok(Some(polled.into_owned().token).filter(|token| !token.is_empty())),
-            Err(err) if err.code == connectrpc::ErrorCode::NotFound => Ok(None),
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    /// The Hub's API for the Server whose credential is `credential`.
-    fn linked_server(
-        &self,
-        credential: &str,
-    ) -> Result<LinkedServerServiceClient<Transport>, PluginError> {
-        let config = self
-            .config()?
-            .with_default_header("authorization", format!("Bearer {credential}"));
-        Ok(LinkedServerServiceClient::new(
-            self.transport.clone(),
-            config,
-        ))
-    }
-
-    /// Posts `batch`, an OTLP/HTTP protobuf export request of `signal`, to the Hub as the Server
-    /// whose credential is `credential`, for it to forward to Nama's developers (ADR 0054).
-    pub(crate) async fn share(
-        &self,
-        credential: &str,
-        signal: Signal,
-        batch: Vec<u8>,
-    ) -> Result<(), PluginError> {
-        let request = Request::post(format!("{}/otlp/{}", self.url, signal.path()))
-            .header(CONTENT_TYPE, "application/x-protobuf")
-            .header(AUTHORIZATION, format!("Bearer {credential}"))
-            .body(full_body(Bytes::from(batch)))?;
-        let status = tokio::time::timeout(TIMEOUT, self.transport.send(request))
-            .await??
-            .status();
-        if !status.is_success() {
-            return Err(format!("the Hub answered {status} for shared Diagnostics").into());
-        }
-        Ok(())
-    }
-
-    /// The titles like the one `request` names, asked as the Server whose credential is
-    /// `credential`. Empty if the Hub doesn't know the credential any more, as [`Hub::unlink`]
-    /// takes it: a Server no longer Linked has no answer, which isn't a failure.
-    pub(crate) async fn similar(
-        &self,
-        credential: &str,
-        request: ListSimilarTitlesRequest,
-    ) -> Result<ListSimilarTitlesResponse, PluginError> {
-        match (self.linked_server(credential)?)
-            .list_similar_titles(request)
-            .await
-        {
-            Ok(similar) => Ok(similar.into_owned()),
-            Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => {
-                Ok(ListSimilarTitlesResponse::default())
-            }
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    /// The titles the Hub recommends to the User `request` names, asked as the Server whose
-    /// credential is `credential`. Empty if the Hub doesn't know the credential any more, as
-    /// [`Hub::similar`] takes it.
-    pub(crate) async fn recommended(
-        &self,
-        credential: &str,
-        request: ListRecommendedTitlesRequest,
-    ) -> Result<Vec<RecommendedTitle>, PluginError> {
-        match (self.linked_server(credential)?)
-            .list_recommended_titles(request)
-            .await
-        {
-            Ok(recommended) => Ok(recommended.into_owned().titles),
-            Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => Ok(Vec::new()),
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    /// The Movies trending across Nama's Accounts, asked as the Server whose credential is
-    /// `credential`. Empty if the Hub doesn't know the credential any more, as [`Hub::similar`].
-    pub(crate) async fn trending(
-        &self,
-        credential: &str,
-    ) -> Result<ListTrendingTitlesResponse, PluginError> {
-        match (self.linked_server(credential)?)
-            .list_trending_titles(ListTrendingTitlesRequest::default())
-            .await
-        {
-            Ok(trending) => Ok(trending.into_owned()),
-            Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => {
-                Ok(ListTrendingTitlesResponse::default())
-            }
-            Err(err) => Err(err.into()),
-        }
-    }
-
-    /// The titles on most of Nama's Accounts' Watchlists, asked as the Server whose credential is
-    /// `credential`. Empty if the Hub doesn't know the credential any more, as [`Hub::similar`].
-    pub(crate) async fn most_watchlisted(
-        &self,
-        credential: &str,
-    ) -> Result<ListMostWatchlistedTitlesResponse, PluginError> {
-        match (self.linked_server(credential)?)
-            .list_most_watchlisted_titles(ListMostWatchlistedTitlesRequest::default())
-            .await
-        {
-            Ok(watchlisted) => Ok(watchlisted.into_owned()),
-            Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => {
-                Ok(ListMostWatchlistedTitlesResponse::default())
-            }
-            Err(err) => Err(err.into()),
-        }
-    }
-
     /// The Hub's published key set, as JSON.
     pub(crate) async fn key_set(&self) -> Result<Bytes, PluginError> {
         let request = Request::get(format!("{}/.well-known/jwks.json", self.url))
@@ -517,12 +149,316 @@ impl Hub {
     }
 }
 
-/// `called`, where the Hub not knowing the Server's credential, its one `unauthenticated`, means
-/// there is nothing left to Unlink or push to.
-fn done_if_forgotten(called: Result<(), connectrpc::ConnectError>) -> Result<(), PluginError> {
-    match called {
-        Err(err) if err.code != connectrpc::ErrorCode::Unauthenticated => Err(err.into()),
-        _ => Ok(()),
+/// The Hub's API for one Linked Server, bound to its credential. Every RPC answers
+/// [`LinkDropped`] if the Hub doesn't know the credential any more,
+/// `REFUSAL_REASON_SERVER_NOT_LINKED`, its one `unauthenticated` for a call with one, such as
+/// after the Server's Account was deleted. Each call takes the handle, as the Link holder hands
+/// out one per call.
+pub(crate) struct LinkedHub {
+    hub: Hub,
+    credential: String,
+}
+
+impl LinkedHub {
+    /// Unlinks the Server.
+    pub(crate) async fn unlink(self) -> Result<(), PluginError> {
+        (self.client()?)
+            .unlink_server(UnlinkServerRequest::default())
+            .await
+            .map_err(link_dropped)?;
+        Ok(())
+    }
+
+    /// Starts Linking the User `user_id`, named `name`: `None` if they are Linked already, the
+    /// Hub's one `already_exists`.
+    pub(crate) async fn start_user(
+        self,
+        user_id: i64,
+        name: &str,
+    ) -> Result<Option<StartUserLinkResponse>, PluginError> {
+        let started = (self.client()?)
+            .start_user_link(StartUserLinkRequest {
+                user_id,
+                name: name.to_owned(),
+                ..Default::default()
+            })
+            .await;
+        match started {
+            Ok(started) => Ok(Some(started.into_owned())),
+            Err(err) if err.code == connectrpc::ErrorCode::AlreadyExists => Ok(None),
+            Err(err) => Err(link_dropped(err)),
+        }
+    }
+
+    /// The email of the Account the User `user_id` is Linked to, empty while they aren't.
+    pub(crate) async fn user_account(self, user_id: i64) -> Result<String, PluginError> {
+        let got = (self.client()?)
+            .get_user_link(GetUserLinkRequest {
+                user_id,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(got.into_owned().account)
+    }
+
+    /// Unlinks the User `user_id`.
+    pub(crate) async fn unlink_user(self, user_id: i64) -> Result<(), PluginError> {
+        (self.client()?)
+            .unlink_user(UnlinkUserRequest {
+                user_id,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(())
+    }
+
+    /// Pushes `changes` to the Watch State of the Accounts the Server's Users are Linked to, in
+    /// order.
+    pub(crate) async fn push_watch_states(
+        self,
+        changes: Vec<WatchStateChange>,
+    ) -> Result<(), PluginError> {
+        (self.client()?)
+            .push_watch_states(PushWatchStatesRequest {
+                changes,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(())
+    }
+
+    /// The Watch State of the Account the User `user_id` is Linked to, each title by each id
+    /// apart; empty while they aren't Linked.
+    pub(crate) async fn pull_watch_states(
+        self,
+        user_id: i64,
+    ) -> Result<Vec<WatchStateChange>, PluginError> {
+        let pulled = (self.client()?)
+            .pull_watch_states(PullWatchStatesRequest {
+                user_id,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(pulled.into_owned().watch_states)
+    }
+
+    /// Merges `changes` to the Track Preferences of the Server's Users into their Accounts'.
+    pub(crate) async fn push_track_preferences(
+        self,
+        changes: Vec<TrackPreferenceChange>,
+    ) -> Result<(), PluginError> {
+        (self.client()?)
+            .push_track_preferences(PushTrackPreferencesRequest {
+                changes,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(())
+    }
+
+    /// The Track Preferences of the Account the User `user_id` is Linked to; empty while they
+    /// aren't Linked.
+    pub(crate) async fn pull_track_preferences(
+        self,
+        user_id: i64,
+    ) -> Result<Vec<TrackPreferenceChange>, PluginError> {
+        let pulled = (self.client()?)
+            .pull_track_preferences(PullTrackPreferencesRequest {
+                user_id,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(pulled.into_owned().preferences)
+    }
+
+    /// Merges `entries`, the whole Watchlist of the User `user_id`, into the Account they are
+    /// Linked to, and answers the Account's, each title by each id apart; empty while they aren't
+    /// Linked.
+    pub(crate) async fn sync_watchlist(
+        self,
+        user_id: i64,
+        entries: Vec<WatchlistEntry>,
+    ) -> Result<Vec<WatchlistEntry>, PluginError> {
+        let synced = (self.client()?)
+            .sync_watchlist(SyncWatchlistRequest {
+                user_id,
+                entries,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(synced.into_owned().entries)
+    }
+
+    /// Asks the Account with `email`, if any, to accept the User `user_id`, named `name`.
+    pub(crate) async fn invite_user(
+        self,
+        user_id: i64,
+        name: &str,
+        email: &str,
+    ) -> Result<(), PluginError> {
+        (self.client()?)
+            .invite_user(InviteUserRequest {
+                user_id,
+                name: name.to_owned(),
+                email: email.to_owned(),
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(())
+    }
+
+    /// Tells the Hub `addresses` are where clients reach the Server, and answers whether the Hub
+    /// reached its public port, if it has one.
+    pub(crate) async fn set_addresses(
+        self,
+        addresses: &ServerAddresses,
+    ) -> Result<Option<Reachability>, PluginError> {
+        let checked = (self.client()?)
+            .set_server_addresses(SetServerAddressesRequest {
+                url: addresses.url.clone(),
+                lan_addresses: addresses.lan.clone(),
+                public_port: addresses.public_port.map_or(0, u32::from),
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?
+            .into_owned();
+        Ok(
+            (!checked.public_address.is_empty()).then_some(Reachability {
+                address: checked.public_address,
+                reachable: checked.reachable,
+            }),
+        )
+    }
+
+    /// Records `events`, the Server's Viewing Events. An event the Hub finds invalid would be
+    /// refused again, so that counts as done, and they aren't kept forever.
+    pub(crate) async fn record_viewing_events(
+        self,
+        events: RecordViewingEventsRequest,
+    ) -> Result<(), PluginError> {
+        match self.client()?.record_viewing_events(events).await {
+            Err(err) if err.code != connectrpc::ErrorCode::InvalidArgument => {
+                Err(link_dropped(err))
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /// Starts a sign-in with an Account to the Server, which the Hub's page sends back to
+    /// `return_url`.
+    pub(crate) async fn start_sign_in(
+        self,
+        return_url: &str,
+    ) -> Result<StartServerSignInResponse, PluginError> {
+        let started = (self.client()?)
+            .start_server_sign_in(StartServerSignInRequest {
+                return_url: return_url.to_owned(),
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(started.into_owned())
+    }
+
+    /// The token naming the User the sign-in polled with `device_code` signs in as, once an
+    /// Account approved it and `code` is the one-time code the Hub sent the person back with;
+    /// `None` before, and for one that expired or was used or a wrong code, the call's one
+    /// `not_found`.
+    pub(crate) async fn poll_sign_in(
+        self,
+        device_code: &str,
+        code: &str,
+    ) -> Result<Option<String>, PluginError> {
+        let polled = (self.client()?)
+            .poll_server_sign_in(PollServerSignInRequest {
+                device_code: device_code.to_owned(),
+                code: code.to_owned(),
+                ..Default::default()
+            })
+            .await;
+        match polled {
+            Ok(polled) => Ok(Some(polled.into_owned().token).filter(|token| !token.is_empty())),
+            Err(err) if err.code == connectrpc::ErrorCode::NotFound => Ok(None),
+            Err(err) => Err(link_dropped(err)),
+        }
+    }
+
+    /// Posts `batch`, an OTLP/HTTP protobuf export request of `signal`, to the Hub as the Server,
+    /// for it to forward to Nama's developers (ADR 0054).
+    pub(crate) async fn share(self, signal: Signal, batch: Vec<u8>) -> Result<(), PluginError> {
+        let request = Request::post(format!("{}/otlp/{}", self.hub.url, signal.path()))
+            .header(CONTENT_TYPE, "application/x-protobuf")
+            .header(AUTHORIZATION, format!("Bearer {}", self.credential))
+            .body(full_body(Bytes::from(batch)))?;
+        let status = tokio::time::timeout(TIMEOUT, self.hub.transport.send(request))
+            .await??
+            .status();
+        if !status.is_success() {
+            return Err(format!("the Hub answered {status} for shared Diagnostics").into());
+        }
+        Ok(())
+    }
+
+    /// The titles like the one `request` names.
+    pub(crate) async fn similar(
+        self,
+        request: ListSimilarTitlesRequest,
+    ) -> Result<ListSimilarTitlesResponse, PluginError> {
+        let similar = (self.client()?)
+            .list_similar_titles(request)
+            .await
+            .map_err(link_dropped)?;
+        Ok(similar.into_owned())
+    }
+
+    /// The titles the Hub recommends to the User `request` names.
+    pub(crate) async fn recommended(
+        self,
+        request: ListRecommendedTitlesRequest,
+    ) -> Result<Vec<RecommendedTitle>, PluginError> {
+        let recommended = (self.client()?)
+            .list_recommended_titles(request)
+            .await
+            .map_err(link_dropped)?;
+        Ok(recommended.into_owned().titles)
+    }
+
+    /// The Movies trending across Nama's Accounts.
+    pub(crate) async fn trending(self) -> Result<ListTrendingTitlesResponse, PluginError> {
+        let trending = (self.client()?)
+            .list_trending_titles(ListTrendingTitlesRequest::default())
+            .await
+            .map_err(link_dropped)?;
+        Ok(trending.into_owned())
+    }
+
+    /// The titles on most of Nama's Accounts' Watchlists.
+    pub(crate) async fn most_watchlisted(
+        self,
+    ) -> Result<ListMostWatchlistedTitlesResponse, PluginError> {
+        let watchlisted = (self.client()?)
+            .list_most_watchlisted_titles(ListMostWatchlistedTitlesRequest::default())
+            .await
+            .map_err(link_dropped)?;
+        Ok(watchlisted.into_owned())
+    }
+
+    fn client(&self) -> Result<LinkedServerServiceClient<Transport>, PluginError> {
+        let config = (self.hub.config()?)
+            .with_default_header("authorization", format!("Bearer {}", self.credential));
+        Ok(LinkedServerServiceClient::new(
+            self.hub.transport.clone(),
+            config,
+        ))
     }
 }
 
@@ -540,7 +476,7 @@ impl fmt::Display for LinkDropped {
 impl Error for LinkDropped {}
 
 /// `err`, as [`LinkDropped`] if it is the Hub not knowing the Server's credential, its one
-/// `unauthenticated`.
+/// `unauthenticated` for a call with one.
 fn link_dropped(err: connectrpc::ConnectError) -> PluginError {
     if err.code == connectrpc::ErrorCode::Unauthenticated {
         LinkDropped.into()
