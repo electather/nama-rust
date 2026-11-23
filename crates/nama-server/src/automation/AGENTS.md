@@ -9,5 +9,5 @@ The Kernel's functions any Plugin calls (ADR 0048, ADR 0071), served to each Plu
 
 ### Neighbours
 
-- Uses: `db`, `backup` (`Backups::write`), `library` (`Libraries`, `Contents`, `WatchStates`, `TitleTarget`, `title_roles`), `scanner` (`Scanner::start_delete`, `refresh_metadata`), `users` (`Users::list`, `Users::device_kinds`, `Users::delete_expired`, `delete_plugins_personal_settings`), `requests` (`who_requested`), `watchlist` (`list`), `home_rows` (`forget_unvisited`), `plugin_settings` (`PluginSettings::take_gone`, and the Extension Points), `connections` (`delete_plugin`), and `playback` (`RunningPlans`, `Leftovers` and `SubtitleCache`) in tests.
-- Used by: startup in `lib.rs`, through `ExtensionPoints::serve_kernel`.
+- Uses: `db`, `backup` (`Backups::write`), `library` (`Libraries`, `Contents`, `WatchStates`, `TitleTarget`, `title_roles`), `scanner` (`Scanner::start_delete`, `refresh_metadata`), `users` (`Users::list`, `Users::device_kinds`, `Users::delete_expired`), `requests` (`who_requested`, and `leave_qualities` and `qualities_left` in tests), `watchlist` (`list`), `home_rows` (`forget_unvisited`), `plugin_settings` (`PluginSettings::forget_gone`, and the Extension Points), and `connections` (`connected`) and `playback` (`RunningPlans`, `Leftovers` and `SubtitleCache`) in tests.
+- Used by: startup in `lib.rs`, through `ExtensionPoints::serve_kernel`, and `plugin_settings` (`delete_plugins_store_entries`, deleting a removed Plugin's Store entries).

@@ -334,7 +334,8 @@ fn caller(ctx: &RequestContext) -> Result<Caller, ConnectError> {
     })
 }
 
-/// The session the request `ctx` is for, or `REFUSAL_REASON_SIGN_IN_REQUIRED`.
+/// The session the request `ctx` is for, or `REFUSAL_REASON_SIGN_IN_REQUIRED`: for the auth layer,
+/// and for `AccountService`, which serves callers without one too.
 pub(super) fn signed_in(ctx: &RequestContext) -> Result<&AccountSession, ConnectError> {
     ctx.extensions().get::<AccountSession>().ok_or_else(|| {
         refuse(
@@ -343,6 +344,14 @@ pub(super) fn signed_in(ctx: &RequestContext) -> Result<&AccountSession, Connect
         )
         .into()
     })
+}
+
+/// The session the request `ctx` is for. The auth layer refuses every call to a service serving
+/// only Accounts' sessions without one, so its absence is a Hub bug and never a Refusal.
+pub(super) fn session(ctx: &RequestContext) -> Result<&AccountSession, ConnectError> {
+    ctx.extensions()
+        .get::<AccountSession>()
+        .ok_or_else(|| hub_failed(&"a call to a service serving sessions came without one"))
 }
 
 /// The response `body` makes for an Account just signed in, with its token in a cookie and never

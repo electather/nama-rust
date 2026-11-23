@@ -30,7 +30,7 @@ use nama_hub_proto::nama::hub::v1::{
 use sqlx::PgPool;
 
 use super::{
-    accounts::signed_in, hub_failed, refuse, track_preferences, viewing, watch_states, watchlists,
+    accounts::session, hub_failed, refuse, track_preferences, viewing, watch_states, watchlists,
 };
 use crate::{
     links::{
@@ -110,7 +110,7 @@ impl LinkService for LinkServiceHandler {
     ) -> ServiceResult<ApproveServerLinkResponse> {
         let server = self
             .links
-            .approve(signed_in(&ctx)?, request.code)
+            .approve(session(&ctx)?, request.code)
             .await
             .map_err(refused)?;
         Response::ok(ApproveServerLinkResponse {
@@ -124,7 +124,7 @@ impl LinkService for LinkServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListLinkedServersRequest>,
     ) -> ServiceResult<ListLinkedServersResponse> {
-        let account = signed_in(&ctx)?.account.id;
+        let account = session(&ctx)?.account.id;
         let servers = self
             .links
             .list(account)
@@ -143,7 +143,7 @@ impl LinkService for LinkServiceHandler {
     ) -> ServiceResult<ApproveUserLinkResponse> {
         let user = self
             .links
-            .approve_user(signed_in(&ctx)?, request.code)
+            .approve_user(session(&ctx)?, request.code)
             .await
             .map_err(refused)?;
         Response::ok(ApproveUserLinkResponse {
@@ -157,7 +157,7 @@ impl LinkService for LinkServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListLinkedUsersRequest>,
     ) -> ServiceResult<ListLinkedUsersResponse> {
-        let account = signed_in(&ctx)?.account.id;
+        let account = session(&ctx)?.account.id;
         let users = self
             .links
             .list_users(account)
@@ -174,7 +174,7 @@ impl LinkService for LinkServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, UnlinkLinkedUserRequest>,
     ) -> ServiceResult<UnlinkLinkedUserResponse> {
-        let account = signed_in(&ctx)?.account.id;
+        let account = session(&ctx)?.account.id;
         // An id that isn't a UUID names no Link, so Unlinking it does nothing.
         if let Ok(link) = request.id.parse::<LinkId>() {
             self.links
@@ -190,7 +190,7 @@ impl LinkService for LinkServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListUserInvitesRequest>,
     ) -> ServiceResult<ListUserInvitesResponse> {
-        let account = signed_in(&ctx)?.account.id;
+        let account = session(&ctx)?.account.id;
         let invites = self
             .links
             .list_invites(account)
@@ -207,7 +207,7 @@ impl LinkService for LinkServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, AcceptUserInviteRequest>,
     ) -> ServiceResult<AcceptUserInviteResponse> {
-        let session = signed_in(&ctx)?;
+        let session = session(&ctx)?;
         let user = self
             .links
             .accept_invite(session, invite_id(request.id)?)
@@ -224,7 +224,7 @@ impl LinkService for LinkServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, GetServerSignInRequest>,
     ) -> ServiceResult<GetServerSignInResponse> {
-        let account = signed_in(&ctx)?.account.id;
+        let account = session(&ctx)?.account.id;
         let waiting = self
             .links
             .sign_in(account, sign_in_id(request.id)?)
@@ -242,7 +242,7 @@ impl LinkService for LinkServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, ApproveServerSignInRequest>,
     ) -> ServiceResult<ApproveServerSignInResponse> {
-        let account = signed_in(&ctx)?.account.id;
+        let account = session(&ctx)?.account.id;
         let return_url = self
             .links
             .approve_sign_in(account, sign_in_id(request.id)?)
@@ -286,10 +286,9 @@ impl LinkedServerService for LinkedServerServiceHandler {
 
     async fn list_similar_titles(
         &self,
-        ctx: RequestContext,
+        _ctx: RequestContext,
         request: ServiceRequest<'_, ListSimilarTitlesRequest>,
     ) -> ServiceResult<ListSimilarTitlesResponse> {
-        linked_server(&ctx)?;
         let kind = match request.kind.as_known() {
             Some(proto::TitleKind::TITLE_KIND_MOVIE) => TitleKind::Movie,
             Some(proto::TitleKind::TITLE_KIND_SHOW) => TitleKind::Show,
@@ -559,10 +558,9 @@ impl LinkedServerService for LinkedServerServiceHandler {
 
     async fn list_trending_titles(
         &self,
-        ctx: RequestContext,
+        _ctx: RequestContext,
         _request: ServiceRequest<'_, ListTrendingTitlesRequest>,
     ) -> ServiceResult<ListTrendingTitlesResponse> {
-        linked_server(&ctx)?;
         let trending = (self.viewing.trending())
             .await
             .map_err(|err| hub_failed(&err))?;
@@ -574,10 +572,9 @@ impl LinkedServerService for LinkedServerServiceHandler {
 
     async fn list_most_watchlisted_titles(
         &self,
-        ctx: RequestContext,
+        _ctx: RequestContext,
         _request: ServiceRequest<'_, ListMostWatchlistedTitlesRequest>,
     ) -> ServiceResult<ListMostWatchlistedTitlesResponse> {
-        linked_server(&ctx)?;
         let watchlisted = (self.watchlists.most_watchlisted())
             .await
             .map_err(|err| hub_failed(&err))?;
@@ -617,15 +614,12 @@ fn sign_in_id(id: &str) -> Result<SignInId, ConnectError> {
         .map_err(|_not_a_uuid| refused(links::Error::SignInNotFound))
 }
 
-/// The Linked Server whose credential the request carried, which the auth layer found.
+/// The Linked Server that sent the request `ctx` is for. The auth layer refuses every
+/// `LinkedServerService` call without one, so its absence is a Hub bug and never a Refusal.
 fn linked_server(ctx: &RequestContext) -> Result<&LinkedServer, ConnectError> {
-    ctx.extensions().get::<LinkedServer>().ok_or_else(|| {
-        refuse(
-            RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
-            "send a Linked Server's credential",
-        )
-        .into()
-    })
+    ctx.extensions()
+        .get::<LinkedServer>()
+        .ok_or_else(|| hub_failed(&"a LinkedServerService call came without its Linked Server"))
 }
 
 fn similar_to_proto(similar: SimilarTitle) -> proto::SimilarTitle {

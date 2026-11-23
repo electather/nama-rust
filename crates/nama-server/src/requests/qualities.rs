@@ -174,6 +174,20 @@ pub(crate) async fn replace(
     .await
 }
 
+/// Deletes the Fulfiller `plugin`'s Qualities and every User's default Quality for it.
+pub(crate) async fn delete_plugin(
+    conn: &mut SqliteConnection,
+    plugin: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!("DELETE FROM qualities WHERE plugin_id = ?", plugin)
+        .execute(&mut *conn)
+        .await?;
+    sqlx::query!("DELETE FROM default_qualities WHERE plugin_id = ?", plugin)
+        .execute(&mut *conn)
+        .await?;
+    Ok(())
+}
+
 /// What an ask says about Quality, which [`for_request`] and [`ShowRequests`] make and Requests
 /// carries to the Requests it opens or joins.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -552,6 +566,32 @@ pub(crate) fn used(
         },
         requested,
     ))
+}
+
+/// Lists one Quality for the Fulfiller `plugin` and sets it as `user`'s default, for a test of
+/// what a removed Plugin leaves behind.
+#[cfg(test)]
+pub(crate) async fn leave_qualities(db: &Database, plugin: &PluginId, user: i64) {
+    let hd = Quality {
+        profile_id: "4".to_owned(),
+        name: "HD".to_owned(),
+        is_default: true,
+        ..Default::default()
+    };
+    let saved = replace(db, plugin.clone(), vec![hd]).await.unwrap();
+    let default = Some(saved[0].id);
+    (set_personal_default(db, user, plugin.clone(), default).await)
+        .unwrap()
+        .unwrap();
+}
+
+/// Whether the Fulfiller `plugin` still lists Qualities, and `user` a default Quality for it.
+#[cfg(test)]
+pub(crate) async fn qualities_left(db: &Database, plugin: &PluginId, user: i64) -> [bool; 2] {
+    let mut conn = db.reader().acquire().await.unwrap();
+    let listed = list(&mut conn, plugin).await.unwrap();
+    let default = personal_default(&mut conn, user, plugin).await.unwrap();
+    [!listed.is_empty(), default.is_some()]
 }
 
 #[cfg(test)]

@@ -161,7 +161,7 @@ pub(super) async fn delete(
 }
 
 /// Removes every entry `plugin` keeps, Plugin-wide and per-User.
-pub(super) async fn delete_plugin(
+pub(crate) async fn delete_plugin(
     conn: &mut SqliteConnection,
     plugin: &str,
 ) -> Result<(), sqlx::Error> {

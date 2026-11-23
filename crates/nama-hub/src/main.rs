@@ -13,7 +13,7 @@ use nama_hub::{
     config::Config,
     db,
     diagnostics::{Backend, Otlp, OtlpError},
-    mail::{Mail, MailError, Resend},
+    mail::{LogMailer, Mail, MailError, Mailer, Resend},
     signing::Keys,
     titles,
 };
@@ -46,8 +46,9 @@ const OTLP_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
                   NAMA_HUB_SIGNING_KEYS, the Ed25519 private keys it signs with, as PEM blocks \
                   one after another, and, to email Sign-in Links, NAMA_HUB_RESEND_API_KEY, \
                   NAMA_HUB_MAIL_FROM, the address mail comes from, and NAMA_HUB_PUBLIC_URL, the \
-                  Hub's address that links lead to, and, to forward what Servers share, \
-                  NAMA_HUB_DIAGNOSTICS_ENDPOINT, an OTLP/HTTP endpoint, and \
+                  Hub's address that links lead to, or, developing, NAMA_HUB_LOG_MAIL=true to \
+                  log them instead with a localhost NAMA_HUB_PUBLIC_URL, and, to forward what \
+                  Servers share, NAMA_HUB_DIAGNOSTICS_ENDPOINT, an OTLP/HTTP endpoint, and \
                   NAMA_HUB_DIAGNOSTICS_HEADERS, the headers sent to it, as key=value pairs."
 )]
 struct Args {
@@ -161,18 +162,21 @@ async fn run() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// Mail through Resend, if `config` has its API key, which [`Config::load`] has checked comes with
-/// the sender and the public URL.
+/// Mail to the log if `config` says so, or through Resend if it has its API key, which
+/// [`Config::load`] has checked comes with the sender and the public URL.
 fn mail(config: &Config) -> Result<Option<Mail>, MailError> {
-    let (Some(api_key), Some(from), Some(public_url)) = (
-        &config.resend_api_key,
-        &config.mail_from,
-        &config.public_url,
-    ) else {
+    let Some(public_url) = &config.public_url else {
+        return Ok(None);
+    };
+    let mailer: Arc<dyn Mailer> = if config.log_mail {
+        Arc::new(LogMailer)
+    } else if let (Some(api_key), Some(from)) = (&config.resend_api_key, &config.mail_from) {
+        Arc::new(Resend::new(api_key.clone(), from.clone())?)
+    } else {
         return Ok(None);
     };
     Ok(Some(Mail {
-        mailer: Arc::new(Resend::new(api_key.clone(), from.clone())?),
+        mailer,
         public_url: public_url.to_string(),
     }))
 }
