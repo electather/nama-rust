@@ -81,6 +81,19 @@ test("the Devices pane signs in another Device in place", async () => {
   expect(within(settings).getByRole("textbox", { name: "Sign-in Code" })).toBeDefined();
 });
 
+test("pressing Escape in the Sign-in Code cancels signing in a Device, and Settings stays open", async () => {
+  openSettings("devices", fakeServer({ signedIn: newUser }));
+
+  fireEvent.click(await screen.findByRole("button", { name: "Sign in a Device" }));
+  const settings = within(screen.getByRole("dialog", { name: "Settings" }));
+  const code = settings.getByRole("textbox", { name: "Sign-in Code" });
+
+  // The dialog closes on an Escape keydown whose default nobody prevented.
+  expect(fireEvent.keyDown(code, { key: "Escape" })).toBe(false);
+  expect(settings.queryByRole("textbox", { name: "Sign-in Code" })).toBeNull();
+  expect(document.activeElement).toBe(settings.getByRole("button", { name: "Sign in a Device" }));
+});
+
 /** The Sign-in pane, on a Server whose password is "correct horse", which records what it changed to. */
 function openSignin(answer: () => object = () => ({})) {
   const changedTo: string[] = [];
