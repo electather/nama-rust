@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>, <package>` heading
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own. The entries from before the Hub API, which name no package, are all `nama.v1`'s.
 
+## 2026-11-23, #2040, nama.v1
+
+- `FIELD_SAME_CARDINALITY`, `nama/v1/browse.proto`: `ListEpisodesRequest.season_number` is now `optional`. Its wire and JSON forms are unchanged.
+- `BrowseService.ListEpisodes` with `season_number` unset lists every Season's Episodes, where it read unset as Season 0, the Specials.
+- A client built before never sends 0, as proto3 leaves a zero out, so asking for the Specials gets every Season's Episodes. It must regenerate, which sends a 0 it sets. The web app is the only client.
+
 ## 2026-11-23, #1952, nama.hub.v1
 
 - None that `buf breaking` reports: in `nama/hub/v1/viewing.proto`, `ViewingEvent` gains `show_external_id` (10).

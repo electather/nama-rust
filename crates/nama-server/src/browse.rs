@@ -140,16 +140,23 @@ impl Browse {
         Ok((movie, state.flatten(), read_only_folder))
     }
 
-    /// The Episodes of Season `season` of the Show `show` of the Shows Library `library`, each
-    /// with the User `user`'s Watch State of it, if they've started it.
+    /// The Episodes of Season `season`, or of every Season if it's `None`, by season and episode
+    /// number, of the Show `show` of the Shows Library `library`, each with the User `user`'s
+    /// Watch State of it, if they've started it.
     pub(crate) async fn episodes(
         &self,
         user: i64,
         library: i64,
         show: &ExternalId,
-        season: i64,
+        season: Option<i64>,
     ) -> Result<Vec<(Episode, Option<WatchState>)>, Error> {
-        let episodes = self.season(library, show, season).await?.episodes;
+        let episodes = if let Some(number) = season {
+            self.season(library, show, number).await?.episodes
+        } else {
+            let seasons = self.show(library, show).await?.seasons.into_values();
+            self.episodes_with_tracks(seasons.flat_map(|each| each.episodes).collect())
+                .await?
+        };
         let titles = episodes.iter().map(episode_ids).collect();
         let states = self.states_of(user, titles).await?;
         Ok(episodes.into_iter().zip(states).collect())
@@ -207,15 +214,22 @@ impl Browse {
     ) -> Result<Season, Error> {
         let library = self.library(library).await?;
         let season = self.titles(&library).await?.season(show, number)?;
-        let files = season.episodes.iter().flat_map(|episode| &episode.versions);
-        let probes = self.probes(files).await?;
-        let episodes = (season.episodes.into_iter())
-            .map(|episode| episode.map_versions(with_tracks(&probes)))
-            .collect();
         Ok(LibrarySeason {
             poster: season.poster,
-            episodes,
+            episodes: self.episodes_with_tracks(season.episodes).await?,
         })
+    }
+
+    /// `episodes` with the Tracks probing read from each of their Versions.
+    async fn episodes_with_tracks(
+        &self,
+        episodes: Vec<LibraryEpisode>,
+    ) -> Result<Vec<Episode>, Error> {
+        let files = episodes.iter().flat_map(|episode| &episode.versions);
+        let probes = self.probes(files).await?;
+        Ok((episodes.into_iter())
+            .map(|episode| episode.map_versions(with_tracks(&probes)))
+            .collect())
     }
 
     /// The best `limit` Movies, Shows and Episodes of every Library that a search for `query`

@@ -100,7 +100,7 @@ impl Fixture {
             .list_episodes(ListEpisodesRequest {
                 library_id: self.library,
                 show_id: tmdb_id(show).into(),
-                season_number: 1,
+                season_number: Some(1),
                 ..Default::default()
             })
             .await

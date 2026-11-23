@@ -1,5 +1,4 @@
-import { createQueryOptions, useTransport } from "@connectrpc/connect-query";
-import { useSuspenseQueries } from "@tanstack/react-query";
+import { useSuspenseQuery } from "@connectrpc/connect-query";
 
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
@@ -10,16 +9,10 @@ export function useShowEpisodes(
   show: { libraryId: bigint; showId: ExternalId },
   seasons: number[],
 ) {
-  const transport = useTransport();
-  const results = useSuspenseQueries({
-    queries: seasons.map((seasonNumber) => ({
-      ...createQueryOptions(
-        BrowseService.method.listEpisodes,
-        { ...show, seasonNumber },
-        { transport },
-      ),
-      staleTime: loaderStaleTime,
-    })),
+  const { data } = useSuspenseQuery(BrowseService.method.listEpisodes, show, {
+    staleTime: loaderStaleTime,
   });
-  return results.flatMap(({ data }) => data.episodes);
+  return seasons.flatMap((number) =>
+    data.episodes.filter(({ seasonNumber }) => seasonNumber === number),
+  );
 }

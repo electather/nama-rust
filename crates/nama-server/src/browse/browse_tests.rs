@@ -149,7 +149,12 @@ async fn knight_states(browse: &Browse, user: i64, library: i64) -> Vec<Vec<Opti
     let mut states = Vec::new();
     for number in [1, 2] {
         let episodes = browse
-            .episodes(user, library, &ExternalId::tmdb(KNIGHT_TMDB_ID), number)
+            .episodes(
+                user,
+                library,
+                &ExternalId::tmdb(KNIGHT_TMDB_ID),
+                Some(number),
+            )
             .await
             .unwrap();
         let season = episodes
@@ -235,7 +240,7 @@ async fn an_episode_has_the_same_tracks_however_it_is_reached() {
     );
 
     let (listed, _) = browse
-        .episodes(0, library, &show, 1)
+        .episodes(0, library, &show, Some(1))
         .await
         .unwrap()
         .remove(0);
@@ -303,7 +308,7 @@ async fn a_seasons_episodes_have_their_own_tracks_beside_another_shows() {
     let browse = Browse::new(db, ExtensionPoints::default());
 
     let episodes = browse
-        .episodes(0, library, &ExternalId::tmdb(KNIGHT_TMDB_ID), 1)
+        .episodes(0, library, &ExternalId::tmdb(KNIGHT_TMDB_ID), Some(1))
         .await
         .unwrap();
 
@@ -675,7 +680,7 @@ async fn an_episodes_watch_state_under_an_id_its_library_doesnt_prefer_is_shown(
     report_under(&db, user, MovieOrEpisode::episode(&tvdb), halfway).await;
     let browse = Browse::new(db, ExtensionPoints::default());
 
-    let episodes = (browse.episodes(user, library, &ExternalId::tmdb(KNIGHT_TMDB_ID), 1))
+    let episodes = (browse.episodes(user, library, &ExternalId::tmdb(KNIGHT_TMDB_ID), Some(1)))
         .await
         .unwrap();
 

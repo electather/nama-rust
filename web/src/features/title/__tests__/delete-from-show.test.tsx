@@ -3,7 +3,7 @@ import { Code, ConnectError, type ServiceImpl } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
-import { BrowseService, type ListEpisodesResponseSchema } from "@/gen/nama/v1/browse_pb";
+import { BrowseService, type EpisodeSchema } from "@/gen/nama/v1/browse_pb";
 import {
   LibraryKind,
   type LibraryService,
@@ -54,10 +54,9 @@ const lies = {
   versions: [TWO_EPISODES],
 };
 
-/** A `ListEpisodes` answering `seasonOne()` for Season 1, and Season 2's one Episode for any other. */
-function bySeason(seasonOne: () => MessageInitShape<typeof ListEpisodesResponseSchema>) {
-  return ({ seasonNumber }: { seasonNumber: number }) =>
-    seasonNumber === 1 ? seasonOne() : { episodes: [past] };
+/** A `ListEpisodes` answering every Season's Episodes: `seasonOne()`, then Season 2's one. */
+function withSeasonTwo(seasonOne: () => MessageInitShape<typeof EpisodeSchema>[]) {
+  return () => ({ episodes: [...seasonOne(), past] });
 }
 
 /**
@@ -95,7 +94,7 @@ function openDark(
           show: { id: darkId, title: "Dark" },
           seasons: [{ number: 1 }, { number: 2 }],
         }),
-        listEpisodes: bySeason(() => ({ episodes: [secrets, lies] })),
+        listEpisodes: withSeasonTwo(() => [secrets, lies]),
         listShows: () => ({ shows: [] }),
         listGenres: () => ({}),
         ...browse,
@@ -253,7 +252,7 @@ function removeAnItem(events: ReturnType<typeof eventFeed>) {
 
 test("an open Show page drops a deleted Episode when its Item is removed", async () => {
   const season = [secrets, lies];
-  const events = openDark(newUser, {}, { listEpisodes: bySeason(() => ({ episodes: season })) });
+  const events = openDark(newUser, {}, { listEpisodes: withSeasonTwo(() => season) });
   await screen.findByText(/Lies/u);
 
   season.pop();
@@ -276,20 +275,19 @@ function until<T>(gone: { now: boolean }, answer: T) {
 }
 
 test("an open Show page drops a Season deleted elsewhere, keeping the one left", async () => {
-  const gone = { now: false };
   const seasons = [{ number: 1 }, { number: 2 }];
-  const seasonOne = until(gone, { episodes: [secrets, lies] });
+  const seasonOne = [secrets, lies];
   const events = openDark(
     newUser,
     {},
     {
       getShow: () => ({ show: { id: darkId, title: "Dark" }, seasons }),
-      listEpisodes: bySeason(seasonOne),
+      listEpisodes: withSeasonTwo(() => seasonOne),
     },
   );
   await screen.findByText(/Lies/u);
 
-  gone.now = true;
+  seasonOne.length = 0;
   seasons.shift();
   removeAnItem(events);
 

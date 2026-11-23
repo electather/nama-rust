@@ -8280,16 +8280,16 @@ pub struct ListEpisodesRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub show_id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// The Season's number, as `GetShow` gave it.
+    /// The Season's number, as `GetShow` gave it. Unset, every Season's, so a Show's page asks once.
     ///
     /// Field 3: `season_number`
     #[serde(
         rename = "seasonNumber",
         alias = "season_number",
-        with = "::buffa::json_helpers::uint32",
-        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+        with = "::buffa::json_helpers::opt_uint32",
+        skip_serializing_if = "::core::option::Option::is_none"
     )]
-    pub season_number: u32,
+    pub season_number: ::core::option::Option<u32>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -8309,6 +8309,15 @@ impl ListEpisodesRequest {
     ///
     /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
     pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.ListEpisodesRequest";
+}
+impl ListEpisodesRequest {
+    #[must_use = "with_* setters return `self` by value; assign or chain the result"]
+    #[inline]
+    ///Sets [`Self::season_number`] to `Some(value)`, consuming and returning `self`.
+    pub fn with_season_number(mut self, value: u32) -> Self {
+        self.season_number = Some(value);
+        self
+    }
 }
 ::buffa::impl_default_instance!(ListEpisodesRequest);
 impl ::buffa::MessageName for ListEpisodesRequest {
@@ -8341,8 +8350,8 @@ impl ::buffa::Message for ListEpisodesRequest {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
-        if self.season_number != 0u32 {
-            size += 1u64 + ::buffa::types::uint32_encoded_len(self.season_number) as u64;
+        if let Some(v) = self.season_number {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -8365,8 +8374,8 @@ impl ::buffa::Message for ListEpisodesRequest {
             );
             self.show_id.write_to(__cache, buf);
         }
-        if self.season_number != 0u32 {
-            ::buffa::types::put_uint32_field(3u32, self.season_number, buf);
+        if let Some(v) = self.season_number {
+            ::buffa::types::put_uint32_field(3u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -8404,7 +8413,9 @@ impl ::buffa::Message for ListEpisodesRequest {
                     tag,
                     ::buffa::encoding::WireType::Varint,
                 )?;
-                self.season_number = ::buffa::types::decode_uint32(buf)?;
+                self.season_number = ::core::option::Option::Some(
+                    ::buffa::types::decode_uint32(buf)?,
+                );
             }
             _ => {
                 self.__buffa_unknown_fields
@@ -8416,7 +8427,7 @@ impl ::buffa::Message for ListEpisodesRequest {
     fn clear(&mut self) {
         self.library_id = 0i64;
         self.show_id = ::buffa::MessageField::none();
-        self.season_number = 0u32;
+        self.season_number = ::core::option::Option::None;
         self.__buffa_unknown_fields.clear();
     }
 }

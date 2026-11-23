@@ -475,7 +475,7 @@ async fn dark_season_1(fx: &Fixture) -> Vec<Episode> {
         .list_episodes(ListEpisodesRequest {
             library_id: fx.library,
             show_id: tmdb_id(DARK).into(),
-            season_number: 1,
+            season_number: Some(1),
             ..Default::default()
         })
         .await

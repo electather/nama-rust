@@ -339,9 +339,7 @@ test("a Show's Details count its Episodes here, Specials aside, of those aired",
       seasons: [{ number: 0 }, { number: 1 }],
       airedEpisodeCount: 10,
     }),
-    listEpisodes: ({ seasonNumber }) => ({
-      episodes: episodes.filter((episode) => episode.seasonNumber === seasonNumber),
-    }),
+    listEpisodes: () => ({ episodes }),
   });
   openApp("/libraries/2/shows/tmdb-70523", transport);
 
