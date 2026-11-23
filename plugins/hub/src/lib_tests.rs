@@ -534,28 +534,50 @@ async fn a_server_linked_again_doesnt_show_its_users_old_links() {
     assert_eq!(linker.user_link(8).await.unwrap(), Some(Link::NotLinked));
 }
 
-/// The Plugin enabled against `hub`, the Server and its User 7 Linked, as the Kernel tells it of
-/// Watch State changes, runs its Job and pulls.
-async fn syncing_user_7(
-    hub: &FakeHub,
-) -> (
+/// The Kernel's side of the Plugin: its observer, its Job runner and its linker.
+type Syncing = (
     Arc<dyn Observer<WatchStatesChanged>>,
     Arc<dyn JobRunner>,
     Arc<dyn ServerLinker>,
-) {
-    let mut registrar = Registrar::new().with_kernel(store());
-    Hub::at(hub.url()).register(&mut registrar).unwrap();
-    let registrations = registrar.into_registrations();
-    let linker = (registrations.iter())
-        .find_map(Registration::provider::<dyn ServerLinker>)
-        .unwrap();
+);
+
+/// The Plugin enabled against `hub`, the Server and its User 7 Linked, as the Kernel tells it of
+/// Watch State changes, runs its Job and pulls.
+async fn syncing_user_7(hub: &FakeHub) -> Syncing {
+    let kernel = store();
+    let linker = enabled(hub, &kernel);
     link(hub, linker.as_ref()).await;
     link_user(hub, linker.as_ref(), 7).await;
+    let (observer, jobs, _) = syncing(hub, &kernel);
+    (observer, jobs, linker)
+}
+
+/// The Plugin enabled against `hub`, the Server Linked and its User 7 Linked on the Hub though
+/// Settings never asked, as the Kernel tells it of Watch State changes and runs its Job.
+async fn syncing_user_7_linked_on_hub(
+    hub: &FakeHub,
+) -> (Arc<dyn Observer<WatchStatesChanged>>, Arc<dyn JobRunner>) {
+    let kernel = store();
+    link(hub, enabled(hub, &kernel).as_ref()).await;
+    hub.link_user_on_hub(7);
+    let (observer, jobs, _) = syncing(hub, &kernel);
+    (observer, jobs)
+}
+
+/// The Plugin enabled against `hub`, keeping its Store in `kernel`, as the Kernel tells it of
+/// Watch State changes and runs its Job.
+fn syncing(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Syncing {
+    let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
+    Hub::at(hub.url()).register(&mut registrar).unwrap();
+    let registrations = registrar.into_registrations();
     let observer = (registrations.iter())
         .find_map(Registration::observer::<WatchStatesChanged>)
         .unwrap();
     let jobs = (registrations.iter())
         .find_map(Registration::provider::<dyn JobRunner>)
+        .unwrap();
+    let linker = (registrations.iter())
+        .find_map(Registration::provider::<dyn ServerLinker>)
         .unwrap();
     (observer, jobs, linker)
 }
@@ -752,11 +774,51 @@ async fn a_change_told_after_a_later_one_of_the_same_title_is_dropped() {
 async fn a_user_who_isnt_linked_keeps_their_watch_state_on_the_server() {
     let hub = FakeHub::start().await;
     let (observer, jobs, _) = syncing_user_7(&hub).await;
+    let asks = hub.user_link_asks();
 
     tell(observer.as_ref(), 8, vec![movie_at(348, 1000, 1_000)]).await;
     run_sync(jobs.as_ref()).await.unwrap();
 
+    assert_eq!(hub.user_link_asks(), asks + 1);
     assert_eq!(hub.pushes(), Vec::<Vec<HubChange>>::new());
+}
+
+#[tokio::test]
+async fn a_user_linked_on_the_hub_has_their_changes_pushed_though_settings_never_asked() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs) = syncing_user_7_linked_on_hub(&hub).await;
+
+    tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(pushed(&hub), [[("tmdb-348".to_owned(), 1000, 1_000)]]);
+}
+
+#[tokio::test]
+async fn a_user_whose_link_the_hub_cant_be_asked_about_has_nothing_queued_and_isnt_asked_again() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs) = syncing_user_7_linked_on_hub(&hub).await;
+    hub.fail_user_links();
+    let asks = hub.user_link_asks();
+
+    tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
+    tell(observer.as_ref(), 7, vec![movie_at(348, 2000, 2_000)]).await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(hub.user_link_asks(), asks + 1);
+    assert_eq!(hub.pushes(), Vec::<Vec<HubChange>>::new());
+}
+
+#[tokio::test]
+async fn changes_dont_ask_the_hub_again_about_a_user_it_was_just_asked_about() {
+    let hub = FakeHub::start().await;
+    let (observer, _) = syncing_user_7_linked_on_hub(&hub).await;
+    let asks = hub.user_link_asks();
+
+    tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
+    tell(observer.as_ref(), 7, vec![movie_at(348, 2000, 2_000)]).await;
+
+    assert_eq!(hub.user_link_asks(), asks + 1);
 }
 
 #[tokio::test]

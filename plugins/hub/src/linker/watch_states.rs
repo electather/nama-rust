@@ -1,6 +1,7 @@
 //! Syncing Linked Users' Watch State with the Hub (ADR 0008): each change the Kernel tells of is
 //! queued in the Plugin's Store, and the Sync Job sends the queue, in order, so changes made
-//! while the Hub is unreachable go once it is back. The Kernel pulls their Account's back.
+//! while the Hub is unreachable go once it is back. The Kernel pulls their Account's back. A User
+//! whose Link the Plugin never learned has nothing queued until the Hub can be asked.
 
 use std::sync::Arc;
 
@@ -11,6 +12,7 @@ use nama_plugin_api::{
     contract::StoreEntry,
     job::Job,
     points::{WatchStateChange, WatchStateChanges, WatchStatesChanged},
+    server_link::Link,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
@@ -64,14 +66,13 @@ impl Observer<WatchStatesChanged> for WatchStateSync {
 }
 
 impl Linker {
-    /// Queues `changed`, if its User is Linked.
+    /// Queues `changed`, if its User is Linked. It asks the Hub as Settings would, since a User
+    /// who never opened Settings, such as one who only signs in with their Account, has no kept
+    /// Link.
     async fn queue_changes(&self, changed: &WatchStateChanges) -> Result<(), PluginError> {
-        let Some(kept) = self.kept().await? else {
+        let Some(Link::Linked { .. }) = self.current_user_link(changed.user_id).await? else {
             return Ok(());
         };
-        if self.kept_account(changed.user_id, &kept).await?.is_none() {
-            return Ok(());
-        }
         let _queue = self.queue.lock().await;
         let mut queue: Queue = self.stored_json(QUEUE_KEY).await?.unwrap_or_default();
         // The last page fills up before another starts.
