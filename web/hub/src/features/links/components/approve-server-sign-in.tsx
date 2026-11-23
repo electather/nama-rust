@@ -1,3 +1,4 @@
+import { PageHeading } from "@hub/app/page-heading";
 import { useApproveServerSignIn } from "@hub/features/links/data/server-sign-ins";
 import { serverSignInError } from "@hub/features/links/lib/server-sign-in-refusal";
 import { Button } from "nama-ui/components/button";
@@ -17,9 +18,7 @@ export function ApproveServerSignIn({
   const going = approve.isPending || approve.isSuccess;
   return (
     <>
-      <h1 className="text-center text-3xl font-medium tracking-tight text-balance">
-        Sign in to {serverName}
-      </h1>
+      <PageHeading>{`Sign in to ${serverName}`}</PageHeading>
       <p className="text-center text-sm text-pretty text-muted-foreground">
         You’ll sign in as {userName}. Only continue if you just chose to sign in on {serverName}.
       </p>

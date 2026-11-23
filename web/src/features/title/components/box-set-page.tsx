@@ -16,7 +16,7 @@ export function BoxSetPage({ boxSetId }: { boxSetId: ExternalId }) {
     throw notFound();
   }
   return (
-    <TitlePage hero={<BoxSetTop boxSet={boxSet} />}>
+    <TitlePage name={boxSet.name} hero={<BoxSetTop boxSet={boxSet} />}>
       <BoxSetMovies boxSet={boxSet} />
     </TitlePage>
   );
