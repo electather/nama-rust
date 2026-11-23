@@ -82,6 +82,8 @@ function browserSays({ name }: DOMException) {
 const passkeyWording: Partial<Record<RefusalReason, (param: (key: string) => string) => string>> = {
   [RefusalReason.PASSKEYS_OFF]: () => "This Hub isn’t set up for passkeys.",
   [RefusalReason.PASSKEY_NOT_ACCEPTED]: () => "The Hub didn’t accept that passkey.",
+  [RefusalReason.TOO_MANY_ATTEMPTS]: (param) =>
+    `There have been too many tries. Try again in ${Math.ceil(Number(param("retryAfterSeconds")) / 60)} min.`,
   [RefusalReason.PASSKEY_NAME_LENGTH]: (param) =>
     `Give it a name of up to ${param("maxLength")} characters.`,
   [RefusalReason.PASSKEY_NOT_FOUND]: () => "That passkey was removed already.",

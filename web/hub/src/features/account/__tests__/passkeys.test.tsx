@@ -160,6 +160,21 @@ describe("an Account's passkeys", () => {
     expect(screen.getByText("Laptop")).toBeDefined();
   });
 
+  test("a blank name is refused before the browser creates a passkey", async () => {
+    const credentials = browserCredentials({ create: vi.fn<() => Promise<unknown>>() });
+    openHub("/", true);
+
+    fireEvent.change(await screen.findByLabelText("New passkey’s name"), {
+      target: { value: "   " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add passkey" }));
+
+    await expect(
+      screen.findByText("Give it a name, such as the device it’s on."),
+    ).resolves.toBeDefined();
+    expect(credentials.create).not.toHaveBeenCalled();
+  });
+
   test("removing a passkey takes it off the list", async () => {
     openHub("/", true);
 
