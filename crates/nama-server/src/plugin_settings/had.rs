@@ -42,7 +42,7 @@ impl PluginSettings {
     /// `gone_for`, and returns their ids, sorted, for the caller to delete the rest of what they
     /// left in the same write. A Plugin the registry knows as the write starts is never one of
     /// them; one a listing brings back during the write is forgotten all the same.
-    pub(crate) async fn take_gone(
+    pub(super) async fn take_gone(
         &self,
         conn: &mut SqliteConnection,
         gone_for: Duration,

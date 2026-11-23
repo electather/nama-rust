@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO box_sets (namespace, value, plugin, name, movies, looked_up)\n                         VALUES (?1, '8091', ?1, 'Alien Collection', '[]', '[]')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "24fc0895640b033411f3251b6b9ef1a58c834895c9380d2f4db0d3e7eca2acb2"
+}

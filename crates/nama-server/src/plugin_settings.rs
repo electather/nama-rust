@@ -27,16 +27,16 @@ use tracing::{Instrument as _, error, info, warn};
 use crate::{
     config::{Config, InvalidPluginTable, PluginConfig},
     db::Database,
-    library::Contents,
     plugins::{
         CheckError, EnableError, ExtensionPoints, LastProvider, Listed, ListedJob, Registry,
-        forget_undeclared_jobs, list_jobs, log_not_enabled, read_installed,
+        list_jobs, log_not_enabled, read_installed,
     },
 };
 
 mod check;
 mod crashed;
 mod had;
+mod leftovers;
 mod library_ids;
 mod personal;
 mod put_back;
@@ -256,7 +256,6 @@ impl PluginSettings {
         })
         .await
         .map_err(StartError::Panicked)?;
-        forget_undeclared_jobs(&plugins.db, &plugins.registry.plugins()).await;
         if plugins.registry.providers::<dyn Authenticator>().is_empty() {
             return Err(StartError::NoAuthenticator);
         }
@@ -400,10 +399,7 @@ impl PluginSettings {
         drop(changing);
         self.note_had().await;
         let mut stored = self.stored().await?;
-        let plugins = self.registry.plugins();
-        forget_undeclared_jobs(&self.db, &plugins).await;
-        Ok(plugins
-            .into_iter()
+        Ok((self.registry.plugins().into_iter())
             .map(|plugin| with_stored(plugin, &mut stored))
             .collect())
     }
@@ -600,20 +596,10 @@ impl PluginSettings {
             // running, as a crash can anyway; the next start then refuses until an admin enables
             // one.
             this.registry.disable(&id).await;
-            this.forget_similar(&id).await;
+            this.forget_disabled(&id).await;
             Ok(())
         })
         .await
-    }
-
-    /// Deletes the Similar titles the Plugin `id` answered, as disabling it does (ADR 0084), so
-    /// enabling it again shows them only as its titles refresh. Pages already leave out a disabled
-    /// Plugin's, so a failure is only logged.
-    async fn forget_similar(&self, id: &PluginId) {
-        let contents = Contents::new(Arc::clone(&self.db));
-        if let Err(err) = contents.forget_similar_from(id).await {
-            error!(plugin = %id, %err, "couldn't delete a disabled Plugin's Similar titles");
-        }
     }
 
     /// Enables the Plugin `id` again with `settings` and the Plugin Permissions `granted`, even if

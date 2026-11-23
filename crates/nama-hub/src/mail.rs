@@ -1,11 +1,12 @@
 //! Mail the Hub sends, such as Sign-in Links: a true external, so a trait with the Resend adapter
-//! here and a fake in the tests (ADR 0099).
+//! and a log adapter for development here, and a fake in the tests (ADR 0099).
 
 use std::{fmt, future::Future, pin::Pin, sync::Arc, time::Duration};
 
 use reqwest::StatusCode;
 use rustls::{ClientConfig, RootCertStore, crypto::ring};
 use serde::Serialize;
+use tracing::info;
 
 /// Where the Hub sends mail, and the address the links in it lead to.
 #[derive(Clone)]
@@ -148,6 +149,20 @@ impl fmt::Debug for Resend {
         f.debug_struct("Resend")
             .field("from", &self.from)
             .finish_non_exhaustive()
+    }
+}
+
+/// Writes each email to the Hub's log instead of sending it, so a Hub developed without Resend
+/// can still prove an Account's email. [`crate::config::Config::load`] allows it only on a Hub
+/// whose public URL is on localhost or a loopback address.
+#[derive(Debug)]
+pub struct LogMailer;
+
+impl Mailer for LogMailer {
+    fn send(&self, email: Email) -> Sending<'_> {
+        // Logs the address, an exception to ADR 0054 that `crates/nama-hub/AGENTS.md` ("Data") records.
+        info!(to = %email.to, subject = %email.subject, "mail not sent:\n{}", email.text);
+        Box::pin(async { Ok(()) })
     }
 }
 

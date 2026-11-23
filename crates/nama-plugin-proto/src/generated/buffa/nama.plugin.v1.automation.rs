@@ -6911,9 +6911,10 @@ pub const __FORGET_GONE_PLUGINS_ASKED_JSON_ANY: ::buffa::type_registry::JsonAnyE
     from_json: ::buffa::type_registry::any_from_json::<ForgetGonePluginsAsked>,
     is_wkt: false,
 };
-/// What `forget_gone_plugins` answers once it deleted each such Plugin's Store entries, settings,
-/// Personal settings, Plugin Connections, and the Scores, Trailers, Similar titles, Roles and air
-/// dates its title source gave. A Plugin the Server still has, enabled or not, is never one of them.
+/// What `forget_gone_plugins` answers once it deleted what each such Plugin left behind, as the
+/// Server's list of what a Plugin leaves behind says
+/// (`crates/nama-server/src/plugin_settings/leftovers.rs`). A Plugin the Server still has, enabled
+/// or not, is never one of them.
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
