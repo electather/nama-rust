@@ -25,7 +25,7 @@ use tokio::net::TcpStream;
 use uuid::Uuid;
 
 use crate::{
-    accounts::{self, AccountId, AccountSession, Accounts},
+    accounts::{self, AccountId, AccountSession, Accounts, RecentAuthenticationRequired},
     dns::{DnsError, ServerNames},
     signing::Keys,
 };
@@ -137,8 +137,8 @@ pub(crate) enum Polled {
 /// Why a Link couldn't be made or polled.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
-    #[error("sign in again to Link")]
-    RecentAuthenticationRequired,
+    #[error(transparent)]
+    RecentAuthenticationRequired(#[from] RecentAuthenticationRequired),
     #[error("prove your email with a Sign-in Link before Linking")]
     EmailNotProven,
     #[error("nothing is waiting on this code")]
@@ -532,10 +532,7 @@ fn may_link(session: &AccountSession) -> Result<(), Error> {
     if !session.email_proven {
         return Err(Error::EmailNotProven);
     }
-    if !session.authenticated_recently {
-        return Err(Error::RecentAuthenticationRequired);
-    }
-    Ok(())
+    Ok(session.require_recent_authentication()?)
 }
 
 /// Whether `address` may be a Server Address: an absolute `http` or `https` URL, so the Hub's pages

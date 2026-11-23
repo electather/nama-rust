@@ -7,6 +7,8 @@ mod store;
 #[cfg(test)]
 mod testing;
 
+pub(crate) use store::delete_plugin as delete_plugins_store_entries;
+
 use std::{
     collections::{HashMap, HashSet},
     future,
@@ -38,12 +40,10 @@ use nama_plugin_api::{
     fulfiller::TitleId,
     metadata::{ExternalId, ExternalIds},
 };
-use sqlx::SqliteConnection;
 use tracing::error;
 
 use crate::{
     backup::Backups,
-    connections,
     db::Database,
     home_rows,
     library::{self, Contents, ItemKind, LibraryError, TitleKind, TitleTarget, WatchStateKind},
@@ -620,9 +620,8 @@ impl Caller {
         })
     }
 
-    /// Deletes, in one write, what each Plugin the Server hasn't had for `asked.days` left behind:
-    /// its settings, Store entries, Personal settings, Plugin Connections, and what its title
-    /// source gave.
+    /// Deletes, in one write, what each Plugin the Server hasn't had for `asked.days` left behind,
+    /// as the Plugin leftovers owner's `LEFTOVERS` lists it.
     async fn forget_gone_plugins(
         self,
         asked: ForgetGonePluginsAsked,
@@ -630,7 +629,7 @@ impl Caller {
         let gone_for = at_least_a_day(asked.days)?;
         let plugins = self.automation.plugins.clone();
         let forgotten = (self.automation.db)
-            .write(move |tx| Box::pin(async move { forget_gone(tx, &plugins, gone_for).await }));
+            .write(move |tx| Box::pin(async move { plugins.forget_gone(tx, gone_for).await }));
         let plugin_ids = forgotten.await.map_err(|err: sqlx::Error| {
             self.database_refused("forgetting removed Plugins", &err)
         })?;
@@ -668,24 +667,6 @@ impl Caller {
         (self.automation.backups.write().await)
             .map_err(|err| KernelRefused(format!("writing the Backup failed: {err}")))
     }
-}
-
-/// Deletes, in `conn`'s write, what each Plugin the Server hasn't had for `gone_for` left behind,
-/// each table through its owner, what its title source gave through [`Contents`], and returns
-/// their ids.
-async fn forget_gone(
-    conn: &mut SqliteConnection,
-    plugins: &PluginSettings,
-    gone_for: Duration,
-) -> Result<Vec<String>, sqlx::Error> {
-    let gone = plugins.take_gone(conn, gone_for).await?;
-    for plugin in &gone {
-        store::delete_plugin(conn, plugin).await?;
-        users::delete_plugins_personal_settings(conn, plugin).await?;
-        connections::delete_plugin(conn, plugin).await?;
-        Contents::forget_plugin(conn, plugin).await?;
-    }
-    Ok(gone)
 }
 
 /// `days` as a span of time, refusing 0.

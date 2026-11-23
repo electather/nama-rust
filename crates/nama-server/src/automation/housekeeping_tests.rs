@@ -77,9 +77,9 @@ async fn forget_gone_plugins_deletes_what_a_long_gone_plugin_left_and_keeps_a_re
     let forgotten = kernel.ask::<ForgetGonePlugins>(asked).await;
 
     assert_eq!(forgotten.unwrap().plugin_ids, ["long-gone"]);
-    assert_eq!(left_behind(&db, "long-gone", ada).await, [false; 8]);
-    assert_eq!(left_behind(&db, "recently-gone", ada).await, [true; 8]);
-    assert_eq!(left_behind(&db, "log-events", ada).await, [true; 8]);
+    assert_eq!(left_behind(&db, "long-gone", ada).await, [false; 11]);
+    assert_eq!(left_behind(&db, "recently-gone", ada).await, [true; 11]);
+    assert_eq!(left_behind(&db, "log-events", ada).await, [true; 11]);
 }
 
 #[tokio::test]

@@ -154,8 +154,8 @@ impl HomeRows {
         self.refreshes.refresh_stale(&rows, reader.id).await?;
         // ponytail: deleted on the next listing rather than as the Plugin is disabled or comes up
         // as a new version, which also catches a crash's disable; until then they're only
-        // hidden. Delete them from `PluginSettings::disable` if a disabled Plugin's stored rows
-        // ever matter sooner.
+        // hidden. Delete them from `PluginSettings::forget_disabled` if a disabled Plugin's
+        // stored rows ever matter sooner.
         self.refreshes.forget(&rows).await?;
         let methods: HashSet<_> = (stored.iter())
             .map(|(scope, _)| (scope.plugin.clone(), scope.method))

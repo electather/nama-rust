@@ -19,11 +19,11 @@ use nama_hub_proto::nama::hub::v1::{
     SignInWithLinkRequest, SignInWithLinkResponse, SignOutRequest, SignOutResponse,
 };
 
-use super::{hub_failed, refuse};
+use super::{hub_failed, recent_authentication_required, refuse};
 use crate::{
     accounts::{
         self, Account, AccountSession, Accounts, Blocked, Caller, EMAIL_LENGTH, PASSWORD_LENGTH,
-        RECENT_AUTHENTICATION_MINS, SESSION_DAYS, SignInLink, SignedIn, SignedInByLink,
+        SESSION_DAYS, SignInLink, SignedIn, SignedInByLink,
     },
     links::Links,
 };
@@ -212,7 +212,8 @@ fn caller(ctx: &RequestContext) -> Result<Caller, ConnectError> {
     })
 }
 
-/// The session the request `ctx` is for, or `REFUSAL_REASON_SIGN_IN_REQUIRED`.
+/// The session the request `ctx` is for, or `REFUSAL_REASON_SIGN_IN_REQUIRED`: for the auth layer,
+/// and for `AccountService`, which serves callers without one too.
 pub(super) fn signed_in(ctx: &RequestContext) -> Result<&AccountSession, ConnectError> {
     ctx.extensions().get::<AccountSession>().ok_or_else(|| {
         refuse(
@@ -221,6 +222,14 @@ pub(super) fn signed_in(ctx: &RequestContext) -> Result<&AccountSession, Connect
         )
         .into()
     })
+}
+
+/// The session the request `ctx` is for. The auth layer refuses every call to a service serving
+/// only Accounts' sessions without one, so its absence is a Hub bug and never a Refusal.
+pub(super) fn session(ctx: &RequestContext) -> Result<&AccountSession, ConnectError> {
+    ctx.extensions()
+        .get::<AccountSession>()
+        .ok_or_else(|| hub_failed(&"a call to a service serving sessions came without one"))
 }
 
 /// The response `body` makes for an Account just signed in, with its token in a cookie and never
@@ -273,10 +282,7 @@ fn refused(err: accounts::Error) -> ConnectError {
             .field("password")
             .param("minLength", PASSWORD_LENGTH.start())
             .param("maxLength", PASSWORD_LENGTH.end()),
-        E::RecentAuthenticationRequired => {
-            refuse(R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED, message)
-                .param("recentMinutes", &RECENT_AUTHENTICATION_MINS)
-        }
+        E::RecentAuthenticationRequired(ref err) => recent_authentication_required(err),
         E::WrongEmailOrPassword => refuse(R::REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD, message),
         E::SignInLinksOff => refuse(R::REFUSAL_REASON_SIGN_IN_LINKS_OFF, message),
         E::SignInLinkExpired => refuse(R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED, message),

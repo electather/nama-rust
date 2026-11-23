@@ -11,6 +11,11 @@ pub(crate) const SESSION_DAYS: i32 = 30;
 /// How many minutes after signing in a session has Recent Authentication (GLOSSARY.md).
 pub(crate) const RECENT_AUTHENTICATION_MINS: i32 = 10;
 
+/// A request refused because its session lacks Recent Authentication, for any area to pass on.
+#[derive(Debug, thiserror::Error)]
+#[error("this needs a sign-in in the last {RECENT_AUTHENTICATION_MINS} minutes: sign in again")]
+pub(crate) struct RecentAuthenticationRequired;
+
 /// Starts a session for `account` and returns its token.
 pub(super) async fn start(conn: &mut PgConnection, account: AccountId) -> Result<String, Error> {
     let token = new_token()?;

@@ -201,7 +201,6 @@ pub(crate) fn router(
             plugin_settings: plugin_settings.clone(),
             settings: settings.clone(),
             plugin_logos: plugin_logos.clone(),
-            db: Arc::clone(&db),
         }))
         .add_service(Arc::new(libraries::LibraryServiceHandler {
             libraries: Libraries::new(Arc::clone(&db)),

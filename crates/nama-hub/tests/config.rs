@@ -147,3 +147,70 @@ fn a_cloudflare_token_without_its_zone_refuses_to_load_naming_it() {
         Ok(())
     });
 }
+
+#[test]
+fn log_mail_with_a_localhost_or_loopback_public_url_loads_without_a_sender() {
+    Jail::expect_with(|jail| {
+        jail.set_env("NAMA_HUB_DATABASE_URL", "postgres://hub@db/hub");
+        jail.set_env("NAMA_HUB_LOG_MAIL", "true");
+
+        for url in [
+            "http://localhost:7981",
+            "http://127.0.0.1:5173",
+            "http://[::1]",
+        ] {
+            jail.set_env("NAMA_HUB_PUBLIC_URL", url);
+            assert!(Config::load().unwrap().log_mail, "{url}");
+        }
+        Ok(())
+    });
+}
+
+#[test]
+fn log_mail_without_a_public_url_refuses_to_load_naming_it() {
+    Jail::expect_with(|jail| {
+        jail.set_env("NAMA_HUB_DATABASE_URL", "postgres://hub@db/hub");
+        jail.set_env("NAMA_HUB_LOG_MAIL", "true");
+
+        let err = Config::load().unwrap_err();
+
+        assert!(err.to_string().contains("NAMA_HUB_PUBLIC_URL"), "{err}");
+        Ok(())
+    });
+}
+
+#[test]
+fn log_mail_with_a_public_url_off_this_machine_refuses_to_load_naming_it() {
+    Jail::expect_with(|jail| {
+        jail.set_env("NAMA_HUB_DATABASE_URL", "postgres://hub@db/hub");
+        jail.set_env("NAMA_HUB_LOG_MAIL", "true");
+
+        for url in [
+            "https://hub.example.com",
+            "http://localhost.example.com",
+            "not a url",
+        ] {
+            jail.set_env("NAMA_HUB_PUBLIC_URL", url);
+            let err = Config::load().unwrap_err();
+            assert!(err.to_string().contains("NAMA_HUB_PUBLIC_URL"), "{err}");
+        }
+        Ok(())
+    });
+}
+
+#[test]
+fn log_mail_with_a_resend_key_refuses_to_load_naming_both() {
+    Jail::expect_with(|jail| {
+        jail.set_env("NAMA_HUB_DATABASE_URL", "postgres://hub@db/hub");
+        jail.set_env("NAMA_HUB_LOG_MAIL", "true");
+        jail.set_env("NAMA_HUB_PUBLIC_URL", "http://localhost:7981");
+        jail.set_env("NAMA_HUB_RESEND_API_KEY", "re_secret");
+        jail.set_env("NAMA_HUB_MAIL_FROM", "Nama Hub <hub@example.com>");
+
+        let err = Config::load().unwrap_err().to_string();
+
+        assert!(err.contains("NAMA_HUB_LOG_MAIL"), "{err}");
+        assert!(err.contains("NAMA_HUB_RESEND_API_KEY"), "{err}");
+        Ok(())
+    });
+}
