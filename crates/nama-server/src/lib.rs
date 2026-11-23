@@ -251,7 +251,7 @@ pub fn serve(
         // Every minute, as Seerr asks how its Requests are progressing (ADR 0012).
         let came_up = home_rows.refresh_as_plugins_come_up(plugins.take_came_up());
         requests.start(came_up, Duration::from_mins(1));
-        let telling_addresses = server_addresses::tell_every_minute(
+        let telling_addresses = server_addresses::keep_telling(
             plugins.extension_points(),
             server_url,
             listening,

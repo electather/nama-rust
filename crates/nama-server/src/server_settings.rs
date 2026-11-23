@@ -49,7 +49,6 @@ pub(crate) struct Settings {
     /// Where segment files go while no folder is set.
     default_folder: PathBuf,
     values: Arc<RwLock<Values>>,
-    /// Signalled each time the Server URL is saved.
     url_saved: Arc<Notify>,
 }
 
@@ -712,7 +711,8 @@ impl ServerUrl {
     }
 
     /// Waits until the Server URL is saved, or returns at once if it was saved since the last wait
-    /// ended. Wakes one waiter.
+    /// ended. Only the Server Addresses task may wait: a save wakes one waiter, so a second would
+    /// take saves meant for it.
     pub(crate) async fn saved(&self) {
         self.saved.notified().await;
     }

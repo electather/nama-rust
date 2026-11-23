@@ -36,7 +36,7 @@ const OPEN_PORT_EVERY: u64 = port_mapping::LEASE.as_secs() / 2 / EVERY.as_secs()
 /// Plugin has it Linked. Runs until the task is aborted; each call runs in the Plugin's scope, so
 /// disabling it or shutting down cancels and joins the call. A Plugin that fails shows it on its
 /// page.
-pub(crate) fn tell_every_minute(
+pub(crate) fn keep_telling(
     points: ExtensionPoints,
     url: ServerUrl,
     listening: SocketAddr,
