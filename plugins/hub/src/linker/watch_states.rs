@@ -8,17 +8,12 @@ use std::{hash::Hash, sync::Arc};
 use nama_hub_proto::nama::hub::v1::WatchStateChange as Change;
 use nama_plugin_api::{
     BoxFuture, Observer, PluginError,
-    automation::Kernel,
     job::Job,
     points::{WatchStateChange, WatchStateChanges, WatchStatesChanged},
-    server_link::Link,
 };
 
-use super::{
-    Linker,
-    queue::{Queue, Queued},
-};
-use crate::hub::{Hub, limits};
+use super::{Linker, queue::Queued};
+use crate::hub::limits;
 
 /// The id of the Job that sends the queue.
 pub(super) const SYNC: &str = "sync";
@@ -35,15 +30,6 @@ impl Queued for Change {
     fn changed_at_ms(&self) -> i64 {
         self.changed_at_ms
     }
-}
-
-/// The queue of Watch State changes in `kernel`'s Store, which pushes them to `hub`.
-pub(super) fn queue(hub: &Hub, kernel: Arc<dyn Kernel>) -> Queue<Change> {
-    let hub = hub.clone();
-    Queue::new(kernel, move |credential, page| {
-        let hub = hub.clone();
-        Box::pin(async move { hub.push_watch_states(&credential, page).await })
-    })
 }
 
 /// The Sync Job, which the Kernel runs every minute.
@@ -72,26 +58,34 @@ impl Observer<WatchStatesChanged> for WatchStateSync {
 }
 
 impl Linker {
-    /// Queues `changed`, if its User is Linked. It asks the Hub as Settings would, since a User
-    /// who never opened Settings, such as one who only signs in with their Account, has no kept
-    /// Link.
+    /// Queues `changed`, if its User is Linked.
     async fn queue_changes(&self, changed: &WatchStateChanges) -> Result<(), PluginError> {
-        let Some(Link::Linked { .. }) = self.current_user_link(changed.user_id).await? else {
+        if !self.user_linked(changed.user_id).await? {
             return Ok(());
-        };
+        }
         let to_send = (changed.changes.iter())
             .filter_map(|change| change_to_proto(changed.user_id, change))
             .collect();
         self.watch_states.add(to_send).await
     }
 
+    /// Sends the queue to the Hub, a page per push, forgetting each page the Hub took. Without the
+    /// Server's Link, such as once the Hub dropped it, the queue has nowhere to go, and is
+    /// forgotten.
+    pub(super) async fn send_queued(&self) -> Result<(), PluginError> {
+        let push =
+            |page| -> BoxFuture<'_, _> { Box::pin(self.call(|hub| hub.push_watch_states(page))) };
+        self.watch_states.send(push).await
+    }
+
     /// The Watch State of the Account `user_id` is Linked to, once the Hub has every change queued
     /// here; empty without the Server's Link.
     pub(super) async fn pull(&self, user_id: i64) -> Result<Vec<WatchStateChange>, PluginError> {
-        let pulled = (self.watch_states)
-            .pull(async |credential| self.hub.pull_watch_states(credential, user_id).await)
-            .await?;
-        Ok(pulled.into_iter().map(change_from_proto).collect())
+        self.send_queued().await?;
+        let pulled = self.call(|hub| hub.pull_watch_states(user_id)).await?;
+        Ok((pulled.unwrap_or_default().into_iter())
+            .map(change_from_proto)
+            .collect())
     }
 }
 

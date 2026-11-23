@@ -1,12 +1,12 @@
-use std::sync::Mutex as StdMutex;
+use std::sync::{
+    Mutex as StdMutex,
+    atomic::{AtomicBool, Ordering},
+};
 
 use nama_plugin_api::automation::functions::StorePut;
 
 use super::*;
-use crate::{
-    linker::{Kept, LINK_KEY},
-    tests::store,
-};
+use crate::tests::store;
 
 /// An item of a kind made up for these tests, a page of which holds at most 3.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -49,39 +49,45 @@ struct Hub {
     kernel: Arc<dyn Kernel>,
     taken: Taken,
     refusing: Refusing,
+    linked: AtomicBool,
 }
 
 impl Hub {
     /// A queue over an empty Store, the Server Linked.
-    async fn linked() -> Self {
+    fn linked() -> Self {
         let hub = Self::not_linked();
-        hub.link().await;
+        hub.link();
         hub
     }
 
     fn not_linked() -> Self {
         let kernel = store();
         let (taken, refusing) = (Taken::default(), Refusing::default());
-        let queue = Queue::new(Arc::clone(&kernel), {
-            let (taken, refusing) = (Arc::clone(&taken), Arc::clone(&refusing));
-            move |_credential, page: Vec<Told>| {
-                Box::pin(std::future::ready(answer(&taken, &refusing, page)))
-            }
-        });
         Self {
-            queue,
+            queue: Queue::new(Arc::clone(&kernel)),
             kernel,
             taken,
             refusing,
+            linked: AtomicBool::new(false),
         }
     }
 
-    async fn link(&self) {
-        let kept = Kept {
-            credential: "credential".to_owned(),
-            account: None,
-        };
-        self.put(LINK_KEY, serde_json::to_vec(&kept).unwrap()).await;
+    fn link(&self) {
+        self.linked.store(true, Ordering::Relaxed);
+    }
+
+    /// Sends the queue, to the Hub if the Server is Linked.
+    async fn send(&self) -> Result<(), PluginError> {
+        (self.queue)
+            .send(|page| {
+                let answered = if self.linked.load(Ordering::Relaxed) {
+                    answer(&self.taken, &self.refusing, page).map(Some)
+                } else {
+                    Ok(None)
+                };
+                Box::pin(std::future::ready(answered))
+            })
+            .await
     }
 
     async fn put(&self, key: &str, value: Vec<u8>) {
@@ -122,12 +128,12 @@ fn pages(pages: &[&[(&str, i64)]]) -> Vec<Vec<(String, i64)>> {
 
 #[tokio::test]
 async fn items_go_in_order_a_page_per_call_the_latest_of_each_key_last_across_pages() {
-    let hub = Hub::linked().await;
+    let hub = Hub::linked();
 
     let first: Vec<_> = ["a", "b", "c", "d", "e"].map(|key| told(key, 1)).into();
     hub.queue.add(first).await.unwrap();
     hub.queue.add(vec![told("b", 2)]).await.unwrap();
-    hub.queue.send().await.unwrap();
+    hub.send().await.unwrap();
 
     assert_eq!(
         hub.taken(),
@@ -137,33 +143,33 @@ async fn items_go_in_order_a_page_per_call_the_latest_of_each_key_last_across_pa
 
 #[tokio::test]
 async fn an_item_told_after_a_later_one_of_its_key_is_dropped() {
-    let hub = Hub::linked().await;
+    let hub = Hub::linked();
 
     hub.queue
         .add(vec![told("a", 2), told("b", 1)])
         .await
         .unwrap();
     hub.queue.add(vec![told("a", 1)]).await.unwrap();
-    hub.queue.send().await.unwrap();
+    hub.send().await.unwrap();
 
     assert_eq!(hub.taken(), pages(&[&[("a", 2), ("b", 1)]]));
 }
 
 #[tokio::test]
 async fn telling_the_same_items_again_queues_each_once() {
-    let hub = Hub::linked().await;
+    let hub = Hub::linked();
     let all: Vec<_> = (0..7).map(|key| told(&key.to_string(), 1)).collect();
 
     hub.queue.add(all.clone()).await.unwrap();
     hub.queue.add(all).await.unwrap();
-    hub.queue.send().await.unwrap();
+    hub.send().await.unwrap();
 
     assert_eq!(hub.taken().concat().len(), 7);
 }
 
 #[tokio::test]
 async fn a_page_never_outgrows_one_store_value() {
-    let hub = Hub::linked().await;
+    let hub = Hub::linked();
     let big = |key: &str| Told {
         padding: "x".repeat(30_000),
         ..told(key, 1)
@@ -174,7 +180,7 @@ async fn a_page_never_outgrows_one_store_value() {
         .add(["a", "b", "c", "d", "e"].map(big).into())
         .await
         .unwrap();
-    hub.queue.send().await.unwrap();
+    hub.send().await.unwrap();
 
     assert_eq!(
         hub.taken(),
@@ -184,13 +190,13 @@ async fn a_page_never_outgrows_one_store_value() {
 
 #[tokio::test]
 async fn a_page_the_hub_cant_take_now_stays_with_the_rest_and_fails_the_send() {
-    let hub = Hub::linked().await;
+    let hub = Hub::linked();
     let four: Vec<_> = ["a", "b", "c", "d"].map(|key| told(key, 1)).into();
     hub.queue.add(four).await.unwrap();
 
     hub.refuse(&[ErrorCode::Unavailable]);
-    assert!(hub.queue.send().await.is_err());
-    hub.queue.send().await.unwrap();
+    assert!(hub.send().await.is_err());
+    hub.send().await.unwrap();
 
     assert_eq!(
         hub.taken(),
@@ -200,27 +206,15 @@ async fn a_page_the_hub_cant_take_now_stays_with_the_rest_and_fails_the_send() {
 
 #[tokio::test]
 async fn a_page_the_hub_refuses_as_invalid_is_dropped_and_the_rest_go() {
-    let hub = Hub::linked().await;
+    let hub = Hub::linked();
     let four: Vec<_> = ["a", "b", "c", "d"].map(|key| told(key, 1)).into();
     hub.queue.add(four).await.unwrap();
 
     hub.refuse(&[ErrorCode::InvalidArgument]);
-    hub.queue.send().await.unwrap();
-    hub.queue.send().await.unwrap();
+    hub.send().await.unwrap();
+    hub.send().await.unwrap();
 
     assert_eq!(hub.taken(), pages(&[&[("d", 1)]]));
-}
-
-#[tokio::test]
-async fn a_page_for_a_credential_the_hub_forgot_counts_as_sent() {
-    let hub = Hub::linked().await;
-    hub.queue.add(vec![told("a", 1)]).await.unwrap();
-
-    hub.refuse(&[ErrorCode::Unauthenticated]);
-    hub.queue.send().await.unwrap();
-    hub.queue.send().await.unwrap();
-
-    assert_eq!(hub.taken(), pages(&[]));
 }
 
 #[tokio::test]
@@ -228,38 +222,22 @@ async fn without_the_servers_link_the_queue_is_forgotten() {
     let hub = Hub::not_linked();
     hub.queue.add(vec![told("a", 1)]).await.unwrap();
 
-    hub.queue.send().await.unwrap();
-    hub.link().await;
-    hub.queue.send().await.unwrap();
+    hub.send().await.unwrap();
+    hub.link();
+    hub.send().await.unwrap();
 
     assert_eq!(hub.taken(), pages(&[]));
 }
 
 #[tokio::test]
-async fn a_pull_sends_the_queue_first_and_answers_the_default_without_the_servers_link() {
-    let hub = Hub::linked().await;
-    hub.queue.add(vec![told("a", 1)]).await.unwrap();
-
-    let linked = hub.queue.pull(async |credential| {
-        assert_eq!(hub.taken(), pages(&[&[("a", 1)]]));
-        Ok(credential.to_owned())
-    });
-    assert_eq!(linked.await.unwrap(), "credential");
-
-    let not_linked = Hub::not_linked();
-    let unlinked = not_linked.queue.pull(async |_| Ok("pulled".to_owned()));
-    assert_eq!(unlinked.await.unwrap(), "");
-}
-
-#[tokio::test]
 async fn what_an_older_plugin_queued_in_one_value_is_sent_once_before_what_is_queued_after() {
-    let hub = Hub::linked().await;
+    let hub = Hub::linked();
     let before = serde_json::to_vec(&[told("a", 1), told("b", 1)]).unwrap();
     hub.put("told-before", before).await;
 
     hub.queue.add(vec![told("c", 1)]).await.unwrap();
-    hub.queue.send().await.unwrap();
-    hub.queue.send().await.unwrap();
+    hub.send().await.unwrap();
+    hub.send().await.unwrap();
 
     assert_eq!(hub.taken(), pages(&[&[("a", 1), ("b", 1), ("c", 1)]]));
 }

@@ -36,7 +36,7 @@ use sqlx::PgPool;
 use tracing::Instrument as _;
 
 use crate::{
-    accounts::Accounts,
+    accounts::{Accounts, RECENT_AUTHENTICATION_MINS, RecentAuthenticationRequired},
     db,
     diagnostics::{Backend, NotTaken, Shared, Signal},
     links::{LinkedServer, Links},
@@ -100,11 +100,11 @@ pub(crate) fn router(
 
 /// Every Hub service, on `db`, asking `accounts` and `links`.
 fn services(db: PgPool, accounts: &Accounts, links: &Links) -> connectrpc::Router {
-    let viewing = Viewing::new(db.clone(), links.clone());
-    let watch_states = WatchStates::new(db.clone(), links.clone());
-    let recommendations = Recommendations::new(db.clone(), links.clone(), viewing.clone());
-    let track_preferences = TrackPreferences::new(db.clone(), links.clone());
-    let watchlists = Watchlists::new(db.clone(), links.clone(), viewing.clone());
+    let viewing = Viewing::new(db.clone());
+    let watch_states = WatchStates::new(db.clone());
+    let recommendations = Recommendations::new(db.clone(), viewing.clone());
+    let track_preferences = TrackPreferences::new(db.clone());
+    let watchlists = Watchlists::new(db.clone(), viewing.clone());
     connectrpc::Router::new()
         .add_service(Arc::new(HubServiceHandler {
             db: db.clone(),
@@ -385,6 +385,16 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_WATCHLIST_INVALID
         | R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,
     }
+}
+
+/// Refuses a request whose session lacks Recent Authentication, whichever area found it, saying
+/// how recent a sign-in must be.
+fn recent_authentication_required(err: &RecentAuthenticationRequired) -> Refused {
+    refuse(
+        RefusalReason::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
+        err.to_string(),
+    )
+    .param("recentMinutes", &RECENT_AUTHENTICATION_MINS)
 }
 
 /// The error a client gets for a failure on the Hub's side: logged, not sent, since it says

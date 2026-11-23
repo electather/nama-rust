@@ -5,6 +5,7 @@
 use sqlx::PgPool;
 
 use crate::{
+    accounts::AccountId,
     links::{LinkedServer, Links},
     titles::{self, ExternalId, RecommendedTitle, TitleKind},
     viewing::Viewing,
@@ -14,27 +15,36 @@ use crate::{
 #[derive(Clone)]
 pub(crate) struct Recommendations {
     db: PgPool,
-    links: Links,
     viewing: Viewing,
 }
 
 impl Recommendations {
-    pub(crate) const fn new(db: PgPool, links: Links, viewing: Viewing) -> Self {
-        Self { db, links, viewing }
+    pub(crate) const fn new(db: PgPool, viewing: Viewing) -> Self {
+        Self { db, viewing }
     }
 
-    /// The titles to recommend to `server`'s User `user_id`, best first, by their ids in the first
-    /// of `namespaces` each has, leaving out what their Account finished. Empty while they aren't
-    /// Linked.
+    /// What [`Self::for_account`] recommends the Account `links` finds `server`'s User `user_id`
+    /// Linked to. Empty while they aren't Linked.
     pub(crate) async fn for_user(
         &self,
+        links: &Links,
         server: &LinkedServer,
         user_id: i64,
         namespaces: &[String],
     ) -> Result<Vec<RecommendedTitle>, sqlx::Error> {
-        let Some(account) = self.links.linked_account(server, user_id).await? else {
-            return Ok(Vec::new());
-        };
+        match links.linked_account(server, user_id).await? {
+            Some(account) => self.for_account(account, namespaces).await,
+            None => Ok(Vec::new()),
+        }
+    }
+
+    /// The titles to recommend to `account`, best first, by their ids in the first of
+    /// `namespaces` each has, leaving out what it finished.
+    pub(crate) async fn for_account(
+        &self,
+        account: AccountId,
+        namespaces: &[String],
+    ) -> Result<Vec<RecommendedTitle>, sqlx::Error> {
         // ponytail: an Episode's Viewing Event names the Episode, not its Show, and the Hub's titles
         // hold no Episodes, so only Movies count; count Shows once an event names its Show (#1950).
         let finished: Vec<(TitleKind, ExternalId)> =

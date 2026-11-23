@@ -109,7 +109,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
 // Plugin changes", stays in the crate's AGENTS.md.
 const ROWS: &[&[&str]] = &[
     &["api", "automation"],
-    &["browse", "scanner", "plugin_settings"],
+    &["sync", "browse", "scanner", "plugin_settings"],
     &["home_rows", "requests", "playback", "matching", "watchlist"],
     &["library"],
     &["events", "connections", "users", "server_addresses"],
@@ -154,6 +154,12 @@ const ALLOWED_UPWARD: &[Allowed] = &[
         Importers::File("src/library/contents/ids.rs"),
         &["playback", "title_ids_changed"],
         "ADR 0075: a Match whose ids change makes its Version due inside its write",
+    ),
+    (
+        Importers::File("src/plugin_settings/leftovers.rs"),
+        &["automation", "delete_plugins_store_entries"],
+        "the Plugin leftovers owner deletes a removed Plugin's Store entries through the Store's \
+         owner, in Upkeep's one write",
     ),
     (
         Importers::File("src/playback/tracks/segments_tests.rs"),

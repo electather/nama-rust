@@ -3,11 +3,7 @@
 //! Accounts that finished each Movie and pair of Movies, and each Movie each week, they pool into
 //! (ADR 0093).
 
-use std::{
-    collections::{HashMap, hash_map::Entry},
-    fmt,
-    str::FromStr,
-};
+use std::{fmt, str::FromStr};
 
 use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
@@ -220,18 +216,19 @@ pub(crate) enum Error {
 #[derive(Clone)]
 pub(crate) struct Viewing {
     db: PgPool,
-    links: Links,
 }
 
 impl Viewing {
-    pub(crate) const fn new(db: PgPool, links: Links) -> Self {
-        Self { db, links }
+    pub(crate) const fn new(db: PgPool) -> Self {
+        Self { db }
     }
 
-    /// Records `events` under the Accounts `server`'s Users are Linked to, leaving out those of
-    /// Users who aren't, and each one already recorded by its key. Records none if any is invalid.
+    /// Records `events` under the Accounts `links` finds `server`'s Users Linked to, as
+    /// [`Self::record_under`] does. Records none if there are too many or any is invalid, even
+    /// one of a User who isn't Linked.
     pub(crate) async fn record(
         &self,
+        links: &Links,
         server: &LinkedServer,
         events: Vec<UserViewingEvent>,
     ) -> Result<(), Error> {
@@ -241,22 +238,24 @@ impl Viewing {
         if !events.iter().all(UserViewingEvent::is_valid) {
             return Err(Error::Invalid);
         }
-        let mut accounts: HashMap<i64, Option<AccountId>> = HashMap::new();
-        for event in &events {
-            if let Entry::Vacant(unknown) = accounts.entry(event.user_id) {
-                unknown.insert(self.links.linked_account(server, event.user_id).await?);
-            }
-        }
+        let events = links
+            .linked_accounts(server, events, |event| event.user_id)
+            .await?;
+        let events = (events.into_iter())
+            .map(|(account, UserViewingEvent { key, event, .. })| (account, key, event))
+            .collect();
+        self.record_under(events).await
+    }
+
+    /// Records each event under the Account it is paired with, as its key, in one transaction,
+    /// leaving out each one already recorded by its key.
+    pub(crate) async fn record_under(
+        &self,
+        events: Vec<(AccountId, String, ViewingEvent)>,
+    ) -> Result<(), Error> {
         let mut tx = self.db.begin().await?;
-        for UserViewingEvent {
-            user_id,
-            key,
-            event,
-        } in events
-        {
-            if let Some(&Some(account)) = accounts.get(&user_id) {
-                record_one(&mut tx, account, &key, &event).await?;
-            }
+        for (account, key, event) in events {
+            record_one(&mut tx, account, &key, &event).await?;
         }
         tx.commit().await?;
         Ok(())

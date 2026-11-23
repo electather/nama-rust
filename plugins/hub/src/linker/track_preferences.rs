@@ -9,19 +9,14 @@ use std::{hash::Hash, sync::Arc};
 use nama_hub_proto::nama::hub::v1::{TitleKind, TrackPreferenceChange as Change};
 use nama_plugin_api::{
     BoxFuture, Observer, PluginError,
-    automation::Kernel,
     points::{
         TrackDescription, TrackPreference, TrackPreferenceChange, TrackPreferenceChanged,
         TrackPreferenceFor,
     },
-    server_link::Link,
 };
 
-use super::{
-    Linker,
-    queue::{Queue, Queued},
-};
-use crate::hub::{Hub, limits};
+use super::{Linker, queue::Queued};
+use crate::hub::limits;
 
 impl Queued for Change {
     const STORE_KEY: &'static str = "track-preferences";
@@ -35,15 +30,6 @@ impl Queued for Change {
     fn changed_at_ms(&self) -> i64 {
         self.changed_at_ms
     }
-}
-
-/// The queue of Track Preference changes in `kernel`'s Store, which pushes them to `hub`.
-pub(super) fn queue(hub: &Hub, kernel: Arc<dyn Kernel>) -> Queue<Change> {
-    let hub = hub.clone();
-    Queue::new(kernel, move |credential, page| {
-        let hub = hub.clone();
-        Box::pin(async move { hub.push_track_preferences(&credential, page).await })
-    })
 }
 
 /// Queues Linked Users' Track Preference changes as the Kernel tells of them, for the Sync Job to
@@ -62,10 +48,19 @@ impl Observer<TrackPreferenceChanged> for TrackPreferenceSync {
 impl Linker {
     /// Queues `changed`, if its User is Linked, asking the Hub as Watch State changes do.
     async fn queue_preference(&self, changed: &TrackPreferenceChange) -> Result<(), PluginError> {
-        let Some(Link::Linked { .. }) = self.current_user_link(changed.user_id).await? else {
+        if !self.user_linked(changed.user_id).await? {
             return Ok(());
-        };
+        }
         self.preferences.add(changes_to_proto(changed)).await
+    }
+
+    /// Sends the queue to the Hub and forgets what it took. Without the Server's Link, such as
+    /// once the Hub dropped it, the queue has nowhere to go, and is forgotten.
+    pub(super) async fn send_queued_preferences(&self) -> Result<(), PluginError> {
+        let push = |page| -> BoxFuture<'_, _> {
+            Box::pin(self.call(|hub| hub.push_track_preferences(page)))
+        };
+        self.preferences.send(push).await
     }
 
     /// The Track Preferences of the Account `user_id` is Linked to, once the Hub has every change
@@ -74,10 +69,11 @@ impl Linker {
         &self,
         user_id: i64,
     ) -> Result<Vec<TrackPreference>, PluginError> {
-        let pulled = (self.preferences)
-            .pull(async |credential| self.hub.pull_track_preferences(credential, user_id).await)
-            .await?;
-        Ok(pulled.into_iter().filter_map(change_from_proto).collect())
+        self.send_queued_preferences().await?;
+        let pulled = self.call(|hub| hub.pull_track_preferences(user_id)).await?;
+        Ok((pulled.unwrap_or_default().into_iter())
+            .filter_map(change_from_proto)
+            .collect())
     }
 }
 

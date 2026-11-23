@@ -16,10 +16,7 @@ use nama_hub_proto::nama::hub::v1::{
 };
 use nama_plugin_api::{
     BoxFuture, Observer, PluginError,
-    automation::{
-        Kernel,
-        functions::{ListDevices, ListVersionTitles, ListWatchStates},
-    },
+    automation::functions::{ListDevices, ListVersionTitles, ListWatchStates},
     contract::{
         DeviceKind, DevicesAsked, Playback, TitleId, TitleRef, TitleRefKind, TitleWatchStates,
         VersionTitles, VersionTitlesAsked, WatchStatesAsked, event::Event as Happened,
@@ -33,7 +30,7 @@ use super::{
     Linker,
     queue::{Queue, Queued},
 };
-use crate::hub::{Hub, limits};
+use crate::hub::limits;
 
 /// The id of the Job that sends the Viewing Events the Hub hasn't had yet.
 pub(super) const SEND_JOB: &str = "send-viewing-events";
@@ -56,15 +53,6 @@ impl Queued for UserViewingEvent {
     fn from_old(old: &[u8]) -> Result<Vec<Self>, PluginError> {
         Ok(RecordViewingEventsRequest::decode_from_slice(old)?.events)
     }
-}
-
-/// The queue of Viewing Events in `kernel`'s Store, which records them on `hub`.
-fn queue(hub: &Hub, kernel: Arc<dyn Kernel>) -> Queue<UserViewingEvent> {
-    let hub = hub.clone();
-    Queue::new(kernel, move |credential, page| {
-        let hub = hub.clone();
-        Box::pin(async move { hub.record_viewing_events(&credential, page).await })
-    })
 }
 
 /// The Job that sends the Viewing Events the Hub hasn't had yet, which the Kernel runs every 5
@@ -110,7 +98,7 @@ pub(crate) struct ViewingEvents {
 impl ViewingEvents {
     pub(crate) fn new(linker: Arc<Linker>) -> Self {
         Self {
-            unsent: Arc::new(queue(&linker.hub, Arc::clone(&linker.kernel))),
+            unsent: Arc::new(Queue::new(Arc::clone(&linker.kernel))),
             linker,
             started: Arc::default(),
         }
@@ -124,11 +112,7 @@ impl ViewingEvents {
         let Some(started) = started else {
             return Ok(());
         };
-        let Some(kept) = self.linker.kept().await? else {
-            return Ok(());
-        };
-        let user = playback.user_id;
-        if self.linker.kept_account(user, &kept).await?.is_none() {
+        if !self.linker.user_linked(playback.user_id).await? {
             return Ok(());
         }
         let events = self.viewing_events(playback, started).await?;
@@ -187,7 +171,10 @@ impl ViewingEvents {
 
     /// Sends the Hub the Viewing Events it hasn't had yet.
     pub(super) async fn send(&self) -> Result<(), PluginError> {
-        self.unsent.send().await
+        let push = |page| -> BoxFuture<'_, _> {
+            Box::pin(self.linker.call(|hub| hub.record_viewing_events(page)))
+        };
+        self.unsent.send(push).await
     }
 
     /// Notes when a play started, and records it once it ends.

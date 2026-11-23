@@ -5,6 +5,7 @@
 use std::{
     collections::{HashMap, HashSet},
     hash::Hash,
+    marker::PhantomData,
     mem,
     sync::Arc,
 };
@@ -22,7 +23,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tokio::sync::Mutex;
 use tracing::warn;
 
-use super::{credential, store_key};
+use super::store_key;
 
 /// The most bytes the Plugin Store keeps in one value: the Kernel refuses a longer one, and a
 /// Plugin can't read the Kernel's own constant (ADR 0006).
@@ -49,10 +50,6 @@ pub(crate) trait Queued: Serialize + DeserializeOwned + Send + Sync + 'static {
     }
 }
 
-/// Sends a page to the Hub with the Server's credential.
-type SendPage<T> =
-    Box<dyn Fn(String, Vec<T>) -> BoxFuture<'static, Result<(), PluginError>> + Send + Sync>;
-
 /// Which pages the Store keeps: `first..next`, oldest first.
 #[derive(Default, Serialize, Deserialize)]
 struct Header {
@@ -63,24 +60,18 @@ struct Header {
 /// One kind's queue.
 pub(crate) struct Queue<T> {
     kernel: Arc<dyn Kernel>,
-    send_page: SendPage<T>,
     /// Held while the queue is read and written, so nothing queued meanwhile is lost.
     held: Mutex<()>,
+    kind: PhantomData<fn() -> T>,
 }
 
 impl<T: Queued> Queue<T> {
-    /// The queue in `kernel`'s Store, whose pages `send_page` sends.
-    pub(crate) fn new(
-        kernel: Arc<dyn Kernel>,
-        send_page: impl Fn(String, Vec<T>) -> BoxFuture<'static, Result<(), PluginError>>
-        + Send
-        + Sync
-        + 'static,
-    ) -> Self {
+    /// The queue in `kernel`'s Store.
+    pub(crate) fn new(kernel: Arc<dyn Kernel>) -> Self {
         Self {
             kernel,
-            send_page: Box::new(send_page),
             held: Mutex::default(),
+            kind: PhantomData,
         }
     }
 
@@ -92,40 +83,27 @@ impl<T: Queued> Queue<T> {
         self.add_held(batch).await
     }
 
-    /// Sends the queue, a page per Hub call, oldest first, forgetting each page once it is sent.
-    /// The Hub refusing a page as invalid drops it, as it would refuse it again, and not knowing
-    /// the Server's credential counts as sent, as no User is Linked through it. Without the
-    /// Server's Link the queue has nowhere to go, and is forgotten. Any other failure, such as the
+    /// Sends the queue, a page per Hub call, oldest first, forgetting each page once `send_page`
+    /// sends it. The Hub refusing a page as invalid drops it, as it would refuse it again.
+    /// `send_page` answers `None` when the Server isn't Linked, such as once the Hub dropped its
+    /// Link, as then the queue has nowhere to go and is forgotten. Any other failure, such as the
     /// Hub being down, keeps the page and the rest, and is the error.
-    pub(crate) async fn send(&self) -> Result<(), PluginError> {
+    pub(crate) async fn send<'a>(
+        &self,
+        send_page: impl Fn(Vec<T>) -> BoxFuture<'a, Result<Option<()>, PluginError>>,
+    ) -> Result<(), PluginError> {
         let _held = self.held.lock().await;
         self.take_old().await?;
         let mut header = self.header().await?;
-        let credential = credential(self.kernel.as_ref()).await?;
         while header.first < header.next {
             let page = page_key::<T>(header.first);
-            if let Some(credential) = &credential {
-                let items = self.stored_json(&page).await?.unwrap_or_default();
-                sent::<T>((self.send_page)(credential.clone(), items).await)?;
-            }
+            let items = self.stored_json(&page).await?.unwrap_or_default();
+            sent::<T>(send_page(items).await)?;
             header.first += 1;
             self.put_json(T::STORE_KEY, &header).await?;
             self.delete(&page).await?;
         }
         Ok(())
-    }
-
-    /// What `pull` answers with the Server's credential once the queue is sent, so it is never
-    /// older than what this Server queued; the default without the Server's Link.
-    pub(crate) async fn pull<R: Default>(
-        &self,
-        pull: impl AsyncFnOnce(&str) -> Result<R, PluginError>,
-    ) -> Result<R, PluginError> {
-        self.send().await?;
-        match credential(self.kernel.as_ref()).await? {
-            Some(credential) => pull(&credential).await,
-            None => Ok(R::default()),
-        }
     }
 
     async fn add_held(&self, batch: Vec<T>) -> Result<(), PluginError> {
@@ -211,7 +189,7 @@ impl<T: Queued> Queue<T> {
 }
 
 /// `sending` a page, done unless the Hub couldn't take it now.
-fn sent<T: Queued>(sending: Result<(), PluginError>) -> Result<(), PluginError> {
+fn sent<T: Queued>(sending: Result<Option<()>, PluginError>) -> Result<(), PluginError> {
     let Err(err) = sending else {
         return Ok(());
     };
@@ -219,7 +197,6 @@ fn sent<T: Queued>(sending: Result<(), PluginError>) -> Result<(), PluginError> 
         .downcast_ref::<ConnectError>()
         .map(|refused| refused.code)
     {
-        Some(ErrorCode::Unauthenticated) => Ok(()),
         Some(ErrorCode::InvalidArgument) => {
             warn!(
                 "the Hub refused a page of {} as invalid, so it was dropped: {err}",

@@ -1,7 +1,6 @@
 //! Each signed-in User's progress through what they play: `nama.v1.WatchStateService`.
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
-use nama_plugin_api::points::{WatchStateChange, WatchStateChanges, WatchStatesChanged};
 use nama_proto::nama::v1::{
     ExternalId, RefusalReason, ReportProgressRequest, ReportProgressResponse,
     SetHiddenFromContinueWatchingRequest, SetHiddenFromContinueWatchingResponse, SetPlayedRequest,
@@ -13,7 +12,6 @@ use crate::{
     browse,
     library::{Progress, TitleTarget},
     playback::{ReportedProgress, RunningPlans},
-    plugins::ExtensionPoints,
 };
 
 use super::{
@@ -25,17 +23,6 @@ use super::{
 pub(super) struct WatchStateServiceHandler {
     pub(super) browse: browse::Browse,
     pub(super) running: RunningPlans,
-    pub(super) points: ExtensionPoints,
-}
-
-impl WatchStateServiceHandler {
-    /// Tells the Plugins that observe Watch State, such as the Hub's, of the User `user_id`'s
-    /// `changes` (ADR 0008).
-    fn tell(&self, user_id: i64, changes: Vec<WatchStateChange>) {
-        if !changes.is_empty() {
-            (self.points).notify::<WatchStatesChanged>(WatchStateChanges { user_id, changes });
-        }
-    }
 }
 
 #[expect(
@@ -60,15 +47,13 @@ impl WatchStateService for WatchStateServiceHandler {
                 .param("minDurationMs", &1)
                 .param("maxDurationMs", &i64::MAX)
             })?;
-        let changes = self
-            .browse
+        self.browse
             .report(caller.user.id, request.version_id, progress)
             .await
             .map_err(refused(Fields {
                 version: "version_id",
                 ..Fields::NONE
             }))?;
-        self.tell(caller.user.id, changes);
         let reported = ReportedProgress {
             position_ms: request.position_ms,
             duration_ms: request.duration_ms,
@@ -119,7 +104,7 @@ impl WatchStateService for WatchStateServiceHandler {
             Target::ShowId(id) => show_target(*id)?,
         };
         let marked = self.browse.mark(user, library, target, played).await;
-        self.tell(user, marked.map_err(refused(fields))?);
+        marked.map_err(refused(fields))?;
         Response::ok(SetPlayedResponse::default())
     }
 

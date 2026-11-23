@@ -139,14 +139,12 @@ impl Plugin for Hub {
         let kernel = registrar
             .kernel()
             .ok_or("the Kernel handed the Hub Plugin none of its functions")?;
-        let hub = HubApi::new(url)?;
-        let similar: Arc<dyn SimilarSource> =
-            Arc::new(Similar::new(hub.clone(), Arc::clone(&kernel)));
+        let linker = Arc::new(Linker::new(HubApi::new(url)?, Arc::clone(&kernel)));
+        let similar: Arc<dyn SimilarSource> = Arc::new(Similar(Arc::clone(&linker)));
         let rows: Arc<dyn HomeRowSource> = Arc::new(Rows {
-            recommended: Recommended::new(hub.clone(), Arc::clone(&kernel)),
-            charts: Charts::new(hub.clone(), Arc::clone(&kernel)),
+            recommended: Recommended::new(Arc::clone(&linker), Arc::clone(&kernel)),
+            charts: Charts::new(Arc::clone(&linker), kernel),
         });
-        let linker = Arc::new(Linker::new(hub, kernel));
         let viewing = ViewingEvents::new(Arc::clone(&linker));
         let sharer: Arc<dyn DiagnosticsSharer> = Arc::<Linker>::clone(&linker);
         registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::<Linker>::clone(&linker));
