@@ -824,9 +824,9 @@ export const RefusalReason = {
   ACCOUNT_SIGN_IN_NOT_FOUND: 98,
 
   /**
-   * `invalid_argument`: the address to return to after signing in with an Account isn't on one of
-   * the Server's Server Addresses, so the Hub would refuse it. Open the Server at its Server URL.
-   * `field` is `return_url`. Params: `serverUrl`, empty with none set.
+   * `invalid_argument`: the address to return to after signing in with an Account is on neither the
+   * Server URL nor the LAN address the Server reports, so the Hub would refuse it. Open the Server
+   * at its Server URL. `field` is `return_url`. Params: `serverUrl`, empty with none set.
    *
    * @generated from enum value: REFUSAL_REASON_NOT_A_SERVER_ADDRESS = 99;
    */

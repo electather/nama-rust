@@ -46,7 +46,8 @@ pub(super) struct SignInServiceHandler {
     pub(super) points: ExtensionPoints,
     /// The Server URL, one of the Server Addresses a sign-in with an Account may return to.
     pub(super) server_url: ServerUrl,
-    /// Where the Server listens, whose LAN address is the other.
+    /// Where the Server listens, whose LAN address is the other Server Address a sign-in with an
+    /// Account may return to.
     pub(super) listening: SocketAddr,
 }
 

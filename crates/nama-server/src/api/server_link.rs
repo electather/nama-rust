@@ -176,13 +176,12 @@ pub(super) async fn start_account_sign_in(
     }
     // As above, and the client can say which address to open, as the Hub's refusal can't.
     if !server_addresses::is_reported(return_url, server_url, listening) {
-        let url = server_url.url();
         return Err(refuse(
             RefusalReason::REFUSAL_REASON_NOT_A_SERVER_ADDRESS,
-            format!("open the Server at its Server URL, {url}, to sign in with an Account"),
+            "open the Server at its Server URL to sign in with an Account",
         )
         .field("return_url")
-        .param("serverUrl", &url)
+        .param("serverUrl", &server_url.url())
         .into());
     }
     let started = ask_or(points, ACCOUNT_SIGN_IN_FAILED, async |linker| {

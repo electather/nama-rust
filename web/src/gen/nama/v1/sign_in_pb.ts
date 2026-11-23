@@ -1134,8 +1134,9 @@ export const SignInService: GenService<{
    * or `https` URL, with `invalid_argument` and `REFUSAL_REASON_NOT_A_SERVER_ADDRESS` if it's on
    * none of the Server URL and LAN address the Server reports, with `failed_precondition` and
    * `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled Plugin that links the Server, and with
-   * `unavailable` while the Server isn't Linked or the Hub can't be reached, which a Device
-   * already signed in never needs.
+   * `unavailable` while the Server isn't Linked, the Hub can't be reached, or the Hub refuses a
+   * `return_url` on none of the Server Addresses it was last told, which a Device already signed
+   * in never needs.
    *
    * @generated from rpc nama.v1.SignInService.StartAccountSignIn
    */
