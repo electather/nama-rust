@@ -1,5 +1,6 @@
 //! Creating an Account, signing it in, with its password, a passkey or a Sign-in Link, and out,
-//! setting its password, its passkeys, and deleting it: `nama.hub.v1.AccountService`.
+//! setting its password, its passkeys and its sessions, and deleting it:
+//! `nama.hub.v1.AccountService`.
 
 use std::{future, time::Instant};
 
@@ -15,12 +16,13 @@ use nama_hub_proto::nama::hub::v1::{
     self as proto, AccountService, AddPasskeyRequest, AddPasskeyResponse, CreateAccountRequest,
     CreateAccountResponse, DeleteAccountRequest, DeleteAccountResponse, GetAccountRequest,
     GetAccountResponse, GetSignInLinkRequest, GetSignInLinkResponse, ListPasskeysRequest,
-    ListPasskeysResponse, RefusalReason, RemovePasskeyRequest, RemovePasskeyResponse,
-    SendSignInLinkRequest, SendSignInLinkResponse, SetPasswordRequest, SetPasswordResponse,
-    SignInRequest, SignInResponse, SignInWithLinkRequest, SignInWithLinkResponse,
-    SignInWithPasskeyRequest, SignInWithPasskeyResponse, SignOutRequest, SignOutResponse,
-    StartAddingPasskeyRequest, StartAddingPasskeyResponse, StartPasskeySignInRequest,
-    StartPasskeySignInResponse,
+    ListPasskeysResponse, ListSessionsRequest, ListSessionsResponse, RefusalReason,
+    RemovePasskeyRequest, RemovePasskeyResponse, SendSignInLinkRequest, SendSignInLinkResponse,
+    SetPasswordRequest, SetPasswordResponse, SignInRequest, SignInResponse, SignInWithLinkRequest,
+    SignInWithLinkResponse, SignInWithPasskeyRequest, SignInWithPasskeyResponse,
+    SignOutOtherSessionsRequest, SignOutOtherSessionsResponse, SignOutRequest, SignOutResponse,
+    SignOutSessionRequest, SignOutSessionResponse, StartAddingPasskeyRequest,
+    StartAddingPasskeyResponse, StartPasskeySignInRequest, StartPasskeySignInResponse,
 };
 
 use uuid::Uuid;
@@ -29,8 +31,8 @@ use super::{hub_failed, recent_authentication_required, refuse};
 use crate::{
     accounts::{
         self, Account, AccountSession, Accounts, Assertion, Blocked, Caller, EMAIL_LENGTH,
-        NewPasskey, PASSKEY_NAME_LENGTH, PASSWORD_LENGTH, Passkey, SESSION_DAYS, SignInLink,
-        SignedIn, SignedInByLink,
+        ListedSession, NewPasskey, PASSKEY_NAME_LENGTH, PASSWORD_LENGTH, Passkey, SESSION_DAYS,
+        SignInLink, SignedIn, SignedInByLink,
     },
     links::Links,
 };
@@ -324,6 +326,49 @@ impl AccountService for AccountServiceHandler {
             .map_err(refused)?;
         Response::ok(RemovePasskeyResponse::default())
     }
+
+    async fn list_sessions(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListSessionsRequest>,
+    ) -> ServiceResult<ListSessionsResponse> {
+        let sessions = self
+            .accounts
+            .sessions(signed_in(&ctx)?)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(ListSessionsResponse {
+            sessions: sessions.into_iter().map(session_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn sign_out_session(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SignOutSessionRequest>,
+    ) -> ServiceResult<SignOutSessionResponse> {
+        // An id that isn't a UUID names no session, as the nil UUID doesn't, so it changes nothing
+        // once Recent Authentication is checked (`account.proto`).
+        let id = Uuid::try_parse(request.session_id).unwrap_or_default();
+        self.accounts
+            .sign_out_session(signed_in(&ctx)?, id)
+            .await
+            .map_err(refused)?;
+        Response::ok(SignOutSessionResponse::default())
+    }
+
+    async fn sign_out_other_sessions(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, SignOutOtherSessionsRequest>,
+    ) -> ServiceResult<SignOutOtherSessionsResponse> {
+        self.accounts
+            .sign_out_other_sessions(signed_in(&ctx)?)
+            .await
+            .map_err(refused)?;
+        Response::ok(SignOutOtherSessionsResponse::default())
+    }
 }
 
 /// The client that sent the request `ctx` is for (ADR 0018), asking now.
@@ -394,6 +439,16 @@ fn passkey_to_proto(passkey: Passkey) -> proto::Passkey {
     proto::Passkey {
         id: passkey.id.to_string(),
         name: passkey.name,
+        ..Default::default()
+    }
+}
+
+fn session_to_proto(session: ListedSession) -> proto::Session {
+    proto::Session {
+        id: session.id.to_string(),
+        name: session.name,
+        last_used_at: session.last_used_at,
+        is_current: session.is_current,
         ..Default::default()
     }
 }
