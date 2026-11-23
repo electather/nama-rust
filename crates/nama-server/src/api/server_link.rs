@@ -12,7 +12,9 @@ use connectrpc::{ConnectError, Response, ServiceResult};
 use futures_util::future::join_all;
 use nama_plugin_api::{
     PluginError,
-    points::{WatchStateChanges, WatchStatesChanged},
+    points::{
+        TrackPreferenceChange, TrackPreferenceChanged, WatchStateChanges, WatchStatesChanged,
+    },
     server_link::{Link, ServerLinker},
 };
 use nama_proto::nama::v1::{
@@ -51,16 +53,17 @@ const ACCOUNT_SIGN_IN_FAILED: &str =
     "Signing in with an Account needs the Hub, which can't be reached right now. Try again later.";
 
 /// Where Linking stands, unset without an enabled Plugin that links the Server. Once it is Linked,
-/// pushes every User's Watch State too, as it can't tell the look that finds the Link new from a
-/// later one.
+/// pushes every User's Watch State and Track Preferences too, as it can't tell the look that finds
+/// the Link new from a later one.
 pub(super) async fn get(
     points: &ExtensionPoints,
     browse: &Browse,
+    preferences: &TrackPreferences,
     users: &Users,
 ) -> ServiceResult<GetServerLinkResponse> {
     let link = ask(points, async |linker| linker.link().await).await?;
     if let Some(Link::Linked { .. }) = &link {
-        push_every_users_watch_states_soon(points, browse, users);
+        push_every_users_soon(points, browse, preferences, users);
     }
     Response::ok(GetServerLinkResponse {
         link: link.map(link_to_proto).into(),
@@ -91,9 +94,9 @@ pub(super) async fn unlink(points: &ExtensionPoints) -> ServiceResult<UnlinkServ
 }
 
 /// Where Linking `user` stands, unset while they can't Link: without an enabled Plugin that links
-/// the Server, or before the Server is Linked. Once they are Linked, pushes their Watch State, then pulls it
-/// and their Track Preferences and syncs their Watchlist, as it can't tell the look that finds a Link
-/// new from a later one.
+/// the Server, or before the Server is Linked. Once they are Linked, pushes their Watch State and
+/// Track Preferences, then pulls both and syncs their Watchlist, as it can't tell the look that
+/// finds a Link new from a later one.
 pub(super) async fn get_user(
     points: &ExtensionPoints,
     browse: &Browse,
@@ -325,10 +328,10 @@ pub(super) fn pull_soon(
     );
 }
 
-/// [`pull_soon`], after pushing the User `user_id`'s Watch State, as when they Link. Must be called
-/// within a Tokio runtime.
-// ponytail: pushes their whole Watch State on each look at their Link, as the pull already reads
-// the Account's whole; have the Plugin say when a Link is new if that grows slow.
+/// [`pull_soon`], after pushing the User `user_id`'s Watch State and Track Preferences, as when
+/// they Link. Must be called within a Tokio runtime.
+// ponytail: pushes their whole Watch State and Track Preferences on each look at their Link, as the
+// pull already reads the Account's whole; have the Plugin say when a Link is new if that grows slow.
 fn push_then_pull_soon(
     points: &ExtensionPoints,
     browse: &Browse,
@@ -336,32 +339,47 @@ fn push_then_pull_soon(
     user_id: i64,
 ) {
     let (points, browse, preferences) = (points.clone(), browse.clone(), preferences.clone());
-    let span =
-        diagnostics::following_current(tracing::info_span!(parent: None, "sync_watch_states"));
+    let span = diagnostics::following_current(
+        tracing::info_span!(parent: None, "sync_with_other_servers"),
+    );
     let syncing = async move {
         push_watch_states(&points, &browse, user_id).await;
+        push_track_preferences(&points, &preferences, user_id).await;
         pull_watch_states(&points, &browse, user_id).await;
         pull_track_preferences(&points, &preferences, user_id).await;
     };
     tokio::spawn(syncing.instrument(span));
 }
 
-/// Pushes every User's Watch State, as when the Server Links, without waiting for it. Must be
-/// called within a Tokio runtime.
-// ponytail: reads every User's whole Watch State on each look at a Linked Server; have the Plugin
-// say when a Link is new if that grows slow.
-fn push_every_users_watch_states_soon(points: &ExtensionPoints, browse: &Browse, users: &Users) {
-    let (points, browse, users) = (points.clone(), browse.clone(), users.clone());
+/// Pushes every User's Watch State and Track Preferences, as when the Server Links, without
+/// waiting for it. Must be called within a Tokio runtime.
+// ponytail: reads every User's whole Watch State and Track Preferences on each look at a Linked
+// Server; have the Plugin say when a Link is new if that grows slow.
+fn push_every_users_soon(
+    points: &ExtensionPoints,
+    browse: &Browse,
+    preferences: &TrackPreferences,
+    users: &Users,
+) {
+    let (points, browse, preferences, users) = (
+        points.clone(),
+        browse.clone(),
+        preferences.clone(),
+        users.clone(),
+    );
     let span =
-        diagnostics::following_current(tracing::info_span!(parent: None, "push_watch_states"));
+        diagnostics::following_current(tracing::info_span!(parent: None, "push_to_other_servers"));
     let pushing = async move {
         match users.list().await {
             Ok(listed) => {
                 for user in listed {
                     push_watch_states(&points, &browse, user.id).await;
+                    push_track_preferences(&points, &preferences, user.id).await;
                 }
             }
-            Err(err) => tracing::error!("listing Users to push their Watch State failed: {err}"),
+            Err(err) => tracing::error!(
+                "listing Users to push their Watch State and Track Preferences failed: {err}"
+            ),
         }
     };
     tokio::spawn(pushing.instrument(span));
@@ -381,12 +399,53 @@ async fn push_watch_states(points: &ExtensionPoints, browse: &Browse, user_id: i
         }
     };
     let told = points.notify_and_wait::<WatchStatesChanged>(WatchStateChanges { user_id, changes });
-    // Bounded, so an Observer that never answers can't hold up the pull; the Plugin's Sync Job
-    // sends what it queues later.
+    wait_until_told(told, user_id, "Watch State").await;
+}
+
+/// Tells the Plugins that observe Track Preferences, such as the Hub's, of each of the User
+/// `user_id`'s, dated as stored, as [`push_watch_states`] does their Watch State, and for the same
+/// reasons. The Hub keeps the change made last of each (ADR 0092).
+async fn push_track_preferences(
+    points: &ExtensionPoints,
+    preferences: &TrackPreferences,
+    user_id: i64,
+) {
+    let stored = match preferences.changes_of_user(user_id).await {
+        Ok(stored) => stored,
+        Err(err) => {
+            tracing::error!(
+                user = user_id,
+                "reading a User's Track Preferences failed: {err}"
+            );
+            return;
+        }
+    };
+    // One at a time, so the Hub Plugin asks the Hub about the User's Link once, not once each, and
+    // in a task of its own, so the rest are still told after waiting on them times out.
+    let points = points.clone();
+    let telling = async move {
+        for preference in stored {
+            let change = TrackPreferenceChange {
+                user_id,
+                preference,
+            };
+            points
+                .notify_and_wait::<TrackPreferenceChanged>(change)
+                .await;
+        }
+    };
+    let told = tokio::spawn(telling.in_current_span());
+    wait_until_told(told, user_id, "Track Preferences").await;
+}
+
+/// Waits until `told`, Observers taking the User `user_id`'s `what`, but no longer than a pull may
+/// take, so an Observer that never answers can't hold up the pull; the Plugin's Sync Job sends what
+/// it queues later.
+async fn wait_until_told(told: impl Future, user_id: i64, what: &str) {
     if tokio::time::timeout(SYNC_TIMEOUT, told).await.is_err() {
         tracing::warn!(
             user = user_id,
-            "Observers took too long to take a User's Watch State"
+            "Observers took too long to take a User's {what}"
         );
     }
 }

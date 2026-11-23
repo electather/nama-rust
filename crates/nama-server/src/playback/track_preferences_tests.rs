@@ -349,6 +349,47 @@ async fn a_users_own_audio_left_to_the_files_on_another_server_forgets_it_here()
 }
 
 #[tokio::test]
+async fn a_users_preferences_read_as_the_changes_that_kept_them_once_per_id_dated_as_stored() {
+    let (data, media) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let (preferences, user) = track_preferences(&data).await;
+    let known_by_both = Metadata {
+        ids: ExternalIds::from_iter([
+            ExternalId::tmdb(348),
+            ExternalId::new("imdb", "tt0078748").unwrap(),
+        ]),
+        ..tmdb_movie(348, "Alien")
+    };
+    let alien = MatchedMovie::new(&preferences.db, media.path(), known_by_both).await;
+    let movie = preferences.kept_for(alien.version).await.unwrap().unwrap();
+    let japanese = Description {
+        language: Some("ja".to_owned()),
+        ..Description::default()
+    };
+
+    let own = preferences
+        .keep_users_subtitle(user, english(), true)
+        .await
+        .unwrap();
+    let movies = preferences.keep_audio(user, movie, japanese).await.unwrap();
+    let pulled = pulled_english_for_alien(1_000);
+    (preferences.take_pulled(user, vec![pulled.clone()]))
+        .await
+        .unwrap();
+
+    let read = preferences.changes_of_user(user).await.unwrap();
+
+    let under = |id: &str| TrackPreference {
+        kept_for: TrackPreferenceFor::Movie(vec![id.to_owned()]),
+        ..movies.clone()
+    };
+    let expected = [own, under("imdb-tt0078748"), under("tmdb-348"), pulled];
+    assert_eq!(read.len(), expected.len(), "{read:?}");
+    for change in expected {
+        assert!(read.contains(&change), "{change:?} not in {read:?}");
+    }
+}
+
+#[tokio::test]
 async fn each_keep_tells_what_it_kept_and_for_what() {
     let (data, media) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
     let (preferences, user) = track_preferences(&data).await;

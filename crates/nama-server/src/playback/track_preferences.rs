@@ -364,6 +364,43 @@ impl TrackPreferences {
             .await
     }
 
+    /// Every Track Preference of the User `user`, each as the change that kept it, as Plugins are
+    /// told of it: a Show's or Movie's once per id it is kept under, as each row holds one. Each is
+    /// dated as stored, never now, so a later change elsewhere wins.
+    pub(crate) async fn changes_of_user(
+        &self,
+        user: i64,
+    ) -> Result<Vec<TrackPreference>, sqlx::Error> {
+        let rows = sqlx::query!(
+            r#"SELECT scope, title_id, kind, off AS "off: bool", language,
+                      forced AS "forced: bool", sdh AS "sdh: bool", title,
+                      foreign_audio_only AS "foreign_audio_only: bool", changed_at
+               FROM track_preferences
+               WHERE user_id = ?"#,
+            user,
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        Ok((rows.into_iter())
+            .map(|row| TrackPreference {
+                audio: row.kind == AUDIO,
+                kept_for: match row.scope.as_str() {
+                    SHOW => TrackPreferenceFor::Show(vec![row.title_id]),
+                    MOVIE => TrackPreferenceFor::Movie(vec![row.title_id]),
+                    _ => TrackPreferenceFor::User,
+                },
+                like: (!row.off).then_some(TrackDescription {
+                    language: row.language,
+                    forced: row.forced,
+                    sdh: row.sdh,
+                    title: row.title,
+                }),
+                foreign_audio_only: row.foreign_audio_only,
+                changed_at_ms: row.changed_at,
+            })
+            .collect())
+    }
+
     /// The User `user`'s `kind` Preference for the Show or Movie the Version `version` is of, or
     /// else their own.
     async fn kept(&self, user: i64, version: i64, kind: &str) -> Result<Option<Row>, sqlx::Error> {
