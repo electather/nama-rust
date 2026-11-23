@@ -42,6 +42,12 @@ pub struct ViewingEventView<'a> {
     ///
     /// Field 9: `device_kind`
     pub device_kind: ::buffa::EnumValue<super::super::DeviceKind>,
+    /// An Episode's Show, by its External ID formed as `external_id` is, such as `tmdb-1399`: 1 to
+    /// 100 characters. Empty for a Movie, and in the list for an Episode recorded before the Hub
+    /// took it.
+    ///
+    /// Field 10: `show_external_id`
+    pub show_external_id: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ViewingEventView<'a> {
@@ -139,6 +145,13 @@ impl<'a> ::buffa::MessageView<'a> for ViewingEventView<'a> {
                     ::buffa::types::decode_int32(&mut cur)?,
                 );
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.show_external_id = ::buffa::types::borrow_str(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -170,6 +183,7 @@ impl<'a> ::buffa::MessageView<'a> for ViewingEventView<'a> {
             duration_ms: self.duration_ms,
             finished: self.finished,
             device_kind: self.device_kind,
+            show_external_id: self.show_external_id.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -215,6 +229,11 @@ impl<'a> ::buffa::ViewEncode<'a> for ViewingEventView<'a> {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if !self.show_external_id.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.show_external_id) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -255,6 +274,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ViewingEventView<'a> {
             if val != 0 {
                 ::buffa::types::put_int32_field(9u32, val, buf);
             }
+        }
+        if !self.show_external_id.is_empty() {
+            ::buffa::types::put_string_field(10u32, &self.show_external_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -319,6 +341,9 @@ impl<'__a> ::serde::Serialize for ViewingEventView<'__a> {
         }
         if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.device_kind) {
             __map.serialize_entry("deviceKind", &self.device_kind)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.show_external_id) {
+            __map.serialize_entry("showExternalId", self.show_external_id)?;
         }
         __map.end()
     }
@@ -474,6 +499,15 @@ impl ViewingEventOwnedView {
     #[must_use]
     pub fn device_kind(&self) -> ::buffa::EnumValue<super::super::DeviceKind> {
         self.0.reborrow().device_kind
+    }
+    /// An Episode's Show, by its External ID formed as `external_id` is, such as `tmdb-1399`: 1 to
+    /// 100 characters. Empty for a Movie, and in the list for an Episode recorded before the Hub
+    /// took it.
+    ///
+    /// Field 10: `show_external_id`
+    #[must_use]
+    pub fn show_external_id(&self) -> &'_ str {
+        self.0.reborrow().show_external_id
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ViewingEventView<'static>>>
