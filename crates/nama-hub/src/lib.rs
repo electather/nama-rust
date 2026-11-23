@@ -5,6 +5,8 @@ mod api;
 pub mod config;
 pub mod db;
 pub mod diagnostics;
+pub mod dns;
+mod https;
 mod links;
 pub mod mail;
 mod recommendations;
@@ -23,12 +25,13 @@ use sqlx::PgPool;
 use tokio::net::TcpListener;
 use url::Url;
 
-use crate::{diagnostics::Backend, mail::Mail};
+use crate::{diagnostics::Backend, dns::ServerNames, mail::Mail};
 
 /// Serves the Hub API on `listener`, backed by `db`, which must be migrated already, signing with
 /// `keys`, until `shutdown` resolves, then lets requests in flight finish. Forwarded headers are
 /// believed only from a peer in `trusted_proxies` (ADR 0018). Sign-in Links are emailed through
-/// `mail`, and without it aren't offered. What Linked Servers share goes to `diagnostics`, and
+/// `mail`, and without it aren't offered. Linked Servers are named in the zone of `names`, and
+/// without it aren't named (ADR 0104). What Linked Servers share goes to `diagnostics`, and
 /// without it is dropped. Passkeys are for the Hub at `public_url`, and without it aren't offered.
 /// Must be called inside a Tokio runtime, which sends them.
 ///
@@ -49,6 +52,7 @@ pub fn serve(
     keys: Keys,
     trusted_proxies: &[IpRange],
     mail: Option<Mail>,
+    names: Option<ServerNames>,
     diagnostics: Option<Arc<dyn Backend>>,
     public_url: Option<&Url>,
     shutdown: impl Future<Output = ()> + Send + 'static,
@@ -58,6 +62,7 @@ pub fn serve(
         Arc::new(keys),
         trusted_proxies,
         mail,
+        names,
         diagnostics,
         public_url,
     );

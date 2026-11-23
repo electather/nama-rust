@@ -319,7 +319,7 @@ impl LinkedHub {
     }
 
     /// Tells the Hub `addresses` are where clients reach the Server, and answers whether the Hub
-    /// reached its public port, if it has one.
+    /// reached its public port, if it has one, and the names it gave the Server, if any.
     pub(crate) async fn set_addresses(
         self,
         addresses: &ServerAddresses,
@@ -334,12 +334,12 @@ impl LinkedHub {
             .await
             .map_err(link_dropped)?
             .into_owned();
-        Ok(
-            (!checked.public_address.is_empty()).then_some(Reachability {
-                address: checked.public_address,
-                reachable: checked.reachable,
-            }),
-        )
+        let found = !checked.public_address.is_empty() || !checked.names.is_empty();
+        Ok(found.then_some(Reachability {
+            address: checked.public_address,
+            reachable: checked.reachable,
+            names: checked.names,
+        }))
     }
 
     /// Records `events`, the Server's Viewing Events.

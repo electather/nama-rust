@@ -30,20 +30,25 @@ pub enum Link {
     Linked {
         /// Who the Server or User belongs to at the service, as it names them.
         account: String,
-        /// Whether the service reached the Server from outside its LAN, once it tried. Always
-        /// `None` for a User.
+        /// What the service found of how clients reach the Server, once it answered a report of
+        /// the Server's addresses. Always `None` for a User.
         reachability: Option<Reachability>,
     },
 }
 
-/// Where the service tried to reach the Server from outside its LAN, and whether it could.
+/// How clients reach the Server, as the service found: where it tried to reach the Server from
+/// outside its LAN and whether it could, and the names it gave the Server.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Reachability {
     /// The Server's public IP address with its [`ServerAddresses::public_port`], such as
-    /// `http://203.0.113.7:7980`.
+    /// `http://203.0.113.7:7980`, or empty without one.
     pub address: String,
     /// Whether the service reached it there, so clients outside the LAN try it.
     pub reachable: bool,
+    /// The Server's names, its own first, such as `<id>.namadirect.net`, then one for each of its
+    /// LAN IP addresses, such as `192-168-1-10.<id>.namadirect.net` (ADR 0104). Empty while the
+    /// service names no Server.
+    pub names: Vec<String>,
 }
 
 /// A sign-in with an account at the service, just started. Not `Debug`, so its handle can't end up

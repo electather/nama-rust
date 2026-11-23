@@ -70,8 +70,9 @@ service LinkService {
 // `Authorization: Bearer <credential>` header, and every call fails with
 // `REFUSAL_REASON_SERVER_NOT_LINKED` without one the Hub knows.
 service LinkedServerService {
-  // Unlinks the calling Server: its credential stops working at once, and it leaves its Account's
-  // Servers.
+  // Unlinks the calling Server: its credential stops working at once, it leaves its Account's
+  // Servers, and its names are removed (ADR 0104). Fails, leaving the Server Linked, while the Hub
+  // can't remove its names.
   rpc UnlinkServer(UnlinkServerRequest) returns (UnlinkServerResponse);
   // The titles most like one title, of its kind, by the vectors the Hub builds from Wikidata's
   // facts (ADR 0095): at most 100, most alike first. Empty when Wikidata lacks the title or the
@@ -150,8 +151,9 @@ service LinkedServerService {
   rpc PollServerSignIn(PollServerSignInRequest) returns (PollServerSignInResponse);
   // Replaces the Server Addresses the calling Server reported before. The Server reports them
   // whenever they change, and every half hour, since only then does the Hub check from outside
-  // whether its `public_port` can be reached. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID`
-  // for one that isn't an `http` or `https` URL, for too many, or for a port over 65535.
+  // whether its `public_port` can be reached. Also names the Server after them (ADR 0104). Fails
+  // with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an `http` or `https` URL, for
+  // too many, or for a port over 65535, and fails while the Hub can't write the Server's names.
   rpc SetServerAddresses(SetServerAddressesRequest) returns (SetServerAddressesResponse) {
     option idempotency_level = IDEMPOTENT;
   }
@@ -593,6 +595,12 @@ message SetServerAddressesResponse {
   string public_address = 1;
   // Whether the Hub reached it there. Only then is it one of the Server's Server Addresses.
   bool reachable = 2;
+  // The Server's names (ADR 0104). Its own name comes first, such as
+  // `0193b6f2c4d87a1e9f3c5b2a1d0e4f67.namadirect.net`, which never changes and points at
+  // `public_address` while the Hub reaches it there. Then comes a name for each private IPv4
+  // address among `lan_addresses`, such as `192-168-1-10.<own name>`, which points at that address.
+  // Empty on a Hub that names no Server.
+  repeated string names = 3;
 }
 
 message ListTrendingTitlesRequest {}

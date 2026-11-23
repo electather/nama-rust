@@ -26,10 +26,13 @@ use nama_hub_proto::nama::hub::v1::{
 use uuid::Uuid;
 
 use super::{hub_failed, recent_authentication_required, refuse};
-use crate::accounts::{
-    self, Account, AccountSession, Accounts, Assertion, Blocked, Caller, EMAIL_LENGTH, NewPasskey,
-    PASSKEY_NAME_LENGTH, PASSWORD_LENGTH, Passkey, SESSION_DAYS, SignInLink, SignedIn,
-    SignedInByLink,
+use crate::{
+    accounts::{
+        self, Account, AccountSession, Accounts, Assertion, Blocked, Caller, EMAIL_LENGTH,
+        NewPasskey, PASSKEY_NAME_LENGTH, PASSWORD_LENGTH, Passkey, SESSION_DAYS, SignInLink,
+        SignedIn, SignedInByLink,
+    },
+    links::Links,
 };
 
 /// The cookie that holds a browser's session token.
@@ -39,6 +42,8 @@ pub(super) const COOKIE_NAME: &str = "nama_hub_session";
 /// password, its passkeys, and deleting it.
 pub(super) struct AccountServiceHandler {
     pub(super) accounts: Accounts,
+    /// Deleting an Account goes through it, to remove its Linked Servers' names.
+    pub(super) links: Links,
 }
 
 #[expect(
@@ -161,8 +166,8 @@ impl AccountService for AccountServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, DeleteAccountRequest>,
     ) -> ServiceResult<DeleteAccountResponse> {
-        self.accounts
-            .delete(signed_in(&ctx)?)
+        self.links
+            .delete_account(signed_in(&ctx)?)
             .await
             .map_err(refused)?;
         let cleared = cookie("", 0, ctx.extensions());

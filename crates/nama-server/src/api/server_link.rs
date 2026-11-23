@@ -374,6 +374,7 @@ fn link_to_proto(link: Link) -> proto::ServerLink {
                 account,
                 public_address: reachability.address,
                 reachable: reachability.reachable,
+                names: reachability.names,
                 ..Default::default()
             }
         }

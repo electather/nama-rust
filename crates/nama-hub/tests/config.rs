@@ -140,6 +140,29 @@ fn without_a_resend_key_or_with_an_empty_one_the_hub_needs_no_mail_settings() {
 }
 
 #[test]
+fn a_cloudflare_token_without_its_zone_refuses_to_load_naming_it() {
+    Jail::expect_with(|jail| {
+        jail.set_env("NAMA_HUB_DATABASE_URL", "postgres://hub@db/hub");
+        jail.set_env("NAMA_HUB_CLOUDFLARE_API_TOKEN", "cf_secret");
+        jail.set_env("NAMA_HUB_CLOUDFLARE_ZONE_ID", "zone-1");
+
+        let err = Config::load().unwrap_err();
+
+        assert!(
+            err.to_string().contains("NAMA_HUB_SERVER_NAMES_ZONE"),
+            "{err}"
+        );
+        jail.set_env("NAMA_HUB_SERVER_NAMES_ZONE", "namadirect.net");
+        let config = Config::load().unwrap();
+        assert_eq!(config.server_names_zone.as_deref(), Some("namadirect.net"));
+        assert!(!format!("{config:?}").contains("cf_secret"));
+        jail.set_env("NAMA_HUB_CLOUDFLARE_API_TOKEN", "");
+        assert_eq!(Config::load().unwrap().cloudflare_api_token, None);
+        Ok(())
+    });
+}
+
+#[test]
 fn log_mail_with_a_localhost_or_loopback_public_url_loads_without_a_sender() {
     Jail::expect_with(|jail| {
         jail.set_env("NAMA_HUB_DATABASE_URL", "postgres://hub@db/hub");

@@ -18,7 +18,7 @@ use hub::TestHub;
 use linking::*;
 use nama_hub_proto::nama::hub::v1::{
     AccountServiceClient, DeleteAccountRequest, GetAccountRequest, GetUserLinkRequest,
-    RefusalReason,
+    RefusalReason, SetServerAddressesRequest,
 };
 use refused::assert_refused;
 use sqlx::PgPool;
@@ -96,4 +96,23 @@ async fn deleting_an_account_needs_a_session(db: PgPool) {
         ErrorCode::Unauthenticated,
         RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
     );
+}
+
+#[sqlx::test(migrations = false)]
+async fn deleting_an_account_removes_the_names_of_the_servers_it_linked(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let server = linked(&hub, &ada, "Living room").await;
+    linked_server(&hub, &server)
+        .set_server_addresses(SetServerAddressesRequest {
+            lan_addresses: vec!["http://192.168.1.10:7980".to_owned()],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(hub.zone().len(), 1);
+
+    delete(&hub, &ada).await.unwrap();
+
+    assert_eq!(hub.zone(), []);
 }

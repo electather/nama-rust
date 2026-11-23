@@ -40,6 +40,7 @@ use crate::{
     accounts::{Accounts, RECENT_AUTHENTICATION_MINS, RecentAuthenticationRequired},
     db,
     diagnostics::{Backend, NotTaken, Shared, Signal},
+    dns::ServerNames,
     links::{LinkedServer, Links},
     mail::Mail,
     recommendations::Recommendations,
@@ -58,7 +59,8 @@ use self::{
 /// through `trusted_proxies` (ADR 0018) and which Account or Linked Server, if any, sent it, the
 /// public half of `keys` at `/.well-known/jwks.json`, and OTLP/HTTP's `/otlp/v1/traces` and
 /// `/otlp/v1/logs` taking what Linked Servers share for `diagnostics`. Sign-in Links go out
-/// through `mail`, if it is set up. Passkeys are for the Hub at `public_url`.
+/// through `mail`, if it is set up, and Linked Servers are named through `names`, if it is.
+/// Passkeys are for the Hub at `public_url`.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is a separate handle the Hub is built from, as `serve`'s are"
@@ -68,11 +70,12 @@ pub(crate) fn router(
     keys: Arc<Keys>,
     trusted_proxies: &[IpRange],
     mail: Option<Mail>,
+    names: Option<ServerNames>,
     diagnostics: Option<Arc<dyn Backend>>,
     public_url: Option<&Url>,
 ) -> axum::Router {
     let accounts = Accounts::new(db.clone(), mail, public_url);
-    let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys));
+    let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys), names);
     let rpcs = services(db, &accounts, &links)
         .into_axum_service()
         .with_interceptor(RefuseUnserved);
@@ -118,6 +121,7 @@ fn services(db: PgPool, accounts: &Accounts, links: &Links) -> connectrpc::Route
         }))
         .add_service(Arc::new(AccountServiceHandler {
             accounts: accounts.clone(),
+            links: links.clone(),
         }))
         .add_service(Arc::new(ServerLinkServiceHandler {
             links: links.clone(),
