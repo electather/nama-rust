@@ -15,7 +15,7 @@ use nama_plugin_api::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{Kept, Linker, store_key};
+use super::{Kept, LinkDropped, Linker, store_key};
 
 /// How long after the Hub was last asked of a User's Link the Plugin asks it again, so opening
 /// Settings or changing Watch State doesn't call the Hub every time (ADR 0094). While a code
@@ -43,7 +43,8 @@ pub(super) struct UserState {
 }
 
 impl Linker {
-    /// Where Linking `user_id` stands, or `None` while the Server isn't Linked.
+    /// Where Linking `user_id` stands, or `None` while the Server isn't Linked, such as once the Hub
+    /// answered it doesn't know the Server's Link any more.
     pub(super) async fn current_user_link(
         &self,
         user_id: i64,
@@ -54,6 +55,10 @@ impl Linker {
         if self.asks_hub(user_id) {
             match self.hub.user_account(&kept.credential, user_id).await {
                 Ok(account) => self.remember_account(user_id, &kept, &account).await?,
+                Err(err) if err.is::<LinkDropped>() => {
+                    self.forget_dropped(&kept).await?;
+                    return Ok(None);
+                }
                 // What it said last stands, and it isn't asked again until it's due, so an outage
                 // doesn't make every Watch State change call it.
                 Err(_) => self.with_user(user_id, |user| user.asked = Some(Instant::now())),

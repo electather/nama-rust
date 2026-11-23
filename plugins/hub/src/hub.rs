@@ -1,6 +1,6 @@
 //! Talking to the Hub: its API (`proto/nama/hub/v1/`) and its published key set.
 
-use std::{net::Ipv4Addr, sync::Arc, time::Duration};
+use std::{error::Error, fmt, net::Ipv4Addr, sync::Arc, time::Duration};
 
 use bytes::Bytes;
 use connectrpc::client::{
@@ -151,9 +151,8 @@ impl Hub {
         }
     }
 
-    /// The email of the Account the User `user_id` is Linked to, empty while they aren't. A
-    /// Server the Hub doesn't know any more, such as one whose Account was deleted, has no Linked
-    /// Users.
+    /// The email of the Account the User `user_id` is Linked to, empty while they aren't; a
+    /// [`LinkDropped`] error if the Hub doesn't know `credential` any more.
     pub(crate) async fn user_account(
         &self,
         credential: &str,
@@ -165,12 +164,9 @@ impl Hub {
                 user_id,
                 ..Default::default()
             })
-            .await;
-        match got {
-            Ok(got) => Ok(got.into_owned().account),
-            Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => Ok(String::new()),
-            Err(err) => Err(err.into()),
-        }
+            .await
+            .map_err(link_dropped)?;
+        Ok(got.into_owned().account)
     }
 
     /// Unlinks the User `user_id`. A Server the Hub doesn't know any more has no Linked Users.
@@ -298,7 +294,8 @@ impl Hub {
     }
 
     /// Tells the Hub `addresses` are where clients reach the Server whose credential is
-    /// `credential`, and answers whether the Hub reached its public port, if it has one.
+    /// `credential`, and answers whether the Hub reached its public port, if it has one; a
+    /// [`LinkDropped`] error if the Hub doesn't know `credential` any more.
     pub(crate) async fn set_addresses(
         &self,
         credential: &str,
@@ -312,7 +309,8 @@ impl Hub {
                 public_port: addresses.public_port.map_or(0, u32::from),
                 ..Default::default()
             })
-            .await?
+            .await
+            .map_err(link_dropped)?
             .into_owned();
         Ok(
             (!checked.public_address.is_empty()).then_some(Reachability {
@@ -506,6 +504,29 @@ fn done_if_forgotten(called: Result<(), connectrpc::ConnectError>) -> Result<(),
     match called {
         Err(err) if err.code != connectrpc::ErrorCode::Unauthenticated => Err(err.into()),
         _ => Ok(()),
+    }
+}
+
+/// The Hub doesn't know the Server's credential any more, `REFUSAL_REASON_SERVER_NOT_LINKED`,
+/// such as after its Account was deleted: the Server's Link is gone.
+#[derive(Debug)]
+pub(crate) struct LinkDropped;
+
+impl fmt::Display for LinkDropped {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("the Hub doesn't know the Server's Link any more")
+    }
+}
+
+impl Error for LinkDropped {}
+
+/// `err`, as [`LinkDropped`] if it is the Hub not knowing the Server's credential, its one
+/// `unauthenticated`.
+fn link_dropped(err: connectrpc::ConnectError) -> PluginError {
+    if err.code == connectrpc::ErrorCode::Unauthenticated {
+        LinkDropped.into()
+    } else {
+        err.into()
     }
 }
 
