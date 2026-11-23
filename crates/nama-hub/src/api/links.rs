@@ -532,12 +532,7 @@ fn linked_server(ctx: &RequestContext) -> Result<&LinkedServer, ConnectError> {
 
 fn similar_to_proto(similar: SimilarTitle) -> proto::SimilarTitle {
     proto::SimilarTitle {
-        id: proto::ExternalId {
-            namespace: similar.id.namespace,
-            value: similar.id.value,
-            ..Default::default()
-        }
-        .into(),
+        id: id_to_proto(similar.id).into(),
         weight: similar.weight,
         ..Default::default()
     }
@@ -550,13 +545,16 @@ fn recommended_to_proto(recommended: RecommendedTitle) -> proto::RecommendedTitl
     };
     proto::RecommendedTitle {
         kind: kind.into(),
-        id: proto::ExternalId {
-            namespace: recommended.id.namespace,
-            value: recommended.id.value,
-            ..Default::default()
-        }
-        .into(),
+        id: id_to_proto(recommended.id).into(),
         weight: recommended.weight,
+        ..Default::default()
+    }
+}
+
+fn id_to_proto(id: ExternalId) -> proto::ExternalId {
+    proto::ExternalId {
+        namespace: id.namespace,
+        value: id.value,
         ..Default::default()
     }
 }

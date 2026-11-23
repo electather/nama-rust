@@ -227,8 +227,8 @@ pub async fn similar(
 /// first, leaving out those, each by its id in the first of `namespaces` it has (ADR 0042). Empty
 /// when none of `finished` has a vector. Only titles sharing a fact with one of them are answered.
 ///
-/// ponytail: the taste vector is built on each call, never stored, so deleting a Viewing Event or
-/// a new training run changes the next answer; store it once building it is measured slow.
+/// ponytail: the taste vector is built on each call (`recommendations/AGENTS.md`); store it once
+/// building it is measured slow.
 ///
 /// # Errors
 ///
