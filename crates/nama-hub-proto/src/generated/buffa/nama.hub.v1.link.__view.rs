@@ -9319,6 +9319,1667 @@ impl ::serde::Serialize for WatchStateChangeOwnedView {
     }
 }
 #[derive(Clone, Debug, Default)]
+pub struct PushTrackPreferencesRequestView<'a> {
+    /// Up to 500.
+    ///
+    /// Field 1: `changes`
+    pub changes: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::TrackPreferenceChangeView<'a>,
+    >,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for PushTrackPreferencesRequestView<'a> {
+    type Owned = super::super::PushTrackPreferencesRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<
+                        super::super::__buffa::view::TrackPreferenceChangeView,
+                    >(),
+                )?;
+                view.changes
+                    .push(
+                        <super::super::__buffa::view::TrackPreferenceChangeView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::PushTrackPreferencesRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::PushTrackPreferencesRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::PushTrackPreferencesRequest {
+            changes: self
+                .changes
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for PushTrackPreferencesRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.changes {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.changes {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for PushTrackPreferencesRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !self.changes.is_empty() {
+            __map.serialize_entry("changes", &*self.changes)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for PushTrackPreferencesRequestView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "PushTrackPreferencesRequest";
+    const FULL_NAME: &'static str = "nama.hub.v1.PushTrackPreferencesRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PushTrackPreferencesRequest";
+}
+::buffa::impl_default_view_instance!(PushTrackPreferencesRequestView);
+::buffa::impl_view_reborrow!(PushTrackPreferencesRequestView);
+/** Self-contained, `'static` owned view of a `PushTrackPreferencesRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`PushTrackPreferencesRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`PushTrackPreferencesRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct PushTrackPreferencesRequestOwnedView(
+    ::buffa::OwnedView<PushTrackPreferencesRequestView<'static>>,
+);
+impl PushTrackPreferencesRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PushTrackPreferencesRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PushTrackPreferencesRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::PushTrackPreferencesRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PushTrackPreferencesRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`PushTrackPreferencesRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &PushTrackPreferencesRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::PushTrackPreferencesRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Up to 500.
+    ///
+    /// Field 1: `changes`
+    #[must_use]
+    pub fn changes(
+        &self,
+    ) -> &::buffa::RepeatedView<
+        '_,
+        super::super::__buffa::view::TrackPreferenceChangeView<'_>,
+    > {
+        &self.0.reborrow().changes
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<PushTrackPreferencesRequestView<'static>>>
+for PushTrackPreferencesRequestOwnedView {
+    fn from(
+        inner: ::buffa::OwnedView<PushTrackPreferencesRequestView<'static>>,
+    ) -> Self {
+        PushTrackPreferencesRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<PushTrackPreferencesRequestOwnedView>
+for ::buffa::OwnedView<PushTrackPreferencesRequestView<'static>> {
+    fn from(wrapper: PushTrackPreferencesRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<PushTrackPreferencesRequestView<'static>>>
+for PushTrackPreferencesRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<PushTrackPreferencesRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::PushTrackPreferencesRequest {
+    type View<'a> = PushTrackPreferencesRequestView<'a>;
+    type ViewHandle = PushTrackPreferencesRequestOwnedView;
+}
+impl ::serde::Serialize for PushTrackPreferencesRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct PushTrackPreferencesResponseView<'a> {
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for PushTrackPreferencesResponseView<'a> {
+    type Owned = super::super::PushTrackPreferencesResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::PushTrackPreferencesResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::PushTrackPreferencesResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::PushTrackPreferencesResponse {
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for PushTrackPreferencesResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for PushTrackPreferencesResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for PushTrackPreferencesResponseView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "PushTrackPreferencesResponse";
+    const FULL_NAME: &'static str = "nama.hub.v1.PushTrackPreferencesResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PushTrackPreferencesResponse";
+}
+::buffa::impl_default_view_instance!(PushTrackPreferencesResponseView);
+::buffa::impl_view_reborrow!(PushTrackPreferencesResponseView);
+/** Self-contained, `'static` owned view of a `PushTrackPreferencesResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`PushTrackPreferencesResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`PushTrackPreferencesResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct PushTrackPreferencesResponseOwnedView(
+    ::buffa::OwnedView<PushTrackPreferencesResponseView<'static>>,
+);
+impl PushTrackPreferencesResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PushTrackPreferencesResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PushTrackPreferencesResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::PushTrackPreferencesResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PushTrackPreferencesResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`PushTrackPreferencesResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &PushTrackPreferencesResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::PushTrackPreferencesResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<PushTrackPreferencesResponseView<'static>>>
+for PushTrackPreferencesResponseOwnedView {
+    fn from(
+        inner: ::buffa::OwnedView<PushTrackPreferencesResponseView<'static>>,
+    ) -> Self {
+        PushTrackPreferencesResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<PushTrackPreferencesResponseOwnedView>
+for ::buffa::OwnedView<PushTrackPreferencesResponseView<'static>> {
+    fn from(wrapper: PushTrackPreferencesResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<
+    ::buffa::OwnedView<PushTrackPreferencesResponseView<'static>>,
+> for PushTrackPreferencesResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<PushTrackPreferencesResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::PushTrackPreferencesResponse {
+    type View<'a> = PushTrackPreferencesResponseView<'a>;
+    type ViewHandle = PushTrackPreferencesResponseOwnedView;
+}
+impl ::serde::Serialize for PushTrackPreferencesResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct PullTrackPreferencesRequestView<'a> {
+    /// The User's id on the Server.
+    ///
+    /// Field 1: `user_id`
+    pub user_id: i64,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for PullTrackPreferencesRequestView<'a> {
+    type Owned = super::super::PullTrackPreferencesRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.user_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::PullTrackPreferencesRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::PullTrackPreferencesRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::PullTrackPreferencesRequest {
+            user_id: self.user_id,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for PullTrackPreferencesRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.user_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for PullTrackPreferencesRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.user_id) {
+            __map
+                .serialize_entry(
+                    "userId",
+                    &::buffa::json_helpers::ProtoJson(&self.user_id),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for PullTrackPreferencesRequestView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "PullTrackPreferencesRequest";
+    const FULL_NAME: &'static str = "nama.hub.v1.PullTrackPreferencesRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PullTrackPreferencesRequest";
+}
+::buffa::impl_default_view_instance!(PullTrackPreferencesRequestView);
+::buffa::impl_view_reborrow!(PullTrackPreferencesRequestView);
+/** Self-contained, `'static` owned view of a `PullTrackPreferencesRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`PullTrackPreferencesRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`PullTrackPreferencesRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct PullTrackPreferencesRequestOwnedView(
+    ::buffa::OwnedView<PullTrackPreferencesRequestView<'static>>,
+);
+impl PullTrackPreferencesRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PullTrackPreferencesRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PullTrackPreferencesRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::PullTrackPreferencesRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PullTrackPreferencesRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`PullTrackPreferencesRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &PullTrackPreferencesRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::PullTrackPreferencesRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The User's id on the Server.
+    ///
+    /// Field 1: `user_id`
+    #[must_use]
+    pub fn user_id(&self) -> i64 {
+        self.0.reborrow().user_id
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<PullTrackPreferencesRequestView<'static>>>
+for PullTrackPreferencesRequestOwnedView {
+    fn from(
+        inner: ::buffa::OwnedView<PullTrackPreferencesRequestView<'static>>,
+    ) -> Self {
+        PullTrackPreferencesRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<PullTrackPreferencesRequestOwnedView>
+for ::buffa::OwnedView<PullTrackPreferencesRequestView<'static>> {
+    fn from(wrapper: PullTrackPreferencesRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<PullTrackPreferencesRequestView<'static>>>
+for PullTrackPreferencesRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<PullTrackPreferencesRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::PullTrackPreferencesRequest {
+    type View<'a> = PullTrackPreferencesRequestView<'a>;
+    type ViewHandle = PullTrackPreferencesRequestOwnedView;
+}
+impl ::serde::Serialize for PullTrackPreferencesRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct PullTrackPreferencesResponseView<'a> {
+    /// One per Preference, in no order. `user_id` is the asked User's.
+    ///
+    /// Field 1: `preferences`
+    pub preferences: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::TrackPreferenceChangeView<'a>,
+    >,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for PullTrackPreferencesResponseView<'a> {
+    type Owned = super::super::PullTrackPreferencesResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<
+                        super::super::__buffa::view::TrackPreferenceChangeView,
+                    >(),
+                )?;
+                view.preferences
+                    .push(
+                        <super::super::__buffa::view::TrackPreferenceChangeView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::PullTrackPreferencesResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::PullTrackPreferencesResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::PullTrackPreferencesResponse {
+            preferences: self
+                .preferences
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for PullTrackPreferencesResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.preferences {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.preferences {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for PullTrackPreferencesResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !self.preferences.is_empty() {
+            __map.serialize_entry("preferences", &*self.preferences)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for PullTrackPreferencesResponseView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "PullTrackPreferencesResponse";
+    const FULL_NAME: &'static str = "nama.hub.v1.PullTrackPreferencesResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PullTrackPreferencesResponse";
+}
+::buffa::impl_default_view_instance!(PullTrackPreferencesResponseView);
+::buffa::impl_view_reborrow!(PullTrackPreferencesResponseView);
+/** Self-contained, `'static` owned view of a `PullTrackPreferencesResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`PullTrackPreferencesResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`PullTrackPreferencesResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct PullTrackPreferencesResponseOwnedView(
+    ::buffa::OwnedView<PullTrackPreferencesResponseView<'static>>,
+);
+impl PullTrackPreferencesResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PullTrackPreferencesResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PullTrackPreferencesResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::PullTrackPreferencesResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            PullTrackPreferencesResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`PullTrackPreferencesResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &PullTrackPreferencesResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::PullTrackPreferencesResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// One per Preference, in no order. `user_id` is the asked User's.
+    ///
+    /// Field 1: `preferences`
+    #[must_use]
+    pub fn preferences(
+        &self,
+    ) -> &::buffa::RepeatedView<
+        '_,
+        super::super::__buffa::view::TrackPreferenceChangeView<'_>,
+    > {
+        &self.0.reborrow().preferences
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<PullTrackPreferencesResponseView<'static>>>
+for PullTrackPreferencesResponseOwnedView {
+    fn from(
+        inner: ::buffa::OwnedView<PullTrackPreferencesResponseView<'static>>,
+    ) -> Self {
+        PullTrackPreferencesResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<PullTrackPreferencesResponseOwnedView>
+for ::buffa::OwnedView<PullTrackPreferencesResponseView<'static>> {
+    fn from(wrapper: PullTrackPreferencesResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<
+    ::buffa::OwnedView<PullTrackPreferencesResponseView<'static>>,
+> for PullTrackPreferencesResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<PullTrackPreferencesResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::PullTrackPreferencesResponse {
+    type View<'a> = PullTrackPreferencesResponseView<'a>;
+    type ViewHandle = PullTrackPreferencesResponseOwnedView;
+}
+impl ::serde::Serialize for PullTrackPreferencesResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+/// One User's Subtitle or Audio Preference, as a change on their Server left it (ADR 0035): what
+/// describes the Track they want, never which Track it was, since each Server matches it against
+/// its own. Home layouts, Permissions, Library access and Plugin settings belong to each Server
+/// and never come here (ADR 0092).
+#[derive(Clone, Debug, Default)]
+pub struct TrackPreferenceChangeView<'a> {
+    /// The User's id on the Server.
+    ///
+    /// Field 1: `user_id`
+    pub user_id: i64,
+    /// Whether it is an Audio Preference rather than a Subtitle Preference.
+    ///
+    /// Field 2: `audio`
+    pub audio: bool,
+    /// Whose it is: a Movie's or a Show's, or, unspecified, the User's own for everything they play.
+    ///
+    /// Field 3: `title_kind`
+    pub title_kind: ::buffa::EnumValue<super::super::TitleKind>,
+    /// The Movie's or Show's External ID, such as `tmdb-348`, of 1 to 100 characters; empty for the
+    /// User's own.
+    ///
+    /// Field 4: `title_id`
+    pub title_id: &'a str,
+    /// Subtitles turned off, or the User's own Audio Preference left to each file's own audio. Then
+    /// nothing describes a Track.
+    ///
+    /// Field 5: `off`
+    pub off: bool,
+    /// The Track's language as its file tagged it, such as `eng`, or empty for none: up to 100
+    /// characters.
+    ///
+    /// Field 6: `language`
+    pub language: &'a str,
+    /// A forced-only subtitle Track.
+    ///
+    /// Field 7: `forced`
+    pub forced: bool,
+    /// A subtitle Track for the deaf and hard of hearing.
+    ///
+    /// Field 8: `sdh`
+    pub sdh: bool,
+    /// The Track's title, or empty for none: up to 1000 characters.
+    ///
+    /// Field 9: `title`
+    pub title: &'a str,
+    /// Full subtitles only over audio in another language, which only the User's own Subtitle
+    /// Preference can ask.
+    ///
+    /// Field 10: `foreign_audio_only`
+    pub foreign_audio_only: bool,
+    /// When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+    /// 9999.
+    ///
+    /// Field 11: `changed_at_ms`
+    pub changed_at_ms: i64,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for TrackPreferenceChangeView<'a> {
+    type Owned = super::super::TrackPreferenceChange;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.user_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.audio = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.title_kind = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.title_id = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.off = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.language = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.forced = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.sdh = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.title = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.foreign_audio_only = ::buffa::types::decode_bool(&mut cur)?;
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.changed_at_ms = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::TrackPreferenceChange,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::TrackPreferenceChange,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::TrackPreferenceChange {
+            user_id: self.user_id,
+            audio: self.audio,
+            title_kind: self.title_kind,
+            title_id: self.title_id.to_string(),
+            off: self.off,
+            language: self.language.to_string(),
+            forced: self.forced,
+            sdh: self.sdh,
+            title: self.title.to_string(),
+            foreign_audio_only: self.foreign_audio_only,
+            changed_at_ms: self.changed_at_ms,
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for TrackPreferenceChangeView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
+        }
+        if self.audio {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        {
+            let val = self.title_kind.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if !self.title_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.title_id) as u64;
+        }
+        if self.off {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if !self.language.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.language) as u64;
+        }
+        if self.forced {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.sdh {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if !self.title.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
+        }
+        if self.foreign_audio_only {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.changed_at_ms != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.changed_at_ms) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.user_id, buf);
+        }
+        if self.audio {
+            ::buffa::types::put_bool_field(2u32, self.audio, buf);
+        }
+        {
+            let val = self.title_kind.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
+            }
+        }
+        if !self.title_id.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.title_id, buf);
+        }
+        if self.off {
+            ::buffa::types::put_bool_field(5u32, self.off, buf);
+        }
+        if !self.language.is_empty() {
+            ::buffa::types::put_string_field(6u32, &self.language, buf);
+        }
+        if self.forced {
+            ::buffa::types::put_bool_field(7u32, self.forced, buf);
+        }
+        if self.sdh {
+            ::buffa::types::put_bool_field(8u32, self.sdh, buf);
+        }
+        if !self.title.is_empty() {
+            ::buffa::types::put_string_field(9u32, &self.title, buf);
+        }
+        if self.foreign_audio_only {
+            ::buffa::types::put_bool_field(10u32, self.foreign_audio_only, buf);
+        }
+        if self.changed_at_ms != 0i64 {
+            ::buffa::types::put_int64_field(11u32, self.changed_at_ms, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for TrackPreferenceChangeView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.user_id) {
+            __map
+                .serialize_entry(
+                    "userId",
+                    &::buffa::json_helpers::ProtoJson(&self.user_id),
+                )?;
+        }
+        if self.audio {
+            __map.serialize_entry("audio", &self.audio)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(&self.title_kind) {
+            __map.serialize_entry("titleKind", &self.title_kind)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.title_id) {
+            __map.serialize_entry("titleId", self.title_id)?;
+        }
+        if self.off {
+            __map.serialize_entry("off", &self.off)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.language) {
+            __map.serialize_entry("language", self.language)?;
+        }
+        if self.forced {
+            __map.serialize_entry("forced", &self.forced)?;
+        }
+        if self.sdh {
+            __map.serialize_entry("sdh", &self.sdh)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.title) {
+            __map.serialize_entry("title", self.title)?;
+        }
+        if self.foreign_audio_only {
+            __map.serialize_entry("foreignAudioOnly", &self.foreign_audio_only)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_zero_i64(&self.changed_at_ms) {
+            __map
+                .serialize_entry(
+                    "changedAtMs",
+                    &::buffa::json_helpers::ProtoJson(&self.changed_at_ms),
+                )?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for TrackPreferenceChangeView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "TrackPreferenceChange";
+    const FULL_NAME: &'static str = "nama.hub.v1.TrackPreferenceChange";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.TrackPreferenceChange";
+}
+::buffa::impl_default_view_instance!(TrackPreferenceChangeView);
+::buffa::impl_view_reborrow!(TrackPreferenceChangeView);
+/** Self-contained, `'static` owned view of a `TrackPreferenceChange` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`TrackPreferenceChangeView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`TrackPreferenceChangeView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct TrackPreferenceChangeOwnedView(
+    ::buffa::OwnedView<TrackPreferenceChangeView<'static>>,
+);
+impl TrackPreferenceChangeOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            TrackPreferenceChangeOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            TrackPreferenceChangeOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::TrackPreferenceChange,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            TrackPreferenceChangeOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`TrackPreferenceChangeView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &TrackPreferenceChangeView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::TrackPreferenceChange {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// The User's id on the Server.
+    ///
+    /// Field 1: `user_id`
+    #[must_use]
+    pub fn user_id(&self) -> i64 {
+        self.0.reborrow().user_id
+    }
+    /// Whether it is an Audio Preference rather than a Subtitle Preference.
+    ///
+    /// Field 2: `audio`
+    #[must_use]
+    pub fn audio(&self) -> bool {
+        self.0.reborrow().audio
+    }
+    /// Whose it is: a Movie's or a Show's, or, unspecified, the User's own for everything they play.
+    ///
+    /// Field 3: `title_kind`
+    #[must_use]
+    pub fn title_kind(&self) -> ::buffa::EnumValue<super::super::TitleKind> {
+        self.0.reborrow().title_kind
+    }
+    /// The Movie's or Show's External ID, such as `tmdb-348`, of 1 to 100 characters; empty for the
+    /// User's own.
+    ///
+    /// Field 4: `title_id`
+    #[must_use]
+    pub fn title_id(&self) -> &'_ str {
+        self.0.reborrow().title_id
+    }
+    /// Subtitles turned off, or the User's own Audio Preference left to each file's own audio. Then
+    /// nothing describes a Track.
+    ///
+    /// Field 5: `off`
+    #[must_use]
+    pub fn off(&self) -> bool {
+        self.0.reborrow().off
+    }
+    /// The Track's language as its file tagged it, such as `eng`, or empty for none: up to 100
+    /// characters.
+    ///
+    /// Field 6: `language`
+    #[must_use]
+    pub fn language(&self) -> &'_ str {
+        self.0.reborrow().language
+    }
+    /// A forced-only subtitle Track.
+    ///
+    /// Field 7: `forced`
+    #[must_use]
+    pub fn forced(&self) -> bool {
+        self.0.reborrow().forced
+    }
+    /// A subtitle Track for the deaf and hard of hearing.
+    ///
+    /// Field 8: `sdh`
+    #[must_use]
+    pub fn sdh(&self) -> bool {
+        self.0.reborrow().sdh
+    }
+    /// The Track's title, or empty for none: up to 1000 characters.
+    ///
+    /// Field 9: `title`
+    #[must_use]
+    pub fn title(&self) -> &'_ str {
+        self.0.reborrow().title
+    }
+    /// Full subtitles only over audio in another language, which only the User's own Subtitle
+    /// Preference can ask.
+    ///
+    /// Field 10: `foreign_audio_only`
+    #[must_use]
+    pub fn foreign_audio_only(&self) -> bool {
+        self.0.reborrow().foreign_audio_only
+    }
+    /// When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+    /// 9999.
+    ///
+    /// Field 11: `changed_at_ms`
+    #[must_use]
+    pub fn changed_at_ms(&self) -> i64 {
+        self.0.reborrow().changed_at_ms
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<TrackPreferenceChangeView<'static>>>
+for TrackPreferenceChangeOwnedView {
+    fn from(inner: ::buffa::OwnedView<TrackPreferenceChangeView<'static>>) -> Self {
+        TrackPreferenceChangeOwnedView(inner)
+    }
+}
+impl ::core::convert::From<TrackPreferenceChangeOwnedView>
+for ::buffa::OwnedView<TrackPreferenceChangeView<'static>> {
+    fn from(wrapper: TrackPreferenceChangeOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<TrackPreferenceChangeView<'static>>>
+for TrackPreferenceChangeOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<TrackPreferenceChangeView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::TrackPreferenceChange {
+    type View<'a> = TrackPreferenceChangeView<'a>;
+    type ViewHandle = TrackPreferenceChangeOwnedView;
+}
+impl ::serde::Serialize for TrackPreferenceChangeOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
 pub struct SyncWatchlistRequestView<'a> {
     /// The User's id on the Server.
     ///

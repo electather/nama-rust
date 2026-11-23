@@ -4902,6 +4902,914 @@ pub const __WATCH_STATE_CHANGE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = 
 #[derive(Clone, PartialEq, Default)]
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
+pub struct PushTrackPreferencesRequest {
+    /// Up to 500.
+    ///
+    /// Field 1: `changes`
+    #[serde(
+        rename = "changes",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub changes: ::buffa::alloc::vec::Vec<TrackPreferenceChange>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PushTrackPreferencesRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PushTrackPreferencesRequest")
+            .field("changes", &self.changes)
+            .finish()
+    }
+}
+impl PushTrackPreferencesRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PushTrackPreferencesRequest";
+}
+::buffa::impl_default_instance!(PushTrackPreferencesRequest);
+impl ::buffa::MessageName for PushTrackPreferencesRequest {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "PushTrackPreferencesRequest";
+    const FULL_NAME: &'static str = "nama.hub.v1.PushTrackPreferencesRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PushTrackPreferencesRequest";
+}
+impl ::buffa::Message for PushTrackPreferencesRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.changes {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.changes {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.changes.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.changes.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PushTrackPreferencesRequest {
+    const PROTO_FQN: &'static str = "nama.hub.v1.PushTrackPreferencesRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for PushTrackPreferencesRequest {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __PUSH_TRACK_PREFERENCES_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.hub.v1.PushTrackPreferencesRequest",
+    to_json: ::buffa::type_registry::any_to_json::<PushTrackPreferencesRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<PushTrackPreferencesRequest>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct PushTrackPreferencesResponse {
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PushTrackPreferencesResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PushTrackPreferencesResponse").finish()
+    }
+}
+impl PushTrackPreferencesResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PushTrackPreferencesResponse";
+}
+::buffa::impl_default_instance!(PushTrackPreferencesResponse);
+impl ::buffa::MessageName for PushTrackPreferencesResponse {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "PushTrackPreferencesResponse";
+    const FULL_NAME: &'static str = "nama.hub.v1.PushTrackPreferencesResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PushTrackPreferencesResponse";
+}
+impl ::buffa::Message for PushTrackPreferencesResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PushTrackPreferencesResponse {
+    const PROTO_FQN: &'static str = "nama.hub.v1.PushTrackPreferencesResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for PushTrackPreferencesResponse {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __PUSH_TRACK_PREFERENCES_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.hub.v1.PushTrackPreferencesResponse",
+    to_json: ::buffa::type_registry::any_to_json::<PushTrackPreferencesResponse>,
+    from_json: ::buffa::type_registry::any_from_json::<PushTrackPreferencesResponse>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct PullTrackPreferencesRequest {
+    /// The User's id on the Server.
+    ///
+    /// Field 1: `user_id`
+    #[serde(
+        rename = "userId",
+        alias = "user_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub user_id: i64,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PullTrackPreferencesRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PullTrackPreferencesRequest")
+            .field("user_id", &self.user_id)
+            .finish()
+    }
+}
+impl PullTrackPreferencesRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PullTrackPreferencesRequest";
+}
+::buffa::impl_default_instance!(PullTrackPreferencesRequest);
+impl ::buffa::MessageName for PullTrackPreferencesRequest {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "PullTrackPreferencesRequest";
+    const FULL_NAME: &'static str = "nama.hub.v1.PullTrackPreferencesRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PullTrackPreferencesRequest";
+}
+impl ::buffa::Message for PullTrackPreferencesRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.user_id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.user_id = ::buffa::types::decode_int64(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.user_id = 0i64;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PullTrackPreferencesRequest {
+    const PROTO_FQN: &'static str = "nama.hub.v1.PullTrackPreferencesRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for PullTrackPreferencesRequest {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __PULL_TRACK_PREFERENCES_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.hub.v1.PullTrackPreferencesRequest",
+    to_json: ::buffa::type_registry::any_to_json::<PullTrackPreferencesRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<PullTrackPreferencesRequest>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct PullTrackPreferencesResponse {
+    /// One per Preference, in no order. `user_id` is the asked User's.
+    ///
+    /// Field 1: `preferences`
+    #[serde(
+        rename = "preferences",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub preferences: ::buffa::alloc::vec::Vec<TrackPreferenceChange>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for PullTrackPreferencesResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("PullTrackPreferencesResponse")
+            .field("preferences", &self.preferences)
+            .finish()
+    }
+}
+impl PullTrackPreferencesResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PullTrackPreferencesResponse";
+}
+::buffa::impl_default_instance!(PullTrackPreferencesResponse);
+impl ::buffa::MessageName for PullTrackPreferencesResponse {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "PullTrackPreferencesResponse";
+    const FULL_NAME: &'static str = "nama.hub.v1.PullTrackPreferencesResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.PullTrackPreferencesResponse";
+}
+impl ::buffa::Message for PullTrackPreferencesResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        for v in &self.preferences {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.preferences {
+            ::buffa::types::put_len_delimited_header(
+                1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.preferences.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.preferences.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for PullTrackPreferencesResponse {
+    const PROTO_FQN: &'static str = "nama.hub.v1.PullTrackPreferencesResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for PullTrackPreferencesResponse {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __PULL_TRACK_PREFERENCES_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.hub.v1.PullTrackPreferencesResponse",
+    to_json: ::buffa::type_registry::any_to_json::<PullTrackPreferencesResponse>,
+    from_json: ::buffa::type_registry::any_from_json::<PullTrackPreferencesResponse>,
+    is_wkt: false,
+};
+/// One User's Subtitle or Audio Preference, as a change on their Server left it (ADR 0035): what
+/// describes the Track they want, never which Track it was, since each Server matches it against
+/// its own. Home layouts, Permissions, Library access and Plugin settings belong to each Server
+/// and never come here (ADR 0092).
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct TrackPreferenceChange {
+    /// The User's id on the Server.
+    ///
+    /// Field 1: `user_id`
+    #[serde(
+        rename = "userId",
+        alias = "user_id",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub user_id: i64,
+    /// Whether it is an Audio Preference rather than a Subtitle Preference.
+    ///
+    /// Field 2: `audio`
+    #[serde(
+        rename = "audio",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub audio: bool,
+    /// Whose it is: a Movie's or a Show's, or, unspecified, the User's own for everything they play.
+    ///
+    /// Field 3: `title_kind`
+    #[serde(
+        rename = "titleKind",
+        alias = "title_kind",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub title_kind: ::buffa::EnumValue<TitleKind>,
+    /// The Movie's or Show's External ID, such as `tmdb-348`, of 1 to 100 characters; empty for the
+    /// User's own.
+    ///
+    /// Field 4: `title_id`
+    #[serde(
+        rename = "titleId",
+        alias = "title_id",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub title_id: ::buffa::alloc::string::String,
+    /// Subtitles turned off, or the User's own Audio Preference left to each file's own audio. Then
+    /// nothing describes a Track.
+    ///
+    /// Field 5: `off`
+    #[serde(
+        rename = "off",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub off: bool,
+    /// The Track's language as its file tagged it, such as `eng`, or empty for none: up to 100
+    /// characters.
+    ///
+    /// Field 6: `language`
+    #[serde(
+        rename = "language",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub language: ::buffa::alloc::string::String,
+    /// A forced-only subtitle Track.
+    ///
+    /// Field 7: `forced`
+    #[serde(
+        rename = "forced",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub forced: bool,
+    /// A subtitle Track for the deaf and hard of hearing.
+    ///
+    /// Field 8: `sdh`
+    #[serde(
+        rename = "sdh",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub sdh: bool,
+    /// The Track's title, or empty for none: up to 1000 characters.
+    ///
+    /// Field 9: `title`
+    #[serde(
+        rename = "title",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub title: ::buffa::alloc::string::String,
+    /// Full subtitles only over audio in another language, which only the User's own Subtitle
+    /// Preference can ask.
+    ///
+    /// Field 10: `foreign_audio_only`
+    #[serde(
+        rename = "foreignAudioOnly",
+        alias = "foreign_audio_only",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub foreign_audio_only: bool,
+    /// When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+    /// 9999.
+    ///
+    /// Field 11: `changed_at_ms`
+    #[serde(
+        rename = "changedAtMs",
+        alias = "changed_at_ms",
+        with = "::buffa::json_helpers::int64",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_i64"
+    )]
+    pub changed_at_ms: i64,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for TrackPreferenceChange {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("TrackPreferenceChange")
+            .field("user_id", &self.user_id)
+            .field("audio", &self.audio)
+            .field("title_kind", &self.title_kind)
+            .field("title_id", &self.title_id)
+            .field("off", &self.off)
+            .field("language", &self.language)
+            .field("forced", &self.forced)
+            .field("sdh", &self.sdh)
+            .field("title", &self.title)
+            .field("foreign_audio_only", &self.foreign_audio_only)
+            .field("changed_at_ms", &self.changed_at_ms)
+            .finish()
+    }
+}
+impl TrackPreferenceChange {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.TrackPreferenceChange";
+}
+::buffa::impl_default_instance!(TrackPreferenceChange);
+impl ::buffa::MessageName for TrackPreferenceChange {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "TrackPreferenceChange";
+    const FULL_NAME: &'static str = "nama.hub.v1.TrackPreferenceChange";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.TrackPreferenceChange";
+}
+impl ::buffa::Message for TrackPreferenceChange {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.user_id != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.user_id) as u64;
+        }
+        if self.audio {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        {
+            let val = self.title_kind.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
+        if !self.title_id.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.title_id) as u64;
+        }
+        if self.off {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if !self.language.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.language) as u64;
+        }
+        if self.forced {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.sdh {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if !self.title.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.title) as u64;
+        }
+        if self.foreign_audio_only {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.changed_at_ms != 0i64 {
+            size += 1u64 + ::buffa::types::int64_encoded_len(self.changed_at_ms) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.user_id != 0i64 {
+            ::buffa::types::put_int64_field(1u32, self.user_id, buf);
+        }
+        if self.audio {
+            ::buffa::types::put_bool_field(2u32, self.audio, buf);
+        }
+        {
+            let val = self.title_kind.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
+            }
+        }
+        if !self.title_id.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.title_id, buf);
+        }
+        if self.off {
+            ::buffa::types::put_bool_field(5u32, self.off, buf);
+        }
+        if !self.language.is_empty() {
+            ::buffa::types::put_string_field(6u32, &self.language, buf);
+        }
+        if self.forced {
+            ::buffa::types::put_bool_field(7u32, self.forced, buf);
+        }
+        if self.sdh {
+            ::buffa::types::put_bool_field(8u32, self.sdh, buf);
+        }
+        if !self.title.is_empty() {
+            ::buffa::types::put_string_field(9u32, &self.title, buf);
+        }
+        if self.foreign_audio_only {
+            ::buffa::types::put_bool_field(10u32, self.foreign_audio_only, buf);
+        }
+        if self.changed_at_ms != 0i64 {
+            ::buffa::types::put_int64_field(11u32, self.changed_at_ms, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.user_id = ::buffa::types::decode_int64(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.audio = ::buffa::types::decode_bool(buf)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.title_kind = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.title_id, buf)?;
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.off = ::buffa::types::decode_bool(buf)?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.language, buf)?;
+            }
+            7u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.forced = ::buffa::types::decode_bool(buf)?;
+            }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.sdh = ::buffa::types::decode_bool(buf)?;
+            }
+            9u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.title, buf)?;
+            }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.foreign_audio_only = ::buffa::types::decode_bool(buf)?;
+            }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.changed_at_ms = ::buffa::types::decode_int64(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.user_id = 0i64;
+        self.audio = false;
+        self.title_kind = ::buffa::EnumValue::from(0);
+        self.title_id.clear();
+        self.off = false;
+        self.language.clear();
+        self.forced = false;
+        self.sdh = false;
+        self.title.clear();
+        self.foreign_audio_only = false;
+        self.changed_at_ms = 0i64;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for TrackPreferenceChange {
+    const PROTO_FQN: &'static str = "nama.hub.v1.TrackPreferenceChange";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for TrackPreferenceChange {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __TRACK_PREFERENCE_CHANGE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.hub.v1.TrackPreferenceChange",
+    to_json: ::buffa::type_registry::any_to_json::<TrackPreferenceChange>,
+    from_json: ::buffa::type_registry::any_from_json::<TrackPreferenceChange>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
 pub struct SyncWatchlistRequest {
     /// The User's id on the Server.
     ///

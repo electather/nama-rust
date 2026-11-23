@@ -28,6 +28,7 @@ use nama_proto::nama::v1::{
 use crate::{
     browse::Browse,
     db::Database,
+    playback::TrackPreferences,
     plugins::ExtensionPoints,
     server_settings::ServerUrl,
     users::{
@@ -46,10 +47,12 @@ use super::{
 pub(super) struct SignInServiceHandler {
     pub(super) sign_in: SignIn,
     /// The Plugin that links the Server, through which a User signs in with their Account and
-    /// pulls their Watch State on their other Servers.
+    /// pulls their Watch State and Track Preferences on their other Servers.
     pub(super) points: ExtensionPoints,
     /// Takes the Watch State a User pulls as they sign in.
     pub(super) browse: Browse,
+    /// Takes the Track Preferences a User pulls as they sign in.
+    pub(super) preferences: TrackPreferences,
     /// Holds the Watchlist a User syncs as they sign in.
     pub(super) db: Arc<Database>,
     /// The Server URL, one of the Server Addresses a sign-in with an Account may return to.
@@ -366,8 +369,8 @@ fn user_agent(headers: &HeaderMap) -> Option<String> {
 impl SignInServiceHandler {
     /// The response `body` makes for a Device just `signed_in`, with its session token handed out
     /// by `delivery`: in the body, or in a cookie and not in the body. Pulls the User's Watch
-    /// State on their other Servers and syncs their Watchlist too, as every sign-in does (ADR 0008,
-    /// ADR 0056).
+    /// State and Track Preferences on their other Servers and syncs their Watchlist too, as every
+    /// sign-in does (ADR 0008, ADR 0056, ADR 0092).
     fn hand_out_session<M>(
         &self,
         signed_in: SignedIn,
@@ -376,7 +379,12 @@ impl SignInServiceHandler {
         body: impl FnOnce(Caller, String) -> M,
     ) -> Response<M> {
         let SignedIn { caller, token } = signed_in;
-        server_link::pull_watch_states_soon(&self.points, &self.browse, caller.user.id);
+        server_link::pull_soon(
+            &self.points,
+            &self.browse,
+            &self.preferences,
+            caller.user.id,
+        );
         server_link::sync_watchlist_soon(&self.points, &self.db, caller.user.id);
         match delivery {
             Delivery::Token => Response::new(body(caller, token)),

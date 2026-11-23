@@ -67,6 +67,11 @@ pub enum RefusalReason {
     /// `invalid_argument`: a Viewing Event breaks the rules `ViewingEvent` and `UserViewingEvent`
     /// give, or more than `maxEvents` came at once. Params: `maxEvents`.
     REFUSAL_REASON_VIEWING_EVENT_INVALID = 21i32,
+    /// `invalid_argument`: a Subtitle or Audio Preference change breaks a limit
+    /// `TrackPreferenceChange` and `PushTrackPreferencesRequest` set, such as too many changes, a
+    /// field too long, or a time out of range. `field` names it. Params: `maxChanges`, `maxIdLength`,
+    /// `maxLanguageLength` and `maxTitleLength`.
+    REFUSAL_REASON_TRACK_PREFERENCE_INVALID = 23i32,
     /// `invalid_argument`: a Watchlist entry breaks a limit `SyncWatchlistRequest` sets, such as too
     /// many entries, an id too long, no kind, or a time out of range. `field` names it. Params:
     /// `maxEntries` and `maxIdLength`.
@@ -139,6 +144,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_VIEWING_EVENT_INVALID`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const ViewingEventInvalid: Self = Self::REFUSAL_REASON_VIEWING_EVENT_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_TRACK_PREFERENCE_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const TrackPreferenceInvalid: Self = Self::REFUSAL_REASON_TRACK_PREFERENCE_INVALID;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_WATCHLIST_INVALID`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const WatchlistInvalid: Self = Self::REFUSAL_REASON_WATCHLIST_INVALID;
@@ -283,6 +291,11 @@ impl ::buffa::Enumeration for RefusalReason {
             21i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_VIEWING_EVENT_INVALID)
             }
+            23i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_TRACK_PREFERENCE_INVALID,
+                )
+            }
             22i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_WATCHLIST_INVALID),
             _ => ::core::option::Option::None,
         }
@@ -331,6 +344,9 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_VIEWING_EVENT_INVALID => {
                 "REFUSAL_REASON_VIEWING_EVENT_INVALID"
+            }
+            Self::REFUSAL_REASON_TRACK_PREFERENCE_INVALID => {
+                "REFUSAL_REASON_TRACK_PREFERENCE_INVALID"
             }
             Self::REFUSAL_REASON_WATCHLIST_INVALID => "REFUSAL_REASON_WATCHLIST_INVALID",
         }
@@ -409,6 +425,11 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_VIEWING_EVENT_INVALID" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_VIEWING_EVENT_INVALID)
             }
+            "REFUSAL_REASON_TRACK_PREFERENCE_INVALID" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_TRACK_PREFERENCE_INVALID,
+                )
+            }
             "REFUSAL_REASON_WATCHLIST_INVALID" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_WATCHLIST_INVALID)
             }
@@ -439,6 +460,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_URL_INVALID,
             Self::REFUSAL_REASON_WATCH_STATE_INVALID,
             Self::REFUSAL_REASON_VIEWING_EVENT_INVALID,
+            Self::REFUSAL_REASON_TRACK_PREFERENCE_INVALID,
             Self::REFUSAL_REASON_WATCHLIST_INVALID,
         ]
     }
