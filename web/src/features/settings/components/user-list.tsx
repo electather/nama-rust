@@ -5,7 +5,7 @@ import { UserListGroups } from "@/features/settings/components/user-list-groups"
 import { useAutoSave } from "@/features/settings/hooks/use-auto-save";
 import { refusedWords } from "@/features/settings/lib/refused-words";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
-import { useDefaultPermissions, useDefaultRemoteCap } from "@/shared/hooks/use-default-permissions";
+import { useDefaultPermissions } from "@/shared/hooks/use-default-permissions";
 
 /**
  * Every User on the Server, each opening in place of the list, then a form to create one, the
@@ -13,8 +13,9 @@ import { useDefaultPermissions, useDefaultRemoteCap } from "@/shared/hooks/use-d
  */
 export function UserList({ users, you }: { users: User[]; you: User | undefined }) {
   const setDefaults = useSetDefaultPermissions();
+  const defaults = useDefaultPermissions();
   const { values, refused, edit, dismiss } = useAutoSave(
-    { permissions: useDefaultPermissions(), cap: useDefaultRemoteCap() },
+    { permissions: defaults.permissions, cap: defaults.remotePlaybackLimit },
     async ({ permissions, cap }) => {
       await setDefaults.mutateAsync({ permissions, remotePlaybackLimit: cap });
     },

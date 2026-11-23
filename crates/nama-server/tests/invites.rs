@@ -13,9 +13,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
     AcceptInviteRequest, AcceptInviteResponse, CreateInviteRequest, CreateInviteResponse,
-    DeleteUserRequest, Invite, ListInvitesRequest, Permission, RefusalReason, RevokeInviteRequest,
-    ServerServiceClient, ServerSettings, SessionDelivery, SetPermissionsRequest,
-    SignInServiceClient, UpdateServerSettingsRequest, UserServiceClient, WhoAmIRequest,
+    DeleteUserRequest, Invite, ListInvitesRequest, ListUsersRequest, Permission, PlaybackLimit,
+    RefusalReason, RevokeInviteRequest, ServerServiceClient, ServerSettings, SessionDelivery,
+    SetDefaultPermissionsRequest, SetPermissionsRequest, SignInServiceClient,
+    UpdateServerSettingsRequest, UserServiceClient, WhoAmIRequest,
 };
 use refused::assert_refused;
 use server::{PASSWORD, TestServer};
@@ -446,4 +447,43 @@ async fn guessing_invite_tokens_is_slowed_down_like_signing_in() {
         ErrorCode::ResourceExhausted,
         RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS,
     );
+}
+
+#[tokio::test]
+async fn a_user_made_by_an_invite_gets_the_default_cap_which_a_user_manager_changes() {
+    let server = start(TestServer::builder()).await;
+    let ann = server.user("Ann", &[Permission::ManageUsers]).await;
+    let anns = users(ann.client_config());
+    (users(server.client_config()).set_default_permissions(SetDefaultPermissionsRequest {
+        remote_playback_limit: PlaybackLimit::PLAYBACK_LIMIT_720P.into(),
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
+    let created = create_invite(&anns, "", &[]).await.unwrap();
+    let mum = (accept(&server, &token_of(&created), "Mum")
+        .await
+        .unwrap()
+        .user)
+        .id;
+    let cap_of_mum = async || {
+        let listed = anns.list_users(ListUsersRequest::default()).await.unwrap();
+        (listed.into_owned().users.into_iter())
+            .find(|user| user.id == mum)
+            .unwrap()
+            .remote_playback_limit
+    };
+
+    let invited = cap_of_mum().await;
+    (anns.set_permissions(SetPermissionsRequest {
+        user_id: mum,
+        remote_playback_limit: PlaybackLimit::PLAYBACK_LIMIT_480P.into(),
+        ..Default::default()
+    }))
+    .await
+    .unwrap();
+    let changed = cap_of_mum().await;
+
+    assert_eq!(invited, PlaybackLimit::PLAYBACK_LIMIT_720P);
+    assert_eq!(changed, PlaybackLimit::PLAYBACK_LIMIT_480P);
 }

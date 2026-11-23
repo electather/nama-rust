@@ -295,6 +295,36 @@ test("default Permissions are saved as they're changed, and are there after relo
   expect(screen.queryByRole("button", { name: /Save/u })).toBeNull();
 });
 
+test("the default cap for remote playback is saved with the default Permissions as it's picked", async () => {
+  const saves: unknown[] = [];
+  openApp(
+    usersSection,
+    fakeServer(
+      { signedIn: admin },
+      {},
+      {
+        listUsers: () => ({ users: [] }),
+        getDefaultPermissions: () => ({ permissions: newUser }),
+        setDefaultPermissions: ({ permissions, remotePlaybackLimit }) => {
+          saves.push({ permissions, remotePlaybackLimit });
+          return {};
+        },
+      },
+    ),
+  );
+  const cap = "Most for remote playback";
+
+  const select = await screen.findByRole("combobox", { name: cap });
+  expect(select.textContent).toBe("No cap");
+  pick(cap, "480p");
+
+  await expect
+    .poll(() => saves)
+    .toStrictEqual([
+      { permissions: newUser, remotePlaybackLimit: PlaybackLimit.PLAYBACK_LIMIT_480P },
+    ]);
+});
+
 test("a refused change to the default Permissions is undone, and says why", async () => {
   openApp(
     usersSection,

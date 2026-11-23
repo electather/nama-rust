@@ -41,11 +41,6 @@ pub(crate) fn limit_to_proto(limit: Option<PlaybackLimit>) -> proto::PlaybackLim
 /// remote playback, or else the default Playback Limit for remote playback, chose a limit the next
 /// step scales the picture down to or drops.
 pub(super) fn network(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
-    let scales = |limit| {
-        picture(facts)
-            .and_then(|picture| fitted(picture, limit))
-            .is_some()
-    };
     let Network::Remote { default, cap } = facts.network else {
         return vec![];
     };
@@ -55,7 +50,7 @@ pub(super) fn network(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
     };
     if let Some(cap) = cap
         && lower(wanted, Some(cap)) != wanted
-        && scales(cap)
+        && scales_down(facts, cap)
     {
         let text = format!(
             "This Device is outside the local network, where its User's cap for remote playback is {}",
@@ -68,7 +63,7 @@ pub(super) fn network(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
         )];
     }
     match lower(default, cap) {
-        Some(limit) if facts.picked_limit == PickedLimit::Unpicked && scales(limit) => {
+        Some(limit) if facts.picked_limit == PickedLimit::Unpicked && scales_down(facts, limit) => {
             vec![limit_reason(
                 Kind::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT,
                 limit,
@@ -89,6 +84,19 @@ pub(super) const fn remote_cap_of(facts: &Facts) -> Option<PlaybackLimit> {
         Network::Remote { cap, .. } => cap,
         Network::Local => None,
     }
+}
+
+/// Whether dropping the Playback Limit would send more than the User's cap for remote playback,
+/// which is when the cap scales the picture down.
+pub(super) fn cap_binds(facts: &Facts) -> bool {
+    remote_cap_of(facts).is_some_and(|cap| scales_down(facts, cap))
+}
+
+/// Whether `limit` scales the Version's picture down, which a picture of unknown size never is.
+fn scales_down(facts: &Facts, limit: PlaybackLimit) -> bool {
+    picture(facts)
+        .and_then(|picture| fitted(picture, limit))
+        .is_some()
 }
 
 /// The lower of two Playback Limits, `None` being Original.

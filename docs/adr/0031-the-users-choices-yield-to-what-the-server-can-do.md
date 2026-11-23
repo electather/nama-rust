@@ -11,4 +11,4 @@ ADR 0027's steps all narrow, so a choice that needs a Remux or a Transcode (an a
 
 - A busy Server refuses a plan only when the Device itself needs a Transcode, never because of a choice.
 - A dropped choice is forgotten, so it isn't honoured later just because something else was chosen.
-- A User's cap for remote playback, which an Admin sets, is no choice of theirs and is never dropped: dropping it would send more than the Admin allowed, so a capped plan that can't keep to it doesn't play. The plan names the cap, so the player shows the limits above it as unavailable (#2023).
+- A User's cap for remote playback, which an Admin sets, is no choice of theirs. A limit is never dropped where that would send more than the cap, so a capped plan that can't keep to it doesn't play. The plan names the cap, so the player shows the limits above it as unavailable (#2023).

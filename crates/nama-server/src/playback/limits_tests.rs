@@ -131,6 +131,28 @@ fn a_remote_cap_is_never_dropped_for_original_when_nothing_can_transcode() {
 }
 
 #[test]
+fn a_limit_below_a_remote_cap_the_picture_already_fits_is_dropped_as_any_other() {
+    let mut facts = Facts {
+        picked_limit: PickedLimit::Picked(Some(PlaybackLimit::P480)),
+        network: Network::Remote {
+            default: None,
+            cap: Some(PlaybackLimit::P1080),
+        },
+        ..facts(Some(vec![video("h264"), audio("aac", true)]))
+    };
+    facts.can_do.libx264 = false;
+
+    let plan = build(&mut facts);
+
+    assert_eq!(plan.method(), Some(Method::DirectPlay));
+    assert!(
+        kinds(&plan).contains(&Kind::PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED),
+        "{:?}",
+        kinds(&plan)
+    );
+}
+
+#[test]
 fn loopback_private_link_local_and_unique_local_addresses_are_on_the_local_network() {
     let cases = [
         ("127.0.0.1", true),
