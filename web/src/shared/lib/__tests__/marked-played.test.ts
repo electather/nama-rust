@@ -4,7 +4,7 @@ import { describe, expect, test } from "vite-plus/test";
 import { ListEpisodesResponseSchema } from "@/gen/nama/v1/browse_pb";
 import { markEpisodes } from "@/shared/lib/marked-played";
 
-describe(markEpisodes, () => {
+describe("marking a Show's Episodes played", () => {
   const show = create(ListEpisodesResponseSchema, {
     episodes: [
       { id: { namespace: "tmdb", value: "1" }, seasonNumber: 1 },
