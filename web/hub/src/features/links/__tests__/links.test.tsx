@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
 import { AccountSchema, AccountService } from "@hub/gen/nama/hub/v1/account_pb";
+import { HubService } from "@hub/gen/nama/hub/v1/hub_pb";
 import { LinkService, LinkedServerSchema, LinkedUserSchema } from "@hub/gen/nama/hub/v1/link_pb";
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 import { getRouter } from "@hub/router";
@@ -42,13 +43,15 @@ function refused(code: Code, reason: RefusalReason) {
  * Opens the Account page, signed in as Ada, on a fake Hub where one Server, "Living room", shows
  * the code BDFH-JKLM, and its User Ida the code CDFG-HJKL, and entering either is refused for
  * `refusing`, if given. Ada's Account has Attic Linked, and Grace on Cabin, whose Admin set its
- * Server URL. With `listFails`, the Hub fails to list the Account's Servers.
+ * Server URL. With `listFails`, the Hub fails to list the Account's Servers. Without
+ * `signInLinks`, the Hub has no mail to email Sign-in Links.
  */
-function openAccount(refusing?: RefusalReason, { listFails = false } = {}) {
+function openAccount(refusing?: RefusalReason, { listFails = false, signInLinks = true } = {}) {
   let session = true;
   const servers = [attic, cabin];
   let users = [grace];
   const transport = createRouterTransport(({ service }) => {
+    service(HubService, { getHubInfo: () => ({ version: "0.1.0", signInLinks }) });
     service(AccountService, {
       getAccount: () => {
         if (!session) {
@@ -176,6 +179,18 @@ describe("linking a Server", () => {
     await expect(
       screen.findByRole("heading", { name: "Email a Sign-in Link" }),
     ).resolves.toBeDefined();
+  });
+
+  test("a Hub without mail says it can't prove emails, and offers no Sign-in Link", async () => {
+    openAccount(RefusalReason.EMAIL_NOT_PROVEN, { signInLinks: false });
+    await enterCode("BDFH-JKLM");
+
+    await expect(
+      screen.findByText(
+        "This Hub can’t prove emails, so Linking isn’t possible on it. Ask whoever runs it to set up email.",
+      ),
+    ).resolves.toBeDefined();
+    expect(screen.queryByRole("link", { name: "Email me a Sign-in Link" })).toBeNull();
   });
 
   test("a Server list the Hub can't give says so and leaves the rest of the page", async () => {

@@ -1,3 +1,4 @@
+import { useSendsSignInLinks } from "@hub/features/account/data/sign-in-links";
 import { InviteWho } from "@hub/features/links/components/invite-who";
 import { LinkRemedy } from "@hub/features/links/components/link-remedy";
 import { useAcceptUserInvite } from "@hub/features/links/data/invites";
@@ -8,7 +9,7 @@ import { Button } from "nama-ui/components/button";
 /** One User created from the signed-in Account: who, on which Server, since when, and accepting them. */
 export function UserInviteItem({ invite }: { invite: UserInvite }) {
   const accept = useAcceptUserInvite();
-  const errors = linkErrors(accept.error);
+  const errors = linkErrors(accept.error, useSendsSignInLinks());
   return (
     <li className="flex flex-col gap-2 py-2.5">
       <div className="flex items-center justify-between gap-3">

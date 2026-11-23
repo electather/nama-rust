@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
 import { AccountSchema, AccountService } from "@hub/gen/nama/hub/v1/account_pb";
+import { HubService } from "@hub/gen/nama/hub/v1/hub_pb";
 import {
   type LinkedUser,
   LinkService,
@@ -51,6 +52,7 @@ function openHub(path: string, hub: Hub = {}) {
   let invites = [grace];
   let users: LinkedUser[] = [];
   const transport = createRouterTransport(({ service }) => {
+    service(HubService, { getHubInfo: () => ({ version: "0.1.0", signInLinks: true }) });
     service(AccountService, {
       getAccount: () => {
         if (hub.signedIn === false) {
