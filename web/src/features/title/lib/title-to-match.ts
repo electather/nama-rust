@@ -1,4 +1,4 @@
-import type { ExternalId, TitleKind } from "@/gen/nama/v1/match_pb";
+import type { TitleKind } from "@/gen/nama/v1/match_pb";
 import type { TitleToMatch } from "@/shared/lib/find-a-match";
 import { yearOf } from "@/shared/lib/title-facts";
 
@@ -7,7 +7,7 @@ import { yearOf } from "@/shared/lib/title-facts";
  * for first: its `title`, and the year of its `date`, such as a Movie's release date.
  */
 export function titleToMatch(
-  matchedTitle: { libraryId: bigint; id: ExternalId },
+  matchedTitle: TitleToMatch["matchedTitle"],
   kind: TitleKind,
   { title, date }: { title: string; date: string | undefined },
 ): TitleToMatch {

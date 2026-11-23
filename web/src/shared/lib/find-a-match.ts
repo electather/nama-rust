@@ -1,6 +1,7 @@
 import { Code } from "@connectrpc/connect";
 
 import type { ExternalId, SetMatchResponse, TitleKind } from "@/gen/nama/v1/match_pb";
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { formText, refusal } from "@/shared/lib/forms";
 import { episodeName } from "@/shared/lib/title-facts";
 import type { ItemToMatch } from "@/shared/lib/unmatched-names";
@@ -61,8 +62,14 @@ export function searchRefusal(error: unknown) {
 
 /** Why Matching failed, in words. */
 export function setMatchRefusal(error: unknown) {
-  return refusal(error, "set the Match", {
-    [Code.Unavailable]: noAnswer,
-    [Code.NotFound]: { form: "This file is gone from the Library." },
-  }).form;
+  return refusal(
+    error,
+    "set the Match",
+    {
+      [Code.Unavailable]: noAnswer,
+      [Code.NotFound]: { form: "This file is gone from the Library." },
+    },
+    // Fix Match names a title, not a file.
+    { [RefusalReason.NOTHING_MATCHED]: { form: "This title is gone from the Library." } },
+  ).form;
 }

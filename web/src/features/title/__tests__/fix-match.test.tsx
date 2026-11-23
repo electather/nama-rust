@@ -81,7 +81,9 @@ async function menuItems(name: string) {
 
 test("only a User with Manage Libraries sees Fix Match and Unmatch", async () => {
   openAlien(newUser);
-  await expect(menuItems("More actions")).resolves.not.toContain("Fix Match");
+  const without = await menuItems("More actions");
+  expect(without).not.toContain("Fix Match");
+  expect(without).not.toContain("Unmatch");
   cleanup();
 
   openAlien(managesLibraries);
