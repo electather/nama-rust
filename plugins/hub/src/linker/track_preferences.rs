@@ -22,8 +22,8 @@ use super::{Linker, store_key, watch_states::MAX_ID_LENGTH};
 /// The Store key of the queue: the changes not yet sent, oldest first.
 // ponytail: one value, under the Store's 64 KiB while about 400 changes with short Track titles
 // wait, one per User, title and id however often each changes, so about 100 Preferences of titles
-// with a few ids each, and past it a change fails to queue; page it as Watch State's queue is if
-// Hub outages or titles grow that long.
+// with a few ids each, and past it a change fails to queue. A Link queues every one a User has at
+// once. Page it as Watch State's queue is if Hub outages or Users' Preferences grow that long.
 const QUEUE_KEY: &str = "track-preference-queue";
 
 /// The most changes one push holds, as the Hub takes them.

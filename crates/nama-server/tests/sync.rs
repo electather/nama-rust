@@ -21,8 +21,8 @@ use connectrpc::client::{ClientConfig, HttpClient};
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     points::{
-        TrackPreference, TrackPreferenceChange, TrackPreferenceChanged, WatchStateChange,
-        WatchStateChanges, WatchStatesChanged,
+        TrackDescription, TrackPreference, TrackPreferenceChange, TrackPreferenceChanged,
+        WatchStateChange, WatchStateChanges, WatchStatesChanged,
     },
     server_link::{AccountSignIn, Link, ServerAddresses, ServerLinker, WatchlistEntry},
 };
@@ -324,30 +324,36 @@ async fn own_preferences(who: &ClientConfig) -> GetTrackPreferencesResponse {
         .into_owned()
 }
 
-#[tokio::test]
-async fn subtitle_and_audio_preferences_set_on_one_server_are_the_users_once_signed_in_on_another()
-{
-    let hub = Hub::default();
-    let first = hub.on(TestServer::builder()).start().await;
-    let second = hub.on(TestServer::builder()).start().await;
-    let english_sdh = UsersSubtitlePreference {
+fn english_sdh() -> UsersSubtitlePreference {
+    UsersSubtitlePreference {
         language: Some("eng".to_owned()),
         kind: SubtitleKind::SUBTITLE_KIND_SDH.into(),
         ..Default::default()
-    };
-    let japanese = UsersAudioPreference {
-        language: Some("jpn".to_owned()),
-        ..Default::default()
-    };
+    }
+}
 
-    let playback = PlaybackServiceClient::new(HttpClient::plaintext(), first.client_config());
+fn audio_in(language: &str) -> UsersAudioPreference {
+    UsersAudioPreference {
+        language: Some(language.to_owned()),
+        ..Default::default()
+    }
+}
+
+/// Sets English SDH subtitles and Japanese audio as the own Preferences of whoever `who` calls as,
+/// and waits until the Hub has both.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn prefer_english_sdh_and_japanese(who: &ClientConfig, hub: &Hub) {
+    let playback = PlaybackServiceClient::new(HttpClient::plaintext(), who.clone());
     let subtitle = SetSubtitlePreferenceRequest {
-        subtitle: english_sdh.clone().into(),
+        subtitle: english_sdh().into(),
         ..Default::default()
     };
     playback.set_subtitle_preference(subtitle).await.unwrap();
     let audio = SetAudioPreferenceRequest {
-        audio: japanese.clone().into(),
+        audio: audio_in("jpn").into(),
         ..Default::default()
     };
     playback.set_audio_preference(audio).await.unwrap();
@@ -355,6 +361,30 @@ async fn subtitle_and_audio_preferences_set_on_one_server_are_the_users_once_sig
         hub.kept_preferences().len() == 2
     })
     .await;
+}
+
+/// [`prefer_english_sdh_and_japanese`] as `server`'s Admin, then has the Hub forget both, as if
+/// they were set before the Link, and answers the changes the Server told of, subtitles first.
+async fn preferences_set_before_linking(server: &TestServer, hub: &Hub) -> Vec<TrackPreference> {
+    prefer_english_sdh_and_japanese(&server.client_config(), hub).await;
+    subtitles_first(hub.kept_preferences().drain(..).collect())
+}
+
+/// `preferences`, the Subtitle Preference before the Audio Preference, as the Server may tell of
+/// them in either order.
+fn subtitles_first(mut preferences: Vec<TrackPreference>) -> Vec<TrackPreference> {
+    preferences.sort_by_key(|preference| preference.audio);
+    preferences
+}
+
+#[tokio::test]
+async fn subtitle_and_audio_preferences_set_on_one_server_are_the_users_once_signed_in_on_another()
+{
+    let hub = Hub::default();
+    let first = hub.on(TestServer::builder()).start().await;
+    let second = hub.on(TestServer::builder()).start().await;
+
+    prefer_english_sdh_and_japanese(&first.client_config(), &hub).await;
     let ada = second.user_with_default_permissions("Ada").await;
 
     until("the second Server has them", async || {
@@ -362,18 +392,18 @@ async fn subtitle_and_audio_preferences_set_on_one_server_are_the_users_once_sig
         (
             preferences.subtitle.into_option(),
             preferences.audio.into_option(),
-        ) == (Some(english_sdh.clone()), Some(japanese.clone()))
+        ) == (Some(english_sdh()), Some(audio_in("jpn")))
     })
     .await;
 }
 
-/// Asks for the Link of `fx`'s Admin, as Settings does once they Link.
+/// Asks for the Link of `server`'s Admin, as Settings does once they Link.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn look_at_admins_link(fx: &Fixture) {
-    let users = UserServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
+async fn look_at_admins_link(server: &TestServer) {
+    let users = UserServiceClient::new(HttpClient::plaintext(), server.client_config());
     users
         .get_user_link(GetUserLinkRequest::default())
         .await
@@ -386,7 +416,7 @@ async fn linking_a_user_pushes_their_watch_state_from_before_dated_as_stored() {
     let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
     let stored = alien_watched_before_linking(&fx, &hub).await;
 
-    look_at_admins_link(&fx).await;
+    look_at_admins_link(&fx.server).await;
 
     until("the Hub has the progress", async || !hub.kept().is_empty()).await;
     assert_eq!(*hub.kept(), [stored]);
@@ -404,7 +434,7 @@ async fn linking_a_user_leaves_a_title_the_account_has_newer_as_the_account_has_
     };
     hub.kept().push(watched_on_another_server.clone());
 
-    look_at_admins_link(&fx).await;
+    look_at_admins_link(&fx.server).await;
 
     until("the Hub has the push", async || hub.kept().len() == 2).await;
     let newest = (hub.kept().iter())
@@ -424,14 +454,81 @@ async fn linking_the_server_pushes_every_users_watch_state_dated_as_stored() {
     let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
     let stored = alien_watched_before_linking(&fx, &hub).await;
 
-    let server = ServerServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
-    server
-        .get_server_link(GetServerLinkRequest::default())
-        .await
-        .unwrap();
+    look_at_server_link(&fx.server).await;
 
     until("the Hub has the progress", async || !hub.kept().is_empty()).await;
     assert_eq!(*hub.kept(), [stored]);
+}
+
+/// Asks for `server`'s Link, as Settings does once it Links.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn look_at_server_link(server: &TestServer) {
+    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+    client
+        .get_server_link(GetServerLinkRequest::default())
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn linking_a_user_pushes_their_track_preferences_from_before_dated_as_stored() {
+    let hub = Hub::default();
+    let server = hub.on(TestServer::builder()).start().await;
+    let stored = preferences_set_before_linking(&server, &hub).await;
+
+    look_at_admins_link(&server).await;
+
+    until("the Hub has both", async || {
+        hub.kept_preferences().len() == 2
+    })
+    .await;
+    assert_eq!(subtitles_first(hub.kept_preferences().clone()), stored);
+}
+
+#[tokio::test]
+async fn linking_a_user_leaves_a_preference_the_account_has_newer_as_the_account_has_it() {
+    let hub = Hub::default();
+    let server = hub.on(TestServer::builder()).start().await;
+    let stored = preferences_set_before_linking(&server, &hub).await;
+    let set_on_another_server = TrackPreference {
+        like: Some(TrackDescription {
+            language: Some("fre".to_owned()),
+            ..TrackDescription::default()
+        }),
+        changed_at_ms: stored[1].changed_at_ms + 60_000,
+        ..stored[1].clone()
+    };
+    hub.kept_preferences().push(set_on_another_server);
+
+    look_at_admins_link(&server).await;
+
+    until("the Hub has the push", async || {
+        hub.kept_preferences().len() == 3
+    })
+    .await;
+    until("the Server has the Account's audio", async || {
+        let preferences = own_preferences(&server.client_config()).await;
+        preferences.audio.into_option() == Some(audio_in("fre"))
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn linking_the_server_pushes_every_users_track_preferences_dated_as_stored() {
+    let hub = Hub::default();
+    let server = hub.on(TestServer::builder()).start().await;
+    let stored = preferences_set_before_linking(&server, &hub).await;
+
+    look_at_server_link(&server).await;
+
+    until("the Hub has both", async || {
+        hub.kept_preferences().len() == 2
+    })
+    .await;
+    assert_eq!(subtitles_first(hub.kept_preferences().clone()), stored);
 }
 
 /// Whether Alien is on the Watchlist of the User signed in as `who` on `fx`'s Server.

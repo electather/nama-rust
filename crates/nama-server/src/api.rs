@@ -124,6 +124,7 @@ pub(crate) fn router(
             name: config.name.clone(),
             users: users.clone(),
             browse: Browse::new(Arc::clone(&db)),
+            preferences: TrackPreferences::new(Arc::clone(&db)),
             settings: settings.clone(),
             abilities: abilities.clone(),
             ffmpeg,
