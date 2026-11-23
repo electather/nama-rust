@@ -24,7 +24,8 @@ const PASSWORD_METHOD_NAME: &str = "Password";
 
 /// How many Authenticator calls on a password may run at once. An argon2id hash holds 19 MiB, and
 /// sign-ins with unknown names cost one too, so without a cap a burst of them grows memory without
-/// bound on the 1 GiB machines #725 targets. Calls past it wait their turn.
+/// bound on the 1 GiB machines #725 targets. 4 is about 78 MiB at peak. Calls past it wait their
+/// turn.
 const CONCURRENT_HASHES: usize = 4;
 
 static HASHING: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(CONCURRENT_HASHES));
@@ -258,7 +259,7 @@ async fn verify_where_blocking_is_fine(
 /// Runs `work`, an Authenticator's on a password, which is meant to be slow, where blocking is
 /// fine, once [`HASHING`] has a permit for it.
 // A panic in it fails the call and leaves the Plugin enabled: see "Plugin code runs contained" in
-// `crates/nama-server/AGENTS.md`.
+// `crates/nama-server/src/plugins/AGENTS.md`.
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> T + Send + 'static,
 ) -> Result<T, PluginError> {

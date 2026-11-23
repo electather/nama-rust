@@ -22,7 +22,8 @@ const UNKNOWN_EMAIL_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$m0VZ6FN5YSmKzZ9
 
 /// How many hashes or checks may run at once. Rate limits count attempts, not ones running at
 /// once, so without it a burst of sign-ins or Account creations grows memory by 19 MiB a hash,
-/// without bound, on the 1 GiB machines #725 targets. Callers past it wait their turn.
+/// without bound, on the 1 GiB machines #725 targets. 4 is about 78 MiB at peak. Callers past it
+/// wait their turn.
 const CONCURRENT_HASHES: usize = 4;
 
 static HASHING: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(CONCURRENT_HASHES));
