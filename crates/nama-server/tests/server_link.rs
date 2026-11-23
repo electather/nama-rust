@@ -207,7 +207,7 @@ impl ServerLinker for Scripted {
         Box::pin(future::ready(Ok(Vec::new())))
     }
 
-    /// Syncing is `tests/watch_state_sync.rs`'s.
+    /// Syncing is `tests/sync.rs`'s.
     fn sync_watchlist(
         &self,
         _user_id: i64,

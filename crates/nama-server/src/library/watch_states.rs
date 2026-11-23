@@ -6,7 +6,12 @@
 //! rescans, renames and new Versions. Which Movie or Episodes a Version or a marked title stands
 //! for is for [`crate::browse::Browse`] to work out.
 
-use std::{cmp::Reverse, collections::HashSet, iter, sync::Arc};
+use std::{
+    cmp::Reverse,
+    collections::{HashMap, HashSet},
+    iter,
+    sync::Arc,
+};
 
 use nama_plugin_api::{
     metadata::{ExternalId, ExternalIds},
@@ -404,6 +409,31 @@ impl WatchStates {
                     updated_at: row.updated_at,
                 };
                 (watched, state, row.row, row.hidden)
+            })
+            .collect())
+    }
+
+    /// Every Watch State of the User `user`, each as the change that left it, as Plugins are told
+    /// of it: known by every id `known`, keyed by whether it's an Episode and one of its ids, has
+    /// for it, or by its stored id alone. Each is dated when it last changed, never now, so a later
+    /// change elsewhere wins.
+    pub(crate) async fn changes_of_user(
+        &self,
+        user: i64,
+        known: &HashMap<(bool, String), Watched>,
+    ) -> Result<Vec<WatchStateChange>, sqlx::Error> {
+        let stored = self.of_user(user).await?;
+        Ok((stored.into_iter())
+            .map(|(title, state, _, _)| {
+                let (kind, id) = title.key();
+                let watched = (known.get(&(kind == EPISODE, id.to_owned())).cloned())
+                    .unwrap_or_else(|| Watched::from(title));
+                let progress = Progress {
+                    position_ms: state.position_ms,
+                    duration_ms: state.duration_ms,
+                };
+                let changed_at_ms = state.updated_at.saturating_mul(1000);
+                watched.changed(state.played, progress, changed_at_ms)
             })
             .collect())
     }

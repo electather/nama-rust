@@ -201,6 +201,22 @@ async fn an_observer_disabled_mid_call_is_dropped_in_a_span_naming_its_plugin() 
     assert_dropped_in_its_span(&log.finish());
 }
 
+#[tokio::test]
+async fn notify_and_wait_returns_once_every_observer_has_handled_the_event() {
+    let (registry, signals) = enabled(PointKey::observe::<Knocks>(), Panics::Never);
+
+    let mut notifying = Box::pin(registry.notify_and_wait::<Knocks>(()));
+    tokio::select! {
+        () = &mut notifying => panic!("it returned before the Observer handled the event"),
+        () = signals.called.notified() => {}
+    }
+    signals.release.notify_one();
+
+    timeout(WAIT, notifying)
+        .await
+        .expect("it returns once the Observer has handled the event");
+}
+
 #[test]
 fn an_observer_disabled_mid_call_is_dropped_in_a_span_naming_its_plugin_as_the_runtime_stops() {
     let log = CapturedLog::start();

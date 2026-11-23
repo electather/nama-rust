@@ -968,6 +968,24 @@ async fn a_write_of_many_changes_is_pushed_a_page_at_a_time_in_order() {
 }
 
 #[tokio::test]
+async fn a_history_told_on_linking_is_pushed_whole_in_pages_behind_a_newer_change_queued() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs, _) = syncing_user_7(&hub).await;
+    let history: Vec<_> = (1..=250).map(|id| movie_at(id, 1000, 1_000)).collect();
+
+    tell(observer.as_ref(), 7, vec![movie_at(1, 3000, 5_000)]).await;
+    tell(observer.as_ref(), 7, history).await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    let pushes = pushed(&hub);
+    let sizes: Vec<_> = pushes.iter().map(Vec::len).collect();
+    assert_eq!(sizes, [100, 100, 50]);
+    let mut expected = vec![("tmdb-1".to_owned(), 3000, 5_000)];
+    expected.extend((2..=250).map(|id| (format!("tmdb-{id}"), 1000, 1_000)));
+    assert_eq!(pushes.concat(), expected);
+}
+
+#[tokio::test]
 async fn ids_the_hub_wouldnt_take_are_left_out_and_a_change_with_none_stays_behind() {
     let hub = FakeHub::start().await;
     let (observer, jobs, _) = syncing_user_7(&hub).await;
