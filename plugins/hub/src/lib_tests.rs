@@ -1497,7 +1497,7 @@ async fn nama_charts_for_a_server_the_hub_forgot_are_no_rows() {
 /// Checks that `refused` is the Server not being Linked.
 fn says_not_linked<T>(refused: Result<T, PluginError>) {
     let Err(refused) = refused else {
-        panic!("refused");
+        panic!("answered, not refused");
     };
     assert!(refused.to_string().contains("isn't Linked"), "{refused}");
 }
@@ -1543,6 +1543,17 @@ async fn no_one_signs_in_with_an_account_once_the_hub_forgot_the_server() {
 
 #[tokio::test]
 async fn every_call_while_the_hub_is_unreachable_fails_and_keeps_the_link() {
+    every_call_fails_and_keeps_the_link(FakeHub::stop).await;
+}
+
+#[tokio::test]
+async fn every_call_while_the_hub_answers_failures_fails_and_keeps_the_link() {
+    every_call_fails_and_keeps_the_link(FakeHub::fail_server_calls).await;
+}
+
+/// Makes every Extension Point's Hub call during `outage`, which only `unauthenticated` would
+/// count as a dropped Link.
+async fn every_call_fails_and_keeps_the_link(outage: impl FnOnce(&FakeHub)) {
     let hub = FakeHub::start().await;
     let points = linked_user_7(&hub, &playing()).await;
     let linker = provider::<dyn ServerLinker>(&points);
@@ -1551,7 +1562,7 @@ async fn every_call_while_the_hub_is_unreachable_fails_and_keeps_the_link() {
     (observer::<TrackPreferenceChanged>(&points).observe(&preference))
         .await
         .unwrap();
-    hub.stop();
+    outage(&hub);
 
     run_sync(provider::<dyn JobRunner>(&points).as_ref())
         .await

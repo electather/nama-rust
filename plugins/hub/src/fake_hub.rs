@@ -102,6 +102,9 @@ struct State {
     recording_failure: Option<ErrorCode>,
     /// Each push's changes, in the order they came.
     pushes: Vec<Vec<WatchStateChange>>,
+    /// Why every call with the Linked Server's credential fails, as if the Hub were failing, while
+    /// it does.
+    server_failure: Option<&'static str>,
     /// Why pushes fail, as if the Hub were down, while they do.
     push_failure: Option<&'static str>,
     /// Each push's Track Preference changes, in the order they came.
@@ -256,6 +259,11 @@ impl FakeHub {
     /// Has pushes fail while `down`, as if the Hub were unreachable, and work again after.
     pub(super) fn set_down(&self, down: bool) {
         lock(&self.state).push_failure = down.then_some("the Hub is down");
+    }
+
+    /// Has every call with the Linked Server's credential fail, as a Hub that answers but fails.
+    pub(super) fn fail_server_calls(&self) {
+        lock(&self.state).server_failure = Some("the Hub is failing");
     }
 
     /// The name and email the User `user_id` was invited with.
@@ -782,6 +790,9 @@ impl Linked {
                 .is_none_or(|sent| sent != bearer.as_str())
         {
             return Err(ConnectError::unauthenticated("no Linked Server has it"));
+        }
+        if let Some(failure) = state.server_failure {
+            return Err(ConnectError::internal(failure));
         }
         Ok(state)
     }

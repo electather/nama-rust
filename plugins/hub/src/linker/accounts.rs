@@ -7,7 +7,7 @@ use nama_plugin_api::{PluginError, server_link::AccountSignIn};
 
 use super::Linker;
 
-/// Why a sign-in or an invite can't start.
+/// Why a sign-in or an invite can't go on.
 const NOT_LINKED: &str = "the Server isn't Linked to the Hub";
 
 impl Linker {
