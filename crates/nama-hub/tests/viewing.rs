@@ -19,9 +19,10 @@ use nama_hub_proto::nama::hub::v1::{
     AccountServiceClient, ApproveServerLinkRequest, ApproveUserLinkRequest, CreateAccountRequest,
     DeleteViewingEventRequest, DeviceKind, GetPoolingRequest, LinkServiceClient,
     LinkedServerServiceClient, ListRecommendedTitlesRequest, ListViewingEventsRequest,
-    PollServerLinkRequest, RecordViewingEventsRequest, RefusalReason, SendSignInLinkRequest,
-    ServerLinkServiceClient, SetPoolingRequest, SignInWithLinkRequest, StartServerLinkRequest,
-    StartUserLinkRequest, TitleKind, UserViewingEvent, ViewingEvent, ViewingEventServiceClient,
+    PollServerLinkRequest, RecommendedTitle, RecordViewingEventsRequest, RefusalReason,
+    SendSignInLinkRequest, ServerLinkServiceClient, SetPoolingRequest, SignInWithLinkRequest,
+    StartServerLinkRequest, StartUserLinkRequest, TitleKind, UserViewingEvent, ViewingEvent,
+    ViewingEventServiceClient,
 };
 use refused::assert_refused;
 use sqlx::PgPool;
@@ -380,15 +381,8 @@ async fn recommended(
     credential: &str,
     user_id: i64,
 ) -> Result<Vec<String>, connectrpc::ConnectError> {
-    let recommended = linked_server(hub, credential)
-        .list_recommended_titles(ListRecommendedTitlesRequest {
-            user_id,
-            namespaces: vec!["tmdb".to_owned(), "imdb".to_owned()],
-            ..Default::default()
-        })
-        .await?
-        .into_owned();
-    Ok((recommended.titles.into_iter())
+    let titles = recommended_titles(hub, credential, user_id).await?;
+    Ok((titles.into_iter())
         .map(|title| {
             assert!(title.weight > 0.0 && title.weight < 1.001, "{title:?}");
             let kind = if title.kind == TitleKind::TITLE_KIND_SHOW {
@@ -399,6 +393,36 @@ async fn recommended(
             format!("{kind} {}-{}", title.id.namespace, title.id.value)
         })
         .collect())
+}
+
+/// The titles the Server presenting `credential` gets recommended for its User `user_id`.
+async fn recommended_titles(
+    hub: &TestHub,
+    credential: &str,
+    user_id: i64,
+) -> Result<Vec<RecommendedTitle>, connectrpc::ConnectError> {
+    Ok(linked_server(hub, credential)
+        .list_recommended_titles(ListRecommendedTitlesRequest {
+            user_id,
+            namespaces: vec!["tmdb".to_owned(), "imdb".to_owned()],
+            ..Default::default()
+        })
+        .await?
+        .into_owned()
+        .titles)
+}
+
+/// The weight Ada's User 7 is recommended The Matrix Reloaded with.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn sequel_weight(hub: &TestHub, server: &str) -> f32 {
+    let titles = recommended_titles(hub, server, 7).await.unwrap();
+    (titles.into_iter())
+        .find(|title| title.id.value == "604")
+        .unwrap()
+        .weight
 }
 
 /// `titles`, sorted, for a comparison that doesn't depend on the order of titles alike to one.
@@ -452,6 +476,7 @@ async fn deleting_a_viewing_event_recomputes_the_taste_vector(db: PgPool) {
         sorted(recommended(&hub, &server, 7).await.unwrap()),
         ["movie tmdb-604", "show tmdb-603"]
     );
+    let with_alien = sequel_weight(&hub, &server).await;
     let alien = (listed(&hub, &ada).await.into_iter())
         .find(|event| event.external_id == "tmdb-348")
         .unwrap();
@@ -468,6 +493,8 @@ async fn deleting_a_viewing_event_recomputes_the_taste_vector(db: PgPool) {
         sorted(recommended(&hub, &server, 7).await.unwrap()),
         ["movie tmdb-348", "movie tmdb-604", "show tmdb-603"]
     );
+    // Alien, which shares little with the sequel, no longer pulls the taste vector from it.
+    assert!(sequel_weight(&hub, &server).await > with_alien);
 }
 
 #[sqlx::test(migrations = false)]
