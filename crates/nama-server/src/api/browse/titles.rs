@@ -6,7 +6,7 @@ use nama_proto::nama::v1 as proto;
 
 use crate::{
     api::{
-        ImageSources, database_failed,
+        ImageSources, database_failed, external_id_to_proto,
         requests::{missing_movie_to_proto, missing_show_to_proto},
     },
     browse::{self, Episode, Featured, Started},
@@ -128,6 +128,7 @@ pub(in crate::api) fn roles_to_proto(
         (roles.into_iter())
             .map(|role| proto::Role {
                 headshot_url: role.headshot.as_deref().and_then(&headshot_url),
+                person_id: external_id_to_proto(&role.person).into(),
                 name: role.name,
                 part: role.part,
                 ..Default::default()

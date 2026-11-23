@@ -302,6 +302,9 @@ pub enum RefusalReason {
     /// from one, so Unlinking them from it would leave them no way to sign in. An Admin can give them
     /// a password with `ResetPassword`.
     REFUSAL_REASON_LAST_SIGN_IN_METHOD = 101i32,
+    /// `not_found`: no title in a Library has a Role of the Person with the ID. `field` is
+    /// `person_id`.
+    REFUSAL_REASON_PERSON_NOT_FOUND = 102i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -601,6 +604,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const LastSignInMethod: Self = Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_PERSON_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PersonNotFound: Self = Self::REFUSAL_REASON_PERSON_NOT_FOUND;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -915,6 +921,7 @@ impl ::buffa::Enumeration for RefusalReason {
             101i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD)
             }
+            102i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PERSON_NOT_FOUND),
             _ => ::core::option::Option::None,
         }
     }
@@ -1114,6 +1121,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD => {
                 "REFUSAL_REASON_LAST_SIGN_IN_METHOD"
             }
+            Self::REFUSAL_REASON_PERSON_NOT_FOUND => "REFUSAL_REASON_PERSON_NOT_FOUND",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -1443,6 +1451,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_LAST_SIGN_IN_METHOD" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD)
             }
+            "REFUSAL_REASON_PERSON_NOT_FOUND" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_PERSON_NOT_FOUND)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1547,6 +1558,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_NOT_A_SERVER_ADDRESS,
             Self::REFUSAL_REASON_WRONG_ACCOUNT,
             Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD,
+            Self::REFUSAL_REASON_PERSON_NOT_FOUND,
         ]
     }
 }

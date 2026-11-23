@@ -38,5 +38,10 @@ pub mod hit {
                 super::super::super::super::__buffa::view::EpisodeHitView<'a>,
             >,
         ),
+        Person(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::PersonHitView<'a>,
+            >,
+        ),
     }
 }

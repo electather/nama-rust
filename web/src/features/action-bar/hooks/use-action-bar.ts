@@ -64,6 +64,10 @@ export function useActionBar({
       ? navigate({ to: "/movies/$movieId", params: { movieId: titleId } })
       : navigate({ to: "/shows/$showId", params: { showId: titleId } }));
   }
+  function openPerson(personId: string) {
+    dialog.close();
+    void navigate({ to: "/people/$personId", params: { personId } });
+  }
   function open(title: FoundTitle) {
     dialog.close();
     const { libraryId, titleId, season } = title;
@@ -94,7 +98,7 @@ export function useActionBar({
       found: search.found,
       failed: search.failed,
     },
-    { push, go, open, retry: search.retry },
+    { push, go, open, openPerson, retry: search.retry },
   );
   const rows = groups.flatMap((group) => group.rows);
   const active = activeOf(rows, picked);

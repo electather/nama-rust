@@ -6,15 +6,15 @@ use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, Service
 use nama_plugin_api::metadata::ExternalIds;
 use nama_proto::nama::v1::{
     self as proto, BrowseService, GetBoxSetRequest, GetBoxSetResponse, GetMovieRequest,
-    GetMovieResponse, GetNextEpisodeRequest, GetNextEpisodeResponse, GetPreviousEpisodeRequest,
-    GetPreviousEpisodeResponse, GetShowRequest, GetShowResponse, GetUnmatchedVersionRequest,
-    GetUnmatchedVersionResponse, ListBoxSetsRequest, ListBoxSetsResponse,
-    ListContinueWatchingRequest, ListContinueWatchingResponse, ListEpisodesRequest,
-    ListEpisodesResponse, ListFeaturedRequest, ListFeaturedResponse, ListGenresRequest,
-    ListGenresResponse, ListHomeRowTitlesRequest, ListHomeRowTitlesResponse, ListHomeRowsRequest,
-    ListHomeRowsResponse, ListMoviesRequest, ListMoviesResponse, ListShowsRequest,
-    ListShowsResponse, ListUnmatchedRequest, ListUnmatchedResponse, MovieSort, ShowSort,
-    SortDirection, WatchedFilter, home_row::KernelOrPlugin,
+    GetMovieResponse, GetNextEpisodeRequest, GetNextEpisodeResponse, GetPersonRequest,
+    GetPersonResponse, GetPreviousEpisodeRequest, GetPreviousEpisodeResponse, GetShowRequest,
+    GetShowResponse, GetUnmatchedVersionRequest, GetUnmatchedVersionResponse, ListBoxSetsRequest,
+    ListBoxSetsResponse, ListContinueWatchingRequest, ListContinueWatchingResponse,
+    ListEpisodesRequest, ListEpisodesResponse, ListFeaturedRequest, ListFeaturedResponse,
+    ListGenresRequest, ListGenresResponse, ListHomeRowTitlesRequest, ListHomeRowTitlesResponse,
+    ListHomeRowsRequest, ListHomeRowsResponse, ListMoviesRequest, ListMoviesResponse,
+    ListShowsRequest, ListShowsResponse, ListUnmatchedRequest, ListUnmatchedResponse, MovieSort,
+    ShowSort, SortDirection, WatchedFilter, home_row::KernelOrPlugin,
 };
 
 use crate::{
@@ -40,10 +40,12 @@ use super::{
 };
 
 mod box_sets;
+mod people;
 mod refusals;
 mod titles;
 
 use box_sets::box_set_to_proto;
+pub(super) use people::person_hit;
 use refusals::home_rows_refused;
 pub(super) use refusals::{Fields, not_found, refused};
 use titles::{episode_beside_to_proto, featured_to_proto, row_title_to_proto, started_to_proto};
@@ -460,6 +462,14 @@ impl BrowseService for BrowseServiceHandler {
         request: ServiceRequest<'_, ListBoxSetsRequest>,
     ) -> ServiceResult<ListBoxSetsResponse> {
         box_sets::list_box_sets(self, &ctx, request.to_owned_message()).await
+    }
+
+    async fn get_person(
+        &self,
+        _ctx: RequestContext,
+        request: ServiceRequest<'_, GetPersonRequest>,
+    ) -> ServiceResult<GetPersonResponse> {
+        people::get_person(self, request.to_owned_message()).await
     }
 
     async fn list_unmatched(

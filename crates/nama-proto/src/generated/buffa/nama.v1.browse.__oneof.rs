@@ -282,3 +282,51 @@ pub mod home_row_title {
         }
     }
 }
+pub mod person_role {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, PartialEq, Debug)]
+    pub enum Title {
+        Movie(::buffa::alloc::boxed::Box<super::super::super::MovieHit>),
+        Show(::buffa::alloc::boxed::Box<super::super::super::ShowHit>),
+    }
+    impl ::buffa::Oneof for Title {}
+    impl From<super::super::super::MovieHit> for Title {
+        fn from(v: super::super::super::MovieHit) -> Self {
+            Self::Movie(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::MovieHit> for ::core::option::Option<Title> {
+        fn from(v: super::super::super::MovieHit) -> Self {
+            Self::Some(Title::from(v))
+        }
+    }
+    impl From<super::super::super::ShowHit> for Title {
+        fn from(v: super::super::super::ShowHit) -> Self {
+            Self::Show(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::ShowHit> for ::core::option::Option<Title> {
+        fn from(v: super::super::super::ShowHit) -> Self {
+            Self::Some(Title::from(v))
+        }
+    }
+    impl ::serde::Serialize for Title {
+        fn serialize<S: ::serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            use ::serde::ser::SerializeMap;
+            let mut map = s.serialize_map(Some(1))?;
+            match self {
+                Self::Movie(v) => {
+                    map.serialize_entry("movie", &**v)?;
+                }
+                Self::Show(v) => {
+                    map.serialize_entry("show", &**v)?;
+                }
+            }
+            map.end()
+        }
+    }
+}

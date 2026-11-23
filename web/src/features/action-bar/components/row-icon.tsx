@@ -1,11 +1,21 @@
 import { cn } from "cn";
-import { Film, House, Keyboard, type LucideIcon, RefreshCw, Settings, Tv } from "lucide-react";
+import {
+  Film,
+  House,
+  Keyboard,
+  type LucideIcon,
+  RefreshCw,
+  Settings,
+  Tv,
+  UserRound,
+} from "lucide-react";
 
 import type { IconName } from "@/features/action-bar/lib/rows";
 
 const icons = {
   movie: Film,
   show: Tv,
+  person: UserRound,
   home: House,
   settings: Settings,
   keyboard: Keyboard,

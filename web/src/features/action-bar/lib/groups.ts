@@ -7,7 +7,7 @@ import {
   section,
 } from "@/features/action-bar/lib/rows";
 import { shortcutGroups } from "@/features/action-bar/lib/shortcuts";
-import type { Found, FoundTitle } from "@/features/action-bar/lib/titles";
+import type { Found, FoundPerson, FoundTitle } from "@/features/action-bar/lib/titles";
 import { TitleStatus } from "@/gen/nama/v1/search_pb";
 import { modKey } from "@/shared/lib/mod-key";
 
@@ -28,6 +28,7 @@ export interface BarActions {
   push: (frame: Frame) => void;
   go: (page: Page) => void;
   open: (title: FoundTitle) => void;
+  openPerson: (personId: string) => void;
   retry: () => void;
 }
 
@@ -72,8 +73,25 @@ function titleRows(
   }));
 }
 
+function personRows(people: readonly FoundPerson[], openPerson: BarActions["openPerson"]): Row[] {
+  return people.map((person) => ({
+    id: `person:${person.personId}`,
+    label: person.name,
+    hint: "",
+    icon: "person",
+    poster: person.headshot ?? null,
+    action: "Open",
+    run: () => {
+      openPerson(person.personId);
+    },
+  }));
+}
+
 /** What the search found, of the kinds `frame` searches, or the way to try a failed search again. */
-function results({ frame, found, failed }: BarState, { open, retry }: BarActions): Group[] {
+function results(
+  { frame, found, failed }: BarState,
+  { open, openPerson, retry }: BarActions,
+): Group[] {
   if (failed) {
     const hint = "Couldn’t reach the Server. Check your connection and try again.";
     return [
@@ -90,7 +108,12 @@ function results({ frame, found, failed }: BarState, { open, retry }: BarActions
   const shows = titleRows(found.shows, open);
   const episodes = section("Episodes", titleRows(found.episodes, open));
   return {
-    root: [...section("Movies", movies), ...section("Shows", shows), ...episodes],
+    root: [
+      ...section("Movies", movies),
+      ...section("Shows", shows),
+      ...episodes,
+      ...section("People", personRows(found.people, openPerson)),
+    ],
     movie: section("Movie results", movies),
     show: [...section("Show results", shows), ...episodes],
     shortcuts: [],

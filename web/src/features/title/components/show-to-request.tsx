@@ -1,6 +1,7 @@
 import { notFound } from "@tanstack/react-router";
 
 import { CastAndCrew } from "@/features/title/components/cast-and-crew";
+import { PeopleLinks } from "@/features/title/components/people-links";
 import { SeasonPicker } from "@/features/title/components/season-picker";
 import { SimilarTitles } from "@/features/title/components/similar-titles";
 import { TitleDetails } from "@/features/title/components/title-details";
@@ -8,8 +9,8 @@ import { TitlePage } from "@/features/title/components/title-page";
 import { TitleTop } from "@/features/title/components/title-top";
 import { TitleTrailers } from "@/features/title/components/title-trailers";
 import { useFoundShow } from "@/features/title/data/use-found-show";
-import { crewWithJob } from "@/features/title/lib/crew-with-job";
 import { originalAudio } from "@/features/title/lib/original-audio";
+import { crewWithJob } from "@/features/title/lib/people";
 import { similarShows } from "@/features/title/lib/similar-titles";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 
@@ -23,6 +24,7 @@ export function ShowToRequest({ showId, you }: { showId: ExternalId; you: bigint
   if (!show) {
     throw notFound();
   }
+  const creators = crewWithJob(show.crew, "Creator");
   return (
     <TitlePage
       hero={<TitleTop title={show} kind="Show" id={showId} facts={[show.year?.toString()]} />}
@@ -36,7 +38,10 @@ export function ShowToRequest({ showId, you }: { showId: ExternalId; you: bigint
       <CastAndCrew cast={show.cast} crew={show.crew} />
       <TitleDetails
         groups={[
-          { heading: "Information", facts: [["Created by", crewWithJob(show.crew, "Creator")]] },
+          {
+            heading: "Information",
+            facts: [["Created by", creators && <PeopleLinks key="crew" people={creators} />]],
+          },
           { heading: "Languages", facts: [originalAudio(show.originalLanguage)] },
         ]}
       />

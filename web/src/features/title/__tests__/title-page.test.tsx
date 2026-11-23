@@ -83,9 +83,8 @@ test("a Movie's page shows who stars in it, its Cast & Crew, and who directed it
     ],
   });
 
-  await expect(
-    screen.findByText("Starring Song Kang-ho, Lee Sun-kyun, Cho Yeo-jeong"),
-  ).resolves.toBeDefined();
+  const starring = await screen.findByText(/^Starring/u);
+  expect(starring.textContent).toBe("Starring Song Kang-ho, Lee Sun-kyun, Cho Yeo-jeong");
   const row = within(screen.getByRole("list", { name: "Cast & Crew" }));
   expect(row.getAllByRole("listitem").map((role) => role.textContent)).toStrictEqual([
     "Song Kang-hoKim Ki-taek",
@@ -310,7 +309,8 @@ test("a Show's page shows its own overview, first air year, Score, Original audi
 test("a Show's page shows who stars in it, its Cast & Crew, and who created it", async () => {
   openDark();
 
-  await expect(screen.findByText("Starring Louis Hofmann")).resolves.toBeDefined();
+  const starring = await screen.findByText(/^Starring/u);
+  expect(starring.textContent).toBe("Starring Louis Hofmann");
   const row = within(screen.getByRole("list", { name: "Cast & Crew" }));
   expect(row.getAllByRole("listitem")).toHaveLength(3);
   expect(detail("Created by")).toBe("Baran bo Odar, Jantje Friese");

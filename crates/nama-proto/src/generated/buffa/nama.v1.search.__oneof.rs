@@ -57,6 +57,7 @@ pub mod hit {
         Movie(::buffa::alloc::boxed::Box<super::super::super::MovieHit>),
         Show(::buffa::alloc::boxed::Box<super::super::super::ShowHit>),
         Episode(::buffa::alloc::boxed::Box<super::super::super::EpisodeHit>),
+        Person(::buffa::alloc::boxed::Box<super::super::super::PersonHit>),
     }
     impl ::buffa::Oneof for Title {}
     impl From<super::super::super::MovieHit> for Title {
@@ -89,6 +90,16 @@ pub mod hit {
             Self::Some(Title::from(v))
         }
     }
+    impl From<super::super::super::PersonHit> for Title {
+        fn from(v: super::super::super::PersonHit) -> Self {
+            Self::Person(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::PersonHit> for ::core::option::Option<Title> {
+        fn from(v: super::super::super::PersonHit) -> Self {
+            Self::Some(Title::from(v))
+        }
+    }
     impl ::serde::Serialize for Title {
         fn serialize<S: ::serde::Serializer>(
             &self,
@@ -105,6 +116,9 @@ pub mod hit {
                 }
                 Self::Episode(v) => {
                     map.serialize_entry("episode", &**v)?;
+                }
+                Self::Person(v) => {
+                    map.serialize_entry("person", &**v)?;
                 }
             }
             map.end()

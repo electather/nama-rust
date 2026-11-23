@@ -1,0 +1,110 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT plugin, kind, namespace, value, crew AS \"crew!: bool\", name, part, headshot\n               FROM title_roles\n               WHERE person_namespace = ? AND person_value = ?\n               ORDER BY crew, plugin, kind, namespace, value, billed",
+  "describe": {
+    "columns": [
+      {
+        "name": "plugin",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_roles",
+            "name": "plugin"
+          }
+        }
+      },
+      {
+        "name": "kind",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_roles",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "namespace",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_roles",
+            "name": "namespace"
+          }
+        }
+      },
+      {
+        "name": "value",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_roles",
+            "name": "value"
+          }
+        }
+      },
+      {
+        "name": "crew!: bool",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "title_roles",
+            "name": "crew"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_roles",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "part",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_roles",
+            "name": "part"
+          }
+        }
+      },
+      {
+        "name": "headshot",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_roles",
+            "name": "headshot"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "0911e96b9822da9015591b717f7d485ea0ef1e22752d49f62c7ac4c1cfcf4272"
+}

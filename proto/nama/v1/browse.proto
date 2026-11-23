@@ -125,6 +125,12 @@ service BrowseService {
   rpc ListBoxSets(ListBoxSetsRequest) returns (ListBoxSetsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Returns a Person with each title in a Library they have a Role in. Every Library counts, since
+  // every User may browse each one. Fails with `not_found` (`REFUSAL_REASON_PERSON_NOT_FOUND`) if
+  // no title in a Library has a Role of theirs.
+  rpc GetPerson(GetPersonRequest) returns (GetPersonResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
 }
 
 // A Movie some items of a Library are Matched to, with the metadata its Match stores.
@@ -816,6 +822,34 @@ message GetBoxSetRequest {
 
 message GetBoxSetResponse {
   BoxSet box_set = 1;
+}
+
+message GetPersonRequest {
+  // As `Role.person_id`.
+  ExternalId person_id = 1;
+}
+
+message GetPersonResponse {
+  // Their name, as one of their Roles gives it.
+  string name = 1;
+  // Their headshot's URL on this Server, if one of their Roles has one.
+  optional string headshot_url = 2;
+  // The titles they play a character in, newest first by release or first air date, those
+  // without one last, each once, in the oldest Library that has it.
+  repeated PersonRole cast = 3;
+  // The titles they did a job on, ordered as `cast`.
+  repeated PersonRole crew = 4;
+}
+
+// A title in a Library, and a Person's parts in it.
+message PersonRole {
+  oneof title {
+    MovieHit movie = 1;
+    ShowHit show = 2;
+  }
+  // The characters they play, or the jobs they did, as `Role.part`, in billing order, leaving out
+  // empty ones.
+  repeated string parts = 3;
 }
 
 message ListBoxSetsRequest {
