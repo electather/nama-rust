@@ -14,7 +14,7 @@ use axum::http::HeaderMap;
 use connectrpc::{ErrorCode, client::HttpClient};
 use hub::TestHub;
 use mail::{Inbox, fake_mail};
-use nama_hub::titles;
+use nama_hub::{db, titles};
 use nama_hub_proto::nama::hub::v1::{
     AccountServiceClient, ApproveServerLinkRequest, ApproveUserLinkRequest, CreateAccountRequest,
     DeleteViewingEventRequest, DeviceKind, GetPoolingRequest, LinkServiceClient,
@@ -427,6 +427,7 @@ async fn the_history_needs_a_session_and_recording_a_linked_server(db: PgPool) {
     reason = "a test helper fails its test by panicking"
 )]
 async fn ada_watching_known_titles(db: PgPool) -> (TestHub, Inbox, String, String) {
+    db::migrate(&db).await.unwrap();
     titles::import(&db, &include_bytes!("fixtures/wikidata-dump.json")[..])
         .await
         .unwrap();
