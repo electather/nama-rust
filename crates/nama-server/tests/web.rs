@@ -62,11 +62,14 @@ async fn the_app_s_text_is_compressed_for_a_browser_that_accepts_it() {
 async fn the_app_is_sent_as_built_to_a_client_that_accepts_no_encoding() {
     let server = TestServer::builder().start().await;
     let script = linked_asset(server.addr, "js").await;
+    let stylesheet = linked_asset(server.addr, "css").await;
     let dist = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist");
 
     for (path, file) in [
         ("/", "index.html"),
         (&script, script.trim_start_matches('/')),
+        (&stylesheet, stylesheet.trim_start_matches('/')),
+        ("/icon.svg", "icon.svg"),
     ] {
         let (status, headers, body) = http1_get_with(server.addr, path, &[]).await;
 
@@ -76,20 +79,24 @@ async fn the_app_is_sent_as_built_to_a_client_that_accepts_no_encoding() {
     }
 }
 
-/// An image stored compressed, such as a PNG, isn't compressed again.
+/// A file stored compressed, such as a PNG or a woff2 font, isn't compressed again.
 #[tokio::test]
-async fn a_compressed_image_is_sent_as_it_is() {
+async fn a_compressed_file_is_sent_as_it_is() {
     let server = TestServer::builder().start().await;
+    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/assets");
+    let font = std::fs::read_dir(assets)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .find(|name| Path::new(name).extension().is_some_and(|e| e == "woff2"))
+        .unwrap();
 
-    let (status, headers, _) = http1_get_with(
-        server.addr,
-        "/icon-192.png",
-        &[("accept-encoding", "br, gzip")],
-    )
-    .await;
+    for path in ["/icon-192.png", &format!("/assets/{font}")] {
+        let (status, headers, _) =
+            http1_get_with(server.addr, path, &[("accept-encoding", "br, gzip")]).await;
 
-    assert_eq!(status, 200);
-    assert!(!headers.contains_key("content-encoding"));
+        assert_eq!(status, 200, "{path}");
+        assert!(!headers.contains_key("content-encoding"), "{path}");
+    }
 }
 
 /// A WebAssembly module the app loads, such as the PGS renderer's, is served as one, which

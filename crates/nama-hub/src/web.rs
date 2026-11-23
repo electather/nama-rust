@@ -29,6 +29,8 @@ pub(crate) async fn serve(request: Request, next: Next) -> Response {
         return next.run(request).await;
     }
     // `DefaultPredicate` leaves images but SVG alone; fonts are woff2, compressed already.
+    // ponytail: compresses the same embedded bytes afresh on every request (brotli 4, gzip 6);
+    // precompress them in `build.rs` once that CPU shows.
     let not_compressed_already = DefaultPredicate::new().and(NotForContentType::const_new("font/"));
     let Ok(response) = Compression::new(service_fn(asset_or_shell))
         .compress_when(not_compressed_already)
