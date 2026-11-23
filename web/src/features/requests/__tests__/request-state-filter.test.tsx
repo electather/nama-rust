@@ -137,12 +137,14 @@ test("a Failed Season Request shows under its Show's title without its Approved 
   );
   await choose("Failed");
 
-  const dark = await screen.findByRole("list", { name: "Dark" });
-  expect(
-    within(dark)
-      .getAllByRole("listitem")
-      .map((row) => row.textContent),
-  ).toStrictEqual(["Season 1FailedRequested by Ada"]);
+  // The unfiltered "Dark" list, with its Followed Show row, shows until the Failed refetch lands.
+  await waitFor(() => {
+    expect(
+      within(screen.getByRole("list", { name: "Dark" }))
+        .getAllByRole("listitem")
+        .map((row) => row.textContent),
+    ).toStrictEqual(["Season 1FailedRequested by Ada"]);
+  });
 });
 
 test("the Requests page says so when none are in the chosen state", async () => {
