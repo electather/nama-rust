@@ -30,7 +30,7 @@ use nama_proto::nama::v1::{
     GetPluginRequest, LibraryKind, LibraryServiceClient, ListPluginsRequest, Plugin, PluginKind,
     PluginServiceClient, PluginSummary, RefusalReason, ScanLibraryRequest, SettingValue,
     TestPluginSettingsRequest, TestPluginSettingsResponse, UpdatePluginSettingsRequest,
-    UpdatePluginSettingsResponse, setting_value::Value,
+    UpdatePluginSettingsResponse, event, setting_value::Value,
 };
 use nama_server::{
     config::Config,
@@ -121,22 +121,17 @@ impl Started {
         PluginServiceClient::new(HttpClient::plaintext(), self.server.client_config())
     }
 
-    /// Creates a Movies Library of `folder`, and returns its id.
+    /// Creates a Movies Library of `folder`, and returns its id once the scan creating it starts
+    /// has finished Matching.
     async fn library(&self, folder: &Path) -> i64 {
-        self.libraries()
-            .create_library(CreateLibraryRequest {
+        self.server
+            .create_and_match(CreateLibraryRequest {
                 name: "Movies".to_owned(),
                 kind: LibraryKind::LIBRARY_KIND_MOVIES.into(),
                 folders: vec![folder.to_str().unwrap().to_owned()],
                 ..Default::default()
             })
             .await
-            .unwrap()
-            .into_owned()
-            .library
-            .into_option()
-            .unwrap()
-            .id
     }
 
     /// Starts a scan of the Library `id`.
@@ -273,8 +268,8 @@ async fn a_dropped_plugin_is_listed_disabled_observes_scans_only_while_enabled_a
     assert!(started.listed("test-plugin").await.unwrap().enabled);
     let media = tempfile::tempdir().unwrap();
     std::fs::write(media.path().join("Heat (1995).mkv"), b"video").unwrap();
+    // Creating it scans it.
     let library = started.library(media.path()).await;
-    started.scan(library).await;
     log.wait_for(&["test-plugin observed", "ScanFinished"], 1)
         .await;
 
@@ -306,9 +301,10 @@ async fn a_dropped_plugin_is_listed_disabled_observes_scans_only_while_enabled_a
     // Disabled, it is told nothing: of the next two scans it observes only the one after it is
     // enabled again.
     std::fs::write(media.path().join("Alien (1979).mkv"), b"video").unwrap();
-    started.scan(library).await;
-    // Only this scan finds one file unchanged: other tests here scan too.
-    log.wait_for(&["scanned a Library", "unchanged: 1"], 1)
+    (started.server)
+        .scan_until(library, |event| {
+            matches!(event, event::Event::MatchingFinished(_))
+        })
         .await;
     started
         .client()
@@ -561,11 +557,11 @@ async fn an_observer_that_runs_past_the_memory_cap_crashes_and_the_server_carrie
 async fn a_plugin_reads_the_servers_clock() {
     let log = Log::global();
     let started = Started::new().await;
-    let (library, _media) = started.observing("clock").await;
     let millis = |time: SystemTime| time.duration_since(UNIX_EPOCH).unwrap().as_millis();
 
     let before = millis(SystemTime::now());
-    started.scan(library).await;
+    // Creating the Library scans it.
+    let (_library, _media) = started.observing("clock").await;
     log.wait_for(&["test-plugin's clock reads"], 1).await;
     let after = millis(SystemTime::now());
 

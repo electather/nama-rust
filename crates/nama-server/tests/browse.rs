@@ -39,7 +39,7 @@ use nama_server::{
 };
 use refused::assert_refused;
 use server::{
-    SignedIn,
+    SignedIn, TestServer,
     search::search,
     tmdb::{ALIEN, DARK, HEAT, THE_OFFICE as THE_OFFICE_US},
 };
@@ -962,15 +962,16 @@ async fn a_poster_the_browser_has_is_not_modified() {
 /// Images downloaded before an upgrade are already stored, so none is downloaded again.
 #[tokio::test]
 async fn a_poster_already_under_artwork_is_served_without_the_provider() {
-    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
-    let kept = fx
-        .server
+    let server = TestServer::builder().tmdb().start().await;
+    // Before the Library, as each scan drops the images no Match stores.
+    let kept = server
         .data_dir()
         .join("artwork/tmdb/%2FvfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg");
     fs::create_dir_all(kept.parent().unwrap()).unwrap();
     fs::write(&kept, b"\xff\xd8kept").unwrap();
-    fx.write(ALIEN_1080P, b"video");
-    fx.scan_and_match().await;
+    let media =
+        (server.library_holding(LibraryKind::LIBRARY_KIND_MOVIES, &[ALIEN_1080P], &[])).await;
+    let fx = Fixture::over(server, media);
     let poster = fx
         .get_movie(fx.library, ALIEN)
         .await
