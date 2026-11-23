@@ -71,8 +71,11 @@ export function useSignOutOtherSessions() {
   });
 }
 
-/** Lists the sessions again: one another tab signed out is gone all the same. */
-function useRefreshSessions() {
+/**
+ * Lists the sessions again, after anything that may end some: one another tab signed out is gone
+ * all the same.
+ */
+export function useRefreshSessions() {
   const queryClient = useQueryClient();
   return async () => {
     await queryClient.invalidateQueries({ queryKey: sessionsKey });

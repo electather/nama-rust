@@ -55,6 +55,10 @@ function openAccount() {
         hub.sessions = hub.sessions.filter((session) => session.isCurrent);
         return {};
       },
+      setPassword: () => {
+        hub.sessions = hub.sessions.filter((session) => session.isCurrent);
+        return {};
+      },
     });
   });
   globalThis.history.replaceState(null, "", "/");
@@ -113,6 +117,20 @@ describe("where an Account is signed in", () => {
       await expect(listed()).resolves.toHaveLength(1);
     });
     expect(screen.queryByRole("button", { name: "Sign out everywhere else" })).toBeNull();
+  });
+
+  test("changing the password leaves only this browser listed", async () => {
+    openAccount();
+    await expect(listed()).resolves.toHaveLength(3);
+
+    fireEvent.change(await screen.findByLabelText("New password"), {
+      target: { value: "staple battery horse" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Change password" }));
+
+    await vi.waitFor(async () => {
+      await expect(listed()).resolves.toHaveLength(1);
+    });
   });
 
   test.each(["Sign out Safari on iPhone", "Sign out everywhere else"])(
