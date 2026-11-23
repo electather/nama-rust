@@ -239,20 +239,27 @@ async fn progress_on_a_title_the_server_lacks_shows_once_a_scan_adds_it() {
 }
 
 /// Watches Alien on `fx`'s Server, then has the Hub forget it, as if it was watched before the
-/// Link, and answers the change the Server told of, as the Server stores it: under its preferred
-/// id, as of the second it was made.
-#[expect(
-    clippy::indexing_slicing,
-    reason = "a test helper fails its test by panicking"
-)]
+/// Link, and answers the change the Server told of, as of the second the Server stores.
 async fn alien_watched_before_linking(fx: &Fixture, hub: &Hub) -> WatchStateChange {
     watch_alien(fx, hub).await;
     let made = hub.kept().remove(0);
     WatchStateChange {
-        ids: made.ids[..1].to_vec(),
         changed_at_ms: made.changed_at_ms.div_euclid(1000) * 1000,
         ..made
     }
+}
+
+/// Asks for the Link of `fx`'s Admin, as Settings does once they Link.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn look_at_admins_link(fx: &Fixture) {
+    let users = UserServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
+    users
+        .get_user_link(GetUserLinkRequest::default())
+        .await
+        .unwrap();
 }
 
 #[tokio::test]
@@ -261,14 +268,36 @@ async fn linking_a_user_pushes_their_watch_state_from_before_dated_as_stored() {
     let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
     let stored = alien_watched_before_linking(&fx, &hub).await;
 
-    let users = UserServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
-    users
-        .get_user_link(GetUserLinkRequest::default())
-        .await
-        .unwrap();
+    look_at_admins_link(&fx).await;
 
     until("the Hub has the progress", async || !hub.kept().is_empty()).await;
     assert_eq!(*hub.kept(), [stored]);
+}
+
+#[tokio::test]
+async fn linking_a_user_leaves_a_title_the_account_has_newer_as_the_account_has_it() {
+    let hub = Hub::default();
+    let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
+    let stored = alien_watched_before_linking(&fx, &hub).await;
+    let watched_on_another_server = WatchStateChange {
+        position_ms: 90_000,
+        changed_at_ms: stored.changed_at_ms + 60_000,
+        ..stored.clone()
+    };
+    hub.kept().push(watched_on_another_server.clone());
+
+    look_at_admins_link(&fx).await;
+
+    until("the Hub has the push", async || hub.kept().len() == 2).await;
+    let newest = (hub.kept().iter())
+        .max_by_key(|change| change.changed_at_ms)
+        .cloned();
+    assert_eq!(newest, Some(watched_on_another_server));
+    until(
+        "Continue Watching shows the Account's progress",
+        async || alien_in_continue_watching(&fx.server.client_config()).await == Some(90_000),
+    )
+    .await;
 }
 
 #[tokio::test]

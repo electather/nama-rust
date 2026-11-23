@@ -31,7 +31,7 @@ use crate::{
     users::{User, Users},
 };
 
-/// How long a pull of a User's Watch State may take.
+/// How long a pull of a User's Watch State, or the Observers taking the push before it, may take.
 const PULL_TIMEOUT: Duration = Duration::from_mins(1);
 
 /// What `unavailable` says when the Plugin that links the Server fails.
@@ -287,6 +287,7 @@ pub(super) fn pull_watch_states_soon(points: &ExtensionPoints, browse: &Browse, 
 }
 
 /// [`pull_watch_states_soon`], after pushing the User `user_id`'s Watch State, as when they Link.
+/// Must be called within a Tokio runtime.
 // ponytail: pushes their whole Watch State on each look at their Link, as the pull already reads
 // the Account's whole; have the Plugin say when a Link is new if that grows slow.
 fn push_then_pull_watch_states_soon(points: &ExtensionPoints, browse: &Browse, user_id: i64) {
@@ -294,7 +295,6 @@ fn push_then_pull_watch_states_soon(points: &ExtensionPoints, browse: &Browse, u
     let span =
         diagnostics::following_current(tracing::info_span!(parent: None, "sync_watch_states"));
     let syncing = async move {
-        // The Plugin may queue the push after the pull sent its queue; its Sync Job sends it then.
         push_watch_states(&points, &browse, user_id).await;
         pull_watch_states(&points, &browse, user_id).await;
     };
@@ -324,13 +324,25 @@ fn push_every_users_watch_states_soon(points: &ExtensionPoints, browse: &Browse,
 
 /// Tells the Plugins that observe Watch State, such as the Hub's, of the User `user_id`'s whole
 /// Watch State, each change dated as stored, since what they did before they Linked was never
-/// pushed. The Plugin queues it only for a Linked User, and the Hub keeps the later of a title's
-/// changes (ADR 0008).
+/// pushed, and waits until they have it queued, so a pull after it sends it first. The Plugin
+/// queues it only for a Linked User, and the Hub keeps the later of a title's changes (ADR 0008).
 async fn push_watch_states(points: &ExtensionPoints, browse: &Browse, user_id: i64) {
-    match browse.watch_state_changes(user_id).await {
-        Ok(changes) if changes.is_empty() => {}
-        Ok(changes) => points.notify::<WatchStatesChanged>(WatchStateChanges { user_id, changes }),
-        Err(err) => tracing::error!(user = user_id, "reading a User's Watch State failed: {err}"),
+    let changes = match browse.watch_state_changes(user_id).await {
+        Ok(changes) if changes.is_empty() => return,
+        Ok(changes) => changes,
+        Err(err) => {
+            tracing::error!(user = user_id, "reading a User's Watch State failed: {err}");
+            return;
+        }
+    };
+    let told = points.notify_and_wait::<WatchStatesChanged>(WatchStateChanges { user_id, changes });
+    // Bounded, so an Observer that never answers can't hold up the pull; the Plugin's Sync Job
+    // sends what it queues later.
+    if tokio::time::timeout(PULL_TIMEOUT, told).await.is_err() {
+        tracing::warn!(
+            user = user_id,
+            "Observers took too long to take a User's Watch State"
+        );
     }
 }
 
