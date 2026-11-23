@@ -37,7 +37,9 @@ use tracing::Instrument as _;
 use url::Url;
 
 use crate::{
-    accounts::{Accounts, RECENT_AUTHENTICATION_MINS, RecentAuthenticationRequired},
+    accounts::{
+        AccountSession, Accounts, RECENT_AUTHENTICATION_MINS, RecentAuthenticationRequired,
+    },
     db,
     diagnostics::{Backend, NotTaken, Shared, Signal},
     dns::ServerNames,
@@ -201,8 +203,8 @@ struct Callers {
 }
 
 /// The Hub's one auth layer: adds to the request's extensions the `AccountSession` its session
-/// cookie names, or the `LinkedServer` its `Authorization: Bearer` credential names. A request
-/// with neither is anonymous, and gets none.
+/// cookie names, recording the session's use, or the `LinkedServer` its `Authorization: Bearer`
+/// credential names. A request with neither is anonymous, and gets none.
 async fn identify_caller(
     State(callers): State<Callers>,
     mut request: Request,
@@ -220,10 +222,16 @@ async fn identify_caller(
         .get(header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok()?.strip_prefix("Bearer "))
         .map(str::to_owned);
+    let user_agent = headers
+        .get(header::USER_AGENT)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
     let found = match (session_token, credential) {
-        (Some(token), _) => callers.accounts.session(&token).await.map(|session| {
-            session.map(|session| request.extensions_mut().insert(session));
-        }),
+        (Some(token), _) => used_session(&callers.accounts, &token, user_agent.as_deref())
+            .await
+            .map(|session| {
+                session.map(|session| request.extensions_mut().insert(session));
+            }),
         (None, Some(credential)) => callers.links.server(&credential).await.map(|server| {
             server.map(|server| request.extensions_mut().insert(server));
         }),
@@ -236,6 +244,22 @@ async fn identify_caller(
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
+}
+
+/// The session `token` names, if any, recording that a browser sending `user_agent` used it now.
+async fn used_session(
+    accounts: &Accounts,
+    token: &str,
+    user_agent: Option<&str>,
+) -> Result<Option<AccountSession>, sqlx::Error> {
+    let Some(session) = accounts.session(token).await? else {
+        return Ok(None);
+    };
+    // Only the Account page's list reads it, so a failed write mustn't refuse the request.
+    if let Err(err) = accounts.record_use(&session, user_agent).await {
+        tracing::warn!("could not record a session's use: {err}");
+    }
+    Ok(Some(session))
 }
 
 /// The caller a Hub service serves.

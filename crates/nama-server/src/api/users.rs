@@ -30,15 +30,15 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
+    browse::Browse,
     connections::{self, Connections},
     db::Database,
     home_rows::HomeRows,
     images::PluginLogos,
+    link::Linking,
     playback::limit_to_proto,
     plugin_settings::{Personal, PluginSettings},
-    plugins::ExtensionPoints,
-    server_settings::{PlaybackLimit, ServerUrl, Settings},
-    sync::Syncing,
+    server_settings::{ServerUrl, Settings},
     users::{
         self, AskedHomeLayout, Caller, Permissions, User, UserHomeLayout, Users,
         notification_preferences_of, set_notification_preference,
@@ -49,7 +49,7 @@ use super::{
     access::permission_required,
     browse::home_rows_of,
     caller, database_failed,
-    playback::limit_from_proto,
+    playback::cap_from_proto,
     plugins::{change_refused, list_failed, logo_url, setting_to_proto, settings_from_proto},
     refuse,
     server::{home_layout_from_proto, home_row_from_proto},
@@ -75,11 +75,10 @@ pub(super) struct UserServiceHandler {
     pub(super) home_rows: HomeRows,
     /// Holds the default Home layout, which each User's follows but for what they change.
     pub(super) settings: Settings,
-    /// Asked to Link the caller to an Account, to Unlink a deleted User, and which Users with no
-    /// Sign-in Method are Linked.
-    pub(super) points: ExtensionPoints,
-    /// Told when a look at, or start of, a User's Link finds them Linked.
-    pub(super) syncing: Syncing,
+    /// Asked to Link the caller to an Account, and to Unlink a deleted User.
+    pub(super) linking: Linking,
+    /// Lists each Library's Recently Added row for a User's Home layout.
+    pub(super) browse: Browse,
 }
 
 #[expect(
@@ -110,14 +109,19 @@ impl UserService for UserServiceHandler {
         request: ServiceRequest<'_, CreateUserFromAccountRequest>,
     ) -> ServiceResult<CreateUserFromAccountResponse> {
         let by = &caller(&ctx)?.user;
-        server_link::create_user_from_account(
-            &self.points,
-            &self.users,
-            by,
-            request.name,
-            request.email,
-        )
-        .await
+        let created = self
+            .users
+            .create_from_account(by, request.name, request.email)
+            .await;
+        if matches!(created, Err(users::Error::LinkingFailed)) {
+            return Err(ConnectError::unavailable(
+                "the Server couldn't ask the Hub, so no User was created; try again later",
+            ));
+        }
+        Response::ok(CreateUserFromAccountResponse {
+            id: created?,
+            ..Default::default()
+        })
     }
 
     async fn list_users(
@@ -127,8 +131,7 @@ impl UserService for UserServiceHandler {
     ) -> ServiceResult<ListUsersResponse> {
         let users = self.users.list().await.map_err(database_failed)?;
         let caps = self.users.remote_caps().await.map_err(database_failed)?;
-        let without_sign_in_method =
-            (self.users.without_sign_in_method().await).map_err(database_failed)?;
+        let cannot_sign_in = (self.users.cannot_sign_in().await).map_err(database_failed)?;
         Response::ok(ListUsersResponse {
             users: (users.into_iter())
                 .map(|user| proto::User {
@@ -136,8 +139,7 @@ impl UserService for UserServiceHandler {
                     ..user_to_proto(user)
                 })
                 .collect(),
-            cannot_sign_in_user_ids: server_link::unlinked(&self.points, without_sign_in_method)
-                .await,
+            cannot_sign_in_user_ids: cannot_sign_in,
             ..Default::default()
         })
     }
@@ -163,7 +165,7 @@ impl UserService for UserServiceHandler {
     ) -> ServiceResult<DeleteUserResponse> {
         let caller = caller(&ctx)?;
         self.users.delete(&caller.user, request.user_id).await?;
-        server_link::unlink_deleted_user(&self.points, request.user_id);
+        self.linking.unlink_deleted_user(request.user_id);
         let response = DeleteUserResponse::default();
         Ok(if request.user_id == caller.user.id {
             signed_out(response, &ctx)
@@ -522,7 +524,7 @@ impl UserService for UserServiceHandler {
             featured_shown: featured_hidden.map(|hidden| !hidden),
             rows: home_layout_from_proto(layout)?.rows,
         };
-        let seen = home_rows_of(&self.home_rows, reader).await?;
+        let seen = home_rows_of(&self.home_rows, &self.browse, reader).await?;
         let seen = seen.into_iter().map(|(row, _)| row).collect();
         let default = self.settings.now().default_home_layout;
         (UserHomeLayout::save(&self.db, reader.id, asked, seen, default).await)
@@ -542,7 +544,7 @@ impl UserService for UserServiceHandler {
         let asked = (request.to_owned_message().rows.iter())
             .map(|row| home_row_from_proto(row, "rows"))
             .collect::<Result<Vec<_>, _>>()?;
-        let seen = home_rows_of(&self.home_rows, reader).await?;
+        let seen = home_rows_of(&self.home_rows, &self.browse, reader).await?;
         let seen = seen.into_iter().map(|(row, _)| row).collect();
         let default = self.settings.now().default_home_layout;
         (UserHomeLayout::reorder(&self.db, reader.id, &asked, seen, default).await)
@@ -568,7 +570,7 @@ impl UserService for UserServiceHandler {
         _request: ServiceRequest<'_, GetUserLinkRequest>,
     ) -> ServiceResult<GetUserLinkResponse> {
         let user = &caller(&ctx)?.user;
-        server_link::get_user(&self.points, &self.syncing, user).await
+        server_link::get_user(&self.linking, user).await
     }
 
     async fn start_user_link(
@@ -577,7 +579,7 @@ impl UserService for UserServiceHandler {
         _request: ServiceRequest<'_, StartUserLinkRequest>,
     ) -> ServiceResult<StartUserLinkResponse> {
         let user = &caller(&ctx)?.user;
-        server_link::start_user(&self.points, &self.syncing, user).await
+        server_link::start_user(&self.linking, user).await
     }
 
     async fn unlink_user(
@@ -585,14 +587,15 @@ impl UserService for UserServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, UnlinkUserRequest>,
     ) -> ServiceResult<UnlinkUserResponse> {
-        server_link::unlink_user(&self.points, &self.users, &caller(&ctx)?.user).await
+        self.users.unlink(caller(&ctx)?.user.id).await?;
+        Response::ok(UnlinkUserResponse::default())
     }
 }
 
 impl UserServiceHandler {
     /// `reader`'s Home layout with every Home row they could see now, as the API has it.
     async fn home_layout(&self, reader: &User) -> Result<proto::HomeLayout, ConnectError> {
-        let rows = home_rows_of(&self.home_rows, reader).await?;
+        let rows = home_rows_of(&self.home_rows, &self.browse, reader).await?;
         let own = UserHomeLayout::of(&self.db, reader.id).await;
         let own = own.map_err(database_failed)?;
         let default = self.settings.now().default_home_layout;
@@ -632,6 +635,7 @@ fn seen_row_to_proto(row: KernelOrPlugin, shown: bool) -> HomeLayoutRow {
     let row = match row {
         KernelOrPlugin::Kernel(kernel) => LayoutRow::Kernel(kernel),
         KernelOrPlugin::Plugin(plugin) => LayoutRow::Plugin(plugin),
+        KernelOrPlugin::RecentlyAdded(library) => LayoutRow::RecentlyAdded(library),
     };
     HomeLayoutRow {
         row: Some(row),
@@ -679,20 +683,6 @@ fn permissions_from_proto(
 
 fn permissions_to_proto(permissions: Permissions) -> Vec<EnumValue<Permission>> {
     permissions.iter().map(EnumValue::from).collect()
-}
-
-/// The cap for remote playback `limit` names, `None` for none, refusing a value this Server doesn't
-/// know, which `limit_from_proto` would take as none.
-fn cap_from_proto(
-    limit: EnumValue<proto::PlaybackLimit>,
-) -> Result<Option<PlaybackLimit>, ConnectError> {
-    if let EnumValue::Unknown(_) = limit {
-        return Err(unknown_enum_value(
-            "remote_playback_limit",
-            "the cap for remote playback must be Original, 1080p, 720p or 480p",
-        ));
-    }
-    Ok(limit_from_proto(limit))
 }
 
 pub(super) fn user_to_proto(user: User) -> proto::User {
@@ -774,6 +764,13 @@ impl From<users::Error> for ConnectError {
             users::Error::ApprovingUserDeleted => refuse(R::REFUSAL_REASON_USER_NOT_FOUND, message),
             users::Error::AlreadySetUp => refuse(R::REFUSAL_REASON_ALREADY_SET_UP, message),
             users::Error::LastAdmin => refuse(R::REFUSAL_REASON_LAST_ADMIN, message),
+            users::Error::LastSignInMethod => {
+                refuse(R::REFUSAL_REASON_LAST_SIGN_IN_METHOD, message)
+            }
+            users::Error::NoLinkingPlugin => return server_link::no_linking_plugin(),
+            users::Error::LinkingFailed => {
+                return Self::unavailable(server_link::LINKING_FAILED);
+            }
             users::Error::AdminRequired => return permission_required(Permission::Admin),
             users::Error::WrongNameOrPassword => {
                 refuse(R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD, message)
@@ -785,6 +782,11 @@ impl From<users::Error> for ConnectError {
                 refuse(R::REFUSAL_REASON_SIGNED_OUT, message)
             }
             users::Error::Database(err) => return database_failed(err),
+            // Only creating a User from an Account runs in a task of its own.
+            users::Error::Panicked(_) => {
+                tracing::error!("{err}");
+                return Self::internal("the Server failed to create the User");
+            }
             users::Error::NoAuthenticator
             | users::Error::Authenticator(_)
             | users::Error::Random(_) => {

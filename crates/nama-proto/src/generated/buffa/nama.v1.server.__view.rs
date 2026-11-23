@@ -15001,6 +15001,37 @@ impl<'a> ::buffa::MessageView<'a> for HomeLayoutRowView<'a> {
                     ),
                 );
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::home_layout_row::Row::RecentlyAdded(
+                        ref mut existing,
+                    ),
+                ) = view.row
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.row = Some(
+                        super::super::__buffa::view::oneof::home_layout_row::Row::RecentlyAdded(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::RecentlyAddedHomeRowView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -15051,6 +15082,15 @@ impl<'a> ::buffa::MessageView<'a> for HomeLayoutRowView<'a> {
                                     v.to_string(),
                                 )
                             }
+                            super::super::__buffa::view::oneof::home_layout_row::Row::RecentlyAdded(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::home_layout_row::Row::RecentlyAdded(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
                         },
                     )
                 }
@@ -15085,6 +15125,16 @@ impl<'a> ::buffa::ViewEncode<'a> for HomeLayoutRowView<'a> {
                 ) => {
                     size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
                 }
+                super::super::__buffa::view::oneof::home_layout_row::Row::RecentlyAdded(
+                    x,
+                ) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         if self.hidden {
@@ -15118,6 +15168,16 @@ impl<'a> ::buffa::ViewEncode<'a> for HomeLayoutRowView<'a> {
                     x,
                 ) => {
                     ::buffa::types::put_string_field(3u32, x, buf);
+                }
+                super::super::__buffa::view::oneof::home_layout_row::Row::RecentlyAdded(
+                    x,
+                ) => {
+                    ::buffa::types::put_len_delimited_header(
+                        5u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
                 }
             }
         }
@@ -15160,6 +15220,11 @@ impl<'__a> ::serde::Serialize for HomeLayoutRowView<'__a> {
                     v,
                 ) => {
                     __map.serialize_entry("pluginUsersRows", v)?;
+                }
+                super::super::__buffa::view::oneof::home_layout_row::Row::RecentlyAdded(
+                    v,
+                ) => {
+                    __map.serialize_entry("recentlyAdded", v)?;
                 }
             }
         }

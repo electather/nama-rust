@@ -72,7 +72,9 @@ test("a Movie's page shows its Box Set's Movies under its name, the Movie marked
     null,
     null,
   ]);
-  expect(within(section).getByText("This Movie")).toBeDefined();
+  expect(
+    within(section).getByRole("link", { name: "Alien", description: "This Movie" }),
+  ).toBeDefined();
 });
 
 test("a Movie with no Box Set shows no row", async () => {
@@ -95,7 +97,10 @@ test("a Box Set's page shows its name, overview and Movies in order", async () =
     ["Aliens", "/libraries/1/movies/tmdb-679"],
     ["Alien³", "/movies/tmdb-8077"],
   ]);
-  expect(within(movies).getByText("Not on this Server")).toBeDefined();
+  expect(
+    within(movies).getByRole("link", { name: "Alien³", description: "Not on this Server" }),
+  ).toBeDefined();
+  expect(within(movies).getByText("Not here")).toBeDefined();
 });
 
 test("a Box Set's missing Movie opens its page to Request", async () => {

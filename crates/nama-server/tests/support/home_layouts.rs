@@ -6,9 +6,10 @@ use std::time::{Duration, Instant};
 use connectrpc::client::{ClientConfig, HttpClient};
 use nama_proto::nama::v1::{
     BrowseServiceClient, GetDefaultHomeLayoutRequest, GetHomeLayoutRequest, HomeLayout,
-    HomeLayoutRow, KernelHomeRow, LibraryKind, ListFeaturedRequest, ListHomeRowsRequest,
-    PluginHomeRow, ReorderHomeRowsRequest, ServerServiceClient, SetDefaultHomeLayoutRequest,
-    SetHomeLayoutRequest, UserServiceClient, home_layout_row, home_row::KernelOrPlugin,
+    HomeLayoutRow, KernelHomeRow, LibraryKind, LibraryServiceClient, ListFeaturedRequest,
+    ListHomeRowsRequest, ListLibrariesRequest, PluginHomeRow, RecentlyAddedHomeRow,
+    ReorderHomeRowsRequest, ServerServiceClient, SetDefaultHomeLayoutRequest, SetHomeLayoutRequest,
+    UserServiceClient, home_layout_row, home_row::KernelOrPlugin,
 };
 
 use crate::{
@@ -31,7 +32,13 @@ pub(crate) async fn serving_rows() -> TestServer {
     enable(&server).await;
     wait_for_rows(
         server.client_config(),
-        &["continue-watching", "picks", "again", "missing"],
+        &[
+            "continue-watching",
+            "recently-added",
+            "picks",
+            "again",
+            "missing",
+        ],
     )
     .await;
     server
@@ -41,8 +48,8 @@ pub(crate) fn settings(config: ClientConfig) -> ServerServiceClient<HttpClient> 
     ServerServiceClient::new(HttpClient::plaintext(), config)
 }
 
-/// Each Home row the caller `config` signs in as sees now: `continue-watching`, or a Plugin
-/// row's key.
+/// Each Home row the caller `config` signs in as sees now: `continue-watching`, `recently-added`
+/// for the Library's, or a Plugin row's key.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -54,6 +61,7 @@ pub(crate) async fn rows(config: ClientConfig) -> Vec<String> {
     (listed.unwrap().into_owned().rows.into_iter())
         .map(|row| match row.kernel_or_plugin {
             Some(KernelOrPlugin::Plugin(row)) => row.key,
+            Some(KernelOrPlugin::RecentlyAdded(_)) => "recently-added".to_owned(),
             _ => "continue-watching".to_owned(),
         })
         .collect()
@@ -81,6 +89,32 @@ pub(crate) fn continue_watching(hidden: bool) -> HomeLayoutRow {
         row: Some(home_layout_row::Row::Kernel(
             KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING.into(),
         )),
+        hidden,
+        ..Default::default()
+    }
+}
+
+/// The Recently Added row of the Movies Library [`serving_rows`] makes, named as `server` names
+/// it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+pub(crate) async fn recently_added(server: &TestServer, hidden: bool) -> HomeLayoutRow {
+    let listed = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config())
+        .list_libraries(ListLibrariesRequest::default())
+        .await;
+    let library = listed.unwrap().into_owned().libraries.remove(0);
+    HomeLayoutRow {
+        row: Some(
+            RecentlyAddedHomeRow {
+                library_id: library.id,
+                library_name: library.name,
+                library_kind: library.kind,
+                ..Default::default()
+            }
+            .into(),
+        ),
         hidden,
         ..Default::default()
     }

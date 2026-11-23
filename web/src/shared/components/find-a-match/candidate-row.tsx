@@ -1,9 +1,13 @@
 import { Button } from "nama-ui/components/button";
 
 import type { TitleCandidate } from "@/gen/nama/v1/match_pb";
+import { useSrcSet } from "@/shared/hooks/use-src-set";
 import { withYear } from "@/shared/lib/unmatched-names";
 
-/** One title found, with the button that Matches to it. */
+const posterBox =
+  "aspect-2/3 h-15 shrink-0 rounded-xs bg-muted outline -outline-offset-1 outline-border";
+
+/** One title found, with its Poster and the button that Matches to it. */
 export function CandidateRow({
   candidate,
   pending,
@@ -14,9 +18,23 @@ export function CandidateRow({
   onMatch: () => void;
 }) {
   const name = withYear(candidate.title, candidate.year);
-  const { originalTitle } = candidate;
+  const { originalTitle, posterUrl } = candidate;
+  const srcSet = useSrcSet(posterUrl);
   return (
     <li className="flex items-center gap-3 rounded-lg px-3 py-1 hover:bg-muted">
+      {/* The row names the title, so its Poster says nothing more; without one, its box stays. */}
+      {posterUrl === undefined ? (
+        <span className={posterBox} />
+      ) : (
+        <img
+          src={posterUrl}
+          srcSet={srcSet}
+          sizes="40px"
+          alt=""
+          loading="lazy"
+          className={`${posterBox} object-cover`}
+        />
+      )}
       <span className="min-w-0 flex-1">
         {name}
         {originalTitle !== undefined && originalTitle !== candidate.title && (

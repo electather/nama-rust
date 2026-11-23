@@ -8195,6 +8195,14 @@ impl ::buffa::Message for HomeLayoutRow {
                 __buffa::oneof::home_layout_row::Row::PluginUsersRows(x) => {
                     size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
                 }
+                __buffa::oneof::home_layout_row::Row::RecentlyAdded(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         if self.hidden {
@@ -8225,6 +8233,14 @@ impl ::buffa::Message for HomeLayoutRow {
                 }
                 __buffa::oneof::home_layout_row::Row::PluginUsersRows(x) => {
                     ::buffa::types::put_string_field(3u32, x, buf);
+                }
+                __buffa::oneof::home_layout_row::Row::RecentlyAdded(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        5u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
                 }
             }
         }
@@ -8285,6 +8301,26 @@ impl ::buffa::Message for HomeLayoutRow {
                         ::buffa::types::decode_string(buf)?,
                     ),
                 );
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::home_layout_row::Row::RecentlyAdded(ref mut existing),
+                ) = self.row
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.row = ::core::option::Option::Some(
+                        __buffa::oneof::home_layout_row::Row::RecentlyAdded(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
             }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -8423,6 +8459,30 @@ impl<'de> ::serde::Deserialize<'de> for HomeLayoutRow {
                                 }
                                 __oneof_row = Some(
                                     __buffa::oneof::home_layout_row::Row::PluginUsersRows(v),
+                                );
+                            }
+                        }
+                        "recentlyAdded" | "recently_added" => {
+                            let v: ::core::option::Option<RecentlyAddedHomeRow> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            RecentlyAddedHomeRow,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_row.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'row'",
+                                        ),
+                                    );
+                                }
+                                __oneof_row = Some(
+                                    __buffa::oneof::home_layout_row::Row::RecentlyAdded(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
                                 );
                             }
                         }

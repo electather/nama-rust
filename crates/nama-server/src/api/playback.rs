@@ -528,6 +528,20 @@ pub(super) fn limit_from_proto(limit: EnumValue<proto::PlaybackLimit>) -> Option
         .map(|(ours, _)| ours)
 }
 
+/// The cap for remote playback `limit` names, `None` for none, refusing a value this Server doesn't
+/// know, which `limit_from_proto` would take as none.
+pub(super) fn cap_from_proto(
+    limit: EnumValue<proto::PlaybackLimit>,
+) -> Result<Option<PlaybackLimit>, ConnectError> {
+    if let EnumValue::Unknown(_) = limit {
+        return Err(unknown_enum_value(
+            "remote_playback_limit",
+            "the cap for remote playback must be Original, 1080p, 720p or 480p",
+        ));
+    }
+    Ok(limit_from_proto(limit))
+}
+
 /// The Playback Limit the User picked, as [`limit_from_proto`] has it.
 fn picked_limit(limit: EnumValue<proto::PlaybackLimit>) -> PickedLimit {
     if limit == EnumValue::Known(proto::PlaybackLimit::PLAYBACK_LIMIT_UNSPECIFIED) {

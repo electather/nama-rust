@@ -25,7 +25,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
-    plugins::ExtensionPoints,
+    link::Linking,
     server_settings::ServerUrl,
     sync::Syncing,
     users::{
@@ -43,8 +43,8 @@ use super::{
 /// `nama.v1.SignInService`: signing Devices in, and saying who is signed in.
 pub(super) struct SignInServiceHandler {
     pub(super) sign_in: SignIn,
-    /// The Plugin that links the Server, through which a User signs in with their Account.
-    pub(super) points: ExtensionPoints,
+    /// Starts a User signing in with their Account.
+    pub(super) linking: Linking,
     /// Told of each sign-in.
     pub(super) syncing: Syncing,
     /// The Server URL, one of the Server Addresses a sign-in with an Account may return to.
@@ -148,18 +148,10 @@ impl SignInService for SignInServiceHandler {
         let (ip, now) = (client_ip(&ctx)?, Instant::now());
         let request = request.to_owned_message();
         let proof = match request.proof {
-            Some(Proof::AccountSignInHandle(handle)) => {
-                let approved = server_link::account_signing_in(
-                    &self.points,
-                    &handle,
-                    &request.account_sign_in_code,
-                    "account_sign_in_handle",
-                );
-                self.sign_in
-                    .reauthenticate_with_account(caller, approved, ip, now)
-                    .await?;
-                return Response::ok(ReauthenticateResponse::default());
-            }
+            Some(Proof::AccountSignInHandle(handle)) => Some(users::Proof::Account {
+                handle,
+                code: request.account_sign_in_code,
+            }),
             Some(Proof::Password(password)) => Some(users::Proof::Password {
                 name: caller.user.name.clone(),
                 password,
@@ -299,7 +291,7 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, StartAccountSignInRequest>,
     ) -> ServiceResult<StartAccountSignInResponse> {
         server_link::start_account_sign_in(
-            &self.points,
+            &self.linking,
             request.return_url,
             &self.server_url,
             self.listening,
@@ -315,10 +307,11 @@ impl SignInService for SignInServiceHandler {
         let request = request.to_owned_message();
         let delivery = delivery(request.delivery)?;
         let device = new_device(request.device_name, &ctx)?;
-        let user =
-            server_link::account_signing_in(&self.points, &request.handle, &request.code, "handle")
-                .await?;
-        let signed_in = self.sign_in.sign_in_with_account(user, device).await?;
+        let proof = users::Proof::Account {
+            handle: request.handle,
+            code: request.code,
+        };
+        let signed_in = self.sign_in.sign_in(proof, device, Instant::now()).await?;
         Ok(
             self.hand_out_session(signed_in, delivery, &ctx, |caller, token| {
                 SignInWithAccountResponse {
@@ -472,6 +465,13 @@ impl From<SignInError> for ConnectError {
                     .field("account_sign_in_handle")
                     .into()
             }
+            ref err @ SignInError::AccountSignInNotFound { field } => refuse(
+                RefusalReason::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND,
+                err.to_string(),
+            )
+            .field(field)
+            .into(),
+            SignInError::Link(err) => server_link::account_sign_in_failed(err),
         }
     }
 }

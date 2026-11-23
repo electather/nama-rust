@@ -6,7 +6,7 @@
 //!
 //! Guessable requests go through it (the crate's `AGENTS.md`, "Guessable requests").
 
-use std::{future::Future, net::IpAddr, time::Instant};
+use std::{net::IpAddr, time::Instant};
 
 use super::{
     self as users, ApprovingDevice, Caller, NewDevice, Proved, SignedIn, Users,
@@ -15,6 +15,7 @@ use super::{
     rate_limits::{Blocked, SignInCodeLimits, SignInCodeStartLimits, SignInLimits},
     sign_in_codes::{self, Delivery, Poll, SignInCodes, Started},
 };
+use crate::link;
 
 /// Signs Devices in, with a proof or a Sign-in Code, under the sign-in limits.
 pub(crate) struct SignIn {
@@ -32,10 +33,13 @@ pub(crate) struct SignIn {
 }
 
 /// Who a Device claims to be, and what proves it, when it signs in or reauthenticates. Not `Debug`,
-/// so the password can't end up in a log.
+/// so the password or handle can't end up in a log.
 pub(crate) enum Proof {
     /// A User's name, matched ignoring case, and their password.
     Password { name: String, password: String },
+    /// The secret handle of a sign-in with an Account, and the one-time code the service sent the
+    /// person back with: the User Linked to the Account that approved it (ADR 0092).
+    Account { handle: String, code: String },
 }
 
 /// Where a Sign-in Code polled with its handle has got to. Not `Debug`: it may hold a session
@@ -82,6 +86,16 @@ pub(crate) enum Error {
     /// Reauthenticating with an Account, the Account that approved isn't the caller's.
     #[error("the Account that approved isn't the one Linked to you")]
     WrongAccount,
+    /// The sign-in with an Account whose handle came in the request field `field` wasn't
+    /// approved, or expired.
+    #[error("the sign-in wasn't approved on the Hub, or it expired; start again")]
+    AccountSignInNotFound {
+        /// The request field it is about, as clients name it.
+        field: &'static str,
+    },
+    /// The Plugin that links the Server couldn't finish a sign-in with an Account.
+    #[error(transparent)]
+    Link(#[from] link::Error),
 }
 
 impl SignIn {
@@ -135,7 +149,8 @@ impl SignIn {
             .await?)
     }
 
-    /// Signs `device` in as whoever `proof` proves it is, at `now`.
+    /// Signs `device` in as whoever `proof` proves it is, at `now`. An Account's proof isn't
+    /// counted: the Hub checked who it is, and its handle is a secret.
     pub(crate) async fn sign_in(
         &self,
         proof: Proof,
@@ -144,14 +159,18 @@ impl SignIn {
     ) -> Result<SignedIn, Error> {
         // Input checks run before `admit`, so a mistake in them is never counted as a guess.
         let device = named(device)?;
-        let Proof::Password { name, password } = proof;
-        let attempt = self.limits.admit(device.ip_address, Some(&name), now)?;
-        let (user, method) = self.users.verify(&attempt, &name, &password).await?;
-        self.limits.succeeded(&attempt);
-        Ok(self
-            .users
-            .sign_in_as(Proved::Method { user, method }, device)
-            .await?)
+        let proved = match proof {
+            Proof::Password { name, password } => {
+                let attempt = self.limits.admit(device.ip_address, Some(&name), now)?;
+                let (user, method) = self.users.verify(&attempt, &name, &password).await?;
+                self.limits.succeeded(&attempt);
+                Proved::Method { user, method }
+            }
+            Proof::Account { handle, code } => {
+                Proved::Account(self.approved(&handle, &code, "handle").await?)
+            }
+        };
+        Ok(self.users.sign_in_as(proved, device).await?)
     }
 
     /// Creates a User named `name` with `password` from the Invite whose link carries `token`, and
@@ -177,17 +196,6 @@ impl SignIn {
             .users
             .accept_invite(token, name, password, device)
             .await?)
-    }
-
-    /// Signs `device` in as the User `user`, whose Account the Hub vouches signed in (ADR 0092).
-    /// Nothing here is guessable: the Hub checked who it is, and its handle is a secret.
-    pub(crate) async fn sign_in_with_account(
-        &self,
-        user: i64,
-        device: NewDevice,
-    ) -> Result<SignedIn, Error> {
-        let device = named(device)?;
-        Ok(self.users.sign_in_as(Proved::Account(user), device).await?)
     }
 
     /// Starts signing in `device` with a Sign-in Code at `now`, unless its IP started too many
@@ -284,7 +292,9 @@ impl SignIn {
     /// Gives `caller`'s Device Recent Authentication if `proof` proves it is their User, as asked
     /// from `ip` at `now`. A missing proof is refused with [`Error::ProofMissing`] and a Device
     /// found signed out once the proof checked out with [`users::Error::SignedOut`]; neither is a
-    /// guess. A proof of another User is refused like a wrong password.
+    /// guess. A proof of another User is refused like a wrong password, or as
+    /// [`Error::WrongAccount`]. The Hub is asked about an Account's only once the attempt is let
+    /// through, and its failure counts as a guess.
     pub(crate) async fn reauthenticate(
         &self,
         caller: &Caller,
@@ -292,43 +302,43 @@ impl SignIn {
         ip: IpAddr,
         now: Instant,
     ) -> Result<(), Error> {
-        let Proof::Password { name, password } = proof.ok_or(Error::ProofMissing)?;
+        let proof = proof.ok_or(Error::ProofMissing)?;
         let attempt = self.limits.admit(ip, Some(&caller.user.name), now)?;
-        if users::name_key(&name) != users::name_key(&caller.user.name) {
-            return Err(users::Error::WrongPassword.into());
+        match proof {
+            Proof::Password { name, password } => {
+                if users::name_key(&name) != users::name_key(&caller.user.name) {
+                    return Err(users::Error::WrongPassword.into());
+                }
+                self.users
+                    .confirm_password(&attempt, &caller.user, &password)
+                    .await?;
+            }
+            // A Hub that can't be asked counts too: un-counting it would forget the name's failures.
+            Proof::Account { handle, code } => {
+                if self
+                    .approved(&handle, &code, "account_sign_in_handle")
+                    .await?
+                    != caller.user.id
+                {
+                    return Err(Error::WrongAccount);
+                }
+            }
         }
-        self.users
-            .confirm_password(&attempt, &caller.user, &password)
-            .await?;
-        // Before recording, so a Device found signed out after the right password isn't a guess.
+        // Before recording, so a Device found signed out after the proof checked out isn't a guess.
         self.limits.succeeded(&attempt);
         Ok(self.users.record_authentication(caller.device.id).await?)
     }
 
-    /// Gives `caller`'s Device Recent Authentication once `approved` names their User as the one
-    /// whose Account approved a sign-in on the Hub (ADR 0092), as asked from `ip` at `now`. No
-    /// Device signs in. `approved` is awaited only once the attempt is let through, and its
-    /// failure, another User's Account included ([`Error::WrongAccount`]), counts as a guess.
-    pub(crate) async fn reauthenticate_with_account<E: From<Error>>(
-        &self,
-        caller: &Caller,
-        approved: impl Future<Output = Result<i64, E>>,
-        ip: IpAddr,
-        now: Instant,
-    ) -> Result<(), E> {
-        let attempt = self
-            .limits
-            .admit(ip, Some(&caller.user.name), now)
-            .map_err(Error::from)?;
-        // A Hub that can't be asked counts too: un-counting it would forget the name's failures.
-        if approved.await? != caller.user.id {
-            return Err(Error::WrongAccount.into());
-        }
-        self.limits.succeeded(&attempt);
-        self.users
-            .record_authentication(caller.device.id)
-            .await
-            .map_err(|err| Error::from(err).into())
+    /// The id of the User whose Account approved the sign-in with an Account `handle` stands for,
+    /// finished with the service's one-time `code`. A refusal names `field`, the request field
+    /// `handle` came in.
+    async fn approved(&self, handle: &str, code: &str, field: &'static str) -> Result<i64, Error> {
+        (self
+            .users
+            .linking
+            .finish_account_sign_in(handle, code)
+            .await?)
+            .ok_or(Error::AccountSignInNotFound { field })
     }
 
     /// Signs the Device `device` out, so its session stops working.

@@ -7,6 +7,9 @@ import type { Shown } from "@/shared/components/state-label";
 import type { RowTitle } from "@/shared/lib/row-titles";
 import { titleParam } from "@/shared/lib/title-param";
 
+/** A shelf badge's state, with a `short` word to show when its label won't fit a poster's corner. */
+export type TileBadgeShown = Shown & { short?: string };
+
 /** A row's title as its shelf shows it: a poster that opens its page, maybe with a badge. */
 export interface RowTile {
   title: string;
@@ -14,11 +17,15 @@ export interface RowTile {
   posterThumbhash: Uint8Array | undefined;
   link: LinkOptions;
   /** Where a title missing from the Server stands; none for one you can watch. */
-  badge: Shown | undefined;
+  badge: TileBadgeShown | undefined;
 }
 
 /** A missing title nobody has asked for, or whose Request ended without it. */
-const notHere: Shown = { label: "Not on this Server", Icon: CirclePlus };
+const notHere: TileBadgeShown = {
+  label: "Not on this Server",
+  short: "Not here",
+  Icon: CirclePlus,
+};
 
 /** The Request states a shelf badges with their own label; the rest read as `notHere` or none. */
 const requested = new Set<RequestState>([
@@ -84,7 +91,7 @@ function missingMovieBadge(movie: MovieHit) {
 }
 
 /** A Request's state on a shelf: its own label while asked for, none once it's here. */
-function badgeFor(state: RequestState | undefined): Shown | undefined {
+function badgeFor(state: RequestState | undefined): TileBadgeShown | undefined {
   if (state === undefined) {
     return notHere;
   }
