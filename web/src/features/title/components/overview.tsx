@@ -1,6 +1,8 @@
 import { Button } from "nama-ui/components/button";
 import { useCallback, useState } from "react";
 
+import { afterFontsLoad } from "@/shared/lib/after-fonts-load";
+
 /** A title's overview in two lines, with "More" to show the rest, when it doesn't fit. */
 export function Overview({ text }: { text: string }) {
   const [clamped, setClamped] = useState(false);
@@ -20,14 +22,7 @@ export function Overview({ text }: { text: string }) {
       if (paragraph) {
         observer.observe(paragraph);
       }
-      // happy-dom, which the tests run on, has no `document.fonts`.
-      if ("fonts" in document) {
-        const updateOnceLoaded = async () => {
-          await document.fonts.ready;
-          update();
-        };
-        void updateOnceLoaded();
-      }
+      afterFontsLoad(update);
       return () => {
         observer.disconnect();
       };

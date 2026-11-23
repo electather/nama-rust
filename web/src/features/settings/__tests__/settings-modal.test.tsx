@@ -88,9 +88,9 @@ test("a section's link opens it, and a word that names none opens Playback", asy
 });
 
 test("the open section scrolls back into view once the web font loads and widens the sections", async () => {
-  const loaded: (() => void)[] = [];
+  const finishLoadingFonts: (() => void)[] = [];
   const ready = new Promise<void>((resolve) => {
-    loaded.push(resolve);
+    finishLoadingFonts.push(resolve);
   });
   // happy-dom has no `document.fonts`.
   Object.defineProperty(document, "fonts", { configurable: true, value: { ready } });
@@ -105,7 +105,7 @@ test("the open section scrolls back into view once the web font loads and widens
     expect(scrolled.mock.contexts).toContain(link);
   });
   scrolled.mockClear();
-  loaded[0]?.();
+  finishLoadingFonts[0]?.();
 
   await waitFor(() => {
     expect(scrolled.mock.contexts).toContain(link);

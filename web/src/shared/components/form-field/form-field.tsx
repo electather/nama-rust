@@ -37,7 +37,8 @@ export function FormField({
       <Input {...given} {...input} />
     );
   return row ? (
-    <RowField setting={setting} {...frame} size={inputSize(input.type)}>
+    // Beside its label on a phone, a text field is too narrow to read what's in it.
+    <RowField setting={setting} {...frame} wide={!number} size={inputSize(input.type)}>
       {control}
     </RowField>
   ) : (

@@ -41,6 +41,7 @@ export function TypedSettingRow({
   const [left, setLeft] = useState(false);
   const problem = check?.(typed);
   const shown = left ? (problem ?? error) : undefined;
+  const size = inputSize(input.type);
 
   /**
    * Saves what's typed, or `stepped` to by − and +, unless `check` finds it wrong or it's `already`
@@ -62,8 +63,8 @@ export function TypedSettingRow({
       hint={hint}
       error={shown}
       // Beside its label on a phone, a text field is too narrow to read what's in it.
-      wide={input.type !== "number"}
-      size={inputSize(input.type)}
+      wide={size === "field"}
+      size={size}
     >
       {(control) => (
         <RowInput

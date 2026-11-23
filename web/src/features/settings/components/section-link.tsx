@@ -21,6 +21,7 @@ import {
 import { useEffect, useRef } from "react";
 
 import { type Section, sectionSearch, sectionTitles } from "@/features/settings/lib/sections";
+import { afterFontsLoad } from "@/shared/lib/after-fonts-load";
 
 const icons: Record<Section, LucideIcon> = {
   signin: Shield,
@@ -52,22 +53,19 @@ export function SectionLink({ section, current }: { section: Section; current: b
   const link = useRef<HTMLAnchorElement>(null);
   useEffect(() => {
     // On a phone the open section may sit outside the strip, as when a link opened Settings on it.
-    if (!current) {
-      return;
-    }
+    let revealing = current;
     const reveal = () => {
-      link.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      if (revealing) {
+        link.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      }
     };
     reveal();
     // Again once the web font has swapped in: it widens every section's name, pushing this one
-    // back past the strip's end. happy-dom, which the tests run on, has no `document.fonts`.
-    if ("fonts" in document) {
-      const revealOnceLoaded = async () => {
-        await document.fonts.ready;
-        reveal();
-      };
-      void revealOnceLoaded();
-    }
+    // back past the strip's end.
+    afterFontsLoad(reveal);
+    return () => {
+      revealing = false;
+    };
   }, [current]);
   const Icon = icons[section];
   return (
