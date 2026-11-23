@@ -340,7 +340,7 @@ async fn a_linked_server_gets_the_titles_like_one_it_names(db: PgPool) {
     titles::import(&db, &include_bytes!("fixtures/wikidata-dump.json")[..])
         .await
         .unwrap();
-    titles::train(&db).await.unwrap();
+    nama_hub::train_vectors(&db).await.unwrap();
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
     let credential = linked(&hub, &ada, "Living room").await;
     let the_matrix = ListSimilarTitlesRequest {

@@ -265,6 +265,26 @@ async fn twenty_accounts_finishing_two_movies_count_the_pair_either_way(db: PgPo
     assert_eq!(count_of(&viewing, "tmdb-78").await, Some(20));
 }
 
+#[sqlx::test(migrations = false)]
+async fn pooled_counts_hold_only_counts_of_twenty_accounts(db: PgPool) {
+    let (_, accounts) = pool_of(&db, 20).await;
+    let (last, first_nineteen) = accounts.split_last().unwrap();
+    for &account in first_nineteen {
+        finish(&db, account, "a", "tmdb-603").await;
+        finish(&db, account, "b", "tmdb-78").await;
+    }
+    finish(&db, *last, "a", "tmdb-603").await;
+
+    let pooled = pooled_counts(&db).await.unwrap();
+
+    let only_the_matrix = PooledCount {
+        a: "tmdb-603".to_owned(),
+        b: "tmdb-603".to_owned(),
+        accounts: 20,
+    };
+    assert_eq!(pooled, [only_the_matrix]);
+}
+
 /// Now, in seconds since the Unix epoch.
 fn now() -> i64 {
     let since_epoch = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();

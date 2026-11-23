@@ -432,7 +432,7 @@ async fn ada_watching_known_titles(db: PgPool) -> (TestHub, Inbox, String, Strin
     titles::import(&db, &include_bytes!("fixtures/wikidata-dump.json")[..])
         .await
         .unwrap();
-    titles::train(&db).await.unwrap();
+    titles::train(&db, &[]).await.unwrap();
     ada_watching(db).await
 }
 

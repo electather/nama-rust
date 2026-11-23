@@ -6,7 +6,7 @@ mod wikidata;
 
 use sqlx::PgPool;
 
-pub use vectors::{RecommendedTitle, SimilarTitle, recommended, similar, train};
+pub use vectors::{PooledCount, RecommendedTitle, SimilarTitle, recommended, similar, train};
 pub use wikidata::{ImportError, import};
 
 /// Whether a title is a Movie or a Show, whose External IDs are separate id spaces (ADR 0042).
@@ -38,7 +38,7 @@ impl TitleKind {
 }
 
 /// A title's id at a metadata source: a namespace, such as `tmdb`, and a value (ADR 0042).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ExternalId {
     /// The metadata source, such as `tmdb`, `imdb` or `tvdb`.
     pub namespace: String,
