@@ -1,13 +1,14 @@
 //! Linking the Server, and its Users, through the enabled Plugin that links it, such as the Hub
 //! Plugin (ADR 0011, ADR 0094): `ServerService`'s `GetServerLink`, `StartServerLink` and
 //! `UnlinkServer`, `UserService`'s `GetUserLink`, `StartUserLink`, `UnlinkUser` and
-//! `CreateUserFromAccount`, and `SignInService`'s sign-in with an Account (ADR 0092). Through it
-//! too, a User's Watch State on their other Servers comes back (ADR 0008), and their Watchlist
-//! syncs with them (ADR 0056).
+//! `CreateUserFromAccount`, which Users `ListUsers` says can't sign in, and `SignInService`'s
+//! sign-in with an Account (ADR 0092). Through it too, a User's Watch State on their other Servers
+//! comes back (ADR 0008), and their Watchlist syncs with them (ADR 0056).
 
 use std::{future::Future, net::SocketAddr, sync::Arc, time::Duration};
 
 use connectrpc::{ConnectError, Response, ServiceResult};
+use futures_util::future::join_all;
 use nama_plugin_api::{
     PluginError,
     server_link::{Link, ServerLinker},
@@ -94,6 +95,18 @@ pub(super) async fn get_user(
         link: link.flatten().map(user_link_to_proto).into(),
         ..Default::default()
     })
+}
+
+/// Which of `user_ids` aren't Linked to an Account, asking the enabled Plugin that links the
+/// Server about each at once, which is how it learns of an Unlink made on the service, such as by
+/// deleting the Account (ADR 0099). One it fails to answer about is left out, as it may be Linked.
+pub(super) async fn unlinked(points: &ExtensionPoints, user_ids: Vec<i64>) -> Vec<i64> {
+    let asked = user_ids.into_iter().map(|user_id| async move {
+        let link = ask(points, async |linker| linker.user_link(user_id).await).await;
+        let maybe_linked = matches!(link, Ok(Some(Some(Link::Linked { .. }))) | Err(_));
+        (!maybe_linked).then_some(user_id)
+    });
+    join_all(asked).await.into_iter().flatten().collect()
 }
 
 /// Starts Linking `user`, whom the service lists by their name, or pulls their Watch State and
