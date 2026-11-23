@@ -57,8 +57,10 @@ export async function loadMovie(
   context: RouterContext,
   params: { libraryId: string; movieId: string },
 ) {
-  const library = await libraryFromParam(context, params.libraryId);
-  const input = { libraryId: library.id, movieId: externalIdFromParam(params.movieId) };
+  const input = {
+    libraryId: libraryIdFromParam(params.libraryId),
+    movieId: externalIdFromParam(params.movieId),
+  };
   await queryOrNotFound(context, BrowseService.method.getMovie, input);
   return input;
 }
@@ -78,6 +80,14 @@ export function externalIdFromParam(param: string) {
 
 /** Every browse query, including Continue Watching: what to refresh when Watch State changes. */
 export const browseKey = createConnectQueryKey({ schema: BrowseService, cardinality: undefined });
+
+/**
+ * The Library id in the URL, or the router's not-found if it isn't one. A title's RPC answers
+ * `not_found` for a Library the Server lacks, so it needn't wait for the Libraries.
+ */
+export function libraryIdFromParam(param: string) {
+  return BigInt(wholeNumberFromParam(param));
+}
 
 /** A whole number in the URL, such as a `$season`, or the router's not-found if it isn't one. */
 export function wholeNumberFromParam(param: string) {

@@ -1,3 +1,4 @@
+import { createQueryOptions } from "@connectrpc/connect-query";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { NotFound } from "@/app/route-error/not-found";
@@ -7,7 +8,7 @@ import { firstBoxSetPage, viewFromSearch } from "@/features/library/lib/library-
 import { firstPageOf, listingFromSearch } from "@/features/library/lib/title-listing";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
-import { libraryFromParam, queryOrNotFound } from "@/shared/hooks/browse";
+import { libraryFromParam, libraryIdFromParam, queryOrNotFound } from "@/shared/hooks/browse";
 import { pagedQuery } from "@/shared/hooks/use-paged";
 import { deletedFromSearch } from "@/shared/lib/deleted-search";
 
@@ -20,9 +21,22 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/")({
   }),
   loaderDeps: ({ search }) => ({ ...listingFromSearch(search), ...viewFromSearch(search) }),
   loader: async ({ context, params, deps }) => {
-    const library = await libraryFromParam(context, params.libraryId);
     const { queryClient, transport } = context;
-    const libraryId = library.id;
+    const libraryId = libraryIdFromParam(params.libraryId);
+    const unmatched = {
+      ...pagedQuery(BrowseService.method.listUnmatched, firstUnmatchedPage(libraryId), transport),
+      staleTime: "static" as const,
+    };
+    // Only the titles need the Library's kind, so these go out without waiting for the Libraries.
+    // Awaited again below, which fails the page if they failed.
+    const genres = createQueryOptions(
+      BrowseService.method.listGenres,
+      { libraryId },
+      { transport },
+    );
+    void queryClient.query({ ...genres, staleTime: "static" }).catch(() => null);
+    void queryClient.infiniteQuery(unmatched).catch(() => null);
+    const library = await libraryFromParam(context, params.libraryId);
     const boxSets =
       library.kind === LibraryKind.MOVIES && deps.view === "box-sets"
         ? queryClient.infiniteQuery({
@@ -48,15 +62,11 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/")({
             ),
             staleTime: "static",
           });
-    const unmatched = queryClient.infiniteQuery({
-      ...pagedQuery(BrowseService.method.listUnmatched, firstUnmatchedPage(libraryId), transport),
-      staleTime: "static",
-    });
     await Promise.all([
       titles,
       boxSets,
       queryOrNotFound(context, BrowseService.method.listGenres, { libraryId }),
-      unmatched,
+      queryClient.infiniteQuery(unmatched),
     ]);
     return library;
   },

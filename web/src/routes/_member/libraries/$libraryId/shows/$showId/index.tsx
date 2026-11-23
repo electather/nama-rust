@@ -5,7 +5,8 @@ import { NotFound } from "@/app/route-error/not-found";
 import { ShowPage } from "@/features/title/components/show-page";
 import { TitlePending } from "@/features/title/components/title-pending";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
-import { externalIdFromParam, libraryFromParam, queryOrNotFound } from "@/shared/hooks/browse";
+import { externalIdFromParam, libraryIdFromParam, queryOrNotFound } from "@/shared/hooks/browse";
+import { librariesQuery } from "@/shared/hooks/use-libraries";
 import { deletedFromSearch, type DeletedSearch } from "@/shared/lib/deleted-search";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showId/")({
@@ -16,10 +17,14 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showI
   },
   loaderDeps: ({ search }) => ({ season: search.season }),
   loader: async ({ context, params, deps }) => {
-    const library = await libraryFromParam(context, params.libraryId);
-    const show = { libraryId: library.id, showId: externalIdFromParam(params.showId) };
-    const { seasons } = await queryOrNotFound(context, BrowseService.method.getShow, show);
     const { queryClient, transport } = context;
+    // For the page's link to its Library, without holding up the Show; it shows its own failure.
+    void queryClient.query(librariesQuery(transport)).catch(() => null);
+    const show = {
+      libraryId: libraryIdFromParam(params.libraryId),
+      showId: externalIdFromParam(params.showId),
+    };
+    const { seasons } = await queryOrNotFound(context, BrowseService.method.getShow, show);
     await Promise.all([
       // Every Season's, as the page shows them all in one row.
       ...seasons.map(({ number }) =>
