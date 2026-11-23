@@ -25,9 +25,16 @@ use crate::server::{self, TestServer};
 pub(crate) struct Scripted(Arc<Mutex<Script>>);
 
 #[derive(Default)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "each is a switch a test flips on its own, not states of one thing"
+)]
 pub(crate) struct Script {
     /// What it answers `link`; `None` fails, as with the service unreachable.
     pub(crate) link: Option<Link>,
+    /// Whether asking for the Server's Link, or a User's, never answers, as with the service slow
+    /// to time out.
+    pub(crate) links_hang: bool,
     /// The name it was last asked to start Linking as.
     pub(crate) started_as: Option<String>,
     /// What it answers `user_link` for every User; `None` while the Server isn't Linked.
@@ -40,6 +47,8 @@ pub(crate) struct Script {
     pub(crate) returns_to: Option<String>,
     /// The User an Account approved the sign-in as, until it is finished.
     pub(crate) approved: Option<i64>,
+    /// How often it was asked to finish a sign-in with an Account.
+    pub(crate) finishes: usize,
     /// The Server Addresses it was last told.
     pub(crate) addresses: Option<ServerAddresses>,
     /// The Users it was asked to Unlink, by id, in order.
@@ -79,6 +88,9 @@ impl Plugin for Scripted {
 
 impl ServerLinker for Scripted {
     fn link(&self) -> BoxFuture<'_, Result<Link, PluginError>> {
+        if self.script().links_hang {
+            return Box::pin(future::pending());
+        }
         Box::pin(future::ready(self.answer()))
     }
 
@@ -103,7 +115,11 @@ impl ServerLinker for Scripted {
     }
 
     fn user_link(&self, _user_id: i64) -> BoxFuture<'_, Result<Option<Link>, PluginError>> {
-        Box::pin(future::ready(Ok(self.script().user_link.clone())))
+        let script = self.script();
+        if script.links_hang {
+            return Box::pin(future::pending());
+        }
+        Box::pin(future::ready(Ok(script.user_link.clone())))
     }
 
     fn start_user_link<'a>(
@@ -165,6 +181,7 @@ impl ServerLinker for Scripted {
         handle: &'a str,
         code: &'a str,
     ) -> BoxFuture<'a, Result<Option<i64>, PluginError>> {
+        self.script().finishes += 1;
         let finished = self.answer().map(|_| {
             let approved = self.script().approved.take();
             approved.filter(|_| handle == "handle" && code == "code")

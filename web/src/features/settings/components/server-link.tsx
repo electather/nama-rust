@@ -1,4 +1,5 @@
 import { LinkControls } from "@/features/settings/components/link-controls";
+import { ServerNames } from "@/features/settings/components/server-names";
 import { ServerReachability } from "@/features/settings/components/server-reachability";
 import { useServerLink } from "@/features/settings/data/use-server-link";
 import { useStartServerLink } from "@/features/settings/data/use-start-server-link";
@@ -35,6 +36,7 @@ export function ServerLink() {
         failure={linkFailure(start.error ?? unlink.error)}
       />
       <ServerReachability link={link} />
+      <ServerNames link={link} />
     </section>
   );
 }

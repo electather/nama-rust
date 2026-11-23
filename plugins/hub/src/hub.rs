@@ -1,4 +1,7 @@
-//! Talking to the Hub: its API (`proto/nama/hub/v1/`) and its published key set.
+//! Talking to the Hub: its API (`proto/nama/hub/v1/`) and its published key set. What its API
+//! accepts is in `limits.rs`.
+
+pub(crate) mod limits;
 
 use std::{error::Error, fmt, net::Ipv4Addr, sync::Arc, time::Duration};
 
@@ -26,8 +29,8 @@ use nama_hub_proto::nama::hub::v1::{
     RecordViewingEventsRequest, ServerLinkServiceClient, SetServerAddressesRequest,
     StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
     StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
-    TrackPreferenceChange, UnlinkServerRequest, UnlinkUserRequest, WatchStateChange,
-    WatchlistEntry,
+    TrackPreferenceChange, UnlinkServerRequest, UnlinkUserRequest, UserViewingEvent,
+    WatchStateChange, WatchlistEntry,
 };
 use nama_plugin_api::{
     PluginError,
@@ -316,7 +319,7 @@ impl LinkedHub {
     }
 
     /// Tells the Hub `addresses` are where clients reach the Server, and answers whether the Hub
-    /// reached its public port, if it has one.
+    /// reached its public port, if it has one, and the names it gave the Server, if any.
     pub(crate) async fn set_addresses(
         self,
         addresses: &ServerAddresses,
@@ -331,26 +334,27 @@ impl LinkedHub {
             .await
             .map_err(link_dropped)?
             .into_owned();
-        Ok(
-            (!checked.public_address.is_empty()).then_some(Reachability {
-                address: checked.public_address,
-                reachable: checked.reachable,
-            }),
-        )
+        let found = !checked.public_address.is_empty() || !checked.names.is_empty();
+        Ok(found.then_some(Reachability {
+            address: checked.public_address,
+            reachable: checked.reachable,
+            names: checked.names,
+        }))
     }
 
-    /// Records `events`, the Server's Viewing Events. An event the Hub finds invalid would be
-    /// refused again, so that counts as done, and they aren't kept forever.
+    /// Records `events`, the Server's Viewing Events.
     pub(crate) async fn record_viewing_events(
         self,
-        events: RecordViewingEventsRequest,
+        events: Vec<UserViewingEvent>,
     ) -> Result<(), PluginError> {
-        match self.client()?.record_viewing_events(events).await {
-            Err(err) if err.code != connectrpc::ErrorCode::InvalidArgument => {
-                Err(link_dropped(err))
-            }
-            _ => Ok(()),
-        }
+        (self.client()?)
+            .record_viewing_events(RecordViewingEventsRequest {
+                events,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(())
     }
 
     /// Starts a sign-in with an Account to the Server, which the Hub's page sends back to

@@ -4,24 +4,16 @@
 //! (ADR 0057).
 
 use std::{
-    future::Future,
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
     num::NonZeroU16,
-    sync::Arc,
     time::Duration,
 };
 
-use nama_plugin_api::{
-    PluginError, PluginId,
-    server_link::{Link, ServerAddresses, ServerLinker},
-};
-use tokio::{
-    sync::{oneshot, watch},
-    task::JoinHandle,
-};
+use nama_plugin_api::server_link::ServerAddresses;
+use tokio::{sync::watch, task::JoinHandle};
 use url::Url;
 
-use crate::{plugins::ExtensionPoints, port_mapping, server_settings::ServerUrl};
+use crate::{link::Linking, port_mapping, server_settings::ServerUrl};
 
 /// How often the Plugin is told, so it hears of a new LAN address, or tells a service it was just
 /// enabled or Linked to, within this long. It passes on only a change.
@@ -36,11 +28,11 @@ const OPEN_PORT_EVERY: u64 = port_mapping::LEASE.as_secs() / 2 / EVERY.as_secs()
 /// soon as `url_saves` wakes, since the service refuses a sign-in returning anywhere else: the
 /// Server URL `url` holds, the LAN address of `listening`, and the public port: `forwarded`,
 /// the one the Admin forwarded, or else one the Server opens on the router, only while such a
-/// Plugin has it Linked. Runs until the task is aborted; each call runs in the Plugin's scope, so
+/// Plugin has it Linked. Runs until the task is aborted; `linking` asks in the Plugin's scope, so
 /// disabling it or shutting down cancels and joins the call. A Plugin that fails shows it on its
 /// page.
 pub(crate) fn keep_telling(
-    points: ExtensionPoints,
+    linking: Linking,
     url: ServerUrl,
     mut url_saves: watch::Receiver<()>,
     listening: SocketAddr,
@@ -55,7 +47,7 @@ pub(crate) fn keep_telling(
                 // Err once the settings are dropped: the arm sits out and the minute still ticks.
                 Ok(()) = url_saves.changed() => {}
             }
-            let Some(plugin) = points.ranked::<dyn ServerLinker>().into_iter().next() else {
+            let Some(plugin) = linking.linking_plugin() else {
                 // So enabling it again opens the port at once, whose lease may have run out since.
                 opened = OpenedPort::default();
                 continue;
@@ -63,14 +55,14 @@ pub(crate) fn keep_telling(
             let lan = lan_address(listening);
             let public_port = match forwarded {
                 Some(port) => Some(port.get()),
-                None if linked(&points, &plugin).await => opened.port(lan).await,
+                None if linking.is_server_linked_by(&plugin).await => opened.port(lan).await,
                 None => {
                     // Shut while the Server isn't Linked, and opened at once when it is.
                     opened = OpenedPort::default();
                     None
                 }
             };
-            tell(&points, &plugin, addresses(&url, lan, public_port)).await;
+            (linking.tell_addresses(&plugin, addresses(&url, lan, public_port))).await;
         }
     })
 }
@@ -125,55 +117,6 @@ impl OpenedPort {
         self.tellings_left -= 1;
         self.port
     }
-}
-
-/// Tells `plugin` `addresses`, and waits until it answered or its scope was cancelled.
-async fn tell(points: &ExtensionPoints, plugin: &PluginId, addresses: ServerAddresses) {
-    ask_in_scope(points, plugin, move |linker| {
-        let addresses = addresses.clone();
-        async move { linker.set_addresses(addresses).await }
-    })
-    .await;
-}
-
-/// Whether `plugin` has the Server Linked. Not, if it fails to say.
-async fn linked(points: &ExtensionPoints, plugin: &PluginId) -> bool {
-    let link = ask_in_scope(points, plugin, |linker| async move { linker.link().await }).await;
-    matches!(link, Some(Link::Linked { .. }))
-}
-
-/// What `call` gets from `plugin`, the first enabled one that links the Server, asked in its
-/// scope. `None` once it failed, didn't answer within [`EVERY`], or its scope was cancelled.
-async fn ask_in_scope<R, F>(
-    points: &ExtensionPoints,
-    plugin: &PluginId,
-    call: impl Fn(Arc<dyn ServerLinker>) -> F + Send + Sync + 'static,
-) -> Option<R>
-where
-    R: Send + 'static,
-    F: Future<Output = Result<R, PluginError>> + Send,
-{
-    let (asking, asked) = (points.clone(), plugin.clone());
-    let (told, answered) = oneshot::channel();
-    let spawned = points.spawn_in(plugin, async move {
-        let answer = asking
-            .ask(&asked, |linker: Arc<dyn ServerLinker>| {
-                // Bounded, so a Plugin that never answers can't stop every later call.
-                let calling = tokio::time::timeout(EVERY, call(linker));
-                async move {
-                    calling
-                        .await
-                        .unwrap_or_else(|_elapsed| Err("it didn't answer in time".into()))
-                }
-            })
-            .await;
-        let _: Result<(), _> = told.send(answer.and_then(|answer| answer.result.ok()));
-    });
-    if !spawned {
-        return None;
-    }
-    // A cancelled scope drops the sender, which ends the wait as well.
-    answered.await.ok().flatten()
 }
 
 /// The Server URL `url` as `url` serialises it, or empty for none: ASCII throughout, so the service,

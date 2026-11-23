@@ -5,7 +5,7 @@ import { LinkService } from "@hub/gen/nama/hub/v1/link_pb";
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
-import { cleanup, configure, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
 const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
@@ -94,6 +94,19 @@ describe("an Account", () => {
     openHub("/");
 
     await expect(screen.findByRole("heading", { name: "Sign in" })).resolves.toBeDefined();
+  });
+
+  test.each([
+    ["/sign-in", false, "Sign in – Nama Hub"],
+    ["/create-account", false, "Create an Account – Nama Hub"],
+    ["/", true, "Your Account – Nama Hub"],
+    ["/nothing-here", false, "Page not found – Nama Hub"],
+  ])("%s names the browser tab", async (path, signedIn, title) => {
+    openHub(path, { signedIn });
+
+    await waitFor(() => {
+      expect(document.title).toBe(title);
+    });
   });
 
   test("signing in opens the Account page, with the email and a sign-out button", async () => {

@@ -1,3 +1,4 @@
+import { PageHeading } from "@hub/app/page-heading";
 import { SignedInElsewhere } from "@hub/features/account/components/signed-in-elsewhere";
 import type { Account } from "@hub/gen/nama/hub/v1/account_pb";
 import { Button } from "nama-ui/components/button";
@@ -19,7 +20,7 @@ export function SignInWithLink({
 }) {
   return (
     <>
-      <h1 className="text-center text-3xl font-medium tracking-tight text-balance">Sign in</h1>
+      <PageHeading>Sign in</PageHeading>
       <dl className="flex flex-col gap-1">
         <dt className="text-xs text-muted-foreground">Account</dt>
         <dd className="text-base break-all">{account.email}</dd>

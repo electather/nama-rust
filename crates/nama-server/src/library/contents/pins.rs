@@ -75,33 +75,36 @@ impl Contents {
         }))
     }
 
-    /// Replaces any pin the Items called `name` had, in one write with `decided`. Returns the
-    /// events for the Requests the Matches make Available or Partially Available, or `None`,
-    /// having stored nothing, if the Library is gone.
+    /// Replaces any pin the Items called each of `names` had with `pin`, in one write with
+    /// `decided`. Returns the events for the Requests the Matches make Available or Partially
+    /// Available, or `None`, having stored nothing, if the Library is gone.
     pub(crate) async fn pin(
         &self,
         library: i64,
-        name: Name,
+        names: Vec<Name>,
         pin: Pin,
         decided: impl Into<Decisions>,
     ) -> Result<Option<Vec<Event>>, sqlx::Error> {
         let decided = decided.into();
         self.db
-            .write(move |tx| Box::pin(store_pin(tx, library, name, pin, decided)))
+            .write(move |tx| Box::pin(store_pins(tx, library, names, pin, decided)))
             .await
     }
 }
 
-async fn store_pin(
+async fn store_pins(
     conn: &mut SqliteConnection,
     library: i64,
-    name: Name,
+    names: Vec<Name>,
     pin: Pin,
     decided: Decisions,
 ) -> Result<Option<Vec<Event>>, sqlx::Error> {
     let now = now();
-    if !insert_pin(conn, library, &name, &pin, now).await? {
-        return Ok(None);
+    for name in &names {
+        // Every name is of the one Library, so the first stores nothing only if each would not.
+        if !insert_pin(conn, library, name, &pin, now).await? {
+            return Ok(None);
+        }
     }
     insert_decisions(conn, decided, now).await.map(Some)
 }

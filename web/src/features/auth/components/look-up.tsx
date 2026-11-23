@@ -3,6 +3,7 @@ import { Button } from "nama-ui/components/button";
 
 import { CodeField } from "@/features/auth/components/code-field";
 import { codeErrors } from "@/features/auth/lib/sign-in-errors";
+import { PageTitle } from "@/shared/components/page-title";
 import { FormNotices } from "@/shared/components/sign-in-layout/form-notices";
 import { type FormErrors, formText, onSubmitted } from "@/shared/lib/forms";
 
@@ -30,6 +31,7 @@ export function LookUp({
         onSubmit(formText(typed, "signInCode"));
       })}
     >
+      <PageTitle name="Sign in a Device" />
       <h1 className="text-center text-3xl font-medium tracking-tight text-balance">
         Sign in a Device
       </h1>

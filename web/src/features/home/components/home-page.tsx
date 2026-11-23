@@ -2,11 +2,14 @@ import { ContinueWatching } from "@/features/home/components/continue-watching";
 import { FeaturedSection } from "@/features/home/components/featured-section";
 import { HomeLayout } from "@/features/home/components/home-layout";
 import { HomeRowSection } from "@/features/home/components/home-row-section";
+import { LibrarySection } from "@/features/home/components/library-section";
 import { useHomeRows } from "@/features/home/data/use-home-rows";
 import { KernelHomeRow } from "@/gen/nama/v1/browse_pb";
+import { PageTitle } from "@/shared/components/page-title";
 
 /**
- * Home: Featured, then its rows in the order the Server lists them, each loading on its own.
+ * Home: Featured, its Libraries, then its rows in the order the Server lists them, each loading on
+ * its own.
  * Featured, Continue Watching and the first Plugin row load at once wherever they sit; each
  * later Plugin row loads as you scroll near it. A Kernel row this app doesn't know, from a newer
  * Server, shows nothing.
@@ -18,6 +21,8 @@ export function HomePage() {
   const firstPluginRow = rows.findIndex(({ kernelOrPlugin }) => kernelOrPlugin.case === "plugin");
   return (
     <HomeLayout hero={<FeaturedSection />}>
+      <PageTitle name="Home" />
+      <LibrarySection />
       {rows.map(({ kernelOrPlugin }, index) => {
         if (kernelOrPlugin.case === "plugin") {
           const row = kernelOrPlugin.value;

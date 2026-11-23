@@ -27,6 +27,7 @@ export function MovieToRequest({ movieId, you }: { movieId: ExternalId; you: big
   const directors = crewWithJob(movie.crew, "Director");
   return (
     <TitlePage
+      name={movie.title}
       hero={
         <TitleTop
           title={movie}

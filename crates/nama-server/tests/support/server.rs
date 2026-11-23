@@ -459,54 +459,75 @@ impl TestServer {
         library
     }
 
-    /// [`Self::library`] without the scan, for a test that watches or times the scan itself.
+    /// [`Self::library`] with `files` left unscanned, for a test that watches or times the scan
+    /// itself: they're written only once the scan creating the Library has Matched.
     pub(crate) async fn create_library(&self, kind: LibraryKind, files: &[&str]) -> Library {
         self.create_library_searching(kind, files, &[]).await
     }
 
     /// [`Self::create_library`], searching the title sources `title_sources` names in order, or
     /// TMDB alone if it names none.
-    #[expect(
-        clippy::unwrap_used,
-        reason = "a test helper fails its test by panicking"
-    )]
     pub(crate) async fn create_library_searching(
         &self,
         kind: LibraryKind,
         files: &[&str],
         title_sources: &[&str],
     ) -> Library {
+        let library = self.library_holding(kind, &[], title_sources).await;
+        library.add(files);
+        library
+    }
+
+    /// Creates a Library of `kind` searching `title_sources`, or TMDB alone, as the Admin, over a
+    /// fresh folder holding stand-in videos at `files`, returning once its first scan Matched them.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) async fn library_holding(
+        &self,
+        kind: LibraryKind,
+        files: &[&str],
+        title_sources: &[&str],
+    ) -> Library {
         let dir = tempfile::tempdir().unwrap();
-        // The Server stores and sends a folder's canonical path, which a temp dir's may not be.
-        let folder = dir.path().canonicalize().unwrap();
-        let path = folder.to_str().unwrap();
-        let id = self
-            .libraries()
-            .create_library(CreateLibraryRequest {
-                // Named after its folder, as a test may create more than one.
-                name: path.to_owned(),
-                kind: kind.into(),
-                folders: vec![path.to_owned()],
-                title_sources: title_sources
-                    .iter()
-                    .map(|&source| source.to_owned())
-                    .collect(),
-                ..Default::default()
-            })
-            .await
-            .unwrap()
-            .into_owned()
-            .library
-            .into_option()
-            .unwrap()
-            .id;
-        let library = Library {
-            id,
-            folder,
+        // Its id once created: the files go in first, for the scan creating it to find. The Server
+        // stores and sends a folder's canonical path, which a temp dir's may not be.
+        let mut library = Library {
+            id: 0,
+            folder: dir.path().canonicalize().unwrap(),
             _dir: dir,
         };
         library.add(files);
+        let path = library.folder.to_str().unwrap();
+        let request = CreateLibraryRequest {
+            // Named after its folder, as a test may create more than one.
+            name: path.to_owned(),
+            kind: kind.into(),
+            folders: vec![path.to_owned()],
+            title_sources: title_sources.iter().map(ToString::to_string).collect(),
+            ..Default::default()
+        };
+        library.id = self.create_and_match(request).await;
         library
+    }
+
+    /// Creates a Library as the Admin as `request` asks, and returns its id once the scan creating
+    /// it starts has finished Matching.
+    #[expect(
+        clippy::unwrap_used,
+        reason = "a test helper fails its test by panicking"
+    )]
+    pub(crate) async fn create_and_match(&self, request: CreateLibraryRequest) -> i64 {
+        let matched = [EventType::EVENT_TYPE_MATCHING_FINISHED];
+        let mut events = subscribe(&self.client_config(), &matched).await;
+        let created = self.libraries().create_library(request).await.unwrap();
+        let id = created.into_owned().library.into_option().unwrap().id;
+        while !matches!(
+            events.next().await,
+            event::Event::MatchingFinished(finished) if finished.library_id == id
+        ) {}
+        id
     }
 
     /// Starts scanning the Library `id` as the Admin, without waiting for the scan.

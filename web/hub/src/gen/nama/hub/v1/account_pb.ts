@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/hub/v1/account.proto.
  */
 export const file_nama_hub_v1_account: GenFile = /*@__PURE__*/
-  fileDesc("ChluYW1hL2h1Yi92MS9hY2NvdW50LnByb3RvEgtuYW1hLmh1Yi52MSIkCgdBY2NvdW50EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJIjcKFENyZWF0ZUFjY291bnRSZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIj4KFUNyZWF0ZUFjY291bnRSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudCIwCg1TaWduSW5SZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIjcKDlNpZ25JblJlc3BvbnNlEiUKB2FjY291bnQYASABKAsyFC5uYW1hLmh1Yi52MS5BY2NvdW50IjsKFVNlbmRTaWduSW5MaW5rUmVxdWVzdBINCgVlbWFpbBgBIAEoCRITCgtjb250aW51ZV90bxgCIAEoCSIYChZTZW5kU2lnbkluTGlua1Jlc3BvbnNlIiUKFEdldFNpZ25JbkxpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFUdldFNpZ25JbkxpbmtSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudBIUCgxlbWFpbF9wcm92ZW4YAiABKAgiJgoVU2lnbkluV2l0aExpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFlNpZ25JbldpdGhMaW5rUmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQSEwoLY29udGludWVfdG8YAiABKAkiJgoSU2V0UGFzc3dvcmRSZXF1ZXN0EhAKCHBhc3N3b3JkGAEgASgJIhUKE1NldFBhc3N3b3JkUmVzcG9uc2UiFgoURGVsZXRlQWNjb3VudFJlcXVlc3QiFwoVRGVsZXRlQWNjb3VudFJlc3BvbnNlIhAKDlNpZ25PdXRSZXF1ZXN0IhEKD1NpZ25PdXRSZXNwb25zZSITChFHZXRBY2NvdW50UmVxdWVzdCJRChJHZXRBY2NvdW50UmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQSFAoMaGFzX3Bhc3N3b3JkGAIgASgIMv0FCg5BY2NvdW50U2VydmljZRJWCg1DcmVhdGVBY2NvdW50EiEubmFtYS5odWIudjEuQ3JlYXRlQWNjb3VudFJlcXVlc3QaIi5uYW1hLmh1Yi52MS5DcmVhdGVBY2NvdW50UmVzcG9uc2USQQoGU2lnbkluEhoubmFtYS5odWIudjEuU2lnbkluUmVxdWVzdBobLm5hbWEuaHViLnYxLlNpZ25JblJlc3BvbnNlElkKDlNlbmRTaWduSW5MaW5rEiIubmFtYS5odWIudjEuU2VuZFNpZ25JbkxpbmtSZXF1ZXN0GiMubmFtYS5odWIudjEuU2VuZFNpZ25JbkxpbmtSZXNwb25zZRJWCg1HZXRTaWduSW5MaW5rEiEubmFtYS5odWIudjEuR2V0U2lnbkluTGlua1JlcXVlc3QaIi5uYW1hLmh1Yi52MS5HZXRTaWduSW5MaW5rUmVzcG9uc2USWQoOU2lnbkluV2l0aExpbmsSIi5uYW1hLmh1Yi52MS5TaWduSW5XaXRoTGlua1JlcXVlc3QaIy5uYW1hLmh1Yi52MS5TaWduSW5XaXRoTGlua1Jlc3BvbnNlElAKC1NldFBhc3N3b3JkEh8ubmFtYS5odWIudjEuU2V0UGFzc3dvcmRSZXF1ZXN0GiAubmFtYS5odWIudjEuU2V0UGFzc3dvcmRSZXNwb25zZRJWCg1EZWxldGVBY2NvdW50EiEubmFtYS5odWIudjEuRGVsZXRlQWNjb3VudFJlcXVlc3QaIi5uYW1hLmh1Yi52MS5EZWxldGVBY2NvdW50UmVzcG9uc2USRAoHU2lnbk91dBIbLm5hbWEuaHViLnYxLlNpZ25PdXRSZXF1ZXN0GhwubmFtYS5odWIudjEuU2lnbk91dFJlc3BvbnNlElIKCkdldEFjY291bnQSHi5uYW1hLmh1Yi52MS5HZXRBY2NvdW50UmVxdWVzdBofLm5hbWEuaHViLnYxLkdldEFjY291bnRSZXNwb25zZSIDkAIBYgZwcm90bzM");
+  fileDesc("ChluYW1hL2h1Yi92MS9hY2NvdW50LnByb3RvEgtuYW1hLmh1Yi52MSIkCgdBY2NvdW50EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJIjcKFENyZWF0ZUFjY291bnRSZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIj4KFUNyZWF0ZUFjY291bnRSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudCIwCg1TaWduSW5SZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIjcKDlNpZ25JblJlc3BvbnNlEiUKB2FjY291bnQYASABKAsyFC5uYW1hLmh1Yi52MS5BY2NvdW50IjsKFVNlbmRTaWduSW5MaW5rUmVxdWVzdBINCgVlbWFpbBgBIAEoCRITCgtjb250aW51ZV90bxgCIAEoCSIYChZTZW5kU2lnbkluTGlua1Jlc3BvbnNlIiUKFEdldFNpZ25JbkxpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFUdldFNpZ25JbkxpbmtSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudBIUCgxlbWFpbF9wcm92ZW4YAiABKAgiJgoVU2lnbkluV2l0aExpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFlNpZ25JbldpdGhMaW5rUmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQSEwoLY29udGludWVfdG8YAiABKAkiJgoSU2V0UGFzc3dvcmRSZXF1ZXN0EhAKCHBhc3N3b3JkGAEgASgJIhUKE1NldFBhc3N3b3JkUmVzcG9uc2UiFgoURGVsZXRlQWNjb3VudFJlcXVlc3QiFwoVRGVsZXRlQWNjb3VudFJlc3BvbnNlIhAKDlNpZ25PdXRSZXF1ZXN0IhEKD1NpZ25PdXRSZXNwb25zZSITChFHZXRBY2NvdW50UmVxdWVzdCJRChJHZXRBY2NvdW50UmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQSFAoMaGFzX3Bhc3N3b3JkGAIgASgIIiMKB1Bhc3NrZXkSCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCSIbChlTdGFydFBhc3NrZXlTaWduSW5SZXF1ZXN0Ij4KGlN0YXJ0UGFzc2tleVNpZ25JblJlc3BvbnNlEhEKCWNoYWxsZW5nZRgBIAEoDBINCgVycF9pZBgCIAEoCSKPAQoYU2lnbkluV2l0aFBhc3NrZXlSZXF1ZXN0EhUKDWNyZWRlbnRpYWxfaWQYASABKAwSGAoQY2xpZW50X2RhdGFfanNvbhgCIAEoDBIaChJhdXRoZW50aWNhdG9yX2RhdGEYAyABKAwSEQoJc2lnbmF0dXJlGAQgASgMEhMKC3VzZXJfaGFuZGxlGAUgASgMIkIKGVNpZ25JbldpdGhQYXNza2V5UmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQiGwoZU3RhcnRBZGRpbmdQYXNza2V5UmVxdWVzdCJvChpTdGFydEFkZGluZ1Bhc3NrZXlSZXNwb25zZRIRCgljaGFsbGVuZ2UYASABKAwSDQoFcnBfaWQYAiABKAkSDwoHdXNlcl9pZBgDIAEoDBIeChZleGNsdWRlX2NyZWRlbnRpYWxfaWRzGAQgAygMIoQBChFBZGRQYXNza2V5UmVxdWVzdBIMCgRuYW1lGAEgASgJEhUKDWNyZWRlbnRpYWxfaWQYAiABKAwSGAoQY2xpZW50X2RhdGFfanNvbhgDIAEoDBISCgpwdWJsaWNfa2V5GAQgASgMEhwKFHB1YmxpY19rZXlfYWxnb3JpdGhtGAUgASgRIjsKEkFkZFBhc3NrZXlSZXNwb25zZRIlCgdwYXNza2V5GAEgASgLMhQubmFtYS5odWIudjEuUGFzc2tleSIVChNMaXN0UGFzc2tleXNSZXF1ZXN0Ij4KFExpc3RQYXNza2V5c1Jlc3BvbnNlEiYKCHBhc3NrZXlzGAEgAygLMhQubmFtYS5odWIudjEuUGFzc2tleSIqChRSZW1vdmVQYXNza2V5UmVxdWVzdBISCgpwYXNza2V5X2lkGAEgASgJIhcKFVJlbW92ZVBhc3NrZXlSZXNwb25zZSJNCgdTZXNzaW9uEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSFAoMbGFzdF91c2VkX2F0GAMgASgDEhIKCmlzX2N1cnJlbnQYBCABKAgiFQoTTGlzdFNlc3Npb25zUmVxdWVzdCI+ChRMaXN0U2Vzc2lvbnNSZXNwb25zZRImCghzZXNzaW9ucxgBIAMoCzIULm5hbWEuaHViLnYxLlNlc3Npb24iKwoVU2lnbk91dFNlc3Npb25SZXF1ZXN0EhIKCnNlc3Npb25faWQYASABKAkiGAoWU2lnbk91dFNlc3Npb25SZXNwb25zZSIdChtTaWduT3V0T3RoZXJTZXNzaW9uc1JlcXVlc3QiHgocU2lnbk91dE90aGVyU2Vzc2lvbnNSZXNwb25zZTLSDAoOQWNjb3VudFNlcnZpY2USVgoNQ3JlYXRlQWNjb3VudBIhLm5hbWEuaHViLnYxLkNyZWF0ZUFjY291bnRSZXF1ZXN0GiIubmFtYS5odWIudjEuQ3JlYXRlQWNjb3VudFJlc3BvbnNlEkEKBlNpZ25JbhIaLm5hbWEuaHViLnYxLlNpZ25JblJlcXVlc3QaGy5uYW1hLmh1Yi52MS5TaWduSW5SZXNwb25zZRJZCg5TZW5kU2lnbkluTGluaxIiLm5hbWEuaHViLnYxLlNlbmRTaWduSW5MaW5rUmVxdWVzdBojLm5hbWEuaHViLnYxLlNlbmRTaWduSW5MaW5rUmVzcG9uc2USVgoNR2V0U2lnbkluTGluaxIhLm5hbWEuaHViLnYxLkdldFNpZ25JbkxpbmtSZXF1ZXN0GiIubmFtYS5odWIudjEuR2V0U2lnbkluTGlua1Jlc3BvbnNlElkKDlNpZ25JbldpdGhMaW5rEiIubmFtYS5odWIudjEuU2lnbkluV2l0aExpbmtSZXF1ZXN0GiMubmFtYS5odWIudjEuU2lnbkluV2l0aExpbmtSZXNwb25zZRJQCgtTZXRQYXNzd29yZBIfLm5hbWEuaHViLnYxLlNldFBhc3N3b3JkUmVxdWVzdBogLm5hbWEuaHViLnYxLlNldFBhc3N3b3JkUmVzcG9uc2USVgoNRGVsZXRlQWNjb3VudBIhLm5hbWEuaHViLnYxLkRlbGV0ZUFjY291bnRSZXF1ZXN0GiIubmFtYS5odWIudjEuRGVsZXRlQWNjb3VudFJlc3BvbnNlEkQKB1NpZ25PdXQSGy5uYW1hLmh1Yi52MS5TaWduT3V0UmVxdWVzdBocLm5hbWEuaHViLnYxLlNpZ25PdXRSZXNwb25zZRJSCgpHZXRBY2NvdW50Eh4ubmFtYS5odWIudjEuR2V0QWNjb3VudFJlcXVlc3QaHy5uYW1hLmh1Yi52MS5HZXRBY2NvdW50UmVzcG9uc2UiA5ACARJlChJTdGFydFBhc3NrZXlTaWduSW4SJi5uYW1hLmh1Yi52MS5TdGFydFBhc3NrZXlTaWduSW5SZXF1ZXN0GicubmFtYS5odWIudjEuU3RhcnRQYXNza2V5U2lnbkluUmVzcG9uc2USYgoRU2lnbkluV2l0aFBhc3NrZXkSJS5uYW1hLmh1Yi52MS5TaWduSW5XaXRoUGFzc2tleVJlcXVlc3QaJi5uYW1hLmh1Yi52MS5TaWduSW5XaXRoUGFzc2tleVJlc3BvbnNlEmUKElN0YXJ0QWRkaW5nUGFzc2tleRImLm5hbWEuaHViLnYxLlN0YXJ0QWRkaW5nUGFzc2tleVJlcXVlc3QaJy5uYW1hLmh1Yi52MS5TdGFydEFkZGluZ1Bhc3NrZXlSZXNwb25zZRJNCgpBZGRQYXNza2V5Eh4ubmFtYS5odWIudjEuQWRkUGFzc2tleVJlcXVlc3QaHy5uYW1hLmh1Yi52MS5BZGRQYXNza2V5UmVzcG9uc2USWAoMTGlzdFBhc3NrZXlzEiAubmFtYS5odWIudjEuTGlzdFBhc3NrZXlzUmVxdWVzdBohLm5hbWEuaHViLnYxLkxpc3RQYXNza2V5c1Jlc3BvbnNlIgOQAgESVgoNUmVtb3ZlUGFzc2tleRIhLm5hbWEuaHViLnYxLlJlbW92ZVBhc3NrZXlSZXF1ZXN0GiIubmFtYS5odWIudjEuUmVtb3ZlUGFzc2tleVJlc3BvbnNlElgKDExpc3RTZXNzaW9ucxIgLm5hbWEuaHViLnYxLkxpc3RTZXNzaW9uc1JlcXVlc3QaIS5uYW1hLmh1Yi52MS5MaXN0U2Vzc2lvbnNSZXNwb25zZSIDkAIBElkKDlNpZ25PdXRTZXNzaW9uEiIubmFtYS5odWIudjEuU2lnbk91dFNlc3Npb25SZXF1ZXN0GiMubmFtYS5odWIudjEuU2lnbk91dFNlc3Npb25SZXNwb25zZRJrChRTaWduT3V0T3RoZXJTZXNzaW9ucxIoLm5hbWEuaHViLnYxLlNpZ25PdXRPdGhlclNlc3Npb25zUmVxdWVzdBopLm5hbWEuaHViLnYxLlNpZ25PdXRPdGhlclNlc3Npb25zUmVzcG9uc2ViBnByb3RvMw");
 
 /**
  * A person's identity on the Hub.
@@ -374,9 +374,471 @@ export const GetAccountResponseSchema: GenMessage<GetAccountResponse> = /*@__PUR
   messageDesc(file_nama_hub_v1_account, 18);
 
 /**
- * Creating an Account, and signing it in and out, for the Hub's web pages. A session is an
- * HttpOnly `SameSite=Strict` cookie (ADR 0015), never in a response body. Failures a client can
- * cause carry a `nama.hub.v1.Refusal`.
+ * One of an Account's passkeys.
+ *
+ * @generated from message nama.hub.v1.Passkey
+ */
+export type Passkey = Message<"nama.hub.v1.Passkey"> & {
+  /**
+   * The passkey's id on the Hub, a UUID. Not its WebAuthn credential id.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * What the Account named it, such as "Phone".
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.Passkey.
+ * Use `create(PasskeySchema)` to create a new message.
+ */
+export const PasskeySchema: GenMessage<Passkey> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 19);
+
+/**
+ * @generated from message nama.hub.v1.StartPasskeySignInRequest
+ */
+export type StartPasskeySignInRequest = Message<"nama.hub.v1.StartPasskeySignInRequest"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.StartPasskeySignInRequest.
+ * Use `create(StartPasskeySignInRequestSchema)` to create a new message.
+ */
+export const StartPasskeySignInRequestSchema: GenMessage<StartPasskeySignInRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 20);
+
+/**
+ * @generated from message nama.hub.v1.StartPasskeySignInResponse
+ */
+export type StartPasskeySignInResponse = Message<"nama.hub.v1.StartPasskeySignInResponse"> & {
+  /**
+   * `PublicKeyCredentialRequestOptions.challenge`.
+   *
+   * @generated from field: bytes challenge = 1;
+   */
+  challenge: Uint8Array;
+
+  /**
+   * `PublicKeyCredentialRequestOptions.rpId`: the host of the Hub's public address.
+   *
+   * @generated from field: string rp_id = 2;
+   */
+  rpId: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.StartPasskeySignInResponse.
+ * Use `create(StartPasskeySignInResponseSchema)` to create a new message.
+ */
+export const StartPasskeySignInResponseSchema: GenMessage<StartPasskeySignInResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 21);
+
+/**
+ * What `navigator.credentials.get()` gave, from its `PublicKeyCredential`.
+ *
+ * @generated from message nama.hub.v1.SignInWithPasskeyRequest
+ */
+export type SignInWithPasskeyRequest = Message<"nama.hub.v1.SignInWithPasskeyRequest"> & {
+  /**
+   * `rawId`.
+   *
+   * @generated from field: bytes credential_id = 1;
+   */
+  credentialId: Uint8Array;
+
+  /**
+   * `response.clientDataJSON`.
+   *
+   * @generated from field: bytes client_data_json = 2;
+   */
+  clientDataJson: Uint8Array;
+
+  /**
+   * `response.authenticatorData`.
+   *
+   * @generated from field: bytes authenticator_data = 3;
+   */
+  authenticatorData: Uint8Array;
+
+  /**
+   * `response.signature`.
+   *
+   * @generated from field: bytes signature = 4;
+   */
+  signature: Uint8Array;
+
+  /**
+   * `response.userHandle`, or empty when it is null.
+   *
+   * @generated from field: bytes user_handle = 5;
+   */
+  userHandle: Uint8Array;
+};
+
+/**
+ * Describes the message nama.hub.v1.SignInWithPasskeyRequest.
+ * Use `create(SignInWithPasskeyRequestSchema)` to create a new message.
+ */
+export const SignInWithPasskeyRequestSchema: GenMessage<SignInWithPasskeyRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 22);
+
+/**
+ * @generated from message nama.hub.v1.SignInWithPasskeyResponse
+ */
+export type SignInWithPasskeyResponse = Message<"nama.hub.v1.SignInWithPasskeyResponse"> & {
+  /**
+   * The Account just signed in.
+   *
+   * @generated from field: nama.hub.v1.Account account = 1;
+   */
+  account?: Account | undefined;
+};
+
+/**
+ * Describes the message nama.hub.v1.SignInWithPasskeyResponse.
+ * Use `create(SignInWithPasskeyResponseSchema)` to create a new message.
+ */
+export const SignInWithPasskeyResponseSchema: GenMessage<SignInWithPasskeyResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 23);
+
+/**
+ * @generated from message nama.hub.v1.StartAddingPasskeyRequest
+ */
+export type StartAddingPasskeyRequest = Message<"nama.hub.v1.StartAddingPasskeyRequest"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.StartAddingPasskeyRequest.
+ * Use `create(StartAddingPasskeyRequestSchema)` to create a new message.
+ */
+export const StartAddingPasskeyRequestSchema: GenMessage<StartAddingPasskeyRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 24);
+
+/**
+ * The parts of `PublicKeyCredentialCreationOptions` only the Hub knows. The page asks for
+ * algorithms ES256 (-7) and RS256 (-257), the only ones the Hub checks, a resident key, and user
+ * verification `preferred`.
+ *
+ * @generated from message nama.hub.v1.StartAddingPasskeyResponse
+ */
+export type StartAddingPasskeyResponse = Message<"nama.hub.v1.StartAddingPasskeyResponse"> & {
+  /**
+   * `challenge`.
+   *
+   * @generated from field: bytes challenge = 1;
+   */
+  challenge: Uint8Array;
+
+  /**
+   * `rp.id`: the host of the Hub's public address.
+   *
+   * @generated from field: string rp_id = 2;
+   */
+  rpId: string;
+
+  /**
+   * `user.id`: the same for every passkey of the Account.
+   *
+   * @generated from field: bytes user_id = 3;
+   */
+  userId: Uint8Array;
+
+  /**
+   * `excludeCredentials`' ids: the Account's passkeys, so a browser doesn't add one twice.
+   *
+   * @generated from field: repeated bytes exclude_credential_ids = 4;
+   */
+  excludeCredentialIds: Uint8Array[];
+};
+
+/**
+ * Describes the message nama.hub.v1.StartAddingPasskeyResponse.
+ * Use `create(StartAddingPasskeyResponseSchema)` to create a new message.
+ */
+export const StartAddingPasskeyResponseSchema: GenMessage<StartAddingPasskeyResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 25);
+
+/**
+ * What `navigator.credentials.create()` gave, from its `PublicKeyCredential`, and the name.
+ *
+ * @generated from message nama.hub.v1.AddPasskeyRequest
+ */
+export type AddPasskeyRequest = Message<"nama.hub.v1.AddPasskeyRequest"> & {
+  /**
+   * 1 to 64 characters, once spaces at either end are trimmed.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * `rawId`.
+   *
+   * @generated from field: bytes credential_id = 2;
+   */
+  credentialId: Uint8Array;
+
+  /**
+   * `response.clientDataJSON`.
+   *
+   * @generated from field: bytes client_data_json = 3;
+   */
+  clientDataJson: Uint8Array;
+
+  /**
+   * `response.getPublicKey()`: a DER SubjectPublicKeyInfo.
+   *
+   * @generated from field: bytes public_key = 4;
+   */
+  publicKey: Uint8Array;
+
+  /**
+   * `response.getPublicKeyAlgorithm()`: -7 or -257.
+   *
+   * @generated from field: sint32 public_key_algorithm = 5;
+   */
+  publicKeyAlgorithm: number;
+};
+
+/**
+ * Describes the message nama.hub.v1.AddPasskeyRequest.
+ * Use `create(AddPasskeyRequestSchema)` to create a new message.
+ */
+export const AddPasskeyRequestSchema: GenMessage<AddPasskeyRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 26);
+
+/**
+ * @generated from message nama.hub.v1.AddPasskeyResponse
+ */
+export type AddPasskeyResponse = Message<"nama.hub.v1.AddPasskeyResponse"> & {
+  /**
+   * The passkey just added.
+   *
+   * @generated from field: nama.hub.v1.Passkey passkey = 1;
+   */
+  passkey?: Passkey | undefined;
+};
+
+/**
+ * Describes the message nama.hub.v1.AddPasskeyResponse.
+ * Use `create(AddPasskeyResponseSchema)` to create a new message.
+ */
+export const AddPasskeyResponseSchema: GenMessage<AddPasskeyResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 27);
+
+/**
+ * @generated from message nama.hub.v1.ListPasskeysRequest
+ */
+export type ListPasskeysRequest = Message<"nama.hub.v1.ListPasskeysRequest"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.ListPasskeysRequest.
+ * Use `create(ListPasskeysRequestSchema)` to create a new message.
+ */
+export const ListPasskeysRequestSchema: GenMessage<ListPasskeysRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 28);
+
+/**
+ * @generated from message nama.hub.v1.ListPasskeysResponse
+ */
+export type ListPasskeysResponse = Message<"nama.hub.v1.ListPasskeysResponse"> & {
+  /**
+   * @generated from field: repeated nama.hub.v1.Passkey passkeys = 1;
+   */
+  passkeys: Passkey[];
+};
+
+/**
+ * Describes the message nama.hub.v1.ListPasskeysResponse.
+ * Use `create(ListPasskeysResponseSchema)` to create a new message.
+ */
+export const ListPasskeysResponseSchema: GenMessage<ListPasskeysResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 29);
+
+/**
+ * @generated from message nama.hub.v1.RemovePasskeyRequest
+ */
+export type RemovePasskeyRequest = Message<"nama.hub.v1.RemovePasskeyRequest"> & {
+  /**
+   * The `Passkey.id`.
+   *
+   * @generated from field: string passkey_id = 1;
+   */
+  passkeyId: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.RemovePasskeyRequest.
+ * Use `create(RemovePasskeyRequestSchema)` to create a new message.
+ */
+export const RemovePasskeyRequestSchema: GenMessage<RemovePasskeyRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 30);
+
+/**
+ * @generated from message nama.hub.v1.RemovePasskeyResponse
+ */
+export type RemovePasskeyResponse = Message<"nama.hub.v1.RemovePasskeyResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.RemovePasskeyResponse.
+ * Use `create(RemovePasskeyResponseSchema)` to create a new message.
+ */
+export const RemovePasskeyResponseSchema: GenMessage<RemovePasskeyResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 31);
+
+/**
+ * One place the Account is signed in: a browser's session.
+ *
+ * @generated from message nama.hub.v1.Session
+ */
+export type Session = Message<"nama.hub.v1.Session"> & {
+  /**
+   * The session's id, a UUID. Never its token.
+   *
+   * @generated from field: string id = 1;
+   */
+  id: string;
+
+  /**
+   * The browser and OS it was last used from, read from its `User-Agent`, such as "Firefox on
+   * Windows", or "Unknown browser".
+   *
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * When it was last used, in seconds since the Unix epoch, to within 5 minutes.
+   *
+   * @generated from field: int64 last_used_at = 3;
+   */
+  lastUsedAt: bigint;
+
+  /**
+   * Whether it's the calling session.
+   *
+   * @generated from field: bool is_current = 4;
+   */
+  isCurrent: boolean;
+};
+
+/**
+ * Describes the message nama.hub.v1.Session.
+ * Use `create(SessionSchema)` to create a new message.
+ */
+export const SessionSchema: GenMessage<Session> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 32);
+
+/**
+ * @generated from message nama.hub.v1.ListSessionsRequest
+ */
+export type ListSessionsRequest = Message<"nama.hub.v1.ListSessionsRequest"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.ListSessionsRequest.
+ * Use `create(ListSessionsRequestSchema)` to create a new message.
+ */
+export const ListSessionsRequestSchema: GenMessage<ListSessionsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 33);
+
+/**
+ * @generated from message nama.hub.v1.ListSessionsResponse
+ */
+export type ListSessionsResponse = Message<"nama.hub.v1.ListSessionsResponse"> & {
+  /**
+   * @generated from field: repeated nama.hub.v1.Session sessions = 1;
+   */
+  sessions: Session[];
+};
+
+/**
+ * Describes the message nama.hub.v1.ListSessionsResponse.
+ * Use `create(ListSessionsResponseSchema)` to create a new message.
+ */
+export const ListSessionsResponseSchema: GenMessage<ListSessionsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 34);
+
+/**
+ * @generated from message nama.hub.v1.SignOutSessionRequest
+ */
+export type SignOutSessionRequest = Message<"nama.hub.v1.SignOutSessionRequest"> & {
+  /**
+   * The `Session.id`.
+   *
+   * @generated from field: string session_id = 1;
+   */
+  sessionId: string;
+};
+
+/**
+ * Describes the message nama.hub.v1.SignOutSessionRequest.
+ * Use `create(SignOutSessionRequestSchema)` to create a new message.
+ */
+export const SignOutSessionRequestSchema: GenMessage<SignOutSessionRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 35);
+
+/**
+ * @generated from message nama.hub.v1.SignOutSessionResponse
+ */
+export type SignOutSessionResponse = Message<"nama.hub.v1.SignOutSessionResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.SignOutSessionResponse.
+ * Use `create(SignOutSessionResponseSchema)` to create a new message.
+ */
+export const SignOutSessionResponseSchema: GenMessage<SignOutSessionResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 36);
+
+/**
+ * @generated from message nama.hub.v1.SignOutOtherSessionsRequest
+ */
+export type SignOutOtherSessionsRequest = Message<"nama.hub.v1.SignOutOtherSessionsRequest"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.SignOutOtherSessionsRequest.
+ * Use `create(SignOutOtherSessionsRequestSchema)` to create a new message.
+ */
+export const SignOutOtherSessionsRequestSchema: GenMessage<SignOutOtherSessionsRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 37);
+
+/**
+ * @generated from message nama.hub.v1.SignOutOtherSessionsResponse
+ */
+export type SignOutOtherSessionsResponse = Message<"nama.hub.v1.SignOutOtherSessionsResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.SignOutOtherSessionsResponse.
+ * Use `create(SignOutOtherSessionsResponseSchema)` to create a new message.
+ */
+export const SignOutOtherSessionsResponseSchema: GenMessage<SignOutOtherSessionsResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 38);
+
+/**
+ * Creating an Account, signing it in and out, and its passkeys, for the Hub's web pages. A session
+ * is an HttpOnly `SameSite=Strict` cookie (ADR 0015), never in a response body. Failures a client
+ * can cause carry a `nama.hub.v1.Refusal`.
+ *
+ * Passkeys are WebAuthn credentials for the Hub's public address, `NAMA_HUB_PUBLIC_URL`. Without
+ * one, the passkey calls fail with `REFUSAL_REASON_PASSKEYS_OFF`. A challenge a `Start…` call
+ * returns works once, for 5 minutes.
+ *
+ * Adding or removing a passkey, and signing out other sessions, need Recent Authentication: the
+ * session signed in within the last 10 minutes. Without it, those calls fail with
+ * `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` before anything in the request is checked, and
+ * signing in again gives it.
  *
  * @generated from service nama.hub.v1.AccountService
  */
@@ -493,6 +955,105 @@ export const AccountService: GenService<{
     methodKind: "unary";
     input: typeof GetAccountRequestSchema;
     output: typeof GetAccountResponseSchema;
+  },
+  /**
+   * Starts signing in with a passkey, for `navigator.credentials.get()`, with no email: the
+   * browser offers the passkeys it has for the Hub.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.StartPasskeySignIn
+   */
+  startPasskeySignIn: {
+    methodKind: "unary";
+    input: typeof StartPasskeySignInRequestSchema;
+    output: typeof StartPasskeySignInResponseSchema;
+  },
+  /**
+   * Signs in the Account whose passkey signed the challenge. Fails with
+   * `REFUSAL_REASON_PASSKEY_NOT_ACCEPTED` when no Account has the passkey or its answer doesn't
+   * check out, such as one for a used or expired challenge.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.SignInWithPasskey
+   */
+  signInWithPasskey: {
+    methodKind: "unary";
+    input: typeof SignInWithPasskeyRequestSchema;
+    output: typeof SignInWithPasskeyResponseSchema;
+  },
+  /**
+   * Starts adding a passkey to the signed-in Account, for `navigator.credentials.create()`.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.StartAddingPasskey
+   */
+  startAddingPasskey: {
+    methodKind: "unary";
+    input: typeof StartAddingPasskeyRequestSchema;
+    output: typeof StartAddingPasskeyResponseSchema;
+  },
+  /**
+   * Adds the passkey the browser just created to the signed-in Account. Fails with
+   * `REFUSAL_REASON_PASSKEY_NAME_LENGTH` for a bad name, and `REFUSAL_REASON_PASSKEY_NOT_ACCEPTED`
+   * when the browser's answer doesn't check out or an Account has the passkey already.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.AddPasskey
+   */
+  addPasskey: {
+    methodKind: "unary";
+    input: typeof AddPasskeyRequestSchema;
+    output: typeof AddPasskeyResponseSchema;
+  },
+  /**
+   * Lists the signed-in Account's passkeys, oldest first.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.ListPasskeys
+   */
+  listPasskeys: {
+    methodKind: "unary";
+    input: typeof ListPasskeysRequestSchema;
+    output: typeof ListPasskeysResponseSchema;
+  },
+  /**
+   * Removes one of the signed-in Account's passkeys. Fails with `REFUSAL_REASON_PASSKEY_NOT_FOUND`
+   * when it has none with the id, and `REFUSAL_REASON_LAST_SIGN_IN_METHOD` when the Account would
+   * have no other way to sign in.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.RemovePasskey
+   */
+  removePasskey: {
+    methodKind: "unary";
+    input: typeof RemovePasskeyRequestSchema;
+    output: typeof RemovePasskeyResponseSchema;
+  },
+  /**
+   * Lists the signed-in Account's live sessions: the calling one first, then the most recently
+   * used.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.ListSessions
+   */
+  listSessions: {
+    methodKind: "unary";
+    input: typeof ListSessionsRequestSchema;
+    output: typeof ListSessionsResponseSchema;
+  },
+  /**
+   * Ends one of the signed-in Account's other sessions, so its next request is signed out. An id
+   * naming no other live session of the Account, such as the calling one's, changes nothing.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.SignOutSession
+   */
+  signOutSession: {
+    methodKind: "unary";
+    input: typeof SignOutSessionRequestSchema;
+    output: typeof SignOutSessionResponseSchema;
+  },
+  /**
+   * Ends every session of the signed-in Account but the calling one.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.SignOutOtherSessions
+   */
+  signOutOtherSessions: {
+    methodKind: "unary";
+    input: typeof SignOutOtherSessionsRequestSchema;
+    output: typeof SignOutOtherSessionsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_hub_v1_account, 0);

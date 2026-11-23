@@ -3472,8 +3472,9 @@ pub const LINKED_SERVER_SERVICE_LIST_MOST_WATCHLISTED_TITLES_SPEC: ::connectrpc:
 /// example` doc.
 #[allow(clippy::type_complexity)]
 pub trait LinkedServerService: Send + Sync + 'static {
-    /// Unlinks the calling Server: its credential stops working at once, and it leaves its Account's
-    /// Servers.
+    /// Unlinks the calling Server: its credential stops working at once, it leaves its Account's
+    /// Servers, and its names are removed (ADR 0104). Fails, leaving the Server Linked, while the Hub
+    /// can't remove its names.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -3828,8 +3829,9 @@ pub trait LinkedServerService: Send + Sync + 'static {
     > + Send;
     /// Replaces the Server Addresses the calling Server reported before. The Server reports them
     /// whenever they change, and every half hour, since only then does the Hub check from outside
-    /// whether its `public_port` can be reached. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID`
-    /// for one that isn't an `http` or `https` URL, for too many, or for a port over 65535.
+    /// whether its `public_port` can be reached. Also names the Server after them (ADR 0104). Fails
+    /// with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an `http` or `https` URL, for
+    /// too many, or for a port over 65535, and fails while the Hub can't write the Server's names.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

@@ -6,9 +6,10 @@
 //! in `users.rs`, syncing their Watch State both ways in `watch_states.rs`, their Subtitle and
 //! Audio Preferences in `track_preferences.rs`, and their Watchlists in `watchlist.rs`, their plays
 //! as Viewing Events in `viewing.rs`, and signing in with an Account, and Users created from one,
-//! in `accounts.rs`.
+//! in `accounts.rs`. What goes to the Hub waits in a queue per kind, in `queue.rs`.
 
 mod accounts;
+pub(crate) mod queue;
 mod track_preferences;
 mod users;
 mod viewing;
@@ -23,6 +24,9 @@ use std::{
 };
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use nama_hub_proto::nama::hub::v1::{
+    TrackPreferenceChange as TrackPreferenceChangeProto, WatchStateChange as WatchStateChangeProto,
+};
 use nama_plugin_api::{
     BoxFuture, PluginError,
     automation::{
@@ -38,13 +42,15 @@ use nama_plugin_api::{
     },
 };
 use ring::digest;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use crate::{
     hub::{Hub, LinkDropped, LinkedHub, Polling},
     token::{self, Claims, Rejected},
 };
+
+use self::queue::Queue;
 
 pub(crate) use self::{
     track_preferences::TrackPreferenceSync,
@@ -142,24 +148,25 @@ pub(crate) struct Linker {
     waiting: Mutex<Option<Waiting>>,
     /// What the Plugin knows of each User's Link but what it keeps in the Store.
     users: std::sync::Mutex<HashMap<i64, users::UserState>>,
-    /// Held while a queue of Watch State or Track Preference changes is read and written, so none
-    /// is lost.
-    queue: Mutex<()>,
+    watch_states: Queue<WatchStateChangeProto>,
+    preferences: Queue<TrackPreferenceChangeProto>,
     /// Held across telling the Hub, so a report never overtakes another.
     reported: Mutex<Option<Reported>>,
-    /// What the Hub found of the Server's public port, with the [`Kept::id`] of the Link it found
-    /// it through. Apart from `reported`, so showing the Link never waits on a report.
+    /// What the Hub found of the Server's public port and the names it gave it, with the
+    /// [`Kept::id`] of the Link it found them through. Apart from `reported`, so showing the Link
+    /// never waits on a report.
     reachability: std::sync::Mutex<Option<(String, Reachability)>>,
 }
 
 impl Linker {
     pub(crate) fn new(hub: Hub, kernel: Arc<dyn Kernel>) -> Self {
         Self {
+            watch_states: Queue::new(Arc::clone(&kernel)),
+            preferences: Queue::new(Arc::clone(&kernel)),
             hub,
             kernel,
             waiting: Mutex::default(),
             users: std::sync::Mutex::default(),
-            queue: Mutex::default(),
             reported: Mutex::default(),
             reachability: std::sync::Mutex::default(),
         }
@@ -330,7 +337,8 @@ impl Linker {
         Ok(())
     }
 
-    /// What the Hub found of the Server's public port through the Link `kept`, if it checked one.
+    /// What the Hub found of the Server's public port and names through the Link `kept`, if it
+    /// answered a report.
     fn reachability(&self, kept: &Kept) -> Option<Reachability> {
         let found = self
             .reachability
@@ -386,7 +394,10 @@ impl Linker {
     }
 
     async fn kept(&self) -> Result<Option<Kept>, PluginError> {
-        self.stored_json(LINK_KEY).await
+        let Some(kept) = self.stored(LINK_KEY).await? else {
+            return Ok(None);
+        };
+        Ok(Some(serde_json::from_slice(&kept)?))
     }
 
     async fn keep(&self, kept: &Kept) -> Result<(), PluginError> {
@@ -402,24 +413,6 @@ impl Linker {
 
     async fn stored(&self, key: &str) -> Result<Option<Vec<u8>>, PluginError> {
         Ok(self.kernel.ask::<StoreGet>(store_key(key)).await?.value)
-    }
-
-    async fn stored_json<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>, PluginError> {
-        let Some(stored) = self.stored(key).await? else {
-            return Ok(None);
-        };
-        Ok(Some(serde_json::from_slice(&stored)?))
-    }
-
-    async fn put_json(&self, key: String, value: &impl Serialize) -> Result<(), PluginError> {
-        self.kernel
-            .ask::<StorePut>(StoreEntry {
-                key,
-                value: serde_json::to_vec(value)?,
-                ..Default::default()
-            })
-            .await?;
-        Ok(())
     }
 }
 

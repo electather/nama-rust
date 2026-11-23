@@ -85,9 +85,9 @@ use crate::{
     events::{EventBus, event},
     library::{
         Artwork, Contents, Decided, Decisions, Item, Libraries, LibraryError, METADATA_VERSION,
-        Metadata, Name, Named, NfoHints, Picked, Pin, Recognisers, ScanLock, ScanLocks,
+        Metadata, Name, Named, NfoHints, NotFound, Picked, Pin, Recognisers, ScanLock, ScanLocks,
         SimilarSources, Source, SourceEpisode, SourceSeason, SourceShow, TitleKind, TitleSources,
-        Unanswered, UnmatchedReason,
+        Titles, Unanswered, UnmatchedReason, known_as,
     },
     plugins::ExtensionPoints,
 };
@@ -127,6 +127,9 @@ pub(crate) enum ManualError {
     /// No title source is enabled, or one failed.
     #[error("no title source could answer")]
     Unavailable,
+    /// The Library, or the Movie or Show in it whose items to fix, isn't there.
+    #[error(transparent)]
+    NotFound(#[from] NotFound),
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -193,6 +196,37 @@ impl FromIterator<(i64, Result<Metadata, Miss>)> for Outcomes {
             items: iter.into_iter().collect(),
             seasons: Vec::new(),
         }
+    }
+}
+
+/// The items of one Library whose Match is fixed by hand at once, a name at a time, all Movies or
+/// all Episodes as `kind` says.
+struct ByHand {
+    library: i64,
+    kind: TitleKind,
+    names: Vec<Named>,
+}
+
+impl From<Named> for ByHand {
+    fn from(named: Named) -> Self {
+        Self {
+            library: named.library,
+            kind: named.name.kind(),
+            names: vec![named],
+        }
+    }
+}
+
+impl ByHand {
+    fn items(&self) -> impl Iterator<Item = &(i64, Item)> {
+        self.names.iter().flat_map(|named| &named.items)
+    }
+
+    /// Every item Unmatched, as clearing a Match by hand leaves it.
+    fn unmatched(&self) -> Outcomes {
+        (self.items())
+            .map(|&(alike, _)| (alike, Err(Miss::Unmatched(None))))
+            .collect()
     }
 }
 
@@ -314,20 +348,110 @@ impl Matcher {
             // The only other failure of a read is the Library being gone since its items were read.
             Err(_) => return Err(ManualError::NoSuchItem(item)),
         };
+        let fixing = ByHand::from(named);
+        let outcomes = self.decide_by_hand(&ordered, &fixing, id).await?;
+        let gone = ManualError::NoSuchItem(item);
+        (self.pin(fixing, Pin::Title(id.clone()), outcomes, gone)).await
+    }
+
+    /// Removes the Match of the item `item` and of every item named like it, and pins them
+    /// Unmatched, after any scan of its Library. Its images are deleted unless another Match
+    /// stores them.
+    pub(crate) async fn clear_match(&self, item: i64) -> Result<Summary, ManualError> {
+        let (_scan, named) = self.lock_named_like(item).await?;
+        let fixing = ByHand::from(named);
+        let outcomes = fixing.unmatched();
+        let gone = ManualError::NoSuchItem(item);
+        (self.pin(fixing, Pin::Unmatched, outcomes, gone)).await
+    }
+
+    /// Matches every item of the Library `library` Matched to the Movie or Show `title` to the
+    /// title `id`, as [`Matcher::set_match`] does, with every item named like one of them, and
+    /// pins each name they bear. Nothing changes unless every item could be decided.
+    pub(crate) async fn set_title_match(
+        &self,
+        library: i64,
+        title: &ExternalId,
+        id: &ExternalId,
+    ) -> Result<Summary, ManualError> {
+        let (_scan, ordered, fixing) = self.lock_matched_to(library, title).await?;
+        let outcomes = self.decide_by_hand(&ordered, &fixing, id).await?;
+        let gone = NotFound::NoSuchLibrary(library).into();
+        (self.pin(fixing, Pin::Title(id.clone()), outcomes, gone)).await
+    }
+
+    /// Clears the Match of every item of the Library `library` Matched to the Movie or Show
+    /// `title`, as [`Matcher::clear_match`] does, with every item named like one of them.
+    pub(crate) async fn clear_title_match(
+        &self,
+        library: i64,
+        title: &ExternalId,
+    ) -> Result<Summary, ManualError> {
+        let (_scan, _, fixing) = self.lock_matched_to(library, title).await?;
+        let outcomes = fixing.unmatched();
+        let gone = NotFound::NoSuchLibrary(library).into();
+        (self.pin(fixing, Pin::Unmatched, outcomes, gone)).await
+    }
+
+    /// The items of the Library `library` Matched to the Movie or Show `title`, found by any of
+    /// its ids as browsing finds it, with every item named like one of them, after any scan of
+    /// the Library, and the Library's title sources in its order.
+    async fn lock_matched_to(
+        &self,
+        library: i64,
+        title: &ExternalId,
+    ) -> Result<(ScanLock, TitleSources, ByHand), ManualError> {
+        let found = match self.libraries.get(library).await {
+            Err(LibraryError::Database(err)) => return Err(err.into()),
+            Err(_) => return Err(NotFound::NoSuchLibrary(library).into()),
+            Ok(found) => found,
+        };
+        let scan = self.locks.lock(library).await;
+        let (kind, ids) = match Titles::read(&self.contents, &found).await? {
+            titles @ Titles::Movies(_) => (TitleKind::Movie, titles.movie(title)?.ids),
+            titles @ Titles::Shows(_) => (TitleKind::Show, titles.show(title)?.ids),
+        };
+        let mut seen = BTreeSet::new();
+        // Every Match is stored below the greatest metadata version.
+        // ponytail: whole-Library read, for one title's items.
+        let matched = self.contents.matched_below(library, i64::MAX).await?;
+        let mut names = Vec::new();
+        for (item, ..) in (matched.into_iter())
+            .filter(|(_, item, _, primary)| known_as(&ids, primary) && seen.insert(item.name()))
+        {
+            names.extend(self.contents.named_like(item).await?);
+        }
+        let ordered = self.metadata.in_order(found.title_sources);
+        let fixing = ByHand {
+            library,
+            kind,
+            names,
+        };
+        Ok((scan, ordered, fixing))
+    }
+
+    /// What Matching the items `fixing` to the title `id` decides, looking it up once, with its
+    /// Library's title sources `ordered`. Fails if any item is left undecided.
+    async fn decide_by_hand(
+        &self,
+        ordered: &TitleSources,
+        fixing: &ByHand,
+        id: &ExternalId,
+    ) -> Result<Outcomes, ManualError> {
+        let ByHand { library, kind, .. } = fixing;
         // No enabled source keeps or looks up the namespace, so none could have the title; with
         // no source at all, fetching answers Unavailable instead.
-        if self.metadata.unserved(id, named.name.kind().method()).await {
+        if self.metadata.unserved(id, kind.method()).await {
             return Err(ManualError::NoSuchTitle(id.clone()));
         }
-        let outcomes = match named.name.kind() {
+        let items = fixing.items();
+        let outcomes = match kind {
             TitleKind::Movie => {
                 let movie = sources::fetch_movie(&self.metadata, id, ExternalIds::default())
                     .await
                     .map_err(ManualError::looking_up(id))?;
-                let movie = self.picked_for(&ordered, movie).await;
-                named
-                    .items
-                    .iter()
+                let movie = self.picked_for(ordered, movie).await;
+                items
                     .map(|&(alike, _)| (alike, Ok(movie.clone())))
                     .collect()
             }
@@ -336,34 +460,18 @@ impl Matcher {
                     .await
                     .map_err(ManualError::looking_up(id))?;
                 // ponytail: whole-Library read, for the Episodes of one Show.
-                let hints = self.contents.nfo_hints(named.library).await?;
-                let episodes: Vec<PendingEpisode> = named
-                    .items
-                    .iter()
+                let hints = self.contents.nfo_hints(*library).await?;
+                let episodes: Vec<PendingEpisode> = items
                     .filter_map(|(alike, what)| PendingEpisode::of(*alike, what, &hints))
                     .collect();
-                let picked = self.pick_show(&ordered, &show).await;
+                let picked = self.pick_show(ordered, &show).await;
                 self.match_in_show(&show, &picked, &episodes).await
             }
         };
         if outcomes.any_undecided() {
             return Err(ManualError::Unavailable);
         }
-        self.pin(item, named, Pin::Title(id.clone()), outcomes)
-            .await
-    }
-
-    /// Removes the Match of the item `item` and of every item named like it, and pins them
-    /// Unmatched, after any scan of its Library. Its images are deleted unless another Match
-    /// stores them.
-    pub(crate) async fn clear_match(&self, item: i64) -> Result<Summary, ManualError> {
-        let (_scan, named) = self.lock_named_like(item).await?;
-        let outcomes = named
-            .items
-            .iter()
-            .map(|&(alike, _)| (alike, Err(Miss::Unmatched(None))))
-            .collect();
-        self.pin(item, named, Pin::Unmatched, outcomes).await
+        Ok(outcomes)
     }
 
     /// Matches the items of the Library `scan` covers that Matching hasn't decided yet, until
@@ -596,34 +704,30 @@ impl Matcher {
         Ok(())
     }
 
-    /// Stores the pin and the decisions in one write.
+    /// Stores `pin` for each name of `fixing` and the decisions in one write, failing with `gone`
+    /// if its Library is.
     async fn pin(
         &self,
-        item: i64,
-        named: Named,
+        fixing: ByHand,
         pin: Pin,
         outcomes: Outcomes,
+        gone: ManualError,
     ) -> Result<Summary, ManualError> {
         let mut summary = Summary::default();
         let decided = tally(self.with_lookups(outcomes).await, &mut summary);
-        tracing::info!(
-            library = named.library,
-            title = %named.name.title,
-            ?pin,
-            ?summary,
-            "fixing a Match by hand"
-        );
-        let mut happened = matched_events(named.library, &decided.items);
+        let library = fixing.library;
+        let names: Vec<Name> = (fixing.names.into_iter()).map(|named| named.name).collect();
+        let titles: Vec<&str> = names.iter().map(|name| name.title.as_str()).collect();
+        tracing::info!(library, ?titles, ?pin, ?summary, "fixing a Match by hand");
+        let mut happened = matched_events(library, &decided.items);
         let this = self.clone();
         // The write commits even if the caller stops waiting, so what follows it must too (ADR 0029).
         detached(async move {
-            let library = named.library;
             // The Library may have been deleted since its items were read.
-            let made_available = this
-                .contents
-                .pin(named.library, named.name, pin, decided)
+            let made_available = (this.contents)
+                .pin(library, names, pin, decided)
                 .await?
-                .ok_or(ManualError::NoSuchItem(item))?;
+                .ok_or(gone)?;
             happened.extend(made_available);
             this.events.publish(happened);
             this.artwork.drop_unused(&this.contents).await;

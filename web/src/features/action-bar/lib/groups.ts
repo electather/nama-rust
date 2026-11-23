@@ -1,4 +1,5 @@
 import type { Page } from "@/features/action-bar/lib/pages";
+import { libraryRows, personRows } from "@/features/action-bar/lib/place-rows";
 import {
   type Frame,
   type Group,
@@ -7,7 +8,8 @@ import {
   section,
 } from "@/features/action-bar/lib/rows";
 import { shortcutGroups } from "@/features/action-bar/lib/shortcuts";
-import type { Found, FoundPerson, FoundTitle } from "@/features/action-bar/lib/titles";
+import type { Found, FoundTitle } from "@/features/action-bar/lib/titles";
+import type { Library } from "@/gen/nama/v1/library_pb";
 import { TitleStatus } from "@/gen/nama/v1/search_pb";
 import { modKey } from "@/shared/lib/mod-key";
 
@@ -16,6 +18,7 @@ export interface BarState {
   frame: Frame;
   query: string;
   pages: readonly Page[];
+  libraries: readonly Library[];
   recents: readonly FoundTitle[];
   /** What the last search to answer found, or `undefined` before any has. */
   found: Found | undefined;
@@ -28,6 +31,7 @@ export interface BarActions {
   push: (frame: Frame) => void;
   go: (page: Page) => void;
   open: (title: FoundTitle) => void;
+  openLibrary: (library: Library) => void;
   openPerson: (personId: string) => void;
   retry: () => void;
 }
@@ -69,20 +73,6 @@ function titleRows(
     action: "Open",
     run: () => {
       open(title);
-    },
-  }));
-}
-
-function personRows(people: readonly FoundPerson[], openPerson: BarActions["openPerson"]): Row[] {
-  return people.map((person) => ({
-    id: `person:${person.personId}`,
-    label: person.name,
-    hint: "",
-    icon: "person",
-    poster: person.headshot ?? null,
-    action: "Open",
-    run: () => {
-      openPerson(person.personId);
     },
   }));
 }
@@ -161,6 +151,10 @@ function rootGroups(state: BarState, actions: BarActions): Group[] {
     ...section("Search", blank ? search : []),
     ...section("Recent", blank ? titleRows(state.recents, actions.open, kindBadge) : []),
     ...section("Jump to", matching(state.query, jumps)),
+    ...section(
+      "Libraries",
+      matching(state.query, libraryRows(state.libraries, actions.openLibrary)),
+    ),
     ...(blank ? [] : results(state, actions)),
     ...section("Actions", matching(state.query, [shortcuts])),
   ];

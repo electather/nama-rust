@@ -17,7 +17,6 @@ use reqwest::{
     StatusCode,
     header::{CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue, InvalidHeaderName},
 };
-use rustls::{ClientConfig, RootCertStore, crypto::ring};
 
 use crate::links::LinkedServerId;
 
@@ -109,16 +108,7 @@ impl Otlp {
     /// [`OtlpError::Header`] for a header that isn't `key=value`, or if the HTTPS client can't be
     /// set up.
     pub fn new(endpoint: &str, headers: &str) -> Result<Self, OtlpError> {
-        // ring and Mozilla's roots, as `mail.rs`'s client: the Hub's image has no system ones.
-        let tls = ClientConfig::builder_with_provider(Arc::new(ring::default_provider()))
-            .with_safe_default_protocol_versions()?
-            .with_root_certificates(RootCertStore::from_iter(
-                webpki_roots::TLS_SERVER_ROOTS.iter().cloned(),
-            ))
-            .with_no_client_auth();
-        let client = reqwest::Client::builder()
-            .tls_backend_preconfigured(tls)
-            .user_agent(concat!("nama-hub/", env!("CARGO_PKG_VERSION")))
+        let client = crate::https::client()?
             .timeout(FORWARD_TIMEOUT)
             .default_headers(parse_headers(headers)?)
             .build()?;

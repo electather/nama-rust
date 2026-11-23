@@ -1,3 +1,4 @@
+import { PageHeading } from "@hub/app/page-heading";
 import { ApproveServerSignIn } from "@hub/features/links/components/approve-server-sign-in";
 import { NO_USER_ON_SERVER } from "@hub/features/links/lib/server-sign-in-refusal";
 
@@ -14,9 +15,7 @@ export function ServerSignInAs({
 }) {
   return userName === "" ? (
     <>
-      <h1 className="text-center text-3xl font-medium tracking-tight text-balance">
-        Sign in to {serverName}
-      </h1>
+      <PageHeading>{`Sign in to ${serverName}`}</PageHeading>
       <p role="alert" className="text-center text-sm text-pretty text-destructive">
         {NO_USER_ON_SERVER}
       </p>

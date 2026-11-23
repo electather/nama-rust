@@ -1,21 +1,21 @@
 import { Button } from "nama-ui/components/button";
 import { useRef, useState } from "react";
 
-import { MatchDialog } from "@/features/player/components/match-dialog";
+import { MatchDialog } from "@/shared/components/find-a-match/match-dialog";
 import type { ItemToMatch } from "@/shared/lib/unmatched-names";
 
 /** "Match it", which opens `item`'s Match flow in a dialog over the player. */
 export function MatchIt({ item, libraryId }: { item: ItemToMatch; libraryId: bigint }) {
   const dialog = useRef<HTMLDialogElement>(null);
   // Searches only once opened, so playing alone asks the title source nothing.
-  const [opened, setOpened] = useState(false);
+  const [opened, setOpened] = useState(0);
   return (
     <>
       <Button
         variant="overlay"
         aria-haspopup="dialog"
         onClick={() => {
-          setOpened(true);
+          setOpened(opened + 1);
           dialog.current?.showModal();
         }}
       >

@@ -1,16 +1,15 @@
 import { Button } from "nama-ui/components/button";
 
 import { FormField } from "@/shared/components/form-field/form-field";
-import { searchTyped } from "@/shared/lib/find-a-match";
+import { type ToMatch, searchTyped } from "@/shared/lib/find-a-match";
 import { onSubmitted } from "@/shared/lib/forms";
-import type { ItemToMatch } from "@/shared/lib/unmatched-names";
 
 /** The title and year to search the title source for, starting from `item`'s. */
 export function SearchForm({
   item,
   onSearch,
 }: {
-  item: ItemToMatch;
+  item: ToMatch["item"];
   onSearch: (search: ReturnType<typeof searchTyped>) => void;
 }) {
   return (

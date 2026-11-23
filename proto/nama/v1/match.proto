@@ -11,26 +11,30 @@ import "nama/v1/page.proto";
 // of searching, so it holds when the file changes, or is renamed to a name that still says the same
 // title, year and ID hint, and new Episodes of a pinned Show Match the pinned Show.
 service MatchService {
-  // Searches the enabled title sources for titles, best fit first. Fails with
-  // `invalid_argument` if the kind is unspecified or the title blank, and with `unavailable` if
-  // no title source is enabled or one failed.
+  // Searches the enabled title sources for titles, best fit first, or only a Library's, in its
+  // order. Fails with `invalid_argument` if the kind is unspecified or the title blank, with
+  // `not_found` if there is no such Library, and with `unavailable` if no title source is enabled
+  // or one failed.
   rpc SearchTitles(SearchTitlesRequest) returns (SearchTitlesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Matches an item to a title and pins the Match. For a Movie, the title is a Movie, and every
   // item in the Library named the same way is Matched to it. For an Episode, the title is its
   // Show, and every Episode in the Library named as being in the same Show is Matched again
-  // through that Show's Seasons; an Episode the Show doesn't have is Unmatched. Fails with
-  // `not_found` if there is no such item, with `invalid_argument` if the id is missing or names
-  // no title, and with `unavailable` if no title source can answer, in which case nothing
-  // changes.
+  // through that Show's Seasons; an Episode the Show doesn't have is Unmatched. Given
+  // `matched_title` in place of the item, it does so for each name the items Matched to that Movie
+  // or Show bear, in one change. Fails with `not_found` if there is no such item, Library or
+  // title, with `invalid_argument` if the id is missing or names no title, and with
+  // `unavailable` if no title source can answer, in which case nothing changes.
   rpc SetMatch(SetMatchRequest) returns (SetMatchResponse) {
     option idempotency_level = IDEMPOTENT;
   }
   // Removes an item's Match and pins it Unmatched, so automatic Matching leaves it so. Like
   // `SetMatch`, this applies to every item in the Library named the same way, and for an Episode
-  // to every Episode of its Show. `ListUnmatchedItems` then lists them with
-  // `UNMATCHED_REASON_CLEARED_BY_HAND`. Fails with `not_found` if there is no such item.
+  // to every Episode of its Show, and given `matched_title`, to each name the items Matched to
+  // that Movie or Show bear. `ListUnmatchedItems` then lists them with
+  // `UNMATCHED_REASON_CLEARED_BY_HAND`. Fails with `not_found` if there is no such item, Library
+  // or title.
   rpc ClearMatch(ClearMatchRequest) returns (ClearMatchResponse) {
     option idempotency_level = IDEMPOTENT;
   }
@@ -73,6 +77,8 @@ message TitleCandidate {
   optional string original_title = 3;
   // The year a Movie was released or a Show first aired, if known.
   optional int32 year = 4;
+  // Its Poster's URL on this Server, if its title source has one. Unset on `tied_titles`.
+  optional string poster_url = 5;
 }
 
 message SearchTitlesRequest {
@@ -82,6 +88,8 @@ message SearchTitlesRequest {
   string title = 2;
   // The year a Movie was released or a Show first aired, to narrow the search.
   optional int32 year = 3;
+  // The Library whose title sources to search, in its order. Unset searches every enabled one.
+  optional int64 library_id = 4;
 }
 
 message SearchTitlesResponse {
@@ -89,10 +97,20 @@ message SearchTitlesResponse {
 }
 
 message SetMatchRequest {
-  // The item to Match.
+  // The item to Match. Unset when `matched_title` is set.
   int64 item_id = 1;
   // The Movie, or for an Episode the Show, to Match it to, as `SearchTitles` gave it.
   ExternalId title_id = 2;
+  // In place of `item_id`, a Movie or Show whose every item to Match.
+  MatchedTitle matched_title = 3;
+}
+
+// A Movie or Show some items of a Library are Matched to, named as browsing names it.
+message MatchedTitle {
+  // The Library it is in, whose kind says whether it is a Movie or a Show.
+  int64 library_id = 1;
+  // Its id, as `BrowseService.ListMovies` or `ListShows` gave it.
+  ExternalId id = 2;
 }
 
 message SetMatchResponse {
@@ -103,8 +121,10 @@ message SetMatchResponse {
 }
 
 message ClearMatchRequest {
-  // The item whose Match to clear.
+  // The item whose Match to clear. Unset when `matched_title` is set.
   int64 item_id = 1;
+  // In place of `item_id`, a Movie or Show whose every item's Match to clear.
+  MatchedTitle matched_title = 2;
 }
 
 message ClearMatchResponse {

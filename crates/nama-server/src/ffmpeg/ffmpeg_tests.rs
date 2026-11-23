@@ -399,18 +399,19 @@ async fn ffmpeg_draws_a_subtitle_layer_only_with_alphasrc_and_sub2video() {
 async fn what_ffmpeg_couldnt_answer_is_asked_again() {
     let bin = tempfile::tempdir().unwrap();
     let answered = bin.path().join("answered");
-    // Fails to list its filters the first time, as one that timed out on a busy host.
+    // Fails to list its filters until `answered` exists, as one that timed out on a busy host.
+    // The test, not the fake, makes `answered`: `can_do` lists filters twice at once, so they'd race.
     let ffmpeg = fake_ffmpeg(
         bin.path(),
         &format!(
-            "*-filters*) if [ -e '{answered}' ]; then echo ' .SC zscale  V->V  zscale'; \
-                         else touch '{answered}'; exit 1; fi ;;",
+            "*-filters*) [ -e '{answered}' ] || exit 1; echo ' .SC zscale  V->V  zscale' ;;",
             answered = answered.display()
         ),
     );
 
     let abilities = Abilities::new(Arc::new(ffmpeg));
     let first = abilities.can_do().await;
+    fs::write(&answered, "").unwrap();
     let then = abilities.can_do().await;
 
     assert!(!first.zscale);

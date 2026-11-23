@@ -10,7 +10,9 @@ import { press } from "@/features/action-bar/lib/keys";
 import { type Page, goTo, pages } from "@/features/action-bar/lib/pages";
 import type { Frame, Opening, Row } from "@/features/action-bar/lib/rows";
 import type { FoundTitle } from "@/features/action-bar/lib/titles";
+import type { Library } from "@/gen/nama/v1/library_pb";
 import { TitleKind } from "@/gen/nama/v1/match_pb";
+import { useLoadedLibraries } from "@/shared/hooks/use-loaded-libraries";
 
 /** What a search from each frame asks the Server for. */
 const kinds = {
@@ -39,6 +41,7 @@ export function useActionBar({
   const [picked, setPicked] = useState<string>();
   const navigate = useNavigate();
   const { recents, remember } = useRecents();
+  const libraries = useLoadedLibraries();
   const typed = frame === "shortcuts" ? "" : query.trim();
   const words = useDebounced(typed, 300);
   const search = useFound(words, kinds[frame]);
@@ -58,6 +61,10 @@ export function useActionBar({
   function go(page: Page) {
     dialog.close();
     goTo(navigate, page);
+  }
+  function openLibrary({ id }: Library) {
+    dialog.close();
+    void navigate({ to: "/libraries/$libraryId", params: { libraryId: String(id) } });
   }
   function openToRequest({ kind, titleId }: FoundTitle) {
     void (kind === "movie"
@@ -94,11 +101,12 @@ export function useActionBar({
       // Shortcuts filter as they are typed: there is nothing to wait for.
       query: frame === "shortcuts" ? query : listed,
       pages,
+      libraries,
       recents,
       found: search.found,
       failed: search.failed,
     },
-    { push, go, open, openPerson, retry: search.retry },
+    { push, go, open, openLibrary, openPerson, retry: search.retry },
   );
   const rows = groups.flatMap((group) => group.rows);
   const active = activeOf(rows, picked);

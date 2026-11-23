@@ -9147,6 +9147,19 @@ pub struct SetServerAddressesResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub reachable: bool,
+    /// The Server's names (ADR 0104). Its own name comes first, such as
+    /// `0193b6f2c4d87a1e9f3c5b2a1d0e4f67.namadirect.net`, which never changes and points at
+    /// `public_address` while the Hub reaches it there. Then comes a name for each private IPv4
+    /// address among `lan_addresses`, such as `192-168-1-10.<own name>`, which points at that address.
+    /// Empty on a Hub that names no Server.
+    ///
+    /// Field 3: `names`
+    #[serde(
+        rename = "names",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub names: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -9156,6 +9169,7 @@ impl ::core::fmt::Debug for SetServerAddressesResponse {
         f.debug_struct("SetServerAddressesResponse")
             .field("public_address", &self.public_address)
             .field("reachable", &self.reachable)
+            .field("names", &self.names)
             .finish()
     }
 }
@@ -9194,6 +9208,9 @@ impl ::buffa::Message for SetServerAddressesResponse {
         if self.reachable {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        for v in &self.names {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -9209,6 +9226,9 @@ impl ::buffa::Message for SetServerAddressesResponse {
         }
         if self.reachable {
             ::buffa::types::put_bool_field(2u32, self.reachable, buf);
+        }
+        for v in &self.names {
+            ::buffa::types::put_string_field(3u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -9237,6 +9257,17 @@ impl ::buffa::Message for SetServerAddressesResponse {
                 )?;
                 self.reachable = ::buffa::types::decode_bool(buf)?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.names.push(__elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -9247,6 +9278,7 @@ impl ::buffa::Message for SetServerAddressesResponse {
     fn clear(&mut self) {
         self.public_address.clear();
         self.reachable = false;
+        self.names.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

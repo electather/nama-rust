@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 
 import type { Section } from "@/features/settings/lib/sections";
 import { type fakeServer, openApp } from "@/test-app";
@@ -35,4 +35,10 @@ export async function offered(label: string) {
 export function openLibraries(transport: ReturnType<typeof fakeServer>, library?: string) {
   const open = library === undefined ? "" : `&library=${library}`;
   return openApp(`/code?settings=libraries${open}`, transport);
+}
+
+/** The link named `name` in Settings, once it shows. The top bar under it links each Library too. */
+export async function findSettingsLink(name: string) {
+  const settings = await screen.findByRole("dialog", { name: "Settings" });
+  return within(settings).findByRole("link", { name });
 }

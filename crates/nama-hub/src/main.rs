@@ -13,6 +13,7 @@ use nama_hub::{
     config::Config,
     db,
     diagnostics::{Backend, Otlp, OtlpError},
+    dns::{Cloudflare, DnsError, ServerNames},
     mail::{LogMailer, Mail, MailError, Mailer, Resend},
     signing::Keys,
     titles,
@@ -46,9 +47,6 @@ const OTLP_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
                   NAMA_HUB_SIGNING_KEYS, the Ed25519 private keys it signs with, as PEM blocks \
                   one after another, and, to email Sign-in Links, NAMA_HUB_RESEND_API_KEY, \
                   NAMA_HUB_MAIL_FROM, the address mail comes from, and NAMA_HUB_PUBLIC_URL, the \
-                  Hub's address that links lead to, or, developing, NAMA_HUB_LOG_MAIL=true to \
-                  log them instead with a localhost NAMA_HUB_PUBLIC_URL, and, to forward what \
-                  Servers share, NAMA_HUB_DIAGNOSTICS_ENDPOINT, an OTLP/HTTP endpoint, and \
                   NAMA_HUB_DIAGNOSTICS_HEADERS, the headers sent to it, as key=value pairs."
 )]
 struct Args {
@@ -84,6 +82,10 @@ async fn main() -> ExitCode {
 }
 
 /// Runs the Hub until it is told to stop.
+#[expect(
+    clippy::too_many_lines,
+    reason = "each startup step logs its own failure and returns, so it reads straight down"
+)]
 async fn run() -> ExitCode {
     // Listen before announcing startup, so a Ctrl-C right after the log line isn't missed.
     let shutdown = match shutdown_signal() {
@@ -108,6 +110,13 @@ async fn run() -> ExitCode {
         Ok(mail) => mail,
         Err(err) => {
             error!("could not set up mail: {err}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let names = match server_names(&config) {
+        Ok(names) => names,
+        Err(err) => {
+            error!("could not set up the DNS provider: {err}");
             return ExitCode::FAILURE;
         }
     };
@@ -149,7 +158,9 @@ async fn run() -> ExitCode {
         keys,
         &config.trusted_proxies,
         mail,
+        names,
         diagnostics,
+        config.public_url.as_ref(),
         shutdown,
     )
     .await;
@@ -176,7 +187,23 @@ fn mail(config: &Config) -> Result<Option<Mail>, MailError> {
     };
     Ok(Some(Mail {
         mailer,
-        public_url: public_url.clone(),
+        public_url: public_url.to_string(),
+    }))
+}
+
+/// The zone Linked Servers are named in, through Cloudflare, if `config` has its API token, which
+/// [`Config::load`] has checked comes with the zone.
+fn server_names(config: &Config) -> Result<Option<ServerNames>, DnsError> {
+    let (Some(api_token), Some(zone_id), Some(zone)) = (
+        &config.cloudflare_api_token,
+        &config.cloudflare_zone_id,
+        &config.server_names_zone,
+    ) else {
+        return Ok(None);
+    };
+    Ok(Some(ServerNames {
+        zone: zone.to_ascii_lowercase(),
+        records: Arc::new(Cloudflare::new(api_token.clone(), zone_id)?),
     }))
 }
 
