@@ -116,10 +116,19 @@ async fn an_svg_is_served_as_an_image_whose_script_cannot_run() {
         .unwrap();
 
     let headers = response.headers();
-    assert_eq!(headers[header::CONTENT_TYPE], "image/svg+xml");
     assert_eq!(
-        headers[header::CONTENT_SECURITY_POLICY],
-        "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+        [
+            &headers[header::CONTENT_TYPE],
+            &headers[header::CONTENT_SECURITY_POLICY],
+            &headers[header::CONTENT_DISPOSITION],
+            &headers[header::X_CONTENT_TYPE_OPTIONS],
+        ],
+        [
+            "image/svg+xml",
+            "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+            "attachment",
+            "nosniff",
+        ]
     );
 }
 

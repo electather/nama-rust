@@ -323,8 +323,8 @@ fn guard(response: &mut Response, content_type: &'static str) {
     );
     if content_type == SVG {
         // `sandbox` keeps a script from running when someone opens the SVG in its own tab, and
-        // `attachment` from it showing there at all. A Plugin's logo is cleaned too, as a second
-        // layer; a title source's artwork isn't, so these headers are all that guard it.
+        // `attachment` from it showing there at all: for a title source's SVG artwork, which
+        // isn't cleaned, they're the only guard (`AGENTS.md`).
         headers.insert(
             header::CONTENT_SECURITY_POLICY,
             HeaderValue::from_static("default-src 'none'; style-src 'unsafe-inline'; sandbox"),
