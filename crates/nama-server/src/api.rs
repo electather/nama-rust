@@ -1,6 +1,6 @@
 //! The Server's ConnectRPC API (ADR 0007), served on axum.
 
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
 use axum::{http::header::SET_COOKIE, middleware};
 use buffa::{EnumValue, MessageName};
@@ -72,6 +72,7 @@ pub(crate) use browser_spans::BrowserSpans;
 )]
 pub(crate) fn router(
     config: &Config,
+    listening: SocketAddr,
     db: Arc<Database>,
     plugin_settings: PluginSettings,
     users: Users,
@@ -134,6 +135,8 @@ pub(crate) fn router(
         .add_service(Arc::new(sign_in::SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
             points: plugins.clone(),
+            server_url: settings.server_url(),
+            listening,
         }))
         .add_service(Arc::new(matches::MatchServiceHandler {
             matcher: scanner.matcher().clone(),
@@ -368,6 +371,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SETTING_WRONG_KIND
         | R::REFUSAL_REASON_SETTING_OUT_OF_RANGE
         | R::REFUSAL_REASON_NOT_A_URL
+        | R::REFUSAL_REASON_NOT_A_SERVER_ADDRESS
         | R::REFUSAL_REASON_QUALITY_REPEATED
         | R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED
         | R::REFUSAL_REASON_QUALITY_NOT_OFFERED
