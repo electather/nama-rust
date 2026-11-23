@@ -8,7 +8,7 @@ export function UserGroup({ users, you }: { users: User[]; you: User | undefined
   const cantSignIn = useUsersWhoCantSignIn();
   return (
     <SettingGroup title="Users">
-      <ul aria-label="Users" className="-mb-3.5 flex flex-col">
+      <ul aria-label="Users" className="-mb-1.5 flex flex-col">
         {users.map((user) => (
           <UserItem
             key={user.id}

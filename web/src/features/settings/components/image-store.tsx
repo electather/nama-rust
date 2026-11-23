@@ -25,10 +25,12 @@ export function ImageStore() {
       className="flex flex-col gap-3.5"
     >
       <div>
-        <h4 id="image-store" className="font-medium">
+        <h4 id="image-store" className="text-xs text-muted-foreground">
           {serverLabels.imageStore.label}
         </h4>
-        <p className="text-xs text-pretty text-muted-foreground">{serverLabels.imageStore.hint}</p>
+        <p className="mt-1 text-sm text-pretty text-muted-foreground">
+          {serverLabels.imageStore.hint}
+        </p>
         <StoreInUse name={nameOf(current)} />
       </div>
       <SwitchProgress switching={switching} nameOf={nameOf} current={nameOf(current)} />

@@ -13,10 +13,10 @@ export function PersonalSettings() {
   return (
     <section aria-labelledby="personal" className="flex flex-col gap-3.5">
       <div>
-        <h4 id="personal" className="font-medium">
+        <h4 id="personal" className="text-xs text-muted-foreground">
           Personal settings
         </h4>
-        <p className="text-xs text-muted-foreground">
+        <p className="mt-1 text-sm text-pretty text-muted-foreground">
           Only you see these, and a Plugin uses them only for you.
         </p>
       </div>
