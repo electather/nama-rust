@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, kind, external_id, extract(epoch FROM started_at)::bigint AS \"started_at!\",\n             time_of_day_minutes, stop_position_ms, duration_ms, finished, device_kind\n             FROM viewing_events WHERE account_id = $1 ORDER BY started_at DESC, id DESC",
+  "query": "SELECT id, kind, external_id, extract(epoch FROM started_at)::bigint AS \"started_at!\",\n             time_of_day_minutes, stop_position_ms, duration_ms, finished, device_kind,\n             show_external_id FROM viewing_events WHERE account_id = $1\n             ORDER BY started_at DESC, id DESC",
   "describe": {
     "columns": [
       {
@@ -96,6 +96,17 @@
             "name": "device_kind"
           }
         }
+      },
+      {
+        "ordinal": 9,
+        "name": "show_external_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "viewing_events",
+            "name": "show_external_id"
+          }
+        }
       }
     ],
     "parameters": {
@@ -112,8 +123,9 @@
       false,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "c9e5f012eb67d54c39ecf35acb3853e0e6830d904d93cd720ce9205ffc77f25e"
+  "hash": "f47e56e675348f08fdc04d57fb8ba88947230d1335004904b8bb5a567fe5a2af"
 }

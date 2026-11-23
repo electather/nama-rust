@@ -170,6 +170,16 @@ fn played(user_id: i64, key: &str, external_id: &str) -> UserViewingEvent {
     }
 }
 
+/// A play of the Episode `tmdb-63056`, of the Show `tmdb-1399`, by the User `user_id`, named `key`.
+fn played_episode(user_id: i64, key: &str) -> UserViewingEvent {
+    let mut played = played(user_id, key, "tmdb-63056");
+    played.event.modify(|event| {
+        event.episode = true;
+        "tmdb-1399".clone_into(&mut event.show_external_id);
+    });
+    played
+}
+
 async fn record(
     hub: &TestHub,
     credential: &str,
@@ -268,6 +278,26 @@ async fn an_event_sent_again_is_recorded_once(db: PgPool) {
         .unwrap();
 
     assert_eq!(listed_ids(&hub, &ada).await, ["tmdb-603"]);
+}
+
+#[sqlx::test(migrations = false)]
+async fn an_episode_sent_again_is_listed_once_with_its_show(db: PgPool) {
+    let (hub, _inbox, ada, server) = ada_watching(db).await;
+
+    record(&hub, &server, vec![played_episode(7, "a")])
+        .await
+        .unwrap();
+    record(&hub, &server, vec![played_episode(7, "a")])
+        .await
+        .unwrap();
+
+    let events = listed(&hub, &ada).await;
+    let [event] = events.as_slice() else {
+        panic!("one Viewing Event: {events:?}");
+    };
+    assert!(event.episode);
+    assert_eq!(event.external_id, "tmdb-63056");
+    assert_eq!(event.show_external_id, "tmdb-1399");
 }
 
 #[sqlx::test(migrations = false)]

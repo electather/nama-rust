@@ -119,6 +119,7 @@ pub(super) fn recorded_from_proto(
                     duration_ms: event.duration_ms,
                     finished: event.finished,
                     device_kind,
+                    show_external_id: Some(event.show_external_id).filter(|id| !id.is_empty()),
                 },
             })
         })
@@ -144,6 +145,7 @@ fn event_to_proto(listed: ListedViewingEvent) -> proto::ViewingEvent {
             DeviceKind::Tv => ProtoDevice::DEVICE_KIND_TV,
         }
         .into(),
+        show_external_id: event.show_external_id.unwrap_or_default(),
         ..Default::default()
     }
 }
