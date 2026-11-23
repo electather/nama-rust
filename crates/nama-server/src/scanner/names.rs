@@ -209,11 +209,7 @@ fn titled_alike(folders: &[String], stem: &str) -> Option<Named> {
     let file = plain_title(stem)?.to_lowercase();
     let folder = title.to_lowercase();
     let agrees = file == folder || file.starts_with(&format!("{folder} - "));
-    agrees.then_some(Named {
-        title,
-        year: None,
-        hints: ExternalIds::default(),
-    })
+    agrees.then(|| Named::titled(title))
 }
 
 /// `folder`'s ID Hints, each replaced by `file`'s of the same namespace.
@@ -234,13 +230,8 @@ fn parse_episodes(relative: &Path, stem: &str) -> Option<Vec<Item>> {
     if SEASON_FOLDER.is_match(&show_folder) {
         return None;
     }
-    let show = title_and_year(&show_folder).or_else(|| {
-        Some(Named {
-            title: plain_title(&show_folder)?,
-            year: None,
-            hints: ExternalIds::default(),
-        })
-    })?;
+    let show =
+        title_and_year(&show_folder).or_else(|| plain_title(&show_folder).map(Named::titled))?;
     let hint = show.hint();
     let (season, episodes) = episode_numbers(stem)?;
     Some(
@@ -293,6 +284,14 @@ struct Named {
 }
 
 impl Named {
+    fn titled(title: String) -> Self {
+        Self {
+            title,
+            year: None,
+            hints: ExternalIds::default(),
+        }
+    }
+
     /// The ID Hint Matching goes by: TMDB's, the Built-in title source's, or else TVDB's, which
     /// Sonarr writes, or else IMDb's, or else the first of any other namespace.
     fn hint(&self) -> Option<ExternalId> {

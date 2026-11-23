@@ -212,11 +212,12 @@ fn movies_named_by_title_alone_only_where_file_and_folder_agree() {
             "Blade Runner/Blade Runner.mkv",
             movie("Blade Runner", None, None),
         ),
-        // The folder's spelling wins, and a Version's ` - suffix` is left out.
+        // The folder's spelling wins.
         (
             "Movies/Solaris/solaris [1080p].mkv",
             movie("Solaris", None, None),
         ),
+        // A Version's ` - suffix` is left out.
         ("Dune/Dune - 1080p.mkv", movie("Dune", None, None)),
         ("Dune/Dunes.mkv", None),
         ("Blade Runner/movie.mkv", None),

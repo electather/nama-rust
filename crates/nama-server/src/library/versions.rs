@@ -1,8 +1,9 @@
 //! The versions stored with each file and Match, so the next scan reads again what an older
-//! Server read. When to bump each is in `src/matching/AGENTS.md`.
+//! Server read. When to bump each is in `src/scanner/AGENTS.md` and
+//! `src/matching/AGENTS.md`.
 
 /// The version of the name parser in `src/scanner/names.rs`, stored with each file it reads. See
-/// `src/matching/AGENTS.md` for when to bump it.
+/// `src/scanner/AGENTS.md` for when to bump it.
 pub(crate) const PARSER_VERSION: i64 = 11;
 
 /// The version of what a Match stores from the title sources, stored with each Match. See
