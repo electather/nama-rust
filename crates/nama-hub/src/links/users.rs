@@ -1,7 +1,7 @@
 //! Linking a Linked Server's Users to Accounts (ADR 0008): the code a User's Server shows, entering
 //! it on the Hub, and Unlinking from either side.
 
-use std::{fmt, str::FromStr};
+use std::{collections::HashMap, fmt, str::FromStr};
 
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
@@ -141,6 +141,34 @@ impl Links {
         .fetch_optional(&self.db)
         .await?;
         Ok(account.map(AccountId))
+    }
+
+    /// Each item of `batch` whose User, as `user_id` names them on `server`, is Linked, paired
+    /// with their Account, in `batch`'s order, in one query; an item of a User who isn't Linked
+    /// is dropped, not refused, so a Server's queue empties after an Unlink. Call it before
+    /// opening a transaction: inside one, it would hold a connection while asking the pool for
+    /// another.
+    pub(crate) async fn linked_accounts<T>(
+        &self,
+        server: &LinkedServer,
+        batch: Vec<T>,
+        user_id: impl Fn(&T) -> i64,
+    ) -> Result<Vec<(AccountId, T)>, sqlx::Error> {
+        let user_ids: Vec<i64> = batch.iter().map(&user_id).collect();
+        let linked: HashMap<i64, AccountId> = sqlx::query!(
+            "SELECT server_user_id, account_id FROM user_links
+             WHERE linked_server_id = $1 AND server_user_id = ANY($2)",
+            server.id.0,
+            &user_ids,
+        )
+        .fetch_all(&self.db)
+        .await?
+        .into_iter()
+        .map(|link| (link.server_user_id, AccountId(link.account_id)))
+        .collect();
+        Ok((batch.into_iter())
+            .filter_map(|item| Some((*linked.get(&user_id(&item))?, item)))
+            .collect())
     }
 
     /// Unlinks `server`'s User `user_id`, and forgets the code they wait on and any Account asked

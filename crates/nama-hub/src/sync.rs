@@ -2,8 +2,6 @@
 //! Preferences, which its Linked Users' Servers push their changes into and pull from, and its
 //! merged Watchlist (ADR 0056), which they sync whole.
 
-use std::collections::{HashMap, hash_map::Entry};
-
 use sqlx::{PgConnection, PgPool};
 
 use crate::{
@@ -59,52 +57,62 @@ pub(crate) struct WatchStateChange {
 #[derive(Clone)]
 pub(crate) struct WatchStates {
     db: PgPool,
-    links: Links,
 }
 
 impl WatchStates {
-    /// The merged Watch State in `db`, of the Users `links` has Linked.
-    pub(crate) fn new(db: PgPool, links: Links) -> Self {
-        Self { db, links }
+    /// The merged Watch State in `db`.
+    pub(crate) const fn new(db: PgPool) -> Self {
+        Self { db }
     }
 
-    /// Merges `changes`, made on `server`, into the Accounts its Users are Linked to, in one
-    /// transaction. A change of a User who isn't Linked is dropped.
+    /// Merges `changes`, made on `server`, into the Accounts `links` finds its Users Linked to.
     pub(crate) async fn push(
         &self,
+        links: &Links,
         server: &LinkedServer,
         changes: Vec<WatchStateChange>,
     ) -> Result<(), sqlx::Error> {
-        // Looked up before the transaction, which would otherwise hold a connection while asking
-        // the pool for another.
-        let mut accounts = HashMap::new();
-        for change in &changes {
-            if let Entry::Vacant(unknown) = accounts.entry(change.user_id) {
-                unknown.insert(self.links.linked_account(server, change.user_id).await?);
-            }
-        }
+        let changes = links
+            .linked_accounts(server, changes, |change| change.user_id)
+            .await?;
+        self.merge(changes).await
+    }
+
+    /// Merges each change into the Account it is paired with, in order, in one transaction.
+    pub(crate) async fn merge(
+        &self,
+        changes: Vec<(AccountId, WatchStateChange)>,
+    ) -> Result<(), sqlx::Error> {
         let mut tx = self.db.begin().await?;
-        for change in changes {
-            if let Some(&Some(account)) = accounts.get(&change.user_id) {
-                merge(&mut tx, account, &change).await?;
-            }
+        for (account, change) in changes {
+            merge_watch_state(&mut tx, account, &change).await?;
         }
         tx.commit().await
     }
 
-    /// The Watch State of the Account `server`'s User `user_id` is Linked to, each title's under
-    /// each of its ids apart, as `user_id`'s changes; empty if they aren't Linked. A Server merges
-    /// a title's ids itself, as only it knows which ids its titles have.
-    // ponytail: one answer holds the Account's whole Watch State; page it once one nears the
-    // largest message a client takes.
+    /// The Watch State of the Account `links` finds `server`'s User `user_id` Linked to, as
+    /// [`Self::pull_account`] answers it; empty if they aren't Linked.
     pub(crate) async fn pull(
         &self,
+        links: &Links,
         server: &LinkedServer,
         user_id: i64,
     ) -> Result<Vec<WatchStateChange>, sqlx::Error> {
-        let Some(account) = self.links.linked_account(server, user_id).await? else {
-            return Ok(Vec::new());
-        };
+        match links.linked_account(server, user_id).await? {
+            Some(account) => self.pull_account(account, user_id).await,
+            None => Ok(Vec::new()),
+        }
+    }
+
+    /// `account`'s Watch State, each title's under each of its ids apart, as `user_id`'s changes.
+    /// A Server merges a title's ids itself, as only it knows which ids its titles have.
+    // ponytail: one answer holds the Account's whole Watch State; page it once one nears the
+    // largest message a client takes.
+    pub(crate) async fn pull_account(
+        &self,
+        account: AccountId,
+        user_id: i64,
+    ) -> Result<Vec<WatchStateChange>, sqlx::Error> {
         let rows = sqlx::query!(
             r#"SELECT episode, title_id, played, position_ms, duration_ms,
                       (extract(epoch FROM changed_at) * 1000)::bigint AS "changed_at_ms!"
@@ -154,32 +162,41 @@ pub(crate) struct WatchlistedTitle {
 #[derive(Clone)]
 pub(crate) struct Watchlists {
     db: PgPool,
-    links: Links,
     viewing: Viewing,
 }
 
 impl Watchlists {
-    /// The merged Watchlists in `db`, of the Users `links` has Linked, counted across Accounts
-    /// only as `viewing` lets them pool.
-    pub(crate) fn new(db: PgPool, links: Links, viewing: Viewing) -> Self {
-        Self { db, links, viewing }
+    /// The merged Watchlists in `db`, counted across Accounts only as `viewing` lets them pool.
+    pub(crate) const fn new(db: PgPool, viewing: Viewing) -> Self {
+        Self { db, viewing }
     }
 
-    /// Merges `entries`, `server`'s User `user_id`'s whole Watchlist, into the Account they are
-    /// Linked to, and returns the Account's, each title's under each of its ids apart; empty, and
-    /// nothing kept, if they aren't Linked. Per title and id, the change made last wins; of two
-    /// made at the same moment, the removal, as the Server breaks the tie the same way.
-    // ponytail: one call holds a User's whole Watchlist, removals included, both ways; page it, or
-    // send only what changed since the last sync, once one nears `MAX_WATCHLIST_ENTRIES`.
+    /// Syncs `entries`, `server`'s User `user_id`'s whole Watchlist, with the Account `links`
+    /// finds them Linked to, as [`Self::sync_account`] does; empty, and nothing kept, if they
+    /// aren't Linked.
     pub(crate) async fn sync(
         &self,
+        links: &Links,
         server: &LinkedServer,
         user_id: i64,
         entries: Vec<WatchlistEntry>,
     ) -> Result<Vec<WatchlistEntry>, sqlx::Error> {
-        let Some(account) = self.links.linked_account(server, user_id).await? else {
-            return Ok(Vec::new());
-        };
+        match links.linked_account(server, user_id).await? {
+            Some(account) => self.sync_account(account, entries).await,
+            None => Ok(Vec::new()),
+        }
+    }
+
+    /// Merges `entries`, a whole Watchlist, into `account`'s, and returns the Account's, each
+    /// title's under each of its ids apart. Per title and id, the change made last wins; of two
+    /// made at the same moment, the removal, as the Server breaks the tie the same way.
+    // ponytail: one call holds a User's whole Watchlist, removals included, both ways; page it, or
+    // send only what changed since the last sync, once one nears `MAX_WATCHLIST_ENTRIES`.
+    pub(crate) async fn sync_account(
+        &self,
+        account: AccountId,
+        entries: Vec<WatchlistEntry>,
+    ) -> Result<Vec<WatchlistEntry>, sqlx::Error> {
         let mut tx = self.db.begin().await?;
         merge_watchlist(&mut tx, account, entries).await?;
         let rows = sqlx::query!(
@@ -333,51 +350,61 @@ pub(crate) struct Like {
 #[derive(Clone)]
 pub(crate) struct TrackPreferences {
     db: PgPool,
-    links: Links,
 }
 
 impl TrackPreferences {
-    /// The merged Track Preferences in `db`, of the Users `links` has Linked.
-    pub(crate) fn new(db: PgPool, links: Links) -> Self {
-        Self { db, links }
+    /// The merged Track Preferences in `db`.
+    pub(crate) const fn new(db: PgPool) -> Self {
+        Self { db }
     }
 
-    /// Merges `changes`, made on `server`, into the Accounts its Users are Linked to, in one
-    /// transaction. A change of a User who isn't Linked is dropped.
+    /// Merges `changes`, made on `server`, into the Accounts `links` finds its Users Linked to.
     pub(crate) async fn push(
         &self,
+        links: &Links,
         server: &LinkedServer,
         changes: Vec<TrackPreferenceChange>,
     ) -> Result<(), sqlx::Error> {
-        // Looked up before the transaction, which would otherwise hold a connection while asking
-        // the pool for another.
-        let mut accounts = HashMap::new();
-        for change in &changes {
-            if let Entry::Vacant(unknown) = accounts.entry(change.user_id) {
-                unknown.insert(self.links.linked_account(server, change.user_id).await?);
-            }
-        }
+        let changes = links
+            .linked_accounts(server, changes, |change| change.user_id)
+            .await?;
+        self.merge(changes).await
+    }
+
+    /// Merges each change into the Account it is paired with, in order, in one transaction.
+    pub(crate) async fn merge(
+        &self,
+        changes: Vec<(AccountId, TrackPreferenceChange)>,
+    ) -> Result<(), sqlx::Error> {
         let mut tx = self.db.begin().await?;
-        for change in changes {
-            if let Some(&Some(account)) = accounts.get(&change.user_id) {
-                merge_preference(&mut tx, account, &change).await?;
-            }
+        for (account, change) in changes {
+            merge_preference(&mut tx, account, &change).await?;
         }
         tx.commit().await
     }
 
-    /// The Track Preferences of the Account `server`'s User `user_id` is Linked to, as
-    /// `user_id`'s changes; empty if they aren't Linked.
-    // ponytail: one answer holds the Account's every Preference; page it as Watch State's would
-    // need, once one nears the largest message a client takes.
+    /// The Track Preferences of the Account `links` finds `server`'s User `user_id` Linked to, as
+    /// [`Self::pull_account`] answers them; empty if they aren't Linked.
     pub(crate) async fn pull(
         &self,
+        links: &Links,
         server: &LinkedServer,
         user_id: i64,
     ) -> Result<Vec<TrackPreferenceChange>, sqlx::Error> {
-        let Some(account) = self.links.linked_account(server, user_id).await? else {
-            return Ok(Vec::new());
-        };
+        match links.linked_account(server, user_id).await? {
+            Some(account) => self.pull_account(account, user_id).await,
+            None => Ok(Vec::new()),
+        }
+    }
+
+    /// `account`'s Track Preferences, as `user_id`'s changes.
+    // ponytail: one answer holds the Account's every Preference; page it as Watch State's would
+    // need, once one nears the largest message a client takes.
+    pub(crate) async fn pull_account(
+        &self,
+        account: AccountId,
+        user_id: i64,
+    ) -> Result<Vec<TrackPreferenceChange>, sqlx::Error> {
         let rows = sqlx::query!(
             r#"SELECT audio, scope, title_id, off, language, forced, sdh, title, foreign_audio_only,
                       (extract(epoch FROM changed_at) * 1000)::bigint AS "changed_at_ms!"
@@ -447,7 +474,7 @@ async fn merge_preference(
 // ponytail: each id's row merges alone, as the Hub learns a title's ids only from the changes
 // naming them. A Server knowing `tmdb-348` alone can leave `imdb-tt0078748`'s row behind;
 // keep each row's sibling ids and merge across them if Servers' Matches start to differ.
-async fn merge(
+async fn merge_watch_state(
     conn: &mut PgConnection,
     account: AccountId,
     change: &WatchStateChange,

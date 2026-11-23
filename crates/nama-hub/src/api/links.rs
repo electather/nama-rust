@@ -322,7 +322,12 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .map(|&namespace| namespace.to_owned())
             .collect();
         let recommended = (self.recommendations)
-            .for_user(linked_server(&ctx)?, request.user_id, &namespaces)
+            .for_user(
+                &self.links,
+                linked_server(&ctx)?,
+                request.user_id,
+                &namespaces,
+            )
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(ListRecommendedTitlesResponse {
@@ -384,7 +389,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         let server = linked_server(&ctx)?;
         let changes = watch_states::changes_from_proto(request.to_owned_message().changes)?;
         self.watch_states
-            .push(server, changes)
+            .push(&self.links, server, changes)
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(PushWatchStatesResponse::default())
@@ -397,7 +402,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
     ) -> ServiceResult<PullWatchStatesResponse> {
         let pulled = self
             .watch_states
-            .pull(linked_server(&ctx)?, request.user_id)
+            .pull(&self.links, linked_server(&ctx)?, request.user_id)
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(PullWatchStatesResponse {
@@ -417,7 +422,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         let server = linked_server(&ctx)?;
         let changes = track_preferences::changes_from_proto(request.to_owned_message().changes)?;
         self.track_preferences
-            .push(server, changes)
+            .push(&self.links, server, changes)
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(PushTrackPreferencesResponse::default())
@@ -430,7 +435,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
     ) -> ServiceResult<PullTrackPreferencesResponse> {
         let pulled = self
             .track_preferences
-            .pull(linked_server(&ctx)?, request.user_id)
+            .pull(&self.links, linked_server(&ctx)?, request.user_id)
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(PullTrackPreferencesResponse {
@@ -453,7 +458,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         let entries = watchlists::watchlist_from_proto(entries)?;
         let merged = self
             .watchlists
-            .sync(server, user_id, entries)
+            .sync(&self.links, server, user_id, entries)
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(SyncWatchlistResponse {
@@ -550,7 +555,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
     ) -> ServiceResult<RecordViewingEventsResponse> {
         let server = linked_server(&ctx)?;
         let events = viewing::recorded_from_proto(request.to_owned_message().events)?;
-        (self.viewing.record(server, events))
+        (self.viewing.record(&self.links, server, events))
             .await
             .map_err(|err| viewing::refused(&err))?;
         Response::ok(RecordViewingEventsResponse::default())

@@ -348,25 +348,6 @@ async fn a_linked_server_gets_the_titles_like_one_it_names(db: PgPool) {
     assert_eq!(ids, ["604", "348"]);
 }
 
-// Which Account a push reaches, and which change wins, is checked where it merges, in
-// `src/sync/sync_tests.rs`, since only `sync` reads its table.
-#[sqlx::test(migrations = false)]
-async fn a_linked_server_pushes_its_users_watch_state_linked_or_not(db: PgPool) {
-    let (hub, mut inbox) = hub_with_mail(db).await;
-    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
-    let server = linked(&hub, &ada, "Ada's").await;
-    let code = start_user(&hub, &server, 7).await.unwrap();
-    approve_user(&hub, &ada, &code).await.unwrap();
-
-    push(
-        &hub,
-        &server,
-        vec![alien_at(7, 3000, 2_000), alien_at(8, 1000, 1_000)],
-    )
-    .await
-    .unwrap();
-}
-
 #[sqlx::test(migrations = false)]
 async fn a_push_breaking_a_limit_is_refused(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
@@ -396,13 +377,13 @@ async fn a_push_breaking_a_limit_is_refused(db: PgPool) {
     assert_eq!(without_ids.field, "changes[0].ids");
 }
 
-/// The positions of the Watch State the Server presenting `credential` pulls for its User
-/// `user_id`, one per title and id.
-async fn pulled_positions(
+/// The Watch State the Server presenting `credential` pulls for its User `user_id`, each title
+/// and id's as its User, id, position and when it was made, in order.
+async fn pulled(
     hub: &TestHub,
     credential: &str,
     user_id: i64,
-) -> Result<Vec<u64>, connectrpc::ConnectError> {
+) -> Result<Vec<(i64, Vec<String>, u64, i64)>, connectrpc::ConnectError> {
     let pulled = linked_server(hub, credential)
         .pull_watch_states(PullWatchStatesRequest {
             user_id,
@@ -410,9 +391,30 @@ async fn pulled_positions(
         })
         .await?
         .into_owned();
-    Ok((pulled.watch_states.iter())
-        .map(|state| state.position_ms)
-        .collect())
+    let mut pulled: Vec<_> = (pulled.watch_states.into_iter())
+        .map(|state| {
+            (
+                state.user_id,
+                state.ids,
+                state.position_ms,
+                state.changed_at_ms,
+            )
+        })
+        .collect();
+    pulled.sort();
+    Ok(pulled)
+}
+
+/// What a Server pulls for its User `user_id` of Alien at `position_ms`, changed at
+/// `changed_at_ms`: a row for each of its ids.
+fn alien_pulled(
+    user_id: i64,
+    position_ms: u64,
+    changed_at_ms: i64,
+) -> Vec<(i64, Vec<String>, u64, i64)> {
+    ["imdb-tt0078748", "tmdb-348"]
+        .map(|id| (user_id, vec![id.to_owned()], position_ms, changed_at_ms))
+        .to_vec()
 }
 
 #[sqlx::test(migrations = false)]
@@ -425,16 +427,63 @@ async fn a_linked_server_pulls_only_the_account_its_user_is_linked_to(db: PgPool
     approve_user(&hub, &ada, &ada_code).await.unwrap();
     let bea_code = start_user(&hub, &server, 8).await.unwrap();
     approve_user(&hub, &bea, &bea_code).await.unwrap();
-    let pushed = vec![alien_at(7, 3000, 2_000), alien_at(8, 1000, 1_000)];
+    let pushed = vec![
+        alien_at(7, 3000, 2_000),
+        alien_at(8, 1000, 1_000),
+        alien_at(9, 5000, 3_000),
+    ];
     push(&hub, &server, pushed).await.unwrap();
 
     assert_eq!(
-        pulled_positions(&hub, &server, 7).await.unwrap(),
-        [3000, 3000]
+        pulled(&hub, &server, 7).await.unwrap(),
+        alien_pulled(7, 3000, 2_000),
+        "neither Bea's nor User 9's"
     );
     assert_eq!(
-        pulled_positions(&hub, &server, 9).await.unwrap(),
-        Vec::<u64>::new()
+        pulled(&hub, &server, 9).await.unwrap(),
+        [],
+        "User 9 isn't Linked"
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_server_pulls_what_another_server_of_the_account_pushed_by_each_id(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let (first, second) = (
+        linked(&hub, &ada, "Living room").await,
+        linked(&hub, &ada, "Cabin").await,
+    );
+    let first_code = start_user(&hub, &first, 7).await.unwrap();
+    approve_user(&hub, &ada, &first_code).await.unwrap();
+    let second_code = start_user(&hub, &second, 3).await.unwrap();
+    approve_user(&hub, &ada, &second_code).await.unwrap();
+    let made_at = 1_700_000_000_123;
+
+    push(&hub, &first, vec![alien_at(7, 3000, made_at)])
+        .await
+        .unwrap();
+
+    assert_eq!(
+        pulled(&hub, &second, 3).await.unwrap(),
+        alien_pulled(3, 3000, made_at)
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn of_two_changes_made_at_the_same_moment_in_one_push_the_one_pushed_last_wins(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let code = start_user(&hub, &server, 7).await.unwrap();
+    approve_user(&hub, &ada, &code).await.unwrap();
+    let at_once = vec![alien_at(7, 1000, 1_000), alien_at(7, 3000, 1_000)];
+
+    push(&hub, &server, at_once).await.unwrap();
+
+    assert_eq!(
+        pulled(&hub, &server, 7).await.unwrap(),
+        alien_pulled(7, 3000, 1_000)
     );
 }
 

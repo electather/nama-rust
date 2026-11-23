@@ -100,11 +100,11 @@ pub(crate) fn router(
 
 /// Every Hub service, on `db`, asking `accounts` and `links`.
 fn services(db: PgPool, accounts: &Accounts, links: &Links) -> connectrpc::Router {
-    let viewing = Viewing::new(db.clone(), links.clone());
-    let watch_states = WatchStates::new(db.clone(), links.clone());
-    let recommendations = Recommendations::new(db.clone(), links.clone(), viewing.clone());
-    let track_preferences = TrackPreferences::new(db.clone(), links.clone());
-    let watchlists = Watchlists::new(db.clone(), links.clone(), viewing.clone());
+    let viewing = Viewing::new(db.clone());
+    let watch_states = WatchStates::new(db.clone());
+    let recommendations = Recommendations::new(db.clone(), viewing.clone());
+    let track_preferences = TrackPreferences::new(db.clone());
+    let watchlists = Watchlists::new(db.clone(), viewing.clone());
     connectrpc::Router::new()
         .add_service(Arc::new(HubServiceHandler {
             db: db.clone(),
