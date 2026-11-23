@@ -26,11 +26,12 @@ function refused(code: Code, reason: RefusalReason) {
 }
 
 /**
- * Opens `path` on a fake Hub that emails Sign-in Links when `signInLinks` says so, with `signedIn`
- * signed in, if anyone, and one waiting link for Ada's unproven Account. Returns what was asked to
- * be sent, whether the Hub has said if it emails Sign-in Links, and how often a link was looked up.
+ * Opens `path` on a fake Hub that emails Sign-in Links when `signInLinks` says so, or fails to say
+ * whether it does when it's `null`, with `signedIn` signed in, if anyone, and one waiting link for
+ * Ada's unproven Account. Returns what was asked to be sent, whether the Hub has said if it emails
+ * Sign-in Links, and how often a link was looked up.
  */
-function openHub(path: string, signInLinks: boolean, signedIn?: Account) {
+function openHub(path: string, signInLinks: boolean | null, signedIn?: Account) {
   let session = signedIn;
   let waiting = true;
   const sent: SendSignInLinkRequest[] = [];
@@ -40,6 +41,9 @@ function openHub(path: string, signInLinks: boolean, signedIn?: Account) {
     service(HubService, {
       getHubInfo: () => {
         toldSignInLinks = true;
+        if (signInLinks === null) {
+          throw new ConnectError("the Hub failed", Code.Internal);
+        }
         return { version: "0.1.0", signInLinks };
       },
     });
@@ -98,6 +102,16 @@ describe("a Sign-in Link", () => {
       screen.findByRole("link", { name: "Email me a Sign-in Link" }),
     ).resolves.toBeDefined();
     expect(screen.getByText(/Forgot your password/u)).toBeDefined();
+  });
+
+  test("the sign-in page doesn't offer one when the Hub fails to say whether it emails them", async () => {
+    const hub = openHub("/sign-in", null);
+    await screen.findByRole("heading", { name: "Sign in" });
+    await waitFor(() => {
+      expect(hub.toldSignInLinks()).toBe(true);
+    });
+
+    expect(screen.queryByRole("link", { name: "Email me a Sign-in Link" })).toBeNull();
   });
 
   test("asking for one says to check the inbox, and sends where the sign-in continues", async () => {

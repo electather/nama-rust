@@ -13,11 +13,13 @@ export interface LinkErrors {
 
 /**
  * What to say about a code the Hub refused, read by its reason; nothing before it refused one.
- * Without `sendsSignInLinks`, nothing on the Hub can prove an email, so none is offered.
+ * When `sendsSignInLinks` is `false`, nothing on the Hub can prove an email, so none is offered.
+ * When it's unknown, a Sign-in Link is still offered: the Hub may have mail, and if it hasn't,
+ * asking for one says so.
  */
-export function linkErrors(error: unknown, sendsSignInLinks: boolean): LinkErrors {
+export function linkErrors(error: unknown, sendsSignInLinks: boolean | undefined): LinkErrors {
   const errors = refusalErrors(error);
-  return errors.proveEmail === true && !sendsSignInLinks ? cannotProveEmail : errors;
+  return errors.proveEmail === true && sendsSignInLinks === false ? cannotProveEmail : errors;
 }
 
 function refusalErrors(error: unknown): LinkErrors {

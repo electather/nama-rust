@@ -44,14 +44,25 @@ function refused(code: Code, reason: RefusalReason) {
  * the code BDFH-JKLM, and its User Ida the code CDFG-HJKL, and entering either is refused for
  * `refusing`, if given. Ada's Account has Attic Linked, and Grace on Cabin, whose Admin set its
  * Server URL. With `listFails`, the Hub fails to list the Account's Servers. Without
- * `signInLinks`, the Hub has no mail to email Sign-in Links.
+ * `signInLinks`, the Hub has no mail to email Sign-in Links. With `hubInfoFails`, it fails to say
+ * whether it has.
  */
-function openAccount(refusing?: RefusalReason, { listFails = false, signInLinks = true } = {}) {
+function openAccount(
+  refusing?: RefusalReason,
+  { listFails = false, signInLinks = true, hubInfoFails = false } = {},
+) {
   let session = true;
   const servers = [attic, cabin];
   let users = [grace];
   const transport = createRouterTransport(({ service }) => {
-    service(HubService, { getHubInfo: () => ({ version: "0.1.0", signInLinks }) });
+    service(HubService, {
+      getHubInfo: () => {
+        if (hubInfoFails) {
+          throw new ConnectError("the Hub failed", Code.Internal);
+        }
+        return { version: "0.1.0", signInLinks };
+      },
+    });
     service(AccountService, {
       getAccount: () => {
         if (!session) {
@@ -191,6 +202,18 @@ describe("linking a Server", () => {
       ),
     ).resolves.toBeDefined();
     expect(screen.queryByRole("link", { name: "Email me a Sign-in Link" })).toBeNull();
+  });
+
+  test("a Hub that couldn't say whether it has mail still offers a Sign-in Link", async () => {
+    openAccount(RefusalReason.EMAIL_NOT_PROVEN, { hubInfoFails: true });
+    await enterCode("BDFH-JKLM");
+
+    await expect(
+      screen.findByText(
+        "Linking needs your email proven first. Sign in with a Sign-in Link sent to it, then try again.",
+      ),
+    ).resolves.toBeDefined();
+    expect(screen.getByRole("link", { name: "Email me a Sign-in Link" })).toBeDefined();
   });
 
   test("a Server list the Hub can't give says so and leaves the rest of the page", async () => {
