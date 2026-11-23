@@ -21,8 +21,3 @@ inherits = "ci"
 # Its job starts with an empty wasm compile cache. In parallel every test compiles the bundled
 # Plugins at once, about 10 s each in CI; one at a time, the first fills the cache for the rest.
 test-threads = 1
-
-# The Hub's `web` feature tests, in the same job as `ci-web`, with a profile of their own for the
-# same reason.
-[profile.ci-hub-web]
-inherits = "ci"

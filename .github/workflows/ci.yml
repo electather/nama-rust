@@ -471,7 +471,7 @@ jobs:
       # The Hub embeds its web app as the Server does. Its other tests need PostgreSQL, which `hub`
       # has, so this runs only its web pages' unit tests, which need none.
       - run: vp -C web/hub build
-      - run: cargo nextest run -p nama-hub --features web --lib --locked --profile ci-hub-web -E 'test(/^web::/)'
+      - run: cargo nextest run -p nama-hub --features web --lib --locked --profile ci -E 'test(/^web::/)'
       - if: ${{ !cancelled() && hashFiles('target/nextest/*/junit.xml') != '' }}
         run: git rev-parse 'HEAD^{tree}' > target/nextest/tree
       - uses: actions/upload-artifact@v7
