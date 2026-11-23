@@ -2,7 +2,8 @@ import type { TileBadgeShown } from "@/shared/components/row-poster/row-tiles";
 
 /**
  * Where a missing title stands: a one-line pill in its poster's top corner on the scrim, so it
- * reads over art without hiding it. Its poster's link names it to screen readers by `id`.
+ * reads over art without hiding it. Its poster's link points at `id` to describe itself to screen
+ * readers.
  */
 export function TileBadge({ id, badge }: { id: string; badge: TileBadgeShown }) {
   const { label, short = label, Icon } = badge;

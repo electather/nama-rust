@@ -91,7 +91,7 @@ function missingMovieBadge(movie: MovieHit) {
 }
 
 /** A Request's state on a shelf: its own label while asked for, none once it's here. */
-function badgeFor(state: RequestState | undefined): Shown | undefined {
+function badgeFor(state: RequestState | undefined): TileBadgeShown | undefined {
   if (state === undefined) {
     return notHere;
   }

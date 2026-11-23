@@ -10,8 +10,9 @@ const radius = "rounded-3xl";
 
 /**
  * A title on a shelf: its poster alone, which carries its name, named `title` for assistive
- * technology and opening `link`, with `children`, such as a badge, over it, which `describedBy`
- * names, since the link's label hides them. `current` marks the title whose page the shelf is on.
+ * technology and opening `link`, with `children`, such as a badge, over it. `describedBy` names
+ * the element that describes the link, since its label hides the children. `current` marks the
+ * title whose page the shelf is on.
  */
 export function ShelfPoster({
   link,
