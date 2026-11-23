@@ -5,6 +5,7 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { BrowseService, type GetPersonResponseSchema } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
+import { RequestService } from "@/gen/nama/v1/request_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
 
 afterEach(cleanup);
@@ -83,6 +84,28 @@ test("every name on a title's page opens its Person's page", async () => {
   );
   // Directed by's is the one named only "Ridley Scott": Cast & Crew's says Director too.
   expect(href(screen.getByRole("link", { name: "Ridley Scott" }))).toBe("/people/tmdb-578");
+});
+
+test("every name on a Show's request page opens its Person's page, Created by's too", async () => {
+  const odar = { name: "Baran bo Odar", part: "Creator", personId: tmdb("1063962") };
+  const show = {
+    id: tmdb("70523"),
+    title: "Dark",
+    cast: [{ name: "Louis Hofmann", part: "Jonas Kahnwald", personId: tmdb("1197150") }],
+    crew: [odar],
+  };
+  const transport = fakeServer({ signedIn: newUser }, {}, {}, (router) => {
+    router.service(RequestService, { listRequests: () => ({}), lookUpShow: () => ({ show }) });
+  });
+  openApp("/shows/tmdb-70523", transport);
+
+  const castAndCrew = within(await screen.findByRole("list", { name: "Cast & Crew" }));
+
+  expect(href(castAndCrew.getByRole("link", { name: "Louis Hofmann Jonas Kahnwald" }))).toBe(
+    "/people/tmdb-1197150",
+  );
+  // Created by's is the one named only "Baran bo Odar": Cast & Crew's says Creator too.
+  expect(href(screen.getByRole("link", { name: "Baran bo Odar" }))).toBe("/people/tmdb-1063962");
 });
 
 test("a Person's page shows their headshot and name over their titles, newest first, with their part", async () => {

@@ -64,8 +64,16 @@ impl Browse {
 
     /// The pages of at most [`PEOPLE_FOUND`] People with a title in a Library whose names fit
     /// `query`, best first, as [`Contents::people_named`](crate::library::Contents) orders them.
-    pub(crate) async fn people_named(&self, query: &str) -> Result<Vec<PersonPage>, Error> {
+    /// None for a search of one `kind` of title.
+    pub(crate) async fn people_named(
+        &self,
+        query: &str,
+        kind: Option<TitleKind>,
+    ) -> Result<Vec<PersonPage>, Error> {
         let mut found = Vec::new();
+        if kind.is_some() {
+            return Ok(found);
+        }
         for person in (self.contents.people_named(query).await?)
             .iter()
             .take(PEOPLE_READ)

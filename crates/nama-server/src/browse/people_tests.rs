@@ -129,8 +129,8 @@ async fn a_search_finds_people_by_word_starts_ignoring_accents_exact_names_first
     fx.movie(1, "2001-01-01", vec![cruzado.clone()]).await;
     fx.movie(2, "2002-01-01", vec![cruzado, cruz]).await;
 
-    let found = fx.browse.people_named("penelope cruz").await.unwrap();
-    let missed = fx.browse.people_named("lope").await.unwrap();
+    let found = fx.browse.people_named("penelope cruz", None).await.unwrap();
+    let missed = fx.browse.people_named("lope", None).await.unwrap();
 
     let names: Vec<&str> = found.iter().map(|page| page.name.as_str()).collect();
     assert_eq!(names, ["Penélope Cruz", "Penelope Cruzado"]);

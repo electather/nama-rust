@@ -71,10 +71,7 @@ impl SearchService for SearchServiceHandler {
             .map_or(DEFAULT_LIMIT, |limit| limit.min(MAX_LIMIT));
         let found = self.browse.search(query, kind, limit).await;
         let found = found.map_err(database_failed)?;
-        let people = match kind {
-            None => self.browse.people_named(query).await,
-            Some(_) => Ok(Vec::new()),
-        };
+        let people = self.browse.people_named(query, kind).await;
         let people = people.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await.map_err(database_failed)?;
         let sent = Sent {
