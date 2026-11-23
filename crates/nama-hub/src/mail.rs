@@ -154,13 +154,13 @@ impl fmt::Debug for Resend {
 
 /// Writes each email to the Hub's log instead of sending it, so a Hub developed without Resend
 /// can still prove an Account's email. [`crate::config::Config::load`] allows it only on a Hub
-/// whose public URL is on this machine.
+/// whose public URL is on localhost or a loopback address.
 #[derive(Debug)]
 pub struct LogMailer;
 
 impl Mailer for LogMailer {
     fn send(&self, email: Email) -> Sending<'_> {
-        // Logs the address, an exception to ADR 0054 that `AGENTS.md` ("Data") records.
+        // Logs the address, an exception to ADR 0054 that `crates/nama-hub/AGENTS.md` ("Data") records.
         info!(to = %email.to, subject = %email.subject, "mail not sent:\n{}", email.text);
         Box::pin(async { Ok(()) })
     }

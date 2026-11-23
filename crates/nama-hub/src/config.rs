@@ -34,7 +34,8 @@ pub struct Config {
     /// none, so it doesn't offer Sign-in Links.
     pub resend_api_key: Option<String>,
     /// Writes the mail to the Hub's log instead of sending it, for developing without Resend.
-    /// Only with a `public_url` on this machine, and never with `resend_api_key`.
+    /// Only with a `public_url` on localhost or a loopback address, and never with
+    /// `resend_api_key`.
     #[serde(default)]
     pub log_mail: bool,
     /// The address mail comes from, such as `Nama Hub <hub@example.com>`, on a domain verified

@@ -167,10 +167,12 @@ fn mail(config: &Config) -> Result<Option<Mail>, MailError> {
     let Some(public_url) = &config.public_url else {
         return Ok(None);
     };
-    let mailer: Arc<dyn Mailer> = match (&config.resend_api_key, &config.mail_from) {
-        _ if config.log_mail => Arc::new(LogMailer),
-        (Some(api_key), Some(from)) => Arc::new(Resend::new(api_key.clone(), from.clone())?),
-        _ => return Ok(None),
+    let mailer: Arc<dyn Mailer> = if config.log_mail {
+        Arc::new(LogMailer)
+    } else if let (Some(api_key), Some(from)) = (&config.resend_api_key, &config.mail_from) {
+        Arc::new(Resend::new(api_key.clone(), from.clone())?)
+    } else {
+        return Ok(None);
     };
     Ok(Some(Mail {
         mailer,
