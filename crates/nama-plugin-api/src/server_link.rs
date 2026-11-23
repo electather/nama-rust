@@ -2,8 +2,8 @@
 //! the Hub (ADR 0011, ADR 0094), and then Linking its Users the same way. The Plugin keeps whatever
 //! identity the service gives the Server. Its Users then sign in with their accounts there, and an
 //! Admin creates Users from such accounts (ADR 0092). Their Watch State and Subtitle and Audio
-//! Preferences on their other Servers come back through it too (ADR 0008, ADR 0092). Only a
-//! Built-in Plugin provides it, by registering it:
+//! Preferences on their other Servers come back through it too (ADR 0008, ADR 0092), and their
+//! Watchlist syncs with them (ADR 0056). Only a Built-in Plugin provides it, by registering it:
 //!
 //! ```ignore
 //! registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::new(my_linker));
@@ -70,6 +70,19 @@ pub struct ServerAddresses {
     /// The port on its router's public IP address that reaches it: one the Server opened with UPnP
     /// or NAT-PMP, or the one its Admin forwarded. `None` without one.
     pub public_port: Option<u16>,
+}
+
+/// A title on a User's Watchlist, or taken off it, as the change made last left it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WatchlistEntry {
+    /// Whether it is a Show rather than a Movie, whose TMDB ids are a separate id space.
+    pub show: bool,
+    /// The External ID it was added under, such as `tmdb-603`, whether or not the Server has it.
+    pub id: String,
+    /// Whether it was taken off.
+    pub removed: bool,
+    /// When it changed, in milliseconds since the Unix epoch.
+    pub changed_at_ms: i64,
 }
 
 /// A Provider that Links the Server, and its Users, to an outside service.
@@ -200,4 +213,19 @@ pub trait ServerLinker: Send + Sync + 'static {
     ) -> BoxFuture<'_, Result<Vec<TrackPreference>, PluginError>> {
         Box::pin(async { Ok(Vec::new()) })
     }
+
+    /// Hands the service `watchlist`, the User `user_id`'s whole Watchlist, and answers the one it
+    /// keeps from every Server they use, such as their Account's on the Hub (ADR 0056), each
+    /// title's under each of its ids apart; empty while they aren't Linked. The Kernel takes what
+    /// is newer than its own.
+    ///
+    /// # Errors
+    ///
+    /// When the service couldn't be asked: the Kernel syncs again at the next change, sign-in or
+    /// scan.
+    fn sync_watchlist(
+        &self,
+        user_id: i64,
+        watchlist: Vec<WatchlistEntry>,
+    ) -> BoxFuture<'_, Result<Vec<WatchlistEntry>, PluginError>>;
 }

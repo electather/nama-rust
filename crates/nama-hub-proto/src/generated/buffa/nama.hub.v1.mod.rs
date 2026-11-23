@@ -99,6 +99,9 @@ pub mod __buffa {
         reg.register_json_any(super::__PULL_TRACK_PREFERENCES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__PULL_TRACK_PREFERENCES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__TRACK_PREFERENCE_CHANGE_JSON_ANY);
+        reg.register_json_any(super::__SYNC_WATCHLIST_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SYNC_WATCHLIST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__WATCHLIST_ENTRY_JSON_ANY);
         reg.register_json_any(super::__USER_INVITE_JSON_ANY);
         reg.register_json_any(super::__LIST_USER_INVITES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_USER_INVITES_RESPONSE_JSON_ANY);
@@ -398,6 +401,18 @@ pub use self::__buffa::view::PullTrackPreferencesResponseOwnedView;
 pub use self::__buffa::view::TrackPreferenceChangeView;
 #[doc(inline)]
 pub use self::__buffa::view::TrackPreferenceChangeOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SyncWatchlistRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SyncWatchlistRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SyncWatchlistResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SyncWatchlistResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchlistEntryView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchlistEntryOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UserInviteView;
 #[doc(inline)]

@@ -34,7 +34,7 @@ use nama_plugin_api::{
         ObservedEvents, TrackDescription, TrackPreference, TrackPreferenceChange,
         TrackPreferenceFor, WatchStateChange, WatchStateChanges,
     },
-    server_link::{Link, Reachability, ServerAddresses, ServerLinker},
+    server_link::{Link, Reachability, ServerAddresses, ServerLinker, WatchlistEntry},
     similar_source::SimilarSource,
 };
 use serde_json::json;
@@ -1269,6 +1269,55 @@ async fn a_linked_users_play_of_a_matched_title_goes_to_the_hub() {
             ..Default::default()
         }
     );
+}
+
+/// The Movie `tmdb-<id>` on the Watchlist, changed at `changed_at_ms`.
+fn watchlisted(id: u64, changed_at_ms: i64) -> WatchlistEntry {
+    WatchlistEntry {
+        show: false,
+        id: format!("tmdb-{id}"),
+        removed: false,
+        changed_at_ms,
+    }
+}
+
+#[tokio::test]
+async fn a_watchlist_sync_answers_the_accounts_watchlist_and_a_users_leaves_only_once_linked() {
+    let hub = FakeHub::start().await;
+    let (_, _, linker) = syncing_user_7(&hub).await;
+    let too_long = WatchlistEntry {
+        id: format!("tmdb-{}", "1".repeat(100)),
+        ..watchlisted(0, 3_000)
+    };
+    let removed = WatchlistEntry {
+        show: true,
+        removed: true,
+        ..watchlisted(1399, 2_000)
+    };
+    let watchlist = vec![watchlisted(348, 1_000), removed.clone(), too_long];
+
+    let synced = linker.sync_watchlist(7, watchlist).await.unwrap();
+
+    assert_eq!(synced, [removed, watchlisted(348, 1_000)]);
+    assert_eq!(
+        linker
+            .sync_watchlist(8, vec![watchlisted(603, 1_000)])
+            .await
+            .unwrap(),
+        [],
+        "User 8 isn't Linked"
+    );
+    assert_eq!(hub.watchlist_syncs(), [7]);
+}
+
+#[tokio::test]
+async fn a_server_that_isnt_linked_syncs_no_watchlist() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+
+    let synced = linker.sync_watchlist(7, vec![watchlisted(348, 1_000)]);
+
+    assert_eq!(synced.await.unwrap(), []);
 }
 
 #[tokio::test]

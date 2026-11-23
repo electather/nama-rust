@@ -170,6 +170,14 @@ pub type OwnedPullTrackPreferencesResponseView = ::buffa::view::OwnedView<
         'static,
     >,
 >;
+///Shorthand for `OwnedView<SyncWatchlistRequestView<'static>>`.
+pub type OwnedSyncWatchlistRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SyncWatchlistRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SyncWatchlistResponseView<'static>>`.
+pub type OwnedSyncWatchlistResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SyncWatchlistResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<InviteUserRequestView<'static>>`.
 pub type OwnedInviteUserRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::InviteUserRequestView<'static>,
@@ -898,6 +906,40 @@ for ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::PullTrackPreferencesResponseView<
         'static,
     >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SyncWatchlistResponse>
+for crate::messages::nama::hub::v1::__buffa::view::SyncWatchlistResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SyncWatchlistResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SyncWatchlistResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -3215,6 +3257,12 @@ pub const LINKED_SERVER_SERVICE_PULL_TRACK_PREFERENCES_SPEC: ::connectrpc::Spec 
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `SyncWatchlist` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_SYNC_WATCHLIST_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/SyncWatchlist",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
 /// Static [`Spec`](::connectrpc::Spec) for the `InviteUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const LINKED_SERVER_SERVICE_INVITE_USER_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.hub.v1.LinkedServerService/InviteUser",
@@ -3524,6 +3572,33 @@ pub trait LinkedServerService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::hub::v1::PullTrackPreferencesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Merges one of the Server's Users' whole Watchlist into their Account's (ADR 0056), and returns
+    /// the Account's: per title and External ID, the change made last wins, removals included,
+    /// whichever Server sends it and whenever, and of two made at the same moment, the removal. A User
+    /// who isn't Linked gets none, and nothing of theirs is kept. Fails with
+    /// `REFUSAL_REASON_WATCHLIST_INVALID` for an entry it can't keep, keeping none of the call's.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn sync_watchlist<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::SyncWatchlistRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::SyncWatchlistResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -3977,6 +4052,35 @@ impl<S: LinkedServerService> LinkedServerServiceExt for S {
             .with_spec(LINKED_SERVER_SERVICE_PULL_TRACK_PREFERENCES_SPEC)
             .route_view(
                 LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "SyncWatchlist",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::SyncWatchlistRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::SyncWatchlistRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.sync_watchlist(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::SyncWatchlistResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_SYNC_WATCHLIST_SPEC)
+            .route_view(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
                 "InviteUser",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
@@ -4259,6 +4363,12 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .with_spec(LINKED_SERVER_SERVICE_PULL_TRACK_PREFERENCES_SPEC),
                 )
             }
+            "SyncWatchlist" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(LINKED_SERVER_SERVICE_SYNC_WATCHLIST_SPEC),
+                )
+            }
             "InviteUser" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -4505,6 +4615,28 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .await?
                         .encode::<
                             crate::messages::nama::hub::v1::PullTrackPreferencesResponse,
+                        >(format)
+                })
+            }
+            "SyncWatchlist" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::SyncWatchlistRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::SyncWatchlistRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::SyncWatchlistRequest,
+                    >::from_parts(&req, &body);
+                    svc.sync_watchlist(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::SyncWatchlistResponse,
                         >(format)
                 })
             }
@@ -5167,6 +5299,51 @@ where
                 &self.transport,
                 &self.config,
                 LINKED_SERVER_SERVICE_PULL_TRACK_PREFERENCES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SyncWatchlist RPC. Sends a request to /nama.hub.v1.LinkedServerService/SyncWatchlist.
+    pub async fn sync_watchlist(
+        &self,
+        request: crate::messages::nama::hub::v1::SyncWatchlistRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SyncWatchlistResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.sync_watchlist_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SyncWatchlist RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn sync_watchlist_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::SyncWatchlistRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SyncWatchlistResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_SYNC_WATCHLIST_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

@@ -2,10 +2,10 @@
 //! Hub-facing. It Links the Server to an Account, through a code an Admin enters on the Hub (ADR
 //! 0011), keeps the credential the Server presents to the Hub from then on in its Store, and sends
 //! the Hub the Diagnostics and Usage Analytics the Admin shares (ADR 0054). Its Users then Link to
-//! their own Accounts the same way, their Watch State and Subtitle and Audio Preferences sync
-//! through the Hub (ADR 0092), each play of theirs goes
-//! to the Hub as a Viewing Event (ADR 0093), and the Hub lists the Server, with its Server
-//! Addresses, to every Account it has a User on.
+//! their own Accounts the same way, their Watch State, Subtitle and Audio Preferences and
+//! Watchlists sync with the Hub (ADR 0092), each play of theirs goes to the Hub as a Viewing Event
+//! (ADR 0093), and the Hub lists the Server, with its Server Addresses, to every Account it has a
+//! User on.
 //! Once Linked, it is also a Similar source answering the titles the Hub finds alike (ADR 0084,
 //! 0095), and shares a Home row of the Movies trending across Nama's Accounts (ADR 0058, 0093).
 
@@ -77,10 +77,11 @@ impl Plugin for Hub {
         Manifest {
             name: "Hub".to_owned(),
             description: "Links the Server, and its Users, to Accounts on Nama's Hub, syncs \
-                          Linked Users' Watch State and Subtitle and Audio Preferences there \
-                          and sends it what they play, sends it the Diagnostics and Usage \
-                          Analytics you share in Settings, adds the titles the Hub finds alike \
-                          to Similar titles, and shows a Trending on Nama row on home."
+                          Linked Users' Watch State, Subtitle and Audio Preferences and \
+                          Watchlists there and sends it what they play, sends it the Diagnostics \
+                          and Usage Analytics you share in Settings, adds the titles the Hub \
+                          finds alike to Similar titles, and shows a Trending on Nama row on \
+                          home."
                 .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_markdown: "Enable it, then Link the Server under Settings, Server. The Server \

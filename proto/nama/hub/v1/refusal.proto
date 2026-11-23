@@ -83,5 +83,9 @@ enum RefusalReason {
   // `TrackPreferenceChange` and `PushTrackPreferencesRequest` set, such as too many changes, a
   // field too long, or a time out of range. `field` names it. Params: `maxChanges`, `maxIdLength`,
   // `maxLanguageLength` and `maxTitleLength`.
-  REFUSAL_REASON_TRACK_PREFERENCE_INVALID = 22;
+  REFUSAL_REASON_TRACK_PREFERENCE_INVALID = 23;
+  // `invalid_argument`: a Watchlist entry breaks a limit `SyncWatchlistRequest` sets, such as too
+  // many entries, an id too long, no kind, or a time out of range. `field` names it. Params:
+  // `maxEntries` and `maxIdLength`.
+  REFUSAL_REASON_WATCHLIST_INVALID = 22;
 }

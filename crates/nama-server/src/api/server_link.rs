@@ -3,7 +3,7 @@
 //! `UnlinkServer`, `UserService`'s `GetUserLink`, `StartUserLink`, `UnlinkUser` and
 //! `CreateUserFromAccount`, and `SignInService`'s sign-in with an Account (ADR 0092). Through it
 //! too, a User's Watch State and Track Preferences on their other Servers come back (ADR 0008,
-//! ADR 0092).
+//! ADR 0092), and their Watchlist syncs with them (ADR 0056).
 
 use std::{future::Future, net::SocketAddr, sync::Arc, time::Duration};
 
@@ -23,6 +23,7 @@ use tracing::Instrument;
 use super::refuse;
 use crate::{
     browse::Browse,
+    db::Database,
     diagnostics,
     events::EventBus,
     playback::TrackPreferences,
@@ -30,10 +31,12 @@ use crate::{
     server_addresses,
     server_settings::ServerUrl,
     users::{User, Users},
+    watchlist,
 };
 
-/// How long a pull of a User's Watch State or Track Preferences may take.
-const PULL_TIMEOUT: Duration = Duration::from_mins(1);
+/// How long a pull of a User's Watch State or Track Preferences, or a sync of their Watchlist, may
+/// take.
+const SYNC_TIMEOUT: Duration = Duration::from_mins(1);
 
 /// What `unavailable` says when the Plugin that links the Server fails.
 const LINKING_FAILED: &str = "the Plugin that links the Server failed; its page says why";
@@ -77,16 +80,19 @@ pub(super) async fn unlink(points: &ExtensionPoints) -> ServiceResult<UnlinkServ
 
 /// Where Linking `user` stands, unset while they can't Link: without an enabled Plugin that links
 /// the Server, or before the Server is Linked. Once they are Linked, pulls their Watch State and
-/// Track Preferences too, as it can't tell the look that finds a Link new from a later one.
+/// Track Preferences too, and syncs their Watchlist, as it can't tell the look that finds a Link
+/// new from a later one.
 pub(super) async fn get_user(
     points: &ExtensionPoints,
     browse: &Browse,
     preferences: &TrackPreferences,
+    db: &Arc<Database>,
     user: &User,
 ) -> ServiceResult<GetUserLinkResponse> {
     let link = ask(points, async |linker| linker.user_link(user.id).await).await?;
     if let Some(Some(Link::Linked { .. })) = &link {
         pull_soon(points, browse, preferences, user.id);
+        sync_watchlist_soon(points, db, user.id);
     }
     Response::ok(GetUserLinkResponse {
         link: link.flatten().map(user_link_to_proto).into(),
@@ -95,11 +101,12 @@ pub(super) async fn get_user(
 }
 
 /// Starts Linking `user`, whom the service lists by their name, or pulls their Watch State and
-/// Track Preferences if they turn out to be Linked already.
+/// Track Preferences and syncs their Watchlist if they turn out to be Linked already.
 pub(super) async fn start_user(
     points: &ExtensionPoints,
     browse: &Browse,
     preferences: &TrackPreferences,
+    db: &Arc<Database>,
     user: &User,
 ) -> ServiceResult<StartUserLinkResponse> {
     let link = ask(points, async |linker| {
@@ -109,6 +116,7 @@ pub(super) async fn start_user(
     .ok_or_else(no_linker)?;
     if let Link::Linked { .. } = link {
         pull_soon(points, browse, preferences, user.id);
+        sync_watchlist_soon(points, db, user.id);
     }
     Response::ok(StartUserLinkResponse {
         link: user_link_to_proto(link).into(),
@@ -292,11 +300,13 @@ pub(super) fn pull_soon(
 }
 
 /// Pulls every User's Watch State after each scan's Matching, so a title a scan added shows what
-/// they did with it on their other Servers (ADR 0008), until the task is aborted.
-pub(crate) fn pull_watch_states_after_scans(
+/// they did with it on their other Servers (ADR 0008), and syncs their Watchlist, so a sync that
+/// failed is tried again (ADR 0056), until the task is aborted.
+pub(crate) fn sync_after_scans(
     events: &EventBus,
     points: ExtensionPoints,
     browse: Browse,
+    db: Arc<Database>,
     users: Users,
 ) -> JoinHandle<()> {
     let mut followed = events.follow();
@@ -315,13 +325,14 @@ pub(crate) fn pull_watch_states_after_scans(
             let listed = match users.list().await {
                 Ok(listed) => listed,
                 Err(err) => {
-                    tracing::error!("listing Users to pull their Watch State failed: {err}");
+                    tracing::error!("listing Users to sync them failed: {err}");
                     continue;
                 }
             };
             // One at a time, as each reads every Library.
             for user in listed {
                 pull_watch_states(&points, &browse, user.id).await;
+                sync_watchlist(&points, &db, user.id).await;
             }
         }
     })
@@ -375,7 +386,7 @@ where
     let answer = points
         .ask_first::<dyn ServerLinker, _, _, _, _>(async |linker| {
             // Bounded, so a Plugin that never answers can't hold up every later scan's pulls.
-            tokio::time::timeout(PULL_TIMEOUT, pull(linker))
+            tokio::time::timeout(SYNC_TIMEOUT, pull(linker))
                 .await
                 .unwrap_or_else(|_elapsed| Err("it didn't answer in time".into()))
         })
@@ -388,6 +399,58 @@ where
             tracing::warn!(%plugin, user = user_id, "could not pull a User's {what}");
         })
         .ok()
+}
+
+/// Syncs the User `user_id`'s Watchlist with the enabled Plugin that links the Server, as after
+/// they change it, sign in or Link (ADR 0056), without waiting for it, so a slow or unreachable
+/// service holds up nothing. Must be called within a Tokio runtime.
+pub(super) fn sync_watchlist_soon(points: &ExtensionPoints, db: &Arc<Database>, user_id: i64) {
+    let (points, db) = (points.clone(), Arc::clone(db));
+    let span = diagnostics::following_current(tracing::info_span!(parent: None, "sync_watchlist"));
+    tokio::spawn(async move { sync_watchlist(&points, &db, user_id).await }.instrument(span));
+}
+
+/// Hands the User `user_id`'s whole Watchlist to the enabled Plugin that links the Server, and
+/// takes what it answers where that is newer than the Server's own. A failure is logged: the next
+/// change, sign-in or scan syncs again, sending what this didn't.
+async fn sync_watchlist(points: &ExtensionPoints, db: &Database, user_id: i64) {
+    // Most Servers have no such Plugin, and then needn't read the Watchlist at every sign-in.
+    if points.providers::<dyn ServerLinker>().is_empty() {
+        return;
+    }
+    let entries = match watchlist::entries(db, user_id).await {
+        Ok(entries) => entries,
+        Err(err) => {
+            tracing::error!(
+                user = user_id,
+                "reading a User's Watchlist to sync failed: {err}"
+            );
+            return;
+        }
+    };
+    let Some(answer) = points
+        .ask_first::<dyn ServerLinker, _, _, _, _>(async |linker| {
+            let syncing = linker.sync_watchlist(user_id, entries.clone());
+            tokio::time::timeout(SYNC_TIMEOUT, syncing)
+                .await
+                .unwrap_or_else(|_elapsed| Err("it didn't answer in time".into()))
+        })
+        .await
+    else {
+        return;
+    };
+    let Ok(synced) = answer.result else {
+        // Ids only: `ask_first` already puts the failure's message on the Plugin's page.
+        let plugin = &answer.plugin;
+        tracing::warn!(%plugin, user = user_id, "could not sync a User's Watchlist");
+        return;
+    };
+    if let Err(err) = watchlist::take_synced(db, user_id, synced).await {
+        tracing::error!(
+            user = user_id,
+            "taking a User's synced Watchlist failed: {err}"
+        );
+    }
 }
 
 /// What `call` gets from the enabled Plugin that links the Server, or `None` without one. Its

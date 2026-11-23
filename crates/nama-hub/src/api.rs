@@ -5,6 +5,7 @@ mod accounts;
 mod links;
 mod track_preferences;
 mod viewing;
+mod watchlists;
 
 use std::{sync::Arc, time::Instant};
 
@@ -36,7 +37,7 @@ use crate::{
     links::{LinkedServer, Links},
     mail::Mail,
     signing::Keys,
-    sync::{TrackPreferences, WatchStates},
+    sync::{TrackPreferences, WatchStates, Watchlists},
     viewing::Viewing,
 };
 
@@ -63,6 +64,7 @@ pub(crate) fn router(
     let viewing = Viewing::new(db.clone(), links.clone());
     let watch_states = WatchStates::new(db.clone(), links.clone());
     let track_preferences = TrackPreferences::new(db.clone(), links.clone());
+    let watchlists = Watchlists::new(db.clone(), links.clone());
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(HubServiceHandler {
             db: db.clone(),
@@ -81,6 +83,7 @@ pub(crate) fn router(
             links: links.clone(),
             watch_states,
             track_preferences,
+            watchlists,
             viewing: viewing.clone(),
             db,
         }))
@@ -292,6 +295,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SERVER_ADDRESS_INVALID
         | R::REFUSAL_REASON_VIEWING_EVENT_INVALID
         | R::REFUSAL_REASON_TRACK_PREFERENCE_INVALID
+        | R::REFUSAL_REASON_WATCHLIST_INVALID
         | R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,
     }
 }

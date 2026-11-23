@@ -1,16 +1,17 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
 //! keeps in the Plugin's Store once someone entered it, the Server Addresses it tells the Hub, and
 //! through it shares what the Admin chooses with Nama's developers (ADR 0054). Its Users' Links are
-//! in `users.rs`, syncing their Watch State both ways in `watch_states.rs` and their Subtitle and
-//! Audio Preferences in `track_preferences.rs`, their plays as Viewing
-//! Events in `viewing.rs`, and signing in with an Account, and Users created from one, in
-//! `accounts.rs`.
+//! in `users.rs`, syncing their Watch State both ways in `watch_states.rs`, their Subtitle and
+//! Audio Preferences in `track_preferences.rs`, and their Watchlists in `watchlist.rs`, their plays
+//! as Viewing Events in `viewing.rs`, and signing in with an Account, and Users created from one,
+//! in `accounts.rs`.
 
 mod accounts;
 mod track_preferences;
 mod users;
 mod viewing;
 mod watch_states;
+mod watchlist;
 
 use std::{
     collections::HashMap,
@@ -29,7 +30,9 @@ use nama_plugin_api::{
     diagnostics_sharer::{DiagnosticsSharer, Signal},
     job::{JobRunner, RunJob},
     points::{TrackPreference, WatchStateChange},
-    server_link::{AccountSignIn, Link, Reachability, ServerAddresses, ServerLinker},
+    server_link::{
+        AccountSignIn, Link, Reachability, ServerAddresses, ServerLinker, WatchlistEntry,
+    },
 };
 use ring::digest;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -441,6 +444,14 @@ impl ServerLinker for Linker {
         user_id: i64,
     ) -> BoxFuture<'_, Result<Vec<TrackPreference>, PluginError>> {
         Box::pin(self.pull_preferences(user_id))
+    }
+
+    fn sync_watchlist(
+        &self,
+        user_id: i64,
+        watchlist: Vec<WatchlistEntry>,
+    ) -> BoxFuture<'_, Result<Vec<WatchlistEntry>, PluginError>> {
+        Box::pin(self.merge_watchlist(user_id, watchlist))
     }
 }
 

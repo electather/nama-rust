@@ -118,6 +118,14 @@ service LinkedServerService {
   rpc PullTrackPreferences(PullTrackPreferencesRequest) returns (PullTrackPreferencesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Merges one of the Server's Users' whole Watchlist into their Account's (ADR 0056), and returns
+  // the Account's: per title and External ID, the change made last wins, removals included,
+  // whichever Server sends it and whenever, and of two made at the same moment, the removal. A User
+  // who isn't Linked gets none, and nothing of theirs is kept. Fails with
+  // `REFUSAL_REASON_WATCHLIST_INVALID` for an entry it can't keep, keeping none of the call's.
+  rpc SyncWatchlist(SyncWatchlistRequest) returns (SyncWatchlistResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
   // Asks the Account with `email`, if there is one, to accept one of the Server's Users created
   // from it (ADR 0092). It answers the same whether or not there is, so it reveals nothing about
   // which emails have Accounts. Asking again for the same User replaces the request.
@@ -412,6 +420,32 @@ message TrackPreferenceChange {
   // When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
   // 9999.
   int64 changed_at_ms = 11;
+}
+
+message SyncWatchlistRequest {
+  // The User's id on the Server.
+  int64 user_id = 1;
+  // Every title on the User's Watchlist on the Server, and every one taken off it: up to 5000.
+  repeated WatchlistEntry entries = 2;
+}
+
+message SyncWatchlistResponse {
+  // The Account's, one per title and External ID, in no order.
+  repeated WatchlistEntry entries = 1;
+}
+
+// A title on a User's Watchlist, or taken off it, as the change made last left it. Kept by External
+// ID whether or not a Server has the title.
+message WatchlistEntry {
+  // A Movie or a Show, never unspecified.
+  TitleKind kind = 1;
+  // The External ID it was added under, such as `tmdb-603` (ADR 0013): 1 to 100 characters.
+  string id = 2;
+  // Whether it was taken off.
+  bool removed = 3;
+  // When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+  // 9999.
+  int64 changed_at_ms = 4;
 }
 
 // A User an Admin created from an Account, waiting for it to accept them.

@@ -3,6 +3,7 @@
 use std::{
     future,
     net::{IpAddr, SocketAddr},
+    sync::Arc,
     time::Instant,
 };
 
@@ -26,6 +27,7 @@ use nama_proto::nama::v1::{
 
 use crate::{
     browse::Browse,
+    db::Database,
     playback::TrackPreferences,
     plugins::ExtensionPoints,
     server_settings::ServerUrl,
@@ -51,6 +53,8 @@ pub(super) struct SignInServiceHandler {
     pub(super) browse: Browse,
     /// Takes the Track Preferences a User pulls as they sign in.
     pub(super) preferences: TrackPreferences,
+    /// Holds the Watchlist a User syncs as they sign in.
+    pub(super) db: Arc<Database>,
     /// The Server URL, one of the Server Addresses a sign-in with an Account may return to.
     pub(super) server_url: ServerUrl,
     /// Where the Server listens, whose LAN address is the other Server Address a sign-in with an
@@ -365,8 +369,8 @@ fn user_agent(headers: &HeaderMap) -> Option<String> {
 impl SignInServiceHandler {
     /// The response `body` makes for a Device just `signed_in`, with its session token handed out
     /// by `delivery`: in the body, or in a cookie and not in the body. Pulls the User's Watch
-    /// State and Track Preferences on their other Servers too, as every sign-in does (ADR 0008,
-    /// ADR 0092).
+    /// State and Track Preferences on their other Servers and syncs their Watchlist too, as every
+    /// sign-in does (ADR 0008, ADR 0056, ADR 0092).
     fn hand_out_session<M>(
         &self,
         signed_in: SignedIn,
@@ -381,6 +385,7 @@ impl SignInServiceHandler {
             &self.preferences,
             caller.user.id,
         );
+        server_link::sync_watchlist_soon(&self.points, &self.db, caller.user.id);
         match delivery {
             Delivery::Token => Response::new(body(caller, token)),
             Delivery::Cookie => {

@@ -22,12 +22,13 @@ use nama_hub_proto::nama::hub::v1::{
     RecordViewingEventsRequest, RecordViewingEventsResponse, RefusalReason, ServerLinkService,
     SetServerAddressesRequest, SetServerAddressesResponse, StartServerLinkRequest,
     StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
-    StartUserLinkRequest, StartUserLinkResponse, UnlinkLinkedUserRequest, UnlinkLinkedUserResponse,
-    UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
+    StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest, SyncWatchlistResponse,
+    UnlinkLinkedUserRequest, UnlinkLinkedUserResponse, UnlinkServerRequest, UnlinkServerResponse,
+    UnlinkUserRequest, UnlinkUserResponse,
 };
 use sqlx::PgPool;
 
-use super::{accounts::signed_in, hub_failed, refuse, track_preferences, viewing};
+use super::{accounts::signed_in, hub_failed, refuse, track_preferences, viewing, watchlists};
 use crate::{
     links::{
         self, ADDRESS_LENGTH, CODE_LIFETIME_MINS, InviteId, LinkId, LinkedServer, Links,
@@ -36,7 +37,7 @@ use crate::{
     },
     sync::{
         MAX_CHANGED_AT_MS, MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, TrackPreferences, WatchStateChange,
-        WatchStates,
+        WatchStates, Watchlists,
     },
     titles::{self, ExternalId, SimilarTitle, TitleKind},
     viewing::{TrendingTitle, Viewing},
@@ -258,6 +259,7 @@ pub(super) struct LinkedServerServiceHandler {
     pub(super) links: Links,
     pub(super) watch_states: WatchStates,
     pub(super) track_preferences: TrackPreferences,
+    pub(super) watchlists: Watchlists,
     pub(super) db: PgPool,
     pub(super) viewing: Viewing,
 }
@@ -412,6 +414,30 @@ impl LinkedServerService for LinkedServerServiceHandler {
         Response::ok(PullTrackPreferencesResponse {
             preferences: (pulled.into_iter())
                 .map(track_preferences::change_to_proto)
+                .collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn sync_watchlist(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SyncWatchlistRequest>,
+    ) -> ServiceResult<SyncWatchlistResponse> {
+        let server = linked_server(&ctx)?;
+        let SyncWatchlistRequest {
+            user_id, entries, ..
+        } = request.to_owned_message();
+        let entries = watchlists::watchlist_from_proto(entries)?;
+        let merged = self
+            .watchlists
+            .sync(server, user_id, entries)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(SyncWatchlistResponse {
+            entries: merged
+                .into_iter()
+                .map(watchlists::watchlist_entry_to_proto)
                 .collect(),
             ..Default::default()
         })
