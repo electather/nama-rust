@@ -3,7 +3,7 @@ import { type ComponentProps, useState } from "react";
 
 import { RowInput } from "@/shared/components/row-input";
 import { SettingRow } from "@/shared/components/setting-row";
-import { inputSize } from "@/shared/lib/control-size";
+import { inputLayout } from "@/shared/lib/control-size";
 
 /**
  * A setting typed on its row, saved once the field is left or Enter is pressed in it, never while
@@ -61,7 +61,7 @@ export function TypedSettingRow({
       label={label}
       hint={hint}
       error={shown}
-      size={inputSize(input.type)}
+      {...inputLayout(input.type)}
     >
       {(control) => (
         <RowInput

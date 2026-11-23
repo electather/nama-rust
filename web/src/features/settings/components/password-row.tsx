@@ -19,7 +19,7 @@ export function PasswordRow({
   error: string | undefined;
 }) {
   return (
-    <SettingRow setting={setting} label={label} hint={hint} error={error} size="field">
+    <SettingRow wide setting={setting} label={label} hint={hint} error={error} size="field">
       {(control) => (
         <Input
           {...control}
