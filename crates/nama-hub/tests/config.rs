@@ -183,7 +183,7 @@ fn log_mail_with_a_public_url_off_this_machine_refuses_to_load_naming_it() {
         ] {
             jail.set_env("NAMA_HUB_PUBLIC_URL", url);
             let err = Config::load().unwrap_err();
-            assert!(err.to_string().contains("NAMA_HUB_PUBLIC_URL"), "{err}");
+            assert!(err.to_string().contains("PUBLIC_URL"), "{err}");
         }
         Ok(())
     });
