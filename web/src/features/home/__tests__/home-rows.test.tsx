@@ -115,7 +115,7 @@ function scrollable() {
   };
 }
 
-test("home shows each Plugin's row in order, each poster opening its title", async () => {
+test("home shows its Libraries, then each Plugin's row in order, each poster opening its title", async () => {
   scrollable().scrolled();
   openHome();
 
@@ -123,7 +123,7 @@ test("home shows each Plugin's row in order, each poster opening its title", asy
   await screen.findByRole("link", { name: "Dark" });
   await waitFor(() => {
     const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    expect(headings).toStrictEqual(["Picks", "Trending Shows"]);
+    expect(headings).toStrictEqual(["Libraries", "Picks", "Trending Shows"]);
   });
   const shows = screen.getByRole("region", { name: "Trending Shows" });
   const picks = screen.getByRole("region", { name: "Picks" });
@@ -142,7 +142,7 @@ test("home draws Continue Watching where the Server lists it among the Plugins' 
   await screen.findByRole("link", { name: "Dark" });
   await screen.findByRole("link", { name: /Alien/u });
   const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-  expect(headings).toStrictEqual(["Picks", "Continue Watching", "Trending Shows"]);
+  expect(headings).toStrictEqual(["Libraries", "Picks", "Continue Watching", "Trending Shows"]);
 });
 
 test("only the first Plugin row loads at once when Continue Watching sits below it", async () => {
