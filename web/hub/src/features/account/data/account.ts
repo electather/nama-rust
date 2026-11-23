@@ -4,7 +4,7 @@ import type { RouterContext } from "@hub/app/router-context";
 import { refusalReason } from "@hub/features/account/lib/refusals";
 import { type Account, AccountService } from "@hub/gen/nama/hub/v1/account_pb";
 import { RefusalReason } from "@hub/gen/nama/hub/v1/refusal_pb";
-import { queryOptions, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 
 /**
  * The signed-in Account, or `null` when nobody is: being signed out isn't an error. It stays
@@ -38,6 +38,11 @@ export async function signedInAccount({ queryClient, transport }: RouterContext)
 export function useAccount() {
   const { data } = useSuspenseQuery(accountQuery(useTransport()));
   return data;
+}
+
+/** The signed-in Account's query, for a page no access check guards, which works on without it. */
+export function useAccountQuery() {
+  return useQuery(accountQuery(useTransport()));
 }
 
 /** Records the Account a sign-in just signed in, in place of whoever was before. */
