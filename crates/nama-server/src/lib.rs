@@ -289,7 +289,7 @@ pub fn serve(
         // Its calls run in the Plugin's scope, which shutting the Plugins down joins; telling it
         // again at the next start loses nothing.
         telling_addresses.abort();
-        // The next start's scans pull again.
+        // The next start's scans pull and sync again.
         syncing.abort();
         plugins.shutdown().await;
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.

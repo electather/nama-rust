@@ -2,7 +2,8 @@
 //! the Hub (ADR 0011, ADR 0094), and then Linking its Users the same way. The Plugin keeps whatever
 //! identity the service gives the Server. Its Users then sign in with their accounts there, and an
 //! Admin creates Users from such accounts (ADR 0092). Their Watch State on their other Servers
-//! comes back through it too (ADR 0008), and their Watchlist syncs with them (ADR 0056). Only a Built-in Plugin provides it, by registering it:
+//! comes back through it too (ADR 0008), and their Watchlist syncs with them (ADR 0056). Only a
+//! Built-in Plugin provides it, by registering it:
 //!
 //! ```ignore
 //! registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::new(my_linker));

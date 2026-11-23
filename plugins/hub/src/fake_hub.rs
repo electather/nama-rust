@@ -99,6 +99,8 @@ struct State {
     push_failure: Option<&'static str>,
     /// Each Watchlist entry Linked Users synced, in the order they came.
     watchlist: Vec<WatchlistEntry>,
+    /// The User each Watchlist sync was of, in the order they came.
+    watchlist_syncs: Vec<i64>,
     /// The name and email each User created from an Account was invited with, by id.
     invites: HashMap<i64, (String, String)>,
     /// The sign-in with an Account waiting: where it returns to, and the User it signs in as once
@@ -217,6 +219,11 @@ impl FakeHub {
     /// Has asking about a User's Link fail, though counted, as if the Hub were down.
     pub(super) fn fail_user_links(&self) {
         lock(&self.state).user_link_failure = Some("the Hub is down");
+    }
+
+    /// The User each Watchlist sync was of, in the order they came.
+    pub(super) fn watchlist_syncs(&self) -> Vec<i64> {
+        lock(&self.state).watchlist_syncs.clone()
     }
 
     /// Each push's changes, in the order they came.
@@ -496,6 +503,7 @@ impl LinkedServerService for Linked {
         let SyncWatchlistRequest {
             user_id, entries, ..
         } = request.to_owned_message();
+        state.watchlist_syncs.push(user_id);
         if !state.user_accounts.contains_key(&user_id) {
             return Response::ok(SyncWatchlistResponse::default());
         }

@@ -6,25 +6,33 @@
 use std::cmp::Reverse;
 
 use nama_hub_proto::nama::hub::v1::{TitleKind, WatchlistEntry as Entry};
-use nama_plugin_api::{PluginError, server_link::WatchlistEntry};
+use nama_plugin_api::{
+    PluginError,
+    server_link::{Link, WatchlistEntry},
+};
 
-use super::Linker;
+use super::{Linker, watch_states::MAX_ID_LENGTH};
 
-/// The most entries a sync sends, and the most characters each id may have, as the Hub takes them:
-/// past either it would refuse every sync of that User.
+/// The most entries a sync sends, as the Hub takes them: past it, or an id past `MAX_ID_LENGTH`,
+/// the Hub would refuse every sync of that User.
 // ponytail: past `MAX_ENTRIES` the oldest are left out; page the sync if Watchlists grow that long.
 const MAX_ENTRIES: usize = 5000;
-const MAX_ID_LENGTH: usize = 100;
 
 impl Linker {
     /// Merges `watchlist`, the User `user_id`'s, into the Account they are Linked to, and answers
-    /// the Account's; empty while they or the Server aren't Linked.
+    /// the Account's; empty while they or the Server aren't Linked, when it doesn't leave the
+    /// Server.
     pub(super) async fn merge_watchlist(
         &self,
         user_id: i64,
         mut watchlist: Vec<WatchlistEntry>,
     ) -> Result<Vec<WatchlistEntry>, PluginError> {
         let Some(kept) = self.kept().await? else {
+            return Ok(Vec::new());
+        };
+        // Asked as Settings would, as with Watch State: a User who only signs in with their
+        // Account has no kept Link.
+        let Some(Link::Linked { .. }) = self.current_user_link(user_id).await? else {
             return Ok(Vec::new());
         };
         watchlist.sort_by_key(|entry| Reverse(entry.changed_at_ms));

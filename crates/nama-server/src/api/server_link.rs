@@ -309,7 +309,7 @@ pub(crate) fn sync_after_scans(
             let listed = match users.list().await {
                 Ok(listed) => listed,
                 Err(err) => {
-                    tracing::error!("listing Users to pull their Watch State failed: {err}");
+                    tracing::error!("listing Users to sync them failed: {err}");
                     continue;
                 }
             };

@@ -155,12 +155,13 @@ impl Watchlists {
         let Some(account) = self.links.linked_account(server, user_id).await? else {
             return Ok(Vec::new());
         };
-        let mut columns = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        let (mut shows, mut ids, mut removed, mut changed_at_ms) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         for entry in entries {
-            columns.0.push(entry.show);
-            columns.1.push(entry.id);
-            columns.2.push(entry.removed);
-            columns.3.push(entry.changed_at_ms);
+            shows.push(entry.show);
+            ids.push(entry.id);
+            removed.push(entry.removed);
+            changed_at_ms.push(entry.changed_at_ms);
         }
         let mut tx = self.db.begin().await?;
         // DISTINCT ON, as an upsert may touch each row once: of one title's entries, the latest.
@@ -175,10 +176,10 @@ impl Watchlists {
              SET removed = excluded.removed, changed_at = excluded.changed_at
              WHERE excluded.changed_at > watchlists.changed_at",
             account.0,
-            &columns.0,
-            &columns.1,
-            &columns.2,
-            &columns.3,
+            &shows,
+            &ids,
+            &removed,
+            &changed_at_ms,
         )
         .execute(&mut *tx)
         .await?;

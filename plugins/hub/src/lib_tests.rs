@@ -1155,7 +1155,7 @@ fn watchlisted(id: u64, changed_at_ms: i64) -> WatchlistEntry {
 }
 
 #[tokio::test]
-async fn a_watchlist_sync_answers_the_accounts_watchlist_to_linked_users_only() {
+async fn a_watchlist_sync_answers_the_accounts_watchlist_and_a_users_leaves_only_once_linked() {
     let hub = FakeHub::start().await;
     let (_, _, linker) = syncing_user_7(&hub).await;
     let too_long = WatchlistEntry {
@@ -1180,6 +1180,7 @@ async fn a_watchlist_sync_answers_the_accounts_watchlist_to_linked_users_only() 
         [],
         "User 8 isn't Linked"
     );
+    assert_eq!(hub.watchlist_syncs(), [7]);
 }
 
 #[tokio::test]

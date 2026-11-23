@@ -1,10 +1,18 @@
+use std::sync::Arc;
+
 use nama_plugin_api::{
     metadata::{ExternalId, ExternalIds},
     server_link::WatchlistEntry,
 };
 
 use super::{add, entries, has, list, remove, take_synced};
-use crate::{db::Database, library::TitleKind};
+use crate::{
+    db::Database,
+    library::{
+        Metadata, TitleKind,
+        fixture::{MatchedMovie, tmdb_movie},
+    },
+};
 
 async fn insert_user(db: &Database) -> i64 {
     db.write(|tx| {
@@ -149,4 +157,36 @@ async fn a_synced_title_the_server_lacks_is_kept_by_its_id() {
 
     let listed = list(&db, ada).await.unwrap();
     assert_eq!(listed, [(TitleKind::Show, "tvdb-81189".parse().unwrap())]);
+}
+
+#[tokio::test]
+async fn a_title_the_server_matched_is_taken_off_under_each_of_its_ids() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(dir.path()).await.unwrap());
+    let imdb = ExternalId::new("imdb", "tt0078748").unwrap();
+    let alien = Metadata {
+        ids: ExternalIds::from_iter([ExternalId::tmdb(348), imdb]),
+        ..tmdb_movie(348, "Alien")
+    };
+    MatchedMovie::new(&db, dir.path(), alien).await;
+    let ada = insert_user(&db).await;
+    add(&db, ada, TitleKind::Movie, &ExternalId::tmdb(348))
+        .await
+        .unwrap();
+
+    remove(&db, ada, TitleKind::Movie, &ExternalId::tmdb(348))
+        .await
+        .unwrap();
+
+    let mut kept: Vec<_> = (entries(&db, ada).await.unwrap().into_iter())
+        .map(|entry| (entry.id, entry.removed))
+        .collect();
+    kept.sort();
+    assert_eq!(
+        kept,
+        [
+            ("imdb-tt0078748".to_owned(), true),
+            ("tmdb-348".to_owned(), true)
+        ]
+    );
 }

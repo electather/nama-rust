@@ -140,13 +140,16 @@ async fn set(
 ) -> Result<(), sqlx::Error> {
     let (kind, changed_at_ms) = (stored(title_kind(entry)), entry.changed_at_ms);
     if entry.removed {
+        // Kept under every id, even one it was never on under, so the removal syncs under each: a
+        // Server lacking the title can't tell they name one title, and may have it on under any.
         sqlx::query!(
-            "UPDATE watchlist SET removed = 1, changed_at_ms = ?
-             WHERE user_id = ? AND kind = ? AND NOT removed
-               AND title_id IN (SELECT value FROM json_each(?))",
-            changed_at_ms,
+            "INSERT INTO watchlist (user_id, kind, title_id, removed, changed_at_ms)
+             SELECT ?, ?, value, 1, ? FROM json_each(?) WHERE true
+             ON CONFLICT (user_id, kind, title_id) DO UPDATE
+             SET removed = 1, changed_at_ms = excluded.changed_at_ms",
             user,
             kind,
+            changed_at_ms,
             ids
         )
         .execute(&mut *conn)
