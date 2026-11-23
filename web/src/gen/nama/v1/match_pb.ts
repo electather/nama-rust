@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/match.proto.
  */
 export const file_nama_v1_match: GenFile = /*@__PURE__*/
-  fileDesc("ChNuYW1hL3YxL21hdGNoLnByb3RvEgduYW1hLnYxIlIKCkV4dGVybmFsSWQSEQoJbmFtZXNwYWNlGAQgASgJEg0KBXZhbHVlGAUgASgJSgQIARACSgQIAhADSgQIAxAEUgR0bWRiUgRpbWRiUgR0dmRiIowBCg5UaXRsZUNhbmRpZGF0ZRIfCgJpZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBINCgV0aXRsZRgCIAEoCRIbCg5vcmlnaW5hbF90aXRsZRgDIAEoCUgAiAEBEhEKBHllYXIYBCABKAVIAYgBAUIRCg9fb3JpZ2luYWxfdGl0bGVCBwoFX3llYXIiYgoTU2VhcmNoVGl0bGVzUmVxdWVzdBIgCgRraW5kGAEgASgOMhIubmFtYS52MS5UaXRsZUtpbmQSDQoFdGl0bGUYAiABKAkSEQoEeWVhchgDIAEoBUgAiAEBQgcKBV95ZWFyIkMKFFNlYXJjaFRpdGxlc1Jlc3BvbnNlEisKCmNhbmRpZGF0ZXMYASADKAsyFy5uYW1hLnYxLlRpdGxlQ2FuZGlkYXRlIkkKD1NldE1hdGNoUmVxdWVzdBIPCgdpdGVtX2lkGAEgASgDEiUKCHRpdGxlX2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkIjYKEFNldE1hdGNoUmVzcG9uc2USDwoHbWF0Y2hlZBgBIAEoBBIRCgl1bm1hdGNoZWQYAiABKAQiJAoRQ2xlYXJNYXRjaFJlcXVlc3QSDwoHaXRlbV9pZBgBIAEoAyInChJDbGVhck1hdGNoUmVzcG9uc2USEQoJdW5tYXRjaGVkGAEgASgEItQBChlMaXN0VW5tYXRjaGVkSXRlbXNSZXF1ZXN0EiwKBmZpbHRlchgCIAEoCzIcLm5hbWEudjEuVW5tYXRjaGVkSXRlbUZpbHRlchIoCgRzb3J0GAMgASgOMhoubmFtYS52MS5Vbm1hdGNoZWRJdGVtU29ydBIpCglkaXJlY3Rpb24YBSABKA4yFi5uYW1hLnYxLlNvcnREaXJlY3Rpb24SIgoEcGFnZRgEIAEoCzIULm5hbWEudjEuUGFnZVJlcXVlc3RKBAgBEAJSCmxpYnJhcnlfaWQiKQoTVW5tYXRjaGVkSXRlbUZpbHRlchISCgpsaWJyYXJ5X2lkGAEgASgDIoABChpMaXN0VW5tYXRjaGVkSXRlbXNSZXNwb25zZRIlCgVpdGVtcxgBIAMoCzIWLm5hbWEudjEuVW5tYXRjaGVkSXRlbRIWCg51bnBhcnNlZF9wYXRocxgCIAMoCRIjCgRwYWdlGAMgASgLMhUubmFtYS52MS5QYWdlUmVzcG9uc2UiqQIKDVVubWF0Y2hlZEl0ZW0SDwoHaXRlbV9pZBgBIAEoAxIMCgRwYXRoGAIgASgJEiAKBGtpbmQYAyABKA4yEi5uYW1hLnYxLlRpdGxlS2luZBINCgV0aXRsZRgEIAEoCRIRCgR5ZWFyGAUgASgFSACIAQESEwoGc2Vhc29uGAYgASgFSAGIAQESFAoHZXBpc29kZRgHIAEoBUgCiAEBEigKBnJlYXNvbhgIIAEoDjIYLm5hbWEudjEuVW5tYXRjaGVkUmVhc29uEiwKC3RpZWRfdGl0bGVzGAkgAygLMhcubmFtYS52MS5UaXRsZUNhbmRpZGF0ZRISCgp2ZXJzaW9uX2lkGAogASgDQgcKBV95ZWFyQgkKB19zZWFzb25CCgoIX2VwaXNvZGUqUgoJVGl0bGVLaW5kEhoKFlRJVExFX0tJTkRfVU5TUEVDSUZJRUQQABIUChBUSVRMRV9LSU5EX01PVklFEAESEwoPVElUTEVfS0lORF9TSE9XEAIqdQoRVW5tYXRjaGVkSXRlbVNvcnQSIwofVU5NQVRDSEVEX0lURU1fU09SVF9VTlNQRUNJRklFRBAAEhwKGFVOTUFUQ0hFRF9JVEVNX1NPUlRfUEFUSBABEh0KGVVOTUFUQ0hFRF9JVEVNX1NPUlRfRk9VTkQQAiqPAgoPVW5tYXRjaGVkUmVhc29uEiAKHFVOTUFUQ0hFRF9SRUFTT05fVU5TUEVDSUZJRUQQABIeChpVTk1BVENIRURfUkVBU09OX0FNQklHVU9VUxABEiIKHlVOTUFUQ0hFRF9SRUFTT05fTk9fVElUTEVfRklUUxACEiQKIFVOTUFUQ0hFRF9SRUFTT05fVU5LTk9XTl9JRF9ISU5UEAMSIAocVU5NQVRDSEVEX1JFQVNPTl9OT1RfSU5fU0hPVxAEEiQKIFVOTUFUQ0hFRF9SRUFTT05fQ0xFQVJFRF9CWV9IQU5EEAUSKAokVU5NQVRDSEVEX1JFQVNPTl9OT19TRUFSQ0hJTkdfU09VUkNFEAYy1gIKDE1hdGNoU2VydmljZRJQCgxTZWFyY2hUaXRsZXMSHC5uYW1hLnYxLlNlYXJjaFRpdGxlc1JlcXVlc3QaHS5uYW1hLnYxLlNlYXJjaFRpdGxlc1Jlc3BvbnNlIgOQAgESRAoIU2V0TWF0Y2gSGC5uYW1hLnYxLlNldE1hdGNoUmVxdWVzdBoZLm5hbWEudjEuU2V0TWF0Y2hSZXNwb25zZSIDkAICEkoKCkNsZWFyTWF0Y2gSGi5uYW1hLnYxLkNsZWFyTWF0Y2hSZXF1ZXN0GhsubmFtYS52MS5DbGVhck1hdGNoUmVzcG9uc2UiA5ACAhJiChJMaXN0VW5tYXRjaGVkSXRlbXMSIi5uYW1hLnYxLkxpc3RVbm1hdGNoZWRJdGVtc1JlcXVlc3QaIy5uYW1hLnYxLkxpc3RVbm1hdGNoZWRJdGVtc1Jlc3BvbnNlIgOQAgFiBnByb3RvMw", [file_nama_v1_page]);
+  fileDesc("ChNuYW1hL3YxL21hdGNoLnByb3RvEgduYW1hLnYxIlIKCkV4dGVybmFsSWQSEQoJbmFtZXNwYWNlGAQgASgJEg0KBXZhbHVlGAUgASgJSgQIARACSgQIAhADSgQIAxAEUgR0bWRiUgRpbWRiUgR0dmRiIrQBCg5UaXRsZUNhbmRpZGF0ZRIfCgJpZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBINCgV0aXRsZRgCIAEoCRIbCg5vcmlnaW5hbF90aXRsZRgDIAEoCUgAiAEBEhEKBHllYXIYBCABKAVIAYgBARIXCgpwb3N0ZXJfdXJsGAUgASgJSAKIAQFCEQoPX29yaWdpbmFsX3RpdGxlQgcKBV95ZWFyQg0KC19wb3N0ZXJfdXJsIooBChNTZWFyY2hUaXRsZXNSZXF1ZXN0EiAKBGtpbmQYASABKA4yEi5uYW1hLnYxLlRpdGxlS2luZBINCgV0aXRsZRgCIAEoCRIRCgR5ZWFyGAMgASgFSACIAQESFwoKbGlicmFyeV9pZBgEIAEoA0gBiAEBQgcKBV95ZWFyQg0KC19saWJyYXJ5X2lkIkMKFFNlYXJjaFRpdGxlc1Jlc3BvbnNlEisKCmNhbmRpZGF0ZXMYASADKAsyFy5uYW1hLnYxLlRpdGxlQ2FuZGlkYXRlIncKD1NldE1hdGNoUmVxdWVzdBIPCgdpdGVtX2lkGAEgASgDEiUKCHRpdGxlX2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEiwKDW1hdGNoZWRfdGl0bGUYAyABKAsyFS5uYW1hLnYxLk1hdGNoZWRUaXRsZSJDCgxNYXRjaGVkVGl0bGUSEgoKbGlicmFyeV9pZBgBIAEoAxIfCgJpZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZCI2ChBTZXRNYXRjaFJlc3BvbnNlEg8KB21hdGNoZWQYASABKAQSEQoJdW5tYXRjaGVkGAIgASgEIlIKEUNsZWFyTWF0Y2hSZXF1ZXN0Eg8KB2l0ZW1faWQYASABKAMSLAoNbWF0Y2hlZF90aXRsZRgCIAEoCzIVLm5hbWEudjEuTWF0Y2hlZFRpdGxlIicKEkNsZWFyTWF0Y2hSZXNwb25zZRIRCgl1bm1hdGNoZWQYASABKAQi1AEKGUxpc3RVbm1hdGNoZWRJdGVtc1JlcXVlc3QSLAoGZmlsdGVyGAIgASgLMhwubmFtYS52MS5Vbm1hdGNoZWRJdGVtRmlsdGVyEigKBHNvcnQYAyABKA4yGi5uYW1hLnYxLlVubWF0Y2hlZEl0ZW1Tb3J0EikKCWRpcmVjdGlvbhgFIAEoDjIWLm5hbWEudjEuU29ydERpcmVjdGlvbhIiCgRwYWdlGAQgASgLMhQubmFtYS52MS5QYWdlUmVxdWVzdEoECAEQAlIKbGlicmFyeV9pZCIpChNVbm1hdGNoZWRJdGVtRmlsdGVyEhIKCmxpYnJhcnlfaWQYASABKAMigAEKGkxpc3RVbm1hdGNoZWRJdGVtc1Jlc3BvbnNlEiUKBWl0ZW1zGAEgAygLMhYubmFtYS52MS5Vbm1hdGNoZWRJdGVtEhYKDnVucGFyc2VkX3BhdGhzGAIgAygJEiMKBHBhZ2UYAyABKAsyFS5uYW1hLnYxLlBhZ2VSZXNwb25zZSKpAgoNVW5tYXRjaGVkSXRlbRIPCgdpdGVtX2lkGAEgASgDEgwKBHBhdGgYAiABKAkSIAoEa2luZBgDIAEoDjISLm5hbWEudjEuVGl0bGVLaW5kEg0KBXRpdGxlGAQgASgJEhEKBHllYXIYBSABKAVIAIgBARITCgZzZWFzb24YBiABKAVIAYgBARIUCgdlcGlzb2RlGAcgASgFSAKIAQESKAoGcmVhc29uGAggASgOMhgubmFtYS52MS5Vbm1hdGNoZWRSZWFzb24SLAoLdGllZF90aXRsZXMYCSADKAsyFy5uYW1hLnYxLlRpdGxlQ2FuZGlkYXRlEhIKCnZlcnNpb25faWQYCiABKANCBwoFX3llYXJCCQoHX3NlYXNvbkIKCghfZXBpc29kZSpSCglUaXRsZUtpbmQSGgoWVElUTEVfS0lORF9VTlNQRUNJRklFRBAAEhQKEFRJVExFX0tJTkRfTU9WSUUQARITCg9USVRMRV9LSU5EX1NIT1cQAip1ChFVbm1hdGNoZWRJdGVtU29ydBIjCh9VTk1BVENIRURfSVRFTV9TT1JUX1VOU1BFQ0lGSUVEEAASHAoYVU5NQVRDSEVEX0lURU1fU09SVF9QQVRIEAESHQoZVU5NQVRDSEVEX0lURU1fU09SVF9GT1VORBACKo8CCg9Vbm1hdGNoZWRSZWFzb24SIAocVU5NQVRDSEVEX1JFQVNPTl9VTlNQRUNJRklFRBAAEh4KGlVOTUFUQ0hFRF9SRUFTT05fQU1CSUdVT1VTEAESIgoeVU5NQVRDSEVEX1JFQVNPTl9OT19USVRMRV9GSVRTEAISJAogVU5NQVRDSEVEX1JFQVNPTl9VTktOT1dOX0lEX0hJTlQQAxIgChxVTk1BVENIRURfUkVBU09OX05PVF9JTl9TSE9XEAQSJAogVU5NQVRDSEVEX1JFQVNPTl9DTEVBUkVEX0JZX0hBTkQQBRIoCiRVTk1BVENIRURfUkVBU09OX05PX1NFQVJDSElOR19TT1VSQ0UQBjLWAgoMTWF0Y2hTZXJ2aWNlElAKDFNlYXJjaFRpdGxlcxIcLm5hbWEudjEuU2VhcmNoVGl0bGVzUmVxdWVzdBodLm5hbWEudjEuU2VhcmNoVGl0bGVzUmVzcG9uc2UiA5ACARJECghTZXRNYXRjaBIYLm5hbWEudjEuU2V0TWF0Y2hSZXF1ZXN0GhkubmFtYS52MS5TZXRNYXRjaFJlc3BvbnNlIgOQAgISSgoKQ2xlYXJNYXRjaBIaLm5hbWEudjEuQ2xlYXJNYXRjaFJlcXVlc3QaGy5uYW1hLnYxLkNsZWFyTWF0Y2hSZXNwb25zZSIDkAICEmIKEkxpc3RVbm1hdGNoZWRJdGVtcxIiLm5hbWEudjEuTGlzdFVubWF0Y2hlZEl0ZW1zUmVxdWVzdBojLm5hbWEudjEuTGlzdFVubWF0Y2hlZEl0ZW1zUmVzcG9uc2UiA5ACAWIGcHJvdG8z", [file_nama_v1_page]);
 
 /**
  * An id of a title in a title source: a namespace and a value, such as `tmdb` and `603`.
@@ -76,6 +76,13 @@ export type TitleCandidate = Message<"nama.v1.TitleCandidate"> & {
    * @generated from field: optional int32 year = 4;
    */
   year?: number | undefined;
+
+  /**
+   * Its Poster's URL on this Server, if its title source has one. Unset on `tied_titles`.
+   *
+   * @generated from field: optional string poster_url = 5;
+   */
+  posterUrl?: string | undefined;
 };
 
 /**
@@ -109,6 +116,13 @@ export type SearchTitlesRequest = Message<"nama.v1.SearchTitlesRequest"> & {
    * @generated from field: optional int32 year = 3;
    */
   year?: number | undefined;
+
+  /**
+   * The Library whose title sources to search, in its order. Unset searches every enabled one.
+   *
+   * @generated from field: optional int64 library_id = 4;
+   */
+  libraryId?: bigint | undefined;
 };
 
 /**
@@ -140,7 +154,7 @@ export const SearchTitlesResponseSchema: GenMessage<SearchTitlesResponse> = /*@_
  */
 export type SetMatchRequest = Message<"nama.v1.SetMatchRequest"> & {
   /**
-   * The item to Match.
+   * The item to Match. Unset when `matched_title` is set.
    *
    * @generated from field: int64 item_id = 1;
    */
@@ -152,6 +166,13 @@ export type SetMatchRequest = Message<"nama.v1.SetMatchRequest"> & {
    * @generated from field: nama.v1.ExternalId title_id = 2;
    */
   titleId?: ExternalId | undefined;
+
+  /**
+   * In place of `item_id`, a Movie or Show whose every item to Match.
+   *
+   * @generated from field: nama.v1.MatchedTitle matched_title = 3;
+   */
+  matchedTitle?: MatchedTitle | undefined;
 };
 
 /**
@@ -160,6 +181,34 @@ export type SetMatchRequest = Message<"nama.v1.SetMatchRequest"> & {
  */
 export const SetMatchRequestSchema: GenMessage<SetMatchRequest> = /*@__PURE__*/
   messageDesc(file_nama_v1_match, 4);
+
+/**
+ * A Movie or Show some items of a Library are Matched to, named as browsing names it.
+ *
+ * @generated from message nama.v1.MatchedTitle
+ */
+export type MatchedTitle = Message<"nama.v1.MatchedTitle"> & {
+  /**
+   * The Library it is in, whose kind says whether it is a Movie or a Show.
+   *
+   * @generated from field: int64 library_id = 1;
+   */
+  libraryId: bigint;
+
+  /**
+   * Its id, as `BrowseService.ListMovies` or `ListShows` gave it.
+   *
+   * @generated from field: nama.v1.ExternalId id = 2;
+   */
+  id?: ExternalId | undefined;
+};
+
+/**
+ * Describes the message nama.v1.MatchedTitle.
+ * Use `create(MatchedTitleSchema)` to create a new message.
+ */
+export const MatchedTitleSchema: GenMessage<MatchedTitle> = /*@__PURE__*/
+  messageDesc(file_nama_v1_match, 5);
 
 /**
  * @generated from message nama.v1.SetMatchResponse
@@ -185,18 +234,25 @@ export type SetMatchResponse = Message<"nama.v1.SetMatchResponse"> & {
  * Use `create(SetMatchResponseSchema)` to create a new message.
  */
 export const SetMatchResponseSchema: GenMessage<SetMatchResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_match, 5);
+  messageDesc(file_nama_v1_match, 6);
 
 /**
  * @generated from message nama.v1.ClearMatchRequest
  */
 export type ClearMatchRequest = Message<"nama.v1.ClearMatchRequest"> & {
   /**
-   * The item whose Match to clear.
+   * The item whose Match to clear. Unset when `matched_title` is set.
    *
    * @generated from field: int64 item_id = 1;
    */
   itemId: bigint;
+
+  /**
+   * In place of `item_id`, a Movie or Show whose every item's Match to clear.
+   *
+   * @generated from field: nama.v1.MatchedTitle matched_title = 2;
+   */
+  matchedTitle?: MatchedTitle | undefined;
 };
 
 /**
@@ -204,7 +260,7 @@ export type ClearMatchRequest = Message<"nama.v1.ClearMatchRequest"> & {
  * Use `create(ClearMatchRequestSchema)` to create a new message.
  */
 export const ClearMatchRequestSchema: GenMessage<ClearMatchRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_match, 6);
+  messageDesc(file_nama_v1_match, 7);
 
 /**
  * @generated from message nama.v1.ClearMatchResponse
@@ -223,7 +279,7 @@ export type ClearMatchResponse = Message<"nama.v1.ClearMatchResponse"> & {
  * Use `create(ClearMatchResponseSchema)` to create a new message.
  */
 export const ClearMatchResponseSchema: GenMessage<ClearMatchResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_match, 7);
+  messageDesc(file_nama_v1_match, 8);
 
 /**
  * @generated from message nama.v1.ListUnmatchedItemsRequest
@@ -264,7 +320,7 @@ export type ListUnmatchedItemsRequest = Message<"nama.v1.ListUnmatchedItemsReque
  * Use `create(ListUnmatchedItemsRequestSchema)` to create a new message.
  */
 export const ListUnmatchedItemsRequestSchema: GenMessage<ListUnmatchedItemsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_match, 8);
+  messageDesc(file_nama_v1_match, 9);
 
 /**
  * Which items `ListUnmatchedItems` lists.
@@ -285,7 +341,7 @@ export type UnmatchedItemFilter = Message<"nama.v1.UnmatchedItemFilter"> & {
  * Use `create(UnmatchedItemFilterSchema)` to create a new message.
  */
 export const UnmatchedItemFilterSchema: GenMessage<UnmatchedItemFilter> = /*@__PURE__*/
-  messageDesc(file_nama_v1_match, 9);
+  messageDesc(file_nama_v1_match, 10);
 
 /**
  * @generated from message nama.v1.ListUnmatchedItemsResponse
@@ -321,7 +377,7 @@ export type ListUnmatchedItemsResponse = Message<"nama.v1.ListUnmatchedItemsResp
  * Use `create(ListUnmatchedItemsResponseSchema)` to create a new message.
  */
 export const ListUnmatchedItemsResponseSchema: GenMessage<ListUnmatchedItemsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_match, 10);
+  messageDesc(file_nama_v1_match, 11);
 
 /**
  * An item that needs a Match, and what its file's name was parsed as. `kind`, `title` and `year`
@@ -407,7 +463,7 @@ export type UnmatchedItem = Message<"nama.v1.UnmatchedItem"> & {
  * Use `create(UnmatchedItemSchema)` to create a new message.
  */
 export const UnmatchedItemSchema: GenMessage<UnmatchedItem> = /*@__PURE__*/
-  messageDesc(file_nama_v1_match, 11);
+  messageDesc(file_nama_v1_match, 12);
 
 /**
  * Whether a title is a Movie or a Show.
@@ -570,9 +626,10 @@ export const UnmatchedReasonSchema: GenEnum<UnmatchedReason> = /*@__PURE__*/
  */
 export const MatchService: GenService<{
   /**
-   * Searches the enabled title sources for titles, best fit first. Fails with
-   * `invalid_argument` if the kind is unspecified or the title blank, and with `unavailable` if
-   * no title source is enabled or one failed.
+   * Searches the enabled title sources for titles, best fit first, or only a Library's, in its
+   * order. Fails with `invalid_argument` if the kind is unspecified or the title blank, with
+   * `not_found` if there is no such Library, and with `unavailable` if no title source is enabled
+   * or one failed.
    *
    * @generated from rpc nama.v1.MatchService.SearchTitles
    */
@@ -585,10 +642,11 @@ export const MatchService: GenService<{
    * Matches an item to a title and pins the Match. For a Movie, the title is a Movie, and every
    * item in the Library named the same way is Matched to it. For an Episode, the title is its
    * Show, and every Episode in the Library named as being in the same Show is Matched again
-   * through that Show's Seasons; an Episode the Show doesn't have is Unmatched. Fails with
-   * `not_found` if there is no such item, with `invalid_argument` if the id is missing or names
-   * no title, and with `unavailable` if no title source can answer, in which case nothing
-   * changes.
+   * through that Show's Seasons; an Episode the Show doesn't have is Unmatched. Given
+   * `matched_title` in place of the item, it does so for each name the items Matched to that Movie
+   * or Show bear, in one change. Fails with `not_found` if there is no such item, Library or
+   * title, with `invalid_argument` if the id is missing or names no title, and with
+   * `unavailable` if no title source can answer, in which case nothing changes.
    *
    * @generated from rpc nama.v1.MatchService.SetMatch
    */
@@ -600,8 +658,10 @@ export const MatchService: GenService<{
   /**
    * Removes an item's Match and pins it Unmatched, so automatic Matching leaves it so. Like
    * `SetMatch`, this applies to every item in the Library named the same way, and for an Episode
-   * to every Episode of its Show. `ListUnmatchedItems` then lists them with
-   * `UNMATCHED_REASON_CLEARED_BY_HAND`. Fails with `not_found` if there is no such item.
+   * to every Episode of its Show, and given `matched_title`, to each name the items Matched to
+   * that Movie or Show bear. `ListUnmatchedItems` then lists them with
+   * `UNMATCHED_REASON_CLEARED_BY_HAND`. Fails with `not_found` if there is no such item, Library
+   * or title.
    *
    * @generated from rpc nama.v1.MatchService.ClearMatch
    */
