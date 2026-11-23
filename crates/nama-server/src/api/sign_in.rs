@@ -1,6 +1,10 @@
 //! Signing Devices in, and saying who is signed in: `nama.v1.SignInService`.
 
-use std::{future, net::IpAddr, time::Instant};
+use std::{
+    future,
+    net::{IpAddr, SocketAddr},
+    time::Instant,
+};
 
 use axum::http::{
     HeaderMap, HeaderValue,
@@ -23,6 +27,7 @@ use nama_proto::nama::v1::{
 use crate::{
     browse::Browse,
     plugins::ExtensionPoints,
+    server_settings::ServerUrl,
     users::{
         self, Blocked, Caller, Delivery, NewDevice, Polled, SignIn, SignInCodeError, SignInError,
         SignedIn, session_cookie,
@@ -43,6 +48,11 @@ pub(super) struct SignInServiceHandler {
     pub(super) points: ExtensionPoints,
     /// Takes the Watch State a User pulls as they sign in.
     pub(super) browse: Browse,
+    /// The Server URL, one of the Server Addresses a sign-in with an Account may return to.
+    pub(super) server_url: ServerUrl,
+    /// Where the Server listens, whose LAN address is the other Server Address a sign-in with an
+    /// Account may return to.
+    pub(super) listening: SocketAddr,
 }
 
 #[expect(
@@ -277,7 +287,13 @@ impl SignInService for SignInServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, StartAccountSignInRequest>,
     ) -> ServiceResult<StartAccountSignInResponse> {
-        server_link::start_account_sign_in(&self.points, request.return_url).await
+        server_link::start_account_sign_in(
+            &self.points,
+            request.return_url,
+            &self.server_url,
+            self.listening,
+        )
+        .await
     }
 
     async fn sign_in_with_account(

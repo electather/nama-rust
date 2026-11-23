@@ -41,6 +41,9 @@ export function accountSignInErrors(error: unknown): FormErrors {
       [RefusalReason.USER_NOT_FOUND]: {
         form: "Your User on this Server was deleted. Ask whoever runs it to add you again.",
       },
+      [RefusalReason.NOT_A_SERVER_ADDRESS]: {
+        form: "Open the Server at its Server URL to sign in with an Account.",
+      },
       [RefusalReason.NO_SERVER_LINKER]: {
         form: "This Server isn’t Linked to the Hub any more. Ask whoever runs it to Link it again.",
       },

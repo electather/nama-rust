@@ -37,3 +37,16 @@ fn the_server_url_is_sent_in_ascii_as_typed_otherwise() {
     );
     assert_eq!(as_sent(""), "");
 }
+
+#[test]
+fn a_reported_address_matches_the_lan_one_by_scheme_host_and_port() {
+    // No Server URL set, so the LAN address is the one reported.
+    let url = ServerUrl::default();
+    let reported = |address| is_reported(address, &url, "192.168.1.2:7980".parse().unwrap());
+
+    assert!(reported("HTTP://192.168.1.2:7980/sign-in"));
+    assert!(!reported("https://192.168.1.2:7980/sign-in"));
+    assert!(!reported("http://192.168.1.2/sign-in"));
+    assert!(!reported("http://localhost:7980/sign-in"));
+    assert!(!reported("/sign-in"));
+}

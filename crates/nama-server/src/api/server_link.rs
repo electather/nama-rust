@@ -4,7 +4,7 @@
 //! `CreateUserFromAccount`, and `SignInService`'s sign-in with an Account (ADR 0092). Through it
 //! too, a User's Watch State on their other Servers comes back (ADR 0008).
 
-use std::{future::Future, time::Duration};
+use std::{future::Future, net::SocketAddr, time::Duration};
 
 use connectrpc::{ConnectError, Response, ServiceResult};
 use nama_plugin_api::{
@@ -25,6 +25,8 @@ use crate::{
     diagnostics,
     events::EventBus,
     plugins::ExtensionPoints,
+    server_addresses,
+    server_settings::ServerUrl,
     users::{User, Users},
 };
 
@@ -172,10 +174,13 @@ pub(super) async fn account_sign_in(points: &ExtensionPoints) -> bool {
     matches!(link, Ok(Some(Link::Linked { .. })))
 }
 
-/// Starts signing in with an Account, which the service sends back to `return_url`.
+/// Starts signing in with an Account, which the service sends back to `return_url`, one of the
+/// Server Addresses the Server reports given its Server URL `server_url` and `listening`.
 pub(super) async fn start_account_sign_in(
     points: &ExtensionPoints,
     return_url: &str,
+    server_url: &ServerUrl,
+    listening: SocketAddr,
 ) -> ServiceResult<StartAccountSignInResponse> {
     // The Hub refuses any other, but its refusal would reach the client as the Hub failing.
     if !is_web_address(return_url) {
@@ -184,6 +189,16 @@ pub(super) async fn start_account_sign_in(
             "the return URL must be an http or https URL",
         )
         .field("return_url")
+        .into());
+    }
+    // As above, and the client can say which address to open, as the Hub's refusal can't.
+    if !server_addresses::is_reported(return_url, server_url, listening) {
+        return Err(refuse(
+            RefusalReason::REFUSAL_REASON_NOT_A_SERVER_ADDRESS,
+            "open the Server at its Server URL to sign in with an Account",
+        )
+        .field("return_url")
+        .param("serverUrl", &server_url.url())
         .into());
     }
     let started = ask_or(points, ACCOUNT_SIGN_IN_FAILED, async |linker| {
