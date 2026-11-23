@@ -1,7 +1,7 @@
 import { PosterShelf } from "@/features/home/components/poster-shelf";
 import { RecentlyAddedFrame } from "@/features/home/components/recently-added-frame";
-import type { ShelfTitles } from "@/features/home/lib/shelf-tiles";
 import type { RecentlyAddedHomeRow } from "@/gen/nama/v1/browse_pb";
+import type { RowTitle } from "@/shared/lib/row-titles";
 
 /** A Library's Recently Added row of posters, `newest`, or nothing if the Library has no titles. */
 export function RecentlyAddedShelf({
@@ -11,14 +11,14 @@ export function RecentlyAddedShelf({
 }: {
   row: RecentlyAddedHomeRow;
   headingId: string;
-  newest: ShelfTitles;
+  newest: RowTitle[];
 }) {
-  if (newest.titles.length === 0 && !newest.next.has) {
+  if (newest.length === 0) {
     return null;
   }
   return (
     <RecentlyAddedFrame row={row} headingId={headingId}>
-      <PosterShelf {...newest} />
+      <PosterShelf titles={newest} setSize={newest.length} />
     </RecentlyAddedFrame>
   );
 }

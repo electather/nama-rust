@@ -52,7 +52,11 @@ function openHome(asked: (ListMoviesRequest | ListShowsRequest)[]) {
       }),
       listMovies: (request) => {
         asked.push(request);
-        return { movies: [{ id: { namespace: "tmdb", value: "949" }, title: "Heat" }] };
+        // More to come, which the row leaves to the Library page.
+        return {
+          movies: [{ id: { namespace: "tmdb", value: "949" }, title: "Heat" }],
+          page: { nextToken: "more", totalSize: 21 },
+        };
       },
       listShows: (request) => {
         asked.push(request);
@@ -63,11 +67,10 @@ function openHome(asked: (ListMoviesRequest | ListShowsRequest)[]) {
   openApp("/", transport);
 }
 
-test("each Library's Recently Added row lists its newest titles, its heading opening the Library", async () => {
+test("each Library's Recently Added row lists its 20 newest titles, its heading opening the Library", async () => {
   const asked: (ListMoviesRequest | ListShowsRequest)[] = [];
   openHome(asked);
 
-  // Each row shows its skeleton under its heading until its titles arrive.
   await screen.findByRole("link", { name: "Heat" });
   await screen.findByRole("link", { name: "Dark" });
   const films = screen.getByRole("region", { name: "Recently added in Films" });
