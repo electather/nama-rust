@@ -16,6 +16,11 @@ use nama_forwarded::RequestSource;
 
 const COOKIE_NAME: &str = "nama_session";
 
+/// The cookie's name over HTTPS. Browsers only take a `__Host-` cookie that is `Secure` and has no
+/// `Domain`, so another Server under the same Server-names domain can't set one this Server reads
+/// (cookie tossing). That domain isn't on the Public Suffix List yet (ADR 0057).
+const HTTPS_COOKIE_NAME: &str = "__Host-nama_session";
+
 /// Adds the [`Caller`] to `request`'s extensions if it carries a valid session, as
 /// `Authorization: Bearer <token>` or in the session cookie. When that use pushes back the Device's
 /// expiry, a session cookie's is pushed back too, unless the response sets the cookie itself.
@@ -24,7 +29,7 @@ pub(crate) async fn identify_caller(
     mut request: Request,
     next: Next,
 ) -> Response {
-    let Some(presented) = presented_token(request.headers()) else {
+    let Some(presented) = presented_token(request.headers(), request.extensions()) else {
         return next.run(request).await;
     };
     let session = match users.session(presented.token).await {
@@ -48,7 +53,7 @@ pub(crate) async fn identify_caller(
 }
 
 /// The `Set-Cookie` value that hands a browser `token`, to keep for as long as an unused Device
-/// lasts. `Secure` only when the request reached a trusted reverse proxy over HTTPS, since a
+/// lasts. `Secure`, and named `__Host-`, only when the request reached a trusted reverse proxy over HTTPS, since a
 /// browser drops a `Secure` cookie sent over plain HTTP, which is how a LAN Server is usually
 /// reached (ADR 0015, ADR 0018).
 pub(crate) fn session_cookie(token: &str, request: &Extensions) -> String {
@@ -63,15 +68,29 @@ pub(crate) fn cleared_session_cookie(request: &Extensions) -> String {
 /// cookie has. `request` is the extensions of the request it answers, which say whether that
 /// arrived over HTTPS.
 fn cookie(value: &str, max_age: i64, request: &Extensions) -> String {
-    let secure = request
-        .get::<RequestSource>()
-        .is_some_and(|source| source.https);
-    let secure = if secure { "; Secure" } else { "" };
-    format!("{COOKIE_NAME}={value}; HttpOnly; SameSite=Strict; Path=/; Max-Age={max_age}{secure}")
+    let name = cookie_name(request);
+    let secure = if is_https(request) { "; Secure" } else { "" };
+    format!("{name}={value}; HttpOnly; SameSite=Strict; Path=/; Max-Age={max_age}{secure}")
 }
 
-pub(crate) fn in_session_cookie(headers: &HeaderMap) -> bool {
-    presented_token(headers).is_some_and(|presented| presented.in_cookie)
+fn is_https(request: &Extensions) -> bool {
+    request
+        .get::<RequestSource>()
+        .is_some_and(|source| source.https)
+}
+
+/// The session cookie's name for a request with these extensions. Over HTTPS only the `__Host-`
+/// name counts, so a plain-named cookie another host tossed in signs no one in.
+fn cookie_name(request: &Extensions) -> &'static str {
+    if is_https(request) {
+        HTTPS_COOKIE_NAME
+    } else {
+        COOKIE_NAME
+    }
+}
+
+pub(crate) fn in_session_cookie(headers: &HeaderMap, request: &Extensions) -> bool {
+    presented_token(headers, request).is_some_and(|presented| presented.in_cookie)
 }
 
 struct PresentedToken<'a> {
@@ -79,8 +98,10 @@ struct PresentedToken<'a> {
     in_cookie: bool,
 }
 
-/// The session token `headers` carry: a bearer token, or else the session cookie.
-fn presented_token(headers: &HeaderMap) -> Option<PresentedToken<'_>> {
+/// The session token `headers` carry: a bearer token, or else the session cookie under the name
+/// [`cookie_name`] gives for `request`.
+fn presented_token<'a>(headers: &'a HeaderMap, request: &Extensions) -> Option<PresentedToken<'a>> {
+    let name = cookie_name(request);
     let bearer = headers
         .get(header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
@@ -96,10 +117,14 @@ fn presented_token(headers: &HeaderMap) -> Option<PresentedToken<'_>> {
             .iter()
             .filter_map(|value| value.to_str().ok())
             .flat_map(|cookies| cookies.split(';'))
-            .find_map(|cookie| cookie.trim().strip_prefix(COOKIE_NAME)?.strip_prefix('='))
+            .find_map(|cookie| cookie.trim().strip_prefix(name)?.strip_prefix('='))
             .map(|token| PresentedToken {
                 token,
                 in_cookie: true,
             })
     })
 }
+
+#[cfg(test)]
+#[path = "sessions_tests.rs"]
+mod tests;

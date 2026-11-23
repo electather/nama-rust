@@ -272,7 +272,7 @@ fn sign_in_required() -> ConnectError {
 /// session has its cookie cleared.
 fn signed_out<M>(body: M, ctx: &RequestContext) -> Response<M> {
     let response = Response::new(body);
-    if in_session_cookie(ctx.headers()) {
+    if in_session_cookie(ctx.headers(), ctx.extensions()) {
         response.with_header(SET_COOKIE, cleared_session_cookie(ctx.extensions()))
     } else {
         response
