@@ -397,6 +397,17 @@ impl Users {
         .await
     }
 
+    /// Whether the User `user` has a Sign-in Method; one without signs in only through their Link
+    /// to an Account, if they have one (ADR 0092).
+    pub(crate) async fn has_sign_in_method(&self, user: i64) -> Result<bool, sqlx::Error> {
+        sqlx::query_scalar!(
+            r#"SELECT EXISTS (SELECT 1 FROM sign_in_methods WHERE user_id = ?) AS "exists!: bool""#,
+            user
+        )
+        .fetch_one(self.db.reader())
+        .await
+    }
+
     /// The Devices of the User `user` that haven't expired, oldest first, or `None` if there is no
     /// such User.
     pub(crate) async fn devices(&self, user: i64) -> Result<Option<Vec<Device>>, sqlx::Error> {

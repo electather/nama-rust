@@ -1745,7 +1745,8 @@ export const UserService: GenService<{
   /**
    * Unlinks the caller from their Account, or stops showing their code. Unlinking a User who isn't
    * Linked does nothing. Fails like `StartUserLink`; the caller stays Linked if the Hub couldn't be
-   * told.
+   * told. Fails with `REFUSAL_REASON_LAST_SIGN_IN_METHOD` for a Linked caller whose Account is
+   * their last Sign-in Method, such as a User created from one (ADR 0014).
    *
    * @generated from rpc nama.v1.UserService.UnlinkUser
    */

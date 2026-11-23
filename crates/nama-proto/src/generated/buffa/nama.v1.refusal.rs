@@ -298,6 +298,10 @@ pub enum RefusalReason {
     /// `unauthenticated`: the Account that approved signing in on the Hub isn't the one Linked to the
     /// calling User. `field` is `account_sign_in_handle`.
     REFUSAL_REASON_WRONG_ACCOUNT = 100i32,
+    /// `failed_precondition`: the caller's Account is their last Sign-in Method, as for a User created
+    /// from one, so Unlinking them from it would leave them no way to sign in. An Admin can give them
+    /// a password with `ResetPassword`.
+    REFUSAL_REASON_LAST_SIGN_IN_METHOD = 101i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -594,6 +598,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_WRONG_ACCOUNT`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const WrongAccount: Self = Self::REFUSAL_REASON_WRONG_ACCOUNT;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const LastSignInMethod: Self = Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -905,6 +912,9 @@ impl ::buffa::Enumeration for RefusalReason {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_NOT_A_SERVER_ADDRESS)
             }
             100i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_WRONG_ACCOUNT),
+            101i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1101,6 +1111,9 @@ impl ::buffa::Enumeration for RefusalReason {
                 "REFUSAL_REASON_NOT_A_SERVER_ADDRESS"
             }
             Self::REFUSAL_REASON_WRONG_ACCOUNT => "REFUSAL_REASON_WRONG_ACCOUNT",
+            Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD => {
+                "REFUSAL_REASON_LAST_SIGN_IN_METHOD"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -1427,6 +1440,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_WRONG_ACCOUNT" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_WRONG_ACCOUNT)
             }
+            "REFUSAL_REASON_LAST_SIGN_IN_METHOD" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1530,6 +1546,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND,
             Self::REFUSAL_REASON_NOT_A_SERVER_ADDRESS,
             Self::REFUSAL_REASON_WRONG_ACCOUNT,
+            Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD,
         ]
     }
 }
