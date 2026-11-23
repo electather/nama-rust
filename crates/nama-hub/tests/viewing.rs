@@ -170,6 +170,16 @@ fn played(user_id: i64, key: &str, external_id: &str) -> UserViewingEvent {
     }
 }
 
+/// A play of the Episode `tmdb-63056`, of the Show `tmdb-1399`, by the User `user_id`, named `key`.
+fn played_episode(user_id: i64, key: &str) -> UserViewingEvent {
+    let mut played = played(user_id, key, "tmdb-63056");
+    played.event.modify(|event| {
+        event.episode = true;
+        "tmdb-1399".clone_into(&mut event.show_external_id);
+    });
+    played
+}
+
 async fn record(
     hub: &TestHub,
     credential: &str,
@@ -271,6 +281,26 @@ async fn an_event_sent_again_is_recorded_once(db: PgPool) {
 }
 
 #[sqlx::test(migrations = false)]
+async fn an_episode_sent_again_is_listed_once_with_its_show(db: PgPool) {
+    let (hub, _inbox, ada, server) = ada_watching(db).await;
+
+    record(&hub, &server, vec![played_episode(7, "a")])
+        .await
+        .unwrap();
+    record(&hub, &server, vec![played_episode(7, "a")])
+        .await
+        .unwrap();
+
+    let events = listed(&hub, &ada).await;
+    let [event] = events.as_slice() else {
+        panic!("one Viewing Event: {events:?}");
+    };
+    assert!(event.episode);
+    assert_eq!(event.external_id, "tmdb-63056");
+    assert_eq!(event.show_external_id, "tmdb-1399");
+}
+
+#[sqlx::test(migrations = false)]
 async fn an_account_lists_and_deletes_only_its_own_events(db: PgPool) {
     let (hub, mut inbox, ada, server) = ada_watching(db).await;
     let bea = create_proven(&hub, &mut inbox, "bea@example.com").await;
@@ -336,6 +366,36 @@ async fn an_invalid_event_records_none_of_its_batch(db: PgPool) {
     );
 
     assert_eq!(refused.field, "events");
+    assert_eq!(listed_ids(&hub, &ada).await, Vec::<String>::new());
+}
+
+#[sqlx::test(migrations = false)]
+async fn an_episode_without_its_show_is_refused(db: PgPool) {
+    let (hub, _inbox, ada, server) = ada_watching(db).await;
+    let mut episode = played_episode(7, "a");
+    episode.event.modify(|event| event.show_external_id.clear());
+
+    assert_refused(
+        record(&hub, &server, vec![episode]).await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_VIEWING_EVENT_INVALID,
+    );
+    assert_eq!(listed_ids(&hub, &ada).await, Vec::<String>::new());
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_movie_naming_a_show_is_refused(db: PgPool) {
+    let (hub, _inbox, ada, server) = ada_watching(db).await;
+    let mut movie = played(7, "a", "tmdb-603");
+    movie
+        .event
+        .modify(|event| "tmdb-1399".clone_into(&mut event.show_external_id));
+
+    assert_refused(
+        record(&hub, &server, vec![movie]).await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_VIEWING_EVENT_INVALID,
+    );
     assert_eq!(listed_ids(&hub, &ada).await, Vec::<String>::new());
 }
 

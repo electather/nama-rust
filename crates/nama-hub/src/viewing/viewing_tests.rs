@@ -26,6 +26,17 @@ fn played() -> ViewingEvent {
         duration_ms: 8_160_000,
         finished: false,
         device_kind: DeviceKind::Tv,
+        show_external_id: None,
+    }
+}
+
+/// [`played`]'s play, of an Episode of the Show `tmdb-1399`.
+fn played_episode() -> ViewingEvent {
+    ViewingEvent {
+        kind: Kind::Episode,
+        external_id: "tmdb-63056".to_owned(),
+        show_external_id: Some("tmdb-1399".to_owned()),
+        ..played()
     }
 }
 
@@ -38,6 +49,41 @@ fn a_play_within_the_rules_is_valid() {
 fn a_play_without_an_external_id_is_invalid() {
     let event = ViewingEvent {
         external_id: String::new(),
+        ..played()
+    };
+
+    assert!(!event.is_valid());
+}
+
+#[test]
+fn an_episode_naming_its_show_is_valid() {
+    assert!(played_episode().is_valid());
+}
+
+#[test]
+fn an_episode_without_its_show_is_invalid() {
+    let event = ViewingEvent {
+        show_external_id: None,
+        ..played_episode()
+    };
+
+    assert!(!event.is_valid());
+}
+
+#[test]
+fn an_episode_whose_show_is_over_its_length_is_invalid() {
+    let event = ViewingEvent {
+        show_external_id: Some("1".repeat(EXTERNAL_ID_LENGTH + 1)),
+        ..played_episode()
+    };
+
+    assert!(!event.is_valid());
+}
+
+#[test]
+fn a_movie_naming_a_show_is_invalid() {
+    let event = ViewingEvent {
+        show_external_id: Some("tmdb-1399".to_owned()),
         ..played()
     };
 
