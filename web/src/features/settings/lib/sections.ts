@@ -89,7 +89,7 @@ export const loadNouns: Record<Section, string> = {
   devices: "your Devices",
   playback: "your Playback settings",
   home: "your Home layout",
-  requests: "your Requests settings",
+  requests: "your Requests",
   connections: "your Connections",
   libraries: "the Libraries",
   "needs-a-match": "what needs a Match",
@@ -110,6 +110,7 @@ export const sectionWords: Partial<Record<Section, string>> = {
   "needs-a-match": "needs a match unmatched identify fix wrong title",
   "now-playing": "now playing watching streams sessions stop transcode",
   jobs: "jobs schedule run tasks upkeep",
+  requests: "requests quality withdraw approve decline pending followed shows",
 };
 
 /** The sidebar's sections under a heading. */
@@ -120,7 +121,6 @@ export interface SectionGroup {
 
 /** The Permission a section needs, for the ones not every User sees. */
 const needs: Partial<Record<Section, Permission>> = {
-  requests: Permission.CHOOSE_QUALITY,
   libraries: Permission.MANAGE_LIBRARIES,
   "needs-a-match": Permission.MANAGE_LIBRARIES,
   "now-playing": Permission.ADMIN,
@@ -150,14 +150,6 @@ export function groupsFor(user: User | undefined): SectionGroup[] {
     const permission = needs[section];
     return permission === undefined || may(user, permission);
   });
-}
-
-/** The groups every User has: the top bar's and action bar's "Admin" open the first past them. */
-const ownGroups = new Set(["You", "Preferences"]);
-
-/** Where "Admin" opens Settings for `user`: none for a User who may open no admin section. */
-export function adminSectionFor(user: User | undefined): Section | undefined {
-  return groupsFor(user).find(({ label }) => !ownGroups.has(label))?.items[0];
 }
 
 /** The groups with only the sections `keep` keeps, without the groups left empty. */

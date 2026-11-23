@@ -84,7 +84,7 @@ function titleSourcesShown() {
   const list = screen.getByRole("list", { name: "Title sources" });
   return within(list)
     .getAllByRole("listitem")
-    .map((item) => item.textContent);
+    .map((item) => Array.from(item.querySelectorAll("p"), (line) => line.textContent).join(" · "));
 }
 
 test("a Library's title sources show in its order, and removing one saves the rest as they are", async () => {
@@ -99,7 +99,7 @@ test("a Library's title sources show in its order, and removing one saves the re
   );
   await screen.findByRole("button", { name: "Remove TVDB" });
 
-  expect(titleSourcesShown()).toStrictEqual(["TVDB", "imdb · not available", "TMDB"]);
+  expect(titleSourcesShown()).toStrictEqual(["TVDB", "imdb · Not available", "TMDB"]);
   fireEvent.click(screen.getByRole("button", { name: "Remove TVDB" }));
   await waitFor(() => {
     expect(saved).toStrictEqual(["imdb", "tmdb"]);
@@ -219,7 +219,7 @@ test("a stored source whose Plugin isn't running shows by the Plugin's name", as
   );
   await screen.findByRole("button", { name: "Remove TVDB" });
 
-  expect(titleSourcesShown()).toStrictEqual(["TMDB", "TVDB · not running", "imdb · not available"]);
+  expect(titleSourcesShown()).toStrictEqual(["TMDB", "TVDB · Not running", "imdb · Not available"]);
   screen.getByRole("button", { name: "Move TVDB up" });
 });
 

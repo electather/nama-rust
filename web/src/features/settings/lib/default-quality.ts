@@ -12,6 +12,15 @@ export function qualityLabel(fulfiller: DefaultQuality) {
   return `Quality for ${fetched[fulfiller.fulfiller] ?? fulfiller.pluginId}`;
 }
 
+/**
+ * What a Fulfiller's row says: what it fetches, such as "Movies", and the Plugin it's from.
+ */
+export function fetchedName({ fulfiller, pluginId }: DefaultQuality) {
+  // ponytail: the Plugin's id capitalised stands in for its name, which `DefaultQuality` doesn't carry.
+  const plugin = pluginId.charAt(0).toUpperCase() + pluginId.slice(1);
+  return { label: fetched[fulfiller] ?? pluginId, from: `From ${plugin}` };
+}
+
 /** The Quality the Server asks a Fulfiller for when the User picks none: its list's default. */
 function listDefault({ qualities }: DefaultQuality) {
   return qualities.find((offered) => offered.isDefault);

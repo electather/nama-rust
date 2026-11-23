@@ -1,3 +1,5 @@
+import { Undo2 } from "lucide-react";
+
 import { ChangeButton } from "@/features/requests/components/change-button";
 import { useWithdrawRequest } from "@/features/requests/data/use-withdraw-request";
 import { type Target, changeRefusal } from "@/features/requests/lib/request-target";
@@ -8,6 +10,7 @@ export function Withdraw({ id, ...target }: Target) {
   return (
     <ChangeButton
       action="Withdraw"
+      Icon={Undo2}
       name={`Withdraw from ${target.label}`}
       change={withdraw}
       id={id}

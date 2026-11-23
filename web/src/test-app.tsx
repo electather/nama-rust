@@ -7,7 +7,7 @@ import {
   createRouterTransport,
 } from "@connectrpc/connect";
 import { RouterProvider } from "@tanstack/react-router";
-import { configure, fireEvent, render, screen } from "@testing-library/react";
+import { configure, fireEvent, render, screen, within } from "@testing-library/react";
 
 import {
   EventSchema,
@@ -135,10 +135,13 @@ export function fakeServer(
 // The app's transport traces calls while the Server exports Diagnostics, so the fake Server's does too.
 const interceptingAsTheApp = { transport: { interceptors: [traceCalls] } };
 
-/** The title of each row on the page, Show titles included, top to bottom. */
-export function rowTitles() {
-  // Each row's title is its first paragraph.
-  return screen.getAllByRole("listitem").map((row) => row.querySelector("p")?.textContent);
+/** The title of each row of Settings' Requests, Show titles included, top to bottom. */
+export function requestTitles() {
+  const list = screen.getByRole("list", { name: /^(?:Your|All) Requests$/u });
+  // Each row's title is its link to the title's page, or a Season's name.
+  return within(list)
+    .getAllByRole("listitem")
+    .map((row) => row.querySelector("a, p")?.textContent);
 }
 
 /**

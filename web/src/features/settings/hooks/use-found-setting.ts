@@ -8,7 +8,7 @@ import { builtInText } from "@/features/settings/lib/setting-search";
 const MARKED_MS = 1500;
 
 /**
- * Lands on the setting `?setting=` names in the `pane` of `section`, once it has loaded: scrolls its
+ * Lands on the setting `?setting=` names in the `pane` of `section`, once its row has loaded: scrolls its
  * row into view, focuses the row rather than its control, and marks it for a moment (`styles.css`).
  * A row shown only sometimes lands on the row that shows it; a key no row has leaves the pane at
  * its top.
@@ -16,9 +16,26 @@ const MARKED_MS = 1500;
 export function useFoundSetting(pane: RefObject<HTMLElement | null>, section: Section) {
   const setting = useSearch({ strict: false, select: (search) => search.setting });
   useEffect(() => {
-    const row =
-      pane.current !== null && setting !== undefined ? rowOf(pane.current, section, setting) : null;
-    return row === null ? undefined : markFound(row);
+    const root = pane.current;
+    let unmark: (() => void) | undefined;
+    const land = () => {
+      const row = root === null || setting === undefined ? null : rowOf(root, section, setting);
+      unmark = row === null ? undefined : markFound(row);
+      return unmark !== undefined;
+    };
+    const observer = new MutationObserver(() => {
+      if (land()) {
+        observer.disconnect();
+      }
+    });
+    // A part of the pane that loads on its own may bring the row in later.
+    if (root !== null && setting !== undefined && !land()) {
+      observer.observe(root, { childList: true, subtree: true });
+    }
+    return () => {
+      observer.disconnect();
+      unmark?.();
+    };
   }, [pane, section, setting]);
 }
 

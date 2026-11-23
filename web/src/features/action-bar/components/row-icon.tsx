@@ -1,15 +1,5 @@
 import { cn } from "cn";
-import {
-  Film,
-  House,
-  Inbox,
-  Keyboard,
-  type LucideIcon,
-  RefreshCw,
-  Settings,
-  Tv,
-  Wrench,
-} from "lucide-react";
+import { Film, House, Keyboard, type LucideIcon, RefreshCw, Settings, Tv } from "lucide-react";
 
 import type { IconName } from "@/features/action-bar/lib/rows";
 
@@ -17,9 +7,7 @@ const icons = {
   movie: Film,
   show: Tv,
   home: House,
-  requests: Inbox,
   settings: Settings,
-  admin: Wrench,
   keyboard: Keyboard,
   retry: RefreshCw,
 } satisfies Record<IconName, LucideIcon>;

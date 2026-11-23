@@ -135,7 +135,7 @@ describe("the Library picker", () => {
     openApp("/code?settings=needs-a-match&library=9", matchServer(admin));
 
     await expect(screen.findByText("That Library isn’t on the Server.")).resolves.toBeDefined();
-    expect(screen.queryByText("Everything is Matched.")).toBeNull();
+    expect(screen.queryByText("Everything is Matched")).toBeNull();
     expect(screen.getByRole("combobox", { name: "Library" })).toBeDefined();
   });
 });

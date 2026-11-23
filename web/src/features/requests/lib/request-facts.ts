@@ -111,3 +111,8 @@ function requestedBy({ requesters }: Pick<Request, "requesters">, you: bigint | 
   const who = requesters.map(({ userId, name }) => (userId === you ? "you" : name));
   return `Requested by ${names.format(who)}`;
 }
+
+/** What a Request's Fulfiller is downloading for it; a Followed Show downloads nothing itself. */
+export function downloadsOf(request: Request | FollowedShow) {
+  return request.$typeName === "nama.v1.Request" ? request.downloads : [];
+}

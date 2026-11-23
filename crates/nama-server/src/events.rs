@@ -144,7 +144,7 @@ impl EventBus {
             EventType::EVENT_TYPE_REQUEST_CANCELLED | EventType::EVENT_TYPE_REQUEST_WITHDRAWN
         );
         // A removed Request is no longer in the web app to link to.
-        let request_url = (self.server_url.request_link(request.id)).filter(|_| !removed);
+        let request_url = (self.server_url.requests_link()).filter(|_| !removed);
         let Some(notification) = plugins::notification(event, request, request_url) else {
             return;
         };

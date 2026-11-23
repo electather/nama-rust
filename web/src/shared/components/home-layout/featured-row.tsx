@@ -23,7 +23,7 @@ export function FeaturedRow({
         <Pin className="size-3.5 text-muted-foreground/60" />
         <IconTile Icon={Sparkles} />
       </span>
-      <div className="flex min-w-0 flex-1 items-center gap-3 py-1.5">
+      <div className="flex min-w-0 flex-1 items-center gap-3 border-b py-1.5">
         <RowLabel name={{ label, from: hint }} />
         <ShownSwitch label={label} shown={shown} onShownChange={onShownChange} />
       </div>

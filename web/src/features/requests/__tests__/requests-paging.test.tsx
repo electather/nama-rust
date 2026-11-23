@@ -8,7 +8,7 @@ import {
   RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
-import { fakeServer, newUser, openApp, rowTitles } from "@/test-app";
+import { fakeServer, newUser, openApp, requestTitles } from "@/test-app";
 
 afterEach(() => {
   cleanup();
@@ -49,6 +49,7 @@ function pagingServer(
 ) {
   return fakeServer({ signedIn: newUser }, {}, {}, (router) => {
     router.service(RequestService, {
+      listDefaultQualities: () => ({}),
       listRequests: (request) => {
         asked.push(request);
         const index = Number(request.page?.token ?? "");
@@ -60,12 +61,12 @@ function pagingServer(
 }
 
 test("show more lists the next page below the first, and goes after the last", async () => {
-  openApp("/requests", pagingServer([[movie(3n, "Heat")], [movie(2n, "Dune")]]));
+  openApp("/?settings=requests", pagingServer([[movie(3n, "Heat")], [movie(2n, "Dune")]]));
 
   fireEvent.click(await screen.findByRole("button", { name: "Show more" }));
 
   await screen.findByText("Dune");
-  expect(rowTitles()).toStrictEqual(["Heat", "Dune"]);
+  expect(requestTitles()).toStrictEqual(["Heat", "Dune"]);
   expect(screen.queryByRole("button", { name: "Show more" })).toBeNull();
 });
 
@@ -97,7 +98,7 @@ function stubObserver(inView: boolean) {
 
 test("scrolling to the end of the list loads the next page", async () => {
   const scrollToEnd = stubObserver(false);
-  openApp("/requests", pagingServer([[movie(3n, "Heat")], [movie(2n, "Dune")]]));
+  openApp("/?settings=requests", pagingServer([[movie(3n, "Heat")], [movie(2n, "Dune")]]));
   await screen.findByText("Heat");
 
   act(scrollToEnd);
@@ -109,26 +110,29 @@ test("a page that leaves the end of the list in view loads the next one too", as
   stubObserver(true);
 
   openApp(
-    "/requests",
+    "/?settings=requests",
     pagingServer([[movie(3n, "Heat")], [movie(2n, "Dune")], [movie(1n, "Alien")]]),
   );
 
   await screen.findByText("Alien");
-  expect(rowTitles()).toStrictEqual(["Heat", "Dune", "Alien"]);
+  expect(requestTitles()).toStrictEqual(["Heat", "Dune", "Alien"]);
 });
 
 test("a Show's older Season Request joins its group when a later page loads", async () => {
-  openApp("/requests", pagingServer([[darkSeason(4n, 2), movie(3n, "Heat")], [darkSeason(2n, 1)]]));
+  openApp(
+    "/?settings=requests",
+    pagingServer([[darkSeason(4n, 2), movie(3n, "Heat")], [darkSeason(2n, 1)]]),
+  );
 
   fireEvent.click(await screen.findByRole("button", { name: "Show more" }));
 
   await screen.findByText("Season 1");
-  expect(rowTitles()).toStrictEqual(["Dark", "Season 1", "Season 2", "Heat"]);
+  expect(requestTitles()).toStrictEqual(["Dark", "Season 1", "Season 2", "Heat"]);
 });
 
 test("changing the filter lists the newest of the new state from the first page", async () => {
   const asked: ListRequestsRequest[] = [];
-  openApp("/requests", pagingServer([[movie(3n, "Heat")], [movie(2n, "Dune")]], asked));
+  openApp("/?settings=requests", pagingServer([[movie(3n, "Heat")], [movie(2n, "Dune")]], asked));
   fireEvent.click(await screen.findByRole("button", { name: "Show more" }));
   await screen.findByText("Dune");
 
@@ -136,7 +140,7 @@ test("changing the filter lists the newest of the new state from the first page"
   fireEvent.click(await screen.findByRole("menuitem", { name: "Pending" }));
 
   await waitFor(() => {
-    expect(rowTitles()).toStrictEqual(["Heat"]);
+    expect(requestTitles()).toStrictEqual(["Heat"]);
   });
   expect(asked.at(-1)).toMatchObject({
     filter: { state: RequestState.PENDING },

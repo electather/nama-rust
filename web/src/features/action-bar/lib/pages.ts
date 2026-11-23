@@ -10,23 +10,16 @@ export type Page = {
   key: string;
   icon: IconName;
   // Settings is a modal over the page it's opened on (`goTo`), not a page of its own.
-} & ({ to: "/" | "/requests" } | { settings: Section });
+} & ({ to: "/" } | { settings: Section });
 
-/** The pages "Jump to" lists to everyone. */
-const pages: readonly Page[] = [
+/** The pages "Jump to" lists. */
+export const pages: readonly Page[] = [
   {
     to: "/",
     label: "Home",
     hint: "Continue Watching and your Libraries",
     key: "H",
     icon: "home",
-  },
-  {
-    to: "/requests",
-    label: "Requests",
-    hint: "Ask for a Movie or Show, and follow it",
-    key: "R",
-    icon: "requests",
   },
   {
     settings: "playback",
@@ -36,21 +29,6 @@ const pages: readonly Page[] = [
     icon: "settings",
   },
 ];
-
-/** The pages a User may jump to: Admin, at `adminSection`, only for one who may open some. */
-export function pagesFor(adminSection: Section | undefined): Page[] {
-  if (adminSection === undefined) {
-    return [...pages];
-  }
-  const admin: Page = {
-    settings: adminSection,
-    label: "Admin",
-    hint: "What you manage on this Server",
-    key: "A",
-    icon: "admin",
-  };
-  return [...pages, admin];
-}
 
 /** Goes to `page`. Settings opens in a history entry of its own, so Back closes it. */
 export function goTo(navigate: UseNavigateResult<string>, page: Page) {

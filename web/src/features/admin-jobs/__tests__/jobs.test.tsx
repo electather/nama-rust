@@ -33,6 +33,12 @@ const runs = [
     ],
   },
   { id: 2n, outcome: JobRunOutcome.INTERRUPTED, startedAtMs: START - DAY, startedBy: "Ada" },
+  {
+    id: 1n,
+    outcome: JobRunOutcome.SUCCEEDED,
+    startedAtMs: START - 2n * DAY,
+    endedAtMs: START - 2n * DAY + 120_000n,
+  },
 ];
 
 const forgetHomeRows = {
@@ -95,6 +101,15 @@ function openJobs(job?: string, configured: Partial<ConfigureJobRequest>[] = [])
           }
           return { runs: jobId === "forget-home-rows" ? runs : [] };
         },
+        previewJobSchedule: ({ schedule }) => {
+          if (schedule.split(" ").length === 4) {
+            throw refused(Code.InvalidArgument, `the schedule "${schedule}" has 4 fields`, {
+              reason: RefusalReason.SCHEDULE_INVALID,
+              field: "schedule",
+            });
+          }
+          return { nextRunsAtMs: [START + DAY, START + 2n * DAY, START + 3n * DAY] };
+        },
         configureJob: ({ pluginId, jobId, enabled, schedule }) => {
           if (schedule.split(" ").length === 4) {
             throw refused(Code.InvalidArgument, `the schedule "${schedule}" has 4 fields`, {
@@ -126,28 +141,47 @@ function openJobs(job?: string, configured: Partial<ConfigureJobRequest>[] = [])
   );
 }
 
+/** The group of the Jobs table holding the Plugin `name`'s Jobs, once it shows. */
+async function pluginRows(name: string) {
+  return within(await screen.findByRole("rowgroup", { name }));
+}
+
 describe("the Jobs section", () => {
-  test("lists each Plugin's Jobs under its name, with their schedule and next and last Runs", async () => {
+  test("tables each Plugin's Jobs under its name, with their schedule and last and next Runs", async () => {
     openJobs();
 
-    const upkeep = within(await screen.findByRole("list", { name: "Upkeep" }));
+    const upkeep = await pluginRows("Upkeep");
     expect(upkeep.getAllByRole("link").map((link) => link.textContent)).toStrictEqual([
       "Forget Home rows",
       "Delete expired sign-ins",
     ]);
-    expect(screen.getByRole("list", { name: "Cleanup" })).toBeDefined();
+    expect(screen.getByRole("rowgroup", { name: "Cleanup" })).toBeDefined();
+    const [forget, expired] = upkeep.getAllByRole("row").slice(1);
+    expect(forget?.textContent).toMatch(/Every day at 04:00Failed.*ago/u);
+    expect(expired?.textContent).toMatch(/Every day at 04:10Never run.*Off/u);
+    expect(screen.getByText("Only when an Admin runs it")).toBeDefined();
+    expect(screen.getByText("When an Admin runs it")).toBeDefined();
     expect(
-      upkeep.getByText(/^Every day at 04:00 Server time · Next run .* · Last run /u),
-    ).toBeDefined();
-    expect(
-      upkeep.getByText(/^Every day at 04:10 Server time · Next run .* · Never run$/u),
-    ).toBeDefined();
-    expect(screen.getByText("Only when an Admin runs it · Never run")).toBeDefined();
-    expect(screen.getAllByText("Off")).toHaveLength(1);
-    expect(screen.getByText("Failed")).toBeDefined();
+      screen
+        .getAllByRole("columnheader")
+        .slice(0, 4)
+        .map((header) => header.textContent),
+    ).toStrictEqual(["Job", "Last run", "Next run", "Run now"]);
   });
 
-  test("a Job opens in place of the list with what it does, its next 3 times and each Run's detail and Plugin Log", async () => {
+  test("a Job whose last Run failed is named over the table, with a link to it", async () => {
+    const router = openJobs();
+
+    const failed = within(await screen.findByRole("list", { name: "Failed Jobs" }));
+    expect(failed.getByRole("listitem").textContent).toMatch(/^Forget Home rows failed .*ago\./u);
+    fireEvent.click(failed.getByRole("link", { name: "See what happened" }));
+
+    await screen.findByRole("region", { name: "Forget Home rows" });
+    expect(router.state.location.search).toMatchObject({ job: "upkeep:forget-home-rows" });
+    expect(screen.getByText("The last Run failed: the database was busy")).toBeDefined();
+  });
+
+  test("a Job opens in place of the table with what it does, its facts and each Run's detail and Plugin Log", async () => {
     const router = openJobs();
 
     fireEvent.click(await screen.findByRole("link", { name: "Forget Home rows" }));
@@ -157,16 +191,17 @@ describe("the Jobs section", () => {
       settings: "jobs",
       job: "upkeep:forget-home-rows",
     });
-    expect(screen.queryByRole("list", { name: "Upkeep" })).toBeNull();
+    expect(screen.queryByRole("rowgroup", { name: "Upkeep" })).toBeNull();
     expect(job.getByText("Forgets the Home rows of Users who stopped visiting.")).toBeDefined();
-    const next = job.getByRole("list", { name: "Next runs" });
-    expect(within(next).getAllByRole("listitem")).toHaveLength(3);
-    await expect(job.findByText("the database was busy")).resolves.toBeDefined();
-    expect(job.getByText("Ada")).toBeDefined();
+    const facts = job.getAllByRole("term").map((term) => term.textContent);
+    expect(facts.slice(0, 3)).toStrictEqual(["Next run", "Last run", "Usually takes"]);
+    await expect(job.findByText("Ada")).resolves.toBeDefined();
     expect(job.getByText("1 minute 15 seconds")).toBeDefined();
     expect(job.getByText("Interrupted")).toBeDefined();
     expect(job.getByText("Not known: the Server stopped during it")).toBeDefined();
-    // Only the failed Run has lines; the interrupted one says it has none.
+    expect(job.getByRole("figure").textContent).toMatch(/^Last 2 Runs · 1 failed/u);
+    expect(job.getByText("About 2 minutes")).toBeDefined();
+    // Only the failed Run has lines; the others say they have none.
     const lines = job.getByRole("list", { name: "Plugin Log" });
     expect(
       within(lines)
@@ -176,10 +211,10 @@ describe("the Jobs section", () => {
       expect.stringMatching(/Info.*forgetting Home rows/u),
       expect.stringMatching(/Error.*giving up: the database was busy/u),
     ]);
-    expect(job.getByText(/^No lines kept\./u)).toBeDefined();
+    expect(job.getAllByText(/^No lines kept\./u)).toHaveLength(2);
   });
 
-  test("an open Job's crumbs are Jobs › its name, and Jobs goes back to the list", async () => {
+  test("an open Job's crumbs are Jobs › its name, and Jobs goes back to the table", async () => {
     const router = openJobs("upkeep:forget-home-rows");
 
     await screen.findByRole("region", { name: "Forget Home rows" });
@@ -187,14 +222,14 @@ describe("the Jobs section", () => {
     expect(trail.getByText("Forget Home rows")).toBeDefined();
     fireEvent.click(trail.getByRole("link", { name: "Jobs" }));
 
-    await expect(screen.findByRole("list", { name: "Upkeep" })).resolves.toBeDefined();
+    await expect(pluginRows("Upkeep")).resolves.toBeDefined();
     expect(router.state.location.search.job).toBeUndefined();
   });
 
-  test("an id no Job has shows the list", async () => {
+  test("an id no Job has shows the table", async () => {
     openJobs("upkeep:gone");
 
-    await expect(screen.findByRole("list", { name: "Upkeep" })).resolves.toBeDefined();
+    await expect(pluginRows("Upkeep")).resolves.toBeDefined();
   });
 
   test("a Job that never ran says so", async () => {
@@ -218,7 +253,12 @@ describe("the Jobs section", () => {
     await expect(screen.findByText("Running")).resolves.toBeDefined();
     fireEvent.click(screen.getByRole("link", { name: "Delete expired sign-ins" }));
     const job = within(await screen.findByRole("region", { name: "Delete expired sign-ins" }));
-    await expect(job.findByText("Running")).resolves.toBeDefined();
+    expect(
+      screen
+        .getByRole("button", { name: "Run Delete expired sign-ins now" })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    await expect(job.findByRole("list", { name: "Runs" })).resolves.toBeDefined();
   });
 
   test("run now on a Job with a Run going says why it didn't start", async () => {
@@ -232,7 +272,7 @@ describe("the Jobs section", () => {
 });
 
 describe("configuring a Job", () => {
-  test("turning it off saves at once, and a schedule of its own once the field is left", async () => {
+  test("turning it off and picking a schedule each save at once", async () => {
     const configured: Partial<ConfigureJobRequest>[] = [];
     openJobs("upkeep:forget-home-rows", configured);
 
@@ -242,38 +282,68 @@ describe("configuring a Job", () => {
     await vi.waitFor(() => {
       expect(configured).toHaveLength(1);
     });
-    const schedule = screen.getByLabelText("Schedule");
-    expect(schedule.getAttribute("placeholder")).toBe("0 4 * * *");
-    fireEvent.change(schedule, { target: { value: "0 * * * *" } });
-    fireEvent.blur(schedule);
+    expect(screen.getByRole("radio", { name: "Daily" })).toHaveProperty("checked", true);
+    expect(screen.getByLabelText("at")).toHaveProperty("value", "04:00");
+    expect(screen.queryByRole("button", { name: /^Save/u })).toBeNull();
+    fireEvent.click(screen.getByRole("radio", { name: "Hours" }));
 
+    expect(screen.getByText("Every hour, on the hour")).toBeDefined();
     await vi.waitFor(() => {
       expect(configured).toStrictEqual([
         { pluginId: "upkeep", jobId: "forget-home-rows", enabled: false, schedule: "" },
         { pluginId: "upkeep", jobId: "forget-home-rows", enabled: false, schedule: "0 * * * *" },
       ]);
     });
-    expect(screen.getByRole("switch", { name: "Enabled" }).getAttribute("aria-checked")).toBe(
-      "false",
-    );
   });
 
-  test("says why the Server can't read a schedule, under it", async () => {
+  test("picking days of the week previews them in words with the Server's next times", async () => {
     openJobs("upkeep:forget-home-rows");
 
-    const schedule = await screen.findByLabelText("Schedule");
+    fireEvent.click(await screen.findByRole("radio", { name: "Weekly" }));
+    fireEvent.click(screen.getByRole("button", { name: "Weekends" }));
+    fireEvent.click(screen.getByRole("button", { name: "Friday" }));
+
+    expect(
+      screen.getByText(/^Every Sunday, Friday,? and Saturday at 04:00 Server time$/u),
+    ).toBeDefined();
+    const next = await screen.findByRole("list", { name: "Next runs" });
+    expect(within(next).getAllByRole("listitem")).toHaveLength(3);
+  });
+
+  test("the Plugin's schedule's Use it goes back to it, saved as none of its own", async () => {
+    const configured: Partial<ConfigureJobRequest>[] = [];
+    openJobs("upkeep:forget-home-rows", configured);
+
+    fireEvent.click(await screen.findByRole("radio", { name: "Minutes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Use it" }));
+
+    expect(screen.getByRole("radio", { name: "Daily" })).toHaveProperty("checked", true);
+    expect(screen.getByText("This is the schedule Upkeep gives it.")).toBeDefined();
+    await vi.waitFor(() => {
+      expect(configured.map((each) => each.schedule)).toStrictEqual(["*/15 * * * *", ""]);
+    });
+  });
+
+  test("says why the Server can't read a schedule typed under Custom", async () => {
+    const configured: Partial<ConfigureJobRequest>[] = [];
+    openJobs("upkeep:forget-home-rows", configured);
+
+    fireEvent.click(await screen.findByRole("radio", { name: "Custom" }));
+    const schedule = screen.getByLabelText("Schedule");
+    expect(schedule).toHaveProperty("value", "0 4 * * *");
     fireEvent.change(schedule, { target: { value: "0 4 * *" } });
     fireEvent.blur(schedule);
 
     await expect(screen.findByText('The schedule "0 4 * *" has 4 fields.')).resolves.toBeDefined();
     expect(screen.getByLabelText("Schedule").getAttribute("aria-invalid")).toBe("true");
+    expect(configured).toStrictEqual([]);
   });
 
   test("a Job without a schedule can't be given one", async () => {
     openJobs("cleanup:clean");
 
     await expect(screen.findByRole("switch", { name: "Enabled" })).resolves.toBeDefined();
-    expect(screen.queryByLabelText("Schedule")).toBeNull();
+    expect(screen.queryByRole("radiogroup", { name: "How often" })).toBeNull();
     expect(screen.getByText("It runs only when an Admin runs it.")).toBeDefined();
   });
 });

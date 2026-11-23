@@ -1,43 +1,31 @@
-import { Link } from "@tanstack/react-router";
-import { CalendarClock } from "lucide-react";
-
-import { JobState } from "@/features/admin-jobs/components/job-state";
+import { LastRun } from "@/features/admin-jobs/components/last-run";
+import { NextRun } from "@/features/admin-jobs/components/next-run";
 import { RunNowButton } from "@/features/admin-jobs/components/run-now-button";
 import { useRunJob } from "@/features/admin-jobs/data/use-run-job";
-import { runRefused } from "@/features/admin-jobs/lib/run-refused";
-import { nextAndLast } from "@/features/admin-jobs/lib/run-times";
-import { ItemRow } from "@/features/settings/components/item-row";
+import { runRefusedBy } from "@/features/admin-jobs/lib/run-refused";
+import { JobName } from "@/features/settings/components/job-name";
 import type { Job } from "@/gen/nama/v1/job_pb";
-import { IconTile } from "@/shared/components/icon-tile";
-import { jobKey } from "@/shared/lib/job-key";
-import { scheduleWords } from "@/shared/lib/schedule-words";
 
 /**
- * One Job on the list: its name over its schedule and its next and last Runs, and at the end
- * whether it's off, how its last Run ended and Run now. All of the row but those opens it.
+ * One Job's row of the table: its name and schedule, how its last Run went, when it next runs and
+ * Run now. All of the row but Run now opens it.
  */
 export function JobItem({ job }: { job: Job }) {
-  const run = useRunJob();
-  const name = (
-    <Link
-      to="."
-      search={(rest) => ({ ...rest, job: jobKey(job.pluginId, job.id) })}
-      className="outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:ring-3 focus-visible:after:ring-ring/50"
-    >
-      {job.name}
-    </Link>
-  );
+  const run = useRunJob(job);
   return (
-    <ItemRow
-      beside
-      linked
-      start={<IconTile Icon={CalendarClock} />}
-      name={name}
-      meta={`${scheduleWords(job.schedule)} · ${nextAndLast(job)}`}
-      failed={run.isError ? runRefused(run.error) : undefined}
-    >
-      <JobState job={job} />
-      <RunNowButton job={job} run={run} />
-    </ItemRow>
+    <tr className="relative border-t transition-colors hover:bg-muted/50 motion-reduce:transition-none">
+      <td className="py-2 ps-2 pe-3">
+        <JobName job={job} failed={runRefusedBy(run)} />
+      </td>
+      <td className="p-2">
+        <LastRun job={job} />
+      </td>
+      <td className="p-2 max-md:hidden">
+        <NextRun job={job} />
+      </td>
+      <td className="relative py-2 pe-2 text-end">
+        <RunNowButton job={job} run={run} />
+      </td>
+    </tr>
   );
 }

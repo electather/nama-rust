@@ -1,17 +1,9 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { MemberLayout } from "@/app/member-layout";
-import {
-  type Section,
-  adminSectionFor,
-  idParam,
-  sectionParam,
-  userParam,
-} from "@/features/settings/lib/sections";
-import { Permission } from "@/gen/nama/v1/sign_in_pb";
+import { type Section, idParam, sectionParam, userParam } from "@/features/settings/lib/sections";
 import { isSetupRequired, serverInfo, whoIsSignedIn } from "@/shared/hooks/access";
 import { recordDiagnosticsIfExported } from "@/shared/lib/diagnostics";
-import { may } from "@/shared/lib/permissions";
 import { wordsParam } from "@/shared/lib/words-param";
 
 // On any page: the words the action bar opens on (`src/app/top-bar/use-search-from-url.ts`), the
@@ -48,21 +40,12 @@ export const Route = createFileRoute("/_member")({
     }
     // Awaited, so the page's own calls are traced too.
     await recordDiagnosticsIfExported((await serverInfo(context)).exportsDiagnostics);
-    const chrome = {
-      adminSection: adminSectionFor(signedIn.user),
-      managesRequests: may(signedIn.user, Permission.MANAGE_REQUESTS),
-    };
-    return { signedIn, chrome };
+    return { signedIn };
   },
   component: Member,
 });
 
 function Member() {
-  const { chrome, signedIn } = Route.useRouteContext();
-  return (
-    <MemberLayout
-      chrome={{ ...chrome, userName: signedIn.user?.name ?? "" }}
-      user={signedIn.user}
-    />
-  );
+  const { signedIn } = Route.useRouteContext();
+  return <MemberLayout chrome={{ userName: signedIn.user?.name ?? "" }} user={signedIn.user} />;
 }

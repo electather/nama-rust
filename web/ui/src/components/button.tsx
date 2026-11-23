@@ -29,7 +29,8 @@ const buttonVariants = cva(
           "text-foreground hover:bg-foreground/15 focus-visible:ring-ring aria-expanded:bg-accent aria-expanded:text-primary aria-expanded:inset-ring aria-expanded:inset-ring-primary/60 aria-pressed:bg-accent aria-pressed:text-primary aria-pressed:inset-ring aria-pressed:inset-ring-primary/60",
       },
       size: {
-        default: "h-8 px-2.5",
+        // An icon beside the words is 16px, as DESIGN.md's buttons have it, unless it sets its own size.
+        default: "h-8 px-2.5 [&_svg:not([class*='size-'])]:size-4",
         // The full-width actions of a sign-in card.
         lg: "h-9 px-2.5 [&_svg]:size-4",
         // Text only, with a 44px tall hit area that its negative margins keep out of the layout.

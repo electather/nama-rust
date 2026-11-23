@@ -6,7 +6,6 @@ import { ActionBarList } from "@/features/action-bar/components/action-bar-list"
 import { useActionBar } from "@/features/action-bar/hooks/use-action-bar";
 import { useLightDismiss } from "@/features/action-bar/hooks/use-light-dismiss";
 import type { Opening } from "@/features/action-bar/lib/rows";
-import type { Section } from "@/features/settings/lib/sections";
 import { SearchNote } from "@/shared/components/search-note";
 
 /**
@@ -17,17 +16,14 @@ import { SearchNote } from "@/shared/components/search-note";
 export function ActionBar({
   ref,
   opening,
-  adminSection,
   onClose,
 }: {
   ref: RefObject<HTMLDialogElement | null>;
   opening: Opening;
-  adminSection: Section | undefined;
   onClose: () => void;
 }) {
   const bar = useActionBar({
     opening,
-    adminSection,
     dialog: {
       close: () => ref.current?.close(),
       focusField: () => ref.current?.querySelector("input")?.focus(),

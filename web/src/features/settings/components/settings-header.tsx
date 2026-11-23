@@ -4,7 +4,9 @@ import { type ComponentType, Suspense } from "react";
 
 import { Crumbs } from "@/features/settings/components/crumbs";
 import { JobCrumbs } from "@/features/settings/components/job-crumbs";
+import { JobRunNow } from "@/features/settings/components/job-run-now";
 import { LibraryCrumbs } from "@/features/settings/components/library-crumbs";
+import { NewLibraryLink } from "@/features/settings/components/new-library-link";
 import { PluginCrumbs } from "@/features/settings/components/plugin-crumbs";
 import { ResetHomeLayout } from "@/features/settings/components/reset-home-layout";
 import { type Section, sectionTitles } from "@/features/settings/lib/sections";
@@ -16,9 +18,16 @@ const openedCrumbs: Partial<Record<Section, ComponentType>> = {
   jobs: JobCrumbs,
 };
 
+// What acts on a section's whole pane, beside the close button.
+const sectionActions: Partial<Record<Section, ComponentType>> = {
+  home: ResetHomeLayout,
+  libraries: NewLibraryLink,
+  jobs: JobRunNow,
+};
+
 /**
  * The top of the pane: where in Settings it is, what acts on the whole pane, such as going back to
- * the default Home, and the button that closes it.
+ * the default Home, adding a Library or running the open Job, and the button that closes it.
  */
 export function SettingsHeader({
   titleId,
@@ -31,6 +40,7 @@ export function SettingsHeader({
 }) {
   const plain = <Crumbs current={sectionTitles[section]} />;
   const Opened = openedCrumbs[section];
+  const Action = sectionActions[section];
   const crumbs = Opened ? (
     <Suspense fallback={plain}>
       <Opened />
@@ -48,7 +58,11 @@ export function SettingsHeader({
       <nav aria-label="Breadcrumbs" className="me-auto min-w-0 pe-1">
         {crumbs}
       </nav>
-      {section === "home" && <ResetHomeLayout />}
+      {Action && (
+        <Suspense fallback={null}>
+          <Action />
+        </Suspense>
+      )}
       <Button variant="ghost" size="icon-sm" aria-label="Close Settings" onClick={onClose}>
         <X aria-hidden strokeWidth={1.5} />
       </Button>

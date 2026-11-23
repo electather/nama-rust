@@ -41,10 +41,8 @@ const CHAT: &str = "chat";
 /// Ada's chat, as the chat Plugin names it.
 const ADA_CHAT: &str = "ada-chat";
 
-/// The link the Server gives to the Request `id`, once an Admin set its URL.
-fn link(id: i64) -> String {
-    format!("https://nama.example.com/requests/{id}")
-}
+/// The link the Server gives to every Request once an Admin set its URL.
+const LINK: &str = "https://nama.example.com/?settings=requests";
 
 /// What a notification told about its Request.
 #[derive(Debug, Clone, PartialEq)]
@@ -461,7 +459,7 @@ async fn a_requester_who_connected_is_told_with_the_link_when_their_request_is_a
 
     let _media = fixture.library_with_alien().await;
 
-    let link = Some(link(alien.id));
+    let link = Some(LINK.to_owned());
     let approved = Told::Now(wire::RequestState::REQUEST_STATE_APPROVED);
     let available = Told::Now(wire::RequestState::REQUEST_STATE_AVAILABLE);
     assert_eq!(
@@ -536,7 +534,7 @@ async fn a_cancelled_request_comes_without_a_link_since_it_is_gone_from_the_web_
     assert_eq!(
         fixture.chat.wait_for_handed(2).await,
         sorted(vec![
-            (Recipient::Channel, Told::New, Some(link(dune.id))),
+            (Recipient::Channel, Told::New, Some(LINK.to_owned())),
             (Recipient::Channel, Told::Cancelled, None),
         ])
     );

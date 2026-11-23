@@ -59,7 +59,7 @@ async fn every_setting_is_its_default_until_one_is_stored() {
     let playback = settings.playback();
 
     assert_eq!(settings.now(), Values::default());
-    assert_eq!(settings.server_url().request_link(7), None);
+    assert_eq!(settings.server_url().requests_link(), None);
     assert_eq!(playback.now().hardware, HardwareChoice::Automatic);
     assert_eq!(playback.path(), Path::new(DEFAULT_FOLDER));
 }
@@ -75,8 +75,8 @@ async fn a_stored_url_is_trimmed_used_for_links_and_read_again_after_a_restart()
 
     assert_eq!(stored, "https://example.com/nama/");
     assert_eq!(
-        settings.server_url().request_link(7).as_deref(),
-        Some("https://example.com/nama/requests/7")
+        settings.server_url().requests_link().as_deref(),
+        Some("https://example.com/nama/?settings=requests")
     );
     assert_eq!(restarted(&settings).await.now().url, stored);
 }
@@ -145,7 +145,7 @@ async fn clearing_the_url_leaves_links_out() {
         .await
         .unwrap();
 
-    assert_eq!(settings.server_url().request_link(7), None);
+    assert_eq!(settings.server_url().requests_link(), None);
     assert_eq!(restarted(&settings).await.now().url, "");
 }
 

@@ -13,3 +13,8 @@ export function runRefused(error: unknown) {
     },
   ).form;
 }
+
+/** Why Run now didn't start the Job, after `run` tried and failed, or nothing. */
+export function runRefusedBy(run: { isError: boolean; error: unknown }) {
+  return run.isError ? runRefused(run.error) : undefined;
+}
