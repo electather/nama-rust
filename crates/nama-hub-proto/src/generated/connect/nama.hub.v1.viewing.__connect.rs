@@ -16,6 +16,22 @@ pub type OwnedDeleteViewingEventResponseView = ::buffa::view::OwnedView<
         'static,
     >,
 >;
+///Shorthand for `OwnedView<GetPoolingRequestView<'static>>`.
+pub type OwnedGetPoolingRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::GetPoolingRequestView<'static>,
+>;
+///Shorthand for `OwnedView<GetPoolingResponseView<'static>>`.
+pub type OwnedGetPoolingResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::GetPoolingResponseView<'static>,
+>;
+///Shorthand for `OwnedView<SetPoolingRequestView<'static>>`.
+pub type OwnedSetPoolingRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SetPoolingRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetPoolingResponseView<'static>>`.
+pub type OwnedSetPoolingResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SetPoolingResponseView<'static>,
+>;
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::ListViewingEventsResponse>
 for crate::messages::nama::hub::v1::__buffa::view::ListViewingEventsResponseView<'_> {
     fn encode(
@@ -86,6 +102,74 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::GetPoolingResponse>
+for crate::messages::nama::hub::v1::__buffa::view::GetPoolingResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::GetPoolingResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::GetPoolingResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SetPoolingResponse>
+for crate::messages::nama::hub::v1::__buffa::view::SetPoolingResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SetPoolingResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SetPoolingResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 /// Full service name for this service.
 pub const VIEWING_EVENT_SERVICE_SERVICE_NAME: &str = "nama.hub.v1.ViewingEventService";
 /// Static [`Spec`](::connectrpc::Spec) for the `ListViewingEvents` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
@@ -100,9 +184,21 @@ pub const VIEWING_EVENT_SERVICE_DELETE_VIEWING_EVENT_SPEC: ::connectrpc::Spec = 
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
-/// An Account's Viewing Events, for the Hub's web pages (ADR 0093). A Linked Server records them
-/// through `LinkedServerService.RecordViewingEvents`. Every call fails with
-/// `REFUSAL_REASON_SIGN_IN_REQUIRED` without a session.
+/// Static [`Spec`](::connectrpc::Spec) for the `GetPooling` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const VIEWING_EVENT_SERVICE_GET_POOLING_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.ViewingEventService/GetPooling",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetPooling` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const VIEWING_EVENT_SERVICE_SET_POOLING_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.ViewingEventService/SetPooling",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// An Account's Viewing Events, and whether they're pooled, for the Hub's web pages (ADR 0093). A
+/// Linked Server records them through `LinkedServerService.RecordViewingEvents`. Every call fails
+/// with `REFUSAL_REASON_SIGN_IN_REQUIRED` without a session.
 ///
 /// # Implementing handlers
 ///
@@ -200,6 +296,55 @@ pub trait ViewingEventService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Returns whether the signed-in Account's finished Movies are pooled: counted, with no trace of
+    /// the Account, in how many Accounts finished each Movie and each pair of Movies. On until the
+    /// Account turns it off.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn get_pooling<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::GetPoolingRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::GetPoolingResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Turns pooling on or off for the signed-in Account. Turning it off stops new counts; what was
+    /// already counted stays, as it can't be traced back to the Account.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_pooling<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::SetPoolingRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::SetPoolingResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
 }
 /// Extension trait for registering a service implementation with a Router.
 ///
@@ -290,6 +435,64 @@ impl<S: ViewingEventService> ViewingEventServiceExt for S {
                 },
             )
             .with_spec(VIEWING_EVENT_SERVICE_DELETE_VIEWING_EVENT_SPEC)
+            .route_view_idempotent(
+                VIEWING_EVENT_SERVICE_SERVICE_NAME,
+                "GetPooling",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::GetPoolingRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::GetPoolingRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.get_pooling(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::GetPoolingResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(VIEWING_EVENT_SERVICE_GET_POOLING_SPEC)
+            .route_view(
+                VIEWING_EVENT_SERVICE_SERVICE_NAME,
+                "SetPooling",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::SetPoolingRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::SetPoolingRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_pooling(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::SetPoolingResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(VIEWING_EVENT_SERVICE_SET_POOLING_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -358,6 +561,18 @@ impl<T: ViewingEventService> ::connectrpc::Dispatcher for ViewingEventServiceSer
                         .with_spec(VIEWING_EVENT_SERVICE_DELETE_VIEWING_EVENT_SPEC),
                 )
             }
+            "GetPooling" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(VIEWING_EVENT_SERVICE_GET_POOLING_SPEC),
+                )
+            }
+            "SetPooling" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(VIEWING_EVENT_SERVICE_SET_POOLING_SPEC),
+                )
+            }
             _ => None,
         }
     }
@@ -414,6 +629,50 @@ impl<T: ViewingEventService> ::connectrpc::Dispatcher for ViewingEventServiceSer
                         .await?
                         .encode::<
                             crate::messages::nama::hub::v1::DeleteViewingEventResponse,
+                        >(format)
+                })
+            }
+            "GetPooling" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::GetPoolingRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::GetPoolingRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::GetPoolingRequest,
+                    >::from_parts(&req, &body);
+                    svc.get_pooling(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::GetPoolingResponse,
+                        >(format)
+                })
+            }
+            "SetPooling" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::SetPoolingRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::SetPoolingRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::SetPoolingRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_pooling(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::SetPoolingResponse,
                         >(format)
                 })
             }
@@ -629,6 +888,96 @@ where
                 &self.transport,
                 &self.config,
                 VIEWING_EVENT_SERVICE_DELETE_VIEWING_EVENT_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetPooling RPC. Sends a request to /nama.hub.v1.ViewingEventService/GetPooling.
+    pub async fn get_pooling(
+        &self,
+        request: crate::messages::nama::hub::v1::GetPoolingRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::GetPoolingResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_pooling_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the GetPooling RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_pooling_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::GetPoolingRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::GetPoolingResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                VIEWING_EVENT_SERVICE_GET_POOLING_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetPooling RPC. Sends a request to /nama.hub.v1.ViewingEventService/SetPooling.
+    pub async fn set_pooling(
+        &self,
+        request: crate::messages::nama::hub::v1::SetPoolingRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SetPoolingResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_pooling_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetPooling RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_pooling_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::SetPoolingRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SetPoolingResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                VIEWING_EVENT_SERVICE_SET_POOLING_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

@@ -7,12 +7,13 @@ import { ServerList } from "@hub/features/links/components/server-list";
 import { UserInvites } from "@hub/features/links/components/user-invites";
 import { UserList } from "@hub/features/links/components/user-list";
 import { HistoryLink } from "@hub/features/viewing/components/history-link";
+import { PoolingSwitch } from "@hub/features/viewing/components/pooling-switch";
 import { Button } from "nama-ui/components/button";
 
 /**
  * The signed-in Account's email, the Users created from it waiting for it, its password, Linking a
- * Server and the Servers it Linked, Linking a User and the Users it Linked, the way to its viewing
- * history, and signing out.
+ * Server and the Servers it Linked, Linking a User and the Users it Linked, whether the Movies they
+ * finish are pooled, the way to its viewing history, and signing out.
  */
 export function AccountPage() {
   const account = useAccount();
@@ -29,6 +30,7 @@ export function AccountPage() {
       <LinkServerForm />
       <ServerList />
       <LinkUserForm />
+      <PoolingSwitch />
       <UserList />
       <HistoryLink />
       <p role="alert" className="text-sm text-destructive empty:hidden">

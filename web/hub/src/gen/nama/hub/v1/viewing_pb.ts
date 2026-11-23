@@ -10,7 +10,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/hub/v1/viewing.proto.
  */
 export const file_nama_hub_v1_viewing: GenFile = /*@__PURE__*/
-  fileDesc("ChluYW1hL2h1Yi92MS92aWV3aW5nLnByb3RvEgtuYW1hLmh1Yi52MSLgAQoMVmlld2luZ0V2ZW50EgoKAmlkGAEgASgJEg8KB2VwaXNvZGUYAiABKAgSEwoLZXh0ZXJuYWxfaWQYAyABKAkSEgoKc3RhcnRlZF9hdBgEIAEoAxIbChN0aW1lX29mX2RheV9taW51dGVzGAUgASgFEhgKEHN0b3BfcG9zaXRpb25fbXMYBiABKAMSEwoLZHVyYXRpb25fbXMYByABKAMSEAoIZmluaXNoZWQYCCABKAgSLAoLZGV2aWNlX2tpbmQYCSABKA4yFy5uYW1hLmh1Yi52MS5EZXZpY2VLaW5kIhoKGExpc3RWaWV3aW5nRXZlbnRzUmVxdWVzdCJGChlMaXN0Vmlld2luZ0V2ZW50c1Jlc3BvbnNlEikKBmV2ZW50cxgBIAMoCzIZLm5hbWEuaHViLnYxLlZpZXdpbmdFdmVudCInChlEZWxldGVWaWV3aW5nRXZlbnRSZXF1ZXN0EgoKAmlkGAEgASgJIhwKGkRlbGV0ZVZpZXdpbmdFdmVudFJlc3BvbnNlIloKEFVzZXJWaWV3aW5nRXZlbnQSDwoHdXNlcl9pZBgBIAEoAxILCgNrZXkYAiABKAkSKAoFZXZlbnQYAyABKAsyGS5uYW1hLmh1Yi52MS5WaWV3aW5nRXZlbnQiSwoaUmVjb3JkVmlld2luZ0V2ZW50c1JlcXVlc3QSLQoGZXZlbnRzGAEgAygLMh0ubmFtYS5odWIudjEuVXNlclZpZXdpbmdFdmVudCIdChtSZWNvcmRWaWV3aW5nRXZlbnRzUmVzcG9uc2UqhgEKCkRldmljZUtpbmQSGwoXREVWSUNFX0tJTkRfVU5TUEVDSUZJRUQQABIYChRERVZJQ0VfS0lORF9DT01QVVRFUhABEhUKEURFVklDRV9LSU5EX1BIT05FEAISFgoSREVWSUNFX0tJTkRfVEFCTEVUEAMSEgoOREVWSUNFX0tJTkRfVFYQBDLqAQoTVmlld2luZ0V2ZW50U2VydmljZRJnChFMaXN0Vmlld2luZ0V2ZW50cxIlLm5hbWEuaHViLnYxLkxpc3RWaWV3aW5nRXZlbnRzUmVxdWVzdBomLm5hbWEuaHViLnYxLkxpc3RWaWV3aW5nRXZlbnRzUmVzcG9uc2UiA5ACARJqChJEZWxldGVWaWV3aW5nRXZlbnQSJi5uYW1hLmh1Yi52MS5EZWxldGVWaWV3aW5nRXZlbnRSZXF1ZXN0GicubmFtYS5odWIudjEuRGVsZXRlVmlld2luZ0V2ZW50UmVzcG9uc2UiA5ACAmIGcHJvdG8z");
+  fileDesc("ChluYW1hL2h1Yi92MS92aWV3aW5nLnByb3RvEgtuYW1hLmh1Yi52MSLgAQoMVmlld2luZ0V2ZW50EgoKAmlkGAEgASgJEg8KB2VwaXNvZGUYAiABKAgSEwoLZXh0ZXJuYWxfaWQYAyABKAkSEgoKc3RhcnRlZF9hdBgEIAEoAxIbChN0aW1lX29mX2RheV9taW51dGVzGAUgASgFEhgKEHN0b3BfcG9zaXRpb25fbXMYBiABKAMSEwoLZHVyYXRpb25fbXMYByABKAMSEAoIZmluaXNoZWQYCCABKAgSLAoLZGV2aWNlX2tpbmQYCSABKA4yFy5uYW1hLmh1Yi52MS5EZXZpY2VLaW5kIhoKGExpc3RWaWV3aW5nRXZlbnRzUmVxdWVzdCJGChlMaXN0Vmlld2luZ0V2ZW50c1Jlc3BvbnNlEikKBmV2ZW50cxgBIAMoCzIZLm5hbWEuaHViLnYxLlZpZXdpbmdFdmVudCInChlEZWxldGVWaWV3aW5nRXZlbnRSZXF1ZXN0EgoKAmlkGAEgASgJIhwKGkRlbGV0ZVZpZXdpbmdFdmVudFJlc3BvbnNlIhMKEUdldFBvb2xpbmdSZXF1ZXN0IiUKEkdldFBvb2xpbmdSZXNwb25zZRIPCgdwb29saW5nGAEgASgIIiQKEVNldFBvb2xpbmdSZXF1ZXN0Eg8KB3Bvb2xpbmcYASABKAgiFAoSU2V0UG9vbGluZ1Jlc3BvbnNlIloKEFVzZXJWaWV3aW5nRXZlbnQSDwoHdXNlcl9pZBgBIAEoAxILCgNrZXkYAiABKAkSKAoFZXZlbnQYAyABKAsyGS5uYW1hLmh1Yi52MS5WaWV3aW5nRXZlbnQiSwoaUmVjb3JkVmlld2luZ0V2ZW50c1JlcXVlc3QSLQoGZXZlbnRzGAEgAygLMh0ubmFtYS5odWIudjEuVXNlclZpZXdpbmdFdmVudCIdChtSZWNvcmRWaWV3aW5nRXZlbnRzUmVzcG9uc2UqhgEKCkRldmljZUtpbmQSGwoXREVWSUNFX0tJTkRfVU5TUEVDSUZJRUQQABIYChRERVZJQ0VfS0lORF9DT01QVVRFUhABEhUKEURFVklDRV9LSU5EX1BIT05FEAISFgoSREVWSUNFX0tJTkRfVEFCTEVUEAMSEgoOREVWSUNFX0tJTkRfVFYQBDKSAwoTVmlld2luZ0V2ZW50U2VydmljZRJnChFMaXN0Vmlld2luZ0V2ZW50cxIlLm5hbWEuaHViLnYxLkxpc3RWaWV3aW5nRXZlbnRzUmVxdWVzdBomLm5hbWEuaHViLnYxLkxpc3RWaWV3aW5nRXZlbnRzUmVzcG9uc2UiA5ACARJqChJEZWxldGVWaWV3aW5nRXZlbnQSJi5uYW1hLmh1Yi52MS5EZWxldGVWaWV3aW5nRXZlbnRSZXF1ZXN0GicubmFtYS5odWIudjEuRGVsZXRlVmlld2luZ0V2ZW50UmVzcG9uc2UiA5ACAhJSCgpHZXRQb29saW5nEh4ubmFtYS5odWIudjEuR2V0UG9vbGluZ1JlcXVlc3QaHy5uYW1hLmh1Yi52MS5HZXRQb29saW5nUmVzcG9uc2UiA5ACARJSCgpTZXRQb29saW5nEh4ubmFtYS5odWIudjEuU2V0UG9vbGluZ1JlcXVlc3QaHy5uYW1hLmh1Yi52MS5TZXRQb29saW5nUmVzcG9uc2UiA5ACAmIGcHJvdG8z");
 
 /**
  * One play of a Movie or Episode by a Linked User, kept under their Account for as long as it
@@ -154,6 +154,66 @@ export const DeleteViewingEventResponseSchema: GenMessage<DeleteViewingEventResp
   messageDesc(file_nama_hub_v1_viewing, 4);
 
 /**
+ * @generated from message nama.hub.v1.GetPoolingRequest
+ */
+export type GetPoolingRequest = Message<"nama.hub.v1.GetPoolingRequest"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.GetPoolingRequest.
+ * Use `create(GetPoolingRequestSchema)` to create a new message.
+ */
+export const GetPoolingRequestSchema: GenMessage<GetPoolingRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_viewing, 5);
+
+/**
+ * @generated from message nama.hub.v1.GetPoolingResponse
+ */
+export type GetPoolingResponse = Message<"nama.hub.v1.GetPoolingResponse"> & {
+  /**
+   * @generated from field: bool pooling = 1;
+   */
+  pooling: boolean;
+};
+
+/**
+ * Describes the message nama.hub.v1.GetPoolingResponse.
+ * Use `create(GetPoolingResponseSchema)` to create a new message.
+ */
+export const GetPoolingResponseSchema: GenMessage<GetPoolingResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_viewing, 6);
+
+/**
+ * @generated from message nama.hub.v1.SetPoolingRequest
+ */
+export type SetPoolingRequest = Message<"nama.hub.v1.SetPoolingRequest"> & {
+  /**
+   * @generated from field: bool pooling = 1;
+   */
+  pooling: boolean;
+};
+
+/**
+ * Describes the message nama.hub.v1.SetPoolingRequest.
+ * Use `create(SetPoolingRequestSchema)` to create a new message.
+ */
+export const SetPoolingRequestSchema: GenMessage<SetPoolingRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_viewing, 7);
+
+/**
+ * @generated from message nama.hub.v1.SetPoolingResponse
+ */
+export type SetPoolingResponse = Message<"nama.hub.v1.SetPoolingResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.SetPoolingResponse.
+ * Use `create(SetPoolingResponseSchema)` to create a new message.
+ */
+export const SetPoolingResponseSchema: GenMessage<SetPoolingResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_viewing, 8);
+
+/**
  * A Viewing Event a Linked Server records for one of its Users.
  *
  * @generated from message nama.hub.v1.UserViewingEvent
@@ -185,7 +245,7 @@ export type UserViewingEvent = Message<"nama.hub.v1.UserViewingEvent"> & {
  * Use `create(UserViewingEventSchema)` to create a new message.
  */
 export const UserViewingEventSchema: GenMessage<UserViewingEvent> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_viewing, 5);
+  messageDesc(file_nama_hub_v1_viewing, 9);
 
 /**
  * @generated from message nama.hub.v1.RecordViewingEventsRequest
@@ -204,7 +264,7 @@ export type RecordViewingEventsRequest = Message<"nama.hub.v1.RecordViewingEvent
  * Use `create(RecordViewingEventsRequestSchema)` to create a new message.
  */
 export const RecordViewingEventsRequestSchema: GenMessage<RecordViewingEventsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_viewing, 6);
+  messageDesc(file_nama_hub_v1_viewing, 10);
 
 /**
  * @generated from message nama.hub.v1.RecordViewingEventsResponse
@@ -217,7 +277,7 @@ export type RecordViewingEventsResponse = Message<"nama.hub.v1.RecordViewingEven
  * Use `create(RecordViewingEventsResponseSchema)` to create a new message.
  */
 export const RecordViewingEventsResponseSchema: GenMessage<RecordViewingEventsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_viewing, 7);
+  messageDesc(file_nama_hub_v1_viewing, 11);
 
 /**
  * What kind of Device played, as its Server read it from the Device's browser.
@@ -267,9 +327,9 @@ export const DeviceKindSchema: GenEnum<DeviceKind> = /*@__PURE__*/
   enumDesc(file_nama_hub_v1_viewing, 0);
 
 /**
- * An Account's Viewing Events, for the Hub's web pages (ADR 0093). A Linked Server records them
- * through `LinkedServerService.RecordViewingEvents`. Every call fails with
- * `REFUSAL_REASON_SIGN_IN_REQUIRED` without a session.
+ * An Account's Viewing Events, and whether they're pooled, for the Hub's web pages (ADR 0093). A
+ * Linked Server records them through `LinkedServerService.RecordViewingEvents`. Every call fails
+ * with `REFUSAL_REASON_SIGN_IN_REQUIRED` without a session.
  *
  * @generated from service nama.hub.v1.ViewingEventService
  */
@@ -294,6 +354,29 @@ export const ViewingEventService: GenService<{
     methodKind: "unary";
     input: typeof DeleteViewingEventRequestSchema;
     output: typeof DeleteViewingEventResponseSchema;
+  },
+  /**
+   * Returns whether the signed-in Account's finished Movies are pooled: counted, with no trace of
+   * the Account, in how many Accounts finished each Movie and each pair of Movies. On until the
+   * Account turns it off.
+   *
+   * @generated from rpc nama.hub.v1.ViewingEventService.GetPooling
+   */
+  getPooling: {
+    methodKind: "unary";
+    input: typeof GetPoolingRequestSchema;
+    output: typeof GetPoolingResponseSchema;
+  },
+  /**
+   * Turns pooling on or off for the signed-in Account. Turning it off stops new counts; what was
+   * already counted stays, as it can't be traced back to the Account.
+   *
+   * @generated from rpc nama.hub.v1.ViewingEventService.SetPooling
+   */
+  setPooling: {
+    methodKind: "unary";
+    input: typeof SetPoolingRequestSchema;
+    output: typeof SetPoolingResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_hub_v1_viewing, 0);

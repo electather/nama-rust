@@ -1,11 +1,12 @@
-//! Viewing Events: `nama.hub.v1.ViewingEventService` for a signed-in Account, and the conversions
-//! `LinkedServerService.RecordViewingEvents` uses.
+//! Viewing Events and pooling: `nama.hub.v1.ViewingEventService` for a signed-in Account, and the
+//! conversions `LinkedServerService.RecordViewingEvents` uses.
 
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_hub_proto::nama::hub::v1::{
     self as proto, DeleteViewingEventRequest, DeleteViewingEventResponse,
-    DeviceKind as ProtoDevice, ListViewingEventsRequest, ListViewingEventsResponse, RefusalReason,
+    DeviceKind as ProtoDevice, GetPoolingRequest, GetPoolingResponse, ListViewingEventsRequest,
+    ListViewingEventsResponse, RefusalReason, SetPoolingRequest, SetPoolingResponse,
     ViewingEventService,
 };
 
@@ -54,6 +55,33 @@ impl ViewingEventService for ViewingEventServiceHandler {
                 .map_err(|err| hub_failed(&err))?;
         }
         Response::ok(DeleteViewingEventResponse::default())
+    }
+
+    async fn get_pooling(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, GetPoolingRequest>,
+    ) -> ServiceResult<GetPoolingResponse> {
+        let account = signed_in(&ctx)?.account.id;
+        let pooling = (self.viewing.pooling(account))
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(GetPoolingResponse {
+            pooling,
+            ..Default::default()
+        })
+    }
+
+    async fn set_pooling(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetPoolingRequest>,
+    ) -> ServiceResult<SetPoolingResponse> {
+        let account = signed_in(&ctx)?.account.id;
+        (self.viewing.set_pooling(account, request.pooling))
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(SetPoolingResponse::default())
     }
 }
 
