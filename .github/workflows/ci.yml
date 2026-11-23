@@ -468,10 +468,10 @@ jobs:
           cache: true
       - run: vp -C web build
       - run: cargo nextest run -p nama-server --features web --test web --locked --profile ci-web
-      # The Hub embeds its web app as the Server does; its tests need PostgreSQL, which `hub` has,
-      # so this only checks that the embedding builds.
+      # The Hub embeds its web app as the Server does; its integration tests need PostgreSQL, which
+      # `hub` has, so this runs only the unit tests of how it serves the app.
       - run: vp -C web/hub build
-      - run: cargo check -p nama-hub --features web --locked
+      - run: cargo test -p nama-hub --features web --lib --locked web::
       - if: ${{ !cancelled() && hashFiles('target/nextest/*/junit.xml') != '' }}
         run: git rev-parse 'HEAD^{tree}' > target/nextest/tree
       - uses: actions/upload-artifact@v7

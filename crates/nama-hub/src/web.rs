@@ -1,29 +1,48 @@
 //! The Hub's web pages (ADR 0010): the app `vp -C hub build` writes to `web/hub/dist`, embedded in
 //! the binary by `build.rs`.
 
+use std::convert::Infallible;
+
 use axum::{
     extract::Request,
     http::{Method, header},
     middleware::Next,
     response::{IntoResponse, Response},
 };
+use tower::{ServiceExt as _, service_fn};
+use tower_http::compression::{
+    Compression, Predicate as _,
+    predicate::{DefaultPredicate, NotForContentType},
+};
 
 include!(concat!(env!("OUT_DIR"), "/web_assets.rs"));
 
 /// Answers a `GET` for any path but an RPC's or the key set's with the app's file at that path, or
 /// else with `index.html`, so a reloaded deep link still loads the app, which then routes to the
-/// page. Every other request goes on to `next`, so an unknown RPC still gets a 404. `vp dev`
-/// proxies the same paths to a Hub (`web/hub/vite.config.ts`).
+/// page. It compresses the file with brotli or gzip when the request accepts one. Every other
+/// request goes on to `next`, so an unknown RPC still gets a 404. `vp dev` proxies the same paths
+/// to a Hub (`web/hub/vite.config.ts`).
 pub(crate) async fn serve(request: Request, next: Next) -> Response {
     let path = request.uri().path();
     let passed_on = path.starts_with("/nama.") || path.starts_with("/.well-known/");
     if request.method() != Method::GET || passed_on {
         return next.run(request).await;
     }
-    match asset(path) {
+    // `DefaultPredicate` leaves images but SVG alone; fonts are woff2, compressed already.
+    let not_compressed_already = DefaultPredicate::new().and(NotForContentType::const_new("font/"));
+    let Ok(response) = Compression::new(service_fn(asset_or_shell))
+        .compress_when(not_compressed_already)
+        .oneshot(request)
+        .await;
+    response.into_response()
+}
+
+async fn asset_or_shell(request: Request) -> Result<Response, Infallible> {
+    let path = request.uri().path();
+    Ok(match asset(path) {
         Some(body) => ([(header::CONTENT_TYPE, content_type(path))], body).into_response(),
         None => ([(header::CONTENT_TYPE, HTML_CONTENT_TYPE)], SHELL).into_response(),
-    }
+    })
 }
 
 const HTML_CONTENT_TYPE: &str = "text/html; charset=utf-8";
@@ -38,3 +57,7 @@ fn content_type(path: &str) -> &'static str {
         _ => "application/octet-stream",
     }
 }
+
+#[cfg(test)]
+#[path = "web_tests.rs"]
+mod tests;
