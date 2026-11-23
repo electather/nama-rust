@@ -8,7 +8,7 @@
 
 ### Callers
 
-- **One auth layer** turns each request into `Anonymous`, `AccountSession`, `AccountToken` or `LinkedServer`, and each service's handlers receive only the type that service serves.
+- **One auth layer** turns each request into `Anonymous`, `AccountSession`, `AccountToken` or `LinkedServer`, and each service's handlers receive only the type that service serves. It refuses a caller by service, from the one table `api::SERVES`, before a handler runs, and a service missing from it serves no one. `AccountService` serves anyone, so its signed-in methods check per method.
 - **Newtyped ids.** Areas take `AccountId`, `LinkedServerId` and `LinkId`, each defined by the area that owns it.
 - **Refusals** are `nama.hub.v1.Refusal`, in ADR 0019's shape. Areas return their own `thiserror` enums, and `api` maps them.
 
@@ -18,7 +18,7 @@
 - **Migrations are for PostgreSQL 18 only** (ADR 0005), named by UTC timestamp (`README.md`), and never `-- no-transaction`: they all run in one transaction at startup, forward only (ADR 0060). A migration on main is never edited, renamed or deleted (`.github/scripts/migrations-unchanged.sh`). Primary keys are `uuid DEFAULT uuidv7()`, and times are `timestamptz`, except `pooled_counts`' and `weekly_counts`' `gen_random_uuid()`: a uuidv7 holds the millisecond its row was made, which would point to the Account whose play made it (ADR 0093).
 - **Queries use sqlx's macros.** After changing one or a migration, regenerate `.sqlx/` at the workspace root (`README.md`).
 - **MovieLens stays in `nama-hub-eval`.** Its licence is for research, so nothing here reads it or is trained on it, and nothing here depends on that crate (ADR 0095).
-- **Spans carry ids only**, never an email, a name or a title (ADR 0054).
+- **Spans carry ids only**, never an email, a name or a title (ADR 0054). The one exception is `LogMailer`, which logs whole emails so a developer can follow a Sign-in Link, and runs only on a Hub whose public URL is loopback (#1984).
 
 ### Releases
 

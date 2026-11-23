@@ -34,7 +34,6 @@ mod web;
 
 use std::{future::Future, io, net::SocketAddr, sync::Arc, time::Duration};
 
-use nama_plugin_api::PluginId;
 use tokio::net::TcpListener;
 
 use crate::{
@@ -56,7 +55,7 @@ use crate::{
     requests::Requests,
     scanner::Scanner,
     server_settings::Settings,
-    users::{SetupCode, UserHomeLayout, Users},
+    users::{SetupCode, Users},
 };
 
 /// Serves the Server's API on `listener`, backed by `db` and the Plugins `plugins` started,
@@ -189,12 +188,7 @@ pub fn serve(
     let listening = listener.local_addr().unwrap_or(config.listen);
     let syncing = sync::Syncing::new(Arc::clone(&db), plugins.extension_points(), users.clone());
     let forwarded_port = config.forwarded_port;
-    let load_settings = load_settings(
-        settings.clone(),
-        images.clone(),
-        plugins.clone(),
-        Arc::clone(&db),
-    );
+    let load_settings = load_settings(settings.clone(), images.clone(), plugins.clone());
     let app = api::router(
         config,
         listening,
@@ -300,29 +294,18 @@ async fn fill_sort_titles(contents: &Contents) {
     }
 }
 
-/// Reads the Server settings, logging a failure and going on with the defaults, drops the rows of
-/// Plugins uninstalled since from the default Home layout and each User's in `db`, has `images`
-/// keep its originals in the store they name, then sweeps the segment files and uploads an earlier
-/// run left, and the Plugins' logos uploaded before #1750.
-async fn load_settings(
-    settings: Settings,
-    images: ImageStore,
-    plugins: PluginSettings,
-    db: Arc<Database>,
-) {
+/// Reads the Server settings, logging a failure and going on with the defaults, deletes what goes
+/// as Plugins are found uninstalled, has `images` keep its originals in the store they name, then
+/// sweeps the segment files and uploads an earlier run left, and the Plugins' logos uploaded
+/// before #1750.
+async fn load_settings(settings: Settings, images: ImageStore, plugins: PluginSettings) {
     if let Err(err) = settings.load().await {
         tracing::error!(
             "reading the Server settings failed, so each is its default and notifications have \
              no links: {err}"
         );
     }
-    let installed = |plugin: &PluginId| plugins.has(plugin);
-    if let Err(err) = settings.forget_uninstalled(installed).await {
-        tracing::error!("could not drop uninstalled Plugins' rows from the Home layout: {err}");
-    }
-    if let Err(err) = UserHomeLayout::forget_uninstalled(&db, installed).await {
-        tracing::error!("could not drop uninstalled Plugins' rows from Users' Home layouts: {err}");
-    }
+    plugins.forget_uninstalled(&settings).await;
     if let Some(plugin) = settings.now().image_store {
         let blobs = PluginBlobs::new(plugins.extension_points(), plugin.clone());
         // Kept anyway (ADR 0052): the images come back once the Plugin is enabled again.

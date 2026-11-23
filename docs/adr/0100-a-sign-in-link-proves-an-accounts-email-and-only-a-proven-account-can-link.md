@@ -13,6 +13,6 @@ A Sign-in Link opens a page naming the Account, and only that page's button uses
 
 ## Consequences
 
-- A Hub without mail set up can't prove emails, so none of its Accounts can Link. Development uses the mail fake or a Resend test key.
+- A Hub without mail set up can't prove emails, so none of its Accounts can Link. Development uses the mail fake, or `NAMA_HUB_LOG_MAIL`, which writes Sign-in Links to the Hub's log on a Hub whose public URL is loopback (#1984).
 - Someone who created an Account with a password and first proves their email later loses that password, and the page tells them.
 - While mail is set up, every Account has the Sign-in Link as a Sign-in Method it can't remove, so an Account with no password or passkey can still sign in.

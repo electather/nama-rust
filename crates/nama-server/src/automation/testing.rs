@@ -26,7 +26,7 @@ use crate::{
     playback::{Leftovers, RunningPlans, SubtitleCache},
     plugin_settings::PluginSettings,
     plugins::Registry,
-    requests::Requests,
+    requests::{self, Requests},
     scanner::Scanner,
     server_settings::{ServerUrl, Settings},
     users::{self, Permissions, User, Users},
@@ -276,20 +276,22 @@ pub(super) async fn leave_behind(
     .await
     .unwrap();
     Contents::new(Arc::clone(db)).leave_title_rows(plugin).await;
+    requests::leave_qualities(db, &id, user).await;
 }
 
 /// Which of the rows [`leave_behind`] leaves for `plugin` and the User `user` are still there:
 /// its settings, Store entry, Personal settings, Plugin Connection, Score and Trailers, Similar
-/// titles, Roles and air dates.
-pub(super) async fn left_behind(db: &Arc<Database>, plugin: &'static str, user: i64) -> [bool; 8] {
+/// titles, Roles, air dates, Box Sets, Qualities and default Quality.
+pub(super) async fn left_behind(db: &Arc<Database>, plugin: &'static str, user: i64) -> [bool; 11] {
     let id = PluginId::from_static(plugin);
     // Read through the grants, since a Server that never imported its config lists no settings.
     let settings = crate::plugin_settings::grants(db).await.unwrap();
     let stored = super::store::get(db, &id, None, "key").await.unwrap();
     let personal = users::personal_settings_of(db, user, &id).await.unwrap();
     let connected = connections::connected(db, &id).await.unwrap();
-    let [details, similar, roles, air_dates] =
+    let [details, similar, roles, air_dates, box_sets] =
         Contents::new(Arc::clone(db)).title_rows_of(plugin).await;
+    let [qualities, default_quality] = requests::qualities_left(db, &id, user).await;
     [
         settings.contains_key(plugin),
         stored.is_some(),
@@ -299,5 +301,8 @@ pub(super) async fn left_behind(db: &Arc<Database>, plugin: &'static str, user: 
         similar,
         roles,
         air_dates,
+        box_sets,
+        qualities,
+        default_quality,
     ]
 }

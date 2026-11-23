@@ -1,3 +1,8 @@
+use std::{
+    io,
+    sync::{Arc, Mutex},
+};
+
 use axum::{
     Router,
     http::{HeaderMap, StatusCode},
@@ -6,7 +11,7 @@ use axum::{
 use serde_json::{Value, json};
 use tokio::{net::TcpListener, sync::mpsc};
 
-use super::{Email, MailError, Mailer, Resend};
+use super::{Email, LogMailer, MailError, Mailer, Resend};
 
 /// A Resend that sends to a local stand-in answering `status`, and what the stand-in received.
 async fn resend_answering(
@@ -69,5 +74,47 @@ async fn an_email_resend_refuses_fails_with_what_it_said() {
         matches!(&err, MailError::Refused { status, body }
             if *status == StatusCode::UNPROCESSABLE_ENTITY && body.contains("nope")),
         "{err:?}"
+    );
+}
+
+/// A log line sink the test can read back once the subscriber is done with it.
+#[derive(Clone, Default)]
+struct Logged(Arc<Mutex<Vec<u8>>>);
+
+impl io::Write for Logged {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn the_log_mailer_writes_the_email_to_the_log_and_succeeds() {
+    let logged = Logged::default();
+    let writer = logged.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer(move || writer.clone())
+        .with_ansi(false)
+        .finish();
+    let email = Email {
+        text: "Sign in with this link:\n\nhttp://localhost:7981/sign-in-link#token".to_owned(),
+        ..email()
+    };
+
+    {
+        let _logging = tracing::subscriber::set_default(subscriber);
+        LogMailer.send(email).await.unwrap();
+    }
+
+    let log = String::from_utf8(logged.0.lock().unwrap().clone()).unwrap();
+    assert!(log.contains("ada@example.com"), "{log}");
+    assert!(log.contains("Hello"), "{log}");
+    assert!(
+        log.contains("http://localhost:7981/sign-in-link#token"),
+        "{log}"
     );
 }

@@ -10,7 +10,7 @@ use nama_hub_proto::nama::hub::v1::{
     ViewingEventService,
 };
 
-use super::{accounts::signed_in, hub_failed, refuse};
+use super::{accounts::session, hub_failed, refuse};
 use crate::viewing::{
     self, DeviceKind, Kind, ListedViewingEvent, MAX_RECORDED, UserViewingEvent, Viewing,
     ViewingEvent, ViewingEventId,
@@ -32,7 +32,7 @@ impl ViewingEventService for ViewingEventServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListViewingEventsRequest>,
     ) -> ServiceResult<ListViewingEventsResponse> {
-        let account = signed_in(&ctx)?.account.id;
+        let account = session(&ctx)?.account.id;
         let events = (self.viewing.list(account))
             .await
             .map_err(|err| hub_failed(&err))?;
@@ -47,7 +47,7 @@ impl ViewingEventService for ViewingEventServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, DeleteViewingEventRequest>,
     ) -> ServiceResult<DeleteViewingEventResponse> {
-        let account = signed_in(&ctx)?.account.id;
+        let account = session(&ctx)?.account.id;
         // An id that isn't a UUID names no Viewing Event, so deleting it does nothing.
         if let Ok(id) = request.id.parse::<ViewingEventId>() {
             (self.viewing.delete(account, id))
@@ -62,7 +62,7 @@ impl ViewingEventService for ViewingEventServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, GetPoolingRequest>,
     ) -> ServiceResult<GetPoolingResponse> {
-        let account = signed_in(&ctx)?.account.id;
+        let account = session(&ctx)?.account.id;
         let pooling = (self.viewing.pooling(account))
             .await
             .map_err(|err| hub_failed(&err))?;
@@ -77,7 +77,7 @@ impl ViewingEventService for ViewingEventServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, SetPoolingRequest>,
     ) -> ServiceResult<SetPoolingResponse> {
-        let account = signed_in(&ctx)?.account.id;
+        let account = session(&ctx)?.account.id;
         (self.viewing.set_pooling(account, request.pooling))
             .await
             .map_err(|err| hub_failed(&err))?;
