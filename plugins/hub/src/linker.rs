@@ -258,6 +258,10 @@ impl Linker {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clear();
+        *self
+            .reachability
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = None;
         Ok(())
     }
 
@@ -277,7 +281,10 @@ impl Linker {
             return Ok(());
         }
         let reachability = match self.hub.set_addresses(&kept.credential, &addresses).await {
-            Err(err) if err.is::<LinkDropped>() => return self.forget_dropped(&kept).await,
+            Err(err) if err.is::<LinkDropped>() => {
+                *reported = None;
+                return self.forget_dropped(&kept).await;
+            }
             answered => answered?,
         };
         *self

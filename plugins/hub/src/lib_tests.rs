@@ -1026,7 +1026,7 @@ async fn a_server_the_hub_dropped_links_again_and_so_do_its_users() {
 }
 
 #[tokio::test]
-async fn a_report_the_hub_doesnt_answer_or_fails_keeps_the_link() {
+async fn a_hub_that_doesnt_answer_or_fails_keeps_the_link() {
     let hub = FakeHub::start().await;
     let kernel = store();
     let linker = enabled(&hub, &kernel);
