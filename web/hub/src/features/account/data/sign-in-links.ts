@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@connectrpc/connect-query";
-import { useRecordSignedIn } from "@hub/features/account/data/account";
+import { useForgetSignedIn } from "@hub/features/account/data/account";
 import { AccountService } from "@hub/gen/nama/hub/v1/account_pb";
 import { HubService } from "@hub/gen/nama/hub/v1/hub_pb";
 import { useRouter } from "@tanstack/react-router";
@@ -23,11 +23,11 @@ export function useSignInLink(token: string) {
 /** Signs in with a Sign-in Link, then goes where the sign-in continues. */
 export function useSignInWithLink() {
   const router = useRouter();
-  const recordSignedIn = useRecordSignedIn();
+  const forgetSignedIn = useForgetSignedIn();
   return useMutation(AccountService.method.signInWithLink, {
     onSuccess: async ({ continueTo }) => {
       // Not clearing the cache: that would look the used link up again, which now says it expired.
-      recordSignedIn();
+      forgetSignedIn();
       await router.navigate({ href: continueTo });
     },
   });

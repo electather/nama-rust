@@ -79,7 +79,7 @@ export function useRefreshAccount() {
  * Forgets whoever was signed in before a sign-in just now, so the next route's access check asks
  * the Hub for the Account, and whether it has a password, which the sign-in's answer doesn't say.
  */
-export function useRecordSignedIn() {
+export function useForgetSignedIn() {
   const queryClient = useQueryClient();
   const { queryKey } = accountQuery(useTransport());
   return () => {
