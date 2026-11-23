@@ -156,6 +156,12 @@ const ALLOWED_UPWARD: &[Allowed] = &[
         "ADR 0075: a Match whose ids change makes its Version due inside its write",
     ),
     (
+        Importers::File("src/plugin_settings/leftovers.rs"),
+        &["automation", "delete_plugins_store_entries"],
+        "the Plugin leftovers owner deletes a removed Plugin's Store entries through the Store's \
+         owner, in Upkeep's one write",
+    ),
+    (
         Importers::File("src/playback/tracks/segments_tests.rs"),
         &["plugin_settings", "PluginSettings"],
         "the Segments tests enable a Plugin as an Admin does, to check it makes Versions due",
