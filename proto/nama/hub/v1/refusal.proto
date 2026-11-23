@@ -88,4 +88,17 @@ enum RefusalReason {
   // many entries, an id too long, no kind, or a time out of range. `field` names it. Params:
   // `maxEntries` and `maxIdLength`.
   REFUSAL_REASON_WATCHLIST_INVALID = 22;
+  // `failed_precondition`: the Hub has no public address set, so it can't use passkeys.
+  REFUSAL_REASON_PASSKEYS_OFF = 24;
+  // `unauthenticated`: no Account has the passkey, or the browser's answer doesn't check out, such
+  // as one for a used or expired challenge.
+  REFUSAL_REASON_PASSKEY_NOT_ACCEPTED = 25;
+  // `invalid_argument`: the passkey's name is empty or too long. Params: `minLength` and
+  // `maxLength`, in characters.
+  REFUSAL_REASON_PASSKEY_NAME_LENGTH = 26;
+  // `not_found`: the Account has no passkey with the id.
+  REFUSAL_REASON_PASSKEY_NOT_FOUND = 27;
+  // `failed_precondition`: removing it would leave the Account no way to sign in: no password, no
+  // other passkey, and no Sign-in Link, which the Hub offers only while it has mail set up.
+  REFUSAL_REASON_LAST_SIGN_IN_METHOD = 28;
 }

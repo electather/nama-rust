@@ -1,5 +1,5 @@
-//! Creating an Account, signing it in, with its password or a Sign-in Link, and out, setting its
-//! password, and deleting it: `nama.hub.v1.AccountService`.
+//! Creating an Account, signing it in, with its password, a passkey or a Sign-in Link, and out,
+//! setting its password, its passkeys, and deleting it: `nama.hub.v1.AccountService`.
 
 use std::{future, time::Instant};
 
@@ -12,24 +12,31 @@ use connectrpc::{
 };
 use nama_forwarded::RequestSource;
 use nama_hub_proto::nama::hub::v1::{
-    self as proto, AccountService, CreateAccountRequest, CreateAccountResponse,
-    DeleteAccountRequest, DeleteAccountResponse, GetAccountRequest, GetAccountResponse,
-    GetSignInLinkRequest, GetSignInLinkResponse, RefusalReason, SendSignInLinkRequest,
-    SendSignInLinkResponse, SetPasswordRequest, SetPasswordResponse, SignInRequest, SignInResponse,
-    SignInWithLinkRequest, SignInWithLinkResponse, SignOutRequest, SignOutResponse,
+    self as proto, AccountService, AddPasskeyRequest, AddPasskeyResponse, CreateAccountRequest,
+    CreateAccountResponse, DeleteAccountRequest, DeleteAccountResponse, GetAccountRequest,
+    GetAccountResponse, GetSignInLinkRequest, GetSignInLinkResponse, ListPasskeysRequest,
+    ListPasskeysResponse, RefusalReason, RemovePasskeyRequest, RemovePasskeyResponse,
+    SendSignInLinkRequest, SendSignInLinkResponse, SetPasswordRequest, SetPasswordResponse,
+    SignInRequest, SignInResponse, SignInWithLinkRequest, SignInWithLinkResponse,
+    SignInWithPasskeyRequest, SignInWithPasskeyResponse, SignOutRequest, SignOutResponse,
+    StartAddingPasskeyRequest, StartAddingPasskeyResponse, StartPasskeySignInRequest,
+    StartPasskeySignInResponse,
 };
+
+use uuid::Uuid;
 
 use super::{hub_failed, recent_authentication_required, refuse};
 use crate::accounts::{
-    self, Account, AccountSession, Accounts, Blocked, Caller, EMAIL_LENGTH, PASSWORD_LENGTH,
-    SESSION_DAYS, SignInLink, SignedIn, SignedInByLink,
+    self, Account, AccountSession, Accounts, Assertion, Blocked, Caller, EMAIL_LENGTH, NewPasskey,
+    PASSKEY_NAME_LENGTH, PASSWORD_LENGTH, Passkey, SESSION_DAYS, SignInLink, SignedIn,
+    SignedInByLink,
 };
 
 /// The cookie that holds a browser's session token.
 pub(super) const COOKIE_NAME: &str = "nama_hub_session";
 
 /// `nama.hub.v1.AccountService`: creating an Account, signing it in and out, setting its
-/// password, and deleting it.
+/// password, its passkeys, and deleting it.
 pub(super) struct AccountServiceHandler {
     pub(super) accounts: Accounts,
 }
@@ -192,6 +199,126 @@ impl AccountService for AccountServiceHandler {
             ..Default::default()
         })
     }
+
+    fn start_passkey_sign_in<'a>(
+        &'a self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, StartPasskeySignInRequest>,
+    ) -> impl Future<
+        Output = ServiceResult<impl Encodable<StartPasskeySignInResponse> + Send + use<'a>>,
+    > + Send {
+        let started = caller(&ctx)
+            .and_then(|caller| self.accounts.start_passkey_sign_in(caller).map_err(refused));
+        future::ready(started.and_then(|started| {
+            Response::ok(StartPasskeySignInResponse {
+                challenge: started.bytes.to_vec(),
+                rp_id: started.rp_id,
+                ..Default::default()
+            })
+        }))
+    }
+
+    async fn sign_in_with_passkey(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SignInWithPasskeyRequest>,
+    ) -> ServiceResult<SignInWithPasskeyResponse> {
+        let assertion = Assertion {
+            credential_id: request.credential_id,
+            client_data_json: request.client_data_json,
+            authenticator_data: request.authenticator_data,
+            signature: request.signature,
+            user_handle: request.user_handle,
+        };
+        let signed_in = self
+            .accounts
+            .sign_in_with_passkey(
+                &assertion,
+                ctx.extensions().get::<AccountSession>(),
+                Instant::now(),
+            )
+            .await
+            .map_err(refused)?;
+        Ok(hand_out_session(signed_in, &ctx, |account| {
+            SignInWithPasskeyResponse {
+                account: account.into(),
+                ..Default::default()
+            }
+        }))
+    }
+
+    async fn start_adding_passkey(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, StartAddingPasskeyRequest>,
+    ) -> ServiceResult<StartAddingPasskeyResponse> {
+        let adding = self
+            .accounts
+            .start_adding_passkey(signed_in(&ctx)?, caller(&ctx)?)
+            .await
+            .map_err(refused)?;
+        Response::ok(StartAddingPasskeyResponse {
+            challenge: adding.challenge.bytes.to_vec(),
+            rp_id: adding.challenge.rp_id,
+            user_id: adding.user_id.to_vec(),
+            exclude_credential_ids: adding.exclude_credential_ids,
+            ..Default::default()
+        })
+    }
+
+    async fn add_passkey(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, AddPasskeyRequest>,
+    ) -> ServiceResult<AddPasskeyResponse> {
+        let passkey = NewPasskey {
+            name: request.name,
+            credential_id: request.credential_id,
+            client_data_json: request.client_data_json,
+            public_key: request.public_key,
+            algorithm: request.public_key_algorithm,
+        };
+        let added = self
+            .accounts
+            .add_passkey(signed_in(&ctx)?, &passkey, Instant::now())
+            .await
+            .map_err(refused)?;
+        Response::ok(AddPasskeyResponse {
+            passkey: passkey_to_proto(added).into(),
+            ..Default::default()
+        })
+    }
+
+    async fn list_passkeys(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListPasskeysRequest>,
+    ) -> ServiceResult<ListPasskeysResponse> {
+        let passkeys = self
+            .accounts
+            .passkeys(signed_in(&ctx)?.account.id)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(ListPasskeysResponse {
+            passkeys: passkeys.into_iter().map(passkey_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn remove_passkey(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, RemovePasskeyRequest>,
+    ) -> ServiceResult<RemovePasskeyResponse> {
+        // An id that isn't a UUID names no passkey, as the nil UUID doesn't: the area refuses it
+        // only after checking Recent Authentication, which comes first (`account.proto`).
+        let id = Uuid::try_parse(request.passkey_id).unwrap_or_default();
+        self.accounts
+            .remove_passkey(signed_in(&ctx)?, id)
+            .await
+            .map_err(refused)?;
+        Response::ok(RemovePasskeyResponse::default())
+    }
 }
 
 /// The client that sent the request `ctx` is for (ADR 0018), asking now.
@@ -258,8 +385,16 @@ fn account_to_proto(account: Account) -> proto::Account {
     }
 }
 
-/// The Connect error a client gets for an Account that couldn't be created, signed in, given a
-/// password or deleted, or a Sign-in Link that couldn't be sent or used.
+fn passkey_to_proto(passkey: Passkey) -> proto::Passkey {
+    proto::Passkey {
+        id: passkey.id.to_string(),
+        name: passkey.name,
+        ..Default::default()
+    }
+}
+
+/// The Connect error a client gets for an Account that couldn't be created, signed in, changed or
+/// deleted, or a Sign-in Link that couldn't be sent or used.
 #[expect(
     clippy::needless_pass_by_value,
     reason = "by value, so callers can write `.map_err(refused)`"
@@ -282,11 +417,22 @@ fn refused(err: accounts::Error) -> ConnectError {
         E::SignInLinksOff => refuse(R::REFUSAL_REASON_SIGN_IN_LINKS_OFF, message),
         E::SignInLinkExpired => refuse(R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED, message),
         E::Blocked(ref blocked) => return too_many_attempts(blocked),
+        E::PasskeysOff => refuse(R::REFUSAL_REASON_PASSKEYS_OFF, message),
+        E::PasskeyNotAccepted => refuse(R::REFUSAL_REASON_PASSKEY_NOT_ACCEPTED, message),
+        E::PasskeyNameLength => refuse(R::REFUSAL_REASON_PASSKEY_NAME_LENGTH, message)
+            .field("name")
+            .param("minLength", PASSKEY_NAME_LENGTH.start())
+            .param("maxLength", PASSKEY_NAME_LENGTH.end()),
+        E::PasskeyNotFound => {
+            refuse(R::REFUSAL_REASON_PASSKEY_NOT_FOUND, message).field("passkey_id")
+        }
+        E::LastSignInMethod => refuse(R::REFUSAL_REASON_LAST_SIGN_IN_METHOD, message),
         // ADR 0019: no Refusal, but `unavailable`, since the queue drains and a retry may work.
         E::MailQueueFull => {
             tracing::warn!("{message}");
             return ConnectError::unavailable(message);
         }
+        E::ChallengesBusy => return ConnectError::unavailable(message),
         E::Password(_) | E::Random(_) | E::Database(_) => {
             return hub_failed(&err);
         }

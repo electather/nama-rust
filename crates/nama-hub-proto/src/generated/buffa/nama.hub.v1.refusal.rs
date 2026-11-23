@@ -76,6 +76,19 @@ pub enum RefusalReason {
     /// many entries, an id too long, no kind, or a time out of range. `field` names it. Params:
     /// `maxEntries` and `maxIdLength`.
     REFUSAL_REASON_WATCHLIST_INVALID = 22i32,
+    /// `failed_precondition`: the Hub has no public address set, so it can't use passkeys.
+    REFUSAL_REASON_PASSKEYS_OFF = 24i32,
+    /// `unauthenticated`: no Account has the passkey, or the browser's answer doesn't check out, such
+    /// as one for a used or expired challenge.
+    REFUSAL_REASON_PASSKEY_NOT_ACCEPTED = 25i32,
+    /// `invalid_argument`: the passkey's name is empty or too long. Params: `minLength` and
+    /// `maxLength`, in characters.
+    REFUSAL_REASON_PASSKEY_NAME_LENGTH = 26i32,
+    /// `not_found`: the Account has no passkey with the id.
+    REFUSAL_REASON_PASSKEY_NOT_FOUND = 27i32,
+    /// `failed_precondition`: removing it would leave the Account no way to sign in: no password, no
+    /// other passkey, and no Sign-in Link, which the Hub offers only while it has mail set up.
+    REFUSAL_REASON_LAST_SIGN_IN_METHOD = 28i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -150,6 +163,21 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_WATCHLIST_INVALID`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const WatchlistInvalid: Self = Self::REFUSAL_REASON_WATCHLIST_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_PASSKEYS_OFF`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PasskeysOff: Self = Self::REFUSAL_REASON_PASSKEYS_OFF;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_PASSKEY_NOT_ACCEPTED`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PasskeyNotAccepted: Self = Self::REFUSAL_REASON_PASSKEY_NOT_ACCEPTED;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_PASSKEY_NAME_LENGTH`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PasskeyNameLength: Self = Self::REFUSAL_REASON_PASSKEY_NAME_LENGTH;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_PASSKEY_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PasskeyNotFound: Self = Self::REFUSAL_REASON_PASSKEY_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const LastSignInMethod: Self = Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -297,6 +325,17 @@ impl ::buffa::Enumeration for RefusalReason {
                 )
             }
             22i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_WATCHLIST_INVALID),
+            24i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PASSKEYS_OFF),
+            25i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_PASSKEY_NOT_ACCEPTED)
+            }
+            26i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_PASSKEY_NAME_LENGTH)
+            }
+            27i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PASSKEY_NOT_FOUND),
+            28i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -349,6 +388,17 @@ impl ::buffa::Enumeration for RefusalReason {
                 "REFUSAL_REASON_TRACK_PREFERENCE_INVALID"
             }
             Self::REFUSAL_REASON_WATCHLIST_INVALID => "REFUSAL_REASON_WATCHLIST_INVALID",
+            Self::REFUSAL_REASON_PASSKEYS_OFF => "REFUSAL_REASON_PASSKEYS_OFF",
+            Self::REFUSAL_REASON_PASSKEY_NOT_ACCEPTED => {
+                "REFUSAL_REASON_PASSKEY_NOT_ACCEPTED"
+            }
+            Self::REFUSAL_REASON_PASSKEY_NAME_LENGTH => {
+                "REFUSAL_REASON_PASSKEY_NAME_LENGTH"
+            }
+            Self::REFUSAL_REASON_PASSKEY_NOT_FOUND => "REFUSAL_REASON_PASSKEY_NOT_FOUND",
+            Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD => {
+                "REFUSAL_REASON_LAST_SIGN_IN_METHOD"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -433,6 +483,21 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_WATCHLIST_INVALID" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_WATCHLIST_INVALID)
             }
+            "REFUSAL_REASON_PASSKEYS_OFF" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_PASSKEYS_OFF)
+            }
+            "REFUSAL_REASON_PASSKEY_NOT_ACCEPTED" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_PASSKEY_NOT_ACCEPTED)
+            }
+            "REFUSAL_REASON_PASSKEY_NAME_LENGTH" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_PASSKEY_NAME_LENGTH)
+            }
+            "REFUSAL_REASON_PASSKEY_NOT_FOUND" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_PASSKEY_NOT_FOUND)
+            }
+            "REFUSAL_REASON_LAST_SIGN_IN_METHOD" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -462,6 +527,11 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_VIEWING_EVENT_INVALID,
             Self::REFUSAL_REASON_TRACK_PREFERENCE_INVALID,
             Self::REFUSAL_REASON_WATCHLIST_INVALID,
+            Self::REFUSAL_REASON_PASSKEYS_OFF,
+            Self::REFUSAL_REASON_PASSKEY_NOT_ACCEPTED,
+            Self::REFUSAL_REASON_PASSKEY_NAME_LENGTH,
+            Self::REFUSAL_REASON_PASSKEY_NOT_FOUND,
+            Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD,
         ]
     }
 }

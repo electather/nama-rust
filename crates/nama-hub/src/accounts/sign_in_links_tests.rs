@@ -31,7 +31,7 @@ fn a_sign_in_continues_only_at_a_path_on_the_hub() {
 #[sqlx::test(migrations = false)]
 async fn a_link_older_than_15_minutes_neither_names_its_account_nor_signs_in(db: PgPool) {
     db::migrate(&db).await.unwrap();
-    Accounts::new(db.clone(), None)
+    Accounts::new(db.clone(), None, None)
         .create(
             "ada@example.com",
             "correct horse battery",

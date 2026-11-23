@@ -1,8 +1,9 @@
 use std::time::Instant;
 
 use super::{
-    CREATIONS_PER_IP, Caller, CreationLimits, FAILURES_PER_EMAIL, FAILURES_PER_IP, LINKS_PER_EMAIL,
-    LINKS_PER_IP, LinkLimits, SignInLimits, WINDOW,
+    CHALLENGES_PER_IP, CREATIONS_PER_IP, Caller, ChallengeLimits, CreationLimits,
+    FAILURES_PER_EMAIL, FAILURES_PER_IP, LINKS_PER_EMAIL, LINKS_PER_IP, LinkLimits, SignInLimits,
+    WINDOW,
 };
 
 fn caller(ip: &str, now: Instant) -> Caller {
@@ -140,6 +141,21 @@ fn a_client_that_created_too_many_accounts_is_refused_until_the_window_passes() 
     let limits = CreationLimits::default();
     let now = Instant::now();
     for _ in 0..CREATIONS_PER_IP {
+        limits.admit(caller("203.0.113.1", now)).unwrap();
+    }
+
+    let blocked = limits.admit(caller("203.0.113.1", now)).unwrap_err();
+
+    assert_eq!(blocked.retry_after_secs(), WINDOW.as_secs());
+    limits.admit(caller("198.51.100.1", now)).unwrap();
+    limits.admit(caller("203.0.113.1", now + WINDOW)).unwrap();
+}
+
+#[test]
+fn a_client_handed_too_many_passkey_challenges_is_refused_more_until_the_window_passes() {
+    let limits = ChallengeLimits::default();
+    let now = Instant::now();
+    for _ in 0..CHALLENGES_PER_IP {
         limits.admit(caller("203.0.113.1", now)).unwrap();
     }
 

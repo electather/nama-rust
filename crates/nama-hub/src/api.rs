@@ -34,6 +34,7 @@ use nama_hub_proto::nama::hub::v1::{
 };
 use sqlx::PgPool;
 use tracing::Instrument as _;
+use url::Url;
 
 use crate::{
     accounts::{Accounts, RECENT_AUTHENTICATION_MINS, RecentAuthenticationRequired},
@@ -57,15 +58,20 @@ use self::{
 /// through `trusted_proxies` (ADR 0018) and which Account or Linked Server, if any, sent it, the
 /// public half of `keys` at `/.well-known/jwks.json`, and OTLP/HTTP's `/otlp/v1/traces` and
 /// `/otlp/v1/logs` taking what Linked Servers share for `diagnostics`. Sign-in Links go out
-/// through `mail`, if it is set up.
+/// through `mail`, if it is set up. Passkeys are for the Hub at `public_url`.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each is a separate handle the Hub is built from, as `serve`'s are"
+)]
 pub(crate) fn router(
     db: PgPool,
     keys: Arc<Keys>,
     trusted_proxies: &[IpRange],
     mail: Option<Mail>,
     diagnostics: Option<Arc<dyn Backend>>,
+    public_url: Option<&Url>,
 ) -> axum::Router {
-    let accounts = Accounts::new(db.clone(), mail);
+    let accounts = Accounts::new(db.clone(), mail, public_url);
     let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys));
     let rpcs = services(db, &accounts, &links)
         .into_axum_service()
@@ -362,21 +368,26 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
     match reason {
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD
-        | R::REFUSAL_REASON_SERVER_NOT_LINKED => ErrorCode::Unauthenticated,
+        | R::REFUSAL_REASON_SERVER_NOT_LINKED
+        | R::REFUSAL_REASON_PASSKEY_NOT_ACCEPTED => ErrorCode::Unauthenticated,
         R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED
         | R::REFUSAL_REASON_EMAIL_NOT_PROVEN
         | R::REFUSAL_REASON_SIGN_IN_LINKS_OFF
-        | R::REFUSAL_REASON_NO_USER_ON_SERVER => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_NO_USER_ON_SERVER
+        | R::REFUSAL_REASON_PASSKEYS_OFF
+        | R::REFUSAL_REASON_LAST_SIGN_IN_METHOD => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_LINK_CODE_NOT_FOUND
         | R::REFUSAL_REASON_LINK_EXPIRED
         | R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED
         | R::REFUSAL_REASON_USER_INVITE_NOT_FOUND
-        | R::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND => ErrorCode::NotFound,
+        | R::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND
+        | R::REFUSAL_REASON_PASSKEY_NOT_FOUND => ErrorCode::NotFound,
         R::REFUSAL_REASON_TOO_MANY_ATTEMPTS => ErrorCode::ResourceExhausted,
         R::REFUSAL_REASON_EMAIL_TAKEN | R::REFUSAL_REASON_USER_LINKED => ErrorCode::AlreadyExists,
         // `UNSPECIFIED` is never sent; a client sees it only for a reason it doesn't know.
         R::REFUSAL_REASON_EMAIL_INVALID
         | R::REFUSAL_REASON_PASSWORD_LENGTH
+        | R::REFUSAL_REASON_PASSKEY_NAME_LENGTH
         | R::REFUSAL_REASON_WATCH_STATE_INVALID
         | R::REFUSAL_REASON_URL_INVALID
         | R::REFUSAL_REASON_SERVER_ADDRESS_INVALID

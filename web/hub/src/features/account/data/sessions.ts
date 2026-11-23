@@ -37,7 +37,7 @@ export function useDeleteAccount() {
 }
 
 /** Once the session changed: forgets what was cached for whoever was signed in, and goes `to`. */
-function useGoAfterSession(to: string) {
+export function useGoAfterSession(to: string) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   return async () => {

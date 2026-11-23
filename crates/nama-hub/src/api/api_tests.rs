@@ -48,10 +48,10 @@ async fn every_method_refuses_an_anonymous_caller_its_service_doesnt_serve() {
         .connect_lazy("postgres://localhost:1/nowhere")
         .unwrap();
     let keys = Arc::new(Keys::from_pems(SIGNING_KEY).unwrap());
-    let accounts = Accounts::new(db.clone(), None);
+    let accounts = Accounts::new(db.clone(), None, None);
     let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys));
     let rpcs = services(db.clone(), &accounts, &links);
-    let hub = ServiceTransport::new(router(db, keys, &[], None, None));
+    let hub = ServiceTransport::new(router(db, keys, &[], None, None, None));
     let config = ClientConfig::new("http://hub".parse().unwrap());
 
     for procedure in rpcs.methods() {
