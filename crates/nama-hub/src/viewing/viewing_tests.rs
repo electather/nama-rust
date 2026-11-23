@@ -199,7 +199,7 @@ async fn twenty_accounts_finishing_two_movies_count_the_pair_either_way(db: PgPo
 }
 
 #[sqlx::test(migrations = false)]
-async fn vectors_train_only_on_counts_of_twenty_accounts(db: PgPool) {
+async fn pooled_counts_hold_only_counts_of_twenty_accounts(db: PgPool) {
     let (_, accounts) = pool_of(&db, 20).await;
     let (last, first_nineteen) = accounts.split_last().unwrap();
     for &account in first_nineteen {

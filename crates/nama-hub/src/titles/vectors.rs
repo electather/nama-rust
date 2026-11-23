@@ -53,7 +53,7 @@ pub struct PooledCount {
 
 /// What pooled counts say about a title.
 #[derive(Debug)]
-pub(super) struct Behaviour {
+struct Behaviour {
     /// How many Accounts finished it.
     accounts: i64,
     /// A dimension of its own, and one for each title Accounts finished with it.
@@ -156,12 +156,9 @@ async fn movies_of(
 /// behaviour once Accounts finished it with another: a count of it alone tells nothing about which
 /// titles are like it.
 ///
-/// shortcut: an Account that finished one title under two of its ids, on two Servers, counts twice
+/// ponytail: an Account that finished one title under two of its ids, on two Servers, counts twice
 /// for it; count Accounts per title rather than per External ID if that ever skews it.
-pub(super) fn behaviours(
-    pooled: &[PooledCount],
-    movies: &HashMap<String, Uuid>,
-) -> HashMap<Uuid, Behaviour> {
+fn behaviours(pooled: &[PooledCount], movies: &HashMap<String, Uuid>) -> HashMap<Uuid, Behaviour> {
     let mut alone: HashMap<Uuid, i64> = HashMap::new();
     let mut pairs: HashMap<(Uuid, Uuid), i64> = HashMap::new();
     for count in pooled {
@@ -200,7 +197,7 @@ pub(super) fn behaviours(
 
 /// A title's vector from its `facts` and its `behaviour`, behaviour weighing more the more
 /// Accounts finished it. `None` without either.
-pub(super) fn blend(
+fn blend(
     facts: Option<BTreeMap<u64, f32>>,
     behaviour: Option<Behaviour>,
 ) -> Option<BTreeMap<u64, f32>> {
@@ -303,7 +300,8 @@ fn as_pgvector(vector: &BTreeMap<u64, f32>) -> String {
 
 /// The titles of `kind` most like the one `ids` names, by any of them, most alike first, each by
 /// its id in the first of `ids`' namespaces it has (ADR 0042). Empty when Wikidata lacks the title
-/// or it has no vector. Only titles sharing a fact with it are answered.
+/// or it has no vector. Only titles sharing a fact with it, or finished with it or with a title
+/// it was finished with, are answered.
 ///
 /// ponytail: compares every vector of the kind, which is exact and fast enough at Wikidata's
 /// size; add an HNSW index once a Similar answer is measured slow. pgvector's HNSW indexes a
@@ -352,7 +350,7 @@ pub async fn similar(
         kind.as_str(),
         &namespaces as _,
         &values as _,
-        // Under 1: sharing at least one fact, as every value is positive.
+        // Under 1: sharing at least one dimension, as every value is positive.
         1.0_f64,
         MOST_SIMILAR,
     )
