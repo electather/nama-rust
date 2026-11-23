@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package nama.hub.v1;
 
-// An Account's Viewing Events, for the Hub's web pages (ADR 0093). A Linked Server records them
-// through `LinkedServerService.RecordViewingEvents`. Every call fails with
-// `REFUSAL_REASON_SIGN_IN_REQUIRED` without a session.
+// An Account's Viewing Events, and whether they're pooled, for the Hub's web pages (ADR 0093). A
+// Linked Server records them through `LinkedServerService.RecordViewingEvents`. Every call fails
+// with `REFUSAL_REASON_SIGN_IN_REQUIRED` without a session.
 service ViewingEventService {
   // Returns every one of the signed-in Account's Viewing Events, the latest started first.
   rpc ListViewingEvents(ListViewingEventsRequest) returns (ListViewingEventsResponse) {
@@ -13,6 +13,17 @@ service ViewingEventService {
   // Deletes one of the signed-in Account's Viewing Events. Deleting one it doesn't have does
   // nothing.
   rpc DeleteViewingEvent(DeleteViewingEventRequest) returns (DeleteViewingEventResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Returns whether the signed-in Account's finished Movies are pooled: counted, with no trace of
+  // the Account, in how many Accounts finished each Movie and each pair of Movies. On until the
+  // Account turns it off.
+  rpc GetPooling(GetPoolingRequest) returns (GetPoolingResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Turns pooling on or off for the signed-in Account. Turning it off stops new counts; what was
+  // already counted stays, as it can't be traced back to the Account.
+  rpc SetPooling(SetPoolingRequest) returns (SetPoolingResponse) {
     option idempotency_level = IDEMPOTENT;
   }
 }
@@ -63,6 +74,18 @@ message DeleteViewingEventRequest {
 }
 
 message DeleteViewingEventResponse {}
+
+message GetPoolingRequest {}
+
+message GetPoolingResponse {
+  bool pooling = 1;
+}
+
+message SetPoolingRequest {
+  bool pooling = 1;
+}
+
+message SetPoolingResponse {}
 
 // A Viewing Event a Linked Server records for one of its Users.
 message UserViewingEvent {
