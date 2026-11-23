@@ -287,7 +287,7 @@ impl Playing {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Fallback {
     pub(crate) transcode: Transcode,
-    /// Its plan's reasons from then on: those that still hold, and why it fell back.
+    /// Its plan's reasons from then on, in the order the steps ran, then why it fell back.
     pub(crate) reasons: Vec<Reason>,
 }
 
@@ -545,19 +545,22 @@ fn build(facts: &mut Facts) -> Plan {
     let mut playing = allowed
         .first()
         .and_then(|&method| playing_by(method, facts, candidates));
-    reasons.extend(converting(facts, candidates, playing.as_ref()));
     let plays = playing.as_ref().map(Playing::method);
     for reason in &mut reasons {
         reason.decide(plays);
     }
+    // Converting rules nothing out, so its reasons need no deciding, and the fallback, which
+    // converts its own way, keeps only the narrowing steps' reasons.
+    let converted = converting(facts, candidates, playing.as_ref());
     if let Some(Playing::Transcode {
         transcode,
         fallback: on_failure,
         ..
     }) = &mut playing
     {
-        *on_failure = fallback(facts, transcode, &reasons);
+        *on_failure = fallback(facts, candidates, transcode, &reasons);
     }
+    reasons.extend(converted);
     let audio = candidates.and_then(|candidates| candidates.audio);
     // A burn-in still in effect rules out all but a Transcode, so it plays by one or not at all.
     let burned_in = facts.subtitle.filter(|_| {
