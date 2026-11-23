@@ -1,9 +1,9 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
 //! one Server's device flow, Unlinking, its Users' Links, Users created from Accounts, one sign-in
 //! with an Account at a time, its Server Addresses and whether its public port is reached, the
-//! Watch State it pushes, which its Linked Users pull back, its Viewing Events, the titles like
-//! The Matrix, what's trending, and a key set of one Ed25519 key it signs with, as the Hub's API
-//! (`proto/nama/hub/v1/`) says the Hub does, and takes shared Diagnostics.
+//! Watch State it pushes, which its Linked Users pull back, their Watchlists, its Viewing Events,
+//! the titles like The Matrix, what's trending, and a key set of one Ed25519 key it signs with, as
+//! the Hub's API (`proto/nama/hub/v1/`) says the Hub does, and takes shared Diagnostics.
 
 use std::{
     collections::HashMap,
@@ -30,9 +30,9 @@ use nama_hub_proto::nama::hub::v1::{
     PushWatchStatesResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
     ServerLinkService, SetServerAddressesRequest, SetServerAddressesResponse, SimilarTitle,
     StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
-    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, TitleKind,
-    TrendingTitle, UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest,
-    UnlinkUserResponse, UserViewingEvent, WatchStateChange,
+    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
+    SyncWatchlistResponse, TitleKind, TrendingTitle, UnlinkServerRequest, UnlinkServerResponse,
+    UnlinkUserRequest, UnlinkUserResponse, UserViewingEvent, WatchStateChange, WatchlistEntry,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::{Value, json};
@@ -97,6 +97,10 @@ struct State {
     pushes: Vec<Vec<WatchStateChange>>,
     /// Why pushes fail, as if the Hub were down, while they do.
     push_failure: Option<&'static str>,
+    /// Each Watchlist entry Linked Users synced, in the order they came.
+    watchlist: Vec<WatchlistEntry>,
+    /// The User each Watchlist sync was of, in the order they came.
+    watchlist_syncs: Vec<i64>,
     /// The name and email each User created from an Account was invited with, by id.
     invites: HashMap<i64, (String, String)>,
     /// The sign-in with an Account waiting: where it returns to, and the User it signs in as once
@@ -215,6 +219,11 @@ impl FakeHub {
     /// Has asking about a User's Link fail, though counted, as if the Hub were down.
     pub(super) fn fail_user_links(&self) {
         lock(&self.state).user_link_failure = Some("the Hub is down");
+    }
+
+    /// The User each Watchlist sync was of, in the order they came.
+    pub(super) fn watchlist_syncs(&self) -> Vec<i64> {
+        lock(&self.state).watchlist_syncs.clone()
     }
 
     /// Each push's changes, in the order they came.
@@ -480,6 +489,27 @@ impl LinkedServerService for Linked {
         };
         Response::ok(PullWatchStatesResponse {
             watch_states,
+            ..Default::default()
+        })
+    }
+
+    /// Every entry Linked Users synced, as the asked User's Account's: the fake has one Account.
+    async fn sync_watchlist(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SyncWatchlistRequest>,
+    ) -> ServiceResult<SyncWatchlistResponse> {
+        let mut state = self.caller(&ctx)?;
+        let SyncWatchlistRequest {
+            user_id, entries, ..
+        } = request.to_owned_message();
+        state.watchlist_syncs.push(user_id);
+        if !state.user_accounts.contains_key(&user_id) {
+            return Response::ok(SyncWatchlistResponse::default());
+        }
+        state.watchlist.extend(entries);
+        Response::ok(SyncWatchlistResponse {
+            entries: state.watchlist.clone(),
             ..Default::default()
         })
     }

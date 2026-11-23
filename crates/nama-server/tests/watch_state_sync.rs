@@ -1,5 +1,6 @@
 //! A User's Watch State on their other Servers coming back through the enabled Plugin that links
-//! the Server (ADR 0008), here a stand-in for the Hub that two Servers share.
+//! the Server (ADR 0008), and their Watchlist syncing with them (ADR 0056), here a stand-in for the
+//! Hub that two Servers share.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
@@ -9,33 +10,47 @@ mod browsing;
 mod server;
 
 use std::{
+    collections::HashMap,
     future,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::Duration,
 };
 
-use browsing::{ALIEN_1080P, Fixture};
+use browsing::{ALIEN_1080P, Fixture, tmdb_id};
 use connectrpc::client::{ClientConfig, HttpClient};
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     points::{WatchStateChange, WatchStateChanges, WatchStatesChanged},
-    server_link::{AccountSignIn, Link, ServerAddresses, ServerLinker},
+    server_link::{AccountSignIn, Link, ServerAddresses, ServerLinker, WatchlistEntry},
 };
 use nama_proto::nama::v1::{
-    BrowseServiceClient, LibraryKind, ListContinueWatchingRequest, ReportProgressRequest,
-    WatchStateServiceClient, continue_watching_entry::MovieOrEpisode,
+    AddToWatchlistRequest, BrowseServiceClient, GetMovieRequest, LibraryKind,
+    ListContinueWatchingRequest, RemoveFromWatchlistRequest, ReportProgressRequest, TitleKind,
+    WatchStateServiceClient, WatchlistServiceClient, continue_watching_entry::MovieOrEpisode,
 };
 use nama_server::plugins::Registry;
 use server::{TestServer, WAIT, tmdb::ALIEN};
 
 /// A stand-in for the Hub, shared by every Server it's enabled on: it keeps each Watch State change
-/// a Server tells of, and hands them all back to every User's pull, as one Account's.
+/// a Server tells of, and hands them all back to every User's pull, and merges every Watchlist
+/// synced, the change made last winning, all as one Account's.
 #[derive(Clone, Default)]
-struct Hub(Arc<Mutex<Vec<WatchStateChange>>>);
+struct Hub {
+    watch_states: Arc<Mutex<Vec<WatchStateChange>>>,
+    watchlist: Arc<Mutex<HashMap<(bool, String), WatchlistEntry>>>,
+}
 
 impl Hub {
     fn kept(&self) -> MutexGuard<'_, Vec<WatchStateChange>> {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+        self.watch_states
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn watchlist(&self) -> MutexGuard<'_, HashMap<(bool, String), WatchlistEntry>> {
+        self.watchlist
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     /// A Server the Hub is enabled on, as `builder` starts it.
@@ -78,7 +93,7 @@ impl Observer<WatchStatesChanged> for Hub {
     }
 }
 
-/// Only what pulling asks; the rest is `tests/server_link.rs`'s.
+/// Only what pulling and syncing ask; the rest is `tests/server_link.rs`'s.
 impl ServerLinker for Hub {
     fn link(&self) -> BoxFuture<'_, Result<Link, PluginError>> {
         Box::pin(future::ready(Ok(linked())))
@@ -138,6 +153,21 @@ impl ServerLinker for Hub {
 
     fn watch_states(&self, _: i64) -> BoxFuture<'_, Result<Vec<WatchStateChange>, PluginError>> {
         Box::pin(future::ready(Ok(self.kept().clone())))
+    }
+
+    fn sync_watchlist(
+        &self,
+        _: i64,
+        watchlist: Vec<WatchlistEntry>,
+    ) -> BoxFuture<'_, Result<Vec<WatchlistEntry>, PluginError>> {
+        let mut kept = self.watchlist();
+        for entry in watchlist {
+            let title = (entry.show, entry.id.clone());
+            if (kept.get(&title)).is_none_or(|old| old.changed_at_ms < entry.changed_at_ms) {
+                kept.insert(title, entry);
+            }
+        }
+        Box::pin(future::ready(Ok(kept.values().cloned().collect())))
     }
 }
 
@@ -233,6 +263,65 @@ async fn progress_on_a_title_the_server_lacks_shows_once_a_scan_adds_it() {
 
     until("Continue Watching shows the progress", async || {
         alien_in_continue_watching(&ada.client_config()).await == Some(60_000)
+    })
+    .await;
+}
+
+/// Whether Alien is on the Watchlist of the User signed in as `who` on `fx`'s Server.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn alien_on_watchlist(fx: &Fixture, who: &ClientConfig) -> bool {
+    let browse = BrowseServiceClient::new(HttpClient::plaintext(), who.clone());
+    let asked = GetMovieRequest {
+        library_id: fx.library,
+        movie_id: tmdb_id(ALIEN).into(),
+        ..Default::default()
+    };
+    let got = browse.get_movie(asked).await.unwrap().into_owned();
+    got.movie.into_option().unwrap().on_watchlist
+}
+
+#[tokio::test]
+async fn a_title_added_on_one_server_and_removed_on_another_ends_off_both() {
+    let hub = Hub::default();
+    let first = Fixture::alien_on(hub.on(TestServer::builder())).await;
+    let second = Fixture::alien_on(hub.on(TestServer::builder())).await;
+    let admin = first.server.client_config();
+    let alien = (TitleKind::TITLE_KIND_MOVIE.into(), tmdb_id(ALIEN));
+    let on_first = WatchlistServiceClient::new(HttpClient::plaintext(), admin.clone());
+    let added = AddToWatchlistRequest {
+        kind: alien.0,
+        id: alien.1.clone().into(),
+        ..Default::default()
+    };
+    on_first.add_to_watchlist(added).await.unwrap();
+    until("the Hub has the title", async || {
+        !hub.watchlist().is_empty()
+    })
+    .await;
+
+    let ada = second.server.user_with_default_permissions("Ada").await;
+    until("Ada's Watchlist on the other Server has it", async || {
+        alien_on_watchlist(&second, &ada.client_config()).await
+    })
+    .await;
+    let on_second = WatchlistServiceClient::new(HttpClient::plaintext(), ada.client_config());
+    let removed = RemoveFromWatchlistRequest {
+        kind: alien.0,
+        id: alien.1.into(),
+        ..Default::default()
+    };
+    on_second.remove_from_watchlist(removed).await.unwrap();
+    until("the Hub has the removal", async || {
+        hub.watchlist().values().all(|entry| entry.removed)
+    })
+    .await;
+    first.scan_and_match().await;
+
+    until("the first Server took the removal", async || {
+        !alien_on_watchlist(&first, &admin).await
     })
     .await;
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT kind, title_id FROM watchlist WHERE user_id = ? ORDER BY rowid DESC",
+  "query": "SELECT kind, title_id FROM watchlist WHERE user_id = ? AND NOT removed ORDER BY rowid DESC",
   "describe": {
     "columns": [
       {
@@ -34,5 +34,5 @@
       false
     ]
   },
-  "hash": "15a09ebd657e7b4028f829ccdbd16ec45705baaad0813692820d235b66aa0ee4"
+  "hash": "e6208a3e151bcf3bf2391acd5fe692fc3d9eb99fe76020f37be4de52132dd489"
 }
