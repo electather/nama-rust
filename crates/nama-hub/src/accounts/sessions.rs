@@ -20,7 +20,7 @@ const USER_AGENT_LENGTH: usize = 512;
 
 /// One of an Account's live sessions, as its Account page lists them.
 #[derive(Debug)]
-pub(crate) struct LiveSession {
+pub(crate) struct ListedSession {
     pub(crate) id: Uuid,
     /// The browser and OS it was last used from, such as "Firefox on Windows".
     pub(crate) name: String,
@@ -175,7 +175,7 @@ impl Accounts {
     pub(crate) async fn sessions(
         &self,
         session: &AccountSession,
-    ) -> Result<Vec<LiveSession>, sqlx::Error> {
+    ) -> Result<Vec<ListedSession>, sqlx::Error> {
         let listed = sqlx::query!(
             r#"SELECT id, user_agent, extract(epoch FROM last_used_at)::bigint AS "last_used_at!"
              FROM account_sessions
@@ -189,7 +189,7 @@ impl Accounts {
         .await?;
         Ok(listed
             .into_iter()
-            .map(|listed| LiveSession {
+            .map(|listed| ListedSession {
                 id: listed.id,
                 name: browser_name(listed.user_agent.as_deref()),
                 last_used_at: listed.last_used_at,

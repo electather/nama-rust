@@ -25,7 +25,7 @@ pub(crate) use passwords::PASSWORD_LENGTH;
 pub(crate) use rate_limits::{Blocked, Caller};
 use rate_limits::{ChallengeLimits, CreationLimits, SignInLimits};
 pub(crate) use sessions::{
-    LiveSession, RECENT_AUTHENTICATION_MINS, RecentAuthenticationRequired, SESSION_DAYS,
+    ListedSession, RECENT_AUTHENTICATION_MINS, RecentAuthenticationRequired, SESSION_DAYS,
 };
 use sign_in_links::Outbox;
 pub(crate) use sign_in_links::{SignInLink, SignedInByLink};

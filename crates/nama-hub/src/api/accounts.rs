@@ -31,7 +31,7 @@ use super::{hub_failed, recent_authentication_required, refuse};
 use crate::{
     accounts::{
         self, Account, AccountSession, Accounts, Assertion, Blocked, Caller, EMAIL_LENGTH,
-        LiveSession, NewPasskey, PASSKEY_NAME_LENGTH, PASSWORD_LENGTH, Passkey, SESSION_DAYS,
+        ListedSession, NewPasskey, PASSKEY_NAME_LENGTH, PASSWORD_LENGTH, Passkey, SESSION_DAYS,
         SignInLink, SignedIn, SignedInByLink,
     },
     links::Links,
@@ -443,7 +443,7 @@ fn passkey_to_proto(passkey: Passkey) -> proto::Passkey {
     }
 }
 
-fn session_to_proto(session: LiveSession) -> proto::Session {
+fn session_to_proto(session: ListedSession) -> proto::Session {
     proto::Session {
         id: session.id.to_string(),
         name: session.name,

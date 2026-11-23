@@ -255,7 +255,10 @@ async fn used_session(
     let Some(session) = accounts.session(token).await? else {
         return Ok(None);
     };
-    accounts.record_use(&session, user_agent).await?;
+    // Only the Account page's list reads it, so a failed write mustn't refuse the request.
+    if let Err(err) = accounts.record_use(&session, user_agent).await {
+        tracing::warn!("could not record a session's use: {err}");
+    }
     Ok(Some(session))
 }
 
