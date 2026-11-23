@@ -8,7 +8,6 @@
 use std::{future::Future, net::SocketAddr, sync::Arc, time::Duration};
 
 use connectrpc::{ConnectError, Response, ServiceResult};
-use futures_util::future::join_all;
 use nama_plugin_api::{
     PluginError,
     points::{
@@ -324,8 +323,9 @@ fn push_then_pull_soon(
     user_id: i64,
 ) {
     let (points, browse, preferences) = (points.clone(), browse.clone(), preferences.clone());
-    let span =
-        diagnostics::following_current(tracing::info_span!(parent: None, "sync_watch_states"));
+    let span = diagnostics::following_current(
+        tracing::info_span!(parent: None, "sync_with_other_servers"),
+    );
     let syncing = async move {
         push_watch_states(&points, &browse, user_id).await;
         push_track_preferences(&points, &preferences, user_id).await;
@@ -361,7 +361,9 @@ fn push_every_users_soon(
                     push_track_preferences(&points, &preferences, user.id).await;
                 }
             }
-            Err(err) => tracing::error!("listing Users to push what they did failed: {err}"),
+            Err(err) => tracing::error!(
+                "listing Users to push their Watch State and Track Preferences failed: {err}"
+            ),
         }
     };
     tokio::spawn(pushing.instrument(span));
@@ -402,13 +404,18 @@ async fn push_track_preferences(
             return;
         }
     };
-    // All at once, so each is delivered even if waiting on them times out.
-    let told = join_all(stored.into_iter().map(|preference| {
-        points.notify_and_wait::<TrackPreferenceChanged>(TrackPreferenceChange {
-            user_id,
-            preference,
-        })
-    }));
+    // One at a time, so the Hub Plugin asks the Hub about the User's Link once, not once each.
+    let told = async {
+        for preference in stored {
+            let change = TrackPreferenceChange {
+                user_id,
+                preference,
+            };
+            points
+                .notify_and_wait::<TrackPreferenceChanged>(change)
+                .await;
+        }
+    };
     wait_until_told(told, user_id, "Track Preferences").await;
 }
 

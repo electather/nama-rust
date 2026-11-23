@@ -492,14 +492,15 @@ async fn linking_a_user_pushes_their_track_preferences_from_before_dated_as_stor
 async fn linking_a_user_leaves_a_preference_the_account_has_newer_as_the_account_has_it() {
     let hub = Hub::default();
     let server = hub.on(TestServer::builder()).start().await;
-    let stored = preferences_set_before_linking(&server, &hub).await;
+    let [_, japanese] = <[_; 2]>::try_from(preferences_set_before_linking(&server, &hub).await)
+        .expect("one Subtitle and one Audio Preference");
     let set_on_another_server = TrackPreference {
         like: Some(TrackDescription {
             language: Some("fre".to_owned()),
             ..TrackDescription::default()
         }),
-        changed_at_ms: stored[1].changed_at_ms + 60_000,
-        ..stored[1].clone()
+        changed_at_ms: japanese.changed_at_ms + 60_000,
+        ..japanese
     };
     hub.kept_preferences().push(set_on_another_server);
 
