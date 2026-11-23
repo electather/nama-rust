@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH deleted AS (\n              DELETE FROM viewing_events WHERE id = $1 AND account_id = $2\n              RETURNING external_id, started_at, pooled_week)\n             UPDATE weekly_counts SET accounts = accounts - 1 FROM deleted\n             WHERE deleted.pooled_week AND title = deleted.external_id\n             AND week = date_trunc('week', deleted.started_at AT TIME ZONE 'UTC')::date",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bde154a67d3145b50ab8c51720c6d7332bd50b016500e2e2c6283d9c72ab7fa3"
+}

@@ -2,7 +2,7 @@
 
 Watch State keeps only the latest progress (ADR 0008), so recommendations get no history from it. A Linked Server therefore also sends the Hub a Viewing Event for each play by a Linked User, keyed by External ID. The event records start, stop point, whether the play finished, time of day and Device kind. Unmatched Items never leave their Server, and a Server records no Viewing Events of its own: unlinked Users have Watch State only, and a User's history starts when they Link.
 
-Each Account's Viewing Events are stored under that Account and feed its own recommendations. Across Accounts, the Hub keeps only counts of how many Accounts watched each pair of titles. A pair is used once at least *k* distinct Accounts share it (k = 20 to start). No pooled record is kept per person, pseudonymous or otherwise. Pooling is on by default for Linked Accounts, shown at Linking, and each Account can turn it off.
+Each Account's Viewing Events are stored under that Account and feed its own recommendations. Across Accounts, the Hub keeps only counts of how many Accounts watched each pair of titles, and each title each week, for charts such as what's trending. A count is used once at least *k* distinct Accounts are in it (k = 20 to start). No pooled record is kept per person, pseudonymous or otherwise. Pooling is on by default for Linked Accounts, shown at Linking, and each Account can turn it off.
 
 ## Considered Options
 

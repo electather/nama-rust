@@ -1,6 +1,7 @@
 //! Viewing Events (GLOSSARY.md): each play by a Linked User, which their Linked Server records under
 //! the Account they are Linked to, and which that Account lists and deletes, and the counts of
-//! Accounts that finished each Movie and pair of Movies they pool into (ADR 0093).
+//! Accounts that finished each Movie and pair of Movies, and each Movie each week, they pool into
+//! (ADR 0093).
 
 use std::{
     collections::{HashMap, hash_map::Entry},
@@ -28,6 +29,9 @@ const KEY_LENGTH: usize = 64;
 
 /// The fewest Accounts a pooled count is read with, so none tells about one Account (ADR 0093).
 const MIN_POOLED_ACCOUNTS: i64 = 20;
+
+/// The most Movies [`Viewing::trending`] answers.
+const MAX_TRENDING: i64 = 1000;
 
 /// The minutes in a day, which a time of day is less than.
 const MINUTES_PER_DAY: i32 = 24 * 60;
@@ -182,6 +186,25 @@ pub(crate) struct ListedViewingEvent {
     pub(crate) event: ViewingEvent,
 }
 
+/// A Movie many Accounts finished lately.
+#[derive(Debug)]
+pub(crate) struct TrendingTitle {
+    /// Such as `tmdb-603`.
+    pub(crate) external_id: String,
+    /// How watched it is, from 0.0 to 1.0: its two weeks' counts summed, against the most
+    /// watched's.
+    pub(crate) weight: f32,
+}
+
+/// Which counts a newly recorded Viewing Event adds its Account to.
+struct Counted {
+    /// Its Movie's own count and its pairs: the Account's first counted play of the Movie.
+    pairs: bool,
+    /// Its Movie's count in the week it started: the Account's first counted play of the Movie
+    /// that week.
+    week: bool,
+}
+
 /// Why Viewing Events couldn't be recorded.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
@@ -321,7 +344,7 @@ impl Viewing {
         not(test),
         expect(
             dead_code,
-            reason = "recommendations read pooled counts (#1819, #1825); until then only tests do"
+            reason = "recommendations read pooled counts (#1825); until then only tests do"
         )
     )]
     pub(crate) async fn pooled_count(&self, a: &str, b: &str) -> Result<Option<i64>, sqlx::Error> {
@@ -337,14 +360,43 @@ impl Viewing {
         .await
     }
 
-    /// Deletes `account`'s Viewing Event `id`. Another Account's stays.
+    /// The Movies most Accounts finished this week and last, in UTC, at most [`MAX_TRENDING`],
+    /// most watched first. A week's count is read only once [`MIN_POOLED_ACCOUNTS`] Accounts are
+    /// in it.
+    pub(crate) async fn trending(&self) -> Result<Vec<TrendingTitle>, sqlx::Error> {
+        // Last week too, so the chart doesn't empty each Monday.
+        sqlx::query_as!(
+            TrendingTitle,
+            r#"SELECT title AS external_id,
+             (sum(accounts) / max(sum(accounts)) OVER ())::real AS "weight!"
+             FROM weekly_counts
+             WHERE week >= (date_trunc('week', now() AT TIME ZONE 'UTC') - interval '1 week')::date
+             AND week <= (date_trunc('week', now() AT TIME ZONE 'UTC'))::date
+             AND accounts >= $1
+             GROUP BY title ORDER BY sum(accounts) DESC, title LIMIT $2"#,
+            MIN_POOLED_ACCOUNTS,
+            MAX_TRENDING,
+        )
+        .fetch_all(&self.db)
+        .await
+    }
+
+    /// Deletes `account`'s Viewing Event `id`, and takes the Account back out of its week's count
+    /// if the event put it there. Another Account's stays.
     pub(crate) async fn delete(
         &self,
         account: AccountId,
         id: ViewingEventId,
     ) -> Result<(), sqlx::Error> {
+        // The week's count is read by every Linked Server, so finishing a Movie, deleting the play
+        // and finishing it again must not let one Account count as many (ADR 0093).
         sqlx::query!(
-            "DELETE FROM viewing_events WHERE id = $1 AND account_id = $2",
+            "WITH deleted AS (
+              DELETE FROM viewing_events WHERE id = $1 AND account_id = $2
+              RETURNING external_id, started_at, pooled_week)
+             UPDATE weekly_counts SET accounts = accounts - 1 FROM deleted
+             WHERE deleted.pooled_week AND title = deleted.external_id
+             AND week = date_trunc('week', deleted.started_at AT TIME ZONE 'UTC')::date",
             id.0,
             account.0,
         )
@@ -364,42 +416,54 @@ fn external_id(id: &str) -> Option<ExternalId> {
 }
 
 /// Records `event` under `account` as `key`, unless it was already, and pools it when it is the
-/// Account's first counted play of its Movie.
+/// Account's first counted play of its Movie, or of its Movie that week.
 async fn record_one(
     tx: &mut Transaction<'_, Postgres>,
     account: AccountId,
     key: &str,
     event: &ViewingEvent,
 ) -> Result<(), Error> {
-    // ponytail: deleting the counted play forgets the Movie was counted, so finishing it again
-    // counts the Account twice; keep a mark outside the history if inflated counts ever matter.
-    if insert(tx, account, key, event).await? {
+    // ponytail: deleting the play counted for pairs forgets the Movie was counted, so finishing it
+    // again counts the Account twice there; keep a mark outside the history once recommendations
+    // read those counts (#1825).
+    let Some(counted) = insert(tx, account, key, event).await? else {
+        return Ok(());
+    };
+    if counted.pairs {
         add_to_pool(tx, account, &event.external_id).await?;
+    }
+    if counted.week {
+        add_to_week(tx, event).await?;
     }
     Ok(())
 }
 
-/// Inserts `event` under `account` as `key`, unless it was already, and answers whether the new row
-/// is to be pooled.
+/// Inserts `event` under `account` as `key`, unless it was already, and answers which counts the
+/// new row adds to.
 async fn insert(
     tx: &mut Transaction<'_, Postgres>,
     account: AccountId,
     key: &str,
     event: &ViewingEvent,
-) -> Result<bool, Error> {
+) -> Result<Option<Counted>, Error> {
     // `is_valid` kept it within a day's minutes.
     let time_of_day =
         i16::try_from(event.time_of_day_minutes).map_err(|_out_of_range| Error::Invalid)?;
-    let pooled = sqlx::query_scalar!(
+    let inserted = sqlx::query!(
         "INSERT INTO viewing_events (account_id, server_key, kind, external_id, started_at,
          time_of_day_minutes, stop_position_ms, duration_ms, finished, device_kind,
-         show_external_id, pooled)
+         show_external_id, pooled, pooled_week)
          VALUES ($1, $2, $3, $4, to_timestamp($5::bigint), $6, $7, $8, $9, $10, $11,
          $12 AND coalesce((SELECT pooling FROM pooling_settings WHERE account_id = $1), true)
          AND NOT EXISTS (SELECT 1 FROM viewing_events
-          WHERE account_id = $1 AND external_id = $4 AND pooled))
+          WHERE account_id = $1 AND external_id = $4 AND pooled),
+         $12 AND coalesce((SELECT pooling FROM pooling_settings WHERE account_id = $1), true)
+         AND NOT EXISTS (SELECT 1 FROM viewing_events
+          WHERE account_id = $1 AND external_id = $4 AND pooled_week
+          AND date_trunc('week', started_at AT TIME ZONE 'UTC')
+           = date_trunc('week', to_timestamp($5::bigint) AT TIME ZONE 'UTC')))
          ON CONFLICT (account_id, server_key) DO NOTHING
-         RETURNING pooled",
+         RETURNING pooled, pooled_week",
         account.0,
         key,
         event.kind.as_str(),
@@ -415,7 +479,10 @@ async fn insert(
     )
     .fetch_optional(&mut **tx)
     .await?;
-    Ok(pooled == Some(true))
+    Ok(inserted.map(|row| Counted {
+        pairs: row.pooled,
+        week: row.pooled_week,
+    }))
 }
 
 /// Counts `account` once more for `movie`, and for each pair it makes with a Movie the Account
@@ -432,6 +499,23 @@ async fn add_to_pool(
          ON CONFLICT (title_a, title_b) DO UPDATE SET accounts = pooled_counts.accounts + 1",
         account.0,
         movie,
+    )
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+/// Counts `event`'s Account once more for its Movie in the week, in UTC, it started in.
+async fn add_to_week(
+    tx: &mut Transaction<'_, Postgres>,
+    event: &ViewingEvent,
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT INTO weekly_counts (week, title)
+         VALUES (date_trunc('week', to_timestamp($1::bigint) AT TIME ZONE 'UTC')::date, $2)
+         ON CONFLICT (week, title) DO UPDATE SET accounts = weekly_counts.accounts + 1",
+        event.started_at,
+        event.external_id,
     )
     .execute(&mut **tx)
     .await?;

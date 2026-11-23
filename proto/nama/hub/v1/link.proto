@@ -141,6 +141,13 @@ service LinkedServerService {
   rpc RecordViewingEvents(RecordViewingEventsRequest) returns (RecordViewingEventsResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // The Movies most Accounts finished this week and last, by the pooled counts (ADR 0093): at
+  // most 1000, most watched first. A week counts a Movie only once 20 Accounts finished it in
+  // that week, so the answer is empty until there are enough. The Hub answers ids, never titles
+  // or artwork (ADR 0094).
+  rpc ListTrendingTitles(ListTrendingTitlesRequest) returns (ListTrendingTitlesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
 }
 
 // A Server registered with the Hub, owned by an Account.
@@ -481,4 +488,18 @@ message SetServerAddressesResponse {
   string public_address = 1;
   // Whether the Hub reached it there. Only then is it one of the Server's Server Addresses.
   bool reachable = 2;
+}
+
+message ListTrendingTitlesRequest {}
+
+message ListTrendingTitlesResponse {
+  repeated TrendingTitle titles = 1;
+}
+
+// A Movie many Accounts finished lately.
+message TrendingTitle {
+  // Its id as Servers keep its Watch State, such as `tmdb` `603`.
+  ExternalId id = 1;
+  // How watched it is, from 0.0 to 1.0: its two weeks' counts summed, against the most watched's.
+  float weight = 2;
 }
