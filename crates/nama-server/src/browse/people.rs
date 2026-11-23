@@ -3,14 +3,14 @@
 use nama_plugin_api::metadata::ExternalId;
 
 use super::{Browse, Error};
-use crate::library::{NotFound, OnServer, PersonRole, TitleKind};
+use crate::library::{ImageRef, NotFound, OnServer, PersonRole, TitleKind};
 
 /// How many People a search finds at most.
 const PEOPLE_FOUND: usize = 5;
 
 /// How many People whose names fit a search it reads the pages of, to find [`PEOPLE_FOUND`] with
 /// a title in a Library.
-// shortcut: a Person ranked below these is missed when those above have no title in a Library;
+// ponytail: a Person ranked below these is missed when those above have no title in a Library;
 // raise it, or keep only Roles of titles on the Server, if one ever is.
 const PEOPLE_READ: usize = 20;
 
@@ -20,8 +20,8 @@ pub(crate) struct PersonPage {
     pub(crate) id: ExternalId,
     /// As their first Role names them.
     pub(crate) name: String,
-    /// The path of the first headshot their Roles have, and the Plugin whose title source has it.
-    pub(crate) headshot: Option<(String, String)>,
+    /// The first headshot their Roles have.
+    pub(crate) headshot: Option<ImageRef>,
     /// The titles in a Library they play a character in, newest first.
     pub(crate) cast: Vec<PersonTitle>,
     /// The titles in a Library they did a job on, newest first.
@@ -47,8 +47,12 @@ impl Browse {
             .first()
             .filter(|_| !(cast.is_empty() && crew.is_empty()));
         let first = first.ok_or(NotFound::NoSuchPerson)?;
-        let headshot = (roles.iter())
-            .find_map(|role| Some((role.role.headshot.clone()?, role.plugin.clone())));
+        let headshot = roles.iter().find_map(|role| {
+            Some(ImageRef {
+                plugin: role.plugin.clone().into(),
+                path: role.role.headshot.clone()?,
+            })
+        });
         Ok(PersonPage {
             id: person.clone(),
             name: first.role.name.clone(),

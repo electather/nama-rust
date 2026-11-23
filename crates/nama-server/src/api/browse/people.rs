@@ -1,16 +1,16 @@
-//! A Person's page as clients see it: `GetPerson`, and the People a search finds.
+//! A Person's page as clients see it: `GetPerson`.
 
 use connectrpc::{Response, ServiceResult};
 use nama_proto::nama::v1::{self as proto, GetPersonRequest, GetPersonResponse, person_role};
 
-use super::{BrowseServiceHandler, Fields, refused, stored_by};
+use super::{BrowseServiceHandler, Fields, refused};
 use crate::{
     api::{
-        database_failed, external_id_to_proto, required_id,
+        database_failed, required_id,
         search::{movie_hit, show_hit},
     },
     browse::{PersonPage, PersonTitle},
-    library::{OnServer, ShownImages},
+    library::{Downloaded, OnServer, ShownImages},
 };
 
 pub(super) async fn get_person(
@@ -38,19 +38,11 @@ pub(super) async fn get_person(
     })
 }
 
-/// A Person a search found, as clients see them.
-pub(in crate::api) fn person_hit(page: PersonPage, images: &ShownImages) -> proto::PersonHit {
-    proto::PersonHit {
-        headshot_url: headshot_url(&page, images),
-        id: external_id_to_proto(&page.id).into(),
-        name: page.name,
-        ..Default::default()
-    }
-}
-
-fn headshot_url(page: &PersonPage, images: &ShownImages) -> Option<String> {
-    let (path, plugin) = page.headshot.as_ref()?;
-    stored_by(plugin, images)(path)
+/// Where clients fetch `page`'s headshot, if it has one.
+pub(in crate::api) fn headshot_url(page: &PersonPage, images: &ShownImages) -> Option<String> {
+    images
+        .downloaded(page.headshot.as_ref().map(Downloaded::stored))
+        .url
 }
 
 fn person_role(title: PersonTitle, images: &ShownImages) -> proto::PersonRole {

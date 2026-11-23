@@ -45,7 +45,7 @@ mod refusals;
 mod titles;
 
 use box_sets::box_set_to_proto;
-pub(super) use people::person_hit;
+pub(super) use people::headshot_url;
 use refusals::home_rows_refused;
 pub(super) use refusals::{Fields, not_found, refused};
 use titles::{episode_beside_to_proto, featured_to_proto, row_title_to_proto, started_to_proto};

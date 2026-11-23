@@ -20,7 +20,7 @@ use tokio::sync::mpsc::{self, UnboundedSender};
 use tracing::{Instrument as _, Span};
 
 use crate::{
-    browse::Browse,
+    browse::{Browse, PersonPage},
     library::{
         Candidate, Downloaded, Found, FoundEpisode, FoundMovie, FoundShow, ImageSources, OnServer,
         Role, ShownImages, TitleImage, TitleKind,
@@ -30,7 +30,7 @@ use crate::{
 };
 
 use super::{
-    browse::{Fields, person_hit, refused},
+    browse::{Fields, headshot_url, refused},
     caller, database_failed, external_id_to_proto, proto_number, refuse,
     requests::{searched_show_to_proto, searched_to_proto},
     title_kind_from_proto,
@@ -585,6 +585,16 @@ pub(super) fn show_hit(show: FoundShow, images: &ShownImages) -> proto::ShowHit 
         poster_url: poster.url,
         poster_thumbhash: poster.thumbhash,
         library_id: Some(show.library),
+        ..Default::default()
+    }
+}
+
+/// A Person a search found, as clients see them.
+fn person_hit(page: PersonPage, images: &ShownImages) -> proto::PersonHit {
+    proto::PersonHit {
+        headshot_url: headshot_url(&page, images),
+        id: external_id_to_proto(&page.id).into(),
+        name: page.name,
         ..Default::default()
     }
 }
