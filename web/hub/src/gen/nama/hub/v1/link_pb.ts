@@ -1218,7 +1218,7 @@ export type TrendingTitle = Message<"nama.hub.v1.TrendingTitle"> & {
   id?: ExternalId | undefined;
 
   /**
-   * How many finished it, from 0.0 to 1.0: the most watched is 1.0.
+   * How watched it is, from 0.0 to 1.0: its two weeks' counts summed, against the most watched's.
    *
    * @generated from field: float weight = 2;
    */

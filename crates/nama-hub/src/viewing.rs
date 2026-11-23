@@ -174,10 +174,11 @@ pub(crate) struct ListedViewingEvent {
 
 /// A Movie many Accounts finished lately.
 #[derive(Debug)]
-pub(crate) struct Trending {
+pub(crate) struct TrendingTitle {
     /// Such as `tmdb-603`.
     pub(crate) external_id: String,
-    /// How many Accounts finished it, from 0.0 to 1.0: the most watched is 1.0.
+    /// How watched it is, from 0.0 to 1.0: its two weeks' counts summed, against the most
+    /// watched's.
     pub(crate) weight: f32,
 }
 
@@ -334,10 +335,10 @@ impl Viewing {
     /// The Movies most Accounts finished this week and last, in UTC, at most [`MAX_TRENDING`],
     /// most watched first. A week's count is read only once [`MIN_POOLED_ACCOUNTS`] Accounts are
     /// in it.
-    pub(crate) async fn trending(&self) -> Result<Vec<Trending>, sqlx::Error> {
+    pub(crate) async fn trending(&self) -> Result<Vec<TrendingTitle>, sqlx::Error> {
         // Last week too, so the chart doesn't empty each Monday.
         sqlx::query_as!(
-            Trending,
+            TrendingTitle,
             r#"SELECT title AS external_id,
              (sum(accounts) / max(sum(accounts)) OVER ())::real AS "weight!"
              FROM weekly_counts

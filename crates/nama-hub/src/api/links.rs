@@ -35,7 +35,7 @@ use crate::{
     },
     sync::{MAX_CHANGED_AT_MS, MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, WatchStateChange, WatchStates},
     titles::{self, ExternalId, SimilarTitle, TitleKind},
-    viewing::{Trending, Viewing},
+    viewing::{TrendingTitle, Viewing},
 };
 
 /// `nama.hub.v1.ServerLinkService`: a Server not yet Linked, so anyone.
@@ -540,7 +540,7 @@ fn similar_to_proto(similar: SimilarTitle) -> proto::SimilarTitle {
 
 /// `trending` as a Server reads it, or `None` for an External ID not written `namespace-value`,
 /// which no Server sends.
-fn trending_to_proto(trending: &Trending) -> Option<proto::TrendingTitle> {
+fn trending_to_proto(trending: &TrendingTitle) -> Option<proto::TrendingTitle> {
     let (namespace, value) = trending.external_id.split_once('-')?;
     Some(proto::TrendingTitle {
         id: proto::ExternalId {

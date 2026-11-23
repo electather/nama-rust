@@ -7615,7 +7615,7 @@ pub struct TrendingTitle {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub id: ::buffa::MessageField<ExternalId, ::buffa::Inline<ExternalId>>,
-    /// How many finished it, from 0.0 to 1.0: the most watched is 1.0.
+    /// How watched it is, from 0.0 to 1.0: its two weeks' counts summed, against the most watched's.
     ///
     /// Field 2: `weight`
     #[serde(

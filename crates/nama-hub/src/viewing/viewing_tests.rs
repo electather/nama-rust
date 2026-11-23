@@ -228,13 +228,14 @@ async fn trending_ids(viewing: &Viewing) -> Vec<String> {
 #[sqlx::test(migrations = false)]
 async fn movies_twenty_accounts_finished_this_week_trend_most_watched_first(db: PgPool) {
     let (viewing, accounts) = pool_of(&db, 21).await;
+    let at = now();
     for (n, &account) in accounts.iter().enumerate() {
-        finish_at(&db, account, "a", "tmdb-78", now()).await;
+        finish_at(&db, account, "a", "tmdb-78", at).await;
         if n < 20 {
-            finish_at(&db, account, "b", "tmdb-603", now()).await;
+            finish_at(&db, account, "b", "tmdb-603", at).await;
         }
         if n < 19 {
-            finish_at(&db, account, "c", "tmdb-1", now()).await;
+            finish_at(&db, account, "c", "tmdb-1", at).await;
         }
     }
 
@@ -251,11 +252,12 @@ async fn movies_twenty_accounts_finished_this_week_trend_most_watched_first(db: 
 #[sqlx::test(migrations = false)]
 async fn a_movie_finished_again_the_same_week_counts_its_account_once(db: PgPool) {
     let (viewing, accounts) = pool_of(&db, 19).await;
+    let at = now();
     for &account in &accounts {
-        finish_at(&db, account, "a", "tmdb-603", now()).await;
+        finish_at(&db, account, "a", "tmdb-603", at).await;
     }
 
-    finish_at(&db, accounts[0], "b", "tmdb-603", now()).await;
+    finish_at(&db, accounts[0], "b", "tmdb-603", at).await;
 
     assert_eq!(trending_ids(&viewing).await, Vec::<String>::new());
 }
@@ -263,9 +265,10 @@ async fn a_movie_finished_again_the_same_week_counts_its_account_once(db: PgPool
 #[sqlx::test(migrations = false)]
 async fn last_weeks_count_still_trends_and_the_week_before_doesnt(db: PgPool) {
     let (viewing, accounts) = pool_of(&db, 20).await;
+    let at = now();
     for &account in &accounts {
-        finish_at(&db, account, "a", "tmdb-603", now() - WEEK).await;
-        finish_at(&db, account, "b", "tmdb-78", now() - 2 * WEEK).await;
+        finish_at(&db, account, "a", "tmdb-603", at - WEEK).await;
+        finish_at(&db, account, "b", "tmdb-78", at - 2 * WEEK).await;
     }
 
     assert_eq!(trending_ids(&viewing).await, ["tmdb-603"]);
@@ -275,12 +278,13 @@ async fn last_weeks_count_still_trends_and_the_week_before_doesnt(db: PgPool) {
 async fn an_account_with_pooling_off_adds_nothing_to_whats_trending(db: PgPool) {
     let (viewing, accounts) = pool_of(&db, 20).await;
     let (opted_out, first_nineteen) = accounts.split_last().unwrap();
+    let at = now();
     for &account in first_nineteen {
-        finish_at(&db, account, "a", "tmdb-603", now()).await;
+        finish_at(&db, account, "a", "tmdb-603", at).await;
     }
 
     viewing.set_pooling(*opted_out, false).await.unwrap();
-    finish_at(&db, *opted_out, "a", "tmdb-603", now()).await;
+    finish_at(&db, *opted_out, "a", "tmdb-603", at).await;
 
     assert_eq!(trending_ids(&viewing).await, Vec::<String>::new());
 }

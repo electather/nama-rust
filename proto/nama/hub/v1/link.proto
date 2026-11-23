@@ -470,6 +470,6 @@ message ListTrendingTitlesResponse {
 message TrendingTitle {
   // Its id as Servers keep its Watch State, such as `tmdb` `603`.
   ExternalId id = 1;
-  // How many finished it, from 0.0 to 1.0: the most watched is 1.0.
+  // How watched it is, from 0.0 to 1.0: its two weeks' counts summed, against the most watched's.
   float weight = 2;
 }

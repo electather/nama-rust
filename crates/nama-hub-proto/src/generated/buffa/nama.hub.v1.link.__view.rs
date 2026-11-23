@@ -14607,7 +14607,7 @@ pub struct TrendingTitleView<'a> {
     ///
     /// Field 1: `id`
     pub id: ::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'a>>,
-    /// How many finished it, from 0.0 to 1.0: the most watched is 1.0.
+    /// How watched it is, from 0.0 to 1.0: its two weeks' counts summed, against the most watched's.
     ///
     /// Field 2: `weight`
     pub weight: f32,
@@ -14880,7 +14880,7 @@ impl TrendingTitleOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
         &self.0.reborrow().id
     }
-    /// How many finished it, from 0.0 to 1.0: the most watched is 1.0.
+    /// How watched it is, from 0.0 to 1.0: its two weeks' counts summed, against the most watched's.
     ///
     /// Field 2: `weight`
     #[must_use]
