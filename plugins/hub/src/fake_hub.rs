@@ -86,6 +86,8 @@ struct State {
     user_accounts: HashMap<i64, String>,
     /// How often a User's Link was asked about.
     user_link_asks: usize,
+    /// Why asking about a User's Link fails, as if the Hub were down, while it does.
+    user_link_failure: Option<&'static str>,
     /// Each Viewing Event recorded, in order.
     viewing_events: Vec<UserViewingEvent>,
     /// What recording Viewing Events fails with, if it does.
@@ -207,6 +209,11 @@ impl FakeHub {
     /// How often the Server asked about a User's Link.
     pub(super) fn user_link_asks(&self) -> usize {
         lock(&self.state).user_link_asks
+    }
+
+    /// Has asking about a User's Link fail, though counted, as if the Hub were down.
+    pub(super) fn fail_user_links(&self) {
+        lock(&self.state).user_link_failure = Some("the Hub is down");
     }
 
     /// Each push's changes, in the order they came.
@@ -415,6 +422,9 @@ impl LinkedServerService for Linked {
     ) -> ServiceResult<GetUserLinkResponse> {
         let mut state = self.caller(&ctx)?;
         state.user_link_asks += 1;
+        if let Some(failure) = state.user_link_failure {
+            return Err(ConnectError::unavailable(failure));
+        }
         Response::ok(GetUserLinkResponse {
             account: state
                 .user_accounts
