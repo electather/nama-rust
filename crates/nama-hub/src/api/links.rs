@@ -13,17 +13,17 @@ use nama_hub_proto::nama::hub::v1::{
     GetServerSignInResponse, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest,
     InviteUserResponse, LinkService, LinkedServerService, ListLinkedServersRequest,
     ListLinkedServersResponse, ListLinkedUsersRequest, ListLinkedUsersResponse,
-    ListSimilarTitlesRequest, ListSimilarTitlesResponse, ListTrendingTitlesRequest,
-    ListTrendingTitlesResponse, ListUserInvitesRequest, ListUserInvitesResponse,
-    PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
-    PollServerSignInResponse, PullWatchStatesRequest, PullWatchStatesResponse,
-    PushWatchStatesRequest, PushWatchStatesResponse, RecordViewingEventsRequest,
-    RecordViewingEventsResponse, RefusalReason, ServerLinkService, SetServerAddressesRequest,
-    SetServerAddressesResponse, StartServerLinkRequest, StartServerLinkResponse,
-    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
-    StartUserLinkResponse, SyncWatchlistRequest, SyncWatchlistResponse, UnlinkLinkedUserRequest,
-    UnlinkLinkedUserResponse, UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest,
-    UnlinkUserResponse,
+    ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse, ListSimilarTitlesRequest,
+    ListSimilarTitlesResponse, ListTrendingTitlesRequest, ListTrendingTitlesResponse,
+    ListUserInvitesRequest, ListUserInvitesResponse, PollServerLinkRequest, PollServerLinkResponse,
+    PollServerSignInRequest, PollServerSignInResponse, PullWatchStatesRequest,
+    PullWatchStatesResponse, PushWatchStatesRequest, PushWatchStatesResponse,
+    RecordViewingEventsRequest, RecordViewingEventsResponse, RefusalReason, ServerLinkService,
+    SetServerAddressesRequest, SetServerAddressesResponse, StartServerLinkRequest,
+    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
+    StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest, SyncWatchlistResponse,
+    UnlinkLinkedUserRequest, UnlinkLinkedUserResponse, UnlinkServerRequest, UnlinkServerResponse,
+    UnlinkUserRequest, UnlinkUserResponse,
 };
 use sqlx::PgPool;
 
@@ -511,6 +511,23 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .map_err(|err| hub_failed(&err))?;
         Response::ok(ListTrendingTitlesResponse {
             titles: trending.iter().filter_map(trending_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn list_most_watchlisted_titles(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListMostWatchlistedTitlesRequest>,
+    ) -> ServiceResult<ListMostWatchlistedTitlesResponse> {
+        linked_server(&ctx)?;
+        let watchlisted = (self.watchlists.most_watchlisted())
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(ListMostWatchlistedTitlesResponse {
+            titles: (watchlisted.iter())
+                .filter_map(watchlists::watchlisted_to_proto)
+                .collect(),
             ..Default::default()
         })
     }

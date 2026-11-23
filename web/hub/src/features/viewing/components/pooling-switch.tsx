@@ -3,8 +3,8 @@ import { Switch } from "nama-ui/components/switch";
 import { useId } from "react";
 
 /**
- * Whether the signed-in Account's finished Movies count in the counts every Account pools, what
- * that means, and that turning it off can't take back what was counted (ADR 0093).
+ * Whether the signed-in Account's finished Movies and Watchlists count in the counts every Account
+ * pools, what that means, and that turning it off can't take back the Movies counted (ADR 0093).
  */
 export function PoolingSwitch() {
   const pooling = usePooling();
@@ -28,8 +28,9 @@ export function PoolingSwitch() {
       <p id={`${id}-notice`} className="text-xs text-pretty text-muted-foreground">
         Each Movie your Linked Users finish adds one to how many Accounts finished it, and each pair
         of Movies, which recommendations learn from. The counts hold nothing that leads back to you,
-        and none is used until 20 Accounts are in it. Turning this off stops new counts, but what’s
-        already counted can’t be taken out.
+        and none is used until 20 Accounts are in it. The titles on your Linked Users’ Watchlists
+        count toward Nama’s most watchlisted the same way, only while this is on. Turning this off
+        stops new counts, but what’s already counted can’t be taken out.
       </p>
       <p role="alert" className="text-sm text-destructive empty:hidden">
         {pooling.failed

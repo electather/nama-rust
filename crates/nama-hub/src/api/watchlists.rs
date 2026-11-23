@@ -1,11 +1,13 @@
 //! The Watchlist's wire form: `LinkedServerService.SyncWatchlist`'s entries to and from the
-//! Hub's, and the refusal of one that breaks a limit.
+//! Hub's, the refusal of one that breaks a limit, and `ListMostWatchlistedTitles`' titles.
 
 use connectrpc::ConnectError;
 use nama_hub_proto::nama::hub::v1::{self as proto, RefusalReason};
 
 use super::refuse;
-use crate::sync::{MAX_CHANGED_AT_MS, MAX_ID_LENGTH, MAX_WATCHLIST_ENTRIES, WatchlistEntry};
+use crate::sync::{
+    MAX_CHANGED_AT_MS, MAX_ID_LENGTH, MAX_WATCHLIST_ENTRIES, WatchlistEntry, WatchlistedTitle,
+};
 
 /// `entries` as `sync` takes them, or the refusal of the first limit they break.
 pub(super) fn watchlist_from_proto(
@@ -60,13 +62,8 @@ fn watchlist_entry_from_proto(
 
 /// `entry`, as a Linked Server takes it.
 pub(super) fn watchlist_entry_to_proto(entry: WatchlistEntry) -> proto::WatchlistEntry {
-    let kind = if entry.show {
-        proto::TitleKind::TITLE_KIND_SHOW
-    } else {
-        proto::TitleKind::TITLE_KIND_MOVIE
-    };
     proto::WatchlistEntry {
-        kind: kind.into(),
+        kind: kind_to_proto(entry.show).into(),
         id: entry.id,
         removed: entry.removed,
         changed_at_ms: entry.changed_at_ms,
@@ -82,3 +79,35 @@ fn invalid_watchlist(field: &str, message: impl Into<String>) -> ConnectError {
         .param("maxIdLength", &MAX_ID_LENGTH)
         .into()
 }
+
+/// `watchlisted` as a Server reads it, or `None` for an External ID not written
+/// `namespace-value`, which no Server sends.
+pub(super) fn watchlisted_to_proto(
+    watchlisted: &WatchlistedTitle,
+) -> Option<proto::WatchlistedTitle> {
+    let (namespace, value) = watchlisted.external_id.split_once('-')?;
+    Some(proto::WatchlistedTitle {
+        kind: kind_to_proto(watchlisted.show).into(),
+        id: proto::ExternalId {
+            namespace: namespace.to_owned(),
+            value: value.to_owned(),
+            ..Default::default()
+        }
+        .into(),
+        weight: watchlisted.weight,
+        ..Default::default()
+    })
+}
+
+/// A Show's kind when `show`, else a Movie's.
+const fn kind_to_proto(show: bool) -> proto::TitleKind {
+    if show {
+        proto::TitleKind::TITLE_KIND_SHOW
+    } else {
+        proto::TitleKind::TITLE_KIND_MOVIE
+    }
+}
+
+#[cfg(test)]
+#[path = "watchlists_tests.rs"]
+mod tests;
