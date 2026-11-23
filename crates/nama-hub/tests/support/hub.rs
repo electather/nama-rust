@@ -32,6 +32,9 @@ MC4CAQAwBQYDK2VwBCIEIJzJDsQn3SpQXPoFGl74lUI4L+huggYWuNcSt9vaCwTS
 /// The zone the Hub names Servers in.
 pub(crate) const ZONE: &str = "namadirect.test";
 
+/// The address the test Hub's passkeys are for, which a browser's answers name as their origin.
+pub(crate) const PUBLIC_URL: &str = "https://hub.example";
+
 /// A Hub serving until it is dropped.
 #[derive(Debug)]
 pub(crate) struct TestHub {
@@ -83,9 +86,9 @@ impl Backend for SharedBatches {
     reason = "a test helper fails its test by panicking"
 )]
 impl TestHub {
-    /// Migrates `db`, as the Hub does at startup, and serves the Hub on it, sending mail through
-    /// `mail`, if any, and trusting this machine as its reverse proxy, so a test can say in
-    /// `X-Forwarded-For` which client a request is from.
+    /// Migrates `db`, as the Hub does at startup, and serves the Hub on it at the public address
+    /// [`PUBLIC_URL`], sending mail through `mail`, if any, and trusting this machine as its
+    /// reverse proxy, so a test can say in `X-Forwarded-For` which client a request is from.
     pub(crate) async fn start(db: PgPool, mail: Option<Mail>) -> Self {
         db::migrate(&db).await.unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -99,6 +102,7 @@ impl TestHub {
             zone: ZONE.to_owned(),
             records: Arc::<FakeZone>::clone(&zone),
         };
+        let public_url = PUBLIC_URL.parse().unwrap();
         tokio::spawn(nama_hub::serve(
             listener,
             db.clone(),
@@ -107,6 +111,7 @@ impl TestHub {
             mail,
             Some(names),
             Some(backend),
+            Some(&public_url),
             async {
                 let _: Result<(), oneshot::error::RecvError> = stopped.await;
             },

@@ -2,8 +2,9 @@
 //! client IP or for one email, as the Server's `users/rate_limits.rs` does for User names, and
 //! mail floods, by refusing Sign-in Links asked for too often the same way; and bounding the argon2
 //! work, throwaway Accounts and probing for taken emails one client can cause, by refusing Account
-//! creations after too many recent ones from its IP. A client IP is counted by its /64 if it is
-//! IPv6.
+//! creations after too many recent ones from its IP; and keeping one client from filling the
+//! Hub's waiting passkey challenges, by refusing it more after too many recent ones. A client IP is
+//! counted by its /64 if it is IPv6.
 //!
 //! ponytail: counts live in this process's memory (ADR 0096); they move to PostgreSQL once the Hub
 //! runs as replicas. They expire as the window slides past them and a restart forgets them, so
@@ -38,6 +39,10 @@ const LINKS_PER_IP: usize = 20;
 /// hold before its creations are refused.
 const CREATIONS_PER_IP: usize = 10;
 
+/// How many passkey challenges one client IP may be handed in the window, so it would take
+/// hundreds of clients to fill the Hub's waiting ones (`webauthn.rs`).
+const CHALLENGES_PER_IP: usize = 30;
+
 /// The recent failed sign-ins, by client IP and by email.
 #[derive(Debug, Default)]
 pub(super) struct SignInLimits {
@@ -71,6 +76,12 @@ pub(super) struct Attempt {
 #[derive(Debug, Default)]
 pub(super) struct CreationLimits {
     creations: Mutex<Window<IpAddr>>,
+}
+
+/// The recent passkey challenges handed out, by client IP.
+#[derive(Debug, Default)]
+pub(super) struct ChallengeLimits {
+    challenges: Mutex<Window<IpAddr>>,
 }
 
 /// Who asks, and when: what the rate limits count a request under.
@@ -138,14 +149,28 @@ impl CreationLimits {
     /// Lets an Account creation by `caller` through unless too many have been let through
     /// recently, and counts it.
     pub(super) fn admit(&self, caller: Caller) -> Result<(), Blocked> {
-        let ip = counted_ip(caller.ip);
-        let mut creations = lock(&self.creations);
-        if let Some(retry_after) = creations.wait(&ip, CREATIONS_PER_IP, caller.now) {
-            return Err(Blocked { retry_after });
-        }
-        creations.record(ip, caller.now);
-        Ok(())
+        admit_ip(&self.creations, caller, CREATIONS_PER_IP)
     }
+}
+
+impl ChallengeLimits {
+    /// Lets `caller` be handed a passkey challenge unless too many have been recently, and counts
+    /// it.
+    pub(super) fn admit(&self, caller: Caller) -> Result<(), Blocked> {
+        admit_ip(&self.challenges, caller, CHALLENGES_PER_IP)
+    }
+}
+
+/// Lets a request by `caller` through, and counts it in `window`, unless `limit` were let through
+/// recently.
+fn admit_ip(window: &Mutex<Window<IpAddr>>, caller: Caller, limit: usize) -> Result<(), Blocked> {
+    let ip = counted_ip(caller.ip);
+    let mut window = lock(window);
+    if let Some(retry_after) = window.wait(&ip, limit, caller.now) {
+        return Err(Blocked { retry_after });
+    }
+    window.record(ip, caller.now);
+    Ok(())
 }
 
 fn lock<T>(counts: &Mutex<T>) -> MutexGuard<'_, T> {

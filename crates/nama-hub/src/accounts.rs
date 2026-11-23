@@ -1,11 +1,13 @@
-//! Accounts: creating one with an email and a password, signing it in, with its password or a
-//! Sign-in Link, and out, each sign-in a web session (ADR 0098), setting its password, and
-//! deleting it.
+//! Accounts: creating one with an email and a password, signing it in, with its password, a
+//! passkey or a Sign-in Link, and out, each sign-in a web session (ADR 0098), setting its password,
+//! its passkeys, and deleting it.
 
+mod passkeys;
 mod passwords;
 mod rate_limits;
 mod sessions;
 mod sign_in_links;
+mod webauthn;
 
 use std::{
     fmt::{self, Write as _},
@@ -14,15 +16,18 @@ use std::{
 
 use sha2::{Digest as _, Sha256};
 use sqlx::PgPool;
+use url::Url;
 use uuid::Uuid;
 
 use crate::mail::Mail;
+pub(crate) use passkeys::{Assertion, NewPasskey, PASSKEY_NAME_LENGTH, Passkey};
 pub(crate) use passwords::PASSWORD_LENGTH;
 pub(crate) use rate_limits::{Blocked, Caller};
-use rate_limits::{CreationLimits, SignInLimits};
+use rate_limits::{ChallengeLimits, CreationLimits, SignInLimits};
 pub(crate) use sessions::{RECENT_AUTHENTICATION_MINS, RecentAuthenticationRequired, SESSION_DAYS};
 use sign_in_links::Outbox;
 pub(crate) use sign_in_links::{SignInLink, SignedInByLink};
+use webauthn::RelyingParty;
 
 /// The most characters an email may have: the longest a mailbox can be (RFC 5321).
 pub(crate) const EMAIL_LENGTH: usize = 254;
@@ -75,7 +80,7 @@ pub(crate) struct SignedIn {
     pub(crate) token: String,
 }
 
-/// Why an Account couldn't be created or signed in.
+/// Why an Account couldn't be created, signed in or changed.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
     #[error("another Account has this email")]
@@ -100,6 +105,22 @@ pub(crate) enum Error {
     MailQueueFull,
     #[error(transparent)]
     Blocked(#[from] Blocked),
+    #[error("the Hub has no public address set, so it can't use passkeys")]
+    PasskeysOff,
+    #[error("no Account has this passkey, or its answer doesn't check out")]
+    PasskeyNotAccepted,
+    #[error(
+        "a passkey's name needs {} to {} characters",
+        PASSKEY_NAME_LENGTH.start(),
+        PASSKEY_NAME_LENGTH.end()
+    )]
+    PasskeyNameLength,
+    #[error("the Account has no passkey with this id")]
+    PasskeyNotFound,
+    #[error("the Account would have no way left to sign in")]
+    LastSignInMethod,
+    #[error("too many passkey sign-ins are under way; try again shortly")]
+    ChallengesBusy,
     #[error("could not hash or check a password: {0}")]
     Password(#[from] passwords::PasswordError),
     #[error("could not generate a session token: {0}")]
@@ -108,8 +129,8 @@ pub(crate) enum Error {
     Database(#[from] sqlx::Error),
 }
 
-/// The Accounts kept in the database, the recent failed sign-ins and creations, and the Sign-in
-/// Links being sent.
+/// The Accounts kept in the database, the recent failed sign-ins and creations, the Sign-in Links
+/// being sent, and the passkey challenges handed out and waiting for an answer.
 #[derive(Clone)]
 pub(crate) struct Accounts {
     db: PgPool,
@@ -117,17 +138,22 @@ pub(crate) struct Accounts {
     creations: Arc<CreationLimits>,
     /// Only with mail set up.
     outbox: Option<Outbox>,
+    /// The Hub at its public address, without which it can't use passkeys.
+    relying_party: Option<Arc<RelyingParty>>,
+    challenges: Arc<ChallengeLimits>,
 }
 
 impl Accounts {
-    /// Accounts in `db`, sending Sign-in Links through `mail` if it is set up. Must run inside a
-    /// Tokio runtime.
-    pub(crate) fn new(db: PgPool, mail: Option<Mail>) -> Self {
+    /// Accounts in `db`, sending Sign-in Links through `mail` if it is set up, whose passkeys are
+    /// for the Hub at `public_url`, if it has one. Must run inside a Tokio runtime.
+    pub(crate) fn new(db: PgPool, mail: Option<Mail>, public_url: Option<&Url>) -> Self {
         Self {
             outbox: mail.map(|mail| Outbox::start(db.clone(), mail)),
             db,
             sign_ins: Arc::default(),
             creations: Arc::default(),
+            relying_party: public_url.and_then(RelyingParty::new).map(Arc::new),
+            challenges: Arc::default(),
         }
     }
 

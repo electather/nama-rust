@@ -20,7 +20,7 @@ impl Hub {
     async fn on(db: &PgPool) -> Self {
         db::migrate(db).await.unwrap();
         Self {
-            accounts: Accounts::new(db.clone(), None),
+            accounts: Accounts::new(db.clone(), None, None),
             watch_states: WatchStates::new(db.clone()),
             watchlists: Watchlists::new(db.clone(), Viewing::new(db.clone())),
         }
@@ -279,7 +279,7 @@ async fn accounts_on(db: &PgPool, count: usize) -> (Watchlists, Viewing, Vec<Acc
             ip: "203.0.113.1".parse().unwrap(),
             now: Instant::now(),
         };
-        let account = Accounts::new(db.clone(), None)
+        let account = Accounts::new(db.clone(), None, None)
             .create(
                 &format!("watcher{n}@example.com"),
                 "correct horse battery",

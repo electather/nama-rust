@@ -1,15 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { buttonVariants } from "nama-ui/components/button";
 
-/** "Or", then asking for a Sign-in Link, for whoever has no password or forgot it. */
-export function OrEmailASignInLink({ continueTo }: { continueTo: string }) {
+/** Asking for a Sign-in Link, for whoever has no password or forgot it. */
+export function EmailASignInLink({ continueTo }: { continueTo: string }) {
   return (
     <>
-      <p className="flex items-center gap-3.5 text-sm text-muted-foreground">
-        <span aria-hidden className="h-px flex-1 bg-border" />
-        Or
-        <span aria-hidden className="h-px flex-1 bg-border" />
-      </p>
       <Link
         to="/send-sign-in-link"
         search={{ continue: continueTo }}

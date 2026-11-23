@@ -49,6 +49,19 @@ pub mod __buffa {
         reg.register_json_any(super::__SIGN_OUT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_ACCOUNT_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_ACCOUNT_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PASSKEY_JSON_ANY);
+        reg.register_json_any(super::__START_PASSKEY_SIGN_IN_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__START_PASSKEY_SIGN_IN_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SIGN_IN_WITH_PASSKEY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SIGN_IN_WITH_PASSKEY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__START_ADDING_PASSKEY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__START_ADDING_PASSKEY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__ADD_PASSKEY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__ADD_PASSKEY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_PASSKEYS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_PASSKEYS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__REMOVE_PASSKEY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__REMOVE_PASSKEY_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_HUB_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_HUB_INFO_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__VIEWING_EVENT_JSON_ANY);
@@ -209,6 +222,58 @@ pub use self::__buffa::view::GetAccountRequestOwnedView;
 pub use self::__buffa::view::GetAccountResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::GetAccountResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PasskeyView;
+#[doc(inline)]
+pub use self::__buffa::view::PasskeyOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartPasskeySignInRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StartPasskeySignInRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartPasskeySignInResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StartPasskeySignInResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithPasskeyRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithPasskeyRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithPasskeyResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithPasskeyResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartAddingPasskeyRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StartAddingPasskeyRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartAddingPasskeyResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StartAddingPasskeyResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::AddPasskeyRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::AddPasskeyRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::AddPasskeyResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::AddPasskeyResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPasskeysRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPasskeysRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPasskeysResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListPasskeysResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RemovePasskeyRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::RemovePasskeyRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RemovePasskeyResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::RemovePasskeyResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetHubInfoRequestView;
 #[doc(inline)]

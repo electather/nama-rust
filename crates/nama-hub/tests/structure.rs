@@ -33,7 +33,12 @@ const CEILINGS: &[(&str, usize)] = &[];
 const OWNED_TABLES: &[(&str, &[&str])] = &[
     (
         "src/accounts",
-        &["accounts", "account_sessions", "sign_in_links"],
+        &[
+            "accounts",
+            "account_sessions",
+            "account_passkeys",
+            "sign_in_links",
+        ],
     ),
     (
         "src/links",

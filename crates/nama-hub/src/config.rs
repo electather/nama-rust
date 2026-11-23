@@ -8,8 +8,8 @@ use std::{
 
 use figment::{Figment, providers::Env};
 use nama_forwarded::IpRange;
-use reqwest::Url;
 use serde::Deserialize;
+use url::Url;
 
 /// Prefix of the environment variables the config is read from, e.g. `NAMA_HUB_LISTEN`.
 const ENV_PREFIX: &str = "NAMA_HUB_";
@@ -42,8 +42,10 @@ pub struct Config {
     /// with Resend. Required with `resend_api_key`.
     pub mail_from: Option<String>,
     /// The Hub's address as people reach it, such as `https://hub.example.com`, which links in
-    /// its mail lead to. Required with `resend_api_key` or `log_mail`.
-    pub public_url: Option<String>,
+    /// its mail lead to, and whose host its passkeys are for. Required with `resend_api_key` or
+    /// `log_mail`;
+    /// without it, the Hub offers no passkeys.
+    pub public_url: Option<Url>,
     /// The Cloudflare API token the Hub writes Linked Servers' names with, which may edit the DNS
     /// of `cloudflare_zone_id` (ADR 0104). Without one it names no Server.
     pub cloudflare_api_token: Option<String>,
@@ -148,11 +150,11 @@ impl Config {
 }
 
 /// Whether `url`'s host is `localhost` or a loopback IP address.
-fn is_on_loopback(url: &str) -> bool {
-    match Url::parse(url).as_ref().map(Url::host_str) {
-        Ok(Some("localhost")) => true,
+fn is_on_loopback(url: &Url) -> bool {
+    match url.host_str() {
+        Some("localhost") => true,
         // An IPv6 host comes bracketed, as in `http://[::1]`.
-        Ok(Some(host)) => host
+        Some(host) => host
             .trim_start_matches('[')
             .trim_end_matches(']')
             .parse::<IpAddr>()

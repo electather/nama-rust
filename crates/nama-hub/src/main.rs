@@ -82,6 +82,10 @@ async fn main() -> ExitCode {
 }
 
 /// Runs the Hub until it is told to stop.
+#[expect(
+    clippy::too_many_lines,
+    reason = "each startup step logs its own failure and returns, so it reads straight down"
+)]
 async fn run() -> ExitCode {
     // Listen before announcing startup, so a Ctrl-C right after the log line isn't missed.
     let shutdown = match shutdown_signal() {
@@ -156,6 +160,7 @@ async fn run() -> ExitCode {
         mail,
         names,
         diagnostics,
+        config.public_url.as_ref(),
         shutdown,
     )
     .await;
@@ -182,7 +187,7 @@ fn mail(config: &Config) -> Result<Option<Mail>, MailError> {
     };
     Ok(Some(Mail {
         mailer,
-        public_url: public_url.clone(),
+        public_url: public_url.to_string(),
     }))
 }
 

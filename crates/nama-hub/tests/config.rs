@@ -6,6 +6,7 @@
 
 use figment::Jail;
 use nama_hub::config::Config;
+use url::Url;
 
 #[test]
 fn the_environment_names_the_database_and_listen_defaults_to_port_7981() {
@@ -102,10 +103,23 @@ fn a_resend_key_without_the_public_url_or_sender_refuses_to_load_naming_it() {
         jail.set_env("NAMA_HUB_PUBLIC_URL", "https://hub.example.com");
         let config = Config::load().unwrap();
         assert_eq!(
-            config.public_url.as_deref(),
-            Some("https://hub.example.com")
+            config.public_url.as_ref().map(Url::as_str),
+            Some("https://hub.example.com/")
         );
         assert!(!format!("{config:?}").contains("re_secret"));
+        Ok(())
+    });
+}
+
+#[test]
+fn a_public_url_that_isnt_a_url_refuses_to_load() {
+    Jail::expect_with(|jail| {
+        jail.set_env("NAMA_HUB_DATABASE_URL", "postgres://hub@db/hub");
+        jail.set_env("NAMA_HUB_PUBLIC_URL", "hub.example.com");
+
+        let err = Config::load().unwrap_err();
+
+        assert!(err.to_string().contains("PUBLIC_URL"), "{err}");
         Ok(())
     });
 }
@@ -192,7 +206,7 @@ fn log_mail_with_a_public_url_off_this_machine_refuses_to_load_naming_it() {
         ] {
             jail.set_env("NAMA_HUB_PUBLIC_URL", url);
             let err = Config::load().unwrap_err();
-            assert!(err.to_string().contains("NAMA_HUB_PUBLIC_URL"), "{err}");
+            assert!(err.to_string().contains("PUBLIC_URL"), "{err}");
         }
         Ok(())
     });
