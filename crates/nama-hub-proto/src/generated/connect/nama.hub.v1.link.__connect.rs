@@ -138,6 +138,14 @@ pub type OwnedPushWatchStatesRequestView = ::buffa::view::OwnedView<
 pub type OwnedPushWatchStatesResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::PushWatchStatesResponseView<'static>,
 >;
+///Shorthand for `OwnedView<PullWatchStatesRequestView<'static>>`.
+pub type OwnedPullWatchStatesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PullWatchStatesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<PullWatchStatesResponseView<'static>>`.
+pub type OwnedPullWatchStatesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PullWatchStatesResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<InviteUserRequestView<'static>>`.
 pub type OwnedInviteUserRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::InviteUserRequestView<'static>,
@@ -742,6 +750,40 @@ for crate::messages::nama::hub::v1::__buffa::view::PushWatchStatesResponseView<'
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::PushWatchStatesResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::PushWatchStatesResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::PullWatchStatesResponse>
+for crate::messages::nama::hub::v1::__buffa::view::PullWatchStatesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::PullWatchStatesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PullWatchStatesResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -3005,6 +3047,12 @@ pub const LINKED_SERVER_SERVICE_PUSH_WATCH_STATES_SPEC: ::connectrpc::Spec = ::c
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `PullWatchStates` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_PULL_WATCH_STATES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/PullWatchStates",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
 /// Static [`Spec`](::connectrpc::Spec) for the `InviteUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const LINKED_SERVER_SERVICE_INVITE_USER_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.hub.v1.LinkedServerService/InviteUser",
@@ -3233,6 +3281,30 @@ pub trait LinkedServerService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::hub::v1::PushWatchStatesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// The Watch State of the Account one of the Server's Users is Linked to, as Servers pushed it:
+    /// per title and External ID, the change made last. Empty for a User who isn't Linked.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn pull_watch_states<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::PullWatchStatesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::PullWatchStatesResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -3571,6 +3643,35 @@ impl<S: LinkedServerService> LinkedServerServiceExt for S {
                 },
             )
             .with_spec(LINKED_SERVER_SERVICE_PUSH_WATCH_STATES_SPEC)
+            .route_view_idempotent(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "PullWatchStates",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::PullWatchStatesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::PullWatchStatesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.pull_watch_states(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::PullWatchStatesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_PULL_WATCH_STATES_SPEC)
             .route_view(
                 LINKED_SERVER_SERVICE_SERVICE_NAME,
                 "InviteUser",
@@ -3808,6 +3909,12 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .with_spec(LINKED_SERVER_SERVICE_PUSH_WATCH_STATES_SPEC),
                 )
             }
+            "PullWatchStates" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(LINKED_SERVER_SERVICE_PULL_WATCH_STATES_SPEC),
+                )
+            }
             "InviteUser" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -3982,6 +4089,28 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .await?
                         .encode::<
                             crate::messages::nama::hub::v1::PushWatchStatesResponse,
+                        >(format)
+                })
+            }
+            "PullWatchStates" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::PullWatchStatesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::PullWatchStatesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::PullWatchStatesRequest,
+                    >::from_parts(&req, &body);
+                    svc.pull_watch_states(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::PullWatchStatesResponse,
                         >(format)
                 })
             }
@@ -4487,6 +4616,51 @@ where
                 &self.transport,
                 &self.config,
                 LINKED_SERVER_SERVICE_PUSH_WATCH_STATES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the PullWatchStates RPC. Sends a request to /nama.hub.v1.LinkedServerService/PullWatchStates.
+    pub async fn pull_watch_states(
+        &self,
+        request: crate::messages::nama::hub::v1::PullWatchStatesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::PullWatchStatesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.pull_watch_states_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the PullWatchStates RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn pull_watch_states_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::PullWatchStatesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::PullWatchStatesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_PULL_WATCH_STATES_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

@@ -91,6 +91,8 @@ pub mod __buffa {
         reg.register_json_any(super::__UNLINK_USER_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PUSH_WATCH_STATES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__PUSH_WATCH_STATES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PULL_WATCH_STATES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__PULL_WATCH_STATES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__WATCH_STATE_CHANGE_JSON_ANY);
         reg.register_json_any(super::__USER_INVITE_JSON_ANY);
         reg.register_json_any(super::__LIST_USER_INVITES_REQUEST_JSON_ANY);
@@ -356,6 +358,14 @@ pub use self::__buffa::view::PushWatchStatesRequestOwnedView;
 pub use self::__buffa::view::PushWatchStatesResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::PushWatchStatesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PullWatchStatesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PullWatchStatesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PullWatchStatesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PullWatchStatesResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::WatchStateChangeView;
 #[doc(inline)]

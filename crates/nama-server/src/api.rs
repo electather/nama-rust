@@ -56,6 +56,8 @@ mod users;
 mod watch_states;
 mod watchlist;
 
+pub(crate) use server_link::pull_watch_states_after_scans;
+
 use access::require_access;
 pub(crate) use browser_spans::BrowserSpans;
 
@@ -135,6 +137,7 @@ pub(crate) fn router(
         .add_service(Arc::new(sign_in::SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
             points: plugins.clone(),
+            browse: Browse::new(Arc::clone(&db)),
             server_url: settings.server_url(),
             listening,
         }))
@@ -212,6 +215,7 @@ pub(crate) fn router(
             connections,
             plugin_settings,
             plugin_logos: plugin_logos.clone(),
+            browse: Browse::new(Arc::clone(&db)),
             db,
             server_url,
             home_rows,

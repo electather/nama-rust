@@ -30,6 +30,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
+    browse::Browse,
     connections::{self, Connections},
     db::Database,
     home_rows::HomeRows,
@@ -74,6 +75,8 @@ pub(super) struct UserServiceHandler {
     pub(super) settings: Settings,
     /// Asked to Link the caller to an Account, and to Unlink a deleted User.
     pub(super) points: ExtensionPoints,
+    /// Takes the Watch State a User pulls once Linked.
+    pub(super) browse: Browse,
 }
 
 #[expect(
@@ -547,7 +550,7 @@ impl UserService for UserServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, GetUserLinkRequest>,
     ) -> ServiceResult<GetUserLinkResponse> {
-        server_link::get_user(&self.points, &caller(&ctx)?.user).await
+        server_link::get_user(&self.points, &self.browse, &caller(&ctx)?.user).await
     }
 
     async fn start_user_link(
@@ -555,7 +558,7 @@ impl UserService for UserServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, StartUserLinkRequest>,
     ) -> ServiceResult<StartUserLinkResponse> {
-        server_link::start_user(&self.points, &caller(&ctx)?.user).await
+        server_link::start_user(&self.points, &self.browse, &caller(&ctx)?.user).await
     }
 
     async fn unlink_user(

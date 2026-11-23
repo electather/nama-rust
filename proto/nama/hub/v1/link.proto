@@ -100,6 +100,11 @@ service LinkedServerService {
   rpc PushWatchStates(PushWatchStatesRequest) returns (PushWatchStatesResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // The Watch State of the Account one of the Server's Users is Linked to, as Servers pushed it:
+  // per title and External ID, the change made last. Empty for a User who isn't Linked.
+  rpc PullWatchStates(PullWatchStatesRequest) returns (PullWatchStatesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
   // Asks the Account with `email`, if there is one, to accept one of the Server's Users created
   // from it (ADR 0092). It answers the same whether or not there is, so it reveals nothing about
   // which emails have Accounts. Asking again for the same User replaces the request.
@@ -306,6 +311,17 @@ message PushWatchStatesRequest {
 }
 
 message PushWatchStatesResponse {}
+
+message PullWatchStatesRequest {
+  // The User's id on the Server.
+  int64 user_id = 1;
+}
+
+message PullWatchStatesResponse {
+  // One per title and External ID, each with that one id, in no order. `user_id` is the asked
+  // User's.
+  repeated WatchStateChange watch_states = 1;
+}
 
 // One User's Watch State of a Movie or Episode, as a change on their Server left it.
 message WatchStateChange {

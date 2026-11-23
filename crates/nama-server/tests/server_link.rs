@@ -26,6 +26,7 @@ use connectrpc::{
 use log::Log;
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    points::WatchStateChange,
     server_link::{AccountSignIn, Link, Reachability, ServerAddresses, ServerLinker},
 };
 use nama_proto::nama::v1::{
@@ -194,6 +195,14 @@ impl ServerLinker for Scripted {
     fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
         self.script().addresses = Some(addresses);
         Box::pin(future::ready(Ok(())))
+    }
+
+    /// Pulling is `tests/watch_state_sync.rs`'s.
+    fn watch_states(
+        &self,
+        _user_id: i64,
+    ) -> BoxFuture<'_, Result<Vec<WatchStateChange>, PluginError>> {
+        Box::pin(future::ready(Ok(Vec::new())))
     }
 }
 

@@ -1,7 +1,7 @@
-//! Syncing Linked Users' Watch State to the Hub (ADR 0008): each change the Kernel tells of is
+//! Syncing Linked Users' Watch State with the Hub (ADR 0008): each change the Kernel tells of is
 //! queued in the Plugin's Store, and the Sync Job sends the queue, in order, so changes made
-//! while the Hub is unreachable go once it is back. A User whose Link the Plugin never learned
-//! has nothing queued until the Hub can be asked.
+//! while the Hub is unreachable go once it is back. The Kernel pulls their Account's back. A User
+//! whose Link the Plugin never learned has nothing queued until the Hub can be asked.
 
 use std::sync::Arc;
 
@@ -116,6 +116,21 @@ impl Linker {
         Ok(())
     }
 
+    /// The Watch State of the Account `user_id` is Linked to, once the Hub has every change queued
+    /// here, so what it answers is never older than this Server's own; empty without the Server's
+    /// Link.
+    pub(super) async fn pull(&self, user_id: i64) -> Result<Vec<WatchStateChange>, PluginError> {
+        self.send_queued().await?;
+        let Some(kept) = self.kept().await? else {
+            return Ok(Vec::new());
+        };
+        let pulled = self
+            .hub
+            .pull_watch_states(&kept.credential, user_id)
+            .await?;
+        Ok(pulled.into_iter().map(change_from_proto).collect())
+    }
+
     /// The changes queued in page `nth`.
     async fn page(&self, nth: u64) -> Result<Vec<Change>, PluginError> {
         Ok(self.stored_json(&page_key(nth)).await?.unwrap_or_default())
@@ -176,6 +191,18 @@ fn change_to_proto(user_id: i64, change: &WatchStateChange) -> Option<Change> {
         changed_at_ms: change.changed_at_ms,
         ..Default::default()
     })
+}
+
+/// A change the Hub answered, as the Kernel takes it.
+fn change_from_proto(change: Change) -> WatchStateChange {
+    WatchStateChange {
+        episode: change.episode,
+        ids: change.ids,
+        played: change.played,
+        position_ms: change.position_ms,
+        duration_ms: change.duration_ms,
+        changed_at_ms: change.changed_at_ms,
+    }
 }
 
 /// The Store key of the queue's page `nth`.
