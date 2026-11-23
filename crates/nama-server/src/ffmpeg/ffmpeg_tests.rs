@@ -400,7 +400,7 @@ async fn what_ffmpeg_couldnt_answer_is_asked_again() {
     let bin = tempfile::tempdir().unwrap();
     let answered = bin.path().join("answered");
     // Fails to list its filters until `answered` exists, as one that timed out on a busy host.
-    // The test makes it: `can_do` lists filters twice at once, so a marker the fake makes races.
+    // The test, not the fake, makes `answered`: `can_do` lists filters twice at once, so they'd race.
     let ffmpeg = fake_ffmpeg(
         bin.path(),
         &format!(
