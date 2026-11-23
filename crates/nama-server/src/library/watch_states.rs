@@ -410,7 +410,10 @@ impl WatchStates {
 
     /// Every Watch State of the User `user`, each as the change that left it, as Plugins are told
     /// of it. Each is dated when it last changed, never now, so a later change elsewhere wins.
-    pub(crate) async fn as_changes(&self, user: i64) -> Result<Vec<WatchStateChange>, sqlx::Error> {
+    pub(crate) async fn changes_of_user(
+        &self,
+        user: i64,
+    ) -> Result<Vec<WatchStateChange>, sqlx::Error> {
         let stored = self.of_user(user).await?;
         Ok((stored.into_iter())
             .map(|(title, state, _, _)| {

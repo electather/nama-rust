@@ -287,6 +287,8 @@ pub(super) fn pull_watch_states_soon(points: &ExtensionPoints, browse: &Browse, 
 }
 
 /// [`pull_watch_states_soon`], after pushing the User `user_id`'s Watch State, as when they Link.
+// ponytail: pushes their whole Watch State on each look at their Link, as the pull already reads
+// the Account's whole; have the Plugin say when a Link is new if that grows slow.
 fn push_then_pull_watch_states_soon(points: &ExtensionPoints, browse: &Browse, user_id: i64) {
     let (points, browse) = (points.clone(), browse.clone());
     let span =

@@ -170,12 +170,12 @@ impl Browse {
     }
 
     /// Every Watch State of the User `user`, as Plugins are told of changes, each dated when it
-    /// last changed (see [`crate::library::WatchStates::as_changes`]).
+    /// last changed (see [`crate::library::WatchStates::changes_of_user`]).
     pub(crate) async fn watch_state_changes(
         &self,
         user: i64,
     ) -> Result<Vec<WatchStateChange>, Error> {
-        Ok(self.watch_states.as_changes(user).await?)
+        Ok(self.watch_states.changes_of_user(user).await?)
     }
 
     /// A page of the User `user`'s Continue Watching, most recent first: the Movies they've
