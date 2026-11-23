@@ -59,7 +59,12 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
     ),
     (
         "src/viewing",
-        &["viewing_events", "pooled_counts", "pooling_settings"],
+        &[
+            "viewing_events",
+            "pooled_counts",
+            "weekly_counts",
+            "pooling_settings",
+        ],
     ),
 ];
 

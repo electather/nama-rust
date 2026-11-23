@@ -13,17 +13,17 @@ use nama_hub_proto::nama::hub::v1::{
     GetServerSignInResponse, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest,
     InviteUserResponse, LinkService, LinkedServerService, ListLinkedServersRequest,
     ListLinkedServersResponse, ListLinkedUsersRequest, ListLinkedUsersResponse,
-    ListSimilarTitlesRequest, ListSimilarTitlesResponse, ListUserInvitesRequest,
-    ListUserInvitesResponse, PollServerLinkRequest, PollServerLinkResponse,
-    PollServerSignInRequest, PollServerSignInResponse, PullTrackPreferencesRequest,
-    PullTrackPreferencesResponse, PullWatchStatesRequest, PullWatchStatesResponse,
-    PushTrackPreferencesRequest, PushTrackPreferencesResponse, PushWatchStatesRequest,
-    PushWatchStatesResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
-    RefusalReason, ServerLinkService, SetServerAddressesRequest, SetServerAddressesResponse,
-    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
-    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse,
-    UnlinkLinkedUserRequest, UnlinkLinkedUserResponse, UnlinkServerRequest, UnlinkServerResponse,
-    UnlinkUserRequest, UnlinkUserResponse,
+    ListSimilarTitlesRequest, ListSimilarTitlesResponse, ListTrendingTitlesRequest,
+    ListTrendingTitlesResponse, ListUserInvitesRequest, ListUserInvitesResponse,
+    PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
+    PollServerSignInResponse, PullTrackPreferencesRequest, PullTrackPreferencesResponse,
+    PullWatchStatesRequest, PullWatchStatesResponse, PushTrackPreferencesRequest,
+    PushTrackPreferencesResponse, PushWatchStatesRequest, PushWatchStatesResponse,
+    RecordViewingEventsRequest, RecordViewingEventsResponse, RefusalReason, ServerLinkService,
+    SetServerAddressesRequest, SetServerAddressesResponse, StartServerLinkRequest,
+    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
+    StartUserLinkRequest, StartUserLinkResponse, UnlinkLinkedUserRequest, UnlinkLinkedUserResponse,
+    UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
 };
 use sqlx::PgPool;
 
@@ -39,7 +39,7 @@ use crate::{
         WatchStates,
     },
     titles::{self, ExternalId, SimilarTitle, TitleKind},
-    viewing::Viewing,
+    viewing::{TrendingTitle, Viewing},
 };
 
 /// `nama.hub.v1.ServerLinkService`: a Server not yet Linked, so anyone.
@@ -507,6 +507,21 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .map_err(|err| viewing::refused(&err))?;
         Response::ok(RecordViewingEventsResponse::default())
     }
+
+    async fn list_trending_titles(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListTrendingTitlesRequest>,
+    ) -> ServiceResult<ListTrendingTitlesResponse> {
+        linked_server(&ctx)?;
+        let trending = (self.viewing.trending())
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(ListTrendingTitlesResponse {
+            titles: trending.iter().filter_map(trending_to_proto).collect(),
+            ..Default::default()
+        })
+    }
 }
 
 /// The address to check the calling Server's public `port` at: the IP address its request `ctx`
@@ -558,6 +573,22 @@ fn similar_to_proto(similar: SimilarTitle) -> proto::SimilarTitle {
         weight: similar.weight,
         ..Default::default()
     }
+}
+
+/// `trending` as a Server reads it, or `None` for an External ID not written `namespace-value`,
+/// which no Server sends.
+fn trending_to_proto(trending: &TrendingTitle) -> Option<proto::TrendingTitle> {
+    let (namespace, value) = trending.external_id.split_once('-')?;
+    Some(proto::TrendingTitle {
+        id: proto::ExternalId {
+            namespace: namespace.to_owned(),
+            value: value.to_owned(),
+            ..Default::default()
+        }
+        .into(),
+        weight: trending.weight,
+        ..Default::default()
+    })
 }
 
 fn server_to_proto(server: ListedServer) -> proto::LinkedServer {
@@ -701,3 +732,7 @@ fn invalid_change(field: &str, message: impl Into<String>) -> ConnectError {
         .param("maxIdLength", &MAX_ID_LENGTH)
         .into()
 }
+
+#[cfg(test)]
+#[path = "links_tests.rs"]
+mod tests;
