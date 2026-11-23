@@ -1,3 +1,4 @@
+import { PageHeading } from "@hub/app/page-heading";
 import { TextField } from "@hub/features/account/components/text-field";
 import { credentialErrors } from "@hub/features/account/lib/refusals";
 import { Button } from "nama-ui/components/button";
@@ -46,7 +47,7 @@ export function CredentialsForm({
         onSubmit({ email: text("email"), password: text("password") });
       }}
     >
-      <h1 className="text-center text-3xl font-medium tracking-tight text-balance">{heading}</h1>
+      <PageHeading>{heading}</PageHeading>
       <TextField
         label="Email"
         name="email"

@@ -1,3 +1,4 @@
+import { PageHeading } from "@hub/app/page-heading";
 import { PoolingSwitch } from "@hub/features/viewing/components/pooling-switch";
 import { ViewingHistory } from "@hub/features/viewing/components/viewing-history";
 import { Link } from "@tanstack/react-router";
@@ -9,9 +10,7 @@ import { Link } from "@tanstack/react-router";
 export function HistoryPage() {
   return (
     <>
-      <h1 className="text-center text-3xl font-medium tracking-tight text-balance">
-        Viewing history
-      </h1>
+      <PageHeading>Viewing history</PageHeading>
       <p className="text-sm text-muted-foreground">
         Each Movie and Episode your Linked Users play, latest first, kept as long as your Account.
         Titles go by their id at a title source, such as tmdb-603: the Hub keeps no names.
