@@ -18,7 +18,7 @@ use nama_plugin_api::{
     home_row::{HomeRowMethod, HomeRowSource},
 };
 
-use crate::{hub::Hub, linker};
+use crate::linker::Linker;
 
 /// How long an answer stays fresh: the Hub learns a title was finished only once its play ends,
 /// after the Kernel asked again at its start, so an hour keeps a finished title from lingering.
@@ -32,29 +32,25 @@ const NAMESPACES: [&str; 3] = ["tmdb", "tvdb", "imdb"];
 
 /// Asks the Hub, as the Linked Server, what to recommend to each of its Users.
 pub(crate) struct Recommended {
-    hub: Hub,
+    linker: Arc<Linker>,
     kernel: Arc<dyn Kernel>,
 }
 
 impl Recommended {
-    pub(crate) fn new(hub: Hub, kernel: Arc<dyn Kernel>) -> Self {
-        Self { hub, kernel }
+    pub(crate) fn new(linker: Arc<Linker>, kernel: Arc<dyn Kernel>) -> Self {
+        Self { linker, kernel }
     }
 
     /// The Hub's recommendations for the User `user_id`, each with its kind: none while the Server
     /// isn't Linked, which isn't a failure.
     async fn titles(&self, user_id: i64) -> Result<Vec<(TitleKind, TitleId, f32)>, PluginError> {
-        let Some(credential) = linker::credential(self.kernel.as_ref()).await? else {
-            return Ok(Vec::new());
-        };
         let request = ListRecommendedTitlesRequest {
             user_id,
             namespaces: NAMESPACES.map(str::to_owned).to_vec(),
             ..Default::default()
         };
-        let recommended = self.hub.recommended(&credential, request).await?;
-        Ok(recommended
-            .into_iter()
+        let recommended = self.linker.call(|hub| hub.recommended(request)).await?;
+        Ok((recommended.unwrap_or_default().into_iter())
             .filter_map(recommended_title)
             .collect())
     }

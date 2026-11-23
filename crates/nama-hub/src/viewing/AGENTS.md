@@ -4,7 +4,6 @@ Viewing Events (GLOSSARY.md): each play by a Linked User, recorded by their Link
 
 - **One owner.** Only this area reads or writes `viewing_events`, `pooled_counts`, `weekly_counts` and `pooling_settings`, tests included.
 - **Keyed by External ID**, as the Server keeps Watch State (ADR 0013), and an Episode's event by its Show's too (`show_external_id`), since `titles` hold Shows, never Episodes. The Hub never stores a title's name: that is the title source's content (ADR 0094).
-- **Only Linked Users' plays.** An event for a User who isn't Linked is left out, not refused, so a Server's queue empties after an Unlink.
 - **Sent again, recorded once.** A Server names each event by a key, unique per Account, so a retry after a lost answer adds nothing.
 - **Kept as long as the Account.** No expiry: rows go with the Account, by foreign key, or one at a time when it deletes them.
 - **Pooled counts name nobody.** `pooled_counts` and `weekly_counts` hold External IDs, a week in `weekly_counts`, and a number of Accounts, never anything that points to one, even pseudonymously. A count is read only once `MIN_POOLED_ACCOUNTS` (20) Accounts are in it.
@@ -14,5 +13,5 @@ Viewing Events (GLOSSARY.md): each play by a Linked User, recorded by their Link
 
 ### Neighbours
 
-- Uses: `links` (the Account a Linked Server's User is Linked to), `accounts` (`AccountId`) and `titles` (`ExternalId`, `PooledCount`).
+- Uses: `links`, which `api` hands to each Linked Server call (the Accounts a Linked Server's Users are Linked to), `accounts` (`AccountId`) and `titles` (`ExternalId`, `PooledCount`).
 - Used by: `api`, which converts what `viewing.rs` defines, `lib`, which trains title vectors on `pooled_counts`, `recommendations` (an Account's finished Movies), and `sync`, which counts Watchlists by the same pooling rules.

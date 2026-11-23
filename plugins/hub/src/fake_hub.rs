@@ -92,6 +92,8 @@ struct State {
     user_accounts: HashMap<i64, String>,
     /// How often a User's Link was asked about.
     user_link_asks: usize,
+    /// How many calls came with a Server's credential, known or not.
+    server_calls: usize,
     /// Why asking about a User's Link fails, as if the Hub were down, while it does.
     user_link_failure: Option<&'static str>,
     /// Each Viewing Event recorded, in order.
@@ -100,6 +102,9 @@ struct State {
     recording_failure: Option<ErrorCode>,
     /// Each push's changes, in the order they came.
     pushes: Vec<Vec<WatchStateChange>>,
+    /// Why every call with the Linked Server's credential fails, as if the Hub were failing, while
+    /// it does.
+    server_failure: Option<&'static str>,
     /// Why pushes fail, as if the Hub were down, while they do.
     push_failure: Option<&'static str>,
     /// Each push's Track Preference changes, in the order they came.
@@ -226,6 +231,11 @@ impl FakeHub {
         lock(&self.state).user_link_asks
     }
 
+    /// How many calls the Server made with its credential, whether the fake knew it or not.
+    pub(super) fn server_calls(&self) -> usize {
+        lock(&self.state).server_calls
+    }
+
     /// Has asking about a User's Link fail, though counted, as if the Hub were down.
     pub(super) fn fail_user_links(&self) {
         lock(&self.state).user_link_failure = Some("the Hub is down");
@@ -249,6 +259,11 @@ impl FakeHub {
     /// Has pushes fail while `down`, as if the Hub were unreachable, and work again after.
     pub(super) fn set_down(&self, down: bool) {
         lock(&self.state).push_failure = down.then_some("the Hub is down");
+    }
+
+    /// Has every call with the Linked Server's credential fail, as a Hub that answers but fails.
+    pub(super) fn fail_server_calls(&self) {
+        lock(&self.state).server_failure = Some("the Hub is failing");
     }
 
     /// The name and email the User `user_id` was invited with.
@@ -766,7 +781,8 @@ impl LinkedServerService for Linked {
 impl Linked {
     /// What the fake knows, if the call carries the credential of the Server it has Linked.
     fn caller(&self, ctx: &RequestContext) -> Result<MutexGuard<'_, State>, ConnectError> {
-        let state = lock(&self.0.state);
+        let mut state = lock(&self.0.state);
+        state.server_calls += 1;
         let bearer = format!("Bearer {}", credential(state.credentials));
         if !state.linked
             || ctx
@@ -774,6 +790,9 @@ impl Linked {
                 .is_none_or(|sent| sent != bearer.as_str())
         {
             return Err(ConnectError::unauthenticated("no Linked Server has it"));
+        }
+        if let Some(failure) = state.server_failure {
+            return Err(ConnectError::internal(failure));
         }
         Ok(state)
     }

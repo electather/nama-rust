@@ -14,6 +14,7 @@ use crate::{
         Change, Contents, LibraryKind, Progress,
         fixture::{MatchedMovie, tmdb_movie},
     },
+    plugins::ExtensionPoints,
 };
 
 /// An Episode by its Season's number and its own.
@@ -40,7 +41,7 @@ impl Knight {
         let (library, root) = library(&db, "Shows", LibraryKind::Shows, &folder).await;
         let knight = Self {
             user: ada(&db).await,
-            browse: Browse::new(Arc::clone(&db)),
+            browse: Browse::new(Arc::clone(&db), ExtensionPoints::default()),
             db,
             library,
             root,

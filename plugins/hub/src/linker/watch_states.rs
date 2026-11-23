@@ -11,7 +11,6 @@ use nama_plugin_api::{
     automation::functions::StoreDelete,
     job::Job,
     points::{WatchStateChange, WatchStateChanges, WatchStatesChanged},
-    server_link::Link,
 };
 use serde::{Deserialize, Serialize};
 
@@ -66,13 +65,11 @@ impl Observer<WatchStatesChanged> for WatchStateSync {
 }
 
 impl Linker {
-    /// Queues `changed`, if its User is Linked. It asks the Hub as Settings would, since a User
-    /// who never opened Settings, such as one who only signs in with their Account, has no kept
-    /// Link.
+    /// Queues `changed`, if its User is Linked.
     async fn queue_changes(&self, changed: &WatchStateChanges) -> Result<(), PluginError> {
-        let Some(Link::Linked { .. }) = self.current_user_link(changed.user_id).await? else {
+        if !self.user_linked(changed.user_id).await? {
             return Ok(());
-        };
+        }
         let _queue = self.queue.lock().await;
         let mut queue: Queue = self.stored_json(QUEUE_KEY).await?.unwrap_or_default();
         // The last page fills up before another starts.
@@ -95,18 +92,16 @@ impl Linker {
     }
 
     /// Sends the queue to the Hub, a page per push, forgetting each page the Hub took. Without the
-    /// Server's Link, the queue has nowhere to go, and is forgotten.
+    /// Server's Link, such as once the Hub dropped it, the queue has nowhere to go, and is
+    /// forgotten.
     pub(super) async fn send_queued(&self) -> Result<(), PluginError> {
         let _queue = self.queue.lock().await;
         let Some(mut queue) = self.stored_json::<Queue>(QUEUE_KEY).await? else {
             return Ok(());
         };
-        let kept = self.kept().await?;
         while queue.first < queue.next {
-            if let Some(kept) = &kept {
-                let page = self.page(queue.first).await?;
-                self.hub.push_watch_states(&kept.credential, page).await?;
-            }
+            let page = self.page(queue.first).await?;
+            self.call(|hub| hub.push_watch_states(page)).await?;
             self.kernel
                 .ask::<StoreDelete>(store_key(&page_key(queue.first)))
                 .await?;
@@ -121,14 +116,10 @@ impl Linker {
     /// Link.
     pub(super) async fn pull(&self, user_id: i64) -> Result<Vec<WatchStateChange>, PluginError> {
         self.send_queued().await?;
-        let Some(kept) = self.kept().await? else {
-            return Ok(Vec::new());
-        };
-        let pulled = self
-            .hub
-            .pull_watch_states(&kept.credential, user_id)
-            .await?;
-        Ok(pulled.into_iter().map(change_from_proto).collect())
+        let pulled = self.call(|hub| hub.pull_watch_states(user_id)).await?;
+        Ok((pulled.unwrap_or_default().into_iter())
+            .map(change_from_proto)
+            .collect())
     }
 
     /// The changes queued in page `nth`.
