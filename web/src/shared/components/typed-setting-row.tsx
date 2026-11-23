@@ -61,6 +61,8 @@ export function TypedSettingRow({
       label={label}
       hint={hint}
       error={shown}
+      // Beside its label on a phone, a text field is too narrow to read what's in it.
+      wide={input.type !== "number"}
       size={inputSize(input.type)}
     >
       {(control) => (

@@ -52,8 +52,21 @@ export function SectionLink({ section, current }: { section: Section; current: b
   const link = useRef<HTMLAnchorElement>(null);
   useEffect(() => {
     // On a phone the open section may sit outside the strip, as when a link opened Settings on it.
-    if (current) {
+    if (!current) {
+      return;
+    }
+    const reveal = () => {
       link.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    };
+    reveal();
+    // Again once the web font has swapped in: it widens every section's name, pushing this one
+    // back past the strip's end. happy-dom, which the tests run on, has no `document.fonts`.
+    if ("fonts" in document) {
+      const revealOnceLoaded = async () => {
+        await document.fonts.ready;
+        reveal();
+      };
+      void revealOnceLoaded();
     }
   }, [current]);
   const Icon = icons[section];
