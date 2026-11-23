@@ -60,14 +60,36 @@ pub(crate) fn tell_every_minute(
                     None
                 }
             };
-            let addresses = ServerAddresses {
-                url: as_sent(&url.url()),
-                lan: lan.map(|lan| format!("http://{lan}")).into_iter().collect(),
-                public_port,
-            };
-            tell(&points, &plugin, addresses).await;
+            tell(&points, &plugin, addresses(&url, lan, public_port)).await;
         }
     })
+}
+
+/// Whether `address` has the scheme, host and port of one of the Server Addresses the Plugin is
+/// told but the public one: the Server URL `url` holds, or the LAN address of `listening`. The Hub
+/// sends a sign-in with an Account back only to those, as `nama-hub`'s `is_on_server` checks.
+pub(crate) fn is_reported(address: &str, url: &ServerUrl, listening: SocketAddr) -> bool {
+    let Ok(address) = Url::parse(address) else {
+        return false;
+    };
+    let ServerAddresses { url, lan, .. } = addresses(url, lan_address(listening), None);
+    std::iter::once(url).chain(lan).any(|reported| {
+        Url::parse(&reported).is_ok_and(|reported| reported.origin() == address.origin())
+    })
+}
+
+/// The Server Addresses the Plugin is told: the Server URL `url` holds, the LAN address `lan`, and
+/// the public port.
+fn addresses(
+    url: &ServerUrl,
+    lan: Option<SocketAddr>,
+    public_port: Option<u16>,
+) -> ServerAddresses {
+    ServerAddresses {
+        url: as_sent(&url.url()),
+        lan: lan.map(|lan| format!("http://{lan}")).into_iter().collect(),
+        public_port,
+    }
 }
 
 /// The port opened on the router, kept between ticks.

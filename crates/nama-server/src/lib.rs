@@ -193,6 +193,7 @@ pub fn serve(
     );
     let app = api::router(
         config,
+        listening,
         db,
         plugins.clone(),
         users,
