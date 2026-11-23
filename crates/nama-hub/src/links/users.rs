@@ -102,7 +102,7 @@ impl Links {
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(Error::CodeNotFound)?;
-        // A conflict is a Link made between starting this code and entering it, or the User the
+        // Fails on a Link made between starting this code and entering it, or on the User the
         // Account has on this Server already.
         let user = insert_link(
             &mut tx,
@@ -258,6 +258,7 @@ pub(super) async fn insert_link(
     .await
     .map_err(|err| {
         let constraint = err.as_database_error().and_then(|err| err.constraint());
+        // Named by the migration `one_user_per_account_and_server`.
         if constraint == Some("user_links_one_per_account_and_server") {
             Error::AccountHasUserOnServer
         } else {
