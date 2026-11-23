@@ -4,6 +4,7 @@ import { GettingReady } from "@/features/player/components/getting-ready";
 import { PlannedPlayer } from "@/features/player/components/planned-player";
 import { useAutoplay } from "@/features/player/hooks/use-autoplay";
 import type { PlayerProps } from "@/features/player/lib/player-props";
+import { PageTitle } from "@/shared/components/page-title";
 import { playerOpened } from "@/shared/lib/diagnostics";
 
 /**
@@ -15,9 +16,17 @@ export function Player(props: PlayerProps) {
   useEffect(playerOpened, []);
   // Above the component owning `usePlaybackPlan`'s state: a later plan then suspends it mounted, and
   // React keeps the Tracks and Playback Limit it asked for. Keyed, so another Version starts afresh.
+  const playing = props.heading === undefined ? props.title : `${props.heading}: ${props.title}`;
   return (
-    <Suspense fallback={<GettingReady {...props} />}>
-      <PlannedPlayer key={String(props.versionId)} {...props} autoplay={useAutoplay(props.next)} />
-    </Suspense>
+    <>
+      <PageTitle name={`Playing ${playing}`} />
+      <Suspense fallback={<GettingReady {...props} />}>
+        <PlannedPlayer
+          key={String(props.versionId)}
+          {...props}
+          autoplay={useAutoplay(props.next)}
+        />
+      </Suspense>
+    </>
   );
 }

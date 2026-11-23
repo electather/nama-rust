@@ -55,6 +55,7 @@ export function ShowPage({
   }
   return (
     <TitlePage
+      name={data.show.title}
       hero={
         <ShowHero
           {...{ libraryId, showId, episodes, toPlay }}

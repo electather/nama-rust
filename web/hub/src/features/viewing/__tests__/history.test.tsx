@@ -95,12 +95,13 @@ describe("viewing history", () => {
     vi.restoreAllMocks();
   });
 
-  test("the Account page leads to the history", async () => {
+  test("the Account page leads to the history, which names the browser tab", async () => {
     open("/");
 
     fireEvent.click(await screen.findByRole("link", { name: "See, delete or export it" }));
 
     await expect(screen.findByRole("heading", { name: "Viewing history" })).resolves.toBeDefined();
+    expect(document.title).toBe("Viewing history – Nama Hub");
   });
 
   test("each play says what, how far and on what kind of Device", async () => {

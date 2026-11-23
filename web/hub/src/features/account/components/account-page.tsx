@@ -1,3 +1,4 @@
+import { PageHeading } from "@hub/app/page-heading";
 import { AddPasskeyForm } from "@hub/features/account/components/add-passkey-form";
 import { DeleteAccount } from "@hub/features/account/components/delete-account";
 import { PasskeyList } from "@hub/features/account/components/passkey-list";
@@ -24,7 +25,7 @@ export function AccountPage() {
   const signOut = useSignOut();
   return (
     <>
-      <h1 className="text-center text-3xl font-medium tracking-tight text-balance">Your Account</h1>
+      <PageHeading>Your Account</PageHeading>
       <dl className="flex flex-col gap-1">
         <dt className="text-xs text-muted-foreground">Email</dt>
         <dd className="text-base break-all">{account?.email}</dd>

@@ -1,3 +1,4 @@
+import { PageHeading } from "@hub/app/page-heading";
 import { Link } from "@tanstack/react-router";
 import { buttonVariants } from "nama-ui/components/button";
 
@@ -5,9 +6,7 @@ import { buttonVariants } from "nama-ui/components/button";
 export function ExpiredSignInLink() {
   return (
     <>
-      <h1 className="text-center text-3xl font-medium tracking-tight text-balance">
-        This Sign-in Link has expired
-      </h1>
+      <PageHeading>This Sign-in Link has expired</PageHeading>
       <p className="text-center text-base text-pretty">
         Each Sign-in Link works once, within 15 minutes. Ask for a new one to sign in.
       </p>
