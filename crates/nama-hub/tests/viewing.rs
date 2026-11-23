@@ -370,6 +370,36 @@ async fn an_invalid_event_records_none_of_its_batch(db: PgPool) {
 }
 
 #[sqlx::test(migrations = false)]
+async fn an_episode_without_its_show_is_refused(db: PgPool) {
+    let (hub, _inbox, ada, server) = ada_watching(db).await;
+    let mut episode = played_episode(7, "a");
+    episode.event.modify(|event| event.show_external_id.clear());
+
+    assert_refused(
+        record(&hub, &server, vec![episode]).await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_VIEWING_EVENT_INVALID,
+    );
+    assert_eq!(listed_ids(&hub, &ada).await, Vec::<String>::new());
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_movie_naming_a_show_is_refused(db: PgPool) {
+    let (hub, _inbox, ada, server) = ada_watching(db).await;
+    let mut movie = played(7, "a", "tmdb-603");
+    movie
+        .event
+        .modify(|event| "tmdb-1399".clone_into(&mut event.show_external_id));
+
+    assert_refused(
+        record(&hub, &server, vec![movie]).await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_VIEWING_EVENT_INVALID,
+    );
+    assert_eq!(listed_ids(&hub, &ada).await, Vec::<String>::new());
+}
+
+#[sqlx::test(migrations = false)]
 async fn the_history_needs_a_session_and_recording_a_linked_server(db: PgPool) {
     let (hub, _inbox, ada, _server) = ada_watching(db).await;
 
