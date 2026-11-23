@@ -197,7 +197,7 @@ impl ServerLinker for Scripted {
         Box::pin(future::ready(Ok(())))
     }
 
-    /// Pulling is `tests/watch_state_sync.rs`'s.
+    /// Pulling is `tests/sync.rs`'s.
     fn watch_states(
         &self,
         _user_id: i64,

@@ -30,7 +30,7 @@ use nama_plugin_api::{
     server_link::{AccountSignIn, Link, Reachability, ServerAddresses, ServerLinker},
 };
 use ring::digest;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tokio::sync::Mutex;
 
 use crate::{
@@ -342,6 +342,24 @@ impl Linker {
 
     async fn stored(&self, key: &str) -> Result<Option<Vec<u8>>, PluginError> {
         Ok(self.kernel.ask::<StoreGet>(store_key(key)).await?.value)
+    }
+
+    async fn stored_json<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>, PluginError> {
+        let Some(stored) = self.stored(key).await? else {
+            return Ok(None);
+        };
+        Ok(Some(serde_json::from_slice(&stored)?))
+    }
+
+    async fn put_json(&self, key: String, value: &impl Serialize) -> Result<(), PluginError> {
+        self.kernel
+            .ask::<StorePut>(StoreEntry {
+                key,
+                value: serde_json::to_vec(value)?,
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
     }
 }
 

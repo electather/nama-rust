@@ -8,13 +8,12 @@ use std::sync::Arc;
 use nama_hub_proto::nama::hub::v1::WatchStateChange as Change;
 use nama_plugin_api::{
     BoxFuture, Observer, PluginError,
-    automation::functions::{StoreDelete, StorePut},
-    contract::StoreEntry,
+    automation::functions::StoreDelete,
     job::Job,
     points::{WatchStateChange, WatchStateChanges, WatchStatesChanged},
     server_link::Link,
 };
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize};
 
 use super::{Linker, store_key};
 
@@ -134,24 +133,6 @@ impl Linker {
     /// The changes queued in page `nth`.
     async fn page(&self, nth: u64) -> Result<Vec<Change>, PluginError> {
         Ok(self.stored_json(&page_key(nth)).await?.unwrap_or_default())
-    }
-
-    async fn stored_json<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>, PluginError> {
-        let Some(stored) = self.stored(key).await? else {
-            return Ok(None);
-        };
-        Ok(Some(serde_json::from_slice(&stored)?))
-    }
-
-    async fn put_json(&self, key: String, value: &impl Serialize) -> Result<(), PluginError> {
-        self.kernel
-            .ask::<StorePut>(StoreEntry {
-                key,
-                value: serde_json::to_vec(value)?,
-                ..Default::default()
-            })
-            .await?;
-        Ok(())
     }
 }
 
