@@ -429,7 +429,7 @@ async fn a_linked_server_pulls_only_the_account_its_user_is_linked_to(db: PgPool
     approve_user(&hub, &bea, &bea_code).await.unwrap();
     let pushed = vec![
         alien_at(7, 3000, 2_000),
-        alien_at(8, 1000, 1_000),
+        alien_at(8, 1000, 4_000),
         alien_at(9, 5000, 3_000),
     ];
     push(&hub, &server, pushed).await.unwrap();
@@ -437,7 +437,11 @@ async fn a_linked_server_pulls_only_the_account_its_user_is_linked_to(db: PgPool
     assert_eq!(
         pulled(&hub, &server, 7).await.unwrap(),
         alien_pulled(7, 3000, 2_000),
-        "neither Bea's nor User 9's"
+        "neither Bea's nor User 9's, though both were made later"
+    );
+    assert_eq!(
+        pulled(&hub, &server, 8).await.unwrap(),
+        alien_pulled(8, 1000, 4_000)
     );
     assert_eq!(
         pulled(&hub, &server, 9).await.unwrap(),

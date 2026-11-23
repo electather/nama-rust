@@ -144,8 +144,7 @@ impl Links {
     }
 
     /// Each item of `batch` whose User, as `user_id` names them on `server`, is Linked, paired
-    /// with their Account, in `batch`'s order, in one query; an item of a User who isn't Linked
-    /// is dropped, not refused, so a Server's queue empties after an Unlink. Call it before
+    /// with their Account, in `batch`'s order, in one query (`links/AGENTS.md`). Call it before
     /// opening a transaction: inside one, it would hold a connection while asking the pool for
     /// another.
     pub(crate) async fn linked_accounts<T>(

@@ -11,7 +11,7 @@ Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011
 - **Only a proven email Links** (ADR 0100), Servers and Users alike, accepting a User created from the Account included, and only from a session with Recent Authentication.
 - **Inviting reveals nothing** (ADR 0092): asking an email with no Account answers as one with an Account does.
 - **A sign-in is a device flow too.** The Server polls with a device code it got over its credential; the Account approves on the page for the sign-in's id. The token names the User through their Link, `aud` the Linked Server, and is handed out once. The return address must be on one of the Server's Server Addresses, and approving adds a one-time code to it that the Server's first poll after must bring, so only the browser sent back there finishes (#1934).
-- **A batch keeps only Linked Users' items.** A Linked Server's push or Viewing Events name many Users, and `linked_accounts` pairs each item with its User's Account in one query, before the caller's transaction, leaving out, not refusing, those of a User who isn't Linked, so a Server's queue empties after an Unlink.
+- **A batch keeps only Linked Users' items.** A Linked Server's push or Viewing Events name many Users, and `linked_accounts` pairs each item with its User's Account in one query, leaving out, not refusing, those of a User who isn't Linked, so a Server's queue empties after an Unlink.
 - **Scoped by Account** (ADR 0097): an Account lists only the Linked Servers it owns or has a User on, lists and Unlinks only its own Linked Users, and a Linked Server Unlinks only itself and its own Users.
 
 ### Neighbours

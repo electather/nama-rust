@@ -78,7 +78,8 @@ impl WatchStates {
         self.merge(changes).await
     }
 
-    /// Merges each change into the Account it is paired with, in order, in one transaction.
+    /// Merges each change into the Account it is paired with, in one transaction. In order, so of
+    /// two made at the same moment the later in `changes` wins, as the Server pushed it last.
     pub(crate) async fn merge(
         &self,
         changes: Vec<(AccountId, WatchStateChange)>,
@@ -371,7 +372,8 @@ impl TrackPreferences {
         self.merge(changes).await
     }
 
-    /// Merges each change into the Account it is paired with, in order, in one transaction.
+    /// Merges each change into the Account it is paired with, in one transaction. In order, so of
+    /// two made at the same moment the later in `changes` wins, as the Server pushed it last.
     pub(crate) async fn merge(
         &self,
         changes: Vec<(AccountId, TrackPreferenceChange)>,
