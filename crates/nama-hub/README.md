@@ -54,7 +54,7 @@ The dump is over 100 GiB compressed, so an import takes hours; it streams, holdi
 
 ## Tests
 
-The tests need that PostgreSQL. `#[sqlx::test]` reads `DATABASE_URL`, and makes a database of its own for each test; `SQLX_OFFLINE=true` is there for the same reason as above:
+The tests need that PostgreSQL. `#[sqlx::test]` reads `DATABASE_URL`, and makes a database of its own for each test. `SQLX_OFFLINE=true` builds them from `.sqlx/`, as CI does, since the macros read `NAMA_HUB_DATABASE_URL`, not `DATABASE_URL`:
 
 ```sh
 SQLX_OFFLINE=true DATABASE_URL=$NAMA_HUB_DATABASE_URL cargo test -p nama-hub
