@@ -234,57 +234,23 @@ impl<V> Episode<V> {
 }
 
 impl Contents {
-    /// What the Version `version` is Matched to, each title by its id as browsing identifies it:
-    /// its Movie, or for a file of Episodes only the Show of its first Matched one, by season and
-    /// number. [`Contents::titles_in`] gives each Episode, with every id.
+    /// What the Version `version` is Matched to, as [`Contents::titles_in`] finds it: its Movie,
+    /// or for a file of Episodes only the Show of its first Matched one, by season and number.
     pub(crate) async fn matched_to(&self, version: i64) -> Result<MatchedTo, sqlx::Error> {
-        // This query and `titles_in`'s must change together: they read the same rows.
-        macro_rules! select {
-            ($ids:literal) => {
-                sqlx::query!(
-                    r#"SELECT library_items.kind AS "kind?: ItemKind", "#
-                        + $ids
-                        + r#"'title') AS "ids?: String", "#
-                        + $ids
-                        + r#"'show') AS "show_ids?: String", libraries.title_sources
-                       FROM library_files
-                       JOIN libraries ON libraries.id = library_files.library_id
-                       LEFT JOIN library_items ON library_items.file_id = library_files.id
-                       LEFT JOIN item_matches ON item_matches.item_id = library_items.id
-                                             AND item_matches.state = 'matched'
-                       WHERE library_files.id = ?
-                       ORDER BY library_items.season, library_items.episode"#,
-                    version
-                )
-            };
-        }
-        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
-        let Some(first) = rows.first() else {
-            return Ok(MatchedTo::NoSuchVersion);
-        };
-        let holds_episodes = first.kind == Some(ItemKind::Episode);
-        let ids: Vec<_> = (rows.into_iter())
-            .map(|row| {
-                let id = primary_id_in(&ids_from_json(row.ids.as_deref()), &row.title_sources);
-                let show =
-                    primary_id_in(&ids_from_json(row.show_ids.as_deref()), &row.title_sources);
-                (id, show)
-            })
-            .collect();
-        if holds_episodes {
-            return Ok(MatchedTo::Episodes {
-                show: ids.iter().find_map(|(_, show)| show.clone()),
-            });
-        }
-        Ok((ids.into_iter())
-            .find_map(|(id, _)| id)
-            .map_or(MatchedTo::Nothing, MatchedTo::Movie))
+        Ok(match self.titles_in(version).await? {
+            TitlesIn::NoSuchVersion => MatchedTo::NoSuchVersion,
+            TitlesIn::Movie(movie) => {
+                movie.map_or(MatchedTo::Nothing, |(id, _ids)| MatchedTo::Movie(id))
+            }
+            TitlesIn::Episodes(episodes) => MatchedTo::Episodes {
+                show: (episodes.into_iter().flatten()).find_map(|(_id, _ids, show)| show),
+            },
+        })
     }
 
-    /// What the Version `version` is Matched to, as [`Contents::matched_to`] finds it, with every
-    /// id of each title, so Watch State is found under any of them.
+    /// What the Version `version` is Matched to, each title by its id as browsing identifies it
+    /// and with every id, so Watch State is found under any of them.
     pub(crate) async fn titles_in(&self, version: i64) -> Result<TitlesIn, sqlx::Error> {
-        // This query and `matched_to`'s must change together: they read the same rows.
         macro_rules! select {
             ($ids:literal) => {
                 sqlx::query!(

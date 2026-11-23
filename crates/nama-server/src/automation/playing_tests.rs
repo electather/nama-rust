@@ -8,7 +8,7 @@ use nama_plugin_api::{
 
 use super::super::testing::{
     ALIEN_TMDB_ID, DARK_TMDB_ID, LIES_TMDB_ID, SECRETS_TMDB_ID, episode_ref, kernel, movie_ref,
-    two_episodes_in_one_file,
+    tmdb_id, two_episodes_in_one_file,
 };
 use crate::{
     db::Database,
@@ -22,14 +22,6 @@ fn asked(version_id: i64) -> VersionTitlesAsked {
     VersionTitlesAsked {
         version_id,
         ..VersionTitlesAsked::default()
-    }
-}
-
-fn tmdb(id: i64) -> TitleId {
-    TitleId {
-        namespace: "tmdb".to_owned(),
-        value: id.to_string(),
-        ..TitleId::default()
     }
 }
 
@@ -83,7 +75,10 @@ async fn a_file_of_two_episodes_answers_both_in_order_each_with_its_show() {
             episode_ref(library, LIES_TMDB_ID)
         ]
     );
-    assert_eq!(titles.show_ids, [tmdb(DARK_TMDB_ID), tmdb(DARK_TMDB_ID)]);
+    assert_eq!(
+        titles.show_ids,
+        [tmdb_id(DARK_TMDB_ID), tmdb_id(DARK_TMDB_ID)]
+    );
 }
 
 #[tokio::test]

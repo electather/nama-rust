@@ -22,7 +22,7 @@ impl Caller {
         let Some(library) = contents.library_of_version(version).await.map_err(read)? else {
             return Ok(VersionTitles::default());
         };
-        let (kind, ids): (_, Vec<_>) = match contents.titles_in(version).await.map_err(read)? {
+        let (kind, found): (_, Vec<_>) = match contents.titles_in(version).await.map_err(read)? {
             TitlesIn::NoSuchVersion => return Ok(VersionTitles::default()),
             TitlesIn::Movie(movie) => (
                 TitleRefKind::TITLE_REF_KIND_MOVIE,
@@ -35,7 +35,7 @@ impl Caller {
                     .collect(),
             ),
         };
-        let (titles, show_ids) = (ids.iter())
+        let (titles, show_ids) = (found.iter())
             .map(|(id, show)| {
                 let show = show.as_ref().map_or_default(title_id);
                 (title_ref(library, kind, id), show)

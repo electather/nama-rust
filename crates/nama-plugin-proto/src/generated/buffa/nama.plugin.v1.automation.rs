@@ -4331,7 +4331,7 @@ pub struct VersionTitles {
     )]
     pub titles: ::buffa::alloc::vec::Vec<TitleRef>,
     /// Each title's Show's id, in the same place as the title in `titles` and picked as
-    /// `Title.show_id` is. Unset for a Movie.
+    /// `Title.show_id` is. Unset for a Movie, or an Episode whose Match gives its Show no id.
     ///
     /// Field 2: `show_ids`
     #[serde(

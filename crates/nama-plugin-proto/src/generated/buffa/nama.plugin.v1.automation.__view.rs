@@ -6133,7 +6133,7 @@ pub struct VersionTitlesView<'a> {
     /// Field 1: `titles`
     pub titles: ::buffa::RepeatedView<'a, super::super::__buffa::view::TitleRefView<'a>>,
     /// Each title's Show's id, in the same place as the title in `titles` and picked as
-    /// `Title.show_id` is. Unset for a Movie.
+    /// `Title.show_id` is. Unset for a Movie, or an Episode whose Match gives its Show no id.
     ///
     /// Field 2: `show_ids`
     pub show_ids: ::buffa::RepeatedView<
@@ -6420,7 +6420,7 @@ impl VersionTitlesOwnedView {
         &self.0.reborrow().titles
     }
     /// Each title's Show's id, in the same place as the title in `titles` and picked as
-    /// `Title.show_id` is. Unset for a Movie.
+    /// `Title.show_id` is. Unset for a Movie, or an Episode whose Match gives its Show no id.
     ///
     /// Field 2: `show_ids`
     #[must_use]
