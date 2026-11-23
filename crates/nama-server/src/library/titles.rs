@@ -41,6 +41,9 @@ pub(crate) enum NotFound {
     /// The Box Set isn't stored, or the User can't see it.
     #[error("there is no such Box Set")]
     NoSuchBoxSet,
+    /// No title in a Library has a Role of the Person.
+    #[error("no title on the Server has a Role of that Person")]
+    NoSuchPerson,
 }
 
 /// A Library's titles, read whole, without Tracks.
@@ -183,6 +186,7 @@ impl OnServer {
             id: show.id.clone(),
             ids: show.ids.clone(),
             title: show.title.clone(),
+            first_air_date: show.first_air_date.clone(),
             poster: show.poster().cloned(),
         })
     }
@@ -195,7 +199,15 @@ impl OnServer {
         }
     }
 
-    fn ids(&self) -> &ExternalIds {
+    /// When it was released, or first aired, as `YYYY-MM-DD`.
+    pub(crate) fn date(&self) -> Option<&str> {
+        match self {
+            Self::Movie(movie) => movie.release_date.as_deref(),
+            Self::Show(show) => show.first_air_date.as_deref(),
+        }
+    }
+
+    pub(crate) fn ids(&self) -> &ExternalIds {
         match self {
             Self::Movie(movie) => &movie.ids,
             Self::Show(show) => &show.ids,

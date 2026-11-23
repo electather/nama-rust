@@ -15,12 +15,9 @@ slow-timeout = { period = "10s", terminate-after = 9 }
 path = "junit.xml"
 
 # The Server's `web` feature test. Its own profile only so its report doesn't overwrite `ci`'s:
-# each profile writes to target/nextest/<profile>/. `ci-hub-web` is the Hub's, for the same reason.
+# each profile writes to target/nextest/<profile>/.
 [profile.ci-web]
 inherits = "ci"
 # Its job starts with an empty wasm compile cache. In parallel every test compiles the bundled
 # Plugins at once, about 10 s each in CI; one at a time, the first fills the cache for the rest.
 test-threads = 1
-
-[profile.ci-hub-web]
-inherits = "ci"

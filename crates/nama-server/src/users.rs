@@ -42,6 +42,7 @@ use codes::new_token;
 pub(crate) use codes::random_secret;
 pub(crate) use home_layout::{AskedHomeLayout, UserHomeLayout};
 pub(crate) use invites::Invite;
+pub(crate) use managing::remote_cap;
 use managing::{default_permissions, ensure_may_change, ensure_may_grant};
 use names::checked_name;
 pub(crate) use names::name_key;
@@ -673,8 +674,8 @@ async fn insert_with_defaults(
     Ok(user.id)
 }
 
-/// Stores a User named `name`, which has been checked, with `permissions`, unless another has the
-/// name ignoring case.
+/// Stores a User named `name`, which has been checked, with `permissions` and the default cap for
+/// remote playback, unless another has the name ignoring case.
 async fn insert_user(
     conn: &mut SqliteConnection,
     name: &str,
@@ -683,8 +684,9 @@ async fn insert_user(
     let username = name_key(name);
     let created_at = now();
     let id = sqlx::query_scalar!(
-        r#"INSERT INTO users (username, display_username, permissions, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?)
+        r#"INSERT INTO users (username, display_username, permissions, created_at, updated_at,
+                               remote_playback_limit)
+           VALUES (?, ?, ?, ?, ?, (SELECT remote_playback_limit FROM default_permissions))
            RETURNING id AS "id!""#,
         username,
         name,

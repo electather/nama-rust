@@ -130,6 +130,7 @@ pub(crate) fn router(
             name: config.name.clone(),
             users: users.clone(),
             linking: users.linking().clone(),
+            browse: Browse::new(Arc::clone(&db), plugins.clone()),
             settings: settings.clone(),
             abilities: abilities.clone(),
             ffmpeg,
@@ -211,7 +212,7 @@ pub(crate) fn router(
             contents: Contents::new(Arc::clone(&db)),
             images,
             title_sources: TitleSources::new(plugins.clone()),
-            plugins,
+            plugins: plugins.clone(),
             plugin_settings: plugin_settings.clone(),
         }))
         .add_service(Arc::new(events::EventServiceHandler {
@@ -224,6 +225,7 @@ pub(crate) fn router(
             plugin_settings,
             plugin_logos: plugin_logos.clone(),
             linking: users.linking().clone(),
+            browse: Browse::new(Arc::clone(&db), plugins),
             db,
             server_url,
             home_rows,
@@ -447,6 +449,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_LIBRARY_NOT_FOUND
         | R::REFUSAL_REASON_NOTHING_MATCHED
         | R::REFUSAL_REASON_BOX_SET_NOT_FOUND
+        | R::REFUSAL_REASON_PERSON_NOT_FOUND
         | R::REFUSAL_REASON_SEASON_NOT_FOUND
         | R::REFUSAL_REASON_EPISODE_NOT_FOUND
         | R::REFUSAL_REASON_VERSION_NOT_FOUND

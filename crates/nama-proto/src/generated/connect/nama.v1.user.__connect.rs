@@ -1553,10 +1553,10 @@ pub trait UserService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Replaces a User's Permissions, which apply from their next request. Their Devices stay signed
-    /// in. Fails with `invalid_argument` for `PERMISSION_UNSPECIFIED` or a value the Server doesn't
-    /// know, `not_found` if no User has the ID, and `failed_precondition` if it would leave no User
-    /// with `PERMISSION_ADMIN`.
+    /// Replaces a User's Permissions and cap for remote playback, which apply from their next
+    /// request. Their Devices stay signed in. Fails with `invalid_argument` for
+    /// `PERMISSION_UNSPECIFIED` or a value the Server doesn't know, `not_found` if no User has the ID,
+    /// and `failed_precondition` if it would leave no User with `PERMISSION_ADMIN`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1709,8 +1709,9 @@ pub trait UserService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Gets the default Permissions: those `CreateUser` gives a new User. A fresh Server's are
-    /// `PERMISSION_REQUEST` and `PERMISSION_VIEW_REQUESTS`.
+    /// Gets the default Permissions: those `CreateUser` gives a new User, with the cap for remote
+    /// playback they get, as `CreateUser`, `CreateUserFromAccount` and `AcceptInvite` do. A fresh
+    /// Server's are `PERMISSION_REQUEST` and `PERMISSION_VIEW_REQUESTS`, with no cap.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1733,8 +1734,9 @@ pub trait UserService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Replaces the default Permissions. Users created before keep the Permissions they have. Fails
-    /// with `invalid_argument` for `PERMISSION_UNSPECIFIED` or a value the Server doesn't know.
+    /// Replaces the default Permissions and cap. Users created before keep the Permissions and cap
+    /// they have. Fails with `invalid_argument` for `PERMISSION_UNSPECIFIED` or a value the Server
+    /// doesn't know.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

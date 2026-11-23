@@ -33,6 +33,10 @@ pub(crate) struct PlacedRow {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub(crate) enum HomeRowId {
     ContinueWatching,
+    /// The newest titles of the Library of this id.
+    RecentlyAdded {
+        library: i64,
+    },
     /// A row the Plugin gives every User.
     Shared {
         plugin: PluginId,
@@ -54,7 +58,7 @@ impl HomeRowId {
     /// The Plugin giving the row, or `None` for one the Kernel builds.
     pub(crate) fn plugin(&self) -> Option<&PluginId> {
         match self {
-            Self::ContinueWatching => None,
+            Self::ContinueWatching | Self::RecentlyAdded { .. } => None,
             Self::Shared { plugin, .. } | Self::UsersOwn { plugin } | Self::Own { plugin, .. } => {
                 Some(plugin)
             }

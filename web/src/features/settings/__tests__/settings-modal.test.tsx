@@ -1,7 +1,7 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { DetachedWindowAPI } from "happy-dom";
-import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, onTestFinished, test, vi } from "vite-plus/test";
 
 import { admin, fakeServer, fill, newUser, openApp } from "@/test-app";
 import { openSettings } from "@/test-settings";
@@ -112,6 +112,31 @@ test("a section's link opens it, and a word that names none opens Playback", asy
 
   await expect(screen.findByRole("heading", { name: "Devices" })).resolves.toBeDefined();
   expect(screen.getByRole("link", { name: "Devices" }).getAttribute("aria-current")).toBe("page");
+});
+
+test("the open section scrolls back into view once the web font loads and widens the sections", async () => {
+  const finishLoadingFonts: (() => void)[] = [];
+  const ready = new Promise<void>((resolve) => {
+    finishLoadingFonts.push(resolve);
+  });
+  // happy-dom has no `document.fonts`.
+  Object.defineProperty(document, "fonts", { configurable: true, value: { ready } });
+  const scrolled = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
+  onTestFinished(() => {
+    Reflect.deleteProperty(document, "fonts");
+    scrolled.mockRestore();
+  });
+  openSettings("devices", fakeServer({ signedIn: newUser }));
+  const link = await screen.findByRole("link", { name: "Devices" });
+  await waitFor(() => {
+    expect(scrolled.mock.contexts).toContain(link);
+  });
+  scrolled.mockClear();
+  finishLoadingFonts[0]?.();
+
+  await waitFor(() => {
+    expect(scrolled.mock.contexts).toContain(link);
+  });
 });
 
 function locked(): object {

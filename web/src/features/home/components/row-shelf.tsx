@@ -1,11 +1,8 @@
+import { PosterShelf } from "@/features/home/components/poster-shelf";
 import { RowFrame } from "@/features/home/components/row-frame";
-import { VirtualShelf } from "@/features/home/components/virtual-shelf";
 import { useHomeRowTitles } from "@/features/home/data/use-home-row-titles";
-import { posterTile } from "@/features/home/lib/shelf-tiles";
 import type { PluginHomeRow } from "@/gen/nama/v1/browse_pb";
-import { RowPoster } from "@/shared/components/row-poster/row-poster";
-import { rowTile } from "@/shared/components/row-poster/row-tiles";
-import { rowTitleKey, rowTitles } from "@/shared/lib/row-titles";
+import { rowTitles } from "@/shared/lib/row-titles";
 
 /** One Plugin's row of posters under its heading, or nothing if it has no titles. */
 export function RowShelf({ row, headingId }: { row: PluginHomeRow; headingId: string }) {
@@ -16,12 +13,8 @@ export function RowShelf({ row, headingId }: { row: PluginHomeRow; headingId: st
   }
   return (
     <RowFrame heading={row.heading} headingId={headingId}>
-      <VirtualShelf
-        tiles={titles.map((title) => ({
-          key: rowTitleKey(title),
-          tile: <RowPoster tile={rowTile(title)} />,
-        }))}
-        tile={posterTile}
+      <PosterShelf
+        titles={titles}
         setSize={totalSize}
         next={{ has: hasNextPage, load: fetchNextPage }}
       />

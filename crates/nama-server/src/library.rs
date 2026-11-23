@@ -24,9 +24,10 @@ pub(crate) use contents::{
     Change, Contents, DEFAULT_ORDER, Decided, Decisions, Episode as LibraryEpisode, Found,
     FoundEpisode, FoundMovie, FoundShow, ImageRef, Item, ItemKind, Listing, LocalImageFile,
     LocalRole, MatchedTo, Metadata, Movie as LibraryMovie, Name, Named, NewestBackdrop, NfoFile,
-    NfoHints, NfoItem, Pin, Season as LibrarySeason, Show as LibraryShow, Stored, StoredBoxSet,
-    TiedTitle, TitleSort, TitlesIn, Unmatched, UnmatchedReason, Version as LibraryVersion, Watched,
-    library_with_movie, library_with_show, match_bands, matched_episodes, matched_ids, primary_id,
+    NfoHints, NfoItem, PersonRole, Pin, Season as LibrarySeason, Show as LibraryShow, Stored,
+    StoredBoxSet, TiedTitle, TitleSort, TitlesIn, Unmatched, UnmatchedReason,
+    Version as LibraryVersion, Watched, library_with_movie, library_with_show, match_bands,
+    matched_episodes, matched_ids, primary_id,
 };
 #[cfg(test)]
 pub(crate) use contents::{File, FileItem, Recorded, fixture};
@@ -45,12 +46,12 @@ pub(crate) use shown_images::{Downloaded, ImageSources, ShownImages, TitleImage}
 pub(crate) use similar_sources::{
     Answer as SimilarAnswer, MAX_SIMILAR, SimilarSources, merged as merged_similar,
 };
-#[cfg(test)]
-pub(crate) use title_source::scripted;
 pub(crate) use title_source::{
     Candidate, Episode as SourceEpisode, ListedMovie, Roles, SearchQuery, Season as SourceSeason,
     Show as SourceShow, Source, TitleKind, TitleSources, Trailer, Unanswered, title_roles,
 };
+#[cfg(test)]
+pub(crate) use title_source::{Role as SourceRole, scripted};
 pub(crate) use titles::{
     NotFound, OnServer, Target as TitleTarget, Titles, episode_name, known_as, named_episodes,
 };

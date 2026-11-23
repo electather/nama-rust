@@ -95,3 +95,17 @@ async fn a_font_is_sent_as_it_is() {
 
     assert!(!response.headers().contains_key(header::CONTENT_ENCODING));
 }
+
+/// A file under `/assets/` is named by its content's hash, so the browser keeps it for a year
+/// without asking again, while the app's `index.html` isn't kept, so a new release still loads.
+#[tokio::test]
+async fn hashed_assets_are_cached_for_good_and_the_shell_is_not() {
+    let asset_response = get(linked_asset("js"), &[]).await;
+    let shell_response = get("/", &[]).await;
+
+    assert_eq!(
+        asset_response.headers()[header::CACHE_CONTROL],
+        "public, max-age=31536000, immutable"
+    );
+    assert!(!shell_response.headers().contains_key(header::CACHE_CONTROL));
+}

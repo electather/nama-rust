@@ -1,6 +1,7 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 
 import { type HomeRowSchema, KernelHomeRow } from "@/gen/nama/v1/browse_pb";
+import type { LibraryKind } from "@/gen/nama/v1/library_pb";
 
 /** A Home row as a fake Server's `ListHomeRows` lists it. */
 export type HomeRowInit = MessageInitShape<typeof HomeRowSchema>;
@@ -13,4 +14,15 @@ export const continueWatchingRow: HomeRowInit = {
 /** The row `key` that the Plugin `pluginId` gives, under `heading`. */
 export function pluginRow(pluginId: string, key: string, heading: string): HomeRowInit {
   return { kernelOrPlugin: { case: "plugin", value: { pluginId, key, heading } } };
+}
+
+/** The Recently Added row of the Library `libraryId`, named `libraryName`, of `libraryKind`. */
+export function recentlyAddedRow(
+  libraryId: bigint,
+  libraryName: string,
+  libraryKind: LibraryKind,
+): HomeRowInit {
+  return {
+    kernelOrPlugin: { case: "recentlyAdded", value: { libraryId, libraryName, libraryKind } },
+  };
 }

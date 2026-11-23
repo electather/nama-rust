@@ -47,6 +47,8 @@ const buttonVariants = cva(
         // The player's large controls, 44px tall: `round` holds only an icon.
         round: "size-11 [&_svg]:size-5",
         tall: "h-11 px-5 [&_svg]:size-5",
+        // `tall` whose words its caller hides on a phone, so it's `round` there: the player's Episodes.
+        "round-on-phone": "size-11 sm:w-auto sm:px-5 [&_svg]:size-5",
         // Play or Resume at the top of a title's page, as a pill.
         pill: "h-11 px-6 text-base [&_svg]:size-4 [&_svg]:fill-current",
         // A Season's name over its Episodes, which opens the menu that picks another Season.

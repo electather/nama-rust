@@ -123,6 +123,8 @@ const wordings: Record<PlaybackReasonKind, Wording | undefined> = {
     `Its ${param.hdr()} picture is converted to SDR, as this Server can’t Transcode it to HEVC for this Device.`,
   [PlaybackReasonKind.REMOTE_DEFAULT_LIMIT]: (param) =>
     `This Device is outside the local network, so it asks for the default Playback Limit for remote playback, ${param.limit()}.`,
+  [PlaybackReasonKind.REMOTE_CAP]: (param) =>
+    `This Device is outside the local network, where your cap for remote playback is ${param.limit()}.`,
   [PlaybackReasonKind.PICTURE_SIZE_UNKNOWN]: (param) =>
     `Its picture size isn’t known, so it’s taken to fit the ${param.limit()} Playback Limit.`,
   [PlaybackReasonKind.CHOSEN_AUDIO_DROPPED]: () =>

@@ -105,7 +105,9 @@ pub trait SearchService: Send + Sync + 'static {
     /// as the User types. A last word of four digits after others is a year, which keeps only those
     /// released or aired that year, or with it in their title: "dune 2021" finds the 2021 Dune. A
     /// Show counts as of every year one of its Episodes aired. A Show is found by its own title,
-    /// and an Episode by its own, not its Show's. A title in two Libraries is found in each.
+    /// and an Episode by its own, not its Show's. A title in two Libraries is found in each. With
+    /// `kind` unset, it also finds up to 5 People with a Role in a title in a Library whose names
+    /// have each word of the query, matched the same way.
     ///
     /// A caller with `PERMISSION_REQUEST_MOVIE` also finds the Movies to request, and one with
     /// `PERMISSION_REQUEST_TV` the Shows: for each kind, the first title source in the Admin's

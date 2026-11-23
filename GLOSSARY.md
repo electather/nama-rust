@@ -290,7 +290,7 @@ How well a Movie's or Show's audience liked it, from 0 to 10, as the title sourc
 _Avoid_: rating (that's Content Rating), stars, user score
 
 **Person**:
-Someone who worked on Movies or Shows, known by an External ID, with at most one headshot, shared by all their Roles. A Person has no page.
+Someone who worked on Movies or Shows, known by an External ID, with at most one headshot, shared by all their Roles. A Person's page lists the titles on the Server they have a Role in.
 _Avoid_: actor, talent, cast member
 
 **Role**:
@@ -378,7 +378,7 @@ A User's Movies and Episodes whose Watch State says they've started and not play
 _Avoid_: on deck, in progress, resume list, Next Up
 
 **Home row**:
-A headed row of titles on a User's home page. The Kernel builds some, such as Continue Watching; a Plugin may provide others, shared by every User or each User's own, which can hold titles not on the Server for the User to Request.
+A headed row of titles on a User's home page. The Kernel builds some, such as Continue Watching and each Library's Recently Added row of its newest titles; a Plugin may provide others, shared by every User or each User's own, which can hold titles not on the Server for the User to Request.
 _Avoid_: shelf, section, rail, carousel
 
 **Featured**:
@@ -448,7 +448,7 @@ One fact that shaped a Playback Plan, such as a codec the Device can't decode or
 _Avoid_: explanation, note
 
 **Playback Limit**:
-The most a User asks playback to send, such as "Original", "1080p" or "720p". A limit below the Version's own makes it Transcode; when the Server can't Transcode it, it plays as it is and the Playback Plan says why. Until the User picks one, a Device outside the local network gets the default an Admin sets for remote playback.
+The most a User asks playback to send, such as "Original", "1080p" or "720p". A limit below the Version's own makes it Transcode; when the Server can't Transcode it, it plays as it is and the Playback Plan says why. Until the User picks one, a Device outside the local network gets the default an Admin sets for remote playback. An Admin may also cap a User's remote playback: outside the local network their Devices are never sent more than that cap, whatever they pick, and a plan that can't keep to it doesn't play.
 _Avoid_: quality, bitrate, resolution
 
 **Subtitle Preference**:

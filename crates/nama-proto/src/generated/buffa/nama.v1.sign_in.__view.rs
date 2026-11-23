@@ -23,6 +23,11 @@ pub struct UserView<'a> {
         'a,
         ::buffa::EnumValue<super::super::Permission>,
     >,
+    /// The most a Device of theirs outside the local network is sent, whatever Playback Limit it
+    /// picks: `PLAYBACK_LIMIT_ORIGINAL` for no cap. Only `UserService.ListUsers` sets it.
+    ///
+    /// Field 6: `remote_playback_limit`
+    pub remote_playback_limit: ::buffa::EnumValue<super::super::PlaybackLimit>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for UserView<'a> {
@@ -75,6 +80,15 @@ impl<'a> ::buffa::MessageView<'a> for UserView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.created_at = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.remote_playback_limit = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
             }
             5u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
@@ -131,6 +145,7 @@ impl<'a> ::buffa::MessageView<'a> for UserView<'a> {
             name: self.name.to_string(),
             created_at: self.created_at,
             permissions: self.permissions.to_vec(),
+            remote_playback_limit: self.remote_playback_limit,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -158,6 +173,12 @@ impl<'a> ::buffa::ViewEncode<'a> for UserView<'a> {
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -188,6 +209,12 @@ impl<'a> ::buffa::ViewEncode<'a> for UserView<'a> {
             ::buffa::types::put_len_delimited_header(5u32, payload, buf);
             for v in &self.permissions {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(6u32, val, buf);
             }
         }
         self.__buffa_unknown_fields.write_to(buf);
@@ -230,6 +257,11 @@ impl<'__a> ::serde::Serialize for UserView<'__a> {
                     "permissions",
                     &::buffa::json_helpers::EnumSeqJson(&self.permissions),
                 )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(
+            &self.remote_playback_limit,
+        ) {
+            __map.serialize_entry("remotePlaybackLimit", &self.remote_playback_limit)?;
         }
         __map.end()
     }
@@ -347,6 +379,16 @@ impl UserOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::Permission>> {
         &self.0.reborrow().permissions
+    }
+    /// The most a Device of theirs outside the local network is sent, whatever Playback Limit it
+    /// picks: `PLAYBACK_LIMIT_ORIGINAL` for no cap. Only `UserService.ListUsers` sets it.
+    ///
+    /// Field 6: `remote_playback_limit`
+    #[must_use]
+    pub fn remote_playback_limit(
+        &self,
+    ) -> ::buffa::EnumValue<super::super::PlaybackLimit> {
+        self.0.reborrow().remote_playback_limit
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<UserView<'static>>> for UserOwnedView {

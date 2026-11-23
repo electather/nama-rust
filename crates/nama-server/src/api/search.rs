@@ -20,7 +20,7 @@ use tokio::sync::mpsc::{self, UnboundedSender};
 use tracing::{Instrument as _, Span};
 
 use crate::{
-    browse::Browse,
+    browse::{Browse, PersonPage},
     library::{
         Candidate, Downloaded, Found, FoundEpisode, FoundMovie, FoundShow, ImageSources, OnServer,
         Role, ShownImages, TitleImage, TitleKind,
@@ -30,7 +30,7 @@ use crate::{
 };
 
 use super::{
-    browse::{Fields, refused},
+    browse::{Fields, headshot_url, refused},
     caller, database_failed, external_id_to_proto, proto_number, refuse,
     requests::{searched_show_to_proto, searched_to_proto},
     title_kind_from_proto,
@@ -71,14 +71,22 @@ impl SearchService for SearchServiceHandler {
             .map_or(DEFAULT_LIMIT, |limit| limit.min(MAX_LIMIT));
         let found = self.browse.search(query, kind, limit).await;
         let found = found.map_err(database_failed)?;
+        let people = self.browse.people_named(query, kind).await;
+        let people = people.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await.map_err(database_failed)?;
         let sent = Sent {
             movies: library_ids(&found, TitleKind::Movie),
             shows: library_ids(&found, TitleKind::Show),
         };
+        let people = (people.into_iter()).map(|page| proto::Hit {
+            title: person_hit(page, &images).into(),
+            status: TitleStatus::TITLE_STATUS_AVAILABLE.into(),
+            ..Default::default()
+        });
         let library = Hits {
             hits: (found.into_iter())
                 .map(|found| hit_to_proto(found, &images))
+                .chain(people)
                 .collect(),
             ..Default::default()
         };
@@ -548,7 +556,7 @@ pub(super) fn show_hits(titles: Vec<OnServer>, images: &ShownImages) -> Vec<prot
         .collect()
 }
 
-fn movie_hit(movie: FoundMovie, images: &ShownImages) -> proto::MovieHit {
+pub(super) fn movie_hit(movie: FoundMovie, images: &ShownImages) -> proto::MovieHit {
     let downloaded = movie.poster.as_ref().map(Downloaded::stored);
     let role = TitleImage::Movie(Role::Poster);
     let poster = images.of_title(&movie.id, &movie.ids, role, downloaded);
@@ -563,16 +571,27 @@ fn movie_hit(movie: FoundMovie, images: &ShownImages) -> proto::MovieHit {
     }
 }
 
-fn show_hit(show: FoundShow, images: &ShownImages) -> proto::ShowHit {
+pub(super) fn show_hit(show: FoundShow, images: &ShownImages) -> proto::ShowHit {
     let downloaded = show.poster.as_ref().map(Downloaded::stored);
     let role = TitleImage::Show(Role::Poster);
     let poster = images.of_title(&show.id, &show.ids, role, downloaded);
     proto::ShowHit {
         id: external_id_to_proto(&show.id).into(),
         title: show.title,
+        year: show.first_air_date.as_deref().and_then(year_of),
         poster_url: poster.url,
         poster_thumbhash: poster.thumbhash,
         library_id: Some(show.library),
+        ..Default::default()
+    }
+}
+
+/// A Person a search found, as clients see them.
+fn person_hit(page: PersonPage, images: &ShownImages) -> proto::PersonHit {
+    proto::PersonHit {
+        headshot_url: headshot_url(&page, images),
+        id: external_id_to_proto(&page.id).into(),
+        name: page.name,
         ..Default::default()
     }
 }

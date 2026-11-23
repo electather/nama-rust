@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package nama.v1;
 
+import "nama/v1/library.proto";
 import "nama/v1/match.proto";
 import "nama/v1/page.proto";
 import "nama/v1/request.proto";
@@ -99,10 +100,11 @@ service BrowseService {
   }
   // Lists the caller's Home rows in the order Home shows them: the default Home layout's
   // (`ServerService.GetDefaultHomeLayout`), leaving out the rows it hides. The rows it doesn't
-  // place follow, the Kernel's first, then the rows Plugins give (ADR 0058), each enabled
-  // Plugin's in Plugin id order, then in the order the Plugin gave them. A Plugin row with no title
-  // to show the caller, as `ListHomeRowTitles` shows them, is left out. Featured isn't a Home row,
-  // so it's never listed.
+  // place follow, the Kernel's first, Continue Watching then each Library's Recently Added row,
+  // oldest Library first, then the rows Plugins give (ADR 0058), each enabled Plugin's in Plugin
+  // id order, then in the order the Plugin gave them. A Plugin row with no title to show the
+  // caller, as `ListHomeRowTitles` shows them, is left out. Featured isn't a Home row, so it's
+  // never listed.
   // Never waits on a Plugin: rows past their time to live are refreshed in the background, and
   // what was stored before is listed meanwhile, so a Plugin's first rows show on a later call.
   rpc ListHomeRows(ListHomeRowsRequest) returns (ListHomeRowsResponse) {
@@ -123,6 +125,12 @@ service BrowseService {
   // Lists a page of the Box Sets the caller can see that have a Movie in a Movies Library, by
   // name. Fails like `ListMovies`.
   rpc ListBoxSets(ListBoxSetsRequest) returns (ListBoxSetsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Returns a Person with each title in a Library they have a Role in. Every Library counts, since
+  // every User may browse each one. Fails with `not_found` (`REFUSAL_REASON_PERSON_NOT_FOUND`) if
+  // no title in a Library has a Role of theirs.
+  rpc GetPerson(GetPersonRequest) returns (GetPersonResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
 }
@@ -736,7 +744,16 @@ message HomeRow {
     // Read through its own rpc, such as `ListContinueWatching`.
     KernelHomeRow kernel = 4;
     PluginHomeRow plugin = 5;
+    RecentlyAddedHomeRow recently_added = 6;
   }
+}
+
+// A Kernel row of one Library's newest titles, which `ListMovies` or `ListShows` list sorted by
+// `*_SORT_ADDED`, newest first. Every Library has one.
+message RecentlyAddedHomeRow {
+  int64 library_id = 1;
+  string library_name = 2;
+  LibraryKind library_kind = 3;
 }
 
 // A Home row the Kernel builds.
@@ -816,6 +833,34 @@ message GetBoxSetRequest {
 
 message GetBoxSetResponse {
   BoxSet box_set = 1;
+}
+
+message GetPersonRequest {
+  // As `Role.person_id`.
+  ExternalId person_id = 1;
+}
+
+message GetPersonResponse {
+  // Their name, as one of their Roles gives it.
+  string name = 1;
+  // Their headshot's URL on this Server, if one of their Roles has one.
+  optional string headshot_url = 2;
+  // The titles they play a character in, newest first by release or first air date, those
+  // without one last, each once, in the oldest Library that has it.
+  repeated PersonRole cast = 3;
+  // The titles they did a job on, ordered as `cast`.
+  repeated PersonRole crew = 4;
+}
+
+// A title in a Library, and a Person's parts in it.
+message PersonRole {
+  oneof title {
+    MovieHit movie = 1;
+    ShowHit show = 2;
+  }
+  // The characters they play, or the jobs they did, as `Role.part`, in billing order, leaving out
+  // empty ones.
+  repeated string parts = 3;
 }
 
 message ListBoxSetsRequest {

@@ -27,11 +27,13 @@ use crate::{
 
 mod box_sets;
 mod featured;
+mod people;
 mod title_pages;
 mod watching;
 
 pub(crate) use box_sets::SeenBoxSet;
 pub(crate) use featured::Featured;
+pub(crate) use people::{PersonPage, PersonTitle};
 pub(crate) use title_pages::{FoundPageError, TitlePages};
 pub(crate) use watching::Started;
 
@@ -358,6 +360,11 @@ impl Browse {
             TitleKind::Show => LibraryKind::Shows,
         };
         Ok(OnServer::in_order_of(&self.contents, &libraries, kind, ids).await?)
+    }
+
+    /// Every Library, oldest first: every User may browse each one.
+    pub(crate) async fn libraries(&self) -> Result<Vec<Library>, Error> {
+        self.libraries.list().await.map_err(finding_failed)
     }
 
     pub(super) async fn library(&self, library: i64) -> Result<Library, Error> {

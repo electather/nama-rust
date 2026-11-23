@@ -1,0 +1,52 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT person_namespace AS \"namespace!\", person_value AS \"value!\",\n                      MIN(name) AS \"name!: String\",\n                      COUNT(*) AS \"roles!: i64\"\n               FROM title_roles\n               GROUP BY person_namespace, person_value",
+  "describe": {
+    "columns": [
+      {
+        "name": "namespace!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_roles",
+            "name": "person_namespace"
+          }
+        }
+      },
+      {
+        "name": "value!",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_roles",
+            "name": "person_value"
+          }
+        }
+      },
+      {
+        "name": "name!: String",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "name": "roles!: i64",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "3783fe3adc582b7b8b8f2dac8508a2dc9b646e74a112b48c2e5af96264b99590"
+}
