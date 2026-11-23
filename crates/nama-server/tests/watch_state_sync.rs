@@ -22,7 +22,8 @@ use nama_plugin_api::{
     server_link::{AccountSignIn, Link, ServerAddresses, ServerLinker},
 };
 use nama_proto::nama::v1::{
-    BrowseServiceClient, LibraryKind, ListContinueWatchingRequest, ReportProgressRequest,
+    BrowseServiceClient, GetServerLinkRequest, GetUserLinkRequest, LibraryKind,
+    ListContinueWatchingRequest, ReportProgressRequest, ServerServiceClient, UserServiceClient,
     WatchStateServiceClient, continue_watching_entry::MovieOrEpisode,
 };
 use nama_server::plugins::Registry;
@@ -235,4 +236,53 @@ async fn progress_on_a_title_the_server_lacks_shows_once_a_scan_adds_it() {
         alien_in_continue_watching(&ada.client_config()).await == Some(60_000)
     })
     .await;
+}
+
+/// Watches Alien on `fx`'s Server, then has the Hub forget it, as if it was watched before the
+/// Link, and answers the change the Server told of, as the Server stores it: under its preferred
+/// id, as of the second it was made.
+#[expect(
+    clippy::indexing_slicing,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn alien_watched_before_linking(fx: &Fixture, hub: &Hub) -> WatchStateChange {
+    watch_alien(fx, hub).await;
+    let made = hub.kept().remove(0);
+    WatchStateChange {
+        ids: made.ids[..1].to_vec(),
+        changed_at_ms: made.changed_at_ms.div_euclid(1000) * 1000,
+        ..made
+    }
+}
+
+#[tokio::test]
+async fn linking_a_user_pushes_their_watch_state_from_before_dated_as_stored() {
+    let hub = Hub::default();
+    let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
+    let stored = alien_watched_before_linking(&fx, &hub).await;
+
+    let users = UserServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
+    users
+        .get_user_link(GetUserLinkRequest::default())
+        .await
+        .unwrap();
+
+    until("the Hub has the progress", async || !hub.kept().is_empty()).await;
+    assert_eq!(*hub.kept(), [stored]);
+}
+
+#[tokio::test]
+async fn linking_the_server_pushes_every_users_watch_state_dated_as_stored() {
+    let hub = Hub::default();
+    let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
+    let stored = alien_watched_before_linking(&fx, &hub).await;
+
+    let server = ServerServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
+    server
+        .get_server_link(GetServerLinkRequest::default())
+        .await
+        .unwrap();
+
+    until("the Hub has the progress", async || !hub.kept().is_empty()).await;
+    assert_eq!(*hub.kept(), [stored]);
 }

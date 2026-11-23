@@ -407,6 +407,22 @@ impl WatchStates {
             })
             .collect())
     }
+
+    /// Every Watch State of the User `user`, each as the change that left it, as Plugins are told
+    /// of it. Each is dated when it last changed, never now, so a later change elsewhere wins.
+    pub(crate) async fn as_changes(&self, user: i64) -> Result<Vec<WatchStateChange>, sqlx::Error> {
+        let stored = self.of_user(user).await?;
+        Ok((stored.into_iter())
+            .map(|(title, state, _, _)| {
+                let progress = Progress {
+                    position_ms: state.position_ms,
+                    duration_ms: state.duration_ms,
+                };
+                let changed_at_ms = state.updated_at.saturating_mul(1000);
+                Watched::from(title).changed(state.played, progress, changed_at_ms)
+            })
+            .collect())
+    }
 }
 
 /// One once played under any of its ids stays played, as of when it first was.

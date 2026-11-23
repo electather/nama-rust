@@ -9,6 +9,7 @@ use std::{future::Future, net::SocketAddr, time::Duration};
 use connectrpc::{ConnectError, Response, ServiceResult};
 use nama_plugin_api::{
     PluginError,
+    points::{WatchStateChanges, WatchStatesChanged},
     server_link::{Link, ServerLinker},
 };
 use nama_proto::nama::v1::{
@@ -42,9 +43,18 @@ const LINKING_FAILED: &str = "the Plugin that links the Server failed; its page 
 const ACCOUNT_SIGN_IN_FAILED: &str =
     "Signing in with an Account needs the Hub, which can't be reached right now. Try again later.";
 
-/// Where Linking stands, unset without an enabled Plugin that links the Server.
-pub(super) async fn get(points: &ExtensionPoints) -> ServiceResult<GetServerLinkResponse> {
+/// Where Linking stands, unset without an enabled Plugin that links the Server. Once it is Linked,
+/// pushes every User's Watch State too, as it can't tell the look that finds the Link new from a
+/// later one.
+pub(super) async fn get(
+    points: &ExtensionPoints,
+    browse: &Browse,
+    users: &Users,
+) -> ServiceResult<GetServerLinkResponse> {
     let link = ask(points, async |linker| linker.link().await).await?;
+    if let Some(Link::Linked { .. }) = &link {
+        push_every_users_watch_states_soon(points, browse, users);
+    }
     Response::ok(GetServerLinkResponse {
         link: link.map(link_to_proto).into(),
         ..Default::default()
@@ -75,7 +85,7 @@ pub(super) async fn unlink(points: &ExtensionPoints) -> ServiceResult<UnlinkServ
 
 /// Where Linking `user` stands, unset while they can't Link: without an enabled Plugin that links
 /// the Server, or before the Server is Linked. Once they are Linked, pulls their Watch State too,
-/// as it can't tell the look that finds a Link new from a later one.
+/// as it can't tell the look that finds a Link new from a later one, after pushing theirs.
 pub(super) async fn get_user(
     points: &ExtensionPoints,
     browse: &Browse,
@@ -83,7 +93,7 @@ pub(super) async fn get_user(
 ) -> ServiceResult<GetUserLinkResponse> {
     let link = ask(points, async |linker| linker.user_link(user.id).await).await?;
     if let Some(Some(Link::Linked { .. })) = &link {
-        pull_watch_states_soon(points, browse, user.id);
+        push_then_pull_watch_states_soon(points, browse, user.id);
     }
     Response::ok(GetUserLinkResponse {
         link: link.flatten().map(user_link_to_proto).into(),
@@ -91,8 +101,8 @@ pub(super) async fn get_user(
     })
 }
 
-/// Starts Linking `user`, whom the service lists by their name, or pulls their Watch State if
-/// they turn out to be Linked already.
+/// Starts Linking `user`, whom the service lists by their name, or pushes then pulls their Watch
+/// State if they turn out to be Linked already.
 pub(super) async fn start_user(
     points: &ExtensionPoints,
     browse: &Browse,
@@ -104,7 +114,7 @@ pub(super) async fn start_user(
     .await?
     .ok_or_else(no_linker)?;
     if let Link::Linked { .. } = link {
-        pull_watch_states_soon(points, browse, user.id);
+        push_then_pull_watch_states_soon(points, browse, user.id);
     }
     Response::ok(StartUserLinkResponse {
         link: user_link_to_proto(link).into(),
@@ -274,6 +284,52 @@ pub(super) fn pull_watch_states_soon(points: &ExtensionPoints, browse: &Browse, 
     tokio::spawn(
         async move { pull_watch_states(&points, &browse, user_id).await }.instrument(span),
     );
+}
+
+/// [`pull_watch_states_soon`], after pushing the User `user_id`'s Watch State, as when they Link.
+fn push_then_pull_watch_states_soon(points: &ExtensionPoints, browse: &Browse, user_id: i64) {
+    let (points, browse) = (points.clone(), browse.clone());
+    let span =
+        diagnostics::following_current(tracing::info_span!(parent: None, "sync_watch_states"));
+    let syncing = async move {
+        // The Plugin may queue the push after the pull sent its queue; its Sync Job sends it then.
+        push_watch_states(&points, &browse, user_id).await;
+        pull_watch_states(&points, &browse, user_id).await;
+    };
+    tokio::spawn(syncing.instrument(span));
+}
+
+/// Pushes every User's Watch State, as when the Server Links, without waiting for it. Must be
+/// called within a Tokio runtime.
+// ponytail: reads every User's whole Watch State on each look at a Linked Server; have the Plugin
+// say when a Link is new if that grows slow.
+fn push_every_users_watch_states_soon(points: &ExtensionPoints, browse: &Browse, users: &Users) {
+    let (points, browse, users) = (points.clone(), browse.clone(), users.clone());
+    let span =
+        diagnostics::following_current(tracing::info_span!(parent: None, "push_watch_states"));
+    let pushing = async move {
+        match users.list().await {
+            Ok(listed) => {
+                for user in listed {
+                    push_watch_states(&points, &browse, user.id).await;
+                }
+            }
+            Err(err) => tracing::error!("listing Users to push their Watch State failed: {err}"),
+        }
+    };
+    tokio::spawn(pushing.instrument(span));
+}
+
+/// Tells the Plugins that observe Watch State, such as the Hub's, of the User `user_id`'s whole
+/// Watch State, each change dated as stored, since what they did before they Linked was never
+/// pushed. The Plugin queues it only for a Linked User, and the Hub keeps the later of a title's
+/// changes (ADR 0008).
+async fn push_watch_states(points: &ExtensionPoints, browse: &Browse, user_id: i64) {
+    match browse.watch_state_changes(user_id).await {
+        Ok(changes) if changes.is_empty() => {}
+        Ok(changes) => points.notify::<WatchStatesChanged>(WatchStateChanges { user_id, changes }),
+        Err(err) => tracing::error!(user = user_id, "reading a User's Watch State failed: {err}"),
+    }
 }
 
 /// Pulls every User's Watch State after each scan's Matching, so a title a scan added shows what
