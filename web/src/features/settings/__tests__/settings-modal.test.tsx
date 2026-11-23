@@ -1,11 +1,17 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, expect, test } from "vite-plus/test";
+import type { DetachedWindowAPI } from "happy-dom";
+import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { admin, fakeServer, fill, newUser, openApp } from "@/test-app";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
+
+declare global {
+  // The test environment's window, whose viewport a test may resize.
+  var happyDOM: DetachedWindowAPI;
+}
 
 /** The links to Settings' sections, as its sidebar lists them. */
 function sections() {
@@ -28,6 +34,27 @@ test("your menu opens Settings over the page you're on, and Back closes it", asy
     expect(screen.queryByRole("dialog", { name: "Settings" })).toBeNull();
   });
   expect(router.state.location.pathname).toBe("/code");
+});
+
+describe("on a phone", () => {
+  // Under `md`, 48rem, where focus on Search would open the keyboard.
+  beforeEach(() => {
+    globalThis.happyDOM.setViewport({ width: 375 });
+  });
+  afterEach(() => {
+    // happy-dom's default.
+    globalThis.happyDOM.setViewport({ width: 1024 });
+  });
+
+  // happy-dom's `showModal()` focuses nothing, where a browser's focuses Search, so this checks only
+  // that Settings moves focus to itself, not that it does so after `showModal()`.
+  test("opening Settings focuses the dialog, not Search", async () => {
+    openSettings("playback", fakeServer({ signedIn: newUser }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Settings" });
+
+    expect(document.activeElement).toBe(dialog);
+  });
 });
 
 test("closing Settings leaves the page it was over", async () => {

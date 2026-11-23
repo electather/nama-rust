@@ -4,6 +4,7 @@ import { SettingsHeader } from "@/features/settings/components/settings-header";
 import { SettingsPane } from "@/features/settings/components/settings-pane";
 import { SettingsSide } from "@/features/settings/components/settings-side";
 import { useCloseSettings } from "@/features/settings/hooks/use-close-settings";
+import { phoneWidth } from "@/features/settings/lib/phone-width";
 import {
   type Section,
   groupsFor,
@@ -60,6 +61,11 @@ export function SettingsModal({ section, user }: { section: Section; user: User 
     // Strict Mode runs this twice, and a dialog that's open throws on a second `showModal()`.
     if (opened?.open === false) {
       opened.showModal();
+      // `showModal()` focuses the first control, Search, which on a phone opens the keyboard over
+      // Settings.
+      if (phoneWidth()) {
+        opened.focus();
+      }
     }
     return () => opened?.close();
   }, []);
@@ -69,6 +75,8 @@ export function SettingsModal({ section, user }: { section: Section; user: User 
     <dialog
       ref={dialog}
       aria-labelledby={titleId}
+      // Focusable, so a phone can start on the dialog itself.
+      tabIndex={-1}
       onKeyDown={keepTypedText}
       // Escape and the back gesture leave as the close button does, by the address.
       onCancel={(event) => {
