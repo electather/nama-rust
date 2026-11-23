@@ -16,7 +16,7 @@ export function userLinkFailure(error: ConnectError | null) {
   if (error === null || isCode(error, Code.Canceled)) {
     return undefined;
   }
-  return refusalOf(error).reason === RefusalReason.NO_SIGN_IN_METHOD
+  return refusalOf(error).reason === RefusalReason.LAST_SIGN_IN_METHOD
     ? "You sign in only with your Account, so Unlinking would leave you no way in. Ask an Admin to give you a password first."
     : "The Server couldn’t reach the Hub. Try again in a moment.";
 }

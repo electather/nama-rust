@@ -330,7 +330,8 @@ enum RefusalReason {
   // `unauthenticated`: the Account that approved signing in on the Hub isn't the one Linked to the
   // calling User. `field` is `account_sign_in_handle`.
   REFUSAL_REASON_WRONG_ACCOUNT = 100;
-  // `failed_precondition`: the caller has no Sign-in Method, so Unlinking them from their Account
-  // would leave them no way to sign in. An Admin can give them a password with `ResetPassword`.
-  REFUSAL_REASON_NO_SIGN_IN_METHOD = 101;
+  // `failed_precondition`: the caller's Account is their last Sign-in Method, as for a User created
+  // from one, so Unlinking them from it would leave them no way to sign in. An Admin can give them
+  // a password with `ResetPassword`.
+  REFUSAL_REASON_LAST_SIGN_IN_METHOD = 101;
 }

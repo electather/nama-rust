@@ -69,7 +69,7 @@ test("a User whose Account is their only way in is told why they can't Unlink", 
     getUserLink: () => ({ link: { account: "grace@example.com" } }),
     unlinkUser: () => {
       throw refused(Code.FailedPrecondition, "you sign in only with your Account", {
-        reason: RefusalReason.NO_SIGN_IN_METHOD,
+        reason: RefusalReason.LAST_SIGN_IN_METHOD,
       });
     },
   });

@@ -487,7 +487,7 @@ async fn a_user_with_no_password_whose_account_unlinked_them_is_listed_as_unable
 }
 
 #[tokio::test]
-async fn a_user_who_signs_in_only_with_their_account_cant_unlink_from_it() {
+async fn a_user_who_signs_in_only_with_their_account_cant_unlink_from_it_but_can_cancel_a_code() {
     let linker = Scripted::default();
     let server = linked_server(&linker).await;
     let grace = create_from_account(&server, "Grace").await.unwrap();
@@ -496,15 +496,29 @@ async fn a_user_who_signs_in_only_with_their_account_cant_unlink_from_it() {
     let signed_in = sign_in_with_account(&server, &started.handle, "code")
         .await
         .unwrap();
-
-    assert_refused(
+    linker.script().user_link = Some(Link::Linked {
+        account: "grace@example.com".to_owned(),
+        reachability: None,
+    });
+    let unlink = async || {
         users(server.client_config_as(&signed_in.token))
             .unlink_user(UnlinkUserRequest::default())
-            .await,
+            .await
+    };
+
+    assert_refused(
+        unlink().await,
         ErrorCode::FailedPrecondition,
-        RefusalReason::REFUSAL_REASON_NO_SIGN_IN_METHOD,
+        RefusalReason::REFUSAL_REASON_LAST_SIGN_IN_METHOD,
     );
     assert_eq!(linker.script().unlinked_users, Vec::<i64>::new());
+    // Unlinked on the Hub since, they can still stop showing the code they started to Link again.
+    linker.script().user_link = Some(Link::Waiting {
+        code: "CDFG-HJKL".to_owned(),
+        url: "https://hub.example".to_owned(),
+    });
+    unlink().await.unwrap();
+    assert_eq!(linker.script().unlinked_users, [grace]);
 }
 
 #[tokio::test]
