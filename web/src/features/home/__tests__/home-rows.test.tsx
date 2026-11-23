@@ -182,18 +182,20 @@ test("a missing title opens its page to Request it, badged with where it stands"
   await screen.findByRole("link", { name: "Dune" });
   const picks = screen.getByRole("region", { name: "Picks" });
 
-  const dunePoster = within(picks).getByRole("link", { name: "Dune" });
+  const dunePoster = within(picks).getByRole("link", { name: "Dune", description: "Pending" });
   expect(dunePoster.getAttribute("href")).toBe("/movies/tmdb-438631");
   expect(dunePoster.querySelector("img:not([src^='data:'])")?.getAttribute("src")).toBe(
     dune.posterUrl,
   );
-  expect(within(dunePoster).getByText("Pending")).toBeDefined();
   // A declined Request leaves the title as missing as one nobody asked for.
-  const arrivalPoster = within(picks).getByRole("link", { name: "Arrival" });
-  expect(within(arrivalPoster).getByText("Not on this Server")).toBeDefined();
-  const severancePoster = within(picks).getByRole("link", { name: "Severance" });
+  expect(
+    within(picks).getByRole("link", { name: "Arrival", description: "Not on this Server" }),
+  ).toBeDefined();
+  const severancePoster = within(picks).getByRole("link", {
+    name: "Severance",
+    description: "Not on this Server",
+  });
   expect(severancePoster.getAttribute("href")).toBe("/shows/tmdb-95396");
-  expect(within(severancePoster).getByText("Not on this Server")).toBeDefined();
   // A title you can watch carries no badge.
   expect(within(picks).getByRole("link", { name: "Heat" }).textContent).toBe("");
 });
