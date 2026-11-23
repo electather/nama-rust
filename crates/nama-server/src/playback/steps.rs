@@ -131,8 +131,8 @@ fn needs_reshaping(facts: &Facts) -> bool {
 /// What `transcode` goes on with in software if it runs on hardware making H.264: the same
 /// conversion, tone-mapping in software if it did on the GPU and ffmpeg can, and its reasons from
 /// then on (ADR 0034): the reasons the narrowing steps gave, `narrowing`, what the software
-/// Transcode converts, and why it fell back. HEVC has none, as its playlist can't change codec partway: failing ends the
-/// plan, and its Recipe with it.
+/// Transcode converts, and why it fell back. HEVC has none, as its playlist can't change codec
+/// partway: failing ends the plan, and its Recipe with it.
 pub(super) fn fallback(
     facts: &Facts,
     candidates: Option<&Candidates>,
