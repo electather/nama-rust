@@ -1,0 +1,51 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO viewing_events (account_id, server_key, kind, external_id, started_at,\n         time_of_day_minutes, stop_position_ms, duration_ms, finished, device_kind,\n         show_external_id, pooled, pooled_week)\n         VALUES ($1, $2, $3, $4, to_timestamp($5::bigint), $6, $7, $8, $9, $10, $11,\n         $12 AND coalesce((SELECT pooling FROM pooling_settings WHERE account_id = $1), true)\n         AND NOT EXISTS (SELECT 1 FROM viewing_events\n          WHERE account_id = $1 AND external_id = $4 AND pooled),\n         $12 AND coalesce((SELECT pooling FROM pooling_settings WHERE account_id = $1), true)\n         AND NOT EXISTS (SELECT 1 FROM viewing_events\n          WHERE account_id = $1 AND external_id = $4 AND pooled_week\n          AND date_trunc('week', started_at AT TIME ZONE 'UTC')\n           = date_trunc('week', to_timestamp($5::bigint) AT TIME ZONE 'UTC')))\n         ON CONFLICT (account_id, server_key) DO NOTHING\n         RETURNING pooled, pooled_week",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pooled",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "viewing_events",
+            "name": "pooled"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "pooled_week",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "viewing_events",
+            "name": "pooled_week"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Int2",
+        "Int8",
+        "Int8",
+        "Bool",
+        "Text",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "623b6f00b0c9f53f08d2ba9d7ddebdfb0a6dcca816d8e92b30ddf4f5bb2de73c"
+}

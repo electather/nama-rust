@@ -18,12 +18,13 @@ use hyper_util::{
 };
 use nama_hub_proto::nama::hub::v1::{
     GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient, ListSimilarTitlesRequest,
-    ListSimilarTitlesResponse, PollServerLinkRequest, PollServerLinkResponse,
-    PollServerSignInRequest, PullWatchStatesRequest, PushWatchStatesRequest,
-    RecordViewingEventsRequest, ServerLinkServiceClient, SetServerAddressesRequest,
-    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
-    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
-    UnlinkServerRequest, UnlinkUserRequest, WatchStateChange, WatchlistEntry,
+    ListSimilarTitlesResponse, ListTrendingTitlesRequest, ListTrendingTitlesResponse,
+    PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest, PullWatchStatesRequest,
+    PushWatchStatesRequest, RecordViewingEventsRequest, ServerLinkServiceClient,
+    SetServerAddressesRequest, StartServerLinkRequest, StartServerLinkResponse,
+    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
+    StartUserLinkResponse, SyncWatchlistRequest, UnlinkServerRequest, UnlinkUserRequest,
+    WatchStateChange, WatchlistEntry,
 };
 use nama_plugin_api::{
     PluginError,
@@ -394,6 +395,24 @@ impl Hub {
             Ok(similar) => Ok(similar.into_owned()),
             Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => {
                 Ok(ListSimilarTitlesResponse::default())
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    /// The Movies trending across Nama's Accounts, asked as the Server whose credential is
+    /// `credential`. Empty if the Hub doesn't know the credential any more, as [`Hub::similar`].
+    pub(crate) async fn trending(
+        &self,
+        credential: &str,
+    ) -> Result<ListTrendingTitlesResponse, PluginError> {
+        match (self.linked_server(credential)?)
+            .list_trending_titles(ListTrendingTitlesRequest::default())
+            .await
+        {
+            Ok(trending) => Ok(trending.into_owned()),
+            Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => {
+                Ok(ListTrendingTitlesResponse::default())
             }
             Err(err) => Err(err.into()),
         }

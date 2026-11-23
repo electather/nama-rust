@@ -13,7 +13,8 @@ use nama_plugin_api::{
     automation::{
         Kernel, KernelFunction as _, KernelRefused,
         functions::{
-            ListDevices, ListVersionTitles, ListWatchStates, StoreDelete, StoreGet, StorePut,
+            ListDevices, ListLibraries, ListTitles, ListVersionTitles, ListWatchStates,
+            StoreDelete, StoreGet, StorePut,
         },
     },
     contract::{
@@ -22,8 +23,12 @@ use nama_plugin_api::{
         VersionTitles, VersionTitlesAsked, WatchState, WatchStates, WatchStatesAsked,
         event::Event as Happened,
     },
-    contract::{SimilarAsked, SimilarTitle, SimilarTitles, TitleKind},
+    contract::{
+        HomeRow, HomeRowTitle, HomeRows, Libraries, Library, LibraryKind, SharedRowsAsked,
+        SimilarAsked, SimilarTitle, SimilarTitles, Title, TitleKind, Titles, TitlesAsked,
+    },
     diagnostics_sharer::{DiagnosticsSharer, Signal},
+    home_row::{HomeRowMethod, HomeRowSource},
     job::RunJob,
     points::{ObservedEvents, WatchStateChange, WatchStateChanges},
     server_link::{Link, Reachability, ServerAddresses, ServerLinker, WatchlistEntry},
@@ -1287,4 +1292,155 @@ async fn the_server_shows_whether_the_hub_reached_its_public_port() {
         })
     );
     assert_eq!(shown().await, None);
+}
+
+/// The Movies Library that [`with_movies`]'s Kernel has.
+const MOVIES_LIBRARY: i64 = 1;
+
+/// A Kernel keeping the Store as [`store`] does, with a Movies Library holding the Movies whose
+/// TMDB ids are `tmdb`, and a Shows Library.
+fn with_movies(tmdb: &'static [&'static str]) -> Arc<dyn Kernel> {
+    let store = store();
+    Arc::new(
+        move |function: &str,
+              request: Vec<u8>|
+              -> BoxFuture<'static, Result<Vec<u8>, KernelRefused>> {
+            let answer = if function == ListLibraries::NAME {
+                let library = |id, kind: LibraryKind| Library {
+                    id,
+                    kind: kind.into(),
+                    ..Default::default()
+                };
+                Libraries {
+                    libraries: vec![
+                        library(MOVIES_LIBRARY, LibraryKind::LIBRARY_KIND_MOVIES),
+                        library(2, LibraryKind::LIBRARY_KIND_SHOWS),
+                    ],
+                    ..Default::default()
+                }
+                .encode_to_vec()
+            } else if function == ListTitles::NAME {
+                let asked = TitlesAsked::decode_from_slice(&request).unwrap();
+                assert_eq!(
+                    asked.library_id, MOVIES_LIBRARY,
+                    "only Movies are asked for"
+                );
+                let movie = |value: &str| Title {
+                    title_ref: TitleRef {
+                        library_id: MOVIES_LIBRARY,
+                        kind: TitleRefKind::TITLE_REF_KIND_MOVIE.into(),
+                        id: TitleId {
+                            namespace: "tmdb".to_owned(),
+                            value: value.to_owned(),
+                            ..Default::default()
+                        }
+                        .into(),
+                        ..Default::default()
+                    }
+                    .into(),
+                    ..Default::default()
+                };
+                Titles {
+                    titles: tmdb.iter().map(|&value| movie(value)).collect(),
+                    ..Default::default()
+                }
+                .encode_to_vec()
+            } else {
+                let (store, function) = (Arc::clone(&store), function.to_owned());
+                return Box::pin(async move { store.call(&function, request).await });
+            };
+            Box::pin(future::ready(Ok(answer)))
+        },
+    )
+}
+
+/// The titles of `rows`' one row, each as its id's namespace and value.
+fn row_titles(rows: &HomeRows) -> Vec<(&str, &str)> {
+    let [row] = rows.rows.as_slice() else {
+        panic!("one row: {rows:?}");
+    };
+    (row.titles.iter())
+        .map(|title: &HomeRowTitle| (title.id.namespace.as_str(), title.id.value.as_str()))
+        .collect()
+}
+
+#[tokio::test]
+async fn a_linked_server_shares_the_trending_movies_its_libraries_have_in_the_hubs_order() {
+    let hub = FakeHub::start().await;
+    let kernel = with_movies(&["862", "603", "1"]);
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+
+    let rows = provided::<dyn HomeRowSource>(&hub, &kernel)
+        .shared_rows(&SharedRowsAsked::default())
+        .await
+        .unwrap();
+
+    assert_eq!(row_titles(&rows), [("tmdb", "603"), ("tmdb", "862")]);
+    let HomeRow {
+        key,
+        heading,
+        ttl_seconds,
+        titles,
+        ..
+    } = &rows.rows[0];
+    assert_eq!(
+        (key.as_str(), heading.as_str()),
+        ("trending", "Trending on Nama")
+    );
+    assert_eq!(*ttl_seconds, 24 * 60 * 60);
+    assert!(
+        (titles.iter()).all(|title| title.kind.as_known() == Some(TitleKind::TITLE_KIND_MOVIE))
+    );
+}
+
+#[tokio::test]
+async fn trending_movies_no_library_has_leave_the_row_empty() {
+    let hub = FakeHub::start().await;
+    let kernel = with_movies(&["1"]);
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+
+    let rows = provided::<dyn HomeRowSource>(&hub, &kernel)
+        .shared_rows(&SharedRowsAsked::default())
+        .await
+        .unwrap();
+
+    assert_eq!(row_titles(&rows), []);
+}
+
+#[tokio::test]
+async fn a_server_that_isnt_linked_has_no_trending_row_and_asks_the_hub_nothing() {
+    let hub = FakeHub::start().await;
+    hub.stop();
+
+    let rows = provided::<dyn HomeRowSource>(&hub, &with_movies(&["603"]))
+        .shared_rows(&SharedRowsAsked::default())
+        .await
+        .unwrap();
+
+    assert_eq!(rows.rows, []);
+}
+
+#[tokio::test]
+async fn whats_trending_fails_while_the_hub_is_unreachable() {
+    let hub = FakeHub::start().await;
+    let kernel = with_movies(&["603"]);
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.stop();
+
+    let rows = provided::<dyn HomeRowSource>(&hub, &kernel)
+        .shared_rows(&SharedRowsAsked::default())
+        .await;
+
+    rows.unwrap_err();
+}
+
+#[tokio::test]
+async fn the_trending_row_is_shared_and_never_asked_per_user() {
+    let hub = FakeHub::start().await;
+
+    let rows = provided::<dyn HomeRowSource>(&hub, &store());
+
+    assert!(rows.gives(HomeRowMethod::Shared));
+    assert!(!rows.gives(HomeRowMethod::User));
+    assert!(!rows.gives(HomeRowMethod::Featured));
 }

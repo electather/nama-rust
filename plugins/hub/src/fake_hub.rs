@@ -2,8 +2,8 @@
 //! one Server's device flow, Unlinking, its Users' Links, Users created from Accounts, one sign-in
 //! with an Account at a time, its Server Addresses and whether its public port is reached, the
 //! Watch State it pushes, which its Linked Users pull back, their Watchlists, its Viewing Events,
-//! the titles like The Matrix, and a key set of one Ed25519 key it signs with, as the Hub's API
-//! (`proto/nama/hub/v1/`) says the Hub does, and takes shared Diagnostics.
+//! the titles like The Matrix, what's trending, and a key set of one Ed25519 key it signs with, as
+//! the Hub's API (`proto/nama/hub/v1/`) says the Hub does, and takes shared Diagnostics.
 
 use std::{
     collections::HashMap,
@@ -24,15 +24,15 @@ use connectrpc::{
 use nama_hub_proto::nama::hub::v1::{
     ExternalId, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest, InviteUserResponse,
     LinkedServerService, ListSimilarTitlesRequest, ListSimilarTitlesResponse,
-    PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
-    PollServerSignInResponse, PullWatchStatesRequest, PullWatchStatesResponse,
-    PushWatchStatesRequest, PushWatchStatesResponse, RecordViewingEventsRequest,
-    RecordViewingEventsResponse, ServerLinkService, SetServerAddressesRequest,
-    SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest, StartServerLinkResponse,
-    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
-    StartUserLinkResponse, SyncWatchlistRequest, SyncWatchlistResponse, TitleKind,
-    UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
-    UserViewingEvent, WatchStateChange, WatchlistEntry,
+    ListTrendingTitlesRequest, ListTrendingTitlesResponse, PollServerLinkRequest,
+    PollServerLinkResponse, PollServerSignInRequest, PollServerSignInResponse,
+    PullWatchStatesRequest, PullWatchStatesResponse, PushWatchStatesRequest,
+    PushWatchStatesResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
+    ServerLinkService, SetServerAddressesRequest, SetServerAddressesResponse, SimilarTitle,
+    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
+    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
+    SyncWatchlistResponse, TitleKind, TrendingTitle, UnlinkServerRequest, UnlinkServerResponse,
+    UnlinkUserRequest, UnlinkUserResponse, UserViewingEvent, WatchStateChange, WatchlistEntry,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::{Value, json};
@@ -628,6 +628,33 @@ impl LinkedServerService for Linked {
         };
         Response::ok(ListSimilarTitlesResponse {
             titles,
+            ..Default::default()
+        })
+    }
+
+    /// The Matrix, Blade Runner and Toy Story, by TMDB id, most watched first.
+    async fn list_trending_titles(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListTrendingTitlesRequest>,
+    ) -> ServiceResult<ListTrendingTitlesResponse> {
+        drop(self.caller(&ctx)?);
+        let trending = |value: &str, weight| TrendingTitle {
+            id: ExternalId {
+                namespace: "tmdb".to_owned(),
+                value: value.to_owned(),
+                ..Default::default()
+            }
+            .into(),
+            weight,
+            ..Default::default()
+        };
+        Response::ok(ListTrendingTitlesResponse {
+            titles: vec![
+                trending("603", 1.0),
+                trending("78", 0.9),
+                trending("862", 0.5),
+            ],
             ..Default::default()
         })
     }

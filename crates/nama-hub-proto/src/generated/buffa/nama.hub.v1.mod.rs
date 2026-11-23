@@ -114,6 +114,9 @@ pub mod __buffa {
         reg.register_json_any(super::__POLL_SERVER_SIGN_IN_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_SERVER_ADDRESSES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_SERVER_ADDRESSES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_TRENDING_TITLES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_TRENDING_TITLES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__TRENDING_TITLE_JSON_ANY);
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
     }
 }
@@ -453,6 +456,18 @@ pub use self::__buffa::view::SetServerAddressesRequestOwnedView;
 pub use self::__buffa::view::SetServerAddressesResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetServerAddressesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTrendingTitlesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTrendingTitlesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTrendingTitlesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTrendingTitlesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TrendingTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::TrendingTitleOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RefusalView;
 #[doc(inline)]

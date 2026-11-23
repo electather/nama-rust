@@ -6,12 +6,13 @@
 //! of theirs goes to the Hub as a Viewing Event (ADR 0093), and the Hub lists the Server, with its
 //! Server Addresses, to every Account it has a User on.
 //! Once Linked, it is also a Similar source answering the titles the Hub finds alike (ADR 0084,
-//! 0095).
+//! 0095), and shares a Home row of the Movies trending across Nama's Accounts (ADR 0058, 0093).
 
 mod hub;
 mod linker;
 mod similar;
 mod token;
+mod trending;
 
 use std::{env, sync::Arc};
 
@@ -19,6 +20,7 @@ use nama_plugin_api::{
     Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     automation::Permission,
     diagnostics_sharer::DiagnosticsSharer,
+    home_row::HomeRowSource,
     job::JobRunner,
     points::{Events, WatchStatesChanged},
     server_link::ServerLinker,
@@ -29,6 +31,7 @@ use crate::{
     hub::Hub as HubApi,
     linker::{Jobs, Linker, ViewingEvents, WatchStateSync, send_job, sync_job},
     similar::Similar,
+    trending::Trending,
 };
 
 /// The variable naming the Hub's address, such as `https://hub.example`.
@@ -73,7 +76,8 @@ impl Plugin for Hub {
             description: "Links the Server, and its Users, to Accounts on Nama's Hub, syncs \
                           Linked Users' Watch State and Watchlists there and sends it what they \
                           play, sends it the Diagnostics and Usage Analytics you share in \
-                          Settings, and adds the titles the Hub finds alike to Similar titles."
+                          Settings, adds the titles the Hub finds alike to Similar titles, and \
+                          shows a Trending on Nama row on home."
                 .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_markdown: "Enable it, then Link the Server under Settings, Server. The Server \
@@ -89,7 +93,10 @@ impl Plugin for Hub {
                              Each play of a Matched title by a Linked User goes to the Hub as a \
                              Viewing Event, which their Account can see, delete and export there. \
                              Read Libraries, Read Watch State and Read Users tell it what was \
-                             played, how far, and on what kind of Device."
+                             played, how far, and on what kind of Device. \
+                             Home's Trending on Nama row shows the Movies on the Server most \
+                             Accounts finished this week and last, once at least 20 did, so it \
+                             stays hidden until enough have."
                 .to_owned(),
             extension_points: vec![
                 PointKey::provide::<dyn ServerLinker>(),
@@ -98,6 +105,7 @@ impl Plugin for Hub {
                 PointKey::observe::<Events>(),
                 PointKey::provide::<dyn JobRunner>(),
                 PointKey::provide::<dyn SimilarSource>(),
+                PointKey::provide::<dyn HomeRowSource>(),
             ],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
             permissions: vec![
@@ -121,6 +129,8 @@ impl Plugin for Hub {
         let hub = HubApi::new(url)?;
         let similar: Arc<dyn SimilarSource> =
             Arc::new(Similar::new(hub.clone(), Arc::clone(&kernel)));
+        let trending: Arc<dyn HomeRowSource> =
+            Arc::new(Trending::new(hub.clone(), Arc::clone(&kernel)));
         let linker = Arc::new(Linker::new(hub, kernel));
         let viewing = ViewingEvents::new(Arc::clone(&linker));
         let sharer: Arc<dyn DiagnosticsSharer> = Arc::<Linker>::clone(&linker);
@@ -131,6 +141,7 @@ impl Plugin for Hub {
         let jobs: Arc<dyn JobRunner> = Arc::new(Jobs { linker, viewing });
         registrar.provide::<dyn JobRunner>(Priority::DEFAULT, jobs);
         registrar.provide::<dyn SimilarSource>(Priority::DEFAULT, similar);
+        registrar.provide::<dyn HomeRowSource>(Priority::DEFAULT, trending);
         Ok(())
     }
 }
