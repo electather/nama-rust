@@ -2,7 +2,7 @@ use std::{collections::BTreeSet, num::NonZeroU32};
 
 use nama_proto::nama::v1::PlaybackReasonKind as Kind;
 
-use super::{hdr_reason, keyframes_unlisted, remux, too_busy_to_play};
+use super::{keyframes_unlisted, remux, too_busy_to_play};
 #[cfg(unix)]
 use crate::ffmpeg::fake::{vaapi_on_two_gpus, vaapi_on_two_gpus_at};
 use crate::{
@@ -626,33 +626,36 @@ fn without_zscale_hdr_is_tone_mapped_by_hardware_that_can() {
 }
 
 #[test]
-fn a_hardware_transcode_of_hdr_falls_back_to_tone_mapping_in_software_with_zscale() {
-    let mut facts = hevc_on(HardwareChoice::Automatic, vec![QSV], Some(Hdr::Hdr10));
+fn a_hardware_transcode_falls_back_to_software_with_every_reason_but_running_on_hardware() {
+    let cases = [(None, None), (Some(Hdr::Hdr10), Some(ToneMapper::Software))];
+    for (hdr, tone_map) in cases {
+        let mut facts = hevc_on(HardwareChoice::Automatic, vec![QSV], hdr);
 
-    let plan = build(&mut facts);
+        let plan = build(&mut facts);
 
-    let on_hardware = transcoded(&plan);
-    let fallback = falls_back_to(&plan).unwrap();
-    assert_eq!(
-        fallback.transcode,
-        Transcode {
-            video: VideoConversion {
-                hardware: None,
-                tone_map: Some(ToneMapper::Software),
-                ..on_hardware.video
-            },
-            ..on_hardware
-        }
-    );
-    let fell_back = (
-        Kind::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY,
-        vec![("hardwareAcceleration", "HARDWARE_ACCELERATION_QSV")],
-    );
-    let mut expected = given(&plan);
-    expected.retain(|(kind, _)| *kind != Kind::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE);
-    expected.push(fell_back);
-    let reasons: Vec<Given<'_>> = fallback.reasons.iter().map(kind_and_params).collect();
-    assert_eq!(reasons, expected);
+        let on_hardware = transcoded(&plan);
+        let fallback = falls_back_to(&plan).unwrap();
+        assert_eq!(
+            fallback.transcode,
+            Transcode {
+                video: VideoConversion {
+                    hardware: None,
+                    tone_map,
+                    ..on_hardware.video
+                },
+                ..on_hardware
+            }
+        );
+        let fell_back = (
+            Kind::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY,
+            vec![("hardwareAcceleration", "HARDWARE_ACCELERATION_QSV")],
+        );
+        let mut expected = given(&plan);
+        expected.retain(|(kind, _)| *kind != Kind::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE);
+        expected.push(fell_back);
+        let reasons: Vec<Given<'_>> = fallback.reasons.iter().map(kind_and_params).collect();
+        assert_eq!(reasons, expected, "{hdr:?}");
+    }
 }
 
 #[test]
@@ -672,20 +675,12 @@ fn without_zscale_hardware_hdr_falls_back_without_tone_mapping_or_its_reasons_an
             Kind::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_CONTAINER,
             Kind::PLAYBACK_REASON_KIND_DEVICE_CANT_DECODE_VIDEO,
             Kind::PLAYBACK_REASON_KIND_DEVICE_CANT_SHOW_HDR,
-            Kind::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY,
             Kind::PLAYBACK_REASON_KIND_HDR_NOT_TONE_MAPPED,
+            Kind::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY,
         ],
         "on hardware: {:?}",
         kinds(&plan)
     );
-    // No plan takes the encoder reason into a fallback that stops tone mapping, as Dolby Vision 5
-    // is reshaped in software, so it's handed in to pin the filter.
-    let for_encoder = Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_ENCODER;
-    let reasons = [hdr_reason(for_encoder, Hdr::Hdr10, String::new())];
-    let kept = super::fallback(&facts, &transcoded(&plan), &reasons)
-        .unwrap()
-        .reasons;
-    assert!(kept.iter().all(|reason| reason.kind != for_encoder));
 }
 
 #[test]
