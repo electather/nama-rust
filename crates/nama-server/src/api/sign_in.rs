@@ -3,6 +3,7 @@
 use std::{
     future,
     net::{IpAddr, SocketAddr},
+    sync::Arc,
     time::Instant,
 };
 
@@ -26,6 +27,8 @@ use nama_proto::nama::v1::{
 
 use crate::{
     browse::Browse,
+    db::Database,
+    playback::TrackPreferences,
     plugins::ExtensionPoints,
     server_settings::ServerUrl,
     users::{
@@ -44,10 +47,14 @@ use super::{
 pub(super) struct SignInServiceHandler {
     pub(super) sign_in: SignIn,
     /// The Plugin that links the Server, through which a User signs in with their Account and
-    /// pulls their Watch State on their other Servers.
+    /// pulls their Watch State and Track Preferences on their other Servers.
     pub(super) points: ExtensionPoints,
     /// Takes the Watch State a User pulls as they sign in.
     pub(super) browse: Browse,
+    /// Takes the Track Preferences a User pulls as they sign in.
+    pub(super) preferences: TrackPreferences,
+    /// Holds the Watchlist a User syncs as they sign in.
+    pub(super) db: Arc<Database>,
     /// The Server URL, one of the Server Addresses a sign-in with an Account may return to.
     pub(super) server_url: ServerUrl,
     /// Where the Server listens, whose LAN address is the other Server Address a sign-in with an
@@ -146,16 +153,28 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, ReauthenticateRequest>,
     ) -> ServiceResult<ReauthenticateResponse> {
         let caller = caller(&ctx)?;
-        let proof = request
-            .to_owned_message()
-            .proof
-            .map(|Proof::Password(password)| users::Proof::Password {
+        let (ip, now) = (client_ip(&ctx)?, Instant::now());
+        let request = request.to_owned_message();
+        let proof = match request.proof {
+            Some(Proof::AccountSignInHandle(handle)) => {
+                let approved = server_link::account_signing_in(
+                    &self.points,
+                    &handle,
+                    &request.account_sign_in_code,
+                    "account_sign_in_handle",
+                );
+                self.sign_in
+                    .reauthenticate_with_account(caller, approved, ip, now)
+                    .await?;
+                return Response::ok(ReauthenticateResponse::default());
+            }
+            Some(Proof::Password(password)) => Some(users::Proof::Password {
                 name: caller.user.name.clone(),
                 password,
-            });
-        self.sign_in
-            .reauthenticate(caller, proof, client_ip(&ctx)?, Instant::now())
-            .await?;
+            }),
+            None => None,
+        };
+        self.sign_in.reauthenticate(caller, proof, ip, now).await?;
         Response::ok(ReauthenticateResponse::default())
     }
 
@@ -305,7 +324,8 @@ impl SignInService for SignInServiceHandler {
         let delivery = delivery(request.delivery)?;
         let device = new_device(request.device_name, &ctx)?;
         let user =
-            server_link::account_signing_in(&self.points, &request.handle, &request.code).await?;
+            server_link::account_signing_in(&self.points, &request.handle, &request.code, "handle")
+                .await?;
         let signed_in = self.sign_in.sign_in_with_account(user, device).await?;
         Ok(
             self.hand_out_session(signed_in, delivery, &ctx, |caller, token| {
@@ -362,7 +382,8 @@ fn user_agent(headers: &HeaderMap) -> Option<String> {
 impl SignInServiceHandler {
     /// The response `body` makes for a Device just `signed_in`, with its session token handed out
     /// by `delivery`: in the body, or in a cookie and not in the body. Pulls the User's Watch
-    /// State on their other Servers too, as every sign-in does (ADR 0008).
+    /// State and Track Preferences on their other Servers and syncs their Watchlist too, as every
+    /// sign-in does (ADR 0008, ADR 0056, ADR 0092).
     fn hand_out_session<M>(
         &self,
         signed_in: SignedIn,
@@ -371,7 +392,13 @@ impl SignInServiceHandler {
         body: impl FnOnce(Caller, String) -> M,
     ) -> Response<M> {
         let SignedIn { caller, token } = signed_in;
-        server_link::pull_watch_states_soon(&self.points, &self.browse, caller.user.id);
+        server_link::pull_soon(
+            &self.points,
+            &self.browse,
+            &self.preferences,
+            caller.user.id,
+        );
+        server_link::sync_watchlist_soon(&self.points, &self.db, caller.user.id);
         match delivery {
             Delivery::Token => Response::new(body(caller, token)),
             Delivery::Cookie => {
@@ -455,6 +482,11 @@ impl From<SignInError> for ConnectError {
             )
             .field("proof")
             .into(),
+            err @ SignInError::WrongAccount => {
+                refuse(RefusalReason::REFUSAL_REASON_WRONG_ACCOUNT, err.to_string())
+                    .field("account_sign_in_handle")
+                    .into()
+            }
         }
     }
 }

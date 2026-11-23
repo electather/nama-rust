@@ -2436,6 +2436,17 @@ pub const __WHO_AM_I_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = :
 #[derive(::serde::Serialize)]
 #[serde(default)]
 pub struct ReauthenticateRequest {
+    /// The one-time code the Hub added to `return_url`'s query as `code`. Needed with
+    /// `account_sign_in_handle`.
+    ///
+    /// Field 3: `account_sign_in_code`
+    #[serde(
+        rename = "accountSignInCode",
+        alias = "account_sign_in_code",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub account_sign_in_code: ::buffa::alloc::string::String,
     #[serde(flatten)]
     pub proof: ::core::option::Option<__buffa::oneof::reauthenticate_request::Proof>,
     #[serde(skip)]
@@ -2444,7 +2455,10 @@ pub struct ReauthenticateRequest {
 }
 impl ::core::fmt::Debug for ReauthenticateRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("ReauthenticateRequest").field("proof", &self.proof).finish()
+        f.debug_struct("ReauthenticateRequest")
+            .field("account_sign_in_code", &self.account_sign_in_code)
+            .field("proof", &self.proof)
+            .finish()
     }
 }
 impl ReauthenticateRequest {
@@ -2479,7 +2493,18 @@ impl ::buffa::Message for ReauthenticateRequest {
                 __buffa::oneof::reauthenticate_request::Proof::Password(x) => {
                     size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
                 }
+                __buffa::oneof::reauthenticate_request::Proof::AccountSignInHandle(
+                    x,
+                ) => {
+                    size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
+                }
             }
+        }
+        if !self.account_sign_in_code.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.account_sign_in_code)
+                        as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -2496,7 +2521,15 @@ impl ::buffa::Message for ReauthenticateRequest {
                 __buffa::oneof::reauthenticate_request::Proof::Password(x) => {
                     ::buffa::types::put_string_field(1u32, x, buf);
                 }
+                __buffa::oneof::reauthenticate_request::Proof::AccountSignInHandle(
+                    x,
+                ) => {
+                    ::buffa::types::put_string_field(2u32, x, buf);
+                }
             }
+        }
+        if !self.account_sign_in_code.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.account_sign_in_code, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2522,6 +2555,24 @@ impl ::buffa::Message for ReauthenticateRequest {
                     ),
                 );
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                self.proof = ::core::option::Option::Some(
+                    __buffa::oneof::reauthenticate_request::Proof::AccountSignInHandle(
+                        ::buffa::types::decode_string(buf)?,
+                    ),
+                );
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.account_sign_in_code, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2531,6 +2582,7 @@ impl ::buffa::Message for ReauthenticateRequest {
     }
     fn clear(&mut self) {
         self.proof = ::core::option::Option::None;
+        self.account_sign_in_code.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -2561,11 +2613,32 @@ impl<'de> ::serde::Deserialize<'de> for ReauthenticateRequest {
                 self,
                 mut map: A,
             ) -> ::core::result::Result<ReauthenticateRequest, A::Error> {
+                let mut __f_account_sign_in_code: ::core::option::Option<
+                    ::buffa::alloc::string::String,
+                > = None;
                 let mut __oneof_proof: ::core::option::Option<
                     __buffa::oneof::reauthenticate_request::Proof,
                 > = None;
                 while let Some(key) = map.next_key::<::buffa::alloc::string::String>()? {
                     match key.as_str() {
+                        "accountSignInCode" | "account_sign_in_code" => {
+                            __f_account_sign_in_code = Some({
+                                struct _S;
+                                impl<'de> ::serde::de::DeserializeSeed<'de> for _S {
+                                    type Value = ::buffa::alloc::string::String;
+                                    fn deserialize<D: ::serde::Deserializer<'de>>(
+                                        self,
+                                        d: D,
+                                    ) -> ::core::result::Result<
+                                        ::buffa::alloc::string::String,
+                                        D::Error,
+                                    > {
+                                        ::buffa::json_helpers::proto_string::deserialize(d)
+                                    }
+                                }
+                                map.next_value_seed(_S)?
+                            });
+                        }
                         "password" => {
                             let v: ::core::option::Option<
                                 ::buffa::alloc::string::String,
@@ -2590,12 +2663,41 @@ impl<'de> ::serde::Deserialize<'de> for ReauthenticateRequest {
                                 );
                             }
                         }
+                        "accountSignInHandle" | "account_sign_in_handle" => {
+                            let v: ::core::option::Option<
+                                ::buffa::alloc::string::String,
+                            > = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            ::buffa::alloc::string::String,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_proof.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'proof'",
+                                        ),
+                                    );
+                                }
+                                __oneof_proof = Some(
+                                    __buffa::oneof::reauthenticate_request::Proof::AccountSignInHandle(
+                                        v,
+                                    ),
+                                );
+                            }
+                        }
                         _ => {
                             map.next_value::<::serde::de::IgnoredAny>()?;
                         }
                     }
                 }
                 let mut __r = <ReauthenticateRequest as ::core::default::Default>::default();
+                if let ::core::option::Option::Some(v) = __f_account_sign_in_code {
+                    __r.account_sign_in_code = v;
+                }
                 __r.proof = __oneof_proof;
                 Ok(__r)
             }

@@ -29,6 +29,7 @@ function lackingIds(namespaces: string) {
 function serving(...requests: ReturnType<typeof lackingIds>[]) {
   return fakeServer({ signedIn: newUser }, {}, {}, (router) => {
     router.service(RequestService, {
+      listDefaultQualities: () => ({}),
       listRequests: () => ({ requests }),
       countPendingRequests: () => ({}),
     });
@@ -36,7 +37,7 @@ function serving(...requests: ReturnType<typeof lackingIds>[]) {
 }
 
 test("a Request the Server didn't hand off for lack of an id says which, in the app's words", async () => {
-  openApp("/requests", serving(lackingIds("tvdb")));
+  openApp("/?settings=requests", serving(lackingIds("tvdb")));
 
   await expect(
     screen.findByText("Reason: Sonarr can’t fetch it: no TVDB id is known for this Show."),
@@ -44,7 +45,7 @@ test("a Request the Server didn't hand off for lack of an id says which, in the 
 });
 
 test("a Request lacking every id of several its Fulfiller needs names each", async () => {
-  openApp("/requests", serving(lackingIds("tvdb,imdb")));
+  openApp("/?settings=requests", serving(lackingIds("tvdb,imdb")));
 
   await expect(
     screen.findByText("Reason: Sonarr can’t fetch it: no TVDB or IMDB id is known for this Show."),

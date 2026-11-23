@@ -31,8 +31,11 @@ use nama_plugin_api::{
     diagnostics_sharer::{DiagnosticsSharer, Signal},
     home_row::{HomeRowMethod, HomeRowSource},
     job::RunJob,
-    points::{ObservedEvents, WatchStateChange, WatchStateChanges},
-    server_link::{Link, Reachability, ServerAddresses, ServerLinker},
+    points::{
+        ObservedEvents, TrackDescription, TrackPreference, TrackPreferenceChange,
+        TrackPreferenceFor, WatchStateChange, WatchStateChanges,
+    },
+    server_link::{Link, Reachability, ServerAddresses, ServerLinker, WatchlistEntry},
     similar_source::SimilarSource,
 };
 use serde_json::json;
@@ -819,6 +822,125 @@ async fn changes_made_while_the_hub_is_down_reach_it_in_order_once_it_is_back() 
     );
 }
 
+/// The Plugin enabled against `hub`, the Server and its User 7 Linked, as the Kernel tells it of
+/// Track Preference changes, runs its Job and pulls.
+async fn syncing_preferences_of_user_7(
+    hub: &FakeHub,
+) -> (
+    Arc<dyn Observer<TrackPreferenceChanged>>,
+    Arc<dyn JobRunner>,
+    Arc<dyn ServerLinker>,
+) {
+    let kernel = store();
+    let linker = enabled(hub, &kernel);
+    link(hub, linker.as_ref()).await;
+    link_user(hub, linker.as_ref(), 7).await;
+    let mut registrar = Registrar::new().with_kernel(kernel);
+    Hub::at(hub.url()).register(&mut registrar).unwrap();
+    let registrations = registrar.into_registrations();
+    let observer = (registrations.iter())
+        .find_map(Registration::observer::<TrackPreferenceChanged>)
+        .unwrap();
+    let jobs = (registrations.iter())
+        .find_map(Registration::provider::<dyn JobRunner>)
+        .unwrap();
+    (observer, jobs, linker)
+}
+
+/// The User `user_id`'s Subtitle Preference for `kept_for`, subtitles in `language`, changed at
+/// `changed_at_ms`.
+fn subtitles_in(
+    user_id: i64,
+    kept_for: TrackPreferenceFor,
+    language: &str,
+    changed_at_ms: i64,
+) -> TrackPreferenceChange {
+    TrackPreferenceChange {
+        user_id,
+        preference: TrackPreference {
+            kept_for,
+            like: Some(TrackDescription {
+                language: Some(language.to_owned()),
+                ..TrackDescription::default()
+            }),
+            changed_at_ms,
+            ..TrackPreference::default()
+        },
+    }
+}
+
+/// What the Hub was pushed of Track Preferences, in order, as each change's title and language.
+fn pushed_preferences(hub: &FakeHub) -> Vec<Vec<(String, String)>> {
+    (hub.preference_pushes().into_iter())
+        .map(|push| {
+            (push.into_iter())
+                .map(|change| (change.title_id, change.language))
+                .collect()
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn preferences_changed_while_the_hub_is_down_reach_it_once_back_the_latest_of_each() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs, _) = syncing_preferences_of_user_7(&hub).await;
+    let alien = || TrackPreferenceFor::Movie(vec!["tmdb-348".to_owned()]);
+    hub.set_down(true);
+
+    let told = [
+        subtitles_in(7, alien(), "eng", 1_000),
+        subtitles_in(7, alien(), "fre", 3_000),
+        subtitles_in(7, TrackPreferenceFor::User, "ger", 2_000),
+        // Told late, though made before the French.
+        subtitles_in(7, alien(), "jpn", 2_500),
+    ];
+    for change in &told {
+        observer.observe(change).await.unwrap();
+    }
+    assert!(run_sync(jobs.as_ref()).await.is_err());
+    hub.set_down(false);
+    run_sync(jobs.as_ref()).await.unwrap();
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(
+        pushed_preferences(&hub),
+        [[
+            ("tmdb-348".to_owned(), "fre".to_owned()),
+            (String::new(), "ger".to_owned())
+        ]]
+    );
+}
+
+#[tokio::test]
+async fn a_pull_sends_the_queued_preferences_first_and_answers_them_under_each_id_as_descriptions()
+{
+    let hub = FakeHub::start().await;
+    let (observer, _, linker) = syncing_preferences_of_user_7(&hub).await;
+    let show =
+        |ids: &[&str]| TrackPreferenceFor::Show(ids.iter().map(|&id| id.to_owned()).collect());
+    let mut sdh = subtitles_in(7, show(&["tmdb-1396", "tvdb-81189"]), "eng", 1_000);
+    sdh.preference.like = Some(TrackDescription {
+        language: Some("eng".to_owned()),
+        sdh: true,
+        title: Some("English (SDH)".to_owned()),
+        ..TrackDescription::default()
+    });
+    let not_linked = subtitles_in(8, TrackPreferenceFor::User, "ger", 1_000);
+
+    observer.observe(&sdh).await.unwrap();
+    observer.observe(&not_linked).await.unwrap();
+
+    let under = |id| TrackPreference {
+        kept_for: show(&[id]),
+        ..sdh.preference.clone()
+    };
+    assert_eq!(
+        linker.track_preferences(7).await.unwrap(),
+        [under("tmdb-1396"), under("tvdb-81189")]
+    );
+    assert_eq!(linker.track_preferences(8).await.unwrap(), []);
+}
+
 #[tokio::test]
 async fn an_account_approving_on_the_hub_signs_in_as_its_user() {
     let hub = FakeHub::start().await;
@@ -939,6 +1061,19 @@ async fn a_change_told_after_a_later_one_of_the_same_title_is_dropped() {
 }
 
 #[tokio::test]
+async fn changes_queued_for_a_server_the_hub_forgot_are_dropped() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs, _) = syncing_user_7(&hub).await;
+    tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
+
+    // As when the Account the Server Linked with is deleted.
+    hub.forget_server();
+
+    run_sync(jobs.as_ref()).await.unwrap();
+    assert_eq!(hub.pushes(), Vec::<Vec<HubChange>>::new());
+}
+
+#[tokio::test]
 async fn a_user_who_isnt_linked_keeps_their_watch_state_on_the_server() {
     let hub = FakeHub::start().await;
     let (observer, jobs, _) = syncing_user_7(&hub).await;
@@ -1006,6 +1141,24 @@ async fn a_write_of_many_changes_is_pushed_a_page_at_a_time_in_order() {
     let expected: Vec<_> = (1..=250).map(|id| format!("tmdb-{id}")).collect();
     assert_eq!(sizes, [100, 100, 50]);
     assert_eq!(ids, expected);
+}
+
+#[tokio::test]
+async fn a_history_told_on_linking_is_pushed_whole_in_pages_behind_a_newer_change_queued() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs, _) = syncing_user_7(&hub).await;
+    let history: Vec<_> = (1..=250).map(|id| movie_at(id, 1000, 1_000)).collect();
+
+    tell(observer.as_ref(), 7, vec![movie_at(1, 3000, 5_000)]).await;
+    tell(observer.as_ref(), 7, history).await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    let pushes = pushed(&hub);
+    let sizes: Vec<_> = pushes.iter().map(Vec::len).collect();
+    assert_eq!(sizes, [100, 100, 50]);
+    let mut expected = vec![("tmdb-1".to_owned(), 3000, 5_000)];
+    expected.extend((2..=250).map(|id| (format!("tmdb-{id}"), 1000, 1_000)));
+    assert_eq!(pushes.concat(), expected);
 }
 
 #[tokio::test]
@@ -1107,6 +1260,86 @@ async fn addresses_the_hub_couldnt_take_are_reported_again() {
     linker.set_addresses(lan_only).await.unwrap();
 
     assert_eq!(hub.reported_addresses().len(), 1);
+}
+
+/// What the Plugin keeps in `kernel`'s Store of the Server's Link.
+async fn kept_link(kernel: &Arc<dyn Kernel>) -> Option<Vec<u8>> {
+    let key = StoreKey {
+        key: "link".to_owned(),
+        ..Default::default()
+    };
+    kernel.ask::<StoreGet>(key).await.unwrap().value
+}
+
+#[tokio::test]
+async fn a_server_the_hub_dropped_is_unlinked_by_its_next_report() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    let linker = enabled(&hub, &kernel);
+    link(&hub, linker.as_ref()).await;
+    hub.forget_server();
+
+    linker
+        .set_addresses(addresses("", &["http://192.168.1.10:7980"]))
+        .await
+        .unwrap();
+
+    assert_eq!(linker.link().await.unwrap(), Link::NotLinked);
+    assert_eq!(kept_link(&kernel).await, None);
+}
+
+#[tokio::test]
+async fn a_server_the_hub_dropped_is_unlinked_once_a_users_link_is_asked() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    let linker = enabled(&hub, &kernel);
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+    hub.forget_server();
+
+    // Enabled again, as a minute later, it asks the Hub again.
+    let user_link = enabled(&hub, &kernel).user_link(7).await.unwrap();
+
+    assert_eq!(user_link, None);
+    assert_eq!(linker.link().await.unwrap(), Link::NotLinked);
+    assert_eq!(kept_link(&kernel).await, None);
+}
+
+#[tokio::test]
+async fn a_server_the_hub_dropped_links_again_and_so_do_its_users() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+    hub.forget_server();
+    linker
+        .set_addresses(addresses("", &["http://192.168.1.10:7980"]))
+        .await
+        .unwrap();
+
+    link(&hub, linker.as_ref()).await;
+
+    assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
+    link_user(&hub, linker.as_ref(), 7).await;
+}
+
+#[tokio::test]
+async fn a_hub_that_doesnt_answer_or_fails_keeps_the_link() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    let linker = enabled(&hub, &kernel);
+    link(&hub, linker.as_ref()).await;
+    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
+    hub.fail_next_addresses();
+    linker.set_addresses(lan_only.clone()).await.unwrap_err();
+    hub.stop();
+
+    linker.set_addresses(lan_only).await.unwrap_err();
+    let user_link = enabled(&hub, &kernel).user_link(7).await.unwrap();
+
+    assert_eq!(user_link, Some(Link::NotLinked));
+    assert!(matches!(linker.link().await.unwrap(), Link::Linked { .. }));
+    assert!(kept_link(&kernel).await.is_some());
 }
 
 #[tokio::test]
@@ -1312,6 +1545,55 @@ async fn a_linked_users_play_of_a_matched_title_goes_to_the_hub() {
     );
 }
 
+/// The Movie `tmdb-<id>` on the Watchlist, changed at `changed_at_ms`.
+fn watchlisted(id: u64, changed_at_ms: i64) -> WatchlistEntry {
+    WatchlistEntry {
+        show: false,
+        id: format!("tmdb-{id}"),
+        removed: false,
+        changed_at_ms,
+    }
+}
+
+#[tokio::test]
+async fn a_watchlist_sync_answers_the_accounts_watchlist_and_a_users_leaves_only_once_linked() {
+    let hub = FakeHub::start().await;
+    let (_, _, linker) = syncing_user_7(&hub).await;
+    let too_long = WatchlistEntry {
+        id: format!("tmdb-{}", "1".repeat(100)),
+        ..watchlisted(0, 3_000)
+    };
+    let removed = WatchlistEntry {
+        show: true,
+        removed: true,
+        ..watchlisted(1399, 2_000)
+    };
+    let watchlist = vec![watchlisted(348, 1_000), removed.clone(), too_long];
+
+    let synced = linker.sync_watchlist(7, watchlist).await.unwrap();
+
+    assert_eq!(synced, [removed, watchlisted(348, 1_000)]);
+    assert_eq!(
+        linker
+            .sync_watchlist(8, vec![watchlisted(603, 1_000)])
+            .await
+            .unwrap(),
+        [],
+        "User 8 isn't Linked"
+    );
+    assert_eq!(hub.watchlist_syncs(), [7]);
+}
+
+#[tokio::test]
+async fn a_server_that_isnt_linked_syncs_no_watchlist() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+
+    let synced = linker.sync_watchlist(7, vec![watchlisted(348, 1_000)]);
+
+    assert_eq!(synced.await.unwrap(), []);
+}
+
 #[tokio::test]
 async fn a_server_that_isnt_linked_pulls_nothing() {
     let hub = FakeHub::start().await;
@@ -1468,10 +1750,10 @@ fn with_movies(tmdb: &'static [&'static str]) -> Arc<dyn Kernel> {
     )
 }
 
-/// The titles of `rows`' one row, each as its id's namespace and value.
-fn row_titles(rows: &HomeRows) -> Vec<(&str, &str)> {
-    let [row] = rows.rows.as_slice() else {
-        panic!("one row: {rows:?}");
+/// The titles of `rows`' row keyed `key`, each as its id's namespace and value.
+fn row_titles<'a>(rows: &'a HomeRows, key: &str) -> Vec<(&'a str, &'a str)> {
+    let Some(row) = rows.rows.iter().find(|row| row.key == key) else {
+        panic!("a row keyed {key}: {rows:?}");
     };
     (row.titles.iter())
         .map(|title: &HomeRowTitle| (title.id.namespace.as_str(), title.id.value.as_str()))
@@ -1489,7 +1771,10 @@ async fn a_linked_server_shares_the_trending_movies_its_libraries_have_in_the_hu
         .await
         .unwrap();
 
-    assert_eq!(row_titles(&rows), [("tmdb", "603"), ("tmdb", "862")]);
+    assert_eq!(
+        row_titles(&rows, "trending"),
+        [("tmdb", "603"), ("tmdb", "862")]
+    );
     let HomeRow {
         key,
         heading,
@@ -1518,7 +1803,33 @@ async fn trending_movies_no_library_has_leave_the_row_empty() {
         .await
         .unwrap();
 
-    assert_eq!(row_titles(&rows), []);
+    assert_eq!(row_titles(&rows, "trending"), []);
+}
+
+#[tokio::test]
+async fn a_linked_server_shares_the_most_watchlisted_titles_in_the_hubs_order_had_or_not() {
+    let hub = FakeHub::start().await;
+    let kernel = with_movies(&["603"]);
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+
+    let rows = provided::<dyn HomeRowSource>(&hub, &kernel)
+        .shared_rows(&SharedRowsAsked::default())
+        .await
+        .unwrap();
+
+    let Some(row) = (rows.rows.iter()).find(|row| row.key == "most-watchlisted") else {
+        panic!("a most watchlisted row: {rows:?}");
+    };
+    let titles: Vec<_> = (row.titles.iter())
+        .map(|title| (title.kind.as_known(), title.id.value.as_str()))
+        .collect();
+    let (movie, show) = (
+        Some(TitleKind::TITLE_KIND_MOVIE),
+        Some(TitleKind::TITLE_KIND_SHOW),
+    );
+    assert_eq!(titles, [(show, "70523"), (movie, "603"), (movie, "78")]);
+    assert_eq!(row.heading, "Most watchlisted on Nama");
+    assert_eq!(row.ttl_seconds, 24 * 60 * 60);
 }
 
 #[tokio::test]

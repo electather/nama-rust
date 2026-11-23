@@ -3,13 +3,14 @@ use std::{future, sync::Arc, time::Instant};
 use sqlx::PgPool;
 use tokio::sync::mpsc;
 
-use super::{WatchStateChange, WatchStates, merge};
+use super::{WatchStateChange, WatchStates, WatchlistEntry, Watchlists, merge, merge_watchlist};
 use crate::{
     accounts::{AccountId, AccountSession, Accounts, Caller},
     db,
     links::{LinkedServer, Links, Polled},
     mail::{Email, Mail, Mailer, Sending},
     signing::Keys,
+    viewing::Viewing,
 };
 
 /// A signing key made with `openssl genpkey -algorithm ed25519`, which Linking a Server needs.
@@ -33,6 +34,7 @@ struct Hub {
     accounts: Accounts,
     links: Links,
     watch_states: WatchStates,
+    watchlists: Watchlists,
     sent: mpsc::UnboundedReceiver<Email>,
 }
 
@@ -49,6 +51,11 @@ impl Hub {
         let links = Links::new(db.clone(), accounts.clone(), keys);
         Self {
             watch_states: WatchStates::new(db.clone(), links.clone()),
+            watchlists: Watchlists::new(
+                db.clone(),
+                links.clone(),
+                Viewing::new(db.clone(), links.clone()),
+            ),
             accounts,
             links,
             sent,
@@ -155,6 +162,14 @@ async fn kept(db: &PgPool, account: AccountId, id: &str) -> Option<(bool, i64, i
 /// How many Watch State rows every Account has together.
 async fn rows(db: &PgPool) -> i64 {
     sqlx::query_scalar!(r#"SELECT count(*) AS "rows!" FROM watch_states"#)
+        .fetch_one(db)
+        .await
+        .unwrap()
+}
+
+/// How many Watchlist entries every Account has together.
+async fn watchlist_rows(db: &PgPool) -> i64 {
+    sqlx::query_scalar!(r#"SELECT count(*) AS "rows!" FROM watchlists"#)
         .fetch_one(db)
         .await
         .unwrap()
@@ -319,4 +334,218 @@ async fn a_pull_holds_only_the_account_the_user_is_linked_to(db: PgPool) {
         [],
         "User 9 isn't Linked"
     );
+}
+
+/// The Watchlist entry of the Movie `tmdb-603`, taken off or not, changed at `changed_at_ms`.
+fn the_matrix(removed: bool, changed_at_ms: i64) -> WatchlistEntry {
+    WatchlistEntry {
+        show: false,
+        id: "tmdb-603".to_owned(),
+        removed,
+        changed_at_ms,
+    }
+}
+
+/// What `server`'s User `user_id` gets back syncing `entries`, in order of id.
+async fn synced(
+    watchlists: &Watchlists,
+    server: &LinkedServer,
+    user_id: i64,
+    entries: Vec<WatchlistEntry>,
+) -> Vec<WatchlistEntry> {
+    let mut merged = watchlists.sync(server, user_id, entries).await.unwrap();
+    merged.sort_by(|a, b| a.id.cmp(&b.id));
+    merged
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_watchlist_change_made_last_wins_removals_included_whichever_server_syncs_last(
+    db: PgPool,
+) {
+    let mut hub = Hub::on(&db).await;
+    let ada = hub.proven("ada@example.com", "203.0.113.1").await;
+    let (first, second) = (hub.linked_server(&ada).await, hub.linked_server(&ada).await);
+    hub.link_user(&first, 7, &ada).await;
+    hub.link_user(&second, 3, &ada).await;
+    let watchlists = &hub.watchlists;
+
+    synced(watchlists, &first, 7, vec![the_matrix(true, 2_000)]).await;
+    let added_earlier = vec![the_matrix(false, 1_000)];
+
+    assert_eq!(
+        synced(watchlists, &second, 3, added_earlier).await,
+        [the_matrix(true, 2_000)]
+    );
+    let added_later = vec![the_matrix(false, 3_000)];
+    assert_eq!(
+        synced(watchlists, &second, 3, added_later).await,
+        [the_matrix(false, 3_000)]
+    );
+    assert_eq!(
+        synced(watchlists, &first, 7, vec![the_matrix(true, 2_000)]).await,
+        [the_matrix(false, 3_000)]
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_watchlist_keeps_any_id_a_server_sends_and_of_one_named_twice_the_latest(db: PgPool) {
+    let mut hub = Hub::on(&db).await;
+    let ada = hub.proven("ada@example.com", "203.0.113.1").await;
+    let server = hub.linked_server(&ada).await;
+    hub.link_user(&server, 7, &ada).await;
+    let dark = WatchlistEntry {
+        show: true,
+        id: "tvdb-81189".to_owned(),
+        removed: false,
+        changed_at_ms: 1_000,
+    };
+    let twice = vec![
+        the_matrix(false, 1_000),
+        the_matrix(true, 2_000),
+        dark.clone(),
+    ];
+
+    assert_eq!(
+        synced(&hub.watchlists, &server, 7, twice).await,
+        [the_matrix(true, 2_000), dark]
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn of_two_watchlist_changes_made_at_the_same_moment_the_removal_wins(db: PgPool) {
+    let mut hub = Hub::on(&db).await;
+    let ada = hub.proven("ada@example.com", "203.0.113.1").await;
+    let (first, second) = (hub.linked_server(&ada).await, hub.linked_server(&ada).await);
+    hub.link_user(&first, 7, &ada).await;
+    hub.link_user(&second, 3, &ada).await;
+    let watchlists = &hub.watchlists;
+
+    synced(watchlists, &first, 7, vec![the_matrix(false, 1_000)]).await;
+    let removed_at_once = vec![the_matrix(true, 1_000)];
+
+    assert_eq!(
+        synced(watchlists, &second, 3, removed_at_once).await,
+        [the_matrix(true, 1_000)]
+    );
+    assert_eq!(
+        synced(watchlists, &first, 7, vec![the_matrix(false, 1_000)]).await,
+        [the_matrix(true, 1_000)]
+    );
+    let both = vec![the_matrix(false, 2_000), the_matrix(true, 2_000)];
+    assert_eq!(
+        synced(watchlists, &first, 7, both).await,
+        [the_matrix(true, 2_000)]
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn deleting_an_account_deletes_its_watch_state_and_watchlist_and_unlinks_its_users(
+    db: PgPool,
+) {
+    let mut hub = Hub::on(&db).await;
+    let ada = hub.proven("ada@example.com", "203.0.113.1").await;
+    let bea = hub.proven("bea@example.com", "203.0.113.2").await;
+    let server = hub.linked_server(&ada).await;
+    hub.link_user(&server, 7, &ada).await;
+    hub.link_user(&server, 8, &bea).await;
+    let changes = vec![alien_at(7, 1000, 1_000), alien_at(8, 2000, 1_000)];
+    hub.watch_states.push(&server, changes).await.unwrap();
+    synced(&hub.watchlists, &server, 8, vec![the_matrix(false, 1_000)]).await;
+
+    hub.accounts.delete(&bea).await.unwrap();
+
+    assert_eq!(rows(&db).await, 2, "Ada's Watch State of Alien, by each id");
+    assert_eq!(watchlist_rows(&db).await, 0);
+    assert_eq!(pulled(&hub.watch_states, &server, 8).await, [], "Unlinked");
+    assert_eq!(pulled(&hub.watch_states, &server, 7).await.len(), 2);
+}
+
+/// Watchlists on a migrated `db`, the Viewing whose pooling setting they count by, and `count` new
+/// Accounts.
+async fn accounts_on(db: &PgPool, count: usize) -> (Watchlists, Viewing, Vec<AccountId>) {
+    db::migrate(db).await.unwrap();
+    let mut created = Vec::new();
+    for n in 0..count {
+        // A fresh `Accounts` each, so its per-IP limit on creations never refuses one.
+        let caller = Caller {
+            ip: "203.0.113.1".parse().unwrap(),
+            now: Instant::now(),
+        };
+        let account = Accounts::new(db.clone(), None)
+            .create(
+                &format!("watcher{n}@example.com"),
+                "correct horse battery",
+                caller,
+            )
+            .await;
+        created.push(account.unwrap().account.id);
+    }
+    let keys = Arc::new(Keys::from_pems(SIGNING_KEY).unwrap());
+    let links = Links::new(db.clone(), Accounts::new(db.clone(), None), keys);
+    let viewing = Viewing::new(db.clone(), links.clone());
+    let watchlists = Watchlists::new(db.clone(), links, viewing.clone());
+    (watchlists, viewing, created)
+}
+
+/// Puts `entries` on `account`'s Watchlist.
+async fn watchlist(db: &PgPool, account: AccountId, entries: Vec<WatchlistEntry>) {
+    let mut conn = db.acquire().await.unwrap();
+    merge_watchlist(&mut conn, account, entries).await.unwrap();
+}
+
+/// The most watchlisted titles, each as whether it is a Show and its External ID.
+async fn most_watchlisted_ids(watchlists: &Watchlists) -> Vec<(bool, String)> {
+    let watchlisted = watchlists.most_watchlisted().await.unwrap();
+    (watchlisted.into_iter())
+        .map(|title| (title.show, title.external_id))
+        .collect()
+}
+
+#[sqlx::test(migrations = false)]
+async fn titles_on_twenty_accounts_watchlists_are_most_watchlisted_first_and_removals_dont_count(
+    db: PgPool,
+) {
+    let (watchlists, _viewing, accounts) = accounts_on(&db, 21).await;
+    let breaking_bad = WatchlistEntry {
+        show: true,
+        id: "tvdb-81189".to_owned(),
+        removed: false,
+        changed_at_ms: 1_000,
+    };
+    let alien = WatchlistEntry {
+        id: "tmdb-348".to_owned(),
+        ..the_matrix(false, 1_000)
+    };
+    for (n, &account) in accounts.iter().enumerate() {
+        let mut entries = vec![the_matrix(n == 0, 1_000), breaking_bad.clone()];
+        if n < 19 {
+            entries.push(alien.clone());
+        }
+        watchlist(&db, account, entries).await;
+    }
+
+    let watchlisted = watchlists.most_watchlisted().await.unwrap();
+
+    let ids: Vec<(bool, &str)> = (watchlisted.iter())
+        .map(|title| (title.show, title.external_id.as_str()))
+        .collect();
+    assert_eq!(ids, [(true, "tvdb-81189"), (false, "tmdb-603")]);
+    assert!((watchlisted[0].weight - 1.0).abs() < 1e-6);
+    assert!((watchlisted[1].weight - 20.0 / 21.0).abs() < 1e-6);
+}
+
+#[sqlx::test(migrations = false)]
+async fn an_account_with_pooling_off_isnt_counted_in_the_most_watchlisted(db: PgPool) {
+    let (watchlists, viewing, accounts) = accounts_on(&db, 20).await;
+    for &account in &accounts {
+        watchlist(&db, account, vec![the_matrix(false, 1_000)]).await;
+    }
+    assert_eq!(
+        most_watchlisted_ids(&watchlists).await,
+        [(false, "tmdb-603".to_owned())]
+    );
+
+    viewing.set_pooling(accounts[0], false).await.unwrap();
+
+    assert_eq!(most_watchlisted_ids(&watchlists).await, []);
 }

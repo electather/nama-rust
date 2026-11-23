@@ -400,3 +400,29 @@ async fn deleting_the_counted_play_takes_its_account_out_of_the_weeks_count(db: 
 
     assert_eq!(trending_ids(&viewing).await, Vec::<String>::new());
 }
+
+#[sqlx::test(migrations = false)]
+async fn deleting_an_account_deletes_its_plays_but_leaves_its_pooled_counts(db: PgPool) {
+    let (viewing, mut accounts) = pool_of(&db, 19).await;
+    let leaving = Accounts::new(db.clone(), None);
+    let caller = Caller {
+        ip: "203.0.113.2".parse().unwrap(),
+        now: Instant::now(),
+    };
+    let created = leaving
+        .create("leaving@example.com", "correct horse battery", caller)
+        .await
+        .unwrap();
+    accounts.push(created.account.id);
+    let at = now();
+    for &account in &accounts {
+        finish_at(&db, account, "a", "tmdb-603", at).await;
+    }
+    let session = leaving.session(&created.token).await.unwrap().unwrap();
+
+    leaving.delete(&session).await.unwrap();
+
+    assert!(viewing.list(created.account.id).await.unwrap().is_empty());
+    assert_eq!(count_of(&viewing, "tmdb-603").await, Some(20));
+    assert_eq!(trending_ids(&viewing).await, ["tmdb-603"]);
+}

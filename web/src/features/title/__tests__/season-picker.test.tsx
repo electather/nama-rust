@@ -16,7 +16,7 @@ import {
 } from "@/gen/nama/v1/request_pb";
 import { SearchService, TitleStatus } from "@/gen/nama/v1/search_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { eventFeed, fakeServer, fill, newUser, openApp } from "@/test-app";
+import { eventFeed, fakeServer, newUser, openApp } from "@/test-app";
 import { refused } from "@/test-refusal";
 import { searchFinding } from "@/test-search";
 
@@ -230,31 +230,6 @@ test("a Show you follow, whose every Season is in a Library or yours, offers no 
   await screen.findByRole("heading", { name: "Dark" });
 
   expect(screen.queryByRole("button", { name: "Request Seasons of Dark" })).toBeNull();
-});
-
-test("a search finds Shows, which open their page to pick Seasons", async () => {
-  const { transport } = showServer(dark);
-  openApp("/requests", transport);
-
-  await screen.findByLabelText("Find a Movie or Show");
-  fill("Find a Movie or Show", "Dark");
-  fireEvent.click(screen.getByRole("button", { name: "Search" }));
-  const shows = await screen.findByRole("region", { name: "Shows for “Dark”" });
-
-  const link = await within(shows).findByRole("link", { name: /Dark/u });
-  expect(link.getAttribute("href")).toBe("/shows/tmdb-70523");
-});
-
-test("a User who may Request only Shows searches only Shows", async () => {
-  const { transport } = showServer(dark, [Permission.REQUEST_TV]);
-  openApp("/requests", transport);
-
-  await screen.findByLabelText("Find a Show");
-  fill("Find a Show", "Dark");
-  fireEvent.click(screen.getByRole("button", { name: "Search" }));
-
-  await expect(screen.findByRole("region", { name: "Shows for “Dark”" })).resolves.toBeDefined();
-  expect(screen.queryByRole("region", { name: "Movies for “Dark”" })).toBeNull();
 });
 
 test("a Show's page is not found for a User who may not Request Shows", async () => {

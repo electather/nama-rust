@@ -10,7 +10,7 @@ import {
   RequestState,
 } from "@/gen/nama/v1/request_pb";
 import type { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { admin, eventFeed, fakeServer, newUser, openApp, rowTitles } from "@/test-app";
+import { admin, eventFeed, fakeServer, newUser, openApp, requestTitles } from "@/test-app";
 
 afterEach(cleanup);
 
@@ -53,6 +53,7 @@ function filteringServer(
   const { events = new ReadableStream<SubscribeResponse>(), signedIn = newUser } = options;
   return fakeServer({ signedIn, events }, {}, {}, (router) => {
     router.service(RequestService, {
+      listDefaultQualities: () => ({}),
       listRequests: ({ filter }) => ({
         requests: requests.filter((row) => isIn(row, filter?.state)),
         followedShows: followedShows.filter((row) => isIn(row, filter?.state)),
@@ -70,21 +71,25 @@ function filteringServer(
   });
 }
 
-test("choosing Failed shows only the Failed Requests and keeps the choice in the URL", async () => {
-  openApp("/requests", filteringServer([pendingHeat, failedDune]));
+/** Picks `state` from the filter's menu, which says `from` until then. */
+async function choose(state: string, from = "All") {
+  fireEvent.click(await screen.findByRole("button", { name: `State: ${from}` }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: state }));
+}
 
-  fireEvent.click(await screen.findByRole("button", { name: "State: All" }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: "Failed" }));
+test("choosing Failed shows only the Failed Requests", async () => {
+  openApp("/?settings=requests", filteringServer([pendingHeat, failedDune]));
+
+  await choose("Failed");
 
   await waitFor(() => {
-    expect(rowTitles()).toStrictEqual(["Dune"]);
+    expect(requestTitles()).toStrictEqual(["Dune"]);
   });
   expect(screen.getByRole("button", { name: "State: Failed" })).toBeDefined();
-  expect(new URLSearchParams(globalThis.location.search).get("state")).toBe("failed");
 });
 
 test("the filter offers All and every state, in the order Requests move through them", async () => {
-  openApp("/requests", filteringServer([]));
+  openApp("/?settings=requests", filteringServer([]));
 
   fireEvent.click(await screen.findByRole("button", { name: "State: All" }));
 
@@ -101,20 +106,6 @@ test("the filter offers All and every state, in the order Requests move through 
   ]);
 });
 
-test("a link to the Requests page with a state opens on that state", async () => {
-  openApp("/requests?state=failed", filteringServer([pendingHeat, failedDune]));
-
-  await expect(screen.findByRole("button", { name: "State: Failed" })).resolves.toBeDefined();
-  expect(rowTitles()).toStrictEqual(["Dune"]);
-});
-
-test("a state the app doesn't know in the URL shows All", async () => {
-  openApp("/requests?state=lost", filteringServer([pendingHeat, failedDune]));
-
-  await expect(screen.findByRole("button", { name: "State: All" })).resolves.toBeDefined();
-  expect(rowTitles()).toStrictEqual(["Heat", "Dune"]);
-});
-
 test("a Failed Season Request shows under its Show's title without its Approved Followed Show", async () => {
   const season = {
     showId: { namespace: "tmdb", value: "70523" },
@@ -122,7 +113,7 @@ test("a Failed Season Request shows under its Show's title without its Approved 
     showTitle: "Dark",
   };
   openApp(
-    "/requests?state=failed",
+    "/?settings=requests",
     filteringServer(
       [
         {
@@ -144,17 +135,19 @@ test("a Failed Season Request shows under its Show's title without its Approved 
       ],
     ),
   );
+  await choose("Failed");
 
   const dark = await screen.findByRole("list", { name: "Dark" });
   expect(
     within(dark)
       .getAllByRole("listitem")
       .map((row) => row.textContent),
-  ).toStrictEqual(["Season 1Requested by AdaFailed"]);
+  ).toStrictEqual(["Season 1FailedRequested by Ada"]);
 });
 
 test("the Requests page says so when none are in the chosen state", async () => {
-  openApp("/requests?state=processing", filteringServer([pendingHeat]));
+  openApp("/?settings=requests", filteringServer([pendingHeat]));
+  await choose("Processing");
 
   await expect(screen.findByText("No Processing Requests.")).resolves.toBeDefined();
 });
@@ -162,7 +155,8 @@ test("the Requests page says so when none are in the chosen state", async () => 
 test("a Request retried elsewhere leaves the Failed ones without a reload", async () => {
   const events = eventFeed();
   const requests: MessageInitShape<typeof RequestSchema>[] = [failedDune];
-  openApp("/requests?state=failed", filteringServer(requests, [], { events: events.stream }));
+  openApp("/?settings=requests", filteringServer(requests, [], { events: events.stream }));
+  await choose("Failed");
   await screen.findByText("Dune");
 
   requests[0] = { ...failedDune, state: RequestState.PROCESSING };
@@ -174,14 +168,14 @@ test("a Request retried elsewhere leaves the Failed ones without a reload", asyn
 test("approving a Request while showing Pending ones takes it off the list", async () => {
   const pendingDune = { ...failedDune, state: RequestState.PENDING };
   openApp(
-    "/requests?state=pending",
+    "/?settings=requests",
     filteringServer([pendingHeat, pendingDune], [], { signedIn: admin }),
   );
 
   fireEvent.click(await screen.findByRole("button", { name: "Approve Heat" }));
 
   await waitFor(() => {
-    expect(rowTitles()).toStrictEqual(["Dune"]);
+    expect(requestTitles()).toStrictEqual(["Dune"]);
   });
 });
 
@@ -189,55 +183,35 @@ test.each([
   {
     who: "a Request manager with a Pending Request",
     signedIn: admin,
-    lands: "pending",
+    lands: "Pending",
     requests: [pendingHeat, failedDune],
   },
   {
     who: "a Request manager with nothing Pending",
     signedIn: admin,
-    lands: "all",
+    lands: "All",
     requests: [failedDune],
   },
   {
     who: "a User without Manage Requests",
     signedIn: newUser,
-    lands: "all",
+    lands: "All",
     requests: [pendingHeat, failedDune],
   },
-])("the Requests page opens $who on $lands", async ({ signedIn, lands, requests }) => {
-  openApp("/requests", filteringServer(requests, [], { signedIn }));
+])("requests open $who on $lands", async ({ signedIn, lands, requests }) => {
+  openApp("/?settings=requests", filteringServer(requests, [], { signedIn }));
 
-  await waitFor(() => {
-    expect(new URLSearchParams(globalThis.location.search).get("state")).toBe(lands);
-  });
-});
-
-test("a state the app doesn't know opens a Request manager on Pending", async () => {
-  openApp(
-    "/requests?state=lost",
-    filteringServer([pendingHeat, failedDune], [], { signedIn: admin }),
-  );
-
-  await waitFor(() => {
-    expect(new URLSearchParams(globalThis.location.search).get("state")).toBe("pending");
-  });
+  await expect(screen.findByRole("button", { name: `State: ${lands}` })).resolves.toBeDefined();
 });
 
 test("approving the last Pending Request leaves the page on Pending", async () => {
-  openApp("/requests", filteringServer([pendingHeat, failedDune], [], { signedIn: admin }));
+  openApp(
+    "/?settings=requests",
+    filteringServer([pendingHeat, failedDune], [], { signedIn: admin }),
+  );
 
   fireEvent.click(await screen.findByRole("button", { name: "Approve Heat" }));
 
   await expect(screen.findByText("No Pending Requests.")).resolves.toBeDefined();
   expect(screen.getByRole("button", { name: "State: Pending" })).toBeDefined();
-});
-
-test("back from the Requests page leaves it, past the default it chose", async () => {
-  const router = openApp("/code", filteringServer([pendingHeat], [], { signedIn: admin }));
-
-  fireEvent.click(await screen.findByRole("link", { name: "Requests, 1 Pending" }));
-  await screen.findByRole("button", { name: "State: Pending" });
-  router.history.back();
-
-  await expect(screen.findByRole("heading", { name: "Sign in a Device" })).resolves.toBeDefined();
 });

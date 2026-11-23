@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT kind, title_id FROM watchlist WHERE user_id = ? AND NOT removed ORDER BY rowid DESC",
+  "describe": {
+    "columns": [
+      {
+        "name": "kind",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "watchlist",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "title_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "watchlist",
+            "name": "title_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "e6208a3e151bcf3bf2391acd5fe692fc3d9eb99fe76020f37be4de52132dd489"
+}

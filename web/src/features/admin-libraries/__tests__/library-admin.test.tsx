@@ -63,9 +63,8 @@ test("a Library's row says what it holds, its folders and when it was last scann
   openLibraries(scannedServer(new ReadableStream()));
 
   const link = await screen.findByRole("link", { name: "Films" });
-  expect(link.closest("li")?.textContent).toMatch(
-    /^FilmsMovies · 1 folder · Last scanned .*2026.*Scan$/u,
-  );
+  expect(link.closest("li")?.textContent).toMatch(/^FilmsMovies · 1 folder · Last scanned .*2026/u);
+  expect(screen.getByRole("button", { name: "Scan Films" })).toBeDefined();
 });
 
 test("a Library shows its last scan until a scan Event replaces it", async () => {

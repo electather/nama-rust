@@ -1,5 +1,6 @@
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import { cn } from "cn";
+import { isValidElement } from "react";
 
 // shadcn's base-nova tooltip, trimmed to the parts we use. DESIGN.md, "Menus": Popover with a
 // hairline and `shadow-md`, opening on an exponential ease-out. Base UI keeps it open while the
@@ -10,12 +11,16 @@ function Tooltip(props: TooltipPrimitive.Root.Props) {
 }
 
 /**
- * What opens the tooltip on hover or focus: a button, focusable, ringed when focused. One `render`ed
- * as another component, such as a Button, keeps that one's shape and ring.
+ * What opens the tooltip on hover or focus: a button, or the plain element it's `render`ed as,
+ * focusable, ringed when focused. One `render`ed as another component, such as a Button, keeps that
+ * one's shape and ring.
  */
 function TooltipTrigger({ className, ...props }: TooltipPrimitive.Trigger.Props) {
+  const plain =
+    props.render === undefined ||
+    (isValidElement(props.render) && typeof props.render.type === "string");
   const look =
-    props.render === undefined &&
+    plain &&
     "cursor-default rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
   return (
     <TooltipPrimitive.Trigger

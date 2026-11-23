@@ -1,3 +1,4 @@
+import { Modal } from "nama-ui/components/modal";
 import { type ReactNode, type RefObject, useId } from "react";
 
 import { ConfirmForm } from "@/shared/components/confirm-dialog/confirm-form";
@@ -38,18 +39,7 @@ export function ConfirmModal({
 }) {
   const id = useId();
   return (
-    // ponytail: the native modal <dialog> traps focus, closes on Escape and returns focus itself.
-    <dialog
-      ref={ref}
-      role="alertdialog"
-      aria-labelledby={`${id}-title`}
-      aria-describedby={`${id}-description`}
-      onClose={onClose}
-      // DESIGN.md's Dialog. Floats above the page, so it alone gets a shadow ("Elevation"). On a
-      // phone the browser's own max-width keeps it clear of the edges. Scrolling inside it, or
-      // over its backdrop, doesn't scroll the page behind.
-      className="m-auto w-full overscroll-contain rounded-lg border bg-background text-foreground shadow-lg backdrop:overflow-hidden backdrop:overscroll-contain backdrop:bg-scrim sm:max-w-lg"
-    >
+    <Modal ref={ref} id={id} onClose={onClose}>
       <ConfirmForm
         key={openings}
         id={id}
@@ -57,6 +47,6 @@ export function ConfirmModal({
         destructive={destructive}
         {...confirmation}
       />
-    </dialog>
+    </Modal>
   );
 }

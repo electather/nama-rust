@@ -1,0 +1,80 @@
+//! Syncing Linked Users' Watchlists with the Hub (ADR 0056): the Kernel hands over a User's whole
+//! Watchlist, removals included, which the Hub merges into their Account's and answers, for the
+//! Kernel to take what is newer than its own. Nothing is queued: what the Hub didn't get goes with
+//! the next sync.
+
+use std::cmp::Reverse;
+
+use nama_hub_proto::nama::hub::v1::{TitleKind, WatchlistEntry as Entry};
+use nama_plugin_api::{
+    PluginError,
+    server_link::{Link, WatchlistEntry},
+};
+
+use super::{Linker, watch_states::MAX_ID_LENGTH};
+
+/// The most entries a sync sends, as the Hub takes them: past it, or an id past `MAX_ID_LENGTH`,
+/// the Hub would refuse every sync of that User.
+// ponytail: past `MAX_ENTRIES` the oldest are left out; page the sync if Watchlists grow that long.
+const MAX_ENTRIES: usize = 5000;
+
+impl Linker {
+    /// Merges `watchlist`, the User `user_id`'s, into the Account they are Linked to, and answers
+    /// the Account's; empty while they or the Server aren't Linked, when it doesn't leave the
+    /// Server.
+    pub(super) async fn merge_watchlist(
+        &self,
+        user_id: i64,
+        mut watchlist: Vec<WatchlistEntry>,
+    ) -> Result<Vec<WatchlistEntry>, PluginError> {
+        let Some(kept) = self.kept().await? else {
+            return Ok(Vec::new());
+        };
+        // Asked as Settings would, as with Watch State: a User who only signs in with their
+        // Account has no kept Link.
+        let Some(Link::Linked { .. }) = self.current_user_link(user_id).await? else {
+            return Ok(Vec::new());
+        };
+        watchlist.sort_by_key(|entry| Reverse(entry.changed_at_ms));
+        let entries = (watchlist.iter())
+            .filter(|entry| entry.id.chars().count() <= MAX_ID_LENGTH)
+            .take(MAX_ENTRIES)
+            .map(entry_to_proto)
+            .collect();
+        let synced = (self.hub)
+            .sync_watchlist(&kept.credential, user_id, entries)
+            .await?;
+        Ok(synced.into_iter().filter_map(entry_from_proto).collect())
+    }
+}
+
+/// `entry`, as the Hub takes it.
+fn entry_to_proto(entry: &WatchlistEntry) -> Entry {
+    let kind = if entry.show {
+        TitleKind::TITLE_KIND_SHOW
+    } else {
+        TitleKind::TITLE_KIND_MOVIE
+    };
+    Entry {
+        kind: kind.into(),
+        id: entry.id.clone(),
+        removed: entry.removed,
+        changed_at_ms: entry.changed_at_ms,
+        ..Default::default()
+    }
+}
+
+/// An entry the Hub answered, as the Kernel takes it, or `None` for a kind it doesn't know.
+fn entry_from_proto(entry: Entry) -> Option<WatchlistEntry> {
+    let show = match entry.kind.as_known()? {
+        TitleKind::TITLE_KIND_MOVIE => false,
+        TitleKind::TITLE_KIND_SHOW => true,
+        TitleKind::TITLE_KIND_UNSPECIFIED => return None,
+    };
+    Some(WatchlistEntry {
+        show,
+        id: entry.id,
+        removed: entry.removed,
+        changed_at_ms: entry.changed_at_ms,
+    })
+}

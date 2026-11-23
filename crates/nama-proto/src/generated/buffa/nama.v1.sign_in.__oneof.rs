@@ -8,6 +8,7 @@ pub mod reauthenticate_request {
     #[derive(Clone, PartialEq, Debug)]
     pub enum Proof {
         Password(::buffa::alloc::string::String),
+        AccountSignInHandle(::buffa::alloc::string::String),
     }
     impl ::buffa::Oneof for Proof {}
     impl ::serde::Serialize for Proof {
@@ -20,6 +21,9 @@ pub mod reauthenticate_request {
             match self {
                 Self::Password(v) => {
                     map.serialize_entry("password", v)?;
+                }
+                Self::AccountSignInHandle(v) => {
+                    map.serialize_entry("accountSignInHandle", v)?;
                 }
             }
             map.end()

@@ -11,15 +11,7 @@ export interface Opening {
 }
 
 /** The icons a row leads with, which `components/row-lead.tsx` draws. */
-export type IconName =
-  | "movie"
-  | "show"
-  | "home"
-  | "requests"
-  | "settings"
-  | "admin"
-  | "keyboard"
-  | "retry";
+export type IconName = "movie" | "show" | "home" | "settings" | "keyboard" | "retry";
 
 /** One thing the action bar lists, and what picking it does. */
 export interface Row {

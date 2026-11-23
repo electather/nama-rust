@@ -15,7 +15,7 @@ export function overallPercent(downloads: Download[]) {
 }
 
 /** How long `seconds` leave, such as "1 h 30 min left", or nothing once none do. */
-export function timeLeftText(seconds: number) {
+function timeLeftText(seconds: number) {
   const left = runtimeOf(Math.ceil(seconds / 60));
   return left === "" ? undefined : `${left} left`;
 }

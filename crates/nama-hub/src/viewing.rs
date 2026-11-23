@@ -28,7 +28,7 @@ const EXTERNAL_ID_LENGTH: usize = 100;
 const KEY_LENGTH: usize = 64;
 
 /// The fewest Accounts a pooled count is read with, so none tells about one Account (ADR 0093).
-const MIN_POOLED_ACCOUNTS: i64 = 20;
+pub(crate) const MIN_POOLED_ACCOUNTS: i64 = 20;
 
 /// The most Movies [`Viewing::trending`] answers.
 const MAX_TRENDING: i64 = 1000;
@@ -318,6 +318,15 @@ impl Viewing {
         .fetch_optional(&self.db)
         .await?;
         Ok(chosen.unwrap_or(true))
+    }
+
+    /// The Accounts that turned pooling off.
+    pub(crate) async fn not_pooling(&self) -> Result<Vec<AccountId>, sqlx::Error> {
+        let accounts =
+            sqlx::query_scalar!("SELECT account_id FROM pooling_settings WHERE NOT pooling")
+                .fetch_all(&self.db)
+                .await?;
+        Ok(accounts.into_iter().map(AccountId).collect())
     }
 
     /// Turns pooling on or off for `account`. Turning it off stops new counts; what was counted

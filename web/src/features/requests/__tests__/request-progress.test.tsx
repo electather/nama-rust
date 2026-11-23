@@ -44,14 +44,16 @@ test("a handed-off Request shows the Quality its service used, else the profile 
   const usedHd = { ...asked4k, qualityUsed: { id: 6n, name: "HD", profileId: "4" } };
   const keptItsOwn = { ...asked4k, id: 2n, qualityUsed: { name: "Ultra-HD", profileId: "9" } };
   openApp(
-    "/requests",
+    "/?settings=requests",
     server(() => [usedHd, keptItsOwn]),
   );
 
-  const rows = await screen.findAllByRole("listitem");
+  const rows = await within(
+    await screen.findByRole("list", { name: /^(?:Your|All) Requests$/u }),
+  ).findAllByRole("listitem");
   expect(rows.map((row) => row.textContent)).toStrictEqual([
-    "DuneHD · Requested by GraceProcessing",
-    "DuneUltra-HD (set in the service) · Requested by GraceProcessing",
+    "DuneProcessingHD · Requested by Grace",
+    "DuneProcessingUltra-HD (set in the service) · Requested by Grace",
   ]);
 });
 
@@ -66,7 +68,7 @@ test("a Processing Request's bar moves without a reload as its download progress
   const events = eventFeed();
   let request = duneDownloading([{ ...duneFile, percent: 20 }]);
   openApp(
-    "/requests",
+    "/?settings=requests",
     server(() => [request], events.stream),
   );
   const bar = await screen.findByRole("progressbar", { name: "Downloaded" });
@@ -79,12 +81,11 @@ test("a Processing Request's bar moves without a reload as its download progress
     const moved = screen.getByRole("progressbar", { name: "Downloaded" });
     expect(moved.getAttribute("aria-valuenow")).toBe("65");
   });
-  expect(screen.getByText("65% downloaded")).toBeDefined();
 });
 
-test("a Processing Request lists its downloads with their status in words, and explains needing attention in the Fulfiller's words", async () => {
+test("a Processing Request's download that needs attention says why, in the Fulfiller's words", async () => {
   openApp(
-    "/requests",
+    "/?settings=requests",
     server(() => [
       duneDownloading([
         { ...duneFile, percent: 100, status: DownloadStatus.IMPORTING },
@@ -98,15 +99,12 @@ test("a Processing Request lists its downloads with their status in words, and e
     ]),
   );
 
-  const downloads = await screen.findByRole("list", { name: "Downloads" });
-  expect(
-    within(downloads)
-      .getAllByRole("listitem")
-      .map((row) => row.textContent),
-  ).toStrictEqual([
-    "Dune.2021.2160pImporting · 100% · 4 GB · 1 h 30 min left",
-    "Dune.2021.ExtrasNeeds attention · 30%It stopped, and whoever runs the Server needs to look at it. Radarr said: Automatic import is not possible.",
-  ]);
+  await expect(
+    screen.findByText(
+      "Dune.2021.Extras stopped, and whoever runs the Server needs to look at it. Radarr said: Automatic import is not possible.",
+    ),
+  ).resolves.toBeDefined();
   // Weighted by size where known, else counted evenly: (100 + 30) / 2.
-  expect(screen.getByText("65% downloaded")).toBeDefined();
+  const bar = screen.getByRole("progressbar", { name: "Downloaded" });
+  expect(bar.getAttribute("aria-valuenow")).toBe("65");
 });

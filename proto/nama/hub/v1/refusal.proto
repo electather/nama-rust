@@ -79,4 +79,13 @@ enum RefusalReason {
   // `invalid_argument`: a Viewing Event breaks the rules `ViewingEvent` and `UserViewingEvent`
   // give, or more than `maxEvents` came at once. Params: `maxEvents`.
   REFUSAL_REASON_VIEWING_EVENT_INVALID = 21;
+  // `invalid_argument`: a Subtitle or Audio Preference change breaks a limit
+  // `TrackPreferenceChange` and `PushTrackPreferencesRequest` set, such as too many changes, a
+  // field too long, or a time out of range. `field` names it. Params: `maxChanges`, `maxIdLength`,
+  // `maxLanguageLength` and `maxTitleLength`.
+  REFUSAL_REASON_TRACK_PREFERENCE_INVALID = 23;
+  // `invalid_argument`: a Watchlist entry breaks a limit `SyncWatchlistRequest` sets, such as too
+  // many entries, an id too long, no kind, or a time out of range. `field` names it. Params:
+  // `maxEntries` and `maxIdLength`.
+  REFUSAL_REASON_WATCHLIST_INVALID = 22;
 }

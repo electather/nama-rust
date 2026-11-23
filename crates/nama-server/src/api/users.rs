@@ -35,6 +35,7 @@ use crate::{
     db::Database,
     home_rows::HomeRows,
     images::PluginLogos,
+    playback::TrackPreferences,
     plugin_settings::{Personal, PluginSettings},
     plugins::ExtensionPoints,
     server_settings::{ServerUrl, Settings},
@@ -73,10 +74,13 @@ pub(super) struct UserServiceHandler {
     pub(super) home_rows: HomeRows,
     /// Holds the default Home layout, which each User's follows but for what they change.
     pub(super) settings: Settings,
-    /// Asked to Link the caller to an Account, and to Unlink a deleted User.
+    /// Asked to Link the caller to an Account, to Unlink a deleted User, and which Users with no
+    /// Sign-in Method are Linked.
     pub(super) points: ExtensionPoints,
     /// Takes the Watch State a User pulls once Linked.
     pub(super) browse: Browse,
+    /// Takes the Track Preferences a User pulls once Linked.
+    pub(super) preferences: TrackPreferences,
 }
 
 #[expect(
@@ -123,8 +127,12 @@ impl UserService for UserServiceHandler {
         _request: ServiceRequest<'_, ListUsersRequest>,
     ) -> ServiceResult<ListUsersResponse> {
         let users = self.users.list().await.map_err(database_failed)?;
+        let without_sign_in_method =
+            (self.users.without_sign_in_method().await).map_err(database_failed)?;
         Response::ok(ListUsersResponse {
             users: users.into_iter().map(user_to_proto).collect(),
+            cannot_sign_in_user_ids: server_link::unlinked(&self.points, without_sign_in_method)
+                .await,
             ..Default::default()
         })
     }
@@ -550,7 +558,15 @@ impl UserService for UserServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, GetUserLinkRequest>,
     ) -> ServiceResult<GetUserLinkResponse> {
-        server_link::get_user(&self.points, &self.browse, &caller(&ctx)?.user).await
+        let user = &caller(&ctx)?.user;
+        server_link::get_user(
+            &self.points,
+            &self.browse,
+            &self.preferences,
+            &self.db,
+            user,
+        )
+        .await
     }
 
     async fn start_user_link(
@@ -558,7 +574,15 @@ impl UserService for UserServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, StartUserLinkRequest>,
     ) -> ServiceResult<StartUserLinkResponse> {
-        server_link::start_user(&self.points, &self.browse, &caller(&ctx)?.user).await
+        let user = &caller(&ctx)?.user;
+        server_link::start_user(
+            &self.points,
+            &self.browse,
+            &self.preferences,
+            &self.db,
+            user,
+        )
+        .await
     }
 
     async fn unlink_user(

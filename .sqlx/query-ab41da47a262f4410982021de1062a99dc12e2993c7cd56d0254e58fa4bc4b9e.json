@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM track_preferences\n             WHERE user_id = ? AND scope = ? AND title_id IN (SELECT value FROM json_each(?))\n                 AND kind = ? AND (? OR changed_at < ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "ab41da47a262f4410982021de1062a99dc12e2993c7cd56d0254e58fa4bc4b9e"
+}

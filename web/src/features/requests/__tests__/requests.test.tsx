@@ -9,7 +9,7 @@ import {
   RequestService,
   RequestState,
 } from "@/gen/nama/v1/request_pb";
-import { eventFeed, fakeServer, newUser, openApp, rowTitles } from "@/test-app";
+import { eventFeed, fakeServer, newUser, openApp, requestTitles } from "@/test-app";
 
 afterEach(cleanup);
 
@@ -44,6 +44,7 @@ function server(
 ) {
   return fakeServer({ signedIn: newUser, events }, {}, {}, (router) => {
     router.service(RequestService, {
+      listDefaultQualities: () => ({}),
       listRequests: () => ({ requests: requests(), followedShows: followedShows() }),
     });
   });
@@ -51,14 +52,16 @@ function server(
 
 test("the Requests page shows each Request's Movie, its Quality, its state in words and its Requesters", async () => {
   openApp(
-    "/requests",
+    "/?settings=requests",
     server(() => [heat, dune]),
   );
 
-  const rows = await screen.findAllByRole("listitem");
+  const rows = await within(
+    await screen.findByRole("list", { name: /^(?:Your|All) Requests$/u }),
+  ).findAllByRole("listitem");
   expect(rows.map((row) => row.textContent)).toStrictEqual([
-    "Heat1995 · Requested by you and AdaPendingWithdraw",
-    "Dune4K · Requested by GraceApproved",
+    "HeatPending1995 · Requested by you and Ada",
+    "DuneApproved4K · Requested by Grace",
   ]);
 });
 
@@ -82,7 +85,7 @@ function darkSeason(id: bigint, seasonNumber: number, state: RequestState) {
 
 test("the Requests page groups a Show's Season Requests, in Season order, with their states in words", async () => {
   openApp(
-    "/requests",
+    "/?settings=requests",
     server(() => [
       darkSeason(4n, 2, RequestState.APPROVED),
       heat,
@@ -97,10 +100,10 @@ test("the Requests page groups a Show's Season Requests, in Season order, with t
       .getAllByRole("listitem")
       .map((row) => row.textContent),
   ).toStrictEqual([
-    "Season 12017 · Requested by youPendingWithdraw",
-    "Season 22017 · Requested by youApproved",
+    "Season 1Pending2017 · Requested by you",
+    "Season 2Approved2017 · Requested by you",
   ]);
-  expect(rowTitles()).toStrictEqual(["Dark", "Season 1", "Season 2", "Heat", "Dune"]);
+  expect(requestTitles()).toStrictEqual(["Dark", "Season 1", "Season 2", "Heat", "Dune"]);
 });
 
 /** Sam's Followed Show of Dark, Approved. */
@@ -114,7 +117,7 @@ const followedDark = {
 
 test("a Followed Show lists above its Show's Season Requests", async () => {
   openApp(
-    "/requests",
+    "/?settings=requests",
     server(
       () => [heat, { ...darkSeason(3n, 1, RequestState.APPROVED), followedShowId: 7n }],
       undefined,
@@ -128,8 +131,8 @@ test("a Followed Show lists above its Show's Season Requests", async () => {
       .getAllByRole("listitem")
       .map((row) => row.textContent),
   ).toStrictEqual([
-    "Followed ShowRequested by youApprovedWithdraw",
-    "Season 12017 · Requested by youApproved",
+    "Followed ShowApprovedRequested by you",
+    "Season 1Approved2017 · Requested by you",
   ]);
 });
 
@@ -137,7 +140,7 @@ test("a Season Request a scan opens for a Followed Show shows up under it withou
   const events = eventFeed();
   let requests: MessageInitShape<typeof RequestSchema>[] = [];
   openApp(
-    "/requests",
+    "/?settings=requests",
     server(
       () => requests,
       events.stream,
@@ -161,7 +164,7 @@ test("a Pending Followed Show approved elsewhere shows as Approved without a rel
     state: RequestState.PENDING,
   };
   openApp(
-    "/requests",
+    "/?settings=requests",
     server(
       () => [],
       events.stream,
@@ -178,21 +181,23 @@ test("a Pending Followed Show approved elsewhere shows as Approved without a rel
 
 test("the Requests page says so when there are none", async () => {
   openApp(
-    "/requests",
+    "/?settings=requests",
     server(() => []),
   );
 
-  await expect(screen.findByText("No Requests yet.")).resolves.toBeDefined();
+  await expect(
+    screen.findByText("No Requests yet. Request a Movie or Show from its page."),
+  ).resolves.toBeDefined();
 });
 
 test("a Request made elsewhere shows up without a reload", async () => {
   const events = eventFeed();
   let requests: MessageInitShape<typeof RequestSchema>[] = [];
   openApp(
-    "/requests",
+    "/?settings=requests",
     server(() => requests, events.stream),
   );
-  await screen.findByText("No Requests yet.");
+  await screen.findByText("No Requests yet. Request a Movie or Show from its page.");
 
   requests = [dune];
   events.send({ event: { case: "requestCreated", value: { request: dune } } });
@@ -208,7 +213,7 @@ test.each([
   const events = eventFeed();
   let requests: MessageInitShape<typeof RequestSchema>[] = [heat];
   openApp(
-    "/requests",
+    "/?settings=requests",
     server(() => requests, events.stream),
   );
   await screen.findByText("Pending");
@@ -224,7 +229,7 @@ test("a Request its Fulfiller didn't take shows as Failed with the reason, witho
   const events = eventFeed();
   let requests: MessageInitShape<typeof RequestSchema>[] = [dune];
   openApp(
-    "/requests",
+    "/?settings=requests",
     server(() => requests, events.stream),
   );
   await screen.findByText("Approved");
@@ -242,7 +247,7 @@ test("a Season Request shows as Partially Available, then Available, as a scan M
   const season2 = darkSeason(4n, 2, RequestState.PENDING);
   let requests = [season2, darkSeason(3n, 1, RequestState.PROCESSING)];
   openApp(
-    "/requests",
+    "/?settings=requests",
     server(() => requests, events.stream),
   );
   const seasons = await screen.findByRole("list", { name: "Dark" });
@@ -261,12 +266,12 @@ test("a Season Request shows as Partially Available, then Available, as a scan M
   const allMatched = await season1Becomes(RequestState.AVAILABLE, "Available");
 
   expect(someMatched).toStrictEqual([
-    "Season 12017 · Requested by youPartially Available",
-    "Season 22017 · Requested by youPendingWithdraw",
+    "Season 1Partially Available2017 · Requested by you",
+    "Season 2Pending2017 · Requested by you",
   ]);
   expect(allMatched).toStrictEqual([
-    "Season 12017 · Requested by youAvailable",
-    "Season 22017 · Requested by youPendingWithdraw",
+    "Season 1Available2017 · Requested by you",
+    "Season 2Pending2017 · Requested by you",
   ]);
 });
 
@@ -277,7 +282,7 @@ test.each([
   const events = eventFeed();
   let requests = [request];
   openApp(
-    "/requests",
+    "/?settings=requests",
     server(() => requests, events.stream),
   );
   await screen.findByText(request.movieOrSeason.value.title);
@@ -285,12 +290,14 @@ test.each([
   requests = [];
   events.send({ event: { case: removal, value: { request } } });
 
-  await expect(screen.findByText("No Requests yet.")).resolves.toBeDefined();
+  await expect(
+    screen.findByText("No Requests yet. Request a Movie or Show from its page."),
+  ).resolves.toBeDefined();
 });
 
 test("a Declined Request shows its Requesters why", async () => {
   openApp(
-    "/requests",
+    "/?settings=requests",
     server(() => [{ ...heat, state: RequestState.DECLINED, declineReason: "Not out on disc yet" }]),
   );
 

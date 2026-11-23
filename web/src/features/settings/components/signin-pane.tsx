@@ -1,5 +1,6 @@
 import { PaneFrame } from "@/features/settings/components/pane-frame";
 import { PasswordForm } from "@/features/settings/components/password-form";
+import { SectionBoundary } from "@/features/settings/components/section-boundary";
 import { SettingGroup } from "@/features/settings/components/setting-group";
 import { UserLink } from "@/features/settings/components/user-link";
 import { signinLabels } from "@/features/settings/lib/pane-labels";
@@ -24,7 +25,10 @@ export function SigninPane({ user }: { user: User | undefined }) {
       <SettingGroup title="Password">
         <PasswordForm />
       </SettingGroup>
-      <UserLink />
+      {/* Shows once it has loaded, the rest without waiting for it. */}
+      <SectionBoundary what="your Account Link">
+        <UserLink />
+      </SectionBoundary>
     </PaneFrame>
   );
 }

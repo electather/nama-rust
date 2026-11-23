@@ -9,7 +9,7 @@ export function SignInCard({
   intro,
   children,
 }: {
-  heading?: string;
+  heading?: string | undefined;
   /** What the page is for, under its heading, where the form alone doesn't say. */
   intro?: ReactNode;
   children: ReactNode;

@@ -34,6 +34,14 @@ service AccountService {
   // `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` before the password is checked, and
   // `REFUSAL_REASON_PASSWORD_LENGTH`.
   rpc SetPassword(SetPasswordRequest) returns (SetPasswordResponse);
+  // Deletes the signed-in Account and everything the Hub keeps for it: its sessions, Sign-in
+  // Methods, Watch State, Watchlist and Viewing Events, and its Links, so each of its Users is
+  // Unlinked, and each Server it Linked with every User Linked there. Pooled counts name no Account,
+  // so they stay (ADR 0093). A Server learns of an Unlink the next time it names the User. Clears
+  // the session cookie. Needs Recent Authentication, as `SetPassword` does. Fails with
+  // `REFUSAL_REASON_SIGN_IN_REQUIRED` without a session, and
+  // `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED`.
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
   // Ends the calling session and clears its cookie. Fails with `REFUSAL_REASON_SIGN_IN_REQUIRED`
   // without a session.
   rpc SignOut(SignOutRequest) returns (SignOutResponse);
@@ -111,6 +119,10 @@ message SetPasswordRequest {
 }
 
 message SetPasswordResponse {}
+
+message DeleteAccountRequest {}
+
+message DeleteAccountResponse {}
 
 message SignOutRequest {}
 

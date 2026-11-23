@@ -53,4 +53,35 @@ function ProgressPill({
   );
 }
 
-export { Progress, ProgressPill };
+/**
+ * A ring filled clockwise to its `value`, as small as an icon, for where a bar would add a line,
+ * such as in a Request's row. Near-white on a Muted track, as a bar is.
+ */
+function ProgressRing({ value, ...props }: ProgressPrimitive.Root.Props) {
+  return (
+    <ProgressPrimitive.Root
+      data-slot="progress-ring"
+      value={value}
+      className="grid size-3.5 shrink-0"
+      {...props}
+    >
+      <svg aria-hidden viewBox="0 0 16 16" className="-rotate-90">
+        <circle cx="8" cy="8" r="6.5" fill="none" strokeWidth="2" className="stroke-muted" />
+        {/* `pathLength` makes the circle 100 long, so the dash's offset is what's left to go. */}
+        <circle
+          cx="8"
+          cy="8"
+          r="6.5"
+          fill="none"
+          strokeWidth="2"
+          pathLength={100}
+          strokeDasharray={100}
+          strokeDashoffset={100 - (value ?? 0)}
+          className="stroke-primary transition-all duration-250 ease-linear motion-reduce:transition-none"
+        />
+      </svg>
+    </ProgressPrimitive.Root>
+  );
+}
+
+export { Progress, ProgressPill, ProgressRing };

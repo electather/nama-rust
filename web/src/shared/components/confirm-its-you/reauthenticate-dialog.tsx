@@ -1,13 +1,21 @@
 import { Code } from "@connectrpc/connect";
+import { useLocation } from "@tanstack/react-router";
 import type { RefObject } from "react";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
+import { StartAccountSignIn } from "@/shared/components/account-sign-in/start-account-sign-in";
 import { ConfirmModal } from "@/shared/components/confirm-dialog/confirm-modal";
 import { PasswordField } from "@/shared/components/form-field/password-field";
+import { useAccountSignIn } from "@/shared/hooks/use-account-sign-in";
 import { useReauthenticate } from "@/shared/hooks/use-reauthenticate";
+import { accountReturnUrl } from "@/shared/lib/account-sign-in";
 import { formText, refusal, serverMessage } from "@/shared/lib/forms";
 
-/** Asks for the User's password, and gives this Device Recent Authentication with it. */
+/**
+ * Asks for the User's password, and gives this Device Recent Authentication with it. On a Server
+ * Linked to the Hub it also offers their Account, the one way in for a User with no password,
+ * which comes back to this page to make the change again.
+ */
 export function ReauthenticateDialog({
   dialog,
   openings,
@@ -23,6 +31,11 @@ export function ReauthenticateDialog({
   onClose: () => void;
 }) {
   const reauthenticate = useReauthenticate(onReauthenticated);
+  const here = useLocation().href;
+  const offersAccount = useAccountSignIn() === true;
+  const howToConfirm = offersAccount
+    ? "Enter your password, or sign in with your Account,"
+    : "Enter your password";
   return (
     <ConfirmModal
       ref={dialog}
@@ -32,8 +45,8 @@ export function ReauthenticateDialog({
       title="Confirm it’s you"
       description={
         confirming === undefined
-          ? "Enter your password to go on. This keeps anyone else using this Device from making the change."
-          : `Enter your password to ${confirming}. This keeps anyone else using this Device from doing it.`
+          ? `${howToConfirm} to go on. This keeps anyone else using this Device from making the change.`
+          : `${howToConfirm} to ${confirming}. This keeps anyone else using this Device from doing it.`
       }
       onConfirm={async (typed) => {
         await reauthenticate.mutateAsync({
@@ -53,6 +66,9 @@ export function ReauthenticateDialog({
       }
     >
       <PasswordField label="Password" autoComplete="current-password" />
+      {offersAccount && (
+        <StartAccountSignIn returnUrl={accountReturnUrl("/reauthenticate/account", here)} />
+      )}
     </ConfirmModal>
   );
 }

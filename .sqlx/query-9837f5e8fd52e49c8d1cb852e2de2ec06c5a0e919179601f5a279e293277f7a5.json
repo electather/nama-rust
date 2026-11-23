@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO watchlist (user_id, kind, title_id, removed, changed_at_ms)\n             SELECT ?, ?, value, 1, ? FROM json_each(?) WHERE true\n             ON CONFLICT (user_id, kind, title_id) DO UPDATE\n             SET removed = 1, changed_at_ms = excluded.changed_at_ms",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "9837f5e8fd52e49c8d1cb852e2de2ec06c5a0e919179601f5a279e293277f7a5"
+}

@@ -31,8 +31,8 @@ function inWords({
   day: string;
   weekday: string;
 }) {
-  if (hour === "*" && day === "*" && weekday === "*") {
-    return everyHour(minute);
+  if (day === "*" && weekday === "*" && /^\*(?:\/\d+)?$/u.test(hour)) {
+    return everyFewHours(minute, hour);
   }
   const days = dayWords(day, weekday);
   if (days === "" || !NUMBER.test(minute) || !NUMBER.test(hour)) {
@@ -48,6 +48,16 @@ function dayWords(day: string, weekday: string) {
     return names === undefined ? "" : `Every ${names}`;
   }
   return weekday === "*" && NUMBER.test(day) ? `Every month on day ${Number(day)}` : "";
+}
+
+/** A schedule firing every hour, or every few hours, such as every 3, in words, or blank for a shape this has none for. */
+function everyFewHours(minute: string, hour: string) {
+  const step = Number(hour.slice(2));
+  if (hour === "*" || step === 1) {
+    return everyHour(minute);
+  }
+  const past = Number(minute) === 0 ? "on the hour" : `${Number(minute)} minutes past`;
+  return NUMBER.test(minute) ? `Every ${step} hours from midnight, ${past}, Server time` : "";
 }
 
 /** A schedule firing every hour in words, or blank for a shape this has none for. */

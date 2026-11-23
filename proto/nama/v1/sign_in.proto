@@ -45,10 +45,15 @@ service SignInService {
   rpc WhoAmI(WhoAmIRequest) returns (WhoAmIResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Gives the calling Device Recent Authentication, once its User proves who they are again. The
-  // Device keeps its session: no new token or cookie is handed out. Fails with `unauthenticated`
-  // if the proof is wrong, the Device was signed out meanwhile, or without a valid session, and
-  // with `invalid_argument` without a proof. A wrong proof counts toward the limits above.
+  // Gives the calling Device Recent Authentication, once its User proves who they are again: with
+  // their password, or with their Account approving a sign-in started with `StartAccountSignIn`,
+  // the one way for a User created from an Account. The Device keeps its session: no new token or
+  // cookie is handed out.
+  // Fails with `unauthenticated` if the proof is wrong (`REFUSAL_REASON_WRONG_ACCOUNT` when
+  // another User's Account approved), the Device was signed out meanwhile, or without a valid
+  // session; with `invalid_argument` without a proof; and like `SignInWithAccount` for a sign-in
+  // with an Account the Hub didn't approve or can't be asked about. Any failed proof counts toward
+  // the limits above.
   rpc Reauthenticate(ReauthenticateRequest) returns (ReauthenticateResponse);
 
   // Starts signing the calling Device in without a password typed on it. It shows the returned
@@ -244,7 +249,13 @@ message ReauthenticateRequest {
   oneof proof {
     // The User's password.
     string password = 1;
+    // The handle `StartAccountSignIn` returned, once the Account Linked to the User approved it on
+    // the Hub. It refreshes the calling Device; no new one signs in.
+    string account_sign_in_handle = 2;
   }
+  // The one-time code the Hub added to `return_url`'s query as `code`. Needed with
+  // `account_sign_in_handle`.
+  string account_sign_in_code = 3;
 }
 
 message ReauthenticateResponse {}

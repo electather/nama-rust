@@ -92,6 +92,7 @@ function managedServer(permissions: Permission[], ...requests: Request[]) {
   };
   return fakeServer({ signedIn: permissions }, {}, {}, (router) => {
     router.service(RequestService, {
+      listDefaultQualities: () => ({}),
       listRequests: () => ({ requests: [...held.values()] }),
       countPendingRequests: () => ({}),
       listOfferedQualities: () => ({ qualities: hdAnd4k }),
@@ -124,7 +125,7 @@ function managedServer(permissions: Permission[], ...requests: Request[]) {
 
 test("a User without Manage Requests isn't offered Approve, Decline, Cancel or Retry", async () => {
   openApp(
-    "/requests",
+    "/?settings=requests",
     managedServer(newUser, create(RequestSchema, heat), create(RequestSchema, alien)),
   );
 
@@ -135,18 +136,18 @@ test("a User without Manage Requests isn't offered Approve, Decline, Cancel or R
 
 test("a Failed Request links a User with Manage settings to its Fulfiller's Plugin", async () => {
   openApp(
-    "/requests",
+    "/?settings=requests",
     managedServer([...newUser, Permission.MANAGE_SETTINGS], create(RequestSchema, alien)),
   );
 
   const link = await screen.findByRole("link", { name: "Fix it in the Plugin’s settings" });
 
-  expect(link.getAttribute("href")).toBe("/requests?state=all&settings=plugins&plugin=radarr");
+  expect(link.getAttribute("href")).toBe("/?settings=plugins&plugin=radarr");
 });
 
 test("a Failed Request doesn't link a User without Manage settings to its Fulfiller's Plugin", async () => {
   openApp(
-    "/requests",
+    "/?settings=requests",
     managedServer([...newUser, Permission.MANAGE_REQUESTS], create(RequestSchema, alien)),
   );
 
@@ -156,7 +157,7 @@ test("a Failed Request doesn't link a User without Manage settings to its Fulfil
 });
 
 test("approving a Pending Request shows it Approved", async () => {
-  openApp("/requests", managedServer(admin, create(RequestSchema, heat)));
+  openApp("/?settings=requests", managedServer(admin, create(RequestSchema, heat)));
 
   fireEvent.click(await screen.findByRole("button", { name: "Approve Heat" }));
 
@@ -173,7 +174,7 @@ test("a Season Request's actions name its Show and Season, and approve it at ano
     },
     state: RequestState.PENDING,
   });
-  openApp("/requests", managedServer(admin, specials));
+  openApp("/?settings=requests", managedServer(admin, specials));
 
   fireEvent.click(await screen.findByRole("button", { name: /^Approve Dark Specials at/u }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "HD" }));
@@ -182,7 +183,7 @@ test("a Season Request's actions name its Show and Season, and approve it at ano
 });
 
 test("declining a Request asks why, then shows it Declined with the reason", async () => {
-  openApp("/requests", managedServer(admin, create(RequestSchema, heat)));
+  openApp("/?settings=requests", managedServer(admin, create(RequestSchema, heat)));
 
   fireEvent.click(await screen.findByRole("button", { name: "Decline Heat" }));
   const dialog = await screen.findByRole("alertdialog", { name: "Decline Heat?" });
@@ -196,18 +197,20 @@ test("declining a Request asks why, then shows it Declined with the reason", asy
 });
 
 test("cancelling a Request, once confirmed, removes it", async () => {
-  openApp("/requests", managedServer(admin, create(RequestSchema, dune)));
+  openApp("/?settings=requests", managedServer(admin, create(RequestSchema, dune)));
 
   fireEvent.click(await screen.findByRole("button", { name: "Cancel Request for Dune" }));
   const dialog = await screen.findByRole("alertdialog", { name: "Cancel the Request for Dune?" });
   fireEvent.click(within(dialog).getByRole("button", { name: "Cancel Request" }));
 
-  await expect(screen.findByText("No Requests yet.")).resolves.toBeDefined();
+  await expect(
+    screen.findByText("No Requests yet. Request a Movie or Show from its page."),
+  ).resolves.toBeDefined();
 });
 
 test("approving a Request someone else declined meanwhile says so, and shows it Declined", async () => {
   const request = create(RequestSchema, heat);
-  openApp("/requests", managedServer(admin, request));
+  openApp("/?settings=requests", managedServer(admin, request));
   const approve = await screen.findByRole("button", { name: "Approve Heat" });
 
   request.state = RequestState.DECLINED;
@@ -218,7 +221,7 @@ test("approving a Request someone else declined meanwhile says so, and shows it 
 });
 
 test("retrying a Failed Request shows it Processing, without its reason", async () => {
-  openApp("/requests", managedServer(admin, create(RequestSchema, alien)));
+  openApp("/?settings=requests", managedServer(admin, create(RequestSchema, alien)));
 
   fireEvent.click(await screen.findByRole("button", { name: "Retry Alien" }));
 
@@ -229,7 +232,7 @@ test("retrying a Failed Request shows it Processing, without its reason", async 
 
 test("retrying a Request that stopped being Failed meanwhile says so", async () => {
   const request = create(RequestSchema, alien);
-  openApp("/requests", managedServer(admin, request));
+  openApp("/?settings=requests", managedServer(admin, request));
   const retry = await screen.findByRole("button", { name: "Retry Alien" });
 
   request.state = RequestState.PROCESSING;
@@ -241,7 +244,7 @@ test("retrying a Request that stopped being Failed meanwhile says so", async () 
 
 test("a Request manager approves a 4K Request at the other Quality, HD, and it says who changed it when", async () => {
   const heat4k = create(RequestSchema, { ...heat, quality: requested("4K", 2n) });
-  openApp("/requests", managedServer(admin, heat4k));
+  openApp("/?settings=requests", managedServer(admin, heat4k));
 
   fireEvent.click(await screen.findByRole("button", { name: "Approve Heat at another Quality" }));
   const others = await screen.findAllByRole("menuitem");
@@ -255,7 +258,7 @@ test("a Request manager approves a 4K Request at the other Quality, HD, and it s
 
 test("a Request manager retries a Failed Request at another Quality", async () => {
   const alienHd = create(RequestSchema, { ...alien, quality: requested("HD", 1n) });
-  openApp("/requests", managedServer(admin, alienHd));
+  openApp("/?settings=requests", managedServer(admin, alienHd));
 
   fireEvent.click(await screen.findByRole("button", { name: "Retry Alien at another Quality" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "4K" }));
@@ -281,6 +284,7 @@ test("approving a Season at another Quality than its Show's says each Season tak
   });
   const server = fakeServer({ signedIn: admin }, {}, {}, (router) => {
     router.service(RequestService, {
+      listDefaultQualities: () => ({}),
       listRequests: () => ({ requests: [darkSeason2] }),
       countPendingRequests: () => ({}),
       listOfferedQualities: () => ({ qualities: hdAnd4k }),
@@ -289,7 +293,7 @@ test("approving a Season at another Quality than its Show's says each Season tak
       },
     });
   });
-  openApp("/requests", server);
+  openApp("/?settings=requests", server);
 
   fireEvent.click(
     await screen.findByRole("button", { name: "Approve Dark Season 2 at another Quality" }),
