@@ -34,7 +34,7 @@ use crate::{
 };
 
 /// How long a pull of a User's Watch State, or a sync of their Watchlist, may take.
-const PULL_TIMEOUT: Duration = Duration::from_mins(1);
+const SYNC_TIMEOUT: Duration = Duration::from_mins(1);
 
 /// What `unavailable` says when the Plugin that links the Server fails.
 const LINKING_FAILED: &str = "the Plugin that links the Server failed; its page says why";
@@ -328,7 +328,7 @@ async fn pull_watch_states(points: &ExtensionPoints, browse: &Browse, user_id: i
     let Some(answer) = points
         .ask_first::<dyn ServerLinker, _, _, _, _>(async |linker| {
             // Bounded, so a Plugin that never answers can't hold up every later scan's pulls.
-            tokio::time::timeout(PULL_TIMEOUT, linker.watch_states(user_id))
+            tokio::time::timeout(SYNC_TIMEOUT, linker.watch_states(user_id))
                 .await
                 .unwrap_or_else(|_elapsed| Err("it didn't answer in time".into()))
         })
@@ -380,7 +380,7 @@ async fn sync_watchlist(points: &ExtensionPoints, db: &Database, user_id: i64) {
     let Some(answer) = points
         .ask_first::<dyn ServerLinker, _, _, _, _>(async |linker| {
             let syncing = linker.sync_watchlist(user_id, entries.clone());
-            tokio::time::timeout(PULL_TIMEOUT, syncing)
+            tokio::time::timeout(SYNC_TIMEOUT, syncing)
                 .await
                 .unwrap_or_else(|_elapsed| Err("it didn't answer in time".into()))
         })

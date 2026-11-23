@@ -1540,9 +1540,9 @@ export const LinkedServerService: GenService<{
   /**
    * Merges one of the Server's Users' whole Watchlist into their Account's (ADR 0056), and returns
    * the Account's: per title and External ID, the change made last wins, removals included,
-   * whichever Server sends it and whenever. A User who isn't Linked gets none, and nothing of
-   * theirs is kept. Fails with `REFUSAL_REASON_WATCHLIST_INVALID` for an entry it can't keep,
-   * keeping none of the call's.
+   * whichever Server sends it and whenever, and of two made at the same moment, the removal. A User
+   * who isn't Linked gets none, and nothing of theirs is kept. Fails with
+   * `REFUSAL_REASON_WATCHLIST_INVALID` for an entry it can't keep, keeping none of the call's.
    *
    * @generated from rpc nama.hub.v1.LinkedServerService.SyncWatchlist
    */

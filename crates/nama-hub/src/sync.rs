@@ -143,7 +143,7 @@ impl Watchlists {
     /// Merges `entries`, `server`'s User `user_id`'s whole Watchlist, into the Account they are
     /// Linked to, and returns the Account's, each title's under each of its ids apart; empty, and
     /// nothing kept, if they aren't Linked. Per title and id, the change made last wins; of two
-    /// made at the same moment, the one kept first.
+    /// made at the same moment, the removal, as the Server breaks the tie the same way.
     // ponytail: one call holds a User's whole Watchlist, removals included, both ways; page it, or
     // send only what changed since the last sync, once one nears `MAX_WATCHLIST_ENTRIES`.
     pub(crate) async fn sync(
@@ -165,16 +165,18 @@ impl Watchlists {
         }
         let mut tx = self.db.begin().await?;
         // DISTINCT ON, as an upsert may touch each row once: of one title's entries, the latest.
+        // A removal wins a tie, here and on the Server, or two Servers could each keep their own.
         sqlx::query!(
             "INSERT INTO watchlists (account_id, show, title_id, removed, changed_at)
              SELECT DISTINCT ON (show, title_id) $1::uuid, show, title_id, removed,
              'epoch'::timestamptz + changed_at_ms * interval '1 millisecond'
              FROM unnest($2::boolean[], $3::text[], $4::boolean[], $5::bigint[])
              AS entries (show, title_id, removed, changed_at_ms)
-             ORDER BY show, title_id, changed_at_ms DESC
+             ORDER BY show, title_id, changed_at_ms DESC, removed DESC
              ON CONFLICT (account_id, show, title_id) DO UPDATE
              SET removed = excluded.removed, changed_at = excluded.changed_at
-             WHERE excluded.changed_at > watchlists.changed_at",
+             WHERE (excluded.changed_at, excluded.removed)
+                 > (watchlists.changed_at, watchlists.removed)",
             account.0,
             &shows,
             &ids,

@@ -89,8 +89,9 @@ pub(crate) async fn take_synced(
     user: i64,
     mut synced: Vec<WatchlistEntry>,
 ) -> Result<(), sqlx::Error> {
-    // Oldest first, so of one title's entries under different ids, the latest is taken last.
-    synced.sort_by_key(|entry| entry.changed_at_ms);
+    // Oldest first, so of one title's entries under different ids, the latest is taken last, and
+    // of two made at once, the removal, as `take` breaks the tie.
+    synced.sort_by_key(|entry| (entry.changed_at_ms, entry.removed));
     db.write(move |tx| {
         Box::pin(async move {
             for entry in &synced {
@@ -103,7 +104,8 @@ pub(crate) async fn take_synced(
 }
 
 /// Takes `entry` into the User `user`'s Watchlist if it changed after anything the Server has of
-/// its title under any id the Server's Matches give it. One whose id doesn't parse is skipped.
+/// its title under any id the Server's Matches give it, or at the same moment and is a removal.
+/// One whose id doesn't parse is skipped.
 async fn take(
     conn: &mut SqliteConnection,
     user: i64,
@@ -124,7 +126,11 @@ async fn take(
     )
     .fetch_one(&mut *conn)
     .await?;
-    if latest.is_some_and(|latest| latest >= entry.changed_at_ms) {
+    // A removal wins a tie, here and on the Hub, or two Servers could each keep their own.
+    let newer_kept = latest.is_some_and(|latest| {
+        latest > entry.changed_at_ms || (latest == entry.changed_at_ms && !entry.removed)
+    });
+    if newer_kept {
         return Ok(());
     }
     set(conn, user, entry, &ids).await

@@ -397,3 +397,30 @@ async fn a_watchlist_keeps_any_id_a_server_sends_and_of_one_named_twice_the_late
         [the_matrix(true, 2_000), dark]
     );
 }
+
+#[sqlx::test(migrations = false)]
+async fn of_two_watchlist_changes_made_at_the_same_moment_the_removal_wins(db: PgPool) {
+    let mut hub = Hub::on(&db).await;
+    let ada = hub.proven("ada@example.com", "203.0.113.1").await;
+    let (first, second) = (hub.linked_server(&ada).await, hub.linked_server(&ada).await);
+    hub.link_user(&first, 7, &ada).await;
+    hub.link_user(&second, 3, &ada).await;
+    let watchlists = &hub.watchlists;
+
+    synced(watchlists, &first, 7, vec![the_matrix(false, 1_000)]).await;
+    let removed_at_once = vec![the_matrix(true, 1_000)];
+
+    assert_eq!(
+        synced(watchlists, &second, 3, removed_at_once).await,
+        [the_matrix(true, 1_000)]
+    );
+    assert_eq!(
+        synced(watchlists, &first, 7, vec![the_matrix(false, 1_000)]).await,
+        [the_matrix(true, 1_000)]
+    );
+    let both = vec![the_matrix(false, 2_000), the_matrix(true, 2_000)];
+    assert_eq!(
+        synced(watchlists, &first, 7, both).await,
+        [the_matrix(true, 2_000)]
+    );
+}

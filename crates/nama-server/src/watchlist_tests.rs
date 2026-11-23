@@ -140,6 +140,27 @@ async fn taking_synced_entries_keeps_the_latest_change_removals_included() {
 }
 
 #[tokio::test]
+async fn of_two_changes_made_at_the_same_moment_the_removal_is_taken() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = Database::open(dir.path()).await.unwrap();
+    let ada = insert_user(&db).await;
+    let take = async |id: u64, synced: Vec<WatchlistEntry>| {
+        take_synced(&db, ada, synced).await.unwrap();
+        let kept = entries(&db, ada).await.unwrap();
+        let title = format!("tmdb-{id}");
+        kept.into_iter().find(|entry| entry.id == title).unwrap()
+    };
+
+    let both = vec![movie(348, true, 1_000), movie(348, false, 1_000)];
+    assert_eq!(take(348, both).await, movie(348, true, 1_000));
+    let added_then = vec![movie(348, false, 1_000)];
+    assert_eq!(take(348, added_then).await, movie(348, true, 1_000));
+    take(603, vec![movie(603, false, 1_000)]).await;
+    let removed_then = vec![movie(603, true, 1_000)];
+    assert_eq!(take(603, removed_then).await, movie(603, true, 1_000));
+}
+
+#[tokio::test]
 async fn a_synced_title_the_server_lacks_is_kept_by_its_id() {
     let dir = tempfile::tempdir().unwrap();
     let db = Database::open(dir.path()).await.unwrap();
