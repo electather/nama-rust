@@ -14,7 +14,7 @@ CI counts those headings, so a break passes only with one more than main has: ed
 
 - None that `buf breaking` reports: in `nama/hub/v1/viewing.proto`, `ViewingEvent` gains `show_external_id` (10).
 - `LinkedServerService.RecordViewingEvents` refuses an Episode's event without `show_external_id` and a Movie's with one, with `REFUSAL_REASON_VIEWING_EVENT_INVALID`, and records none of the call's events.
-- A Hub Plugin built before sends no Show, so each call holding an Episode's event is refused and the Plugin forgets the whole call, Movies' events too. It must regenerate and send each Episode's Show's External ID. The Hub Plugin the Server bundles is the only caller.
+- A Hub Plugin built before sends no Show, so each call holding an Episode's event is refused and the Plugin forgets the whole call, Movies' events too. It must regenerate and send each Episode's Show's External ID. Events it queued while the Hub was unreachable hold no Show either, so after upgrading, its first call holding an Episode's event is lost the same way. The Hub Plugin the Server bundles is the only caller.
 
 ## 2026-11-22, #1934, nama.hub.v1
 

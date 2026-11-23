@@ -65,9 +65,21 @@ fn a_play_is_viewed_under_its_external_id() {
         HubDeviceKind::DEVICE_KIND_TV,
     );
 
-    let viewed = viewed.unwrap();
-    assert_eq!(viewed.external_id, "tmdb-603");
-    assert_eq!(viewed.show_external_id, "");
+    assert_eq!(viewed.unwrap().external_id, "tmdb-603");
+}
+
+#[test]
+fn a_movies_play_names_no_show() {
+    let title = stopped("tmdb", "603");
+
+    let viewed = viewed(
+        &title,
+        &listing(&title, title_id("tmdb", "1399")),
+        STARTED,
+        HubDeviceKind::DEVICE_KIND_TV,
+    );
+
+    assert_eq!(viewed.unwrap().show_external_id, "");
 }
 
 #[test]

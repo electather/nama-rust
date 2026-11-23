@@ -138,9 +138,9 @@ impl ViewingEvent {
         let show = self.show_external_id.as_deref();
         let names_its_show = match self.kind {
             Kind::Movie => show.is_none(),
-            Kind::Episode => show.is_some_and(is_external_id),
+            Kind::Episode => show.is_some_and(has_external_id_length),
         };
-        is_external_id(&self.external_id)
+        has_external_id_length(&self.external_id)
             && names_its_show
             && (0..MINUTES_PER_DAY).contains(&self.time_of_day_minutes)
             && self.duration_ms > 0
@@ -155,8 +155,8 @@ impl ViewingEvent {
     }
 }
 
-/// Whether `id` is as long as an External ID may be.
-fn is_external_id(id: &str) -> bool {
+/// Whether `id` is as long as an External ID may be, 1 to 100 characters.
+fn has_external_id_length(id: &str) -> bool {
     (1..=EXTERNAL_ID_LENGTH).contains(&id.chars().count())
 }
 
