@@ -9,7 +9,8 @@
 //! limits do; they move to PostgreSQL once the Hub runs as replicas.
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, hash_map::Entry},
+    net::IpAddr,
     sync::{Mutex, MutexGuard, PoisonError},
     time::{Duration, Instant},
 };
@@ -22,7 +23,10 @@ use serde::Deserialize;
 use sha2::{Digest as _, Sha256};
 use url::Url;
 
-use super::{AccountId, Error};
+use super::{
+    AccountId, Error,
+    rate_limits::{Blocked, Caller, counted_ip},
+};
 
 /// COSE's id (RFC 9053) for ECDSA with P-256 and SHA-256.
 const ES256: i32 = -7;
@@ -34,6 +38,11 @@ const CHALLENGE_LIFETIME: Duration = Duration::from_mins(5);
 
 /// The most challenges that may wait at once, so a flood of requests can't fill the Hub's memory.
 const MOST_WAITING: usize = 10_000;
+
+/// The most challenges one client, as `counted_ip` counts it, may have waiting, so it would take
+/// 500 of them to fill the Hub's. Rotating through a /48's /64s is bounded only by `MOST_WAITING`;
+/// stateless, HMAC-signed challenges would close that, should it matter (#2049).
+const WAITING_PER_CLIENT: usize = 20;
 
 /// A P-256 `SubjectPublicKeyInfo` up to its uncompressed point, the same in every one.
 const P256_SPKI_PREFIX: &[u8] = &[
@@ -74,7 +83,22 @@ pub(super) struct RelyingParty {
     pub(super) id: String,
     /// The public address's origin, which every answer must come from.
     origin: String,
-    waiting: Mutex<HashMap<[u8; 32], (Ceremony, Instant)>>,
+    waiting: Mutex<Waiting>,
+}
+
+/// The challenges waiting for their answer, and how many each client holds.
+#[derive(Debug, Default)]
+struct Waiting {
+    challenges: HashMap<[u8; 32], Handed>,
+    held: HashMap<IpAddr, usize>,
+}
+
+/// What a waiting challenge was handed out for, when, and to which client.
+#[derive(Debug, Clone, Copy)]
+struct Handed {
+    ceremony: Ceremony,
+    at: Instant,
+    client: IpAddr,
 }
 
 /// What the browser says it signed, `clientDataJSON` (§5.8.1).
@@ -98,18 +122,31 @@ impl RelyingParty {
         })
     }
 
-    /// A fresh challenge for `ceremony`, which waits for its answer from `now`.
-    pub(super) fn challenge(&self, ceremony: Ceremony, now: Instant) -> Result<[u8; 32], Error> {
+    /// A fresh challenge for `ceremony`, handed to `caller`, which waits for its answer from when
+    /// it asked. Refused while `caller` holds its share of waiting challenges, or all wait.
+    pub(super) fn challenge(&self, ceremony: Ceremony, caller: Caller) -> Result<[u8; 32], Error> {
+        let client = counted_ip(caller.ip);
         let mut challenge = [0; 32];
         getrandom::fill(&mut challenge)?;
         let mut waiting = self.lock();
-        if waiting.len() >= MOST_WAITING {
-            waiting.retain(|_, &mut (_, at)| !expired(at, now));
-            if waiting.len() >= MOST_WAITING {
-                return Err(Error::ChallengesBusy);
-            }
+        if waiting.challenges.len() >= MOST_WAITING || waiting.held_by(client) >= WAITING_PER_CLIENT
+        {
+            waiting.drop_expired(caller.now);
         }
-        waiting.insert(challenge, (ceremony, now));
+        if let Some(retry_after) = waiting.wait(client, caller.now) {
+            return Err(Blocked { retry_after }.into());
+        }
+        if waiting.challenges.len() >= MOST_WAITING {
+            return Err(Error::ChallengesBusy);
+        }
+        waiting.insert(
+            challenge,
+            Handed {
+                ceremony,
+                at: caller.now,
+                client,
+            },
+        );
         Ok(challenge)
     }
 
@@ -136,8 +173,7 @@ impl RelyingParty {
         client_data.kind == ceremony.client_data_type()
             && client_data.origin == self.origin
             && !client_data.cross_origin
-            && waited
-                .is_some_and(|(handed_out_for, at)| handed_out_for == ceremony && !expired(at, now))
+            && waited.is_some_and(|handed| handed.ceremony == ceremony && !expired(handed.at, now))
     }
 
     /// Whether `signature` is `public_key`'s, of `authenticator_data` for this relying party with
@@ -158,9 +194,62 @@ impl RelyingParty {
             && public_key.verify(&signed, signature).is_ok()
     }
 
-    fn lock(&self) -> MutexGuard<'_, HashMap<[u8; 32], (Ceremony, Instant)>> {
-        // Each change is one insert, remove or retain, so a panic elsewhere doesn't spoil it.
+    fn lock(&self) -> MutexGuard<'_, Waiting> {
+        // Each change keeps `held` counting `challenges`, so a panic elsewhere doesn't spoil it.
         self.waiting.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+impl Waiting {
+    fn held_by(&self, client: IpAddr) -> usize {
+        self.held.get(&client).copied().unwrap_or_default()
+    }
+
+    /// How long `client`, at its share at `now`, must wait for its oldest challenge to expire.
+    /// Expects expired challenges dropped.
+    fn wait(&self, client: IpAddr, now: Instant) -> Option<Duration> {
+        if self.held_by(client) < WAITING_PER_CLIENT {
+            return None;
+        }
+        let oldest = self
+            .challenges
+            .values()
+            .filter(|handed| handed.client == client)
+            .map(|handed| handed.at)
+            .min()?;
+        Some(CHALLENGE_LIFETIME.saturating_sub(now.saturating_duration_since(oldest)))
+    }
+
+    fn insert(&mut self, challenge: [u8; 32], handed: Handed) {
+        self.challenges.insert(challenge, handed);
+        *self.held.entry(handed.client).or_default() += 1;
+    }
+
+    fn remove(&mut self, challenge: &[u8; 32]) -> Option<Handed> {
+        let handed = self.challenges.remove(challenge)?;
+        release(&mut self.held, handed.client);
+        Some(handed)
+    }
+
+    fn drop_expired(&mut self, now: Instant) {
+        let held = &mut self.held;
+        self.challenges.retain(|_, handed| {
+            let expired = expired(handed.at, now);
+            if expired {
+                release(held, handed.client);
+            }
+            !expired
+        });
+    }
+}
+
+/// Takes one off `client`'s count, dropping it at zero so `held` doesn't keep every client seen.
+fn release(held: &mut HashMap<IpAddr, usize>, client: IpAddr) {
+    if let Entry::Occupied(mut count) = held.entry(client) {
+        *count.get_mut() -= 1;
+        if *count.get() == 0 {
+            count.remove();
+        }
     }
 }
 

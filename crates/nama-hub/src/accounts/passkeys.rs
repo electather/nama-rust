@@ -244,9 +244,8 @@ impl Accounts {
 
     fn challenge(&self, ceremony: Ceremony, caller: Caller) -> Result<Challenge, Error> {
         let relying_party = self.relying_party()?;
-        self.challenges.admit(caller)?;
         Ok(Challenge {
-            bytes: relying_party.challenge(ceremony, caller.now)?,
+            bytes: relying_party.challenge(ceremony, caller)?,
             rp_id: relying_party.id.clone(),
         })
     }
