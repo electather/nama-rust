@@ -536,6 +536,8 @@ message HomeLayoutRow {
     PluginHomeRow plugin = 2;
     // The id of a Plugin whose rows for each User, built for them alone, go here.
     string plugin_users_rows = 3;
+    // Saving a layout reads only its Library id.
+    RecentlyAddedHomeRow recently_added = 5;
   }
   bool hidden = 4;
 }

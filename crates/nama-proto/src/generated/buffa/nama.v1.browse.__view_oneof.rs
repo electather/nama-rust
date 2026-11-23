@@ -70,6 +70,11 @@ pub mod home_row {
                 super::super::super::super::__buffa::view::PluginHomeRowView<'a>,
             >,
         ),
+        RecentlyAdded(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::RecentlyAddedHomeRowView<'a>,
+            >,
+        ),
     }
 }
 pub mod home_row_title {

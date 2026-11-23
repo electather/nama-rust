@@ -45,7 +45,7 @@ mod refusals;
 mod titles;
 
 use box_sets::box_set_to_proto;
-pub(super) use home_rows::home_rows_of;
+pub(super) use home_rows::{home_rows_of, recently_added_rows};
 use refusals::home_rows_refused;
 pub(super) use refusals::{Fields, not_found, refused};
 use titles::{episode_beside_to_proto, featured_to_proto, row_title_to_proto, started_to_proto};
@@ -384,7 +384,7 @@ impl BrowseService for BrowseServiceHandler {
         _request: ServiceRequest<'_, ListHomeRowsRequest>,
     ) -> ServiceResult<ListHomeRowsResponse> {
         let reader = &caller(&ctx)?.user;
-        let rows = home_rows_of(&self.home_rows, reader).await?;
+        let rows = home_rows_of(&self.home_rows, &self.browse, reader).await?;
         let own = UserHomeLayout::of(&self.db, reader.id).await;
         let own = own.map_err(database_failed)?;
         let rows = own.arrange(&self.settings.now().default_home_layout, rows);

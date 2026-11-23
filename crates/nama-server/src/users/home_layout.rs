@@ -173,6 +173,7 @@ impl UserHomeLayout {
                     |row| match row {
                         HomeRowId::UsersOwn { plugin } => !seen_plugins.contains(plugin),
                         HomeRowId::ContinueWatching
+                        | HomeRowId::RecentlyAdded { .. }
                         | HomeRowId::Shared { .. }
                         | HomeRowId::Own { .. } => true,
                     },

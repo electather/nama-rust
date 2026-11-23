@@ -26,8 +26,8 @@ mod test_plugin;
 
 use connectrpc::ErrorCode;
 use home_layouts::{
-    continue_watching, featured, get_default, get_own, layout, rows, rows_only, serving_rows,
-    set_default, set_own, settings, shared, users, users_rows, wait_for_rows,
+    continue_watching, featured, get_default, get_own, layout, recently_added, rows, rows_only,
+    serving_rows, set_default, set_own, settings, shared, users, users_rows, wait_for_rows,
 };
 use home_row_plugin::{disable, enable, set_handle};
 use nama_proto::nama::v1::{
@@ -82,11 +82,56 @@ async fn every_users_home_follows_the_default_order_and_leaves_out_what_it_hides
 
     assert_eq!(
         rows(ada.client_config()).await,
-        ["missing", "continue-watching", "again"]
+        ["missing", "continue-watching", "again", "recently-added"]
     );
     assert_eq!(
         rows(server.client_config()).await,
-        ["missing", "continue-watching", "again"]
+        ["missing", "continue-watching", "again", "recently-added"]
+    );
+}
+
+#[tokio::test]
+async fn a_librarys_recently_added_row_is_hidden_and_placed_like_the_other_rows() {
+    let server = serving_rows().await;
+    let ada = server.user_with_default_permissions("ada").await;
+
+    let saved = set_default(
+        &server,
+        layout(
+            false,
+            vec![
+                recently_added(&server, true).await,
+                continue_watching(false),
+            ],
+        ),
+    )
+    .await;
+    assert_eq!(
+        saved.rows[..2],
+        [
+            recently_added(&server, true).await,
+            continue_watching(false)
+        ]
+    );
+    assert_eq!(
+        rows(ada.client_config()).await,
+        ["continue-watching", "picks", "again", "missing"]
+    );
+
+    set_own(
+        &ada,
+        layout(false, vec![recently_added(&server, false).await]),
+    )
+    .await;
+    assert_eq!(
+        rows(ada.client_config()).await,
+        [
+            "recently-added",
+            "continue-watching",
+            "picks",
+            "again",
+            "missing"
+        ]
     );
 }
 
@@ -127,6 +172,7 @@ async fn a_row_the_default_does_not_place_is_listed_at_the_end_shown() {
         vec![
             shared("again", "Alien again", true),
             continue_watching(false),
+            recently_added(&server, false).await,
             shared("picks", "Picks", false),
             shared("missing", "Not on the Server", false),
             users_rows(false),
@@ -136,7 +182,7 @@ async fn a_row_the_default_does_not_place_is_listed_at_the_end_shown() {
     assert_eq!(get_default(&server).await, expected);
     assert_eq!(
         rows(server.client_config()).await,
-        ["continue-watching", "picks", "missing"]
+        ["continue-watching", "recently-added", "picks", "missing"]
     );
 }
 
@@ -147,20 +193,40 @@ async fn each_users_own_rows_go_where_their_plugins_entry_is() {
     set_handle(&ada, "ada").await;
     wait_for_rows(
         ada.client_config(),
-        &["continue-watching", "picks", "again", "missing", "for-ada"],
+        &[
+            "continue-watching",
+            "recently-added",
+            "picks",
+            "again",
+            "missing",
+            "for-ada",
+        ],
     )
     .await;
 
     set_default(&server, layout(false, vec![users_rows(false)])).await;
     assert_eq!(
         rows(ada.client_config()).await,
-        ["for-ada", "continue-watching", "picks", "again", "missing"]
+        [
+            "for-ada",
+            "continue-watching",
+            "recently-added",
+            "picks",
+            "again",
+            "missing"
+        ]
     );
 
     set_default(&server, layout(false, vec![users_rows(true)])).await;
     assert_eq!(
         rows(ada.client_config()).await,
-        ["continue-watching", "picks", "again", "missing"]
+        [
+            "continue-watching",
+            "recently-added",
+            "picks",
+            "again",
+            "missing"
+        ]
     );
 }
 
@@ -187,7 +253,13 @@ async fn uninstalling_a_plugin_drops_its_rows_from_the_default() {
 
     wait_for_rows(
         server.client_config(),
-        &["continue-watching", "picks", "again", "missing"],
+        &[
+            "continue-watching",
+            "recently-added",
+            "picks",
+            "again",
+            "missing",
+        ],
     )
     .await;
     assert_eq!(
@@ -214,17 +286,34 @@ async fn saving_while_a_plugin_is_disabled_keeps_its_rows_where_they_were() {
     disable(&server).await;
 
     let seen = get_default(&server).await;
-    assert_eq!(seen.rows, [continue_watching(false)]);
-    set_default(&server, layout(false, vec![continue_watching(true)])).await;
+    assert_eq!(
+        seen.rows,
+        [
+            continue_watching(false),
+            recently_added(&server, false).await
+        ]
+    );
+    set_default(
+        &server,
+        layout(
+            false,
+            vec![
+                continue_watching(true),
+                recently_added(&server, false).await,
+            ],
+        ),
+    )
+    .await;
     enable(&server).await;
 
-    wait_for_rows(server.client_config(), &["picks"]).await;
+    wait_for_rows(server.client_config(), &["recently-added", "picks"]).await;
     assert_eq!(
         get_default(&server).await.rows,
         [
             shared("missing", "Not on the Server", true),
             continue_watching(true),
             shared("again", "Alien again", true),
+            recently_added(&server, false).await,
             shared("picks", "Picks", false),
             users_rows(false),
         ]
@@ -249,6 +338,7 @@ async fn a_row_a_user_hides_leaves_their_home_and_no_one_elses() {
         false,
         vec![
             continue_watching(false),
+            recently_added(&server, false).await,
             shared("picks", "Picks", true),
             shared("again", "Alien again", false),
             shared("missing", "Not on the Server", false),
@@ -258,11 +348,17 @@ async fn a_row_a_user_hides_leaves_their_home_and_no_one_elses() {
     assert_eq!(get_own(&ada).await, expected);
     assert_eq!(
         rows(ada.client_config()).await,
-        ["continue-watching", "again", "missing"]
+        ["continue-watching", "recently-added", "again", "missing"]
     );
     assert_eq!(
         rows(server.client_config()).await,
-        ["continue-watching", "picks", "again", "missing"]
+        [
+            "continue-watching",
+            "recently-added",
+            "picks",
+            "again",
+            "missing"
+        ]
     );
 }
 
@@ -277,11 +373,17 @@ async fn a_user_shows_a_row_the_default_hides_for_them_alone() {
 
     assert_eq!(
         rows(ada.client_config()).await,
-        ["picks", "continue-watching", "again", "missing"]
+        [
+            "picks",
+            "continue-watching",
+            "recently-added",
+            "again",
+            "missing"
+        ]
     );
     assert_eq!(
         rows(server.client_config()).await,
-        ["continue-watching", "again", "missing"]
+        ["continue-watching", "recently-added", "again", "missing"]
     );
 }
 
@@ -292,7 +394,14 @@ async fn a_user_shows_one_of_their_own_rows_the_default_hides() {
     set_handle(&ada, "ada").await;
     wait_for_rows(
         ada.client_config(),
-        &["continue-watching", "picks", "again", "missing", "for-ada"],
+        &[
+            "continue-watching",
+            "recently-added",
+            "picks",
+            "again",
+            "missing",
+            "for-ada",
+        ],
     )
     .await;
     set_default(&server, layout(false, vec![users_rows(true)])).await;
@@ -305,7 +414,14 @@ async fn a_user_shows_one_of_their_own_rows_the_default_hides() {
 
     assert_eq!(
         rows(ada.client_config()).await,
-        ["for-ada", "continue-watching", "picks", "again", "missing"]
+        [
+            "for-ada",
+            "continue-watching",
+            "recently-added",
+            "picks",
+            "again",
+            "missing"
+        ]
     );
 }
 
@@ -377,7 +493,7 @@ async fn a_user_who_only_hid_rows_follows_a_later_default_order() {
 
     assert_eq!(
         rows(ada.client_config()).await,
-        ["missing", "again", "continue-watching"]
+        ["missing", "again", "continue-watching", "recently-added"]
     );
 }
 
@@ -391,7 +507,7 @@ async fn a_user_who_shows_what_the_default_shows_follows_it_when_it_changes() {
 
     assert_eq!(
         rows(ada.client_config()).await,
-        ["continue-watching", "again", "missing"]
+        ["continue-watching", "recently-added", "again", "missing"]
     );
     assert_eq!(featured(ada.client_config()).await, 0);
 }
@@ -408,7 +524,7 @@ async fn a_users_flag_stays_when_they_save_while_the_default_agrees_with_it() {
 
     assert_eq!(
         rows(ada.client_config()).await,
-        ["continue-watching", "again", "missing"]
+        ["continue-watching", "recently-added", "again", "missing"]
     );
 }
 
@@ -467,7 +583,13 @@ async fn uninstalling_a_plugin_drops_its_rows_from_users_layouts() {
 
     wait_for_rows(
         ada.client_config(),
-        &["continue-watching", "picks", "again", "missing"],
+        &[
+            "continue-watching",
+            "recently-added",
+            "picks",
+            "again",
+            "missing",
+        ],
     )
     .await;
 }

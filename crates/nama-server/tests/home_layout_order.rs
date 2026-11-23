@@ -22,8 +22,8 @@ mod server;
 mod test_plugin;
 
 use home_layouts::{
-    continue_watching, get_own, layout, reorder, rows, serving_rows, set_default, set_own, shared,
-    users, users_rows, wait_for_rows,
+    continue_watching, get_own, layout, recently_added, reorder, rows, serving_rows, set_default,
+    set_own, shared, users, users_rows, wait_for_rows,
 };
 use home_row_plugin::{disable, enable, set_handle};
 use nama_proto::nama::v1::ResetHomeLayoutRequest;
@@ -36,6 +36,7 @@ async fn a_user_reorders_their_home_and_no_one_elses() {
     let saved = reorder(
         &ada,
         vec![
+            recently_added(&server, false).await,
             shared("missing", "", false),
             continue_watching(false),
             shared("again", "", false),
@@ -47,6 +48,7 @@ async fn a_user_reorders_their_home_and_no_one_elses() {
     let expected = layout(
         false,
         vec![
+            recently_added(&server, false).await,
             shared("missing", "Not on the Server", false),
             continue_watching(false),
             shared("again", "Alien again", false),
@@ -57,11 +59,23 @@ async fn a_user_reorders_their_home_and_no_one_elses() {
     assert_eq!(get_own(&ada).await, expected);
     assert_eq!(
         rows(ada.client_config()).await,
-        ["missing", "continue-watching", "again", "picks"]
+        [
+            "recently-added",
+            "missing",
+            "continue-watching",
+            "again",
+            "picks"
+        ]
     );
     assert_eq!(
         rows(server.client_config()).await,
-        ["continue-watching", "picks", "again", "missing"]
+        [
+            "continue-watching",
+            "recently-added",
+            "picks",
+            "again",
+            "missing"
+        ]
     );
 }
 
@@ -72,16 +86,31 @@ async fn after_a_users_first_reorder_the_defaults_order_no_longer_moves_their_ro
     set_handle(&ada, "ada").await;
     wait_for_rows(
         ada.client_config(),
-        &["continue-watching", "picks", "again", "missing", "for-ada"],
+        &[
+            "continue-watching",
+            "recently-added",
+            "picks",
+            "again",
+            "missing",
+            "for-ada",
+        ],
     )
     .await;
-    let order = ["for-ada", "picks", "continue-watching", "again", "missing"];
+    let order = [
+        "for-ada",
+        "picks",
+        "continue-watching",
+        "recently-added",
+        "again",
+        "missing",
+    ];
     reorder(
         &ada,
         vec![
             shared("for-ada", "", false),
             shared("picks", "", false),
             continue_watching(false),
+            recently_added(&server, false).await,
             shared("again", "", false),
             shared("missing", "", false),
         ],
@@ -116,6 +145,7 @@ async fn a_row_a_user_has_not_placed_goes_at_the_end_of_their_order() {
         vec![
             shared("missing", "", false),
             continue_watching(false),
+            recently_added(&server, false).await,
             shared("again", "", false),
             shared("picks", "", false),
         ],
@@ -126,7 +156,14 @@ async fn a_row_a_user_has_not_placed_goes_at_the_end_of_their_order() {
 
     wait_for_rows(
         ada.client_config(),
-        &["missing", "continue-watching", "again", "picks", "for-ada"],
+        &[
+            "missing",
+            "continue-watching",
+            "recently-added",
+            "again",
+            "picks",
+            "for-ada",
+        ],
     )
     .await;
 }
@@ -138,17 +175,21 @@ async fn reordering_while_a_plugin_is_disabled_keeps_where_its_rows_go_and_their
     let missing_first = vec![shared("missing", "", false), continue_watching(false)];
     set_default(&server, layout(false, missing_first)).await;
     set_own(&ada, layout(false, vec![shared("again", "", true)])).await;
-    let kept = ["missing", "continue-watching", "picks"];
+    let kept = ["missing", "continue-watching", "recently-added", "picks"];
+    let kernel_rows = vec![
+        continue_watching(false),
+        recently_added(&server, false).await,
+    ];
 
     disable(&server).await;
-    reorder(&ada, vec![continue_watching(false)]).await;
+    reorder(&ada, kernel_rows.clone()).await;
     enable(&server).await;
     wait_for_rows(ada.client_config(), &kept).await;
 
     let missing_last = vec![continue_watching(false), shared("missing", "", false)];
     set_default(&server, layout(false, missing_last)).await;
     disable(&server).await;
-    reorder(&ada, vec![continue_watching(false)]).await;
+    reorder(&ada, kernel_rows.clone()).await;
     enable(&server).await;
     wait_for_rows(ada.client_config(), &kept).await;
     let again = shared("again", "Alien again", true);
@@ -161,11 +202,25 @@ async fn a_first_reorder_while_a_plugin_is_disabled_keeps_where_a_users_own_rows
     let ada = server.user_with_default_permissions("ada").await;
     set_handle(&ada, "ada").await;
     set_default(&server, layout(false, vec![users_rows(false)])).await;
-    let own_first = ["for-ada", "continue-watching", "picks", "again", "missing"];
+    let own_first = [
+        "for-ada",
+        "continue-watching",
+        "recently-added",
+        "picks",
+        "again",
+        "missing",
+    ];
     wait_for_rows(ada.client_config(), &own_first).await;
 
     disable(&server).await;
-    reorder(&ada, vec![continue_watching(false)]).await;
+    reorder(
+        &ada,
+        vec![
+            continue_watching(false),
+            recently_added(&server, false).await,
+        ],
+    )
+    .await;
     enable(&server).await;
 
     wait_for_rows(ada.client_config(), &own_first).await;
@@ -185,6 +240,12 @@ async fn resetting_a_users_home_layout_returns_them_to_the_defaults_order() {
 
     assert_eq!(
         rows(ada.client_config()).await,
-        ["again", "continue-watching", "picks", "missing"]
+        [
+            "again",
+            "continue-watching",
+            "recently-added",
+            "picks",
+            "missing"
+        ]
     );
 }

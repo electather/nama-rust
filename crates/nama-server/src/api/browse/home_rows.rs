@@ -4,13 +4,17 @@
 use connectrpc::ConnectError;
 use nama_proto::nama::v1::{self as proto, home_row::KernelOrPlugin};
 
-use super::refusals::home_rows_refused;
-use crate::{home_rows::HomeRows, server_settings::HomeRowId, users::User};
+use super::{Fields, refusals::home_rows_refused, refused};
+use crate::{
+    api::libraries::kind_to_proto, browse::Browse, home_rows::HomeRows, server_settings::HomeRowId,
+    users::User,
+};
 
-/// Every Home row `reader` could see now, in no layout's order: Continue Watching, then the
-/// Plugins' rows.
+/// Every Home row `reader` could see now, in no layout's order: Continue Watching, each
+/// Library's Recently Added row, then the Plugins' rows.
 pub(in crate::api) async fn home_rows_of(
     home_rows: &HomeRows,
+    browse: &Browse,
     reader: &User,
 ) -> Result<Vec<(HomeRowId, KernelOrPlugin)>, ConnectError> {
     let plugin_rows = home_rows.list(reader).await.map_err(home_rows_refused)?;
@@ -28,7 +32,33 @@ pub(in crate::api) async fn home_rows_of(
         HomeRowId::ContinueWatching,
         KernelOrPlugin::Kernel(continue_watching.into()),
     );
+    let recently_added =
+        (recently_added_rows(browse).await?.into_iter()).map(|(id, row)| (id, row.into()));
     Ok(std::iter::once(continue_watching)
+        .chain(recently_added)
         .chain(plugin_rows)
+        .collect())
+}
+
+/// Each Library's Recently Added row, oldest Library first: every User may browse each one.
+pub(in crate::api) async fn recently_added_rows(
+    browse: &Browse,
+) -> Result<Vec<(HomeRowId, proto::RecentlyAddedHomeRow)>, ConnectError> {
+    let libraries = browse.libraries().await.map_err(refused(Fields::NONE))?;
+    Ok((libraries.into_iter())
+        .map(|library| {
+            let row = proto::RecentlyAddedHomeRow {
+                library_id: library.id,
+                library_name: library.name,
+                library_kind: kind_to_proto(library.kind).into(),
+                ..Default::default()
+            };
+            (
+                HomeRowId::RecentlyAdded {
+                    library: library.id,
+                },
+                row,
+            )
+        })
         .collect())
 }

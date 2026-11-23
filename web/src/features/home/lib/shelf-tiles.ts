@@ -1,3 +1,5 @@
+import type { RowTitle } from "@/shared/lib/row-titles";
+
 /**
  * A shelf's tile: its width class, the width the virtualizer guesses before measuring, and its
  * corners' radius class.
@@ -21,3 +23,10 @@ export const posterTile: ShelfTile = {
   estimate: 210,
   radius: "rounded-3xl",
 };
+
+/** A row's titles so far, as its shelf of posters shows them, and how it loads its next page. */
+export interface ShelfTitles {
+  titles: RowTitle[];
+  setSize: number | undefined;
+  next: { has: boolean; load: (options: { cancelRefetch: boolean }) => Promise<unknown> };
+}

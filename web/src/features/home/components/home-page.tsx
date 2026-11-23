@@ -2,14 +2,15 @@ import { ContinueWatching } from "@/features/home/components/continue-watching";
 import { FeaturedSection } from "@/features/home/components/featured-section";
 import { HomeLayout } from "@/features/home/components/home-layout";
 import { HomeRowSection } from "@/features/home/components/home-row-section";
+import { RecentlyAddedSection } from "@/features/home/components/recently-added-section";
 import { useHomeRows } from "@/features/home/data/use-home-rows";
 import { KernelHomeRow } from "@/gen/nama/v1/browse_pb";
 
 /**
  * Home: Featured, then its rows in the order the Server lists them, each loading on its own.
  * Featured, Continue Watching and the first Plugin row load at once wherever they sit; each
- * later Plugin row loads as you scroll near it. A Kernel row this app doesn't know, from a newer
- * Server, shows nothing.
+ * later Plugin row, and each Library's Recently Added row, loads as you scroll near it. A Kernel
+ * row this app doesn't know, from a newer Server, shows nothing.
  */
 export function HomePage() {
   const rows = useHomeRows();
@@ -28,6 +29,10 @@ export function HomePage() {
               eager={index === firstPluginRow}
             />
           );
+        }
+        if (kernelOrPlugin.case === "recentlyAdded") {
+          const row = kernelOrPlugin.value;
+          return <RecentlyAddedSection key={`recently-added/${row.libraryId}`} row={row} />;
         }
         if (kernelOrPlugin.value === KernelHomeRow.CONTINUE_WATCHING) {
           return <ContinueWatching key="continue-watching" />;

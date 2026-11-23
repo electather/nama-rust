@@ -45,8 +45,8 @@ use crate::{
 };
 
 use super::{
-    BrowserSpans, database_failed, playback::limit_from_proto, refuse, server_link,
-    unknown_enum_value,
+    BrowserSpans, browse::recently_added_rows, database_failed, playback::limit_from_proto, refuse,
+    server_link, unknown_enum_value,
 };
 
 /// `nama.v1.ServerService`: facts about this Server, its settings, and the ffmpeg it found.
@@ -444,15 +444,23 @@ impl ServerServiceHandler {
     /// The default Home layout with every Home row Home could show now, as the API has it.
     async fn default_home_layout(&self) -> Result<proto::HomeLayout, ConnectError> {
         let placeable = self.home_rows.placeable().await.map_err(database_failed)?;
-        let rows = std::iter::once((HomeRowId::ContinueWatching, String::new()))
-            .chain(placeable)
+        let recently_added = recently_added_rows(&self.browse).await?;
+        let by_id =
+            |(id, heading): (HomeRowId, String)| (id.clone(), layout_row_to_proto(id, heading));
+        let rows = std::iter::once(by_id((HomeRowId::ContinueWatching, String::new())))
+            .chain((recently_added.into_iter()).map(|(id, row)| (id, row.into())))
+            .chain(placeable.into_iter().map(by_id))
             .collect();
         let layout = self.settings.now().default_home_layout;
         let rows = layout.arrange(rows);
         Ok(proto::HomeLayout {
             featured_hidden: Some(!layout.featured_shown),
             rows: (rows.into_iter())
-                .map(|((id, heading), shown)| layout_row_to_proto(id, heading, shown))
+                .map(|((_, row), shown)| HomeLayoutRow {
+                    row: Some(row),
+                    hidden: !shown,
+                    ..Default::default()
+                })
                 .collect(),
             ..Default::default()
         })
@@ -470,9 +478,10 @@ impl ServerServiceHandler {
     }
 }
 
-/// A row of a Home layout, headed `heading` if a Plugin gives it, as the API has it.
-fn layout_row_to_proto(id: HomeRowId, heading: String, shown: bool) -> HomeLayoutRow {
-    let row = match id {
+/// The row `id` of a Home layout, headed `heading` if a Plugin gives it, as the API has it: a
+/// Recently Added row by its Library's id alone, as a save reads it.
+fn layout_row_to_proto(id: HomeRowId, heading: String) -> LayoutRow {
+    match id {
         HomeRowId::ContinueWatching => {
             LayoutRow::Kernel(proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING.into())
         }
@@ -485,11 +494,11 @@ fn layout_row_to_proto(id: HomeRowId, heading: String, shown: bool) -> HomeLayou
             }))
         }
         HomeRowId::UsersOwn { plugin } => LayoutRow::PluginUsersRows(plugin.to_string()),
-    };
-    HomeLayoutRow {
-        row: Some(row),
-        hidden: !shown,
-        ..Default::default()
+        HomeRowId::RecentlyAdded { library } => proto::RecentlyAddedHomeRow {
+            library_id: library,
+            ..Default::default()
+        }
+        .into(),
     }
 }
 
@@ -541,6 +550,9 @@ pub(super) fn home_row_from_proto(
         },
         Some(LayoutRow::PluginUsersRows(plugin)) => HomeRowId::UsersOwn {
             plugin: PluginId::from(plugin.clone()),
+        },
+        Some(LayoutRow::RecentlyAdded(row)) => HomeRowId::RecentlyAdded {
+            library: row.library_id,
         },
         None => {
             return Err(refuse(

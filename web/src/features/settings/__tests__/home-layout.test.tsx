@@ -3,13 +3,17 @@ import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { KernelHomeRow } from "@/gen/nama/v1/browse_pb";
+import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import { type HomeLayout, HomeLayoutSchema } from "@/gen/nama/v1/server_pb";
 import { rowKey } from "@/shared/lib/home-layout";
 import { fakeServer, newUser, openApp } from "@/test-app";
 
 afterEach(cleanup);
 
-/** The Server's default as this User sees it: Continue Watching, then a Plugin's row. */
+/**
+ * The Server's default as this User sees it: Continue Watching, a Plugin's row, then the Recently
+ * Added row of Films.
+ */
 function defaultLayout() {
   return create(HomeLayoutSchema, {
     featuredHidden: false,
@@ -19,6 +23,12 @@ function defaultLayout() {
         row: {
           case: "plugin",
           value: { pluginId: "top-picks", key: "picks", heading: "Top picks" },
+        },
+      },
+      {
+        row: {
+          case: "recentlyAdded",
+          value: { libraryId: 1n, libraryName: "Films", libraryKind: LibraryKind.MOVIES },
         },
       },
     ],
@@ -129,11 +139,18 @@ test("moving a row saves the User's order of their Home rows and says where it w
 
   fireEvent.click(await within(home).findByRole("button", { name: "Move Top picks up" }));
 
-  await expect.poll(() => orders).toStrictEqual([["plugin/top-picks/picks", "kernel/1"]]);
+  await expect
+    .poll(() => orders)
+    .toStrictEqual([["plugin/top-picks/picks", "kernel/1", "recently-added/1"]]);
   await expect
     .poll(() => rowLabels(home))
-    .toStrictEqual(["Show Featured", "Show Top picks", "Show Continue Watching"]);
-  expect(within(home).getByRole("status").textContent).toBe("Top picks moved to place 1 of 2.");
+    .toStrictEqual([
+      "Show Featured",
+      "Show Top picks",
+      "Show Continue Watching",
+      "Show Recently added in Films",
+    ]);
+  expect(within(home).getByRole("status").textContent).toBe("Top picks moved to place 1 of 3.");
 });
 
 test("a switch flipped while a move saves stays as flipped", async () => {
@@ -154,6 +171,26 @@ test("a switch flipped while a move saves stays as flipped", async () => {
   answerReorder?.();
   await expect
     .poll(() => rowLabels(home))
-    .toStrictEqual(["Show Featured", "Show Top picks", "Show Continue Watching"]);
+    .toStrictEqual([
+      "Show Featured",
+      "Show Top picks",
+      "Show Continue Watching",
+      "Show Recently added in Films",
+    ]);
   expect(shownSwitch(home, "Top picks").getAttribute("aria-checked")).toBe("false");
+});
+
+test("a Library's Recently Added row is named by its Library and hides like the other rows", async () => {
+  const { saves } = openSettings();
+  const home = await homePane();
+
+  fireEvent.click(shownSwitch(home, "Recently added in Films"));
+
+  await expect.poll(() => saves.length).toBe(1);
+  expect(saves[0]?.rows.map((row) => [rowKey(row), row.hidden])).toStrictEqual([
+    ["recently-added/1", true],
+  ]);
+  await expect
+    .poll(() => shownSwitch(home, "Recently added in Films").getAttribute("aria-checked"))
+    .toBe("false");
 });

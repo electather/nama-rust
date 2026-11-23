@@ -2,6 +2,7 @@
 
 include!("nama.v1.page.rs");
 include!("nama.v1.match.rs");
+include!("nama.v1.library.rs");
 include!("nama.v1.plugin.rs");
 include!("nama.v1.refusal.rs");
 include!("nama.v1.request.rs");
@@ -10,7 +11,6 @@ include!("nama.v1.browse.rs");
 include!("nama.v1.playback.rs");
 include!("nama.v1.event.rs");
 include!("nama.v1.job.rs");
-include!("nama.v1.library.rs");
 include!("nama.v1.search.rs");
 include!("nama.v1.server.rs");
 include!("nama.v1.sign_in.rs");
@@ -35,6 +35,7 @@ pub mod __buffa {
         use super::*;
         include!("nama.v1.page.__view.rs");
         include!("nama.v1.match.__view.rs");
+        include!("nama.v1.library.__view.rs");
         include!("nama.v1.plugin.__view.rs");
         include!("nama.v1.refusal.__view.rs");
         include!("nama.v1.request.__view.rs");
@@ -43,7 +44,6 @@ pub mod __buffa {
         include!("nama.v1.playback.__view.rs");
         include!("nama.v1.event.__view.rs");
         include!("nama.v1.job.__view.rs");
-        include!("nama.v1.library.__view.rs");
         include!("nama.v1.search.__view.rs");
         include!("nama.v1.server.__view.rs");
         include!("nama.v1.sign_in.__view.rs");
@@ -52,12 +52,12 @@ pub mod __buffa {
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
+            include!("nama.v1.library.__view_oneof.rs");
             include!("nama.v1.plugin.__view_oneof.rs");
             include!("nama.v1.request.__view_oneof.rs");
             include!("nama.v1.watch_state.__view_oneof.rs");
             include!("nama.v1.browse.__view_oneof.rs");
             include!("nama.v1.event.__view_oneof.rs");
-            include!("nama.v1.library.__view_oneof.rs");
             include!("nama.v1.search.__view_oneof.rs");
             include!("nama.v1.server.__view_oneof.rs");
             include!("nama.v1.sign_in.__view_oneof.rs");
@@ -66,12 +66,12 @@ pub mod __buffa {
     pub mod oneof {
         #[allow(unused_imports)]
         use super::*;
+        include!("nama.v1.library.__oneof.rs");
         include!("nama.v1.plugin.__oneof.rs");
         include!("nama.v1.request.__oneof.rs");
         include!("nama.v1.watch_state.__oneof.rs");
         include!("nama.v1.browse.__oneof.rs");
         include!("nama.v1.event.__oneof.rs");
-        include!("nama.v1.library.__oneof.rs");
         include!("nama.v1.search.__oneof.rs");
         include!("nama.v1.server.__oneof.rs");
         include!("nama.v1.sign_in.__oneof.rs");
@@ -92,6 +92,40 @@ pub mod __buffa {
         reg.register_json_any(super::__UNMATCHED_ITEM_FILTER_JSON_ANY);
         reg.register_json_any(super::__LIST_UNMATCHED_ITEMS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__UNMATCHED_ITEM_JSON_ANY);
+        reg.register_json_any(super::__LIBRARY_JSON_ANY);
+        reg.register_json_any(super::__LAST_SCAN_JSON_ANY);
+        reg.register_json_any(super::__CREATE_LIBRARY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__CREATE_LIBRARY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_LIBRARIES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_LIBRARIES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_LIBRARY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_LIBRARY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_LIBRARY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__RECOGNISER_ORDER_JSON_ANY);
+        reg.register_json_any(super::__SEGMENT_SOURCE_ORDER_JSON_ANY);
+        reg.register_json_any(super::__UPDATE_LIBRARY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__DELETE_LIBRARY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DELETE_LIBRARY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SCAN_LIBRARY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SCAN_LIBRARY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PREVIEW_DELETE_MEDIA_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__PREVIEW_DELETE_MEDIA_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__REQUEST_TO_CANCEL_JSON_ANY);
+        reg.register_json_any(super::__DELETE_MEDIA_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DELETE_MEDIA_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__MEDIA_TO_DELETE_JSON_ANY);
+        reg.register_json_any(super::__MOVIE_TO_DELETE_JSON_ANY);
+        reg.register_json_any(super::__SHOW_TO_DELETE_JSON_ANY);
+        reg.register_json_any(super::__SEASON_TO_DELETE_JSON_ANY);
+        reg.register_json_any(super::__EPISODE_TO_DELETE_JSON_ANY);
+        reg.register_json_any(super::__EPISODE_TAKEN_ALONG_JSON_ANY);
+        reg.register_json_any(super::__MEDIA_FILE_JSON_ANY);
+        reg.register_json_any(super::__FILE_NOT_DELETED_JSON_ANY);
+        reg.register_json_any(super::__LIST_TITLE_SOURCES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_TITLE_SOURCES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_ARTWORK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_ARTWORK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__TITLE_SOURCE_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGINS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_PLUGINS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_PLUGIN_REQUEST_JSON_ANY);
@@ -243,6 +277,7 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_HOME_ROWS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_HOME_ROWS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__HOME_ROW_JSON_ANY);
+        reg.register_json_any(super::__RECENTLY_ADDED_HOME_ROW_JSON_ANY);
         reg.register_json_any(super::__PLUGIN_HOME_ROW_JSON_ANY);
         reg.register_json_any(super::__LIST_HOME_ROW_TITLES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_HOME_ROW_TITLES_RESPONSE_JSON_ANY);
@@ -333,40 +368,6 @@ pub mod __buffa {
         reg.register_json_any(super::__RUN_JOB_REQUEST_JSON_ANY);
         reg.register_json_any(super::__RUN_JOB_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__JOB_RUN_JSON_ANY);
-        reg.register_json_any(super::__LIBRARY_JSON_ANY);
-        reg.register_json_any(super::__LAST_SCAN_JSON_ANY);
-        reg.register_json_any(super::__CREATE_LIBRARY_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__CREATE_LIBRARY_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__LIST_LIBRARIES_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__LIST_LIBRARIES_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__GET_LIBRARY_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__GET_LIBRARY_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__UPDATE_LIBRARY_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__RECOGNISER_ORDER_JSON_ANY);
-        reg.register_json_any(super::__SEGMENT_SOURCE_ORDER_JSON_ANY);
-        reg.register_json_any(super::__UPDATE_LIBRARY_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__DELETE_LIBRARY_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__DELETE_LIBRARY_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__SCAN_LIBRARY_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__SCAN_LIBRARY_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__PREVIEW_DELETE_MEDIA_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__PREVIEW_DELETE_MEDIA_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__REQUEST_TO_CANCEL_JSON_ANY);
-        reg.register_json_any(super::__DELETE_MEDIA_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__DELETE_MEDIA_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__MEDIA_TO_DELETE_JSON_ANY);
-        reg.register_json_any(super::__MOVIE_TO_DELETE_JSON_ANY);
-        reg.register_json_any(super::__SHOW_TO_DELETE_JSON_ANY);
-        reg.register_json_any(super::__SEASON_TO_DELETE_JSON_ANY);
-        reg.register_json_any(super::__EPISODE_TO_DELETE_JSON_ANY);
-        reg.register_json_any(super::__EPISODE_TAKEN_ALONG_JSON_ANY);
-        reg.register_json_any(super::__MEDIA_FILE_JSON_ANY);
-        reg.register_json_any(super::__FILE_NOT_DELETED_JSON_ANY);
-        reg.register_json_any(super::__LIST_TITLE_SOURCES_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__LIST_TITLE_SOURCES_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__LIST_ARTWORK_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__LIST_ARTWORK_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__TITLE_SOURCE_JSON_ANY);
         reg.register_json_any(super::__SEARCH_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SEARCH_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__HITS_JSON_ANY);
@@ -574,6 +575,142 @@ pub use self::__buffa::view::ListUnmatchedItemsResponseOwnedView;
 pub use self::__buffa::view::UnmatchedItemView;
 #[doc(inline)]
 pub use self::__buffa::view::UnmatchedItemOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LibraryView;
+#[doc(inline)]
+pub use self::__buffa::view::LibraryOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::LastScanView;
+#[doc(inline)]
+pub use self::__buffa::view::LastScanOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateLibraryRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateLibraryRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateLibraryResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateLibraryResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListLibrariesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListLibrariesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListLibrariesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListLibrariesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetLibraryRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetLibraryRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetLibraryResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetLibraryResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdateLibraryRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdateLibraryRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RecogniserOrderView;
+#[doc(inline)]
+pub use self::__buffa::view::RecogniserOrderOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SegmentSourceOrderView;
+#[doc(inline)]
+pub use self::__buffa::view::SegmentSourceOrderOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdateLibraryResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UpdateLibraryResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteLibraryRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteLibraryRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteLibraryResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteLibraryResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ScanLibraryRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ScanLibraryRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ScanLibraryResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ScanLibraryResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewDeleteMediaRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewDeleteMediaRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewDeleteMediaResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewDeleteMediaResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestToCancelView;
+#[doc(inline)]
+pub use self::__buffa::view::RequestToCancelOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteMediaRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteMediaRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteMediaResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteMediaResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MediaToDeleteView;
+#[doc(inline)]
+pub use self::__buffa::view::MediaToDeleteOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieToDeleteView;
+#[doc(inline)]
+pub use self::__buffa::view::MovieToDeleteOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowToDeleteView;
+#[doc(inline)]
+pub use self::__buffa::view::ShowToDeleteOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SeasonToDeleteView;
+#[doc(inline)]
+pub use self::__buffa::view::SeasonToDeleteOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeToDeleteView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeToDeleteOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeTakenAlongView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeTakenAlongOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MediaFileView;
+#[doc(inline)]
+pub use self::__buffa::view::MediaFileOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::FileNotDeletedView;
+#[doc(inline)]
+pub use self::__buffa::view::FileNotDeletedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTitleSourcesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTitleSourcesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTitleSourcesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTitleSourcesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListArtworkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListArtworkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListArtworkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListArtworkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleSourceView;
+#[doc(inline)]
+pub use self::__buffa::view::TitleSourceOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListPluginsRequestView;
 #[doc(inline)]
@@ -1163,6 +1300,10 @@ pub use self::__buffa::view::HomeRowView;
 #[doc(inline)]
 pub use self::__buffa::view::HomeRowOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::RecentlyAddedHomeRowView;
+#[doc(inline)]
+pub use self::__buffa::view::RecentlyAddedHomeRowOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::PluginHomeRowView;
 #[doc(inline)]
 pub use self::__buffa::view::PluginHomeRowOwnedView;
@@ -1522,142 +1663,6 @@ pub use self::__buffa::view::RunJobResponseOwnedView;
 pub use self::__buffa::view::JobRunView;
 #[doc(inline)]
 pub use self::__buffa::view::JobRunOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::LibraryView;
-#[doc(inline)]
-pub use self::__buffa::view::LibraryOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::LastScanView;
-#[doc(inline)]
-pub use self::__buffa::view::LastScanOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::CreateLibraryRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::CreateLibraryRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::CreateLibraryResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::CreateLibraryResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListLibrariesRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ListLibrariesRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListLibrariesResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ListLibrariesResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::GetLibraryRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::GetLibraryRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::GetLibraryResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::GetLibraryResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::UpdateLibraryRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::UpdateLibraryRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::RecogniserOrderView;
-#[doc(inline)]
-pub use self::__buffa::view::RecogniserOrderOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SegmentSourceOrderView;
-#[doc(inline)]
-pub use self::__buffa::view::SegmentSourceOrderOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::UpdateLibraryResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::UpdateLibraryResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::DeleteLibraryRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::DeleteLibraryRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::DeleteLibraryResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::DeleteLibraryResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ScanLibraryRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ScanLibraryRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ScanLibraryResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ScanLibraryResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PreviewDeleteMediaRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::PreviewDeleteMediaRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PreviewDeleteMediaResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::PreviewDeleteMediaResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::RequestToCancelView;
-#[doc(inline)]
-pub use self::__buffa::view::RequestToCancelOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::DeleteMediaRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::DeleteMediaRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::DeleteMediaResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::DeleteMediaResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::MediaToDeleteView;
-#[doc(inline)]
-pub use self::__buffa::view::MediaToDeleteOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::MovieToDeleteView;
-#[doc(inline)]
-pub use self::__buffa::view::MovieToDeleteOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ShowToDeleteView;
-#[doc(inline)]
-pub use self::__buffa::view::ShowToDeleteOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SeasonToDeleteView;
-#[doc(inline)]
-pub use self::__buffa::view::SeasonToDeleteOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::EpisodeToDeleteView;
-#[doc(inline)]
-pub use self::__buffa::view::EpisodeToDeleteOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::EpisodeTakenAlongView;
-#[doc(inline)]
-pub use self::__buffa::view::EpisodeTakenAlongOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::MediaFileView;
-#[doc(inline)]
-pub use self::__buffa::view::MediaFileOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::FileNotDeletedView;
-#[doc(inline)]
-pub use self::__buffa::view::FileNotDeletedOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListTitleSourcesRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ListTitleSourcesRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListTitleSourcesResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ListTitleSourcesResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListArtworkRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ListArtworkRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListArtworkResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ListArtworkResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::TitleSourceView;
-#[doc(inline)]
-pub use self::__buffa::view::TitleSourceOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SearchRequestView;
 #[doc(inline)]

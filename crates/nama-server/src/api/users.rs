@@ -513,7 +513,7 @@ impl UserService for UserServiceHandler {
             featured_shown: featured_hidden.map(|hidden| !hidden),
             rows: home_layout_from_proto(layout)?.rows,
         };
-        let seen = home_rows_of(&self.home_rows, reader).await?;
+        let seen = home_rows_of(&self.home_rows, &self.browse, reader).await?;
         let seen = seen.into_iter().map(|(row, _)| row).collect();
         let default = self.settings.now().default_home_layout;
         (UserHomeLayout::save(&self.db, reader.id, asked, seen, default).await)
@@ -533,7 +533,7 @@ impl UserService for UserServiceHandler {
         let asked = (request.to_owned_message().rows.iter())
             .map(|row| home_row_from_proto(row, "rows"))
             .collect::<Result<Vec<_>, _>>()?;
-        let seen = home_rows_of(&self.home_rows, reader).await?;
+        let seen = home_rows_of(&self.home_rows, &self.browse, reader).await?;
         let seen = seen.into_iter().map(|(row, _)| row).collect();
         let default = self.settings.now().default_home_layout;
         (UserHomeLayout::reorder(&self.db, reader.id, &asked, seen, default).await)
@@ -597,7 +597,7 @@ impl UserService for UserServiceHandler {
 impl UserServiceHandler {
     /// `reader`'s Home layout with every Home row they could see now, as the API has it.
     async fn home_layout(&self, reader: &User) -> Result<proto::HomeLayout, ConnectError> {
-        let rows = home_rows_of(&self.home_rows, reader).await?;
+        let rows = home_rows_of(&self.home_rows, &self.browse, reader).await?;
         let own = UserHomeLayout::of(&self.db, reader.id).await;
         let own = own.map_err(database_failed)?;
         let default = self.settings.now().default_home_layout;
@@ -637,6 +637,7 @@ fn seen_row_to_proto(row: KernelOrPlugin, shown: bool) -> HomeLayoutRow {
     let row = match row {
         KernelOrPlugin::Kernel(kernel) => LayoutRow::Kernel(kernel),
         KernelOrPlugin::Plugin(plugin) => LayoutRow::Plugin(plugin),
+        KernelOrPlugin::RecentlyAdded(library) => LayoutRow::RecentlyAdded(library),
     };
     HomeLayoutRow {
         row: Some(row),
