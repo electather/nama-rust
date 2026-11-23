@@ -1,4 +1,5 @@
 import { TextField } from "@hub/features/account/components/text-field";
+import { useSendsSignInLinks } from "@hub/features/account/data/sign-in-links";
 import { LinkFormEnd } from "@hub/features/links/components/link-form-end";
 import { linkErrors, typedCode } from "@hub/features/links/lib/link-refusal";
 
@@ -26,6 +27,7 @@ export function CodeForm({
     isPending: boolean;
   };
 }) {
+  const errors = linkErrors(approve.error, useSendsSignInLinks());
   return (
     <form
       aria-labelledby={id}
@@ -49,14 +51,9 @@ export function CodeForm({
         spellCheck={false}
         placeholder="XXXX-XXXX"
         hint={hint}
-        error={linkErrors(approve.error).code}
+        error={errors.code}
       />
-      <LinkFormEnd
-        action={action}
-        linked={linked}
-        errors={linkErrors(approve.error)}
-        pending={approve.isPending}
-      />
+      <LinkFormEnd action={action} linked={linked} errors={errors} pending={approve.isPending} />
     </form>
   );
 }

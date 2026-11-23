@@ -11,8 +11,16 @@ export interface LinkErrors {
   proveEmail?: boolean;
 }
 
-/** What to say about a code the Hub refused, read by its reason; nothing before it refused one. */
-export function linkErrors(error: unknown): LinkErrors {
+/**
+ * What to say about a code the Hub refused, read by its reason; nothing before it refused one.
+ * Without `sendsSignInLinks`, nothing on the Hub can prove an email, so none is offered.
+ */
+export function linkErrors(error: unknown, sendsSignInLinks: boolean): LinkErrors {
+  const errors = refusalErrors(error);
+  return errors.proveEmail === true && !sendsSignInLinks ? cannotProveEmail : errors;
+}
+
+function refusalErrors(error: unknown): LinkErrors {
   if (error === null) {
     return {};
   }
@@ -29,6 +37,10 @@ export function typedCode(form: HTMLFormElement) {
   const code = new FormData(form).get("code");
   return typeof code === "string" ? code : "";
 }
+
+const cannotProveEmail: LinkErrors = {
+  form: "Linking needs your email proven, but this Hub can’t prove emails, so it can’t Link.",
+};
 
 /** What each reason a code can be refused for says. */
 const wording: Partial<Record<RefusalReason, LinkErrors>> = {
