@@ -90,7 +90,7 @@ impl Linking {
     }
 
     /// Whether an enabled Plugin links the Server; most Servers have none.
-    pub(crate) fn is_offered(&self) -> bool {
+    pub(crate) fn has_linking_plugin(&self) -> bool {
         !self.points.providers::<dyn ServerLinker>().is_empty()
     }
 
@@ -232,6 +232,8 @@ impl Linking {
     /// and the service being unreachable mustn't fail or hold up their delete (#1919). Must be
     /// called within a Tokio runtime.
     pub(crate) fn unlink_deleted_user(&self, user_id: i64) {
+        // A User created later may get the id again.
+        self.saw(Whose::User(user_id), None);
         let points = self.points.clone();
         let unlinking = async move {
             let unlinked = points
@@ -328,7 +330,7 @@ impl Linking {
     }
 
     /// The Plugin the Server Addresses tick asks: the first enabled one that links the Server.
-    pub(crate) fn linker(&self) -> Option<PluginId> {
+    pub(crate) fn linking_plugin(&self) -> Option<PluginId> {
         (self.points.ranked::<dyn ServerLinker>().into_iter()).next()
     }
 
@@ -341,10 +343,10 @@ impl Linking {
         .await;
     }
 
-    /// Whether `plugin` has the Server Linked, asked in its scope. Not, if it fails to say. Its
-    /// followers don't hear of it: it runs from startup on, so it would push every User's Watch
-    /// State before anything is watched, not on the first look from a page.
-    pub(crate) async fn has_server_linked(&self, plugin: &PluginId) -> bool {
+    /// Whether `plugin` has the Server Linked, asked in its scope for the Server Addresses tick.
+    /// Not, if it fails to say. Followers don't hear of it: the tick runs from startup, before
+    /// anything is watched, so its look would push nothing and leave a later look not new.
+    pub(crate) async fn is_server_linked_by(&self, plugin: &PluginId) -> bool {
         let link = self.ask_in_scope(plugin, |linker| async move { linker.link().await });
         matches!(link.await, Some(Link::Linked { .. }))
     }

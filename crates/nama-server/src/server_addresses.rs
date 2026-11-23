@@ -47,7 +47,7 @@ pub(crate) fn keep_telling(
                 // Err once the settings are dropped: the arm sits out and the minute still ticks.
                 Ok(()) = url_saves.changed() => {}
             }
-            let Some(plugin) = linking.linker() else {
+            let Some(plugin) = linking.linking_plugin() else {
                 // So enabling it again opens the port at once, whose lease may have run out since.
                 opened = OpenedPort::default();
                 continue;
@@ -55,7 +55,7 @@ pub(crate) fn keep_telling(
             let lan = lan_address(listening);
             let public_port = match forwarded {
                 Some(port) => Some(port.get()),
-                None if linking.has_server_linked(&plugin).await => opened.port(lan).await,
+                None if linking.is_server_linked_by(&plugin).await => opened.port(lan).await,
                 None => {
                     // Shut while the Server isn't Linked, and opened at once when it is.
                     opened = OpenedPort::default();

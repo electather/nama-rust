@@ -764,10 +764,14 @@ impl From<users::Error> for ConnectError {
                 refuse(R::REFUSAL_REASON_SIGNED_OUT, message)
             }
             users::Error::Database(err) => return database_failed(err),
+            // Only creating a User from an Account runs in a task of its own.
+            users::Error::Panicked(_) => {
+                tracing::error!("{err}");
+                return Self::internal("the Server failed to create the User");
+            }
             users::Error::NoAuthenticator
             | users::Error::Authenticator(_)
-            | users::Error::Random(_)
-            | users::Error::Panicked(_) => {
+            | users::Error::Random(_) => {
                 tracing::error!("a change to the Users failed: {err}");
                 return Self::internal("the Server failed");
             }

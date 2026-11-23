@@ -559,12 +559,19 @@ async fn reauthenticating_with_an_account_past_the_limit_is_refused_without_aski
         .await
         .unwrap();
     let device = server.client_config_as(&signed_in.token);
-    // Never approved, so each counts toward the limit on Grace's name.
-    for _ in 0..10 {
+    let hedy = create_from_account(&server, "Hedy").await.unwrap();
+    // Each counts toward the limit on Grace's name: never approved, or approved by Hedy's Account.
+    for _ in 0..5 {
         assert_refused(
             reauthenticate_with_account(device.clone(), &started.handle, "code").await,
             ErrorCode::NotFound,
             RefusalReason::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND,
+        );
+        linker.script().approved = Some(hedy);
+        assert_refused(
+            reauthenticate_with_account(device.clone(), &started.handle, "code").await,
+            ErrorCode::Unauthenticated,
+            RefusalReason::REFUSAL_REASON_WRONG_ACCOUNT,
         );
     }
     let asked = linker.script().finishes;

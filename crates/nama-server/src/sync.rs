@@ -165,7 +165,7 @@ impl Syncing {
                 Ok(_) => continue,
                 Err(RecvError::Closed) => return,
             }
-            if self.linking.is_offered() {
+            if self.linking.has_linking_plugin() {
                 self.pull_every_user().await;
             }
         }
@@ -177,7 +177,7 @@ impl Syncing {
     where
         F: Future<Output = ()> + Send + 'static,
     {
-        if self.linking.is_offered() {
+        if self.linking.has_linking_plugin() {
             let span = diagnostics::following_current(span);
             tokio::spawn(work(self.clone()).instrument(span));
         }
