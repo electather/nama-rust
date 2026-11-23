@@ -6,7 +6,8 @@ use std::{ops::RangeInclusive, time::Instant};
 use uuid::Uuid;
 
 use super::{
-    Account, AccountId, AccountSession, Accounts, Caller, Error, SignedIn, sessions,
+    Account, AccountId, AccountSession, Accounts, Caller, Error, RecentAuthenticationRequired,
+    SignedIn, sessions,
     webauthn::{Ceremony, RelyingParty, public_key},
 };
 
@@ -163,7 +164,7 @@ impl Accounts {
         // Under the row lock, so a Sign-in Link's takeover, which removes passkeys, can't miss
         // this one (ADR 0100).
         if !sessions::lock_while_recent(&mut tx, session).await? {
-            return Err(Error::RecentAuthenticationRequired);
+            return Err(RecentAuthenticationRequired.into());
         }
         let id = sqlx::query_scalar!(
             "INSERT INTO account_passkeys (account_id, credential_id, name, algorithm, public_key)
@@ -210,7 +211,7 @@ impl Accounts {
         // statements of their own after it: under READ COMMITTED, the locking statement would see
         // them as they were before it waited.
         if !sessions::lock_while_recent(&mut tx, session).await? {
-            return Err(Error::RecentAuthenticationRequired);
+            return Err(RecentAuthenticationRequired.into());
         }
         let has_password = sqlx::query_scalar!(
             r#"SELECT password_hash IS NOT NULL AS "has_password!" FROM accounts WHERE id = $1"#,
@@ -261,7 +262,7 @@ fn require_recent(session: &AccountSession) -> Result<(), Error> {
     if session.authenticated_recently {
         Ok(())
     } else {
-        Err(Error::RecentAuthenticationRequired)
+        Err(RecentAuthenticationRequired.into())
     }
 }
 

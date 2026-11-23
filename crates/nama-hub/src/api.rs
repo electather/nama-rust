@@ -37,7 +37,7 @@ use tracing::Instrument as _;
 use url::Url;
 
 use crate::{
-    accounts::Accounts,
+    accounts::{Accounts, RECENT_AUTHENTICATION_MINS, RecentAuthenticationRequired},
     db,
     diagnostics::{Backend, NotTaken, Shared, Signal},
     links::{LinkedServer, Links},
@@ -396,6 +396,16 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_WATCHLIST_INVALID
         | R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,
     }
+}
+
+/// Refuses a request whose session lacks Recent Authentication, whichever area found it, saying
+/// how recent a sign-in must be.
+fn recent_authentication_required(err: &RecentAuthenticationRequired) -> Refused {
+    refuse(
+        RefusalReason::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
+        err.to_string(),
+    )
+    .param("recentMinutes", &RECENT_AUTHENTICATION_MINS)
 }
 
 /// The error a client gets for a failure on the Hub's side: logged, not sent, since it says

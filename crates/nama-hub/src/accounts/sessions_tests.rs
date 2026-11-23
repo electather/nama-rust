@@ -42,7 +42,7 @@ async fn a_session_signed_in_over_10_minutes_ago_cant_set_the_password(db: PgPoo
     // Refused before the password is looked at, so even one too short gets this refusal.
     assert!(matches!(
         accounts.set_password(&stale, "short").await,
-        Err(Error::RecentAuthenticationRequired)
+        Err(Error::RecentAuthenticationRequired(_))
     ));
     accounts
         .sign_in(
@@ -83,7 +83,7 @@ async fn a_session_ended_before_its_password_is_saved_cant_set_it(db: PgPool) {
         accounts
             .set_password(&session, "staple battery horse")
             .await,
-        Err(Error::RecentAuthenticationRequired)
+        Err(Error::RecentAuthenticationRequired(_))
     ));
     accounts
         .sign_in(
@@ -123,7 +123,7 @@ async fn only_a_session_signed_in_within_10_minutes_deletes_the_account(db: PgPo
 
     assert!(matches!(
         accounts.delete(&stale).await,
-        Err(Error::RecentAuthenticationRequired)
+        Err(Error::RecentAuthenticationRequired(_))
     ));
     let signed_in = accounts
         .sign_in("ada@example.com", password, None, caller())

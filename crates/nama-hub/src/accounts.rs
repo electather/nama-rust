@@ -24,7 +24,7 @@ pub(crate) use passkeys::{Assertion, NewPasskey, PASSKEY_NAME_LENGTH, Passkey};
 pub(crate) use passwords::PASSWORD_LENGTH;
 pub(crate) use rate_limits::{Blocked, Caller};
 use rate_limits::{ChallengeLimits, CreationLimits, SignInLimits};
-pub(crate) use sessions::{RECENT_AUTHENTICATION_MINS, SESSION_DAYS};
+pub(crate) use sessions::{RECENT_AUTHENTICATION_MINS, RecentAuthenticationRequired, SESSION_DAYS};
 use sign_in_links::Outbox;
 pub(crate) use sign_in_links::{SignInLink, SignedInByLink};
 use webauthn::RelyingParty;
@@ -56,10 +56,21 @@ pub(crate) struct AccountSession {
     pub(crate) account: Account,
     /// Whether a Sign-in Link proved the Account owns its email, which Linking needs (ADR 0100).
     pub(crate) email_proven: bool,
-    /// Whether the session signed in within [`sessions::RECENT_AUTHENTICATION_MINS`]: Recent
-    /// Authentication, which Linking needs.
-    pub(crate) authenticated_recently: bool,
+    /// Whether the session signed in within [`RECENT_AUTHENTICATION_MINS`]: read only through
+    /// [`AccountSession::require_recent_authentication`], so the rule lives here.
+    authenticated_recently: bool,
     id: Uuid,
+}
+
+impl AccountSession {
+    /// Refuses unless the session has Recent Authentication, as of when it was looked up.
+    pub(crate) fn require_recent_authentication(&self) -> Result<(), RecentAuthenticationRequired> {
+        if self.authenticated_recently {
+            Ok(())
+        } else {
+            Err(RecentAuthenticationRequired)
+        }
+    }
 }
 
 /// An Account just signed in, and the session token its browser presents from now on.
@@ -82,11 +93,8 @@ pub(crate) enum Error {
         PASSWORD_LENGTH.end()
     )]
     PasswordLength,
-    #[error(
-        "this needs a sign-in in the last {} minutes: sign in again",
-        sessions::RECENT_AUTHENTICATION_MINS
-    )]
-    RecentAuthenticationRequired,
+    #[error(transparent)]
+    RecentAuthenticationRequired(#[from] RecentAuthenticationRequired),
     #[error("no Account has this email and password")]
     WrongEmailOrPassword,
     #[error("the Hub has no mail set up, so it can't email Sign-in Links")]
@@ -231,15 +239,13 @@ impl Accounts {
         session: &AccountSession,
         password: &str,
     ) -> Result<(), Error> {
-        if !session.authenticated_recently {
-            return Err(Error::RecentAuthenticationRequired);
-        }
+        session.require_recent_authentication()?;
         check_password_length(password)?;
         let password_hash = passwords::hash(password.to_owned()).await?;
         let mut tx = self.db.begin().await?;
         // Checked again: the session may have ended, or aged, while the password hashed.
         if !sessions::lock_while_recent(&mut tx, session).await? {
-            return Err(Error::RecentAuthenticationRequired);
+            return Err(RecentAuthenticationRequired.into());
         }
         sqlx::query!(
             "UPDATE accounts SET password_hash = $1 WHERE id = $2",
@@ -260,7 +266,7 @@ impl Accounts {
         let mut tx = self.db.begin().await?;
         // Under the row lock, so a Sign-in Link's takeover can't end the session meanwhile.
         if !sessions::lock_while_recent(&mut tx, session).await? {
-            return Err(Error::RecentAuthenticationRequired);
+            return Err(RecentAuthenticationRequired.into());
         }
         sqlx::query!("DELETE FROM accounts WHERE id = $1", session.account.id.0)
             .execute(&mut *tx)

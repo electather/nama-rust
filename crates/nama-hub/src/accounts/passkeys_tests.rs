@@ -71,7 +71,7 @@ async fn adding_or_removing_a_passkey_needs_a_recent_sign_in_before_anything_els
         accounts.remove_passkey(&stale, Uuid::nil()).await,
     ] {
         assert!(
-            matches!(refused, Err(Error::RecentAuthenticationRequired)),
+            matches!(refused, Err(Error::RecentAuthenticationRequired(_))),
             "{refused:?}"
         );
     }
