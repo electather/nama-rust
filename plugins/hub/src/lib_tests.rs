@@ -477,6 +477,21 @@ async fn the_account_unlinking_a_user_on_the_hub_shows_on_the_server() {
 }
 
 #[tokio::test]
+async fn the_users_of_a_server_the_hub_forgot_show_unlinked() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    let linker = enabled(&hub, &kernel);
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+
+    // As when the Account the Server Linked with is deleted.
+    hub.forget_server();
+
+    let link = enabled(&hub, &kernel).user_link(7).await.unwrap();
+    assert_eq!(link, Some(Link::NotLinked));
+}
+
+#[tokio::test]
 async fn a_linked_users_settings_dont_ask_the_hub_each_time() {
     let hub = FakeHub::start().await;
     let linker = enabled(&hub, &store());

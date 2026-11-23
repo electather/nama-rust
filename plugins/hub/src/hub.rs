@@ -149,7 +149,9 @@ impl Hub {
         }
     }
 
-    /// The email of the Account the User `user_id` is Linked to, empty while they aren't.
+    /// The email of the Account the User `user_id` is Linked to, empty while they aren't. A
+    /// Server the Hub doesn't know any more, such as one whose Account was deleted, has no Linked
+    /// Users.
     pub(crate) async fn user_account(
         &self,
         credential: &str,
@@ -161,8 +163,12 @@ impl Hub {
                 user_id,
                 ..Default::default()
             })
-            .await?;
-        Ok(got.into_owned().account)
+            .await;
+        match got {
+            Ok(got) => Ok(got.into_owned().account),
+            Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => Ok(String::new()),
+            Err(err) => Err(err.into()),
+        }
     }
 
     /// Unlinks the User `user_id`. A Server the Hub doesn't know any more has no Linked Users.
