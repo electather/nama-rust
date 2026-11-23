@@ -98,3 +98,45 @@ async fn a_session_ended_before_its_password_is_saved_cant_set_it(db: PgPool) {
         .await
         .unwrap();
 }
+
+#[sqlx::test(migrations = false)]
+async fn only_a_session_signed_in_within_10_minutes_deletes_the_account(db: PgPool) {
+    db::migrate(&db).await.unwrap();
+    let accounts = Accounts::new(db.clone(), None);
+    let caller = || Caller {
+        ip: "203.0.113.1".parse().unwrap(),
+        now: Instant::now(),
+    };
+    let password = "correct horse battery";
+    let created = accounts
+        .create("ada@example.com", password, caller())
+        .await
+        .unwrap();
+    sqlx::query!(
+        "UPDATE account_sessions SET created_at = now() - make_interval(mins => $1)",
+        RECENT_AUTHENTICATION_MINS,
+    )
+    .execute(&db)
+    .await
+    .unwrap();
+    let stale = accounts.session(&created.token).await.unwrap().unwrap();
+
+    assert!(matches!(
+        accounts.delete(&stale).await,
+        Err(Error::RecentAuthenticationRequired)
+    ));
+    let signed_in = accounts
+        .sign_in("ada@example.com", password, None, caller())
+        .await
+        .unwrap();
+    let fresh = accounts.session(&signed_in.token).await.unwrap().unwrap();
+    accounts.delete(&fresh).await.unwrap();
+
+    assert!(matches!(
+        accounts
+            .sign_in("ada@example.com", password, None, caller())
+            .await,
+        Err(Error::WrongEmailOrPassword)
+    ));
+    assert!(accounts.session(&signed_in.token).await.unwrap().is_none());
+}
