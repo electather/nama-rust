@@ -14,9 +14,11 @@ use tracing::Instrument as _;
 
 use crate::{
     db::{BoxFuture, Database, now},
+    link::Linking,
     plugins::ExtensionPoints,
 };
 
+mod accounts;
 mod codes;
 mod device_names;
 mod expired;
@@ -95,6 +97,8 @@ const PERMISSION_CHANGES_BUFFERED: usize = 64;
 pub struct Users {
     db: Arc<Database>,
     plugins: ExtensionPoints,
+    /// Whether a User's Account is a way in, and creating Users from Accounts.
+    linking: Linking,
     sign_outs: broadcast::Sender<i64>,
     permission_changes: broadcast::Sender<i64>,
 }
@@ -284,6 +288,21 @@ pub enum Error {
     /// The operating system's random number generator failed.
     #[error("could not generate a session token: {0}")]
     Random(#[from] getrandom::Error),
+    /// The User's Account is their only way in, so they may not Unlink it (ADR 0014).
+    #[error(
+        "you sign in only with your Account, so Unlinking it would leave you no way in; ask an \
+         Admin to give you a password first"
+    )]
+    LastSignInMethod,
+    /// No enabled Plugin links the Server.
+    #[error("no enabled Plugin links the Server")]
+    NoLinkingPlugin,
+    /// The Plugin that links the Server couldn't tell, as with its service unreachable.
+    #[error("the Plugin that links the Server failed; its page says why")]
+    LinkingFailed,
+    /// Creating a User from an Account panicked.
+    #[error("creating a User from an Account panicked: {0}")]
+    Panicked(tokio::task::JoinError),
     /// The database failed.
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
@@ -298,10 +317,16 @@ impl Users {
     pub fn new(db: Arc<Database>, plugins: ExtensionPoints) -> Self {
         Self {
             db,
+            linking: Linking::new(plugins.clone()),
             plugins,
             sign_outs: broadcast::channel(SIGN_OUTS_BUFFERED).0,
             permission_changes: broadcast::channel(PERMISSION_CHANGES_BUFFERED).0,
         }
+    }
+
+    /// The Server's one [`Linking`], which startup hands out.
+    pub(crate) const fn linking(&self) -> &Linking {
+        &self.linking
     }
 
     /// Whether the Server has any User yet. Until it has, the first Admin can be created with a
@@ -347,14 +372,6 @@ impl Users {
         self.insert_created(by, name, Some(credential)).await
     }
 
-    /// Creates a User named `name` with the default Permissions and no Sign-in Method, as `by`
-    /// asks, and returns their ID. They sign in once an Account accepts them on the Hub, which
-    /// Links them to it (ADR 0092). Refused as [`Users::create`] refuses.
-    pub(crate) async fn create_from_account(&self, by: &User, name: &str) -> Result<i64, Error> {
-        let name = checked_name("name", "a User's name", name)?;
-        self.insert_created(by, name, None).await
-    }
-
     /// Stores a User named `name`, checked, with the default Permissions and `credential` as their
     /// password if any, as `by` asks.
     async fn insert_created(
@@ -382,29 +399,6 @@ impl Users {
                FROM users ORDER BY id"#
         )
         .fetch_all(self.db.reader())
-        .await
-    }
-
-    /// The ids of the Users with no Sign-in Method, oldest first: each signs in only through their
-    /// Link to an Account, if they have one (ADR 0092).
-    pub(crate) async fn without_sign_in_method(&self) -> Result<Vec<i64>, sqlx::Error> {
-        sqlx::query_scalar!(
-            r#"SELECT id AS "id!" FROM users u
-               WHERE NOT EXISTS (SELECT 1 FROM sign_in_methods m WHERE m.user_id = u.id)
-               ORDER BY id"#
-        )
-        .fetch_all(self.db.reader())
-        .await
-    }
-
-    /// Whether the User `user` has a Sign-in Method; one without signs in only through their Link
-    /// to an Account, if they have one (ADR 0092).
-    pub(crate) async fn has_sign_in_method(&self, user: i64) -> Result<bool, sqlx::Error> {
-        sqlx::query_scalar!(
-            r#"SELECT EXISTS (SELECT 1 FROM sign_in_methods WHERE user_id = ?) AS "exists!: bool""#,
-            user
-        )
-        .fetch_one(self.db.reader())
         .await
     }
 
