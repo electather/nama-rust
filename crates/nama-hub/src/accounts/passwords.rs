@@ -2,7 +2,7 @@
 //! (OWASP's recommendation), as the Server's `local-auth` Plugin does. Each runs on a blocking
 //! thread: one takes tens of milliseconds of CPU and 19 MiB of memory.
 
-use std::{num::NonZero, ops::RangeInclusive, sync::LazyLock, thread};
+use std::{ops::RangeInclusive, sync::LazyLock};
 
 use argon2::{
     Argon2,
@@ -20,10 +20,12 @@ pub(crate) const PASSWORD_LENGTH: RangeInclusive<usize> = 8..=1024;
 /// so that it takes as long as signing in with a wrong password.
 const UNKNOWN_EMAIL_HASH: &str = "$argon2id$v=19$m=19456,t=2,p=1$m0VZ6FN5YSmKzZ9Lyjpmjg$w3ykI1C+6RY3wAc4+ixCRYRHFitBlyPbAu6RiK77XQw";
 
-/// One permit per core: creating an Account isn't rate limited, so without a cap a flood of them
-/// would fill tokio's blocking pool, at 19 MiB a hash. Callers past the cap wait their turn.
-static HASHING: LazyLock<Semaphore> =
-    LazyLock::new(|| Semaphore::new(thread::available_parallelism().map_or(1, NonZero::get)));
+/// How many hashes or checks may run at once. Rate limits count attempts, not ones running at
+/// once, so without it a burst of sign-ins or Account creations grows memory by 19 MiB a hash,
+/// without bound, on the 1 GiB machines #725 targets. Callers past it wait their turn.
+const CONCURRENT_HASHES: usize = 4;
+
+static HASHING: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(CONCURRENT_HASHES));
 
 /// Why a password couldn't be hashed or checked.
 #[derive(Debug, thiserror::Error)]
