@@ -20,7 +20,7 @@ use nama_plugin_api::{
 };
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 use thiserror::Error;
-use tokio::sync::Notify;
+use tokio::sync::watch;
 use tracing::warn;
 use url::Url;
 
@@ -49,7 +49,7 @@ pub(crate) struct Settings {
     /// Where segment files go while no folder is set.
     default_folder: PathBuf,
     values: Arc<RwLock<Values>>,
-    url_saved: Arc<Notify>,
+    url_saved: watch::Sender<()>,
 }
 
 /// One value of every Server setting.
@@ -172,7 +172,7 @@ impl Settings {
             db,
             default_folder,
             values: Arc::default(),
-            url_saved: Arc::default(),
+            url_saved: watch::Sender::new(()),
         }
     }
 
@@ -238,10 +238,13 @@ impl Settings {
 
     /// The Server URL, for building links.
     pub(crate) fn server_url(&self) -> ServerUrl {
-        ServerUrl {
-            values: Arc::clone(&self.values),
-            saved: Arc::clone(&self.url_saved),
-        }
+        ServerUrl(Arc::clone(&self.values))
+    }
+
+    /// Wakes once the Server URL was saved since it last woke, so the Plugin that links the Server
+    /// hears of it at once.
+    pub(crate) fn url_saves(&self) -> watch::Receiver<()> {
+        self.url_saved.subscribe()
     }
 
     /// The Playback settings, for planning and running plans.
@@ -300,7 +303,7 @@ impl Settings {
             },
         )
         .await?;
-        self.url_saved.notify_one();
+        self.url_saved.send_replace(());
         Ok(url)
     }
 
@@ -699,22 +702,12 @@ pub(super) fn read(values: &RwLock<Values>) -> std::sync::RwLockReadGuard<'_, Va
 
 /// The Server URL in use, for the event bus and Invites. Clones share it.
 #[derive(Debug, Clone, Default)]
-pub(crate) struct ServerUrl {
-    values: Arc<RwLock<Values>>,
-    saved: Arc<Notify>,
-}
+pub(crate) struct ServerUrl(Arc<RwLock<Values>>);
 
 impl ServerUrl {
     /// The Server URL, or empty with none set.
     pub(crate) fn url(&self) -> String {
-        read(&self.values).url.clone()
-    }
-
-    /// Waits until the Server URL is saved, or returns at once if it was saved since the last wait
-    /// ended. Only the Server Addresses task may wait: a save wakes one waiter, so a second would
-    /// take saves meant for it.
-    pub(crate) async fn saved(&self) {
-        self.saved.notified().await;
+        read(&self.0).url.clone()
     }
 
     /// Where the web app lists the Requests, in Settings, or `None` with no URL set.
@@ -724,7 +717,7 @@ impl ServerUrl {
 
     /// Where `path` is in the web app, or `None` with no URL set.
     pub(crate) fn link(&self, path: &str) -> Option<String> {
-        let values = read(&self.values);
+        let values = read(&self.0);
         let url = &values.url;
         // The URL may name a path the web app is served under, which a link keeps.
         (!url.is_empty()).then(|| format!("{}/{path}", url.trim_end_matches('/')))
