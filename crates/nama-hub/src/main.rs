@@ -149,6 +149,7 @@ async fn run() -> ExitCode {
         &config.trusted_proxies,
         mail,
         diagnostics,
+        config.public_url.as_ref(),
         shutdown,
     )
     .await;
@@ -172,7 +173,7 @@ fn mail(config: &Config) -> Result<Option<Mail>, MailError> {
     };
     Ok(Some(Mail {
         mailer: Arc::new(Resend::new(api_key.clone(), from.clone())?),
-        public_url: public_url.clone(),
+        public_url: public_url.to_string(),
     }))
 }
 

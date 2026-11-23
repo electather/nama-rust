@@ -46,7 +46,7 @@ impl Hub {
             mailer: Arc::new(Inbox(inbox)),
             public_url: "https://hub.example.com".to_owned(),
         };
-        let accounts = Accounts::new(db.clone(), Some(mail));
+        let accounts = Accounts::new(db.clone(), Some(mail), None);
         let keys = Arc::new(Keys::from_pems(SIGNING_KEY).unwrap());
         let links = Links::new(db.clone(), accounts.clone(), keys);
         Self {
@@ -117,7 +117,7 @@ async fn account(db: &PgPool) -> AccountId {
         ip: "203.0.113.1".parse().unwrap(),
         now: Instant::now(),
     };
-    let created = Accounts::new(db.clone(), None)
+    let created = Accounts::new(db.clone(), None, None)
         .create("ada@example.com", "correct horse battery", caller)
         .await
         .unwrap();
@@ -471,7 +471,7 @@ async fn accounts_on(db: &PgPool, count: usize) -> (Watchlists, Viewing, Vec<Acc
             ip: "203.0.113.1".parse().unwrap(),
             now: Instant::now(),
         };
-        let account = Accounts::new(db.clone(), None)
+        let account = Accounts::new(db.clone(), None, None)
             .create(
                 &format!("watcher{n}@example.com"),
                 "correct horse battery",
@@ -481,7 +481,7 @@ async fn accounts_on(db: &PgPool, count: usize) -> (Watchlists, Viewing, Vec<Acc
         created.push(account.unwrap().account.id);
     }
     let keys = Arc::new(Keys::from_pems(SIGNING_KEY).unwrap());
-    let links = Links::new(db.clone(), Accounts::new(db.clone(), None), keys);
+    let links = Links::new(db.clone(), Accounts::new(db.clone(), None, None), keys);
     let viewing = Viewing::new(db.clone(), links.clone());
     let watchlists = Watchlists::new(db.clone(), links, viewing.clone());
     (watchlists, viewing, created)

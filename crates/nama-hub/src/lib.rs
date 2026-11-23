@@ -21,6 +21,7 @@ use nama_forwarded::IpRange;
 use signing::Keys;
 use sqlx::PgPool;
 use tokio::net::TcpListener;
+use url::Url;
 
 use crate::{diagnostics::Backend, mail::Mail};
 
@@ -28,7 +29,8 @@ use crate::{diagnostics::Backend, mail::Mail};
 /// `keys`, until `shutdown` resolves, then lets requests in flight finish. Forwarded headers are
 /// believed only from a peer in `trusted_proxies` (ADR 0018). Sign-in Links are emailed through
 /// `mail`, and without it aren't offered. What Linked Servers share goes to `diagnostics`, and
-/// without it is dropped. Must be called inside a Tokio runtime, which sends them.
+/// without it is dropped. Passkeys are for the Hub at `public_url`, and without it aren't offered.
+/// Must be called inside a Tokio runtime, which sends them.
 ///
 /// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
 /// protobuf bodies. With the `web` feature, any other `GET` gets the Hub's web pages.
@@ -48,9 +50,17 @@ pub fn serve(
     trusted_proxies: &[IpRange],
     mail: Option<Mail>,
     diagnostics: Option<Arc<dyn Backend>>,
+    public_url: Option<&Url>,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
-    let app = api::router(db, Arc::new(keys), trusted_proxies, mail, diagnostics);
+    let app = api::router(
+        db,
+        Arc::new(keys),
+        trusted_proxies,
+        mail,
+        diagnostics,
+        public_url,
+    );
     #[cfg(feature = "web")]
     let app = app.layer(axum::middleware::from_fn(web::serve));
     let app = app.into_make_service_with_connect_info::<SocketAddr>();

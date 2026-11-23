@@ -1,4 +1,6 @@
+import { AddPasskeyForm } from "@hub/features/account/components/add-passkey-form";
 import { DeleteAccount } from "@hub/features/account/components/delete-account";
+import { PasskeyList } from "@hub/features/account/components/passkey-list";
 import { PasswordForm } from "@hub/features/account/components/password-form";
 import { useAccount } from "@hub/features/account/data/account";
 import { useSignOut } from "@hub/features/account/data/sessions";
@@ -12,9 +14,10 @@ import { PoolingSwitch } from "@hub/features/viewing/components/pooling-switch";
 import { Button } from "nama-ui/components/button";
 
 /**
- * The signed-in Account's email, the Users created from it waiting for it, its password, Linking a
- * Server and the Servers it Linked, Linking a User and the Users it Linked, whether the Movies they
- * finish are pooled, the way to its viewing history, signing out, and deleting it.
+ * The signed-in Account's email, the Users created from it waiting for it, its password, its
+ * passkeys, Linking a Server and the Servers it Linked, Linking a User and the Users it Linked,
+ * whether the Movies they finish are pooled, the way to its viewing history, signing out, and
+ * deleting it.
  */
 export function AccountPage() {
   const account = useAccount();
@@ -28,6 +31,13 @@ export function AccountPage() {
       </dl>
       <UserInvites />
       <PasswordForm />
+      <section aria-labelledby="your-passkeys" className="flex flex-col gap-2">
+        <h2 id="your-passkeys" className="text-lg/6 font-medium">
+          Passkeys
+        </h2>
+        <PasskeyList />
+        <AddPasskeyForm />
+      </section>
       <LinkServerForm />
       <ServerList />
       <LinkUserForm />

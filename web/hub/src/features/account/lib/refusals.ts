@@ -50,6 +50,45 @@ const wording: Partial<
   }),
 };
 
+/**
+ * What to say about a passkey that couldn't be added, removed or signed in with: nothing, `""`,
+ * when the person cancelled the browser's prompt.
+ */
+export function passkeyError(error: unknown): string {
+  if (error instanceof DOMException) {
+    return browserSays(error);
+  }
+  const refusal = refusalOf(error);
+  const say = refusal && passkeyWording[refusal.reason];
+  return say
+    ? say((key) => refusal.params[key] ?? "")
+    : "The Hub couldn’t do that just now. Try again.";
+}
+
+/** What the browser's passkey prompt failing says, by the `DOMException`'s name. */
+const browserWording: Partial<Record<string, string>> = {
+  // Cancelled, or left until it timed out: nothing went wrong, so nothing is said.
+  NotAllowedError: "",
+  AbortError: "",
+  // A passkey `excludeCredentials` lists.
+  InvalidStateError: "This passkey is on your Account already.",
+};
+
+function browserSays({ name }: DOMException) {
+  return browserWording[name] ?? "This browser couldn’t use a passkey here.";
+}
+
+/** What each reason a passkey can be refused for says, given the Refusal's params by key. */
+const passkeyWording: Partial<Record<RefusalReason, (param: (key: string) => string) => string>> = {
+  [RefusalReason.PASSKEYS_OFF]: () => "This Hub isn’t set up for passkeys.",
+  [RefusalReason.PASSKEY_NOT_ACCEPTED]: () => "The Hub didn’t accept that passkey.",
+  [RefusalReason.PASSKEY_NAME_LENGTH]: (param) =>
+    `Give it a name of up to ${param("maxLength")} characters.`,
+  [RefusalReason.PASSKEY_NOT_FOUND]: () => "That passkey was removed already.",
+  [RefusalReason.LAST_SIGN_IN_METHOD]: () =>
+    "This passkey is your only way to sign in, so it can’t be removed.",
+};
+
 function refusalOf(error: unknown) {
   return ConnectError.from(error).findDetails(RefusalSchema)[0];
 }

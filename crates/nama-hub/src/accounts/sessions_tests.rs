@@ -11,7 +11,7 @@ use crate::{
 #[sqlx::test(migrations = false)]
 async fn a_session_signed_in_over_10_minutes_ago_cant_set_the_password(db: PgPool) {
     db::migrate(&db).await.unwrap();
-    let accounts = Accounts::new(db.clone(), None);
+    let accounts = Accounts::new(db.clone(), None, None);
     let ip = "203.0.113.1".parse().unwrap();
     let created = accounts
         .create(
@@ -61,7 +61,7 @@ async fn a_session_signed_in_over_10_minutes_ago_cant_set_the_password(db: PgPoo
 #[sqlx::test(migrations = false)]
 async fn a_session_ended_before_its_password_is_saved_cant_set_it(db: PgPool) {
     db::migrate(&db).await.unwrap();
-    let accounts = Accounts::new(db, None);
+    let accounts = Accounts::new(db, None, None);
     let ip = "203.0.113.1".parse().unwrap();
     let created = accounts
         .create(
@@ -102,7 +102,7 @@ async fn a_session_ended_before_its_password_is_saved_cant_set_it(db: PgPool) {
 #[sqlx::test(migrations = false)]
 async fn only_a_session_signed_in_within_10_minutes_deletes_the_account(db: PgPool) {
     db::migrate(&db).await.unwrap();
-    let accounts = Accounts::new(db.clone(), None);
+    let accounts = Accounts::new(db.clone(), None, None);
     let caller = || Caller {
         ip: "203.0.113.1".parse().unwrap(),
         now: Instant::now(),

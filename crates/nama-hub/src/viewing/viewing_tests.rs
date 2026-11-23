@@ -146,7 +146,7 @@ async fn pool_of(db: &PgPool, count: usize) -> (Viewing, Vec<AccountId>) {
     let mut created = Vec::new();
     for n in 0..count {
         // A fresh `Accounts` each, so its per-IP limit on creations never refuses one.
-        let accounts = Accounts::new(db.clone(), None);
+        let accounts = Accounts::new(db.clone(), None, None);
         let caller = Caller {
             ip: "203.0.113.1".parse().unwrap(),
             now: Instant::now(),
@@ -158,7 +158,7 @@ async fn pool_of(db: &PgPool, count: usize) -> (Viewing, Vec<AccountId>) {
         created.push(account.unwrap().account.id);
     }
     let keys = Arc::new(Keys::from_pems(SIGNING_KEY).unwrap());
-    let links = Links::new(db.clone(), Accounts::new(db.clone(), None), keys);
+    let links = Links::new(db.clone(), Accounts::new(db.clone(), None, None), keys);
     (Viewing::new(db.clone(), links), created)
 }
 
@@ -404,7 +404,7 @@ async fn deleting_the_counted_play_takes_its_account_out_of_the_weeks_count(db: 
 #[sqlx::test(migrations = false)]
 async fn deleting_an_account_deletes_its_plays_but_leaves_its_pooled_counts(db: PgPool) {
     let (viewing, mut accounts) = pool_of(&db, 19).await;
-    let leaving = Accounts::new(db.clone(), None);
+    let leaving = Accounts::new(db.clone(), None, None);
     let caller = Caller {
         ip: "203.0.113.2".parse().unwrap(),
         now: Instant::now(),

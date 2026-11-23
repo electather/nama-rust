@@ -217,7 +217,7 @@ pub(super) async fn use_up(
         email: found.email,
     };
     // ADR 0100: whoever created the Account may not own the inbox, so the first proof shuts them
-    // out. Passkeys go too, once Accounts have them.
+    // out, their password, passkeys and sessions all.
     let taken_over = sqlx::query!(
         "UPDATE accounts SET email_proven = true, password_hash = NULL
          WHERE id = $1 AND NOT email_proven",
@@ -228,6 +228,12 @@ pub(super) async fn use_up(
     .rows_affected()
         == 1;
     if taken_over {
+        sqlx::query!(
+            "DELETE FROM account_passkeys WHERE account_id = $1",
+            account.id.0
+        )
+        .execute(&mut *tx)
+        .await?;
         sessions::end_all(&mut tx, account.id).await?;
     }
     if let Some(session) = replacing {

@@ -6,6 +6,7 @@ use std::{fmt, net::SocketAddr};
 use figment::{Figment, providers::Env};
 use nama_forwarded::IpRange;
 use serde::Deserialize;
+use url::Url;
 
 /// Prefix of the environment variables the config is read from, e.g. `NAMA_HUB_LISTEN`.
 const ENV_PREFIX: &str = "NAMA_HUB_";
@@ -33,8 +34,9 @@ pub struct Config {
     /// with Resend. Required with `resend_api_key`.
     pub mail_from: Option<String>,
     /// The Hub's address as people reach it, such as `https://hub.example.com`, which links in
-    /// its mail lead to. Required with `resend_api_key`.
-    pub public_url: Option<String>,
+    /// its mail lead to, and whose host its passkeys are for. Required with `resend_api_key`;
+    /// without it, the Hub offers no passkeys.
+    pub public_url: Option<Url>,
     /// The OTLP/HTTP endpoint the Diagnostics and Usage Analytics Servers share go to, such as
     /// `https://otlp.example.com/otlp` (ADR 0054). Without one, what they share is dropped.
     pub diagnostics_endpoint: Option<String>,
