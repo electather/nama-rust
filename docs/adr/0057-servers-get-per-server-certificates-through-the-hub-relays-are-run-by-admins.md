@@ -10,7 +10,7 @@ People choose Plex over self-hosted servers mostly for easy remote access (#928)
 
 ## Consequences
 
-- The domain has to be on the Public Suffix List before M5 ships. Otherwise every Server is same-site to every other, and `SameSite=Strict` (ADR 0015) stops separating them.
+- The domain is `namadirect.net`. Until it is on the Public Suffix List (#1828), every Server is same-site to every other, so `SameSite=Strict` (ADR 0015) stops separating them. That doesn't block M5: CORS is per origin, so another Server's page still can't send an RPC, and over HTTPS the session cookie is named `__Host-`, which another Server can't set. What stays open until the entry merges is a cookie flood from another Server, which only breaks requests until the cookies are cleared.
 - Some routers block DNS answers that point at private IPs, so plain `http://<lan-ip>` stays the last Server Address.
 - The goal is a Relay that the project runs with a bitrate cap. Because the Relay only ever sees TLS bytes, getting there means throttling and hosting, not changing the design.
 - A Linked Server whose Admin set no Server URL uses its public Hub name as its Server URL, so it can create Invites and Notifier links.

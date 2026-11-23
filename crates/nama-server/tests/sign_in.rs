@@ -343,7 +343,10 @@ fn session_cookie(reply: &Reply) -> (String, Vec<String>) {
     assert_eq!(reply.status, 200, "{}", reply.body);
     let cookie = reply.headers.get("set-cookie").unwrap().to_str().unwrap();
     let mut parts = cookie.split("; ");
-    let token = parts.next().unwrap().strip_prefix("nama_session=").unwrap();
+    let named = parts.next().unwrap();
+    // Over HTTPS the name has the `__Host-` prefix.
+    let named = named.strip_prefix("__Host-").unwrap_or(named);
+    let token = named.strip_prefix("nama_session=").unwrap();
     (token.to_owned(), parts.map(str::to_owned).collect())
 }
 
