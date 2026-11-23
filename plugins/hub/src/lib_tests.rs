@@ -964,6 +964,86 @@ async fn addresses_the_hub_couldnt_take_are_reported_again() {
     assert_eq!(hub.reported_addresses().len(), 1);
 }
 
+/// What the Plugin keeps in `kernel`'s Store of the Server's Link.
+async fn kept_link(kernel: &Arc<dyn Kernel>) -> Option<Vec<u8>> {
+    let key = StoreKey {
+        key: "link".to_owned(),
+        ..Default::default()
+    };
+    kernel.ask::<StoreGet>(key).await.unwrap().value
+}
+
+#[tokio::test]
+async fn a_server_the_hub_dropped_is_unlinked_by_its_next_report() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    let linker = enabled(&hub, &kernel);
+    link(&hub, linker.as_ref()).await;
+    hub.forget_server();
+
+    linker
+        .set_addresses(addresses("", &["http://192.168.1.10:7980"]))
+        .await
+        .unwrap();
+
+    assert_eq!(linker.link().await.unwrap(), Link::NotLinked);
+    assert_eq!(kept_link(&kernel).await, None);
+}
+
+#[tokio::test]
+async fn a_server_the_hub_dropped_is_unlinked_once_a_users_link_is_asked() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    let linker = enabled(&hub, &kernel);
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+    hub.forget_server();
+
+    // Enabled again, as a minute later, it asks the Hub again.
+    let user_link = enabled(&hub, &kernel).user_link(7).await.unwrap();
+
+    assert_eq!(user_link, None);
+    assert_eq!(linker.link().await.unwrap(), Link::NotLinked);
+    assert_eq!(kept_link(&kernel).await, None);
+}
+
+#[tokio::test]
+async fn a_server_the_hub_dropped_links_again_and_so_do_its_users() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+    hub.forget_server();
+    linker
+        .set_addresses(addresses("", &["http://192.168.1.10:7980"]))
+        .await
+        .unwrap();
+
+    link(&hub, linker.as_ref()).await;
+
+    assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
+    link_user(&hub, linker.as_ref(), 7).await;
+}
+
+#[tokio::test]
+async fn a_report_the_hub_doesnt_answer_or_fails_keeps_the_link() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    let linker = enabled(&hub, &kernel);
+    link(&hub, linker.as_ref()).await;
+    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
+    hub.fail_next_addresses();
+    linker.set_addresses(lan_only.clone()).await.unwrap_err();
+    hub.stop();
+
+    linker.set_addresses(lan_only).await.unwrap_err();
+    let user_link = enabled(&hub, &kernel).user_link(7).await.unwrap();
+
+    assert_eq!(user_link, Some(Link::NotLinked));
+    assert!(matches!(linker.link().await.unwrap(), Link::Linked { .. }));
+    assert!(kept_link(&kernel).await.is_some());
+}
+
 #[tokio::test]
 async fn a_pull_sends_the_queue_first_and_answers_the_accounts_watch_state() {
     let hub = FakeHub::start().await;

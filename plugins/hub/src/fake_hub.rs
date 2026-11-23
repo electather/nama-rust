@@ -176,9 +176,12 @@ impl FakeHub {
         lock(&self.state).entered = true;
     }
 
-    /// Forgets the Server's credential, as if it was Unlinked on the Hub's side.
+    /// Forgets the Server's credential and its Users' Links, as deleting its Account does.
     pub(super) fn forget_server(&self) {
-        lock(&self.state).linked = false;
+        let mut state = lock(&self.state);
+        state.linked = false;
+        state.user_codes.clear();
+        state.user_accounts.clear();
     }
 
     /// The User `user_id` enters their code on the Hub, signed in to [`EMAIL`]'s Account.
