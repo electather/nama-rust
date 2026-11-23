@@ -24,6 +24,7 @@ use crate::{
         tests::{Calls, SHARED, handle, insert_user, recorded, set_handle, started},
     },
     library::{MovieOrEpisode, WatchStates},
+    plugins::ExtensionPoints,
 };
 
 const ALL: &[HomeRowMethod] = &[
@@ -252,7 +253,7 @@ async fn grant_reading_watch_states(db: &Database) {
 
 async fn start_a_title(db: &Arc<Database>, user: i64) {
     let alien = MovieOrEpisode::movie(&"tmdb-348".parse().expect("a well-formed id"));
-    (WatchStates::new(Arc::clone(db)).mark(user, vec![alien], true))
+    (WatchStates::new(Arc::clone(db), ExtensionPoints::default()).mark(user, vec![alien], true))
         .await
         .unwrap();
 }

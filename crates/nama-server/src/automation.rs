@@ -480,7 +480,8 @@ impl Caller {
         asked: WatchStatesAsked,
     ) -> Result<WatchStates, KernelRefused> {
         let titles = self.every_id(&asked.titles).await?;
-        let states = (library::WatchStates::new(Arc::clone(&self.automation.db)))
+        let points = self.automation.plugins.extension_points();
+        let states = (library::WatchStates::new(Arc::clone(&self.automation.db), points))
             .of_titles(asked.user_id, &titles)
             .await
             .map_err(|err| self.database_refused("reading the Watch States", &err))?;

@@ -1,14 +1,21 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    future,
+    sync::Arc,
+    task::{Context, Waker},
+    time::Duration,
+};
 
 use nama_plugin_api::{
+    BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Registrar,
     metadata::{ExternalId, ExternalIds},
-    points::WatchStateChange,
+    points::{WatchStateChange, WatchStateChanges, WatchStatesChanged},
 };
+use tokio::sync::mpsc;
 
 use super::{Kind, MovieOrEpisode, Progress, WatchState, WatchStates, Watched};
 use crate::{
     db::{self, Database},
-    plugins::Registry,
+    plugins::{ExtensionPoints, Registry},
     users::{Permissions, User, Users},
 };
 
@@ -17,9 +24,39 @@ const ALIEN_TMDB_ID: i64 = 348;
 /// Watch States on a database in a temp folder, and a User to keep them for.
 async fn watch_states(data: &tempfile::TempDir) -> (WatchStates, i64) {
     let db = Arc::new(Database::open(data.path()).await.unwrap());
-    let watch_states = WatchStates::new(db);
+    let watch_states = WatchStates::new(db, ExtensionPoints::default());
     let user = another_user(&watch_states, "Ada").await;
     (watch_states, user)
+}
+
+/// A Plugin that hands each Watch State change it's told of to the test.
+#[derive(Clone)]
+struct Hears(mpsc::UnboundedSender<WatchStateChanges>);
+
+impl Plugin for Hears {
+    fn manifest(&self) -> Manifest {
+        Manifest {
+            extension_points: vec![PointKey::observe::<WatchStatesChanged>()],
+            ..Manifest::new(PluginId::from_static("hears"))
+        }
+    }
+
+    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
+        registrar.observe::<WatchStatesChanged>(self.clone());
+        Ok(())
+    }
+}
+
+impl Observer<WatchStatesChanged> for Hears {
+    fn observe<'a>(
+        &'a self,
+        event: &'a WatchStateChanges,
+    ) -> BoxFuture<'a, Result<(), PluginError>> {
+        let sent = self.0.send(event.clone());
+        Box::pin(future::ready(
+            sent.map_err(|_unsent| "the test stopped listening".into()),
+        ))
+    }
 }
 
 /// Creates a User called `name` on the database of `watch_states`, and gives their id.
@@ -518,4 +555,29 @@ async fn of_a_titles_pulled_changes_under_several_ids_only_the_newest_is_taken_i
 
         assert_eq!(movie_state(&watch_states, user, alien_id()).await, None);
     }
+}
+
+#[tokio::test]
+async fn a_change_whose_caller_stops_waiting_is_still_stored_and_told() {
+    let data = tempfile::tempdir().unwrap();
+    let (heard, mut hearing) = mpsc::unbounded_channel();
+    let plugins = Registry::new();
+    plugins.enable(Arc::new(Hears(heard))).unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let watch_states = WatchStates::new(db, plugins.extension_points());
+    let user = another_user(&watch_states, "Ada").await;
+
+    // Polled once, which queues the write, then dropped, as when a client hangs up (ADR 0029).
+    let mut marking = Box::pin(watch_states.mark(user, vec![alien()], true));
+    let polled = marking
+        .as_mut()
+        .poll(&mut Context::from_waker(Waker::noop()));
+    assert!(polled.is_pending(), "the mark finished at once");
+    drop(marking);
+    let told = tokio::time::timeout(Duration::from_secs(5), hearing.recv()).await;
+
+    let told = told.expect("no Observer was told").unwrap();
+    assert_eq!((told.user_id, told.changes[0].played), (user, true));
+    let stored = movie_state(&watch_states, user, alien_id()).await;
+    assert!(stored.is_some_and(|state| state.played));
 }

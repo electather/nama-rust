@@ -26,6 +26,7 @@ mod requests;
 mod scanner;
 mod server_addresses;
 mod server_settings;
+mod sync;
 pub mod users;
 mod watchlist;
 #[cfg(feature = "web")]
@@ -186,11 +187,7 @@ pub fn serve(
     let url_saves = settings.url_saves();
     // `listen` differs from the bound address only when it asks for port 0.
     let listening = listener.local_addr().unwrap_or(config.listen);
-    let (sync_browse, sync_db, sync_users) = (
-        browse::Browse::new(Arc::clone(&db)),
-        Arc::clone(&db),
-        users.clone(),
-    );
+    let syncing = sync::Syncing::new(Arc::clone(&db), plugins.extension_points(), users.clone());
     let forwarded_port = config.forwarded_port;
     let load_settings = load_settings(
         settings.clone(),
@@ -220,6 +217,7 @@ pub fn serve(
         abilities.clone(),
         preview_frames.clone(),
         browser_spans.clone(),
+        syncing.clone(),
         setup_code,
         ffmpeg,
     );
@@ -232,13 +230,7 @@ pub fn serve(
         load_settings.await;
         fill_sort_titles(&contents).await;
         // Before the scans start, so it sees their Matching finish.
-        let syncing = api::sync_after_scans(
-            &events,
-            plugins.extension_points(),
-            sync_browse,
-            sync_db,
-            sync_users,
-        );
+        let syncing = syncing.follow_scans(&events);
         scanner.start_all().await;
         preview_frames.start();
         text_passes.start();

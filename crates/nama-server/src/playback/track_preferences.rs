@@ -12,14 +12,18 @@ use std::sync::Arc;
 use isolang::Language;
 use nama_plugin_api::{
     metadata::ExternalIds,
-    points::{TrackDescription, TrackPreference, TrackPreferenceFor},
+    points::{
+        TrackDescription, TrackPreference, TrackPreferenceChange, TrackPreferenceChanged,
+        TrackPreferenceFor,
+    },
 };
 use sqlx::SqliteConnection;
 
 use super::tracks::Track;
 use crate::{
-    db::{Database, now_ms},
+    db::{Database, detached, now_ms},
     library::{Contents, MatchedTo},
+    plugins::ExtensionPoints,
 };
 
 // The `kind` of a Preference, part of its key.
@@ -35,6 +39,8 @@ const MOVIE: &str = "movie";
 pub(crate) struct TrackPreferences {
     db: Arc<Database>,
     contents: Contents,
+    /// Told of each Preference kept, such as the Hub Plugin's, which syncs them (ADR 0092).
+    points: ExtensionPoints,
 }
 
 /// What a User wants subtitles to start as.
@@ -206,10 +212,11 @@ pub(crate) enum Error {
 }
 
 impl TrackPreferences {
-    pub(crate) fn new(db: Arc<Database>) -> Self {
+    pub(crate) fn new(db: Arc<Database>, points: ExtensionPoints) -> Self {
         Self {
             contents: Contents::new(Arc::clone(&db)),
             db,
+            points,
         }
     }
 
@@ -320,8 +327,10 @@ impl TrackPreferences {
     }
 
     /// Keeps a Track like `like`, or `None` for off, as the User `user`'s `kind` Preference for
-    /// `kept_for`, wanting it only over audio in another language if `foreign_audio_only`, and
-    /// returns the change. `None` for the User's own audio forgets it, as audio is never off.
+    /// `kept_for`, wanting it only over audio in another language if `foreign_audio_only`, tells
+    /// `TrackPreferenceChanged` Observers, and returns the change. `None` for the User's own audio
+    /// forgets it, as audio is never off. They're told in a task of its own, so even if the caller
+    /// stops waiting once the write is sent (ADR 0029).
     #[expect(
         clippy::too_many_arguments,
         reason = "the row's key and columns, each set by a different public `keep_*`"
@@ -341,14 +350,16 @@ impl TrackPreferences {
             foreign_audio_only,
             changed_at: now_ms(),
         };
-        self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    write(tx, user, &change, Overwrite::Always).await?;
-                    Ok::<_, sqlx::Error>(change.told())
-                })
-            })
-            .await
+        let (db, points) = (Arc::clone(&self.db), self.points.clone());
+        detached(async move {
+            let preference = (db.write(move |tx| Box::pin(keep_change(tx, user, change)))).await?;
+            points.notify::<TrackPreferenceChanged>(TrackPreferenceChange {
+                user_id: user,
+                preference: preference.clone(),
+            });
+            Ok(preference)
+        })
+        .await
     }
 
     /// Takes each of `pulled`, the User `user`'s Preferences as their other Servers left them,
@@ -477,6 +488,17 @@ enum Overwrite {
 }
 
 /// Writes each of `changes`, pulled, to the User `user`'s `track_preferences` through `conn`.
+/// Writes `change` of the User `user`'s Preferences over whatever they had, and returns it as
+/// Observers are told of it.
+async fn keep_change(
+    conn: &mut SqliteConnection,
+    user: i64,
+    change: Change,
+) -> Result<TrackPreference, sqlx::Error> {
+    write(conn, user, &change, Overwrite::Always).await?;
+    Ok(change.told())
+}
+
 async fn take_each(
     conn: &mut SqliteConnection,
     user: i64,
