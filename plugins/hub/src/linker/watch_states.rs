@@ -3,41 +3,47 @@
 //! while the Hub is unreachable go once it is back. The Kernel pulls their Account's back. A User
 //! whose Link the Plugin never learned has nothing queued until the Hub can be asked.
 
-use std::sync::Arc;
+use std::{hash::Hash, sync::Arc};
 
 use nama_hub_proto::nama::hub::v1::WatchStateChange as Change;
 use nama_plugin_api::{
     BoxFuture, Observer, PluginError,
-    automation::functions::StoreDelete,
+    automation::Kernel,
     job::Job,
     points::{WatchStateChange, WatchStateChanges, WatchStatesChanged},
     server_link::Link,
 };
-use serde::{Deserialize, Serialize};
 
-use super::{Linker, store_key};
+use super::{
+    Linker,
+    queue::{Queue, Queued},
+};
+use crate::hub::{Hub, limits};
 
 /// The id of the Job that sends the queue.
 pub(super) const SYNC: &str = "sync";
 
-/// The Store key of the [`Queue`].
-const QUEUE_KEY: &str = "watch-state-queue";
+impl Queued for Change {
+    // An older Hub Plugin's pages carry over: it kept them under the same keys, as the same JSON.
+    const STORE_KEY: &'static str = "watch-state-queue";
+    const PER_CALL: usize = limits::PUSH_CHANGES;
 
-/// The most changes a page of the queue holds, and so one push.
-// ponytail: counted, not measured, so a page stays under the Store's 64 KiB a value only while a
-// title has about 6 short ids, as Servers' Matches do; measure a page's bytes if that changes.
-const PAGE_CHANGES: usize = 100;
+    fn key(&self) -> impl Eq + Hash + '_ {
+        (self.user_id, self.episode, &self.ids)
+    }
 
-/// The most ids a change sends, and the most characters each may have, as the Hub takes them: past
-/// either it would refuse the page, which would hold back every later one.
-const MAX_IDS: usize = 20;
-pub(super) const MAX_ID_LENGTH: usize = 100;
+    fn changed_at_ms(&self) -> i64 {
+        self.changed_at_ms
+    }
+}
 
-/// Which pages of queued changes the Store keeps: `first..next`, oldest first.
-#[derive(Default, Serialize, Deserialize)]
-struct Queue {
-    first: u64,
-    next: u64,
+/// The queue of Watch State changes in `kernel`'s Store, which pushes them to `hub`.
+pub(super) fn queue(hub: &Hub, kernel: Arc<dyn Kernel>) -> Queue<Change> {
+    let hub = hub.clone();
+    Queue::new(kernel, move |credential, page| {
+        let hub = hub.clone();
+        Box::pin(async move { hub.push_watch_states(&credential, page).await })
+    })
 }
 
 /// The Sync Job, which the Kernel runs every minute.
@@ -73,97 +79,31 @@ impl Linker {
         let Some(Link::Linked { .. }) = self.current_user_link(changed.user_id).await? else {
             return Ok(());
         };
-        let _queue = self.queue.lock().await;
-        let mut queue: Queue = self.stored_json(QUEUE_KEY).await?.unwrap_or_default();
-        // The last page fills up before another starts.
-        let mut page = if queue.first < queue.next {
-            queue.next -= 1;
-            self.page(queue.next).await?
-        } else {
-            Vec::new()
-        };
-        for change in &changed.changes {
-            if let Some(change) = change_to_proto(changed.user_id, change) {
-                enqueue(&mut page, change);
-            }
-        }
-        for chunk in page.chunks(PAGE_CHANGES) {
-            self.put_json(page_key(queue.next), &chunk).await?;
-            queue.next += 1;
-        }
-        self.put_json(QUEUE_KEY.to_owned(), &queue).await
-    }
-
-    /// Sends the queue to the Hub, a page per push, forgetting each page the Hub took. Without the
-    /// Server's Link, the queue has nowhere to go, and is forgotten.
-    pub(super) async fn send_queued(&self) -> Result<(), PluginError> {
-        let _queue = self.queue.lock().await;
-        let Some(mut queue) = self.stored_json::<Queue>(QUEUE_KEY).await? else {
-            return Ok(());
-        };
-        let kept = self.kept().await?;
-        while queue.first < queue.next {
-            if let Some(kept) = &kept {
-                let page = self.page(queue.first).await?;
-                self.hub.push_watch_states(&kept.credential, page).await?;
-            }
-            self.kernel
-                .ask::<StoreDelete>(store_key(&page_key(queue.first)))
-                .await?;
-            queue.first += 1;
-            self.put_json(QUEUE_KEY.to_owned(), &queue).await?;
-        }
-        Ok(())
+        let to_send = (changed.changes.iter())
+            .filter_map(|change| change_to_proto(changed.user_id, change))
+            .collect();
+        self.watch_states.add(to_send).await
     }
 
     /// The Watch State of the Account `user_id` is Linked to, once the Hub has every change queued
-    /// here, so what it answers is never older than this Server's own; empty without the Server's
-    /// Link.
+    /// here; empty without the Server's Link.
     pub(super) async fn pull(&self, user_id: i64) -> Result<Vec<WatchStateChange>, PluginError> {
-        self.send_queued().await?;
-        let Some(kept) = self.kept().await? else {
-            return Ok(Vec::new());
-        };
-        let pulled = self
-            .hub
-            .pull_watch_states(&kept.credential, user_id)
+        let pulled = (self.watch_states)
+            .pull(async |credential| self.hub.pull_watch_states(credential, user_id).await)
             .await?;
         Ok(pulled.into_iter().map(change_from_proto).collect())
     }
-
-    /// The changes queued in page `nth`.
-    async fn page(&self, nth: u64) -> Result<Vec<Change>, PluginError> {
-        Ok(self.stored_json(&page_key(nth)).await?.unwrap_or_default())
-    }
 }
 
-/// Adds `change` to `page`, in place of a queued change of the same User and title, which it
-/// supersedes: only the latest of a title's changes needs to reach the Hub. One made before a
-/// change queued already, as when two writes are told out of order, is dropped.
-fn enqueue(page: &mut Vec<Change>, change: Change) {
-    let same_title = |queued: &Change| {
-        (queued.user_id, queued.episode, &queued.ids)
-            == (change.user_id, change.episode, &change.ids)
-    };
-    if (page.iter()).any(|queued| same_title(queued) && queued.changed_at_ms > change.changed_at_ms)
-    {
-        return;
-    }
-    page.retain(|queued| !same_title(queued));
-    page.push(change);
-}
-
-/// The User `user_id`'s `change`, as the Hub takes it, or `None` if none of its ids fits.
+/// The User `user_id`'s `change`, as the Hub takes it, or `None` if none of its ids fits or the
+/// Hub wouldn't take when it was made.
 fn change_to_proto(user_id: i64, change: &WatchStateChange) -> Option<Change> {
-    let fits = |id: &&String| id.chars().count() <= MAX_ID_LENGTH;
-    let ids: Vec<_> = change
-        .ids
-        .iter()
-        .filter(fits)
-        .take(MAX_IDS)
+    let ids: Vec<_> = (change.ids.iter())
+        .filter(|id| limits::takes_external_id(id))
+        .take(limits::WATCH_STATE_IDS)
         .cloned()
         .collect();
-    (!ids.is_empty()).then(|| Change {
+    (!ids.is_empty() && limits::takes_changed_at(change.changed_at_ms)).then(|| Change {
         user_id,
         episode: change.episode,
         ids,
@@ -185,9 +125,4 @@ fn change_from_proto(change: Change) -> WatchStateChange {
         duration_ms: change.duration_ms,
         changed_at_ms: change.changed_at_ms,
     }
-}
-
-/// The Store key of the queue's page `nth`.
-fn page_key(nth: u64) -> String {
-    format!("{QUEUE_KEY}/{nth}")
 }

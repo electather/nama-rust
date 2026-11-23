@@ -4,9 +4,10 @@
 //! in `users.rs`, syncing their Watch State both ways in `watch_states.rs`, their Subtitle and
 //! Audio Preferences in `track_preferences.rs`, and their Watchlists in `watchlist.rs`, their plays
 //! as Viewing Events in `viewing.rs`, and signing in with an Account, and Users created from one,
-//! in `accounts.rs`.
+//! in `accounts.rs`. What goes to the Hub waits in a queue per kind, in `queue.rs`.
 
 mod accounts;
+pub(crate) mod queue;
 mod track_preferences;
 mod users;
 mod viewing;
@@ -20,6 +21,9 @@ use std::{
 };
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use nama_hub_proto::nama::hub::v1::{
+    TrackPreferenceChange as TrackPreferenceChangeProto, WatchStateChange as WatchStateChangeProto,
+};
 use nama_plugin_api::{
     BoxFuture, PluginError,
     automation::{
@@ -35,13 +39,15 @@ use nama_plugin_api::{
     },
 };
 use ring::digest;
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use crate::{
     hub::{Hub, LinkDropped, Polling},
     token::{self, Claims, Rejected},
 };
+
+use self::queue::Queue;
 
 pub(crate) use self::{
     track_preferences::TrackPreferenceSync,
@@ -62,8 +68,8 @@ impl JobRunner for Jobs {
             match run.job_id.as_str() {
                 watch_states::SYNC => {
                     // Each queue apart, so one the Hub refuses holds back only its own.
-                    let watch_states = self.linker.send_queued().await;
-                    let preferences = self.linker.send_queued_preferences().await;
+                    let watch_states = self.linker.watch_states.send().await;
+                    let preferences = self.linker.preferences.send().await;
                     watch_states.and(preferences)
                 }
                 viewing::SEND_JOB => self.viewing.send().await,
@@ -139,9 +145,8 @@ pub(crate) struct Linker {
     waiting: Mutex<Option<Waiting>>,
     /// What the Plugin knows of each User's Link but what it keeps in the Store.
     users: std::sync::Mutex<HashMap<i64, users::UserState>>,
-    /// Held while a queue of Watch State or Track Preference changes is read and written, so none
-    /// is lost.
-    queue: Mutex<()>,
+    watch_states: Queue<WatchStateChangeProto>,
+    preferences: Queue<TrackPreferenceChangeProto>,
     /// Held across telling the Hub, so a report never overtakes another.
     reported: Mutex<Option<Reported>>,
     /// What the Hub found of the Server's public port, with the [`Kept::id`] of the Link it found
@@ -152,11 +157,12 @@ pub(crate) struct Linker {
 impl Linker {
     pub(crate) fn new(hub: Hub, kernel: Arc<dyn Kernel>) -> Self {
         Self {
+            watch_states: watch_states::queue(&hub, Arc::clone(&kernel)),
+            preferences: track_preferences::queue(&hub, Arc::clone(&kernel)),
             hub,
             kernel,
             waiting: Mutex::default(),
             users: std::sync::Mutex::default(),
-            queue: Mutex::default(),
             reported: Mutex::default(),
             reachability: std::sync::Mutex::default(),
         }
@@ -383,24 +389,6 @@ impl Linker {
 
     async fn stored(&self, key: &str) -> Result<Option<Vec<u8>>, PluginError> {
         Ok(self.kernel.ask::<StoreGet>(store_key(key)).await?.value)
-    }
-
-    async fn stored_json<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>, PluginError> {
-        let Some(stored) = self.stored(key).await? else {
-            return Ok(None);
-        };
-        Ok(Some(serde_json::from_slice(&stored)?))
-    }
-
-    async fn put_json(&self, key: String, value: &impl Serialize) -> Result<(), PluginError> {
-        self.kernel
-            .ask::<StorePut>(StoreEntry {
-                key,
-                value: serde_json::to_vec(value)?,
-                ..Default::default()
-            })
-            .await?;
-        Ok(())
     }
 }
 

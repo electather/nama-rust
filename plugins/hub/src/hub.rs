@@ -1,4 +1,7 @@
-//! Talking to the Hub: its API (`proto/nama/hub/v1/`) and its published key set.
+//! Talking to the Hub: its API (`proto/nama/hub/v1/`) and its published key set. What its API
+//! accepts is in `limits.rs`.
+
+pub(crate) mod limits;
 
 use std::{error::Error, fmt, net::Ipv4Addr, sync::Arc, time::Duration};
 
@@ -26,8 +29,8 @@ use nama_hub_proto::nama::hub::v1::{
     RecordViewingEventsRequest, ServerLinkServiceClient, SetServerAddressesRequest,
     StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
     StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
-    TrackPreferenceChange, UnlinkServerRequest, UnlinkUserRequest, WatchStateChange,
-    WatchlistEntry,
+    TrackPreferenceChange, UnlinkServerRequest, UnlinkUserRequest, UserViewingEvent,
+    WatchStateChange, WatchlistEntry,
 };
 use nama_plugin_api::{
     PluginError,
@@ -187,21 +190,19 @@ impl Hub {
     }
 
     /// Pushes `changes` to the Watch State of the Accounts the Users of the Server whose credential
-    /// is `credential` are Linked to, in order. A Server the Hub doesn't know any more, such as one
-    /// whose Account was deleted, has no Linked Users to push to, so that counts as done.
+    /// is `credential` are Linked to, in order.
     pub(crate) async fn push_watch_states(
         &self,
         credential: &str,
         changes: Vec<WatchStateChange>,
     ) -> Result<(), PluginError> {
-        let pushed = self
-            .linked_server(credential)?
+        self.linked_server(credential)?
             .push_watch_states(PushWatchStatesRequest {
                 changes,
                 ..Default::default()
             })
-            .await;
-        done_if_forgotten(pushed.map(drop))
+            .await?;
+        Ok(())
     }
 
     /// The Watch State of the Account the User `user_id` of the Server whose credential is
@@ -321,28 +322,19 @@ impl Hub {
         )
     }
 
-    /// Records `events`, Viewing Events of the Server whose credential is `credential`. A refusal
-    /// sending them again would meet too, the Hub not knowing the credential or finding an event
-    /// invalid, counts as done, so they aren't kept forever.
+    /// Records `events`, Viewing Events of the Server whose credential is `credential`.
     pub(crate) async fn record_viewing_events(
         &self,
         credential: &str,
-        events: RecordViewingEventsRequest,
+        events: Vec<UserViewingEvent>,
     ) -> Result<(), PluginError> {
-        let recorded = (self.linked_server(credential)?)
-            .record_viewing_events(events)
-            .await;
-        match recorded {
-            Err(err)
-                if !matches!(
-                    err.code,
-                    connectrpc::ErrorCode::Unauthenticated | connectrpc::ErrorCode::InvalidArgument
-                ) =>
-            {
-                Err(err.into())
-            }
-            _ => Ok(()),
-        }
+        (self.linked_server(credential)?)
+            .record_viewing_events(RecordViewingEventsRequest {
+                events,
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
     }
 
     /// Starts a sign-in with an Account to the Server whose credential is `credential`, which the

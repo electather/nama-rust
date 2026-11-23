@@ -46,9 +46,10 @@ use super::*;
 use crate::fake_hub::{
     EMAIL, FakeHub, OPEN_PORT, PUBLIC_IP, SIGN_IN_ID, USER_CODE, USER_LINK_CODE,
 };
+use crate::linker::queue::MAX_VALUE_BYTES;
 
 /// A Kernel whose only functions are the Plugin's Store, kept in memory.
-fn store() -> Arc<dyn Kernel> {
+pub(crate) fn store() -> Arc<dyn Kernel> {
     let entries: Arc<Mutex<HashMap<String, Vec<u8>>>> = Arc::default();
     Arc::new(
         move |function: &str,
@@ -64,6 +65,10 @@ fn store() -> Arc<dyn Kernel> {
                 .encode_to_vec()
             } else if function == StorePut::NAME {
                 let entry = StoreEntry::decode_from_slice(&request).unwrap();
+                if entry.value.len() > MAX_VALUE_BYTES {
+                    let refused = KernelRefused(format!("{} is over 64 KiB", entry.key));
+                    return Box::pin(future::ready(Err(refused)));
+                }
                 entries.insert(entry.key, entry.value);
                 Stored::default().encode_to_vec()
             } else if function == StoreDelete::NAME {
@@ -912,6 +917,32 @@ async fn preferences_changed_while_the_hub_is_down_reach_it_once_back_the_latest
 }
 
 #[tokio::test]
+async fn more_preferences_than_one_store_value_holds_told_while_the_hub_is_down_all_reach_it() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs, _) = syncing_preferences_of_user_7(&hub).await;
+    let movie = |id: usize| TrackPreferenceFor::Movie(vec![format!("tmdb-{id}")]);
+    hub.set_down(true);
+
+    for id in 1..=600 {
+        let mut change = subtitles_in(7, movie(id), "eng", 1_000);
+        change.preference.like = Some(TrackDescription {
+            language: Some("eng".to_owned()),
+            title: Some("English, the full commentary track".repeat(5)),
+            ..TrackDescription::default()
+        });
+        observer.observe(&change).await.unwrap();
+    }
+    hub.set_down(false);
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    let pushed = pushed_preferences(&hub);
+    assert!(pushed.iter().all(|push| push.len() <= 500));
+    let ids: Vec<_> = (pushed.into_iter().flatten()).map(|(id, _)| id).collect();
+    let expected: Vec<_> = (1..=600).map(|id| format!("tmdb-{id}")).collect();
+    assert_eq!(ids, expected);
+}
+
+#[tokio::test]
 async fn a_pull_sends_the_queued_preferences_first_and_answers_them_under_each_id_as_descriptions()
 {
     let hub = FakeHub::start().await;
@@ -1128,7 +1159,7 @@ async fn changes_dont_ask_the_hub_again_about_a_user_it_was_just_asked_about() {
 async fn a_write_of_many_changes_is_pushed_a_page_at_a_time_in_order() {
     let hub = FakeHub::start().await;
     let (observer, jobs, _) = syncing_user_7(&hub).await;
-    let changes: Vec<_> = (1..=250).map(|id| movie_at(id, 1000, 1_000)).collect();
+    let changes: Vec<_> = (1..=1200).map(|id| movie_at(id, 1000, 1_000)).collect();
 
     tell(observer.as_ref(), 7, changes).await;
     run_sync(jobs.as_ref()).await.unwrap();
@@ -1138,8 +1169,8 @@ async fn a_write_of_many_changes_is_pushed_a_page_at_a_time_in_order() {
     let ids: Vec<_> = (pushes.into_iter().flatten())
         .map(|change| change.ids[0].clone())
         .collect();
-    let expected: Vec<_> = (1..=250).map(|id| format!("tmdb-{id}")).collect();
-    assert_eq!(sizes, [100, 100, 50]);
+    let expected: Vec<_> = (1..=1200).map(|id| format!("tmdb-{id}")).collect();
+    assert_eq!(sizes, [500, 500, 200]);
     assert_eq!(ids, expected);
 }
 
@@ -1147,7 +1178,7 @@ async fn a_write_of_many_changes_is_pushed_a_page_at_a_time_in_order() {
 async fn a_history_told_on_linking_is_pushed_whole_in_pages_behind_a_newer_change_queued() {
     let hub = FakeHub::start().await;
     let (observer, jobs, _) = syncing_user_7(&hub).await;
-    let history: Vec<_> = (1..=250).map(|id| movie_at(id, 1000, 1_000)).collect();
+    let history: Vec<_> = (1..=1200).map(|id| movie_at(id, 1000, 1_000)).collect();
 
     tell(observer.as_ref(), 7, vec![movie_at(1, 3000, 5_000)]).await;
     tell(observer.as_ref(), 7, history).await;
@@ -1155,10 +1186,29 @@ async fn a_history_told_on_linking_is_pushed_whole_in_pages_behind_a_newer_chang
 
     let pushes = pushed(&hub);
     let sizes: Vec<_> = pushes.iter().map(Vec::len).collect();
-    assert_eq!(sizes, [100, 100, 50]);
+    assert_eq!(sizes, [500, 500, 200]);
     let mut expected = vec![("tmdb-1".to_owned(), 3000, 5_000)];
-    expected.extend((2..=250).map(|id| (format!("tmdb-{id}"), 1000, 1_000)));
+    expected.extend((2..=1200).map(|id| (format!("tmdb-{id}"), 1000, 1_000)));
     assert_eq!(pushes.concat(), expected);
+}
+
+#[tokio::test]
+async fn two_whole_pushes_of_a_users_watch_state_while_the_hub_is_down_send_each_title_once() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs, _) = syncing_user_7(&hub).await;
+    // More titles than one push takes, so the queue holds more than one page.
+    let whole = || (1..=600).map(|id| movie_at(id, 1000, 1_000)).collect();
+    hub.set_down(true);
+
+    tell(observer.as_ref(), 7, whole()).await;
+    tell(observer.as_ref(), 7, whole()).await;
+    hub.set_down(false);
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    let expected: Vec<_> = (1..=600)
+        .map(|id| (format!("tmdb-{id}"), 1000, 1_000))
+        .collect();
+    assert_eq!(pushed(&hub).concat(), expected);
 }
 
 #[tokio::test]
