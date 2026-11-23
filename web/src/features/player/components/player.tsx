@@ -14,12 +14,13 @@ import { playerOpened } from "@/shared/lib/diagnostics";
  */
 export function Player(props: PlayerProps) {
   useEffect(playerOpened, []);
-  // Above the component owning `usePlaybackPlan`'s state: a later plan then suspends it mounted, and
-  // React keeps the Tracks and Playback Limit it asked for. Keyed, so another Version starts afresh.
   const playing = props.heading === undefined ? props.title : `${props.heading}: ${props.title}`;
   return (
     <>
       <PageTitle name={`Playing ${playing}`} />
+      {/* Above the component owning `usePlaybackPlan`'s state: a later plan then suspends it
+          mounted, and React keeps the Tracks and Playback Limit it asked for. Keyed, so another
+          Version starts afresh. */}
       <Suspense fallback={<GettingReady {...props} />}>
         <PlannedPlayer
           key={String(props.versionId)}
