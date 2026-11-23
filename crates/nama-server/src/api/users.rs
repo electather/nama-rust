@@ -590,7 +590,7 @@ impl UserService for UserServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, UnlinkUserRequest>,
     ) -> ServiceResult<UnlinkUserResponse> {
-        server_link::unlink_user(&self.points, &caller(&ctx)?.user).await
+        server_link::unlink_user(&self.points, &self.users, &caller(&ctx)?.user).await
     }
 }
 

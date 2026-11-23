@@ -25,7 +25,7 @@ use nama_proto::nama::v1::{
 use tokio::{sync::broadcast::error::RecvError, task::JoinHandle};
 use tracing::Instrument;
 
-use super::refuse;
+use super::{database_failed, refuse};
 use crate::{
     browse::Browse,
     db::Database,
@@ -153,11 +153,26 @@ pub(super) async fn start_user(
     })
 }
 
-/// Unlinks `user`.
+/// Unlinks `user`, unless their Link is their only way in, as for a User created from an Account:
+/// the service may still Unlink them, and an Admin's `ResetPassword` gets them back in.
 pub(super) async fn unlink_user(
     points: &ExtensionPoints,
+    users: &Users,
     user: &User,
 ) -> ServiceResult<UnlinkUserResponse> {
+    let without = users
+        .without_sign_in_method()
+        .await
+        .map_err(database_failed)?;
+    // ADR 0014: a User always keeps a way in, and a Link isn't a Sign-in Method.
+    if without.contains(&user.id) {
+        return Err(refuse(
+            RefusalReason::REFUSAL_REASON_NO_SIGN_IN_METHOD,
+            "you sign in only with your Account, so Unlinking it would leave you no way in; \
+             ask an Admin to give you a password first",
+        )
+        .into());
+    }
     ask(points, async |linker| linker.unlink_user(user.id).await)
         .await?
         .ok_or_else(no_linker)?;

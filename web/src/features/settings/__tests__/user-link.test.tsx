@@ -2,7 +2,9 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
+import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { fakeServer, newUser } from "@/test-app";
+import { refused } from "@/test-refusal";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -60,6 +62,23 @@ test("a Linked User names their Account, and Unlinking says they aren't Linked",
   fireEvent.click(screen.getByRole("button", { name: "Unlink" }));
 
   await expect(screen.findByText("Not Linked")).resolves.toBeDefined();
+});
+
+test("a User whose Account is their only way in is told why they can't Unlink", async () => {
+  openSignin({
+    getUserLink: () => ({ link: { account: "grace@example.com" } }),
+    unlinkUser: () => {
+      throw refused(Code.FailedPrecondition, "you sign in only with your Account", {
+        reason: RefusalReason.NO_SIGN_IN_METHOD,
+      });
+    },
+  });
+
+  fireEvent.click(await screen.findByRole("button", { name: "Unlink" }));
+
+  const said = await screen.findByText(/Ask an Admin to give you a password first\./u);
+  expect(said.getAttribute("role")).toBe("alert");
+  expect(screen.getByText("grace@example.com")).toBeDefined();
 });
 
 test("a Hub the Server can't reach is said, and the User stays as they were", async () => {

@@ -487,6 +487,27 @@ async fn a_user_with_no_password_whose_account_unlinked_them_is_listed_as_unable
 }
 
 #[tokio::test]
+async fn a_user_who_signs_in_only_with_their_account_cant_unlink_from_it() {
+    let linker = Scripted::default();
+    let server = linked_server(&linker).await;
+    let grace = create_from_account(&server, "Grace").await.unwrap();
+    let started = start_account_sign_in(&server, ON_SERVER).await.unwrap();
+    linker.script().approved = Some(grace);
+    let signed_in = sign_in_with_account(&server, &started.handle, "code")
+        .await
+        .unwrap();
+
+    assert_refused(
+        users(server.client_config_as(&signed_in.token))
+            .unlink_user(UnlinkUserRequest::default())
+            .await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_NO_SIGN_IN_METHOD,
+    );
+    assert_eq!(linker.script().unlinked_users, Vec::<i64>::new());
+}
+
+#[tokio::test]
 async fn the_last_admin_who_signs_in_with_a_password_cant_be_demoted_or_deleted() {
     let linker = Scripted::default();
     let server = linked_server(&linker).await;

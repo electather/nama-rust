@@ -2197,7 +2197,8 @@ pub trait UserService: Send + Sync + 'static {
     > + Send;
     /// Unlinks the caller from their Account, or stops showing their code. Unlinking a User who isn't
     /// Linked does nothing. Fails like `StartUserLink`; the caller stays Linked if the Hub couldn't be
-    /// told.
+    /// told. Fails with `REFUSAL_REASON_NO_SIGN_IN_METHOD` for a caller with no Sign-in Method, such
+    /// as a User created from an Account, whose Link is their only way in (ADR 0014).
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
