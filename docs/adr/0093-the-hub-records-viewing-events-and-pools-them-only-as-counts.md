@@ -16,3 +16,4 @@ Each Account's Viewing Events are stored under that Account and feed its own rec
 - Turning pooling off stops new counts. Past counts can't be taken back out because they can't be traced to the Account, and the opt-out says so.
 - Viewing Events are kept as long as their Account exists. An Account can see them, delete any one of them, which recomputes its taste vector, and export them all.
 - Deleting an Account deletes its Viewing Events, Watch State and Watchlist from the Hub. Pooled counts stay.
+- Charts of Watchlists, such as the most watchlisted, follow the same rules: the Hub counts the Watchlists it syncs (ADR 0056) as it reads them, uses a title once *k* Accounts have it on theirs, and leaves out an Account that turned pooling off, so turning it off takes its Watchlist back out.

@@ -64,7 +64,7 @@ pub(crate) fn router(
     let viewing = Viewing::new(db.clone(), links.clone());
     let watch_states = WatchStates::new(db.clone(), links.clone());
     let track_preferences = TrackPreferences::new(db.clone(), links.clone());
-    let watchlists = Watchlists::new(db.clone(), links.clone());
+    let watchlists = Watchlists::new(db.clone(), links.clone(), viewing.clone());
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(HubServiceHandler {
             db: db.clone(),

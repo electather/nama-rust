@@ -7,13 +7,14 @@
 //! (ADR 0093), and the Hub lists the Server, with its Server Addresses, to every Account it has a
 //! User on.
 //! Once Linked, it is also a Similar source answering the titles the Hub finds alike (ADR 0084,
-//! 0095), and shares a Home row of the Movies trending across Nama's Accounts (ADR 0058, 0093).
+//! 0095), and shares Home rows of the Movies trending and the titles most watchlisted across
+//! Nama's Accounts (ADR 0058, 0093).
 
+mod charts;
 mod hub;
 mod linker;
 mod similar;
 mod token;
-mod trending;
 
 use std::{env, sync::Arc};
 
@@ -29,12 +30,12 @@ use nama_plugin_api::{
 };
 
 use crate::{
+    charts::Charts,
     hub::Hub as HubApi,
     linker::{
         Jobs, Linker, TrackPreferenceSync, ViewingEvents, WatchStateSync, send_job, sync_job,
     },
     similar::Similar,
-    trending::Trending,
 };
 
 /// The variable naming the Hub's address, such as `https://hub.example`.
@@ -80,8 +81,8 @@ impl Plugin for Hub {
                           Linked Users' Watch State, Subtitle and Audio Preferences and \
                           Watchlists there and sends it what they play, sends it the Diagnostics \
                           and Usage Analytics you share in Settings, adds the titles the Hub \
-                          finds alike to Similar titles, and shows a Trending on Nama row on \
-                          home."
+                          finds alike to Similar titles, and shows Trending on Nama and Most \
+                          watchlisted on Nama rows on home."
                 .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_markdown: "Enable it, then Link the Server under Settings, Server. The Server \
@@ -100,7 +101,9 @@ impl Plugin for Hub {
                              played, how far, and on what kind of Device. \
                              Home's Trending on Nama row shows the Movies on the Server most \
                              Accounts finished this week and last, once at least 20 did, so it \
-                             stays hidden until enough have."
+                             stays hidden until enough have. Most watchlisted on Nama shows the \
+                             Movies and Shows on most Accounts' Watchlists, once at least 20 \
+                             Accounts have each, and offers those the Server lacks as Requests."
                 .to_owned(),
             extension_points: vec![
                 PointKey::provide::<dyn ServerLinker>(),
@@ -134,8 +137,8 @@ impl Plugin for Hub {
         let hub = HubApi::new(url)?;
         let similar: Arc<dyn SimilarSource> =
             Arc::new(Similar::new(hub.clone(), Arc::clone(&kernel)));
-        let trending: Arc<dyn HomeRowSource> =
-            Arc::new(Trending::new(hub.clone(), Arc::clone(&kernel)));
+        let charts: Arc<dyn HomeRowSource> =
+            Arc::new(Charts::new(hub.clone(), Arc::clone(&kernel)));
         let linker = Arc::new(Linker::new(hub, kernel));
         let viewing = ViewingEvents::new(Arc::clone(&linker));
         let sharer: Arc<dyn DiagnosticsSharer> = Arc::<Linker>::clone(&linker);
@@ -147,7 +150,7 @@ impl Plugin for Hub {
         let jobs: Arc<dyn JobRunner> = Arc::new(Jobs { linker, viewing });
         registrar.provide::<dyn JobRunner>(Priority::DEFAULT, jobs);
         registrar.provide::<dyn SimilarSource>(Priority::DEFAULT, similar);
-        registrar.provide::<dyn HomeRowSource>(Priority::DEFAULT, trending);
+        registrar.provide::<dyn HomeRowSource>(Priority::DEFAULT, charts);
         Ok(())
     }
 }

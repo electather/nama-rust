@@ -17,7 +17,8 @@ use hyper_util::{
     rt::TokioExecutor,
 };
 use nama_hub_proto::nama::hub::v1::{
-    GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient, ListSimilarTitlesRequest,
+    GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient,
+    ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse, ListSimilarTitlesRequest,
     ListSimilarTitlesResponse, ListTrendingTitlesRequest, ListTrendingTitlesResponse,
     PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
     PullTrackPreferencesRequest, PullWatchStatesRequest, PushTrackPreferencesRequest,
@@ -447,6 +448,24 @@ impl Hub {
             Ok(trending) => Ok(trending.into_owned()),
             Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => {
                 Ok(ListTrendingTitlesResponse::default())
+            }
+            Err(err) => Err(err.into()),
+        }
+    }
+
+    /// The titles on most of Nama's Accounts' Watchlists, asked as the Server whose credential is
+    /// `credential`. Empty if the Hub doesn't know the credential any more, as [`Hub::similar`].
+    pub(crate) async fn most_watchlisted(
+        &self,
+        credential: &str,
+    ) -> Result<ListMostWatchlistedTitlesResponse, PluginError> {
+        match (self.linked_server(credential)?)
+            .list_most_watchlisted_titles(ListMostWatchlistedTitlesRequest::default())
+            .await
+        {
+            Ok(watchlisted) => Ok(watchlisted.into_owned()),
+            Err(err) if err.code == connectrpc::ErrorCode::Unauthenticated => {
+                Ok(ListMostWatchlistedTitlesResponse::default())
             }
             Err(err) => Err(err.into()),
         }
