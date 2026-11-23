@@ -7,7 +7,7 @@ import { LibraryKind, LibraryService } from "@/gen/nama/v1/library_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { admin, eventFeed, fakeServer, fill } from "@/test-app";
 import { expectUnderField, refused } from "@/test-refusal";
-import { openLibraries } from "@/test-settings";
+import { findSettingsLink, openLibraries } from "@/test-settings";
 
 afterEach(cleanup);
 
@@ -30,7 +30,7 @@ function adminServer(
 test("a scan Event updates a Library's progress on the list without a reload", async () => {
   const events = eventFeed();
   openLibraries(adminServer(events.stream, () => {}));
-  await screen.findByRole("link", { name: "Films" });
+  await findSettingsLink("Films");
 
   events.send({
     event: { case: "scanProgress", value: { libraryId: 1n, filesDone: 3n, filesTotal: 10n } },
@@ -62,7 +62,7 @@ function scannedServer(events: ReadableStream<SubscribeResponse>) {
 test("a Library's row says what it holds, its folders and when it was last scanned", async () => {
   openLibraries(scannedServer(new ReadableStream()));
 
-  const link = await screen.findByRole("link", { name: "Films" });
+  const link = await findSettingsLink("Films");
   expect(link.closest("li")?.textContent).toMatch(/^FilmsMovies · 1 folder · Last scanned .*2026/u);
   expect(screen.getByRole("button", { name: "Scan Films" })).toBeDefined();
 });
@@ -93,7 +93,7 @@ test("an id no Library has shows the list", async () => {
     "9",
   );
 
-  await expect(screen.findByRole("link", { name: "Films" })).resolves.toBeDefined();
+  await expect(findSettingsLink("Films")).resolves.toBeDefined();
   const crumbs = screen.getByRole("navigation", { name: "Breadcrumbs" });
   expect(crumbs.textContent).toBe("Libraries");
 });

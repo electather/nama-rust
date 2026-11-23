@@ -5,6 +5,7 @@ import { HomePending } from "@/features/home/components/home-pending";
 import { continueWatchingQuery } from "@/features/home/data/use-continue-watching";
 import { featuredQuery } from "@/features/home/data/use-featured";
 import { homeRowsQuery } from "@/features/home/data/use-home-rows";
+import { librariesQuery } from "@/shared/hooks/use-libraries";
 
 /** A failed section shows its failure itself, when it reads its query, so the loader drops it. */
 const shownBySection = () => {};
@@ -12,10 +13,14 @@ const shownBySection = () => {};
 export const Route = createFileRoute("/_member/")({
   loader: async ({ context: { queryClient, transport } }) => {
     // The top of the page starts beside the layout rather than after it, and Home waits only on
-    // the layout: each section shows its own skeleton until its titles arrive.
+    // the layout, its rows and Libraries: each section shows its own skeleton until its titles
+    // arrive.
     queryClient.query(featuredQuery(transport)).catch(shownBySection);
     queryClient.infiniteQuery(continueWatchingQuery(transport)).catch(shownBySection);
-    await queryClient.query(homeRowsQuery(transport));
+    await Promise.all([
+      queryClient.query(homeRowsQuery(transport)),
+      queryClient.query(librariesQuery(transport)),
+    ]);
   },
   pendingComponent: HomePending,
   component: HomePage,

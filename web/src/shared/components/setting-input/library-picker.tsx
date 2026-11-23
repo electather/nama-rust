@@ -2,7 +2,7 @@ import type { Setting } from "@/gen/nama/v1/plugin_pb";
 import { PickChips } from "@/shared/components/setting-input/pick-chips";
 import { UnlistedLibraries } from "@/shared/components/setting-input/unlisted-libraries";
 import { SettingRow } from "@/shared/components/setting-row";
-import { useLibrariesToPick } from "@/shared/hooks/use-libraries-to-pick";
+import { useLibrariesQuery } from "@/shared/hooks/use-libraries-query";
 
 /**
  * A Libraries setting's input: a chip per Library it holds, picked from the Server's by name. Each
@@ -18,7 +18,7 @@ export function LibraryPicker({
   hint: string;
   error: string | undefined;
 }) {
-  const { data, isError } = useLibrariesToPick();
+  const { data, isError } = useLibrariesQuery();
   const held = setting.value?.value.case === "libraryIds" ? setting.value.value.value.ids : [];
   if (data === undefined) {
     return (

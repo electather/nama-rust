@@ -5,7 +5,7 @@ import { afterEach, describe, expect, test } from "vite-plus/test";
 import { LibraryKind, type LibrarySchema } from "@/gen/nama/v1/library_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { admin, fakeServer } from "@/test-app";
-import { openLibraries, openSettings } from "@/test-settings";
+import { findSettingsLink, openLibraries, openSettings } from "@/test-settings";
 
 afterEach(cleanup);
 
@@ -48,7 +48,7 @@ describe("where Libraries is", () => {
   test("a User who manages Libraries but isn't an Admin sees only the Media group", async () => {
     openLibraries(librariesServer([films], [Permission.MANAGE_LIBRARIES]));
 
-    await screen.findByRole("link", { name: "Films" });
+    await findSettingsLink("Films");
     const nav = within(screen.getByRole("navigation", { name: "Settings" }));
     const headings = nav.getAllByRole("heading").map((heading) => heading.textContent);
     expect(headings).toStrictEqual(["You", "Preferences", "Media"]);
@@ -95,14 +95,14 @@ test("new Library opens the form in place of the list, and its crumb goes back",
   expect(crumbs()).toBe("LibrariesNew Library");
 
   fireEvent.click(within(trail()).getByRole("link", { name: "Libraries" }));
-  await expect(screen.findByRole("link", { name: "Films" })).resolves.toBeDefined();
+  await expect(findSettingsLink("Films")).resolves.toBeDefined();
   expect(crumbs()).toBe("Libraries");
 });
 
 test("a Library's row opens it in place of the list, under crumbs naming it", async () => {
   openLibraries(librariesServer([films]));
 
-  fireEvent.click(await screen.findByRole("link", { name: "Films" }));
+  fireEvent.click(await findSettingsLink("Films"));
 
   const title = await screen.findByRole("heading", { name: "Films" });
   expect(document.activeElement).toBe(title);
