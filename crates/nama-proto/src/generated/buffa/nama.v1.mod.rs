@@ -85,6 +85,7 @@ pub mod __buffa {
         reg.register_json_any(super::__SEARCH_TITLES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SEARCH_TITLES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_MATCH_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__MATCHED_TITLE_JSON_ANY);
         reg.register_json_any(super::__SET_MATCH_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__CLEAR_MATCH_REQUEST_JSON_ANY);
         reg.register_json_any(super::__CLEAR_MATCH_RESPONSE_JSON_ANY);
@@ -546,6 +547,10 @@ pub use self::__buffa::view::SearchTitlesResponseOwnedView;
 pub use self::__buffa::view::SetMatchRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::SetMatchRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MatchedTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::MatchedTitleOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SetMatchResponseView;
 #[doc(inline)]

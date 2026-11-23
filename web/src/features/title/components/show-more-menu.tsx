@@ -2,11 +2,13 @@ import { useRef } from "react";
 
 import { DeleteShow } from "@/features/title/components/delete-show";
 import { EditImages } from "@/features/title/components/edit-images";
+import { FixMatch } from "@/features/title/components/fix-match";
 import { MoreActions } from "@/features/title/components/more-actions";
 import { ShowMenuItems } from "@/features/title/components/show-menu-items";
 import { showImages } from "@/features/title/lib/title-images";
+import { titleToMatch } from "@/features/title/lib/title-to-match";
 import type { Season, Show } from "@/gen/nama/v1/browse_pb";
-import type { ExternalId } from "@/gen/nama/v1/match_pb";
+import { type ExternalId, TitleKind } from "@/gen/nama/v1/match_pb";
 import type { Opener } from "@/shared/lib/opener";
 
 /**
@@ -24,15 +26,22 @@ export function ShowMoreMenu({
   show: Show;
   season: Season | undefined;
 }) {
-  const imagesOpener = useRef<Opener>(null);
-  const deleteOpener = useRef<Opener>(null);
+  const images = useRef<Opener>(null);
+  const fix = useRef<Opener>(null);
+  const unmatch = useRef<Opener>(null);
+  const remove = useRef<Opener>(null);
+  const toMatch = titleToMatch({ libraryId, id: showId }, TitleKind.SHOW, {
+    title: show.title,
+    date: show.firstAirDate,
+  });
   return (
     <>
       <MoreActions label="More actions">
-        <ShowMenuItems {...{ libraryId, showId, imagesOpener, deleteOpener }} />
+        <ShowMenuItems {...{ libraryId, showId }} openers={{ images, fix, unmatch, remove }} />
       </MoreActions>
-      <EditImages ref={imagesOpener} title={show.title} {...showImages(showId, show, season)} />
-      <DeleteShow {...{ libraryId, showId }} title={show.title} opener={deleteOpener} />
+      <EditImages ref={images} title={show.title} {...showImages(showId, show, season)} />
+      <FixMatch fix={fix} unmatch={unmatch} title={toMatch} />
+      <DeleteShow {...{ libraryId, showId }} title={show.title} opener={remove} />
     </>
   );
 }

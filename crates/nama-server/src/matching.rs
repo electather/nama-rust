@@ -85,9 +85,9 @@ use crate::{
     events::{EventBus, event},
     library::{
         Artwork, Contents, Decided, Decisions, Item, Libraries, LibraryError, METADATA_VERSION,
-        Metadata, Name, Named, NfoHints, Picked, Pin, Recognisers, ScanLock, ScanLocks,
+        Metadata, Name, Named, NfoHints, NotFound, Picked, Pin, Recognisers, ScanLock, ScanLocks,
         SimilarSources, Source, SourceEpisode, SourceSeason, SourceShow, TitleKind, TitleSources,
-        Unanswered, UnmatchedReason,
+        Titles, Unanswered, UnmatchedReason, known_as,
     },
     plugins::ExtensionPoints,
 };
@@ -101,6 +101,14 @@ pub(crate) struct Summary {
     pub(crate) unmatched: u64,
     /// Items left undecided, to try again on the next scan.
     pub(crate) undecided: u64,
+}
+
+impl std::ops::AddAssign for Summary {
+    fn add_assign(&mut self, rhs: Self) {
+        self.matched += rhs.matched;
+        self.unmatched += rhs.unmatched;
+        self.undecided += rhs.undecided;
+    }
 }
 
 /// Why Matching stopped.
@@ -127,6 +135,9 @@ pub(crate) enum ManualError {
     /// No title source is enabled, or one failed.
     #[error("no title source could answer")]
     Unavailable,
+    /// The Library, or the Movie or Show in it whose items to fix, isn't there.
+    #[error(transparent)]
+    NotFound(#[from] NotFound),
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -364,6 +375,62 @@ impl Matcher {
             .map(|&(alike, _)| (alike, Err(Miss::Unmatched(None))))
             .collect();
         self.pin(item, named, Pin::Unmatched, outcomes).await
+    }
+
+    /// Matches every item of the Library `library` Matched to the Movie or Show `title` to the
+    /// title `id`, as [`Matcher::set_match`] does, once for each name they bear. A name that
+    /// fails stops it, the names before it staying Matched.
+    pub(crate) async fn set_title_match(
+        &self,
+        library: i64,
+        title: &ExternalId,
+        id: &ExternalId,
+    ) -> Result<Summary, ManualError> {
+        let mut summary = Summary::default();
+        for item in self.one_item_per_name(library, title).await? {
+            summary += self.set_match(item, id).await?;
+        }
+        Ok(summary)
+    }
+
+    /// Clears the Match of every item of the Library `library` Matched to the Movie or Show
+    /// `title`, as [`Matcher::clear_match`] does, once for each name they bear.
+    pub(crate) async fn clear_title_match(
+        &self,
+        library: i64,
+        title: &ExternalId,
+    ) -> Result<Summary, ManualError> {
+        let mut summary = Summary::default();
+        for item in self.one_item_per_name(library, title).await? {
+            summary += self.clear_match(item).await?;
+        }
+        Ok(summary)
+    }
+
+    /// One item of each name the items of the Library `library` Matched to the Movie or Show
+    /// `title` bear, found by any of its ids as browsing finds it.
+    async fn one_item_per_name(
+        &self,
+        library: i64,
+        title: &ExternalId,
+    ) -> Result<Vec<i64>, ManualError> {
+        let found = match self.libraries.get(library).await {
+            Err(LibraryError::Database(err)) => return Err(err.into()),
+            Err(_) => return Err(NotFound::NoSuchLibrary(library).into()),
+            Ok(found) => found,
+        };
+        let ids = match Titles::read(&self.contents, &found).await? {
+            titles @ Titles::Movies(_) => titles.movie(title)?.ids,
+            titles @ Titles::Shows(_) => titles.show(title)?.ids,
+        };
+        let mut names = BTreeSet::new();
+        // Every Match is stored below the greatest metadata version.
+        // ponytail: whole-Library read, for one title's items.
+        let matched = self.contents.matched_below(library, i64::MAX).await?;
+        Ok((matched.into_iter())
+            .filter(|(_, item, _, primary)| known_as(&ids, primary) && names.insert(item.name()))
+            .map(|(item, ..)| item)
+            .collect())
     }
 
     /// Matches the items of the Library `scan` covers that Matching hasn't decided yet, until

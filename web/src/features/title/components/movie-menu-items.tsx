@@ -2,6 +2,7 @@ import type { RefObject } from "react";
 
 import { DeleteMovieItem } from "@/features/title/components/delete-movie-item";
 import { MarkPlayedItem } from "@/features/title/components/mark-played-item";
+import { MatchItems } from "@/features/title/components/match-items";
 import { OpenerItem } from "@/features/title/components/opener-item";
 import { VersionItems } from "@/features/title/components/version-items";
 import { useMayDelete } from "@/features/title/hooks/use-may-delete";
@@ -13,8 +14,9 @@ import type { Opener } from "@/shared/lib/opener";
 
 /**
  * What else may be done to `movie`: pick which Version Play plays, when there's a choice, mark it
- * watched, edit its images with Manage Libraries, and delete it with Delete media, unless
- * `readOnlyFolder` holds it. `images` and `remove` open those two dialogs.
+ * watched, edit its images and fix its Match with Manage Libraries, and delete it with Delete
+ * media, unless `readOnlyFolder` holds it. `images`, `fix`, `unmatch` and `remove` open those
+ * dialogs.
  */
 export function MovieMenuItems({
   libraryId,
@@ -24,6 +26,8 @@ export function MovieMenuItems({
   version,
   onChoose,
   images,
+  fix,
+  unmatch,
   remove,
 }: {
   libraryId: bigint;
@@ -33,6 +37,8 @@ export function MovieMenuItems({
   version: Version;
   onChoose: (versionId: number) => void;
   images: RefObject<Opener | null>;
+  fix: RefObject<Opener | null>;
+  unmatch: RefObject<Opener | null>;
   remove: RefObject<Opener | null>;
 }) {
   const mayEditImages = useMay(Permission.MANAGE_LIBRARIES);
@@ -48,6 +54,7 @@ export function MovieMenuItems({
         watchState={movie.watchState}
       />
       {mayEditImages && <OpenerItem opener={images}>Edit images</OpenerItem>}
+      <MatchItems fix={fix} unmatch={unmatch} />
       {mayDelete && <DeleteMovieItem remove={remove} readOnlyFolder={readOnlyFolder} />}
     </>
   );
