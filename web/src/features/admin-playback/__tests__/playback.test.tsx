@@ -88,7 +88,12 @@ test("an Admin sees the hardware acceleration that passed its test and whether i
         getPlaybackStatus: () => ({
           ...ffmpegFound,
           hardware: [
-            { api: HardwareAcceleration.NVENC, toneMapping: ToneMapping.GPU, automatic: true },
+            {
+              api: HardwareAcceleration.NVENC,
+              toneMapping: ToneMapping.GPU,
+              automatic: true,
+              hevc: true,
+            },
             { api: HardwareAcceleration.VAAPI, toneMapping: ToneMapping.SOFTWARE },
           ],
           hasLibx264: true,
@@ -104,6 +109,30 @@ test("an Admin sees the hardware acceleration that passed its test and whether i
   expect(screen.getByText(/on the GPU too\. Automatic picks this one\./u)).toBeDefined();
   expect(screen.getByText(/in software, between decoding/u)).toBeDefined();
   expect(screen.queryByText(/Transcodes run in software/u)).toBeNull();
+});
+
+test("an Admin sees which hardware didn’t pass its test of HEVC", async () => {
+  openSettings(
+    "server-playback",
+    fakeServer({
+      signedIn: admin,
+      serverService: {
+        getPlaybackStatus: () => ({
+          ...ffmpegFound,
+          hardware: [
+            { api: HardwareAcceleration.QSV, toneMapping: ToneMapping.GPU, hevc: true },
+            { api: HardwareAcceleration.VAAPI, toneMapping: ToneMapping.GPU },
+          ],
+          hasLibx264: true,
+          canTranscode: true,
+        }),
+      },
+    }),
+  );
+
+  const vaapi = await screen.findByRole("heading", { name: "VAAPI" });
+  expect(vaapi.nextElementSibling?.textContent).toMatch(/Didn’t pass its test of HEVC/u);
+  expect(screen.getAllByText(/test of HEVC/u)).toHaveLength(1);
 });
 
 test("an Admin sees a row for each API on each GPU that passed its test", async () => {

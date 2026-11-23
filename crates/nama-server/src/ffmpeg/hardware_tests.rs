@@ -170,7 +170,7 @@ fn a_dedicated_gpu_without_a_model_is_its_maker_and_address() {
 }
 
 #[test]
-fn the_hevc_test_clip_is_main_10_at_256_by_256() {
+fn the_hevc_test_clip_is_main_10_at_640_by_360() {
     // Its first NAL unit with type 33, a sequence parameter set: its start code, its two-byte
     // header, a byte of ids, then the byte with `general_profile_idc` in its low five bits.
     let sps = (TEST_HEVC_CLIP.windows(7))
@@ -192,6 +192,6 @@ fn the_hevc_test_clip_is_main_10_at_256_by_256() {
         .expect("this test needs ffprobe on PATH");
     assert_eq!(
         String::from_utf8_lossy(&probed.stdout).trim(),
-        "Main 10,256,256"
+        "Main 10,640,360"
     );
 }

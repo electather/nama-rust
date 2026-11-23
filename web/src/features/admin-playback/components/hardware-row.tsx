@@ -8,7 +8,7 @@ import { hardwareLabel } from "@/shared/lib/playback-names";
 
 /**
  * A hardware acceleration API that passed its test encode, on its GPU if the Server names one.
- * Unless the Server `canTranscode`, tone-mapping and Automatic don't apply yet.
+ * Unless the Server `canTranscode`, tone-mapping, HEVC and Automatic don't apply yet.
  */
 export function HardwareRow({
   found,
@@ -23,6 +23,7 @@ export function HardwareRow({
       {canTranscode && (
         <p className="text-xs text-pretty text-muted-foreground">
           {toneMappings.get(found.toneMapping)}
+          {!found.hevc && " Didn’t pass its test of HEVC, so Transcodes on it make H.264."}
           {found.automatic && " Automatic picks this one."}
         </p>
       )}
