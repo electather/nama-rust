@@ -1319,7 +1319,8 @@ pub trait AccountService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Lists the signed-in Account's live sessions, the most recently used first.
+    /// Lists the signed-in Account's live sessions: the calling one first, then the most recently
+    /// used.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

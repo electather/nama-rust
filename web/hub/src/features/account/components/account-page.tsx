@@ -16,9 +16,9 @@ import { Button } from "nama-ui/components/button";
 
 /**
  * The signed-in Account's email, the Users created from it waiting for it, its password, its
- * passkeys, where it's signed in, Linking a Server and the Servers it Linked, Linking a User and the Users it Linked,
- * whether the Movies they finish are pooled, the way to its viewing history, signing out, and
- * deleting it.
+ * passkeys, where it's signed in, Linking a Server and the Servers it Linked, Linking a User and
+ * the Users it Linked, whether the Movies they finish are pooled, the way to its viewing history,
+ * signing out, and deleting it.
  */
 export function AccountPage() {
   const account = useAccount();

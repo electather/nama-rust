@@ -1024,7 +1024,8 @@ export const AccountService: GenService<{
     output: typeof RemovePasskeyResponseSchema;
   },
   /**
-   * Lists the signed-in Account's live sessions, the most recently used first.
+   * Lists the signed-in Account's live sessions: the calling one first, then the most recently
+   * used.
    *
    * @generated from rpc nama.hub.v1.AccountService.ListSessions
    */

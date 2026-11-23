@@ -20,7 +20,7 @@ export function SessionList() {
   const { sessions } = listed.data;
   return (
     <>
-      <ul aria-labelledby="your-sessions" className="flex flex-col divide-y">
+      <ul className="flex flex-col divide-y">
         {sessions.map((session) => (
           <SessionRow
             key={session.id}

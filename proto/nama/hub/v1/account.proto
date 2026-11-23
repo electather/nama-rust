@@ -81,7 +81,8 @@ service AccountService {
   // have no other way to sign in.
   rpc RemovePasskey(RemovePasskeyRequest) returns (RemovePasskeyResponse);
 
-  // Lists the signed-in Account's live sessions, the most recently used first.
+  // Lists the signed-in Account's live sessions: the calling one first, then the most recently
+  // used.
   rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }

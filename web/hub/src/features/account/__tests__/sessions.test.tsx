@@ -63,7 +63,8 @@ function openAccount() {
 }
 
 async function listed() {
-  const list = await screen.findByRole("list", { name: "Where you’re signed in" });
+  const section = await screen.findByRole("region", { name: "Where you’re signed in" });
+  const list = await within(section).findByRole("list");
   return within(list)
     .getAllByRole("listitem")
     .map((item) => item.textContent);
@@ -114,14 +115,17 @@ describe("where an Account is signed in", () => {
     expect(screen.queryByRole("button", { name: "Sign out everywhere else" })).toBeNull();
   });
 
-  test("past 10 minutes since signing in, signing out a session offers to sign in again", async () => {
-    const hub = openAccount();
-    hub.stale = true;
+  test.each(["Sign out Safari on iPhone", "Sign out everywhere else"])(
+    "past 10 minutes since signing in, “%s” offers to sign in again",
+    async (button) => {
+      const hub = openAccount();
+      hub.stale = true;
 
-    fireEvent.click(await screen.findByRole("button", { name: "Sign out everywhere else" }));
-    fireEvent.click(await screen.findByRole("link", { name: "Sign in again" }));
+      fireEvent.click(await screen.findByRole("button", { name: button }));
+      fireEvent.click(await screen.findByRole("link", { name: "Sign in again" }));
 
-    await expect(screen.findByRole("heading", { name: "Sign in" })).resolves.toBeDefined();
-    expect(hub.sessions).toHaveLength(3);
-  });
+      await expect(screen.findByRole("heading", { name: "Sign in" })).resolves.toBeDefined();
+      expect(hub.sessions).toHaveLength(3);
+    },
+  );
 });

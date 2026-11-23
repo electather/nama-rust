@@ -157,10 +157,12 @@ impl Accounts {
         let user_agent: Option<String> =
             user_agent.map(|sent| sent.chars().take(USER_AGENT_LENGTH).collect());
         sqlx::query!(
-            "UPDATE account_sessions SET last_used_at = now(), user_agent = $2
-             WHERE id = $1 AND (last_used_at < now() - make_interval(mins => $3)
-                 OR user_agent IS DISTINCT FROM $2)",
+            "UPDATE account_sessions SET last_used_at = now(), user_agent = $3
+             WHERE id = $1 AND account_id = $2
+               AND (last_used_at < now() - make_interval(mins => $4)
+                 OR user_agent IS DISTINCT FROM $3)",
             session.id,
+            session.account.id.0,
             user_agent,
             LAST_USED_MINS,
         )
