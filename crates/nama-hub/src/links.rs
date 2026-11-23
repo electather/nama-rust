@@ -332,8 +332,9 @@ impl Links {
     }
 
     /// Replaces the Server Addresses `server` reported before with its Server URL `url`, empty
-    /// for none, its `lan_addresses`, and `public`, its router's public IP address with the port
-    /// that reaches it, if it has one, once the Hub has tried to connect there.
+    /// for none, and its `lan_addresses` at once, then with `public`, its router's public IP
+    /// address with the port that reaches it, if it has one, once the Hub has tried to connect
+    /// there.
     pub(crate) async fn set_addresses(
         &self,
         server: &LinkedServer,
@@ -347,6 +348,16 @@ impl Links {
         if !addresses_valid {
             return Err(Error::AddressInvalid);
         }
+        // Stored before the probe, which can take REACH_WITHIN, so a sign-in returning to the new
+        // Server URL meanwhile isn't refused.
+        sqlx::query!(
+            "UPDATE linked_servers SET server_url = $1, lan_addresses = $2 WHERE id = $3",
+            url,
+            lan_addresses,
+            server.id.0,
+        )
+        .execute(&self.db)
+        .await?;
         let public = match public {
             Some(public) => Some(PublicAddress {
                 address: format!("http://{public}"),
@@ -359,10 +370,7 @@ impl Links {
             .filter(|public| public.reachable)
             .map_or("", |public| public.address.as_str());
         sqlx::query!(
-            "UPDATE linked_servers SET server_url = $1, lan_addresses = $2, public_address = $3
-             WHERE id = $4",
-            url,
-            lan_addresses,
+            "UPDATE linked_servers SET public_address = $1 WHERE id = $2",
             reached,
             server.id.0,
         )
