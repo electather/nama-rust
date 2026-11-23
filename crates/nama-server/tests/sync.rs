@@ -12,7 +12,10 @@ mod server;
 use std::{
     collections::HashMap,
     future,
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    sync::{
+        Arc, Mutex, MutexGuard, PoisonError,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Duration,
 };
 
@@ -27,11 +30,11 @@ use nama_plugin_api::{
     server_link::{AccountSignIn, Link, ServerAddresses, ServerLinker, WatchlistEntry},
 };
 use nama_proto::nama::v1::{
-    AddToWatchlistRequest, BrowseServiceClient, GetMovieRequest, GetServerLinkRequest,
-    GetTrackPreferencesRequest, GetTrackPreferencesResponse, GetUserLinkRequest, LibraryKind,
-    ListContinueWatchingRequest, PlaybackServiceClient, RemoveFromWatchlistRequest,
-    ReportProgressRequest, ServerServiceClient, SetAudioPreferenceRequest,
-    SetSubtitlePreferenceRequest, StartUserLinkRequest, SubtitleKind, TitleKind, UserServiceClient,
+    AddToWatchlistRequest, BrowseServiceClient, GetMovieRequest, GetTrackPreferencesRequest,
+    GetTrackPreferencesResponse, GetUserLinkRequest, LibraryKind, ListContinueWatchingRequest,
+    PlaybackServiceClient, RemoveFromWatchlistRequest, ReportProgressRequest, ServerServiceClient,
+    SetAudioPreferenceRequest, SetSubtitlePreferenceRequest, StartServerLinkRequest,
+    StartUserLinkRequest, SubtitleKind, TitleKind, UnlinkUserRequest, UserServiceClient,
     UsersAudioPreference, UsersSubtitlePreference, WatchStateServiceClient, WatchlistServiceClient,
     continue_watching_entry::MovieOrEpisode,
 };
@@ -48,6 +51,9 @@ struct Hub {
     watchlist: Arc<Mutex<HashMap<(bool, String), WatchlistEntry>>>,
     /// Each Watch State push (`"push"`) and pull (`"pull"`), in the order they came.
     asked: Arc<Mutex<Vec<&'static str>>>,
+    /// Whether a Server started Linking, which Links it at once. Not before, so the first look at
+    /// the Server's Link, the Server Addresses tick's at startup, doesn't find it new.
+    server_linked: Arc<AtomicBool>,
 }
 
 impl Hub {
@@ -129,10 +135,16 @@ impl Observer<TrackPreferenceChanged> for Hub {
 /// Only what pulling and syncing ask; the rest is `tests/server_link.rs`'s.
 impl ServerLinker for Hub {
     fn link(&self) -> BoxFuture<'_, Result<Link, PluginError>> {
-        Box::pin(future::ready(Ok(linked())))
+        let link = if self.server_linked.load(Ordering::Relaxed) {
+            linked()
+        } else {
+            Link::NotLinked
+        };
+        Box::pin(future::ready(Ok(link)))
     }
 
     fn start_link<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<Link, PluginError>> {
+        self.server_linked.store(true, Ordering::Relaxed);
         Box::pin(future::ready(Ok(linked())))
     }
 
@@ -418,6 +430,19 @@ async fn look_at_admins_link(server: &TestServer) {
         .unwrap();
 }
 
+/// Unlinks `server`'s Admin, who also has a password.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn unlink_admin(server: &TestServer) {
+    let users = UserServiceClient::new(HttpClient::plaintext(), server.client_config());
+    users
+        .unlink_user(UnlinkUserRequest::default())
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
 async fn linking_a_user_pushes_their_watch_state_from_before_dated_as_stored() {
     let hub = Hub::default();
@@ -436,20 +461,27 @@ async fn a_users_new_link_pushes_their_watch_state_once_however_often_looked_at_
     let hub = Hub::default();
     let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
     let stored = alien_watched_before_linking(&fx, &hub).await;
-
     look_at_admins_link(&fx.server).await;
     until("the Hub has the push", async || !hub.kept().is_empty()).await;
-    look_at_admins_link(&fx.server).await;
-    let restarted = hub.on(TestServer::builder()).restart(fx.server).await;
-    let before_restart_looked = hub.kept().len();
-    look_at_admins_link(&restarted).await;
 
-    assert_eq!(before_restart_looked, 1, "a second look pushed again");
-    until("the Hub has the restart's push", async || {
-        hub.kept().len() == 2
+    look_at_admins_link(&fx.server).await;
+    // Pushed after any push the second look made, as new Links are pushed in the order seen.
+    unlink_admin(&fx.server).await;
+    look_at_admins_link(&fx.server).await;
+    until("the Hub has the relink's push", async || {
+        hub.kept().len() > 1
     })
     .await;
-    assert_eq!(*hub.kept(), [stored.clone(), stored]);
+    let pushed_before_restart = hub.kept().len();
+    let restarted = hub.on(TestServer::builder()).restart(fx.server).await;
+    look_at_admins_link(&restarted).await;
+
+    assert_eq!(pushed_before_restart, 2, "a second look pushed again");
+    until("the Hub has the restart's push", async || {
+        hub.kept().len() == 3
+    })
+    .await;
+    assert_eq!(*hub.kept(), [stored.clone(), stored.clone(), stored]);
 }
 
 #[tokio::test]
@@ -541,21 +573,21 @@ async fn linking_the_server_pushes_every_users_watch_state_dated_as_stored() {
     let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
     let stored = alien_watched_before_linking(&fx, &hub).await;
 
-    look_at_server_link(&fx.server).await;
+    link_server(&fx.server).await;
 
     until("the Hub has the progress", async || !hub.kept().is_empty()).await;
     assert_eq!(*hub.kept(), [stored]);
 }
 
-/// Asks for `server`'s Link, as Settings does once it Links.
+/// Links `server`, as an Admin does in Settings.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn look_at_server_link(server: &TestServer) {
+async fn link_server(server: &TestServer) {
     let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
     client
-        .get_server_link(GetServerLinkRequest::default())
+        .start_server_link(StartServerLinkRequest::default())
         .await
         .unwrap();
 }
@@ -610,7 +642,7 @@ async fn linking_the_server_pushes_every_users_track_preferences_dated_as_stored
     let server = hub.on(TestServer::builder()).start().await;
     let stored = preferences_set_before_linking(&server, &hub).await;
 
-    look_at_server_link(&server).await;
+    link_server(&server).await;
 
     until("the Hub has both", async || {
         hub.kept_preferences().len() == 2

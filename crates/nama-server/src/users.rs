@@ -302,7 +302,7 @@ pub enum Error {
     LinkingFailed,
     /// Creating a User from an Account panicked.
     #[error("creating a User from an Account panicked: {0}")]
-    Panicked(#[from] tokio::task::JoinError),
+    Panicked(tokio::task::JoinError),
     /// The database failed.
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),

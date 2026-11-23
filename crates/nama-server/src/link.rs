@@ -51,7 +51,7 @@ const NEW_LINKS_BUFFERED: usize = 64;
 pub(crate) enum Error {
     /// No enabled Plugin links the Server.
     #[error("no enabled Plugin links the Server")]
-    NoLinker,
+    NoLinkingPlugin,
     /// It couldn't tell: it failed, as with its service unreachable, or a page stopped waiting on
     /// it. Its page says why.
     #[error("the Plugin that links the Server failed; its page says why")]
@@ -268,7 +268,7 @@ impl Linking {
         let answer = (self.points)
             .ask_first::<dyn ServerLinker, _, _, _, _>(call)
             .await
-            .ok_or(Error::NoLinker)?;
+            .ok_or(Error::NoLinkingPlugin)?;
         answer.result.map_err(|failure| {
             tracing::warn!(plugin = %answer.plugin, "Linking failed: {}", failure.message);
             Error::Failed
@@ -344,11 +344,14 @@ impl Linking {
     }
 
     /// Whether `plugin` has the Server Linked, asked in its scope for the Server Addresses tick.
-    /// Not, if it fails to say. Followers don't hear of it: the tick runs from startup, before
-    /// anything is watched, so its look would push nothing and leave a later look not new.
+    /// Not, if it fails to say.
     pub(crate) async fn is_server_linked_by(&self, plugin: &PluginId) -> bool {
         let link = self.ask_in_scope(plugin, |linker| async move { linker.link().await });
-        matches!(link.await, Some(Link::Linked { .. }))
+        let Some(link) = link.await else {
+            return false;
+        };
+        self.saw(Whose::Server, Some(&link));
+        matches!(link, Link::Linked { .. })
     }
 
     /// What `call` gets from `plugin`, asked in its scope, so disabling it or shutting down cancels

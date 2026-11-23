@@ -32,7 +32,7 @@ const ACCOUNT_SIGN_IN_FAILED: &str =
 
 /// Where Linking stands, unset without an enabled Plugin that links the Server.
 pub(super) async fn get(linking: &Linking) -> ServiceResult<GetServerLinkResponse> {
-    let link = unless_no_linker(linking.server_link().await)?;
+    let link = unless_no_linking_plugin(linking.server_link().await)?;
     Response::ok(GetServerLinkResponse {
         link: link.map(link_to_proto).into(),
         ..Default::default()
@@ -57,7 +57,7 @@ pub(super) async fn unlink(linking: &Linking) -> ServiceResult<UnlinkServerRespo
 /// Where Linking `user` stands, unset while they can't Link: without an enabled Plugin that links
 /// the Server, or before the Server is Linked.
 pub(super) async fn get_user(linking: &Linking, user: &User) -> ServiceResult<GetUserLinkResponse> {
-    let link = unless_no_linker(linking.user_link(user.id).await)?;
+    let link = unless_no_linking_plugin(linking.user_link(user.id).await)?;
     Response::ok(GetUserLinkResponse {
         link: link.flatten().map(user_link_to_proto).into(),
         ..Default::default()
@@ -113,9 +113,9 @@ pub(super) async fn start_account_sign_in(
 }
 
 /// `answer`, `None` when no Plugin links the Server.
-fn unless_no_linker<T>(answer: Result<T, link::Error>) -> Result<Option<T>, ConnectError> {
+fn unless_no_linking_plugin<T>(answer: Result<T, link::Error>) -> Result<Option<T>, ConnectError> {
     match answer {
-        Err(link::Error::NoLinker) => Ok(None),
+        Err(link::Error::NoLinkingPlugin) => Ok(None),
         answer => Ok(Some(answer?)),
     }
 }
@@ -135,7 +135,7 @@ pub(super) fn account_sign_in_failed(err: link::Error) -> ConnectError {
 /// [`link::Error`]'s Connect error, saying `unavailable` when the Plugin couldn't tell.
 fn linking_failed(err: link::Error, unavailable: &'static str) -> ConnectError {
     match err {
-        link::Error::NoLinker => no_linker(),
+        link::Error::NoLinkingPlugin => no_linking_plugin(),
         link::Error::Failed => ConnectError::unavailable(unavailable),
     }
 }
@@ -145,7 +145,7 @@ fn is_web_address(url: &str) -> bool {
     url::Url::parse(url).is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.has_host())
 }
 
-pub(super) fn no_linker() -> ConnectError {
+pub(super) fn no_linking_plugin() -> ConnectError {
     refuse(
         RefusalReason::REFUSAL_REASON_NO_SERVER_LINKER,
         "no enabled Plugin links the Server",

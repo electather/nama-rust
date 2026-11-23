@@ -70,7 +70,8 @@ impl Users {
             }
             Ok(invited.map(|()| id)?)
         })
-        .await?
+        .await
+        .map_err(Error::Panicked)?
     }
 
     /// Deletes the User `id`, just created from an Account the Hub couldn't be told of, as `by`
@@ -96,7 +97,7 @@ impl Users {
     async fn account_way_in(&self, user_id: i64) -> WayIn {
         match self.linking.user_link(user_id).await {
             Ok(Some(Link::Linked { .. })) => WayIn::Account,
-            Ok(_) | Err(link::Error::NoLinker) => WayIn::Nothing,
+            Ok(_) | Err(link::Error::NoLinkingPlugin) => WayIn::Nothing,
             Err(link::Error::Failed) => WayIn::Unknown,
         }
     }
@@ -127,7 +128,7 @@ impl Users {
 impl From<link::Error> for Error {
     fn from(err: link::Error) -> Self {
         match err {
-            link::Error::NoLinker => Self::NoLinkingPlugin,
+            link::Error::NoLinkingPlugin => Self::NoLinkingPlugin,
             link::Error::Failed => Self::LinkingFailed,
         }
     }

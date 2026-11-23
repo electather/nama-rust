@@ -104,8 +104,10 @@ impl UserService for UserServiceHandler {
         request: ServiceRequest<'_, CreateUserFromAccountRequest>,
     ) -> ServiceResult<CreateUserFromAccountResponse> {
         let by = &caller(&ctx)?.user;
-        let created = (self.users).create_from_account(by, request.name, request.email);
-        let created = created.await;
+        let created = self
+            .users
+            .create_from_account(by, request.name, request.email)
+            .await;
         if matches!(created, Err(users::Error::LinkingFailed)) {
             return Err(ConnectError::unavailable(
                 "the Server couldn't ask the Hub, so no User was created; try again later",
@@ -749,7 +751,7 @@ impl From<users::Error> for ConnectError {
             users::Error::LastSignInMethod => {
                 refuse(R::REFUSAL_REASON_LAST_SIGN_IN_METHOD, message)
             }
-            users::Error::NoLinkingPlugin => return server_link::no_linker(),
+            users::Error::NoLinkingPlugin => return server_link::no_linking_plugin(),
             users::Error::LinkingFailed => {
                 return Self::unavailable(server_link::LINKING_FAILED);
             }
