@@ -105,8 +105,9 @@ pub(crate) enum TitlesIn {
     NoSuchVersion,
     /// The file holds a Movie or nothing: the Movie, unless its Item isn't Matched.
     Movie(Option<(ExternalId, ExternalIds)>),
-    /// Each Episode the file holds, by season and episode number, with its Show's id as browsing
-    /// identifies it, `None` if its Item isn't Matched.
+    /// Each Episode the file holds, by season and episode number, `None` if its Item isn't
+    /// Matched. A Matched one comes with its Show's id as browsing identifies it, `None` if its
+    /// Match gives the Show no id.
     Episodes(Vec<Option<(ExternalId, ExternalIds, Option<ExternalId>)>>),
 }
 
