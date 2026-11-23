@@ -21,6 +21,7 @@ use crate::{
     },
     page::{self, Page},
     playback::{Probe, StoredTracks, Track},
+    plugins::ExtensionPoints,
     scanner::read_only_folder,
 };
 
@@ -92,12 +93,13 @@ pub(crate) struct Browse {
 }
 
 impl Browse {
-    pub(crate) fn new(db: Arc<Database>) -> Self {
+    /// Browse of what `db` holds, telling the Observers of `points` of each Watch State change.
+    pub(crate) fn new(db: Arc<Database>, points: ExtensionPoints) -> Self {
         Self {
             libraries: Libraries::new(Arc::clone(&db)),
             contents: Contents::new(Arc::clone(&db)),
             tracks: StoredTracks::new(Arc::clone(&db)),
-            watch_states: WatchStates::new(db),
+            watch_states: WatchStates::new(db, points),
         }
     }
 

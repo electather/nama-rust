@@ -190,19 +190,15 @@ async fn an_observer_is_told_the_same_events_a_subscriber_receives_in_one_batch_
     let plugins = Registry::new();
     plugins.enable(Arc::new(Forward(tx))).unwrap();
     let server = TestServer::builder().plugins(plugins).start().await;
-    let media = server
-        .create_library(
-            MOVIES,
-            &[
-                "Alien (1979)/Alien (1979).mkv",
-                "Heat (1995)/Heat (1995).mkv",
-            ],
-        )
-        .await;
     let mut subscription =
         subscribe_with(&server.client_config(), SubscribeRequest::default()).await;
 
-    server.scan(media.id).await;
+    // Creating it scans it, the one scan the Observer is told of.
+    let files = [
+        "Alien (1979)/Alien (1979).mkv",
+        "Heat (1995)/Heat (1995).mkv",
+    ];
+    server.library_holding(MOVIES, &files, &[]).await;
     let streamed = until_probing_finished(&mut subscription).await;
 
     // The start, then the one write's progress and both Items, then the finishes.

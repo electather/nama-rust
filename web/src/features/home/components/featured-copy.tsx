@@ -1,7 +1,7 @@
 import { FeaturedActions } from "@/features/home/components/featured-actions";
 import { FeaturedFacts } from "@/features/home/components/featured-facts";
-import { TitleOrLogo } from "@/features/home/components/title-or-logo";
 import type { Panel } from "@/features/home/lib/featured-panels";
+import { TitleOrLogo } from "@/shared/components/title-or-logo";
 
 /** An open panel's Title Logo: up to 112px tall, 144px from `sm`, as a title page shows it. */
 const heroLogo = {

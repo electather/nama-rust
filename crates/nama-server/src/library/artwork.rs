@@ -37,7 +37,8 @@ use tokio::sync::{OwnedSemaphorePermit, RwLock, RwLockReadGuard, Semaphore};
 
 use crate::{
     images::{
-        Asked, ImageStore, KEPT_ARTWORK_DIR, OFFERED_ARTWORK_DIR, Resize, file_name, percent_decode,
+        Asked, ImageStore, KEPT_ARTWORK_DIR, OFFERED_ARTWORK_DIR, Resize, SVG, file_name,
+        percent_decode,
     },
     library::contents::{Contents, ImageRef},
     library::title_source::{self, ArtworkKind, Source, TitleKind, TitleSources},
@@ -499,7 +500,9 @@ fn content_type(path: &str) -> &'static str {
         Some("png") => "image/png",
         Some("webp") => "image/webp",
         Some("gif") => "image/gif",
-        // Anything else, SVG included, isn't served as an image: an SVG can carry script.
+        // A title source's Title Logo may be one (#2016); `ImageStore::serve` keeps its script
+        // from running.
+        Some("svg") => SVG,
         _ => "application/octet-stream",
     }
 }

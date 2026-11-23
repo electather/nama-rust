@@ -20,8 +20,8 @@ web = []
 
 [dependencies]
 argon2 = "0.6"
-base64 = "0.23"
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "tokio"] }
+base64 = "0.23"
 buffa = "0.9.2"
 clap = { version = "4", features = ["derive"] }
 connectrpc = { version = "0.9.1", features = ["axum"] }
@@ -36,7 +36,7 @@ opentelemetry = { version = "0.33.1", default-features = false, features = ["tra
 opentelemetry-appender-tracing = "0.33.1"
 opentelemetry-otlp = { version = "0.33.1", default-features = false, features = ["http-proto", "logs", "reqwest-blocking-client", "trace"] }
 opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["logs", "trace"] }
-# Ed25519 signing (ADR 0098), the same ring rustls already builds.
+# Ed25519 signing (ADR 0098) and passkeys' signatures, the same ring rustls already builds.
 ring = "0.17"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
@@ -49,6 +49,7 @@ tokio = { version = "1", features = ["io-std", "io-util", "macros", "net", "rt-m
 tracing = "0.1"
 tracing-opentelemetry = { version = "0.34.0", default-features = false }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+url = { version = "2", features = ["serde"] }
 uuid = "1"
 webpki-roots = "1"
 

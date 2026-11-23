@@ -354,14 +354,14 @@ async fn a_server_records_only_under_its_own_users_accounts(db: PgPool) {
 }
 
 #[sqlx::test(migrations = false)]
-async fn an_invalid_event_records_none_of_its_batch(db: PgPool) {
+async fn an_invalid_event_even_of_a_user_who_isnt_linked_records_none_of_its_batch(db: PgPool) {
     let (hub, _inbox, ada, server) = ada_watching(db).await;
 
     let refused = assert_refused(
         record(
             &hub,
             &server,
-            vec![played(7, "a", "tmdb-603"), played(7, "b", "")],
+            vec![played(7, "a", "tmdb-603"), played(9, "b", "")],
         )
         .await,
         ErrorCode::InvalidArgument,

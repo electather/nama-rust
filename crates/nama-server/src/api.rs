@@ -32,6 +32,7 @@ use crate::{
     requests::Requests,
     scanner::Scanner,
     server_settings,
+    sync::Syncing,
     users::{
         Caller, SetupCode, SignIn, Users, cleared_session_cookie, identify_caller,
         in_session_cookie,
@@ -55,8 +56,6 @@ mod sign_in;
 mod users;
 mod watch_states;
 mod watchlist;
-
-pub(crate) use server_link::sync_after_scans;
 
 use access::require_access;
 pub(crate) use browser_spans::BrowserSpans;
@@ -94,6 +93,7 @@ pub(crate) fn router(
     abilities: Abilities,
     preview_frames: PreviewFrames,
     browser_spans: BrowserSpans,
+    syncing: Syncing,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
 ) -> axum::Router {
@@ -117,14 +117,20 @@ pub(crate) fn router(
     };
     let connections = Connections::new(Arc::clone(&db), plugins.clone());
     let similar = SimilarSources::new(plugins.clone());
-    let pages = TitlePages::new(Arc::clone(&db), requests.clone(), similar);
+    let pages = TitlePages::new(
+        Arc::clone(&db),
+        Browse::new(Arc::clone(&db), plugins.clone()),
+        requests.clone(),
+        similar,
+    );
     let server_url = settings.server_url();
+    let preferences = TrackPreferences::new(Arc::clone(&db), plugins.clone());
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(server::ServerServiceHandler {
             name: config.name.clone(),
             users: users.clone(),
-            browse: Browse::new(Arc::clone(&db)),
-            preferences: TrackPreferences::new(Arc::clone(&db)),
+            syncing: syncing.clone(),
+            browse: Browse::new(Arc::clone(&db), plugins.clone()),
             settings: settings.clone(),
             abilities: abilities.clone(),
             ffmpeg,
@@ -139,9 +145,7 @@ pub(crate) fn router(
         .add_service(Arc::new(sign_in::SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
             points: plugins.clone(),
-            browse: Browse::new(Arc::clone(&db)),
-            preferences: TrackPreferences::new(Arc::clone(&db)),
-            db: Arc::clone(&db),
+            syncing: syncing.clone(),
             server_url: settings.server_url(),
             listening,
         }))
@@ -152,7 +156,7 @@ pub(crate) fn router(
             libraries: Libraries::new(Arc::clone(&db)),
         }))
         .add_service(Arc::new(browse::BrowseServiceHandler {
-            browse: Browse::new(Arc::clone(&db)),
+            browse: Browse::new(Arc::clone(&db), plugins.clone()),
             pages: pages.clone(),
             home_rows: home_rows.clone(),
             settings: settings.clone(),
@@ -160,18 +164,17 @@ pub(crate) fn router(
             db: Arc::clone(&db),
         }))
         .add_service(Arc::new(search::SearchServiceHandler {
-            browse: Browse::new(Arc::clone(&db)),
+            browse: Browse::new(Arc::clone(&db), plugins.clone()),
             requests: requests.clone(),
             images: images.clone(),
         }))
         .add_service(Arc::new(watch_states::WatchStateServiceHandler {
-            browse: Browse::new(Arc::clone(&db)),
+            browse: Browse::new(Arc::clone(&db), plugins.clone()),
             running: running.clone(),
-            points: plugins.clone(),
         }))
         .add_service(Arc::new(watchlist::WatchlistServiceHandler {
             db: Arc::clone(&db),
-            points: plugins.clone(),
+            syncing: syncing.clone(),
         }))
         .add_service(Arc::new(playback::PlaybackServiceHandler {
             plans: Plans::new(
@@ -180,10 +183,10 @@ pub(crate) fn router(
                 running,
                 settings.playback(),
                 preview_frames,
+                preferences.clone(),
                 Arc::clone(&db),
             ),
-            preferences: TrackPreferences::new(Arc::clone(&db)),
-            points: plugins.clone(),
+            preferences,
             downloads: SubtitleDownloads::new(&db, plugins.clone(), image_store),
             db: Arc::clone(&db),
         }))
@@ -220,8 +223,8 @@ pub(crate) fn router(
             connections,
             plugin_settings,
             plugin_logos: plugin_logos.clone(),
-            browse: Browse::new(Arc::clone(&db)),
-            preferences: TrackPreferences::new(Arc::clone(&db)),
+            syncing,
+            browse: Browse::new(Arc::clone(&db), plugins.clone()),
             db,
             server_url,
             home_rows,

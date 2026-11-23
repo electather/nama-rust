@@ -8,13 +8,15 @@ Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011
 - **A User Links like a Server**, but their Server asks with its credential, so a User's code needs no device code: the Server asks `GetUserLink` until it is entered. A User Links to one Account, and an Account to Users on many Servers. Unlinking a Server Unlinks its Users.
 - **Server Addresses come from the Server**, which reports them as they change. The Hub keeps only the last ones, and checks each is an `http` or `https` URL, since its pages link to them. Clients reach Servers there themselves: the Hub never proxies a call or media (ADR 0094).
 - **The public port is checked where the report came from** (ADR 0057): the Hub opens a TCP connection to the request's own IP address, never one the Server names, so a Server can't have the Hub call anyone else, and sends nothing on it. Addresses go best first: the Server URL, the public address only if reached, then the LAN ones.
+- **Names follow the reports** (ADR 0104, `names.rs`): each report stores its addresses, replaces the records under the Server's own name, its id in hex, then removes them again if the Server was Unlinked meanwhile. Unlinking removes them before and after deleting the row, and fails while it can't. No transaction is held across a DNS provider's call. Only a private IPv4 LAN address gets a name.
 - **Only a proven email Links** (ADR 0100), Servers and Users alike, accepting a User created from the Account included, and only from a session with Recent Authentication.
 - **Inviting reveals nothing** (ADR 0092): asking an email with no Account answers as one with an Account does.
 - **A sign-in is a device flow too.** The Server polls with a device code it got over its credential; the Account approves on the page for the sign-in's id. The token names the User through their Link, `aud` the Linked Server, and is handed out once. The return address must be on one of the Server's Server Addresses, and approving adds a one-time code to it that the Server's first poll after must bring, so only the browser sent back there finishes (#1934).
+- **A batch keeps only Linked Users' items.** A Linked Server's push or Viewing Events name many Users, and `linked_accounts` pairs each item with its User's Account in one query, leaving out, not refusing, those of a User who isn't Linked, so a Server's queue empties after an Unlink.
 - **Scoped by Account** (ADR 0097): an Account lists only the Linked Servers it owns or has a User on, lists and Unlinks only its own Linked Users, and a Linked Server Unlinks only itself and its own Users.
 
 ### Neighbours
 
-- Uses: `accounts` (an `AccountSession`'s proven email and Recent Authentication, an Account's email, the Account with an email) and `signing` (the token).
+- Uses: `accounts` (an `AccountSession`'s proven email and its Recent Authentication check, whose error `links` passes on, an Account's email, the Account with an email, deleting an Account), `signing` (the token) and `dns` (the Server's names).
 - Used by: `api`, whose auth layer turns a bearer credential into a `LinkedServer`, and which converts what `links.rs` re-exports, and `diagnostics` (`LinkedServerId`, each Server's volume).
-- Used by: `sync`, `viewing` and `recommendations`, for the Account a Linked Server's User is Linked to.
+- Used by: `sync`, `viewing` and `recommendations`, handed it by `api`, for the Accounts a Linked Server's Users are Linked to.

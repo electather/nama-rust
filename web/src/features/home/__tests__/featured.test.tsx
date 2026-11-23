@@ -80,6 +80,20 @@ test("the first Featured title opens first, resuming what you started", async ()
   );
 });
 
+test("a Featured title's Title Logo that fails to load gives way to its title as text", async () => {
+  const logoUrl = "/media/artwork/tmdb/%2Farrival-logo.svg";
+  openHome([
+    { libraryId: 1n, movieOrShow: { case: "movie", value: { ...arrival, titleLogoUrl: logoUrl } } },
+  ]);
+
+  const heading = await screen.findByRole("heading", { level: 1, name: "Arrival" });
+  fireEvent.error(within(heading).getByRole("img"));
+  expect([within(heading).queryByRole("img"), heading.textContent]).toStrictEqual([
+    null,
+    "Arrival",
+  ]);
+});
+
 test("hovering a closed panel opens it, and a Show plays its next Episode", async () => {
   const next = { seasonNumber: 1, episodeNumber: 3, title: "In Perpetuity" };
   openHome([

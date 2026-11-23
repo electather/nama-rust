@@ -9,7 +9,10 @@ use tempfile::TempDir;
 
 use super::TitlePages;
 use crate::{
-    browse::tests::{KNIGHT_TMDB_ID, ada, knight_episode, knight_match, library, store},
+    browse::{
+        Browse,
+        tests::{KNIGHT_TMDB_ID, ada, knight_episode, knight_match, library, store},
+    },
     db::Database,
     events::EventBus,
     library::{
@@ -46,7 +49,13 @@ impl Fixture {
         let points = plugins.extension_points();
         let events = EventBus::new(Arc::clone(&db), points.clone(), ServerUrl::default());
         let requests = Requests::new(Arc::clone(&db), events, points.clone());
-        let pages = TitlePages::new(Arc::clone(&db), requests, SimilarSources::new(points));
+        let browse = Browse::new(Arc::clone(&db), points.clone());
+        let pages = TitlePages::new(
+            Arc::clone(&db),
+            browse,
+            requests,
+            SimilarSources::new(points),
+        );
         Self {
             _data: data,
             media: tempfile::tempdir().unwrap(),

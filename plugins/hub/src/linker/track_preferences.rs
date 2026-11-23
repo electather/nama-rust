@@ -4,36 +4,33 @@
 //! one, so each Server matches it against its own (ADR 0035). A Show's or Movie's goes to the Hub
 //! once under each of its ids, as the Hub keeps a row under each, and comes back under one.
 
-use std::sync::Arc;
+use std::{hash::Hash, sync::Arc};
 
 use nama_hub_proto::nama::hub::v1::{TitleKind, TrackPreferenceChange as Change};
 use nama_plugin_api::{
     BoxFuture, Observer, PluginError,
-    automation::functions::StoreDelete,
     points::{
         TrackDescription, TrackPreference, TrackPreferenceChange, TrackPreferenceChanged,
         TrackPreferenceFor,
     },
-    server_link::Link,
 };
 
-use super::{Linker, store_key, watch_states::MAX_ID_LENGTH};
+use super::{Linker, queue::Queued};
+use crate::hub::limits;
 
-/// The Store key of the queue: the changes not yet sent, oldest first.
-// ponytail: one value, under the Store's 64 KiB while about 400 changes with short Track titles
-// wait, one per User, title and id however often each changes, so about 100 Preferences of titles
-// with a few ids each, and past it a change fails to queue. A Link queues every one a User has at
-// once. Page it as Watch State's queue is if Hub outages or Users' Preferences grow that long.
-const QUEUE_KEY: &str = "track-preference-queue";
+impl Queued for Change {
+    const STORE_KEY: &'static str = "track-preferences";
+    const PER_CALL: usize = limits::PUSH_CHANGES;
+    const OLD_STORE_KEY: Option<&'static str> = Some("track-preference-queue");
 
-/// The most changes one push holds, as the Hub takes them.
-const PUSH_CHANGES: usize = 500;
+    fn key(&self) -> impl Eq + Hash + '_ {
+        (self.user_id, self.audio, self.title_kind, &self.title_id)
+    }
 
-/// The most characters a language and a Track's title may have, as the Hub takes them, as
-/// [`MAX_ID_LENGTH`] is an id's: past one it would refuse the push, which would hold back every
-/// later one.
-const MAX_LANGUAGE_LENGTH: usize = 100;
-const MAX_TITLE_LENGTH: usize = 1000;
+    fn changed_at_ms(&self) -> i64 {
+        self.changed_at_ms
+    }
+}
 
 /// Queues Linked Users' Track Preference changes as the Kernel tells of them, for the Sync Job to
 /// send.
@@ -51,89 +48,40 @@ impl Observer<TrackPreferenceChanged> for TrackPreferenceSync {
 impl Linker {
     /// Queues `changed`, if its User is Linked, asking the Hub as Watch State changes do.
     async fn queue_preference(&self, changed: &TrackPreferenceChange) -> Result<(), PluginError> {
-        let Some(Link::Linked { .. }) = self.current_user_link(changed.user_id).await? else {
-            return Ok(());
-        };
-        let under_each_id = changes_to_proto(changed);
-        if under_each_id.is_empty() {
+        if !self.user_linked(changed.user_id).await? {
             return Ok(());
         }
-        let _queue = self.queue.lock().await;
-        let mut queued: Vec<Change> = self.stored_json(QUEUE_KEY).await?.unwrap_or_default();
-        for change in under_each_id {
-            enqueue(&mut queued, change);
-        }
-        self.put_json(QUEUE_KEY.to_owned(), &queued).await
+        self.preferences.add(changes_to_proto(changed)).await
     }
 
-    /// Sends the queue to the Hub and forgets it. Without the Server's Link, the queue has
-    /// nowhere to go, and is forgotten.
+    /// Sends the queue to the Hub and forgets what it took. Without the Server's Link, such as
+    /// once the Hub dropped it, the queue has nowhere to go, and is forgotten.
     pub(super) async fn send_queued_preferences(&self) -> Result<(), PluginError> {
-        let _queue = self.queue.lock().await;
-        let Some(queued) = self.stored_json::<Vec<Change>>(QUEUE_KEY).await? else {
-            return Ok(());
+        let push = |page| -> BoxFuture<'_, _> {
+            Box::pin(self.call(|hub| hub.push_track_preferences(page)))
         };
-        if let Some(kept) = self.kept().await? {
-            // A chunk sent again after a later one fails is merged the same way twice.
-            for chunk in queued.chunks(PUSH_CHANGES) {
-                (self.hub)
-                    .push_track_preferences(&kept.credential, chunk.to_vec())
-                    .await?;
-            }
-        }
-        self.kernel.ask::<StoreDelete>(store_key(QUEUE_KEY)).await?;
-        Ok(())
+        self.preferences.send(push).await
     }
 
     /// The Track Preferences of the Account `user_id` is Linked to, once the Hub has every change
-    /// queued here, so what it answers is never older than this Server's own; empty without the
-    /// Server's Link.
+    /// queued here; empty without the Server's Link.
     pub(super) async fn pull_preferences(
         &self,
         user_id: i64,
     ) -> Result<Vec<TrackPreference>, PluginError> {
         self.send_queued_preferences().await?;
-        let Some(kept) = self.kept().await? else {
-            return Ok(Vec::new());
-        };
-        let pulled = (self.hub)
-            .pull_track_preferences(&kept.credential, user_id)
-            .await?;
-        Ok(pulled.into_iter().filter_map(change_from_proto).collect())
+        let pulled = self.call(|hub| hub.pull_track_preferences(user_id)).await?;
+        Ok((pulled.unwrap_or_default().into_iter())
+            .filter_map(change_from_proto)
+            .collect())
     }
-}
-
-/// Adds `change` to `queue`, in place of a queued change of the same User's same Preference under
-/// the same id, unless that one was made later, as when two changes are told out of order.
-fn enqueue(queue: &mut Vec<Change>, change: Change) {
-    let same_preference = |queued: &Change| {
-        (
-            queued.user_id,
-            queued.audio,
-            queued.title_kind,
-            &queued.title_id,
-        ) == (
-            change.user_id,
-            change.audio,
-            change.title_kind,
-            &change.title_id,
-        )
-    };
-    if (queue.iter())
-        .any(|queued| same_preference(queued) && queued.changed_at_ms > change.changed_at_ms)
-    {
-        return;
-    }
-    queue.retain(|queued| !same_preference(queued));
-    queue.push(change);
 }
 
 /// `changed`, as the Hub takes it: a Show's or Movie's once under each id that fits, and none if
-/// its language is longer than the Hub takes. A Track's title is cut short
-/// there instead, as it only ranks Tracks that match.
+/// its language is longer than the Hub takes or the Hub wouldn't take when it was made. A Track's
+/// title is cut short there instead, as it only ranks Tracks that match.
 fn changes_to_proto(changed: &TrackPreferenceChange) -> Vec<Change> {
     let preference = &changed.preference;
-    let fits = |id: &&String| !id.is_empty() && id.chars().count() <= MAX_ID_LENGTH;
     let (title_kind, title_ids) = match &preference.kept_for {
         TrackPreferenceFor::User => (TitleKind::TITLE_KIND_UNSPECIFIED, None),
         TrackPreferenceFor::Movie(ids) => (TitleKind::TITLE_KIND_MOVIE, Some(ids)),
@@ -141,11 +89,15 @@ fn changes_to_proto(changed: &TrackPreferenceChange) -> Vec<Change> {
     };
     let title_ids: Vec<&str> = match title_ids {
         None => vec![""],
-        Some(ids) => ids.iter().filter(fits).map(String::as_str).collect(),
+        Some(ids) => (ids.iter().map(String::as_str))
+            .filter(|id| limits::takes_external_id(id))
+            .collect(),
     };
     let like = preference.like.clone().unwrap_or_default();
     let language = like.language.unwrap_or_default();
-    if language.chars().count() > MAX_LANGUAGE_LENGTH {
+    if language.chars().count() > limits::TRACK_LANGUAGE_CHARS
+        || !limits::takes_changed_at(preference.changed_at_ms)
+    {
         return Vec::new();
     }
     let change = Change {
@@ -157,7 +109,7 @@ fn changes_to_proto(changed: &TrackPreferenceChange) -> Vec<Change> {
         forced: like.forced,
         sdh: like.sdh,
         title: (like.title.unwrap_or_default().chars())
-            .take(MAX_TITLE_LENGTH)
+            .take(limits::TRACK_TITLE_CHARS)
             .collect(),
         foreign_audio_only: preference.foreign_audio_only,
         changed_at_ms: preference.changed_at_ms,

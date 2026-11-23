@@ -11,9 +11,9 @@ use crate::{
 };
 
 impl Scanner {
-    /// Creates a Library asking its Plugins in `order`, and watches its folders. An order naming
-    /// no title source gets the default. The watch follows even if the caller stops waiting
-    /// (ADR 0029); scanning the new Library is left to the caller.
+    /// Creates a Library asking its Plugins in `order`, watches its folders and starts scanning
+    /// them. An order naming no title source gets the default. The watch and the scan follow
+    /// even if the caller stops waiting (ADR 0029).
     ///
     /// Refuses an order as [`Self::check_order`] does.
     pub(crate) async fn create_library(
@@ -32,6 +32,7 @@ impl Scanner {
             let libraries = &scanner.inner.libraries;
             let library = (libraries.create_in_order(&name, kind, folders, order)).await?;
             scanner.rewatch().await;
+            scanner.queue(library.id);
             Ok(library)
         })
         .await

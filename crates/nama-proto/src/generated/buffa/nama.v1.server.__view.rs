@@ -553,6 +553,13 @@ pub struct ServerLinkView<'a> {
     ///
     /// Field 5: `reachable`
     pub reachable: bool,
+    /// The Server's names on the Hub (ADR 0104). Its own name comes first, such as
+    /// `0193b6f2c4d87a1e9f3c5b2a1d0e4f67.namadirect.net`, and then one for each of its private IPv4
+    /// LAN addresses, such as `192-168-1-10.<own name>`. Empty until the Hub named the Server, and on
+    /// a Hub that names no Server.
+    ///
+    /// Field 6: `names`
+    pub names: ::buffa::RepeatedView<'a, &'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ServerLinkView<'a> {
@@ -620,6 +627,17 @@ impl<'a> ::buffa::MessageView<'a> for ServerLinkView<'a> {
                 )?;
                 view.reachable = ::buffa::types::decode_bool(&mut cur)?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.names.push(__elem);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -647,6 +665,7 @@ impl<'a> ::buffa::MessageView<'a> for ServerLinkView<'a> {
             account: self.account.to_string(),
             public_address: self.public_address.to_string(),
             reachable: self.reachable,
+            names: self.names.iter().map(|s| s.to_string()).collect(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -675,6 +694,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ServerLinkView<'a> {
         if self.reachable {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        for v in &self.names {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -700,6 +722,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ServerLinkView<'a> {
         }
         if self.reachable {
             ::buffa::types::put_bool_field(5u32, self.reachable, buf);
+        }
+        for v in &self.names {
+            ::buffa::types::put_string_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -736,6 +761,9 @@ impl<'__a> ::serde::Serialize for ServerLinkView<'__a> {
         }
         if self.reachable {
             __map.serialize_entry("reachable", &self.reachable)?;
+        }
+        if !self.names.is_empty() {
+            __map.serialize_entry("names", &*self.names)?;
         }
         __map.end()
     }
@@ -865,6 +893,16 @@ impl ServerLinkOwnedView {
     #[must_use]
     pub fn reachable(&self) -> bool {
         self.0.reborrow().reachable
+    }
+    /// The Server's names on the Hub (ADR 0104). Its own name comes first, such as
+    /// `0193b6f2c4d87a1e9f3c5b2a1d0e4f67.namadirect.net`, and then one for each of its private IPv4
+    /// LAN addresses, such as `192-168-1-10.<own name>`. Empty until the Hub named the Server, and on
+    /// a Hub that names no Server.
+    ///
+    /// Field 6: `names`
+    #[must_use]
+    pub fn names(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().names
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ServerLinkView<'static>>>

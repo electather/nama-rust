@@ -78,9 +78,14 @@ pub(crate) struct TitlePages {
 }
 
 impl TitlePages {
-    pub(crate) fn new(db: Arc<Database>, requests: Requests, similar: SimilarSources) -> Self {
+    pub(crate) fn new(
+        db: Arc<Database>,
+        browse: Browse,
+        requests: Requests,
+        similar: SimilarSources,
+    ) -> Self {
         Self {
-            browse: Browse::new(Arc::clone(&db)),
+            browse,
             requests,
             similar,
             db,

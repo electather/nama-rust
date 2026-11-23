@@ -1,16 +1,18 @@
 //! Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011), the Linked
 //! Server's opaque credential, the Server Addresses it reports and whether its public port can be
-//! reached, Unlinking, and the token signed for a Server once it is Linked.
+//! reached, its names in the Server-names zone (`names.rs`), Unlinking, and the token signed
+//! for a Server once it is Linked.
 //! Linking its Users to Accounts is in `users.rs`, Users created from an Account in `invites.rs`,
 //! and signing in to a Server with an Account in `server_sign_ins.rs`.
 
 mod invites;
+mod names;
 mod server_sign_ins;
 mod users;
 
 use std::{
     fmt::{self, Write as _},
-    net::SocketAddr,
+    net::{IpAddr, SocketAddr},
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -23,7 +25,8 @@ use tokio::net::TcpStream;
 use uuid::Uuid;
 
 use crate::{
-    accounts::{AccountId, AccountSession, Accounts},
+    accounts::{self, AccountId, AccountSession, Accounts, RecentAuthenticationRequired},
+    dns::{DnsError, ServerNames},
     signing::Keys,
 };
 
@@ -98,7 +101,16 @@ pub(crate) struct ListedServer {
     pub(crate) addresses: Vec<String>,
 }
 
+/// What the Hub found of a Server's addresses it reported.
+pub(crate) struct Checked {
+    /// Where it tried to reach the Server from outside, if the Server has a public port.
+    pub(crate) public: Option<PublicAddress>,
+    /// The Server's names, its own first, or none while the Hub names no Server.
+    pub(crate) names: Vec<String>,
+}
+
 /// Where the Hub tried to reach a Server from outside, and whether it could.
+#[derive(Default)]
 pub(crate) struct PublicAddress {
     /// Such as `http://203.0.113.7:7980`.
     pub(crate) address: String,
@@ -125,8 +137,8 @@ pub(crate) enum Polled {
 /// Why a Link couldn't be made or polled.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum Error {
-    #[error("sign in again to Link")]
-    RecentAuthenticationRequired,
+    #[error(transparent)]
+    RecentAuthenticationRequired(#[from] RecentAuthenticationRequired),
     #[error("prove your email with a Sign-in Link before Linking")]
     EmailNotProven,
     #[error("nothing is waiting on this code")]
@@ -152,6 +164,8 @@ pub(crate) enum Error {
     Random(#[from] getrandom::Error),
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
+    #[error("could not write the Server's names: {0}")]
+    Names(#[from] DnsError),
 }
 
 /// The claims of the token a newly Linked Server gets.
@@ -169,11 +183,23 @@ pub(crate) struct Links {
     db: PgPool,
     accounts: Accounts,
     keys: Arc<Keys>,
+    /// Without it, the Hub names no Server.
+    names: Option<ServerNames>,
 }
 
 impl Links {
-    pub(crate) fn new(db: PgPool, accounts: Accounts, keys: Arc<Keys>) -> Self {
-        Self { db, accounts, keys }
+    pub(crate) fn new(
+        db: PgPool,
+        accounts: Accounts,
+        keys: Arc<Keys>,
+        names: Option<ServerNames>,
+    ) -> Self {
+        Self {
+            db,
+            accounts,
+            keys,
+            names,
+        }
     }
 
     /// Starts registering a Server named `name`, forgetting every Server whose codes expired, and
@@ -334,14 +360,14 @@ impl Links {
     /// Replaces the Server Addresses `server` reported before with its Server URL `url`, empty
     /// for none, and its `lan_addresses` at once, then with `public`, its router's public IP
     /// address with the port that reaches it, if it has one, once the Hub has tried to connect
-    /// there.
+    /// there, and names it after both.
     pub(crate) async fn set_addresses(
         &self,
         server: &LinkedServer,
         url: &str,
         lan_addresses: &[String],
         public: Option<SocketAddr>,
-    ) -> Result<Option<PublicAddress>, Error> {
+    ) -> Result<Checked, Error> {
         let addresses_valid = lan_addresses.len() <= MAX_LAN_ADDRESSES
             && (url.is_empty() || is_address(url))
             && lan_addresses.iter().all(|address| is_address(address));
@@ -358,25 +384,85 @@ impl Links {
         )
         .execute(&self.db)
         .await?;
-        let public = match public {
-            Some(public) => Some(PublicAddress {
-                address: format!("http://{public}"),
-                reachable: reaches(public).await,
-            }),
+        let probed = match public {
+            Some(address) => Some((address, reaches(address).await)),
             None => None,
         };
-        let reached = public
-            .as_ref()
-            .filter(|public| public.reachable)
-            .map_or("", |public| public.address.as_str());
-        sqlx::query!(
+        let reached = probed
+            .filter(|&(_, reachable)| reachable)
+            .map(|(address, _)| address);
+        let public_address =
+            reached.map_or_else(String::new, |address| format!("http://{address}"));
+        // Stored before naming too, so a DNS provider that is down holds back only the names.
+        self.store_public_address(server.id, &public_address)
+            .await?;
+        let names = self
+            .write_names(
+                server.id,
+                reached.map(|address| address.ip()),
+                lan_addresses,
+            )
+            .await?;
+        // Stored again after naming, so a Server Unlinked meanwhile is found gone here and its
+        // names go again; no transaction waits on the DNS provider holding one of the pool's
+        // connections.
+        if !self
+            .store_public_address(server.id, &public_address)
+            .await?
+        {
+            self.forget_names(server.id).await?;
+        }
+        Ok(Checked {
+            public: probed.map(|(address, reachable)| PublicAddress {
+                address: format!("http://{address}"),
+                reachable,
+            }),
+            names,
+        })
+    }
+
+    /// Stores `address` as `server`'s public address, and answers whether it is still Linked.
+    async fn store_public_address(
+        &self,
+        server: LinkedServerId,
+        address: &str,
+    ) -> Result<bool, sqlx::Error> {
+        let stored = sqlx::query!(
             "UPDATE linked_servers SET public_address = $1 WHERE id = $2",
-            reached,
-            server.id.0,
+            address,
+            server.0,
         )
         .execute(&self.db)
         .await?;
-        Ok(public)
+        Ok(stored.rows_affected() > 0)
+    }
+
+    /// Points `server`'s own name at `public`, if any, and a name under it at each private IPv4
+    /// address among its `lan_addresses`, and answers its names: none while the Hub names no
+    /// Server.
+    async fn write_names(
+        &self,
+        server: LinkedServerId,
+        public: Option<IpAddr>,
+        lan_addresses: &[String],
+    ) -> Result<Vec<String>, DnsError> {
+        let Some(server_names) = &self.names else {
+            return Ok(Vec::new());
+        };
+        let own = names::own_name(server, &server_names.zone);
+        let records = names::records(&own, public, lan_addresses);
+        let shown = names::shown(&own, &records);
+        server_names.records.replace(&own, records).await?;
+        Ok(shown)
+    }
+
+    /// Removes every record under `server`'s own name, if the Hub names Servers.
+    async fn forget_names(&self, server: LinkedServerId) -> Result<(), DnsError> {
+        if let Some(server_names) = &self.names {
+            let own = names::own_name(server, &server_names.zone);
+            server_names.records.replace(&own, Vec::new()).await?;
+        }
+        Ok(())
     }
 
     /// The Linked Server whose credential is `credential`, if it is still Linked.
@@ -395,11 +481,39 @@ impl Links {
         }))
     }
 
-    /// Unlinks `server`: its credential stops working at once.
-    pub(crate) async fn unlink(&self, server: &LinkedServer) -> Result<(), sqlx::Error> {
+    /// Unlinks `server`: its credential stops working at once, and its names are gone. While its
+    /// names can't be removed, it stays Linked.
+    pub(crate) async fn unlink(&self, server: &LinkedServer) -> Result<(), Error> {
+        self.forget_names(server.id).await?;
         sqlx::query!("DELETE FROM linked_servers WHERE id = $1", server.id.0)
             .execute(&self.db)
             .await?;
+        // Again, for a report that named the Server between the first removal and the delete.
+        if let Err(err) = self.forget_names(server.id).await {
+            tracing::error!(server = %server.id, "an Unlinked Server's names may stay: {err}");
+        }
+        Ok(())
+    }
+
+    /// Deletes `session`'s Account, as [`Accounts::delete`] does, then the names of the Linked
+    /// Servers it owned, which deleting it Unlinked. Names that can't be removed are only logged:
+    /// the Account is gone by then.
+    pub(crate) async fn delete_account(
+        &self,
+        session: &AccountSession,
+    ) -> Result<(), accounts::Error> {
+        let owned = sqlx::query_scalar!(
+            "SELECT id FROM linked_servers WHERE account_id = $1",
+            session.account.id.0,
+        )
+        .fetch_all(&self.db)
+        .await?;
+        self.accounts.delete(session).await?;
+        for server in owned.into_iter().map(LinkedServerId) {
+            if let Err(err) = self.forget_names(server).await {
+                tracing::error!(%server, "the names of a deleted Account's Server stay: {err}");
+            }
+        }
         Ok(())
     }
 }
@@ -418,10 +532,7 @@ fn may_link(session: &AccountSession) -> Result<(), Error> {
     if !session.email_proven {
         return Err(Error::EmailNotProven);
     }
-    if !session.authenticated_recently {
-        return Err(Error::RecentAuthenticationRequired);
-    }
-    Ok(())
+    Ok(session.require_recent_authentication()?)
 }
 
 /// Whether `address` may be a Server Address: an absolute `http` or `https` URL, so the Hub's pages

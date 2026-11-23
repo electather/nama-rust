@@ -34,11 +34,13 @@ use nama_hub_proto::nama::hub::v1::{
 };
 use sqlx::PgPool;
 use tracing::Instrument as _;
+use url::Url;
 
 use crate::{
-    accounts::Accounts,
+    accounts::{Accounts, RECENT_AUTHENTICATION_MINS, RecentAuthenticationRequired},
     db,
     diagnostics::{Backend, NotTaken, Shared, Signal},
+    dns::ServerNames,
     links::{LinkedServer, Links},
     mail::Mail,
     recommendations::Recommendations,
@@ -57,16 +59,23 @@ use self::{
 /// through `trusted_proxies` (ADR 0018) and which Account or Linked Server, if any, sent it, the
 /// public half of `keys` at `/.well-known/jwks.json`, and OTLP/HTTP's `/otlp/v1/traces` and
 /// `/otlp/v1/logs` taking what Linked Servers share for `diagnostics`. Sign-in Links go out
-/// through `mail`, if it is set up.
+/// through `mail`, if it is set up, and Linked Servers are named through `names`, if it is.
+/// Passkeys are for the Hub at `public_url`.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each is a separate handle the Hub is built from, as `serve`'s are"
+)]
 pub(crate) fn router(
     db: PgPool,
     keys: Arc<Keys>,
     trusted_proxies: &[IpRange],
     mail: Option<Mail>,
+    names: Option<ServerNames>,
     diagnostics: Option<Arc<dyn Backend>>,
+    public_url: Option<&Url>,
 ) -> axum::Router {
-    let accounts = Accounts::new(db.clone(), mail);
-    let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys));
+    let accounts = Accounts::new(db.clone(), mail, public_url);
+    let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys), names);
     let rpcs = services(db, &accounts, &links)
         .into_axum_service()
         .with_interceptor(RefuseUnserved);
@@ -100,11 +109,11 @@ pub(crate) fn router(
 
 /// Every Hub service, on `db`, asking `accounts` and `links`.
 fn services(db: PgPool, accounts: &Accounts, links: &Links) -> connectrpc::Router {
-    let viewing = Viewing::new(db.clone(), links.clone());
-    let watch_states = WatchStates::new(db.clone(), links.clone());
-    let recommendations = Recommendations::new(db.clone(), links.clone(), viewing.clone());
-    let track_preferences = TrackPreferences::new(db.clone(), links.clone());
-    let watchlists = Watchlists::new(db.clone(), links.clone(), viewing.clone());
+    let viewing = Viewing::new(db.clone());
+    let watch_states = WatchStates::new(db.clone());
+    let recommendations = Recommendations::new(db.clone(), viewing.clone());
+    let track_preferences = TrackPreferences::new(db.clone());
+    let watchlists = Watchlists::new(db.clone(), viewing.clone());
     connectrpc::Router::new()
         .add_service(Arc::new(HubServiceHandler {
             db: db.clone(),
@@ -112,6 +121,7 @@ fn services(db: PgPool, accounts: &Accounts, links: &Links) -> connectrpc::Route
         }))
         .add_service(Arc::new(AccountServiceHandler {
             accounts: accounts.clone(),
+            links: links.clone(),
         }))
         .add_service(Arc::new(ServerLinkServiceHandler {
             links: links.clone(),
@@ -362,21 +372,26 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
     match reason {
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_EMAIL_OR_PASSWORD
-        | R::REFUSAL_REASON_SERVER_NOT_LINKED => ErrorCode::Unauthenticated,
+        | R::REFUSAL_REASON_SERVER_NOT_LINKED
+        | R::REFUSAL_REASON_PASSKEY_NOT_ACCEPTED => ErrorCode::Unauthenticated,
         R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED
         | R::REFUSAL_REASON_EMAIL_NOT_PROVEN
         | R::REFUSAL_REASON_SIGN_IN_LINKS_OFF
-        | R::REFUSAL_REASON_NO_USER_ON_SERVER => ErrorCode::FailedPrecondition,
+        | R::REFUSAL_REASON_NO_USER_ON_SERVER
+        | R::REFUSAL_REASON_PASSKEYS_OFF
+        | R::REFUSAL_REASON_LAST_SIGN_IN_METHOD => ErrorCode::FailedPrecondition,
         R::REFUSAL_REASON_LINK_CODE_NOT_FOUND
         | R::REFUSAL_REASON_LINK_EXPIRED
         | R::REFUSAL_REASON_SIGN_IN_LINK_EXPIRED
         | R::REFUSAL_REASON_USER_INVITE_NOT_FOUND
-        | R::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND => ErrorCode::NotFound,
+        | R::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND
+        | R::REFUSAL_REASON_PASSKEY_NOT_FOUND => ErrorCode::NotFound,
         R::REFUSAL_REASON_TOO_MANY_ATTEMPTS => ErrorCode::ResourceExhausted,
         R::REFUSAL_REASON_EMAIL_TAKEN | R::REFUSAL_REASON_USER_LINKED => ErrorCode::AlreadyExists,
         // `UNSPECIFIED` is never sent; a client sees it only for a reason it doesn't know.
         R::REFUSAL_REASON_EMAIL_INVALID
         | R::REFUSAL_REASON_PASSWORD_LENGTH
+        | R::REFUSAL_REASON_PASSKEY_NAME_LENGTH
         | R::REFUSAL_REASON_WATCH_STATE_INVALID
         | R::REFUSAL_REASON_URL_INVALID
         | R::REFUSAL_REASON_SERVER_ADDRESS_INVALID
@@ -385,6 +400,16 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_WATCHLIST_INVALID
         | R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,
     }
+}
+
+/// Refuses a request whose session lacks Recent Authentication, whichever area found it, saying
+/// how recent a sign-in must be.
+fn recent_authentication_required(err: &RecentAuthenticationRequired) -> Refused {
+    refuse(
+        RefusalReason::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
+        err.to_string(),
+    )
+    .param("recentMinutes", &RECENT_AUTHENTICATION_MINS)
 }
 
 /// The error a client gets for a failure on the Hub's side: logged, not sent, since it says

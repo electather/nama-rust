@@ -33,7 +33,12 @@ const CEILINGS: &[(&str, usize)] = &[];
 const OWNED_TABLES: &[(&str, &[&str])] = &[
     (
         "src/accounts",
-        &["accounts", "account_sessions", "sign_in_links"],
+        &[
+            "accounts",
+            "account_sessions",
+            "account_passkeys",
+            "sign_in_links",
+        ],
     ),
     (
         "src/links",
@@ -78,7 +83,7 @@ const ROWS: &[&[&str]] = &[
     &["sync", "viewing"],
     &["links"],
     &["accounts", "titles"],
-    &["signing", "mail", "web", "db", "config"],
+    &["signing", "dns", "mail", "https", "web", "db", "config"],
 ];
 
 /// The modules that start the Hub, which call any row.
