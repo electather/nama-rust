@@ -248,12 +248,26 @@ async fn the_hub_lists_the_public_address_it_reached_between_the_server_url_and_
 }
 
 #[sqlx::test(migrations = false)]
-async fn the_hub_stores_a_new_server_url_before_it_has_reached_the_public_port(db: PgPool) {
+async fn the_hub_stores_a_new_server_url_at_once_and_keeps_the_public_address_while_it_probes(
+    db: PgPool,
+) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
     let living_room = linked(&hub, &ada, "Living room").await;
+    // The test's calls come from 127.0.0.1, so the Hub tries the Server's ports there.
+    let open = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let reached = open.local_addr().unwrap().port();
+    set_addresses_with_port(
+        &hub,
+        &living_room,
+        "https://old.example.com",
+        &[],
+        reached.into(),
+    )
+    .await
+    .unwrap();
     // Linux drops a SYN to a listener whose accept queue is full, so the Hub's connection waits
-    // out its whole probe: a backlog of 0 queues one connection, which `queued` takes.
+    // out its whole probe: a backlog of 0 queues one connection, which `_queued` takes.
     let socket = tokio::net::TcpSocket::new_v4().unwrap();
     socket.bind("127.0.0.1:0".parse().unwrap()).unwrap();
     let full = socket.listen(0).unwrap();
@@ -270,13 +284,26 @@ async fn the_hub_stores_a_new_server_url_before_it_has_reached_the_public_port(d
         port.into(),
     );
     let stored = async {
-        while server_addresses(&hub, &ada).await[0].1 != "https://nama.example.com" {
+        loop {
+            let (_, url, addresses) = server_addresses(&hub, &ada).await.swap_remove(0);
+            if url == "https://nama.example.com" {
+                return addresses;
+            }
             tokio::time::sleep(std::time::Duration::from_millis(20)).await;
         }
     };
+    // Well inside the Hub's 5-second probe, so storing the Server URL only after it fails here.
+    let stored = tokio::time::timeout(std::time::Duration::from_secs(2), stored);
 
-    tokio::select! {
-        () = stored => {}
-        answer = set => panic!("the Hub stored the Server URL only after its probe: {answer:?}"),
-    }
+    let listed = tokio::select! {
+        listed = stored => listed.expect("the Hub stored the Server URL only after its probe"),
+        answer = set => panic!("the probe ended at once, so it held nothing: {answer:?}"),
+    };
+    assert_eq!(
+        listed,
+        [
+            "https://nama.example.com".to_owned(),
+            format!("http://127.0.0.1:{reached}")
+        ]
+    );
 }
