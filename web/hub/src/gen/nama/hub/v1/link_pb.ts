@@ -1274,7 +1274,7 @@ export type ListTrendingTitlesRequest = Message<"nama.hub.v1.ListTrendingTitlesR
  * Use `create(ListTrendingTitlesRequestSchema)` to create a new message.
  */
 export const ListTrendingTitlesRequestSchema: GenMessage<ListTrendingTitlesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 50);
+  messageDesc(file_nama_hub_v1_link, 53);
 
 /**
  * @generated from message nama.hub.v1.ListTrendingTitlesResponse
@@ -1291,7 +1291,7 @@ export type ListTrendingTitlesResponse = Message<"nama.hub.v1.ListTrendingTitles
  * Use `create(ListTrendingTitlesResponseSchema)` to create a new message.
  */
 export const ListTrendingTitlesResponseSchema: GenMessage<ListTrendingTitlesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 51);
+  messageDesc(file_nama_hub_v1_link, 54);
 
 /**
  * A Movie many Accounts finished lately.
@@ -1319,7 +1319,7 @@ export type TrendingTitle = Message<"nama.hub.v1.TrendingTitle"> & {
  * Use `create(TrendingTitleSchema)` to create a new message.
  */
 export const TrendingTitleSchema: GenMessage<TrendingTitle> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 52);
+  messageDesc(file_nama_hub_v1_link, 55);
 
 /**
  * Whether a title is a Movie or a Show, whose External IDs are separate id spaces (ADR 0042).

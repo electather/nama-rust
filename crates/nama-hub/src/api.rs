@@ -4,6 +4,7 @@
 mod accounts;
 mod links;
 mod viewing;
+mod watchlists;
 
 use std::{sync::Arc, time::Instant};
 
