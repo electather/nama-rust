@@ -1,7 +1,6 @@
-//! What a Plugin leaves behind in the database, and when each piece goes: [`LEFTOVERS`] lists
-//! every table keyed by a Plugin, and each moment's call here deletes the Plugin's rows through
-//! that table's own owner. A Plugin reinstalled before its settings go works again as it was left
-//! (ADR 0028).
+//! What a Plugin leaves behind in the database, and when each piece goes: "One owner for what a
+//! Plugin leaves behind" in the crate's AGENTS.md. A Plugin reinstalled before its settings go
+//! works again as it was left (ADR 0028).
 
 use std::{sync::Arc, time::Duration};
 
@@ -44,7 +43,7 @@ pub(super) enum Goes {
 }
 
 /// Every table keyed by a Plugin, with when its rows go; a table whose rows go at two moments is
-/// listed twice. `leftovers_tests.rs` fails on a table naming a Plugin that isn't here.
+/// listed twice.
 #[cfg(test)]
 pub(super) const LEFTOVERS: &[(&str, Goes)] = &[
     ("similar_titles", Goes::Disabled),

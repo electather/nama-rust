@@ -621,7 +621,7 @@ impl Caller {
     }
 
     /// Deletes, in one write, what each Plugin the Server hasn't had for `asked.days` left behind,
-    /// as `PluginSettings::forget_gone` lists it.
+    /// as the Plugin leftovers owner's `LEFTOVERS` lists it.
     async fn forget_gone_plugins(
         self,
         asked: ForgetGonePluginsAsked,
