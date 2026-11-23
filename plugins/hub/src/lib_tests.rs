@@ -791,6 +791,19 @@ async fn a_change_told_after_a_later_one_of_the_same_title_is_dropped() {
 }
 
 #[tokio::test]
+async fn changes_queued_for_a_server_the_hub_forgot_are_dropped() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs, _) = syncing_user_7(&hub).await;
+    tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
+
+    // As when the Account the Server Linked with is deleted.
+    hub.forget_server();
+
+    run_sync(jobs.as_ref()).await.unwrap();
+    assert_eq!(hub.pushes(), Vec::<Vec<HubChange>>::new());
+}
+
+#[tokio::test]
 async fn a_user_who_isnt_linked_keeps_their_watch_state_on_the_server() {
     let hub = FakeHub::start().await;
     let (observer, jobs, _) = syncing_user_7(&hub).await;
