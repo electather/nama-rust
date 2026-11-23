@@ -13,4 +13,4 @@ Accounts (GLOSSARY.md): creating one with an email and a password, signing it in
 ### Neighbours
 
 - Uses: the database, and `mail` to send Sign-in Links.
-- Used by: `links`, which reads an `AccountSession`'s proven email and Recent Authentication and an Account's email, and `api`, whose auth layer turns a session cookie into an `AccountSession`, and which converts the rest of what `accounts.rs` re-exports: `Account`, `SignedIn`, `SignInLink`, `SignedInByLink`, `Error`, `Blocked` and the length and lifetime limits, and which builds each request's `Caller`.
+- Used by: `links`, which reads an `AccountSession`'s proven email and an Account's email, and requires Recent Authentication through the one check here, passing on its `RecentAuthenticationRequired`, and `api`, whose auth layer turns a session cookie into an `AccountSession`, and which converts the rest of what `accounts.rs` re-exports: `Account`, `SignedIn`, `SignInLink`, `SignedInByLink`, `Error`, `Blocked`, `RecentAuthenticationRequired` and the length and lifetime limits, and which builds each request's `Caller`.
