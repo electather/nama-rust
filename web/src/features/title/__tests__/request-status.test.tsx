@@ -200,7 +200,8 @@ test("a Movie to Request shows its Score, genres and Content Rating, its Origina
 test("a Movie to Request shows who stars in it, its Cast & Crew, and who directed it", async () => {
   openApp("/movies/tmdb-438631", server({}));
 
-  await expect(screen.findByText("Starring Timothée Chalamet")).resolves.toBeDefined();
+  const starring = await screen.findByText(/^Starring/u);
+  expect(starring.textContent).toBe("Starring Timothée Chalamet");
   const row = within(screen.getByRole("list", { name: "Cast & Crew" }));
   expect(row.getAllByRole("listitem")).toHaveLength(2);
   const directed = screen.getByText("Directed by", { selector: "dt" });

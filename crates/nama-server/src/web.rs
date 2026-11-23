@@ -10,10 +10,11 @@ use axum::{
 
 include!(concat!(env!("OUT_DIR"), "/web_assets.rs"));
 
-/// Answers a `GET` for any path but an RPC's or `/media/…` with the web app's file at that path,
-/// or else with `index.html`, so a reloaded deep link still loads the app, which then routes to
-/// the page. Every other request goes on to `next`, so an unknown RPC still gets a 404. `vp dev`
-/// proxies the same paths to a Server (`web/vite.config.ts`).
+/// Answers a `GET` for any path but an RPC's or `/media/…` with the web app's file at that path, or
+/// else with `index.html`, so a reloaded deep link still loads the app, which then routes to the
+/// page. A file under `/assets/` is marked to be kept for a year, and `index.html` isn't, so a new
+/// release still loads. Every other request goes on to `next`, so an unknown RPC still gets a 404.
+/// `vp dev` proxies the same paths to a Server (`web/vite.config.ts`).
 pub(crate) async fn serve(request: Request, next: Next) -> Response {
     let path = request.uri().path();
     if request.method() != Method::GET || path.starts_with("/nama.") || path.starts_with("/media/")
@@ -21,6 +22,15 @@ pub(crate) async fn serve(request: Request, next: Next) -> Response {
         return next.run(request).await;
     }
     match asset(path) {
+        // `vp build` names every file under `assets/` by its content's hash, so one never changes.
+        Some(body) if path.starts_with("/assets/") => (
+            [
+                (header::CONTENT_TYPE, content_type(path)),
+                (header::CACHE_CONTROL, "public, max-age=31536000, immutable"),
+            ],
+            body,
+        )
+            .into_response(),
         Some(body) => ([(header::CONTENT_TYPE, content_type(path))], body).into_response(),
         None => ([(header::CONTENT_TYPE, HTML_CONTENT_TYPE)], SHELL).into_response(),
     }

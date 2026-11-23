@@ -28,7 +28,7 @@ export const serverPlaybackLabels: Record<keyof PlaybackValues | "programs", Set
   },
   remotePlaybackLimit: {
     label: "Default Playback Limit for remote playback",
-    hint: "The most a Device outside the local network is sent until its User picks a Playback Limit in the player. Original sends each Version as it is.",
+    hint: "The most a Device outside the local network is sent until its User picks a Playback Limit in the player. Original sends each Version as it is. A User’s cap for remote playback, on their page in Users, holds whatever they pick.",
     words: "bitrate quality",
   },
 };

@@ -16,6 +16,12 @@ CI counts those headings, so a break passes only with one more than main has: ed
 - `BrowseService.ListEpisodes` with `season_number` unset lists every Season's Episodes, where it read unset as Season 0, the Specials.
 - A client built before never sends 0, as proto3 leaves a zero out, so asking for the Specials gets every Season's Episodes. It must regenerate, which sends a 0 it sets. The web app is the only client.
 
+## 2026-11-23, #2023, nama.v1
+
+- None that `buf breaking` reports: in `nama/v1/user.proto`, `SetPermissionsRequest` and `SetDefaultPermissionsRequest` gain `remote_playback_limit` (3 and 2).
+- `SetPermissions` and `SetDefaultPermissions` replace the User's, or new Users', cap for remote playback along with the Permissions, and an unset cap is none.
+- A client built before sends no cap, so saving a User's Permissions, or the default ones, clears a cap another client set. It must regenerate and send the cap it read from `ListUsers` or `GetDefaultPermissions`. The web app is the only client.
+
 ## 2026-11-23, #1952, nama.hub.v1
 
 - None that `buf breaking` reports: in `nama/hub/v1/viewing.proto`, `ViewingEvent` gains `show_external_id` (10).

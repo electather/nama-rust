@@ -14,7 +14,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/search.proto.
  */
 export const file_nama_v1_search: GenFile = /*@__PURE__*/
-  fileDesc("ChRuYW1hL3YxL3NlYXJjaC5wcm90bxIHbmFtYS52MSJPCg1TZWFyY2hSZXF1ZXN0Eg0KBXF1ZXJ5GAEgASgJEiAKBGtpbmQYAiABKA4yEi5uYW1hLnYxLlRpdGxlS2luZBINCgVsaW1pdBgDIAEoBSJWCg5TZWFyY2hSZXNwb25zZRIdCgRoaXRzGAEgASgLMg0ubmFtYS52MS5IaXRzSAASHQoEZG9uZRgCIAEoCzINLm5hbWEudjEuRG9uZUgAQgYKBHBhcnQiIgoESGl0cxIaCgRoaXRzGAEgAygLMgwubmFtYS52MS5IaXQiogEKA0hpdBIiCgVtb3ZpZRgBIAEoCzIRLm5hbWEudjEuTW92aWVIaXRIABIgCgRzaG93GAIgASgLMhAubmFtYS52MS5TaG93SGl0SAASJgoHZXBpc29kZRgDIAEoCzITLm5hbWEudjEuRXBpc29kZUhpdEgAEiQKBnN0YXR1cxgEIAEoDjIULm5hbWEudjEuVGl0bGVTdGF0dXNCBwoFdGl0bGUigQMKCkVwaXNvZGVIaXQSEgoKbGlicmFyeV9pZBgBIAEoAxIfCgJpZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIkCgdzaG93X2lkGAMgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEhIKCnNob3dfdGl0bGUYBCABKAkSFQoNc2Vhc29uX251bWJlchgFIAEoDRIWCg5lcGlzb2RlX251bWJlchgGIAEoDRINCgV0aXRsZRgHIAEoCRIWCglzdGlsbF91cmwYCCABKAlIAIgBARIcCg9zdGlsbF90aHVtYmhhc2gYCSABKAxIAYgBARIcCg9zaG93X3Bvc3Rlcl91cmwYCiABKAlIAogBARIiChVzaG93X3Bvc3Rlcl90aHVtYmhhc2gYCyABKAxIA4gBAUIMCgpfc3RpbGxfdXJsQhIKEF9zdGlsbF90aHVtYmhhc2hCEgoQX3Nob3dfcG9zdGVyX3VybEIYChZfc2hvd19wb3N0ZXJfdGh1bWJoYXNoIkcKBERvbmUSIAoYdGl0bGVfc291cmNlX3VuYXZhaWxhYmxlGAEgASgIEh0KFWZhaWxlZF9zZWFyY2hfc291cmNlcxgCIAMoCSqIAQoLVGl0bGVTdGF0dXMSHAoYVElUTEVfU1RBVFVTX1VOU1BFQ0lGSUVEEAASGgoWVElUTEVfU1RBVFVTX0FWQUlMQUJMRRABEhoKFlRJVExFX1NUQVRVU19SRVFVRVNURUQQAhIjCh9USVRMRV9TVEFUVVNfTk9UX09OX1RISVNfU0VSVkVSEAMyUQoNU2VhcmNoU2VydmljZRJACgZTZWFyY2gSFi5uYW1hLnYxLlNlYXJjaFJlcXVlc3QaFy5uYW1hLnYxLlNlYXJjaFJlc3BvbnNlIgOQAgEwAWIGcHJvdG8z", [file_nama_v1_match, file_nama_v1_request]);
+  fileDesc("ChRuYW1hL3YxL3NlYXJjaC5wcm90bxIHbmFtYS52MSJPCg1TZWFyY2hSZXF1ZXN0Eg0KBXF1ZXJ5GAEgASgJEiAKBGtpbmQYAiABKA4yEi5uYW1hLnYxLlRpdGxlS2luZBINCgVsaW1pdBgDIAEoBSJWCg5TZWFyY2hSZXNwb25zZRIdCgRoaXRzGAEgASgLMg0ubmFtYS52MS5IaXRzSAASHQoEZG9uZRgCIAEoCzINLm5hbWEudjEuRG9uZUgAQgYKBHBhcnQiIgoESGl0cxIaCgRoaXRzGAEgAygLMgwubmFtYS52MS5IaXQiyAEKA0hpdBIiCgVtb3ZpZRgBIAEoCzIRLm5hbWEudjEuTW92aWVIaXRIABIgCgRzaG93GAIgASgLMhAubmFtYS52MS5TaG93SGl0SAASJgoHZXBpc29kZRgDIAEoCzITLm5hbWEudjEuRXBpc29kZUhpdEgAEiQKBnBlcnNvbhgFIAEoCzISLm5hbWEudjEuUGVyc29uSGl0SAASJAoGc3RhdHVzGAQgASgOMhQubmFtYS52MS5UaXRsZVN0YXR1c0IHCgV0aXRsZSKBAwoKRXBpc29kZUhpdBISCgpsaWJyYXJ5X2lkGAEgASgDEh8KAmlkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEiQKB3Nob3dfaWQYAyABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSEgoKc2hvd190aXRsZRgEIAEoCRIVCg1zZWFzb25fbnVtYmVyGAUgASgNEhYKDmVwaXNvZGVfbnVtYmVyGAYgASgNEg0KBXRpdGxlGAcgASgJEhYKCXN0aWxsX3VybBgIIAEoCUgAiAEBEhwKD3N0aWxsX3RodW1iaGFzaBgJIAEoDEgBiAEBEhwKD3Nob3dfcG9zdGVyX3VybBgKIAEoCUgCiAEBEiIKFXNob3dfcG9zdGVyX3RodW1iaGFzaBgLIAEoDEgDiAEBQgwKCl9zdGlsbF91cmxCEgoQX3N0aWxsX3RodW1iaGFzaEISChBfc2hvd19wb3N0ZXJfdXJsQhgKFl9zaG93X3Bvc3Rlcl90aHVtYmhhc2giZgoJUGVyc29uSGl0Eh8KAmlkGAEgASgLMhMubmFtYS52MS5FeHRlcm5hbElkEgwKBG5hbWUYAiABKAkSGQoMaGVhZHNob3RfdXJsGAMgASgJSACIAQFCDwoNX2hlYWRzaG90X3VybCJHCgREb25lEiAKGHRpdGxlX3NvdXJjZV91bmF2YWlsYWJsZRgBIAEoCBIdChVmYWlsZWRfc2VhcmNoX3NvdXJjZXMYAiADKAkqiAEKC1RpdGxlU3RhdHVzEhwKGFRJVExFX1NUQVRVU19VTlNQRUNJRklFRBAAEhoKFlRJVExFX1NUQVRVU19BVkFJTEFCTEUQARIaChZUSVRMRV9TVEFUVVNfUkVRVUVTVEVEEAISIwofVElUTEVfU1RBVFVTX05PVF9PTl9USElTX1NFUlZFUhADMlEKDVNlYXJjaFNlcnZpY2USQAoGU2VhcmNoEhYubmFtYS52MS5TZWFyY2hSZXF1ZXN0GhcubmFtYS52MS5TZWFyY2hSZXNwb25zZSIDkAIBMAFiBnByb3RvMw", [file_nama_v1_match, file_nama_v1_request]);
 
 /**
  * @generated from message nama.v1.SearchRequest
@@ -88,9 +88,10 @@ export const SearchResponseSchema: GenMessage<SearchResponse> = /*@__PURE__*/
 
 /**
  * A batch of results, ordered on the Server. The Libraries' batch: Movies and Shows before
- * Episodes, then an exact title ("Title Year" counts as exact), then a title starting with the
- * query, then one holding each of its words whole (in both, the year it ends with aside), then
- * one of that year, then the better fit, then the shorter title. The title source's batch holds
+ * Episodes before People, then an exact title ("Title Year" counts as exact), then a title
+ * starting with the query, then one holding each of its words whole (in both, the year it ends
+ * with aside), then one of that year, then the better fit, then the shorter title. People go by
+ * those same bands of their names, then the most Roles first. The title source's batch holds
  * none the Libraries' sent: by `status`, then by those same bands, then in the source's order.
  * A Search source's batch holds none an earlier batch sent: by `status`, then in the source's
  * order. A client lists every batch's results stably sorted by `status`.
@@ -112,7 +113,7 @@ export const HitsSchema: GenMessage<Hits> = /*@__PURE__*/
   messageDesc(file_nama_v1_search, 2);
 
 /**
- * A Movie, Show or Episode `Search` found, and whether the caller can watch it.
+ * A Movie, Show, Episode or Person `Search` found, and whether the caller can watch it.
  *
  * @generated from message nama.v1.Hit
  */
@@ -142,6 +143,14 @@ export type Hit = Message<"nama.v1.Hit"> & {
      */
     value: EpisodeHit;
     case: "episode";
+  } | {
+    /**
+     * Found only in the Libraries' batch, always `TITLE_STATUS_AVAILABLE`.
+     *
+     * @generated from field: nama.v1.PersonHit person = 5;
+     */
+    value: PersonHit;
+    case: "person";
   } | { case: undefined; value?: undefined };
 
   /**
@@ -243,6 +252,37 @@ export const EpisodeHitSchema: GenMessage<EpisodeHit> = /*@__PURE__*/
   messageDesc(file_nama_v1_search, 4);
 
 /**
+ * A Person a search found by name. `BrowseService.GetPerson` opens their page by `id`.
+ *
+ * @generated from message nama.v1.PersonHit
+ */
+export type PersonHit = Message<"nama.v1.PersonHit"> & {
+  /**
+   * @generated from field: nama.v1.ExternalId id = 1;
+   */
+  id?: ExternalId | undefined;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+
+  /**
+   * As `GetPersonResponse.headshot_url`.
+   *
+   * @generated from field: optional string headshot_url = 3;
+   */
+  headshotUrl?: string | undefined;
+};
+
+/**
+ * Describes the message nama.v1.PersonHit.
+ * Use `create(PersonHitSchema)` to create a new message.
+ */
+export const PersonHitSchema: GenMessage<PersonHit> = /*@__PURE__*/
+  messageDesc(file_nama_v1_search, 5);
+
+/**
  * Marks the end of what `Search` streams.
  *
  * @generated from message nama.v1.Done
@@ -270,7 +310,7 @@ export type Done = Message<"nama.v1.Done"> & {
  * Use `create(DoneSchema)` to create a new message.
  */
 export const DoneSchema: GenMessage<Done> = /*@__PURE__*/
-  messageDesc(file_nama_v1_search, 5);
+  messageDesc(file_nama_v1_search, 6);
 
 /**
  * Whether a title a search found is one the caller can watch.
@@ -334,7 +374,9 @@ export const SearchService: GenService<{
    * as the User types. A last word of four digits after others is a year, which keeps only those
    * released or aired that year, or with it in their title: "dune 2021" finds the 2021 Dune. A
    * Show counts as of every year one of its Episodes aired. A Show is found by its own title,
-   * and an Episode by its own, not its Show's. A title in two Libraries is found in each.
+   * and an Episode by its own, not its Show's. A title in two Libraries is found in each. With
+   * `kind` unset, it also finds up to 5 People with a Role in a title in a Library whose names
+   * have each word of the query, matched the same way.
    *
    * A caller with `PERMISSION_REQUEST_MOVIE` also finds the Movies to request, and one with
    * `PERMISSION_REQUEST_TV` the Shows: for each kind, the first title source in the Admin's

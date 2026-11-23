@@ -50,6 +50,7 @@ pub(crate) struct FoundShow {
     /// Every id the Match of its first Episode found gives it.
     pub(crate) ids: ExternalIds,
     pub(crate) title: String,
+    pub(crate) first_air_date: Option<String>,
     /// As [`show_poster`] picks it, from the Match and the Seasons of the Show's Episodes the
     /// search found.
     pub(crate) poster: Option<ImageRef>,
@@ -185,7 +186,8 @@ impl Contents {
                         + $ids
                         + r#"'show') AS "show_ids?: String", item_matches.title AS "title!",
                               item_matches.original_title, item_matches.show_title,
-                              item_matches.release_date, plugin, still,
+                              item_matches.release_date, item_matches.show_first_air_date,
+                              plugin, still,
                               item_matches.poster, item_matches.poster_plugin,
                               item_matches.show_poster, item_matches.show_poster_plugin,
                               item_matches.metadata_version,
@@ -288,6 +290,7 @@ struct SearchRow {
     original_title: Option<String>,
     show_title: Option<String>,
     release_date: Option<String>,
+    show_first_air_date: Option<String>,
     /// The Plugin whose title source made the Match, which the Still's path is for.
     plugin: Option<String>,
     still: Option<String>,
@@ -388,6 +391,7 @@ fn found_show(row: SearchRow) -> Option<FoundShow> {
         id,
         ids,
         title: row.show_title?,
+        first_air_date: row.show_first_air_date,
         poster: show_poster(own, row.metadata_version, seasons),
     })
 }
@@ -396,6 +400,26 @@ fn found_show(row: SearchRow) -> Option<FoundShow> {
 /// orders by after the kind of title: lower is better. All alike for a query without words.
 pub(crate) fn match_bands(query: &str, title: &str, year: Option<&str>) -> impl Ord + use<> {
     SearchWords::of(query).map(|words| words.bands(title, year))
+}
+
+/// Whether `name` has a word starting with each word of `query`, ignoring case, accents and the
+/// marks that join words, as a search finds a title. A query with no words, such as "!!!", fits
+/// none.
+pub(crate) fn has_word_starts(query: &str, name: &str) -> bool {
+    let query = title_words(query);
+    if query.is_empty() {
+        return false;
+    }
+    let joined = joined(name);
+    [name, joined.as_str()].into_iter().any(|variant| {
+        let words = title_words(variant);
+        (query.iter()).all(|asked| words.iter().any(|word| word.starts_with(asked.as_str())))
+    })
+}
+
+/// `title` without the marks `title_search_rows` joins words by: keep the two alike.
+fn joined(title: &str) -> String {
+    title.replace(['-', '\'', '’', '.', '·'], "")
 }
 
 /// A search query's words, and the year it ends with, if any.
@@ -557,9 +581,7 @@ impl Fit {
                 Self::WordStarts
             }
         };
-        // The marks `title_search_rows` joins words by: keep the two alike.
-        let joined = title.replace(['-', '\'', '’', '.', '·'], "");
-        fit(title).min(fit(&joined))
+        fit(title).min(fit(&joined(title)))
     }
 }
 

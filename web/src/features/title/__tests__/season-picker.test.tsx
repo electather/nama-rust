@@ -306,7 +306,8 @@ test("a Show to Request shows who stars in it, its Cast & Crew, and who created 
   const { transport } = showServer({ ...dark, cast, crew });
   openApp("/shows/tmdb-70523", transport);
 
-  await expect(screen.findByText("Starring Louis Hofmann")).resolves.toBeDefined();
+  const starring = await screen.findByText(/^Starring/u);
+  expect(starring.textContent).toBe("Starring Louis Hofmann");
   const row = within(screen.getByRole("list", { name: "Cast & Crew" }));
   expect(row.getAllByRole("listitem")).toHaveLength(2);
   const created = screen.getByText("Created by", { selector: "dt" });

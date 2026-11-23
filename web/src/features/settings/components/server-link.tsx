@@ -20,10 +20,10 @@ export function ServerLink() {
   return (
     <section aria-labelledby="server-link" className="flex flex-col gap-3.5">
       <div>
-        <h4 id="server-link" className="font-medium">
+        <h4 id="server-link" className="text-xs text-muted-foreground">
           Hub
         </h4>
-        <p className="text-xs text-pretty text-muted-foreground">
+        <p className="mt-1 text-sm text-pretty text-muted-foreground">
           What the Hub adds needs the Server Linked to your Account there. Without it, the Server
           works just the same.
         </p>

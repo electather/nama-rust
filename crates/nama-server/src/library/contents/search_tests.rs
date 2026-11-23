@@ -9,7 +9,7 @@ use super::super::{
     fixture::{MatchedMovie, decide, tmdb_movie},
     testing::Fixture,
 };
-use super::match_bands;
+use super::{has_word_starts, match_bands};
 use crate::{
     db::{self, Database},
     library::{TitleKind, libraries::Kind},
@@ -314,6 +314,14 @@ fn match_bands_put_a_title_of_the_year_asked_for_first() {
     let bands = |year| match_bands("dune 2021", "Dune: Messiah", Some(year));
 
     assert!(bands("2021") < bands("1984"));
+}
+
+#[test]
+fn a_name_has_word_starts_of_each_word_asked_and_none_of_a_query_with_no_words() {
+    assert!(has_word_starts("sig weav", "Sigourney Weaver"));
+    assert!(has_word_starts("obrien", "Conan O'Brien"));
+    assert!(!has_word_starts("weav sigx", "Sigourney Weaver"));
+    assert!(!has_word_starts("!!!", "Sigourney Weaver"));
 }
 
 #[tokio::test]

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE default_permissions SET permissions = ?, remote_playback_limit = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "91d46bbf8fc71605b95358e97400fed1d0324d9505cdada8dbd26d3282c0b9dd"
+}

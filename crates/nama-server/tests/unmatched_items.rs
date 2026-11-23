@@ -126,6 +126,25 @@ async fn files_whose_names_do_not_parse_come_on_the_first_page_only() {
 }
 
 #[tokio::test]
+async fn a_movie_named_without_a_year_that_no_title_fits_is_listed_by_its_title() {
+    let server = TestServer::builder().tmdb().start().await;
+    let home_movies = "Home Movies/Home Movies.mkv";
+    let films = (server.matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &[home_movies])).await;
+    let matches = MatchServiceClient::new(HttpClient::plaintext(), server.client_config());
+
+    let listed = matches
+        .list_unmatched_items(in_library(films.id, PageRequest::default()))
+        .await;
+
+    let listed = listed.unwrap().into_owned();
+    let names: Vec<_> = (listed.items.iter())
+        .map(|item| (item.title.as_str(), item.year))
+        .collect();
+    assert_eq!(names, [("Home Movies", None)]);
+    assert_eq!(listed.unparsed_paths, Vec::<String>::new());
+}
+
+#[tokio::test]
 async fn a_user_without_permissions_lists_unmatched_items_by_parsed_name_newest_first() {
     let server = TestServer::builder().start().await;
     let names = ["Alien (1979).mkv", "Heat (1995).mkv", "home video.mkv"];

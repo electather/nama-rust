@@ -694,7 +694,7 @@ async fn list_requesters_gives_a_title_whose_only_requester_was_deleted_as_reque
     };
     let users = Users::new(Arc::clone(&db), ExtensionPoints::default());
     // An Admin must be left once Ada goes.
-    (users.set_permissions(&root, admin, Permissions::ADMIN))
+    (users.set_permissions(&root, admin, Permissions::ADMIN, None))
         .await
         .unwrap();
     users.delete(&root, ada).await.unwrap();

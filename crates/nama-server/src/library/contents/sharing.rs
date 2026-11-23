@@ -36,8 +36,8 @@ impl Contents {
         let people = serde_json::Value::from(people).to_string();
         let genres_asked = serde_json::Value::from(genres_asked.to_vec()).to_string();
         // ponytail: reads every title of the kind's Roles and one Match each per call, then each
-        // answered title's Roles in a read of its own; index `title_roles` by Person and read the
-        // Roles in one query if a large Server's refresh shows it.
+        // answered title's Roles in a read of its own; read the Roles in one query if a large
+        // Server's refresh shows it.
         let rows = sqlx::query!(
             r#"WITH asked AS (SELECT kind, people, genres,
                                      IIF(kind = 'movie', 'title', 'show') AS scope

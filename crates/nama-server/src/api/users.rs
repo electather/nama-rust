@@ -36,6 +36,7 @@ use crate::{
     home_rows::HomeRows,
     images::PluginLogos,
     link::Linking,
+    playback::limit_to_proto,
     plugin_settings::{Personal, PluginSettings},
     server_settings::{ServerUrl, Settings},
     users::{
@@ -48,6 +49,7 @@ use super::{
     access::permission_required,
     browse::home_rows_of,
     caller, database_failed,
+    playback::cap_from_proto,
     plugins::{change_refused, list_failed, logo_url, setting_to_proto, settings_from_proto},
     refuse,
     server::{home_layout_from_proto, home_row_from_proto},
@@ -128,9 +130,15 @@ impl UserService for UserServiceHandler {
         _request: ServiceRequest<'_, ListUsersRequest>,
     ) -> ServiceResult<ListUsersResponse> {
         let users = self.users.list().await.map_err(database_failed)?;
+        let caps = self.users.remote_caps().await.map_err(database_failed)?;
         let cannot_sign_in = (self.users.cannot_sign_in().await).map_err(database_failed)?;
         Response::ok(ListUsersResponse {
-            users: users.into_iter().map(user_to_proto).collect(),
+            users: (users.into_iter())
+                .map(|user| proto::User {
+                    remote_playback_limit: limit_to_proto(caps.get(&user.id).copied()).into(),
+                    ..user_to_proto(user)
+                })
+                .collect(),
             cannot_sign_in_user_ids: cannot_sign_in,
             ..Default::default()
         })
@@ -143,8 +151,9 @@ impl UserService for UserServiceHandler {
     ) -> ServiceResult<SetPermissionsResponse> {
         let request = request.to_owned_message();
         let permissions = permissions_from_proto(request.permissions)?;
+        let cap = cap_from_proto(request.remote_playback_limit)?;
         self.users
-            .set_permissions(&caller(&ctx)?.user, request.user_id, permissions)
+            .set_permissions(&caller(&ctx)?.user, request.user_id, permissions, cap)
             .await?;
         Response::ok(SetPermissionsResponse::default())
     }
@@ -248,13 +257,14 @@ impl UserService for UserServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, GetDefaultPermissionsRequest>,
     ) -> ServiceResult<GetDefaultPermissionsResponse> {
-        let permissions = self
+        let (permissions, cap) = self
             .users
             .default_permissions()
             .await
             .map_err(database_failed)?;
         Response::ok(GetDefaultPermissionsResponse {
             permissions: permissions_to_proto(permissions),
+            remote_playback_limit: limit_to_proto(cap).into(),
             ..Default::default()
         })
     }
@@ -264,9 +274,11 @@ impl UserService for UserServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, SetDefaultPermissionsRequest>,
     ) -> ServiceResult<SetDefaultPermissionsResponse> {
-        let permissions = permissions_from_proto(request.to_owned_message().permissions)?;
+        let request = request.to_owned_message();
+        let permissions = permissions_from_proto(request.permissions)?;
+        let cap = cap_from_proto(request.remote_playback_limit)?;
         self.users
-            .set_default_permissions(&caller(&ctx)?.user, permissions)
+            .set_default_permissions(&caller(&ctx)?.user, permissions, cap)
             .await?;
         Response::ok(SetDefaultPermissionsResponse::default())
     }

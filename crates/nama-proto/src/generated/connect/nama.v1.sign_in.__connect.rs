@@ -889,11 +889,11 @@ pub trait SignInService: Send + Sync + 'static {
     > + Send;
     /// Creates a User with an Invite's link, under the name and password they pick, and signs the
     /// calling Device in as them, using the Invite up. They get the Invite's Permissions, less any its
-    /// creator has since lost. Fails with `not_found` and `REFUSAL_REASON_INVITE_NOT_FOUND` if the
-    /// Invite was used, revoked or expired, or its creator was deleted or lost
-    /// `PERMISSION_MANAGE_USERS`, which counts toward the limits above. Fails with `already_exists`
-    /// if another User has the name, ignoring case, and `invalid_argument` if a name or the password
-    /// breaks the rules; the Invite stays valid after either.
+    /// creator has since lost, and the default cap for remote playback. Fails with `not_found` and
+    /// `REFUSAL_REASON_INVITE_NOT_FOUND` if the Invite was used, revoked or expired, or its creator
+    /// was deleted or lost `PERMISSION_MANAGE_USERS`, which counts toward the limits above. Fails
+    /// with `already_exists` if another User has the name, ignoring case, and `invalid_argument` if a
+    /// name or the password breaks the rules; the Invite stays valid after either.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

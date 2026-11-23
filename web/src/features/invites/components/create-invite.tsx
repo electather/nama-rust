@@ -10,7 +10,7 @@ import { permissionsToInvite } from "@/shared/lib/permissions";
 
 /** The form that makes an Invite, starting from the default Permissions `you` may pass on. */
 export function CreateInvite({ you }: { you: User | undefined }) {
-  const defaults = useDefaultPermissions();
+  const defaults = useDefaultPermissions().permissions;
   const create = useCreateInvite();
   const offer = permissionsToInvite(you);
   const errors = createInviteErrors(create.error);

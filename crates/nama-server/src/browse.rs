@@ -27,11 +27,13 @@ use crate::{
 
 mod box_sets;
 mod featured;
+mod people;
 mod title_pages;
 mod watching;
 
 pub(crate) use box_sets::SeenBoxSet;
 pub(crate) use featured::Featured;
+pub(crate) use people::{PersonPage, PersonTitle};
 pub(crate) use title_pages::{FoundPageError, TitlePages};
 pub(crate) use watching::Started;
 

@@ -57,8 +57,31 @@ fn kinds_and_titles(found: &[hit::Title]) -> Vec<(&str, &str)> {
             hit::Title::Movie(movie) => ("movie", movie.title.as_str()),
             hit::Title::Show(show) => ("show", show.title.as_str()),
             hit::Title::Episode(episode) => ("episode", episode.title.as_str()),
+            hit::Title::Person(person) => ("person", person.name.as_str()),
         })
         .collect()
+}
+
+#[tokio::test]
+async fn a_search_of_all_kinds_finds_a_person_with_a_role_in_a_title_by_their_name() {
+    let fx = Fixture::alien().await;
+
+    let found = found(&fx, "sigourney weav", TitleKind::TITLE_KIND_UNSPECIFIED).await;
+
+    assert_eq!(kinds_and_titles(&found), [("person", "Sigourney Weaver")]);
+    let [hit::Title::Person(weaver)] = &found[..] else {
+        panic!("{found:?}");
+    };
+    assert_eq!(weaver.id.as_option(), Some(&tmdb_id(10_205)));
+}
+
+#[tokio::test]
+async fn a_search_of_one_kind_finds_no_people() {
+    let fx = Fixture::alien().await;
+
+    let found = found(&fx, "sigourney", TitleKind::TITLE_KIND_MOVIE).await;
+
+    assert!(found.is_empty(), "{found:?}");
 }
 
 #[tokio::test]

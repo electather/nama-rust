@@ -13,7 +13,7 @@ export function PaneSection({
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex min-h-8 items-center justify-between gap-2.5">
-        <h4 className="text-base font-medium">{title}</h4>
+        <h4 className="text-xs text-muted-foreground">{title}</h4>
         {action}
       </div>
       {children}

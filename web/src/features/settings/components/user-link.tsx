@@ -18,10 +18,10 @@ export function UserLink() {
   return (
     <section aria-labelledby="user-link" className="flex flex-col gap-3.5">
       <div>
-        <h4 id="user-link" className="font-medium">
+        <h4 id="user-link" className="text-xs text-muted-foreground">
           Hub
         </h4>
-        <p className="text-xs text-pretty text-muted-foreground">
+        <p className="mt-1 text-sm text-pretty text-muted-foreground">
           Link to your Account on the Hub to take what you watch to other Servers. Without it, you
           use this Server just the same.
         </p>
