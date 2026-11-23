@@ -1,7 +1,7 @@
 [package]
 name = "nama-server"
 # Shared with nama-hub: see "Releases" in `crates/nama-hub/AGENTS.md`.
-version = "0.1.0"
+version = "0.2.0"
 description = "The Nama Server: owns Libraries, streams media and handles Requests"
 license = "AGPL-3.0-only"
 edition.workspace = true
