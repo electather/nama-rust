@@ -1,6 +1,8 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
-use super::embed;
+use uuid::Uuid;
+
+use super::{ExternalId, PooledCount, Trained, behaviours, blend, embed};
 
 /// The vector of a title with `facts`, each with how many titles share it.
 fn vector(facts: &[(&str, i64)]) -> BTreeMap<u64, f32> {
@@ -50,4 +52,112 @@ fn titles_sharing_no_fact_are_not_alike_at_all() {
 #[test]
 fn a_title_without_facts_has_no_vector() {
     assert_eq!(embed([]), None);
+}
+
+const TITLE: Trained = Trained::Wikidata(Uuid::from_u128(1));
+const FINISHED_WITH_IT: Trained = Trained::Wikidata(Uuid::from_u128(3));
+
+fn pooled(a: &str, b: &str, accounts: i64) -> PooledCount {
+    PooledCount {
+        a: a.to_owned(),
+        b: b.to_owned(),
+        accounts,
+    }
+}
+
+/// The Movies the pooled counts below name, by the External IDs they name them by.
+fn movies() -> HashMap<String, Trained> {
+    [
+        ("tmdb-603", TITLE),
+        ("imdb-tt0133093", TITLE),
+        ("tmdb-348", FINISHED_WITH_IT),
+    ]
+    .into_iter()
+    .map(|(id, title)| (id.to_owned(), title))
+    .collect()
+}
+
+/// How alike `TITLE` is to a title sharing its facts and to one `accounts` Accounts finished with
+/// it, which has no facts.
+fn alike_when_finished_together_by(accounts: i64) -> (f32, f32) {
+    let facts = vector(&[("director:Q9545711", 3), ("genre:Q471839", 2000)]);
+    let mut behaviours = behaviours(
+        &[
+            pooled("tmdb-603", "tmdb-603", accounts),
+            pooled("tmdb-348", "tmdb-348", accounts),
+            pooled("tmdb-348", "tmdb-603", accounts),
+        ],
+        &movies(),
+    );
+    let title = blend(Some(facts.clone()), behaviours.remove(&TITLE)).unwrap();
+    let finished_with_it = blend(None, behaviours.remove(&FINISHED_WITH_IT)).unwrap();
+    (cosine(&title, &facts), cosine(&title, &finished_with_it))
+}
+
+#[test]
+fn facts_outweigh_behaviour_while_few_accounts_finished_a_title() {
+    let (to_facts, to_finished_with_it) = alike_when_finished_together_by(20);
+
+    assert!(
+        to_facts > to_finished_with_it,
+        "{to_facts} {to_finished_with_it}"
+    );
+}
+
+#[test]
+fn behaviour_outweighs_facts_once_many_accounts_finished_a_title() {
+    let (to_facts, to_finished_with_it) = alike_when_finished_together_by(5000);
+
+    assert!(
+        to_finished_with_it > to_facts,
+        "{to_facts} {to_finished_with_it}"
+    );
+}
+
+#[test]
+fn a_title_without_facts_gets_a_vector_from_behaviour_alone() {
+    let (_, to_finished_with_it) = alike_when_finished_together_by(20);
+
+    assert!(to_finished_with_it > 0.0);
+}
+
+#[test]
+fn a_title_finished_only_with_itself_under_another_id_has_no_behaviour() {
+    let behaviours = behaviours(
+        &[
+            pooled("tmdb-603", "tmdb-603", 20),
+            pooled("imdb-tt0133093", "imdb-tt0133093", 20),
+            pooled("imdb-tt0133093", "tmdb-603", 20),
+        ],
+        &movies(),
+    );
+
+    assert!(behaviours.is_empty());
+}
+
+#[test]
+fn a_title_without_facts_or_behaviour_has_no_vector() {
+    assert_eq!(blend(None, None), None);
+}
+
+#[test]
+fn a_movie_wikidata_lacks_gets_behaviour_under_its_external_id() {
+    let lacking = Trained::Lacking(ExternalId {
+        namespace: "tmdb".to_owned(),
+        value: "999".to_owned(),
+    });
+    let mut movies = movies();
+    movies.insert("tmdb-999".to_owned(), lacking.clone());
+
+    let behaviours = behaviours(
+        &[
+            pooled("tmdb-603", "tmdb-603", 20),
+            pooled("tmdb-999", "tmdb-999", 20),
+            pooled("tmdb-603", "tmdb-999", 20),
+        ],
+        &movies,
+    );
+
+    assert!(behaviours.contains_key(&lacking));
+    assert!(behaviours.contains_key(&TITLE));
 }

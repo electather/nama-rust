@@ -15,6 +15,7 @@ use uuid::Uuid;
 use crate::{
     accounts::AccountId,
     links::{LinkedServer, Links},
+    titles::PooledCount,
 };
 
 /// The most Viewing Events one call records.
@@ -331,7 +332,7 @@ impl Viewing {
         not(test),
         expect(
             dead_code,
-            reason = "recommendations read pooled counts (#1825); until then only tests do"
+            reason = "training reads every pooled count at once (#1825); only tests read one pair"
         )
     )]
     pub(crate) async fn pooled_count(&self, a: &str, b: &str) -> Result<Option<i64>, sqlx::Error> {
@@ -391,6 +392,18 @@ impl Viewing {
         .await?;
         Ok(())
     }
+}
+
+/// Every pooled count of at least [`MIN_POOLED_ACCOUNTS`] Accounts, which title vectors train on
+/// (ADR 0095).
+pub(crate) async fn pooled_counts(db: &PgPool) -> Result<Vec<PooledCount>, sqlx::Error> {
+    sqlx::query_as!(
+        PooledCount,
+        "SELECT title_a AS a, title_b AS b, accounts FROM pooled_counts WHERE accounts >= $1",
+        MIN_POOLED_ACCOUNTS,
+    )
+    .fetch_all(db)
+    .await
 }
 
 /// Records `event` under `account` as `key`, unless it was already, and pools it when it is the

@@ -32,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
         .context("NAMA_HUB_DATABASE_URL names no database Wikidata's dump was imported into")?;
     let db = db::connect(&url).await?;
     db::migrate(&db).await?;
-    let vectors = titles::train(&db).await?;
+    let vectors = nama_hub::train_vectors(&db).await?;
     println!("trained {vectors} title vectors");
 
     let users = ranking::split(movielens::download()?);
