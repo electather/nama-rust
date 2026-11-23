@@ -10,13 +10,17 @@ mod refused;
 #[path = "support/server.rs"]
 mod server;
 
+use std::{sync::Arc, time::Duration};
+
 use browsing::{Fixture, movies_in, tmdb_id};
-use connectrpc::ErrorCode;
+use connectrpc::{ErrorCode, client::HttpClient};
+use nama_plugin_upkeep::Upkeep;
 use nama_proto::nama::v1::{
-    ClearMatchRequest, LibraryKind, ListEpisodesRequest, ListUnmatchedItemsRequest, MatchedTitle,
-    RefusalReason, SearchTitlesRequest, SetMatchRequest, TitleKind, UnmatchedItemFilter,
-    UnmatchedReason,
+    ClearMatchRequest, JobRunOutcome, JobServiceClient, LibraryKind, ListEpisodesRequest,
+    ListJobRunsRequest, ListUnmatchedItemsRequest, MatchedTitle, RefusalReason, RunJobRequest,
+    SearchTitlesRequest, SetMatchRequest, TitleKind, UnmatchedItemFilter, UnmatchedReason,
 };
+use nama_server::plugins::Registry;
 use refused::assert_refused;
 use server::TestServer;
 
@@ -28,9 +32,11 @@ const ALIEN_CUT: &str = "Alien (1979)/Alien {tmdb-348}.mkv";
 const DARK_E01: &str = "Dark (2017)/Season 01/Dark - S01E01.mkv";
 const DARK_E02: &str = "Dark {tmdb-70523}/Season 01/Dark - S01E02.mkv";
 
-/// A Server with TMDB and a Library of `kind` holding `files`, scanned and Matched.
+/// A Server with TMDB and Upkeep, and a Library of `kind` holding `files`, scanned and Matched.
 async fn start(kind: LibraryKind, files: &[&str]) -> Fixture {
-    let fx = Fixture::start_on(kind, TestServer::builder()).await;
+    let plugins = Registry::new();
+    plugins.describe_builtin(|| Arc::new(Upkeep));
+    let fx = Fixture::start_on(kind, TestServer::builder().plugins(plugins)).await;
     for file in files {
         fx.write(file, b"video");
     }
@@ -45,6 +51,46 @@ fn title(fx: &Fixture, tmdb: i64) -> MatchedTitle {
         id: tmdb_id(tmdb).into(),
         ..Default::default()
     }
+}
+
+/// Runs Upkeep's weekly `refresh-metadata` Job now, as an Admin can, and waits for its Run to
+/// succeed, since `RunJob` answers once the Run started.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn refresh_metadata(fx: &Fixture) {
+    const JOB: &str = "refresh-metadata";
+    let jobs = JobServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
+    let start = RunJobRequest {
+        plugin_id: "upkeep".to_owned(),
+        job_id: JOB.to_owned(),
+        ..Default::default()
+    };
+    jobs.run_job(start).await.unwrap();
+    let ended = async {
+        loop {
+            let runs = (jobs.list_job_runs(ListJobRunsRequest {
+                plugin_id: "upkeep".to_owned(),
+                job_id: JOB.to_owned(),
+                ..Default::default()
+            }))
+            .await
+            .unwrap()
+            .into_owned()
+            .runs;
+            match runs.first().and_then(|run| run.outcome.as_known()) {
+                Some(JobRunOutcome::JOB_RUN_OUTCOME_RUNNING) | None => {
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+                Some(outcome) => return outcome,
+            }
+        }
+    };
+    let outcome = tokio::time::timeout(Duration::from_secs(30), ended)
+        .await
+        .unwrap();
+    assert_eq!(outcome, JobRunOutcome::JOB_RUN_OUTCOME_SUCCEEDED);
 }
 
 /// Each Movie of the Library of `fx`, by TMDB id, with how many Versions it has.
@@ -105,7 +151,7 @@ async fn fixing_a_movies_match_moves_every_version_and_holds_once_rescanned() {
 }
 
 #[tokio::test]
-async fn fixing_a_shows_match_moves_every_episode() {
+async fn fixing_a_shows_match_moves_every_episode_and_holds_once_refreshed_and_rescanned() {
     let fx = start(LibraryKind::LIBRARY_KIND_SHOWS, &[DARK_E01, DARK_E02]).await;
     let before = season_1(&fx, 70_523).await;
 
@@ -118,10 +164,17 @@ async fn fixing_a_shows_match_moves_every_episode() {
         .await
         .unwrap()
         .into_owned();
+    let after = season_1(&fx, 2316).await;
+    refresh_metadata(&fx).await;
+    let refreshed = season_1(&fx, 2316).await;
+    fx.write(DARK_E01, b"a better copy of the video");
+    fx.scan_and_match().await;
 
     assert_eq!(before.len(), 2);
     assert_eq!(fixed.matched, 2);
-    assert_eq!(season_1(&fx, 2316).await, ["2316001", "2316002"]);
+    assert_eq!(after, ["2316001", "2316002"]);
+    assert_eq!(refreshed, after);
+    assert_eq!(season_1(&fx, 2316).await, after);
 }
 
 #[tokio::test]

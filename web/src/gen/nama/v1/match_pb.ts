@@ -644,10 +644,9 @@ export const MatchService: GenService<{
    * Show, and every Episode in the Library named as being in the same Show is Matched again
    * through that Show's Seasons; an Episode the Show doesn't have is Unmatched. Given
    * `matched_title` in place of the item, it does so for each name the items Matched to that Movie
-   * or Show bear, one name after another. Fails with `not_found` if there is no such item, Library
-   * or title, with `invalid_argument` if the id is missing or names no title, and with
-   * `unavailable` if no title source can answer, in which case nothing changes for that name or
-   * those after it.
+   * or Show bear, in one change. Fails with `not_found` if there is no such item, Library or
+   * title, with `invalid_argument` if the id is missing or names no title, and with
+   * `unavailable` if no title source can answer, in which case nothing changes.
    *
    * @generated from rpc nama.v1.MatchService.SetMatch
    */

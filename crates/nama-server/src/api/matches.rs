@@ -60,9 +60,7 @@ impl MatchService for MatchServiceHandler {
         };
         // A Match search naming no Library asks in Admin precedence.
         let sources = match request.library_id {
-            Some(library) => {
-                (self.metadata).in_order(self.libraries.get(library).await?.title_sources)
-            }
+            Some(library) => self.title_sources_of(library).await?,
             None => self.metadata.clone(),
         };
         let candidates = match sources.search_in_turn(&query).await {
@@ -129,11 +127,7 @@ impl MatchService for MatchServiceHandler {
     ) -> ServiceResult<ListUnmatchedItemsResponse> {
         let request = request.to_owned_message();
         let library = request.filter.library_id;
-        let searching = self
-            .metadata
-            .in_order(self.libraries.get(library).await?.title_sources)
-            .can_search()
-            .await;
+        let searching = self.title_sources_of(library).await?.can_search().await;
         let order = unmatched_order(&request);
         let list = format!("ListUnmatchedItems {library} {order:?}");
         let page = Page::read(&request.page, list.as_bytes()).map_err(|invalid| {
@@ -182,6 +176,11 @@ fn unmatched_order(request: &ListUnmatchedItemsRequest) -> (UnmatchedItemSort, S
 }
 
 impl MatchServiceHandler {
+    /// The title sources of the Library `library`, in its order.
+    async fn title_sources_of(&self, library: i64) -> Result<TitleSources, ConnectError> {
+        Ok((self.metadata).in_order(self.libraries.get(library).await?.title_sources))
+    }
+
     /// `candidate`, which the Plugin `plugin`'s title source found, with its Poster offered.
     fn candidate_to_proto(&self, plugin: &PluginId, candidate: Candidate) -> proto::TitleCandidate {
         let poster_url = (candidate.poster.as_deref()).map(|path| self.artwork.offer(plugin, path));

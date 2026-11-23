@@ -133,7 +133,7 @@ async fn forgetting_unmatched_keeps_matches_pins_and_other_libraries_decisions()
     let named = fx.contents.named_like(pinned).await.unwrap().unwrap();
     let unmatched = vec![(pinned, Decided::Unmatched(None))];
     (fx.contents)
-        .pin(named.library, named.name, Pin::Unmatched, unmatched)
+        .pin(named.library, vec![named.name], Pin::Unmatched, unmatched)
         .await
         .unwrap();
     let library = fx.library;

@@ -8,5 +8,5 @@ import { useMatchChanged } from "@/shared/hooks/use-match-changed";
  * Items and what browsing shows, where the title is gone.
  */
 export function useClearTitleMatch(libraryId: bigint) {
-  return useMutation(MatchService.method.clearMatch, { onSettled: useMatchChanged(libraryId) });
+  return useMutation(MatchService.method.clearMatch, { onSuccess: useMatchChanged(libraryId) });
 }

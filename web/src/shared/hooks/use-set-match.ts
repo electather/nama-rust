@@ -10,5 +10,5 @@ import { useMatchChanged } from "@/shared/hooks/use-match-changed";
 export function useSetMatch(libraryId: bigint) {
   // Matching an Episode's Show may Unmatch its other Episodes, which no Event announces. Browsing
   // refetches too, so a player of the Item sees it Matched without waiting for the Event.
-  return useMutation(MatchService.method.setMatch, { onSettled: useMatchChanged(libraryId) });
+  return useMutation(MatchService.method.setMatch, { onSuccess: useMatchChanged(libraryId) });
 }
