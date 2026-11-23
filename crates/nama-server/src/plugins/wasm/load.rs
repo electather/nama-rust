@@ -1,11 +1,12 @@
 //! Reading, compiling and checking an Installed Plugin's Package.
 
 use std::{
+    collections::HashMap,
     fs, io, mem,
     ops::Deref,
     path::{Path, PathBuf},
     sync::Arc,
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
 use buffa::{
@@ -73,10 +74,51 @@ pub(super) const MEMORY_MAX_PAGES: u32 = 2048;
 /// What every binary WASM module starts with.
 const WASM_MAGIC: &[u8] = b"\0asm";
 
+/// The Plugins read before, each with what its file held then, so reading again compiles only
+/// the files changed since: listing reads them on every call.
+#[derive(Default)]
+pub(crate) struct Loaded(HashMap<PathBuf, (Stamp, Installed)>);
+
+/// A dropped-in file's size and modified time, which a new copy changes; `None` for a bundled
+/// Plugin, which never changes.
+type Stamp = Option<(u64, SystemTime)>;
+
+impl std::fmt::Debug for Loaded {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.0.keys()).finish()
+    }
+}
+
+impl Loaded {
+    /// The Plugin read from `file` before if `stamp` still matches it, or else `load`'s, kept
+    /// for the next read unless refused.
+    // shortcut: a refused file is read again each time; keep refusals too if that gets slow.
+    fn reuse_or(
+        &mut self,
+        file: &Path,
+        stamp: Stamp,
+        load: impl FnOnce() -> Result<Installed, Refused>,
+    ) -> Result<Installed, Refused> {
+        if let Some((read_at, plugin)) = self.0.get(file)
+            && *read_at == stamp
+        {
+            return Ok(plugin.clone());
+        }
+        self.0.remove(file);
+        let plugin = load()?;
+        self.0.insert(file.to_owned(), (stamp, plugin.clone()));
+        Ok(plugin)
+    }
+}
+
 /// The bundled Plugins, then each `.wasm` file in `<data_dir>/plugins/` in name order, each with
-/// its Plugin or why the Server refused it. Bundled Plugins come first, so a file with one's id is
-/// refused. Logs why it read no files, if it couldn't.
-pub(super) fn read_plugins(data_dir: &Path) -> Vec<(PathBuf, Result<Installed, Refused>)> {
+/// its Plugin or why the Server refused it, compiling only those not in `loaded` as they are now.
+/// Bundled Plugins come first, so a file with one's id is refused. Logs why it read no files, if
+/// it couldn't.
+pub(super) fn read_plugins(
+    data_dir: &Path,
+    loaded: &mut Loaded,
+) -> Vec<(PathBuf, Result<Installed, Refused>)> {
     let dir = data_dir.join("plugins");
     let files = wasm_files(&dir).unwrap_or_else(|err| {
         error!(
@@ -95,19 +137,25 @@ pub(super) fn read_plugins(data_dir: &Path) -> Vec<(PathBuf, Result<Installed, R
             return Vec::new();
         }
     };
-    // ponytail: one Plugin at a time, each up to CALL_TIMEOUT, at start and on every listing;
-    // compile them in parallel, or only changed files, if many Plugins make that slow.
-    let bundled = BUNDLED.iter().map(|&(name, wasm)| {
-        let plugin = load(wasm.to_vec(), &cache_config);
-        (Path::new("<bundled>").join(name), plugin)
-    });
-    let dropped_in = files.into_iter().map(|file| {
-        let plugin = fs::read(&file)
-            .map_err(Refused::Read)
-            .and_then(|wasm| load(wasm, &cache_config));
-        (file, plugin)
-    });
-    bundled.chain(dropped_in).collect()
+    // ponytail: one Plugin at a time, each up to CALL_TIMEOUT, at start and once changed;
+    // compile them in parallel if many Plugins make that slow.
+    let mut found = Vec::new();
+    for &(name, wasm) in BUNDLED {
+        let file = Path::new("<bundled>").join(name);
+        let plugin = loaded.reuse_or(&file, None, || load(wasm.to_vec(), &cache_config));
+        found.push((file, plugin));
+    }
+    for file in files {
+        let stamp = fs::metadata(&file).and_then(|meta| Ok((meta.len(), meta.modified()?)));
+        let plugin = stamp.map_err(Refused::Read).and_then(|stamp| {
+            loaded.reuse_or(&file, Some(stamp), || {
+                load(fs::read(&file).map_err(Refused::Read)?, &cache_config)
+            })
+        });
+        found.push((file, plugin));
+    }
+    (loaded.0).retain(|file, _| found.iter().any(|(read, _)| read == file));
+    found
 }
 
 /// The `.wasm` files in `dir`, sorted by name. A missing `dir` holds none.

@@ -660,3 +660,46 @@ fn a_plugin_reads_picked_choices_as_a_json_array() {
         [("ratings".to_owned(), r#"["PG-13","a, \"b\""]"#.to_owned())]
     );
 }
+
+#[cfg(feature = "testing")]
+#[test]
+fn a_plugin_is_compiled_again_only_once_its_file_changes_and_forgotten_once_it_is_gone() {
+    use std::{fs, path::PathBuf, sync::Arc, time::SystemTime};
+
+    use super::{Installed, Loaded, Refused, read_plugins};
+
+    /// The `.wasm` each Plugin read holds, in the order read: the same `Arc` if it was reused.
+    fn wasm(found: &[(PathBuf, Result<Installed, Refused>)]) -> Vec<Arc<[u8]>> {
+        let wasm =
+            |(_, plugin): &(_, Result<Installed, _>)| Arc::clone(&plugin.as_ref().unwrap().wasm);
+        found.iter().map(wasm).collect()
+    }
+    let reused = |before: &[Arc<[u8]>], after: &[Arc<[u8]>]| -> Vec<bool> {
+        before
+            .iter()
+            .zip(after)
+            .map(|(a, b)| Arc::ptr_eq(a, b))
+            .collect()
+    };
+    let data_dir = tempfile::tempdir().unwrap();
+    let dir = data_dir.path().join("plugins");
+    fs::create_dir(&dir).unwrap();
+    let file = dir.join("test.wasm");
+    fs::write(&file, test_plugin::build("")).unwrap();
+    let mut loaded = Loaded::default();
+
+    let first = wasm(&read_plugins(data_dir.path(), &mut loaded));
+    let again = wasm(&read_plugins(data_dir.path(), &mut loaded));
+    // The bundled Plugins, then the dropped-in one.
+    assert!(reused(&first, &again).iter().all(|&reused| reused));
+
+    let later = SystemTime::now() + Duration::from_secs(60);
+    let opened = fs::File::options().write(true).open(&file).unwrap();
+    opened.set_modified(later).unwrap();
+    let changed = wasm(&read_plugins(data_dir.path(), &mut loaded));
+    assert_eq!(reused(&again, &changed).last(), Some(&false));
+
+    fs::remove_file(&file).unwrap();
+    read_plugins(data_dir.path(), &mut loaded);
+    assert!(!loaded.0.contains_key(&file));
+}

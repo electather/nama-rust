@@ -63,6 +63,7 @@ mod calls_tests;
 mod fulfiller_tests;
 
 pub(crate) use listing::read;
+pub(crate) use load::Loaded;
 use load::{
     CALL_TIMEOUT, Compiled, MEMORY_MAX_PAGES, allowed_hosts, compile, compile_with_kernel,
     extism_config,
