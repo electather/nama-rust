@@ -614,8 +614,8 @@ fn sign_in_id(id: &str) -> Result<SignInId, ConnectError> {
         .map_err(|_not_a_uuid| refused(links::Error::SignInNotFound))
 }
 
-/// The Linked Server whose credential the request `ctx` is for carried, which the auth layer found:
-/// it refuses every `LinkedServerService` call without one.
+/// The Linked Server that sent the request `ctx` is for. The auth layer refuses every
+/// `LinkedServerService` call without one, so its absence is a Hub bug and never a Refusal.
 fn linked_server(ctx: &RequestContext) -> Result<&LinkedServer, ConnectError> {
     ctx.extensions()
         .get::<LinkedServer>()

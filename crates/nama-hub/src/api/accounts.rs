@@ -219,8 +219,8 @@ pub(super) fn signed_in(ctx: &RequestContext) -> Result<&AccountSession, Connect
     })
 }
 
-/// The session the request `ctx` is for, which the auth layer found and refuses a call to a
-/// service serving only Accounts' sessions without.
+/// The session the request `ctx` is for. The auth layer refuses every call to a service serving
+/// only Accounts' sessions without one, so its absence is a Hub bug and never a Refusal.
 pub(super) fn session(ctx: &RequestContext) -> Result<&AccountSession, ConnectError> {
     ctx.extensions()
         .get::<AccountSession>()
