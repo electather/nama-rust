@@ -54,6 +54,10 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_VIEWING_EVENTS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__DELETE_VIEWING_EVENT_REQUEST_JSON_ANY);
         reg.register_json_any(super::__DELETE_VIEWING_EVENT_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_POOLING_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_POOLING_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_POOLING_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_POOLING_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__USER_VIEWING_EVENT_JSON_ANY);
         reg.register_json_any(super::__RECORD_VIEWING_EVENTS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__RECORD_VIEWING_EVENTS_RESPONSE_JSON_ANY);
@@ -90,6 +94,8 @@ pub mod __buffa {
         reg.register_json_any(super::__UNLINK_USER_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__PUSH_WATCH_STATES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__PUSH_WATCH_STATES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PULL_WATCH_STATES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__PULL_WATCH_STATES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__WATCH_STATE_CHANGE_JSON_ANY);
         reg.register_json_any(super::__USER_INVITE_JSON_ANY);
         reg.register_json_any(super::__LIST_USER_INVITES_REQUEST_JSON_ANY);
@@ -207,6 +213,22 @@ pub use self::__buffa::view::DeleteViewingEventRequestOwnedView;
 pub use self::__buffa::view::DeleteViewingEventResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::DeleteViewingEventResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPoolingRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPoolingRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPoolingResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPoolingResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetPoolingRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetPoolingRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetPoolingResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetPoolingResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::UserViewingEventView;
 #[doc(inline)]
@@ -351,6 +373,14 @@ pub use self::__buffa::view::PushWatchStatesRequestOwnedView;
 pub use self::__buffa::view::PushWatchStatesResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::PushWatchStatesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PullWatchStatesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PullWatchStatesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PullWatchStatesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PullWatchStatesResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::WatchStateChangeView;
 #[doc(inline)]

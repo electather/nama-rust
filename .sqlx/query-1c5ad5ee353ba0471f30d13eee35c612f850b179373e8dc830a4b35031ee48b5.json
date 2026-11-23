@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT accounts FROM pooled_counts\n             WHERE title_a = least($1::text, $2::text) AND title_b = greatest($1::text, $2::text)\n             AND accounts >= $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "accounts",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "pooled_counts",
+            "name": "accounts"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1c5ad5ee353ba0471f30d13eee35c612f850b179373e8dc830a4b35031ee48b5"
+}

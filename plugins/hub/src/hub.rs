@@ -19,11 +19,11 @@ use hyper_util::{
 use nama_hub_proto::nama::hub::v1::{
     GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient, ListRecommendedTitlesRequest,
     ListSimilarTitlesRequest, ListSimilarTitlesResponse, PollServerLinkRequest,
-    PollServerLinkResponse, PollServerSignInRequest, PushWatchStatesRequest, RecommendedTitle,
-    RecordViewingEventsRequest, ServerLinkServiceClient, SetServerAddressesRequest,
-    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
-    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest,
-    UnlinkUserRequest, WatchStateChange,
+    PollServerLinkResponse, PollServerSignInRequest, PullWatchStatesRequest,
+    PushWatchStatesRequest, RecommendedTitle, RecordViewingEventsRequest, ServerLinkServiceClient,
+    SetServerAddressesRequest, StartServerLinkRequest, StartServerLinkResponse,
+    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
+    StartUserLinkResponse, UnlinkServerRequest, UnlinkUserRequest, WatchStateChange,
 };
 use nama_plugin_api::{
     PluginError,
@@ -196,6 +196,23 @@ impl Hub {
         Ok(())
     }
 
+    /// The Watch State of the Account the User `user_id` of the Server whose credential is
+    /// `credential` is Linked to, each title by each id apart; empty while they aren't Linked.
+    pub(crate) async fn pull_watch_states(
+        &self,
+        credential: &str,
+        user_id: i64,
+    ) -> Result<Vec<WatchStateChange>, PluginError> {
+        let pulled = self
+            .linked_server(credential)?
+            .pull_watch_states(PullWatchStatesRequest {
+                user_id,
+                ..Default::default()
+            })
+            .await?;
+        Ok(pulled.into_owned().watch_states)
+    }
+
     /// Asks the Account with `email`, if any, to accept the User `user_id`, named `name`, of the
     /// Server whose credential is `credential`.
     pub(crate) async fn invite_user(
@@ -283,17 +300,20 @@ impl Hub {
     }
 
     /// The token naming the User the sign-in polled with `device_code` signs in as, once an
-    /// Account approved it; `None` before, and for one that expired or was used, the call's one
+    /// Account approved it and `code` is the one-time code the Hub sent the person back with;
+    /// `None` before, and for one that expired or was used or a wrong code, the call's one
     /// `not_found`.
     pub(crate) async fn poll_sign_in(
         &self,
         credential: &str,
         device_code: &str,
+        code: &str,
     ) -> Result<Option<String>, PluginError> {
         let polled = self
             .linked_server(credential)?
             .poll_server_sign_in(PollServerSignInRequest {
                 device_code: device_code.to_owned(),
+                code: code.to_owned(),
                 ..Default::default()
             })
             .await;

@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO viewing_events (account_id, server_key, kind, external_id, started_at,\n         time_of_day_minutes, stop_position_ms, duration_ms, finished, device_kind, pooled)\n         VALUES ($1, $2, $3, $4, to_timestamp($5::bigint), $6, $7, $8, $9, $10,\n         $11 AND coalesce((SELECT pooling FROM pooling_settings WHERE account_id = $1), true)\n         AND NOT EXISTS (SELECT 1 FROM viewing_events\n          WHERE account_id = $1 AND external_id = $4 AND pooled))\n         ON CONFLICT (account_id, server_key) DO NOTHING\n         RETURNING pooled",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pooled",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "viewing_events",
+            "name": "pooled"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Int8",
+        "Int2",
+        "Int8",
+        "Int8",
+        "Bool",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "aa1454fa87807bb8683487a21c0c02f64effb516fd75140c1440b5f08413ad45"
+}

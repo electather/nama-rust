@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT pooling FROM pooling_settings WHERE account_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pooling",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "pooling_settings",
+            "name": "pooling"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d7b7ce7ddffbbb59b36b26b0301a7fe47da71dac6435d901d9d73125bd13d22c"
+}

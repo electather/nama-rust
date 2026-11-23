@@ -1,10 +1,10 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
 //! one Server's device flow, Unlinking, its Users' Links, Users created from Accounts, one sign-in
 //! with an Account at a time, its Server Addresses and whether its public port is reached, the
-//! Watch State it pushes, its Viewing Events, the titles like The Matrix, two titles recommended
-//! to each Linked User, and a key set of one
-//! Ed25519 key it signs with, as the Hub's API (`proto/nama/hub/v1/`) says the Hub does, and takes
-//! shared Diagnostics.
+//! Watch State it pushes, which its Linked Users pull back, its Viewing Events, the titles like
+//! The Matrix, two titles recommended to each Linked User, and a key set of one Ed25519 key it
+//! signs with, as the Hub's API (`proto/nama/hub/v1/`) says the Hub does, and takes shared
+//! Diagnostics.
 
 use std::{
     collections::HashMap,
@@ -27,7 +27,8 @@ use nama_hub_proto::nama::hub::v1::{
     LinkedServerService, ListRecommendedTitlesRequest, ListRecommendedTitlesResponse,
     ListSimilarTitlesRequest, ListSimilarTitlesResponse, PollServerLinkRequest,
     PollServerLinkResponse, PollServerSignInRequest, PollServerSignInResponse,
-    PushWatchStatesRequest, PushWatchStatesResponse, RecommendedTitle, RecordViewingEventsRequest,
+    PullWatchStatesRequest, PullWatchStatesResponse, PushWatchStatesRequest,
+    PushWatchStatesResponse, RecommendedTitle, RecordViewingEventsRequest,
     RecordViewingEventsResponse, ServerLinkService, SetServerAddressesRequest,
     SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest, StartServerLinkResponse,
     StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
@@ -52,6 +53,9 @@ const SIGN_IN_DEVICE_CODE: &str = "sign-in-device-code";
 
 /// The id of that sign-in.
 pub(super) const SIGN_IN_ID: &str = "sign-in-id";
+
+/// The one-time code approving that sign-in sends the person back with.
+const SIGN_IN_CODE: &str = "sign-in-code";
 
 /// The email of the Account the code is entered by.
 pub(super) const EMAIL: &str = "ada@example.com";
@@ -84,6 +88,8 @@ struct State {
     user_accounts: HashMap<i64, String>,
     /// How often a User's Link was asked about.
     user_link_asks: usize,
+    /// Why asking about a User's Link fails, as if the Hub were down, while it does.
+    user_link_failure: Option<&'static str>,
     /// Each Viewing Event recorded, in order.
     viewing_events: Vec<UserViewingEvent>,
     /// What recording Viewing Events fails with, if it does.
@@ -207,6 +213,11 @@ impl FakeHub {
         lock(&self.state).user_link_asks
     }
 
+    /// Has asking about a User's Link fail, though counted, as if the Hub were down.
+    pub(super) fn fail_user_links(&self) {
+        lock(&self.state).user_link_failure = Some("the Hub is down");
+    }
+
     /// Each push's changes, in the order they came.
     pub(super) fn pushes(&self) -> Vec<Vec<WatchStateChange>> {
         lock(&self.state).pushes.clone()
@@ -230,11 +241,13 @@ impl FakeHub {
             .map(|(url, _)| url.clone())
     }
 
-    /// An Account approves the waiting sign-in as its User `user_id`.
-    pub(super) fn approve_sign_in(&self, user_id: i64) {
+    /// An Account approves the waiting sign-in as its User `user_id`, and gets the one-time code
+    /// that finishes it.
+    pub(super) fn approve_sign_in(&self, user_id: i64) -> String {
         if let Some((_, user)) = &mut lock(&self.state).sign_in {
             *user = Some(user_id);
         }
+        SIGN_IN_CODE.to_owned()
     }
 
     /// Each Server URL and LAN addresses the Server reported, in order.
@@ -411,6 +424,9 @@ impl LinkedServerService for Linked {
     ) -> ServiceResult<GetUserLinkResponse> {
         let mut state = self.caller(&ctx)?;
         state.user_link_asks += 1;
+        if let Some(failure) = state.user_link_failure {
+            return Err(ConnectError::unavailable(failure));
+        }
         Response::ok(GetUserLinkResponse {
             account: state
                 .user_accounts
@@ -443,6 +459,30 @@ impl LinkedServerService for Linked {
         }
         state.pushes.push(request.to_owned_message().changes);
         Response::ok(PushWatchStatesResponse::default())
+    }
+
+    /// Every change pushed, as the asked User's, if they are Linked: the fake has one Account.
+    async fn pull_watch_states(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PullWatchStatesRequest>,
+    ) -> ServiceResult<PullWatchStatesResponse> {
+        let state = self.caller(&ctx)?;
+        let user_id = request.user_id;
+        let watch_states = if state.user_accounts.contains_key(&user_id) {
+            (state.pushes.iter().flatten())
+                .map(|change| WatchStateChange {
+                    user_id,
+                    ..change.clone()
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        Response::ok(PullWatchStatesResponse {
+            watch_states,
+            ..Default::default()
+        })
     }
 
     async fn invite_user(
@@ -486,6 +526,9 @@ impl LinkedServerService for Linked {
             return Response::ok(PollServerSignInResponse::default());
         };
         state.sign_in = None;
+        if request.code != SIGN_IN_CODE {
+            return Err(ConnectError::not_found("the code is wrong"));
+        }
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()

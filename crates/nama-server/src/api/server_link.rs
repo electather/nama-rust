@@ -1,9 +1,10 @@
 //! Linking the Server, and its Users, through the enabled Plugin that links it, such as the Hub
 //! Plugin (ADR 0011, ADR 0094): `ServerService`'s `GetServerLink`, `StartServerLink` and
 //! `UnlinkServer`, `UserService`'s `GetUserLink`, `StartUserLink`, `UnlinkUser` and
-//! `CreateUserFromAccount`, and `SignInService`'s sign-in with an Account (ADR 0092).
+//! `CreateUserFromAccount`, and `SignInService`'s sign-in with an Account (ADR 0092). Through it
+//! too, a User's Watch State on their other Servers comes back (ADR 0008).
 
-use std::future::Future;
+use std::{future::Future, net::SocketAddr, time::Duration};
 
 use connectrpc::{ConnectError, Response, ServiceResult};
 use nama_plugin_api::{
@@ -11,27 +12,35 @@ use nama_plugin_api::{
     server_link::{Link, ServerLinker},
 };
 use nama_proto::nama::v1::{
-    self as proto, CreateUserFromAccountResponse, GetServerLinkResponse, GetUserLinkResponse,
-    RefusalReason, StartAccountSignInResponse, StartServerLinkResponse, StartUserLinkResponse,
-    UnlinkServerResponse, UnlinkUserResponse,
+    self as proto, CreateUserFromAccountResponse, Event, GetServerLinkResponse,
+    GetUserLinkResponse, RefusalReason, StartAccountSignInResponse, StartServerLinkResponse,
+    StartUserLinkResponse, UnlinkServerResponse, UnlinkUserResponse, event,
 };
+use tokio::{sync::broadcast::error::RecvError, task::JoinHandle};
 use tracing::Instrument;
 
 use super::refuse;
 use crate::{
+    browse::Browse,
     diagnostics,
+    events::EventBus,
     plugins::ExtensionPoints,
+    server_addresses,
+    server_settings::ServerUrl,
     users::{User, Users},
 };
+
+/// How long a pull of a User's Watch State may take.
+const PULL_TIMEOUT: Duration = Duration::from_mins(1);
 
 /// What `unavailable` says when the Plugin that links the Server fails.
 const LINKING_FAILED: &str = "the Plugin that links the Server failed; its page says why";
 
 /// What `unavailable` says when a sign-in with an Account fails, such as while the Hub is down. A
 /// Device already signed in never needs the Hub (ADR 0092).
-const ACCOUNT_SIGN_IN_FAILED: &str = "Signing in with an Account needs the Hub, which can't be \
-                                      reached right now. Sign in with your password, or try \
-                                      again later.";
+/// No password advice: a User whose only Sign-in Method is their Account has none.
+const ACCOUNT_SIGN_IN_FAILED: &str =
+    "Signing in with an Account needs the Hub, which can't be reached right now. Try again later.";
 
 /// Where Linking stands, unset without an enabled Plugin that links the Server.
 pub(super) async fn get(points: &ExtensionPoints) -> ServiceResult<GetServerLinkResponse> {
@@ -65,21 +74,28 @@ pub(super) async fn unlink(points: &ExtensionPoints) -> ServiceResult<UnlinkServ
 }
 
 /// Where Linking `user` stands, unset while they can't Link: without an enabled Plugin that links
-/// the Server, or before the Server is Linked.
+/// the Server, or before the Server is Linked. Once they are Linked, pulls their Watch State too,
+/// as it can't tell the look that finds a Link new from a later one.
 pub(super) async fn get_user(
     points: &ExtensionPoints,
+    browse: &Browse,
     user: &User,
 ) -> ServiceResult<GetUserLinkResponse> {
     let link = ask(points, async |linker| linker.user_link(user.id).await).await?;
+    if let Some(Some(Link::Linked { .. })) = &link {
+        pull_watch_states_soon(points, browse, user.id);
+    }
     Response::ok(GetUserLinkResponse {
         link: link.flatten().map(user_link_to_proto).into(),
         ..Default::default()
     })
 }
 
-/// Starts Linking `user`, whom the service lists by their name.
+/// Starts Linking `user`, whom the service lists by their name, or pulls their Watch State if
+/// they turn out to be Linked already.
 pub(super) async fn start_user(
     points: &ExtensionPoints,
+    browse: &Browse,
     user: &User,
 ) -> ServiceResult<StartUserLinkResponse> {
     let link = ask(points, async |linker| {
@@ -87,6 +103,9 @@ pub(super) async fn start_user(
     })
     .await?
     .ok_or_else(no_linker)?;
+    if let Link::Linked { .. } = link {
+        pull_watch_states_soon(points, browse, user.id);
+    }
     Response::ok(StartUserLinkResponse {
         link: user_link_to_proto(link).into(),
         ..Default::default()
@@ -155,10 +174,13 @@ pub(super) async fn account_sign_in(points: &ExtensionPoints) -> bool {
     matches!(link, Ok(Some(Link::Linked { .. })))
 }
 
-/// Starts signing in with an Account, which the service sends back to `return_url`.
+/// Starts signing in with an Account, which the service sends back to `return_url`, one of the
+/// Server Addresses the Server reports given its Server URL `server_url` and `listening`.
 pub(super) async fn start_account_sign_in(
     points: &ExtensionPoints,
     return_url: &str,
+    server_url: &ServerUrl,
+    listening: SocketAddr,
 ) -> ServiceResult<StartAccountSignInResponse> {
     // The Hub refuses any other, but its refusal would reach the client as the Hub failing.
     if !is_web_address(return_url) {
@@ -167,6 +189,16 @@ pub(super) async fn start_account_sign_in(
             "the return URL must be an http or https URL",
         )
         .field("return_url")
+        .into());
+    }
+    // As above, and the client can say which address to open, as the Hub's refusal can't.
+    if !server_addresses::is_reported(return_url, server_url, listening) {
+        return Err(refuse(
+            RefusalReason::REFUSAL_REASON_NOT_A_SERVER_ADDRESS,
+            "open the Server at its Server URL to sign in with an Account",
+        )
+        .field("return_url")
+        .param("serverUrl", &server_url.url())
         .into());
     }
     let started = ask_or(points, ACCOUNT_SIGN_IN_FAILED, async |linker| {
@@ -181,13 +213,15 @@ pub(super) async fn start_account_sign_in(
     })
 }
 
-/// The id of the User the sign-in with an Account `handle` stands for, once it was approved.
+/// The id of the User the sign-in with an Account `handle` stands for, once it was approved and
+/// finished with the one-time `code` the service sent the person back with.
 pub(super) async fn account_signing_in(
     points: &ExtensionPoints,
     handle: &str,
+    code: &str,
 ) -> Result<i64, ConnectError> {
     ask_or(points, ACCOUNT_SIGN_IN_FAILED, async |linker| {
-        linker.finish_account_sign_in(handle).await
+        linker.finish_account_sign_in(handle, code).await
     })
     .await?
     .ok_or_else(no_linker)?
@@ -228,6 +262,82 @@ pub(super) fn unlink_deleted_user(points: &ExtensionPoints, user_id: i64) {
     let span =
         diagnostics::following_current(tracing::info_span!(parent: None, "unlink_deleted_user"));
     tokio::spawn(unlinking.instrument(span));
+}
+
+/// Brings the User `user_id`'s Watch State up to date from the enabled Plugin that links the
+/// Server, as when they sign in or Link (ADR 0008), without waiting for it, so a slow or
+/// unreachable service holds up nothing. Must be called within a Tokio runtime.
+pub(super) fn pull_watch_states_soon(points: &ExtensionPoints, browse: &Browse, user_id: i64) {
+    let (points, browse) = (points.clone(), browse.clone());
+    let span =
+        diagnostics::following_current(tracing::info_span!(parent: None, "pull_watch_states"));
+    tokio::spawn(
+        async move { pull_watch_states(&points, &browse, user_id).await }.instrument(span),
+    );
+}
+
+/// Pulls every User's Watch State after each scan's Matching, so a title a scan added shows what
+/// they did with it on their other Servers (ADR 0008), until the task is aborted.
+pub(crate) fn pull_watch_states_after_scans(
+    events: &EventBus,
+    points: ExtensionPoints,
+    browse: Browse,
+    users: Users,
+) -> JoinHandle<()> {
+    let mut followed = events.follow();
+    tokio::spawn(async move {
+        loop {
+            match followed.recv().await {
+                Ok(Event {
+                    event: Some(event::Event::MatchingFinished(_)),
+                    ..
+                })
+                // The events it missed may have held a scan's.
+                | Err(RecvError::Lagged(_)) => {}
+                Ok(_) => continue,
+                Err(RecvError::Closed) => return,
+            }
+            let listed = match users.list().await {
+                Ok(listed) => listed,
+                Err(err) => {
+                    tracing::error!("listing Users to pull their Watch State failed: {err}");
+                    continue;
+                }
+            };
+            // One at a time, as each reads every Library.
+            for user in listed {
+                pull_watch_states(&points, &browse, user.id).await;
+            }
+        }
+    })
+}
+
+/// Takes the User `user_id`'s Watch State from the enabled Plugin that links the Server, where it
+/// is newer than the Server's own. A failure is logged: the next sign-in or scan pulls again.
+async fn pull_watch_states(points: &ExtensionPoints, browse: &Browse, user_id: i64) {
+    let Some(answer) = points
+        .ask_first::<dyn ServerLinker, _, _, _, _>(async |linker| {
+            // Bounded, so a Plugin that never answers can't hold up every later scan's pulls.
+            tokio::time::timeout(PULL_TIMEOUT, linker.watch_states(user_id))
+                .await
+                .unwrap_or_else(|_elapsed| Err("it didn't answer in time".into()))
+        })
+        .await
+    else {
+        return;
+    };
+    let Ok(pulled) = answer.result else {
+        // Ids only: `ask_first` already puts the failure's message on the Plugin's page.
+        let plugin = &answer.plugin;
+        tracing::warn!(%plugin, user = user_id, "could not pull a User's Watch State");
+        return;
+    };
+    if let Err(err) = browse.take_pulled(user_id, pulled).await {
+        tracing::error!(
+            user = user_id,
+            "taking a User's pulled Watch State failed: {err}"
+        );
+    }
 }
 
 /// What `call` gets from the enabled Plugin that links the Server, or `None` without one. Its

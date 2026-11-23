@@ -1,0 +1,83 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT episode, title_id, played, position_ms, duration_ms,\n                      (extract(epoch FROM changed_at) * 1000)::bigint AS \"changed_at_ms!\"\n               FROM watch_states WHERE account_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "episode",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "episode"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "title_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "title_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "played",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "played"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "position_ms",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "position_ms"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "duration_ms",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "watch_states",
+            "name": "duration_ms"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "changed_at_ms!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "8ee60ec8a6dd2d32a8d0121b26927335bcc4315fcde07ba299a4cb4666f6503b"
+}

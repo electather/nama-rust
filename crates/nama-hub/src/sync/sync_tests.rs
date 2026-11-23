@@ -254,3 +254,69 @@ async fn a_change_naming_an_id_twice_keeps_it_once(db: PgPool) {
         Some((false, 3000, 7000))
     );
 }
+
+/// What `server`'s User `user_id` pulls: each change's User, id, position and when it was made.
+async fn pulled(
+    watch_states: &WatchStates,
+    server: &LinkedServer,
+    user_id: i64,
+) -> Vec<(i64, Vec<String>, i64, i64)> {
+    let pulled = watch_states.pull(server, user_id).await.unwrap();
+    let mut pulled: Vec<_> = (pulled.into_iter())
+        .map(|change| {
+            (
+                change.user_id,
+                change.ids,
+                change.position_ms,
+                change.changed_at_ms,
+            )
+        })
+        .collect();
+    pulled.sort();
+    pulled
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_server_pulls_what_another_server_of_the_account_pushed_by_each_id(db: PgPool) {
+    let mut hub = Hub::on(&db).await;
+    let ada = hub.proven("ada@example.com", "203.0.113.1").await;
+    let (first, second) = (hub.linked_server(&ada).await, hub.linked_server(&ada).await);
+    hub.link_user(&first, 7, &ada).await;
+    hub.link_user(&second, 3, &ada).await;
+
+    let made_at = 1_700_000_000_123;
+    let pushed = alien_at(7, 3000, made_at);
+    hub.watch_states.push(&first, vec![pushed]).await.unwrap();
+
+    assert_eq!(
+        pulled(&hub.watch_states, &second, 3).await,
+        [
+            (3, vec!["imdb-tt0078748".to_owned()], 3000, made_at),
+            (3, vec!["tmdb-348".to_owned()], 3000, made_at),
+        ]
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_pull_holds_only_the_account_the_user_is_linked_to(db: PgPool) {
+    let mut hub = Hub::on(&db).await;
+    let ada = hub.proven("ada@example.com", "203.0.113.1").await;
+    let bea = hub.proven("bea@example.com", "203.0.113.2").await;
+    let server = hub.linked_server(&ada).await;
+    hub.link_user(&server, 7, &ada).await;
+    hub.link_user(&server, 8, &bea).await;
+    let changes = vec![alien_at(7, 1000, 1_000), alien_at(8, 2000, 1_000)];
+    hub.watch_states.push(&server, changes).await.unwrap();
+
+    let ada_pulled = pulled(&hub.watch_states, &server, 7).await;
+    let positions: Vec<_> = ada_pulled
+        .iter()
+        .map(|&(_, _, position, _)| position)
+        .collect();
+    assert_eq!(positions, [1000, 1000]);
+    assert_eq!(
+        pulled(&hub.watch_states, &server, 9).await,
+        [],
+        "User 9 isn't Linked"
+    );
+}

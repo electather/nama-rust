@@ -1,6 +1,7 @@
-//! Syncing Linked Users' Watch State to the Hub (ADR 0008): each change the Kernel tells of is
+//! Syncing Linked Users' Watch State with the Hub (ADR 0008): each change the Kernel tells of is
 //! queued in the Plugin's Store, and the Sync Job sends the queue, in order, so changes made
-//! while the Hub is unreachable go once it is back.
+//! while the Hub is unreachable go once it is back. The Kernel pulls their Account's back. A User
+//! whose Link the Plugin never learned has nothing queued until the Hub can be asked.
 
 use std::sync::Arc;
 
@@ -11,6 +12,7 @@ use nama_plugin_api::{
     contract::StoreEntry,
     job::Job,
     points::{WatchStateChange, WatchStateChanges, WatchStatesChanged},
+    server_link::Link,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
@@ -64,14 +66,13 @@ impl Observer<WatchStatesChanged> for WatchStateSync {
 }
 
 impl Linker {
-    /// Queues `changed`, if its User is Linked.
+    /// Queues `changed`, if its User is Linked. It asks the Hub as Settings would, since a User
+    /// who never opened Settings, such as one who only signs in with their Account, has no kept
+    /// Link.
     async fn queue_changes(&self, changed: &WatchStateChanges) -> Result<(), PluginError> {
-        let Some(kept) = self.kept().await? else {
+        let Some(Link::Linked { .. }) = self.current_user_link(changed.user_id).await? else {
             return Ok(());
         };
-        if self.kept_account(changed.user_id, &kept).await?.is_none() {
-            return Ok(());
-        }
         let _queue = self.queue.lock().await;
         let mut queue: Queue = self.stored_json(QUEUE_KEY).await?.unwrap_or_default();
         // The last page fills up before another starts.
@@ -113,6 +114,21 @@ impl Linker {
             self.put_json(QUEUE_KEY.to_owned(), &queue).await?;
         }
         Ok(())
+    }
+
+    /// The Watch State of the Account `user_id` is Linked to, once the Hub has every change queued
+    /// here, so what it answers is never older than this Server's own; empty without the Server's
+    /// Link.
+    pub(super) async fn pull(&self, user_id: i64) -> Result<Vec<WatchStateChange>, PluginError> {
+        self.send_queued().await?;
+        let Some(kept) = self.kept().await? else {
+            return Ok(Vec::new());
+        };
+        let pulled = self
+            .hub
+            .pull_watch_states(&kept.credential, user_id)
+            .await?;
+        Ok(pulled.into_iter().map(change_from_proto).collect())
     }
 
     /// The changes queued in page `nth`.
@@ -175,6 +191,18 @@ fn change_to_proto(user_id: i64, change: &WatchStateChange) -> Option<Change> {
         changed_at_ms: change.changed_at_ms,
         ..Default::default()
     })
+}
+
+/// A change the Hub answered, as the Kernel takes it.
+fn change_from_proto(change: Change) -> WatchStateChange {
+    WatchStateChange {
+        episode: change.episode,
+        ids: change.ids,
+        played: change.played,
+        position_ms: change.position_ms,
+        duration_ms: change.duration_ms,
+        changed_at_ms: change.changed_at_ms,
+    }
 }
 
 /// The Store key of the queue's page `nth`.

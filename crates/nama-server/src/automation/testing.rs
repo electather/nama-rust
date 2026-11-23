@@ -74,16 +74,21 @@ pub(super) fn kernel(
     (automation, kernel)
 }
 
+/// The TMDB id `tmdb`, as a Plugin reads a title's id.
+pub(super) fn tmdb_id(tmdb: i64) -> TitleId {
+    TitleId {
+        namespace: "tmdb".to_owned(),
+        value: tmdb.to_string(),
+        ..TitleId::default()
+    }
+}
+
 /// The Movie `tmdb` of the Library `library`, as a Plugin names it.
 pub(super) fn movie_ref(library: i64, tmdb: i64) -> TitleRef {
     TitleRef {
         library_id: library,
         kind: TitleRefKind::TITLE_REF_KIND_MOVIE.into(),
-        id: MessageField::some(TitleId {
-            namespace: "tmdb".to_owned(),
-            value: tmdb.to_string(),
-            ..TitleId::default()
-        }),
+        id: MessageField::some(tmdb_id(tmdb)),
         ..TitleRef::default()
     }
 }

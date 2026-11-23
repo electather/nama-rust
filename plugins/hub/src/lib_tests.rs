@@ -700,26 +700,52 @@ async fn a_server_linked_again_doesnt_show_its_users_old_links() {
     assert_eq!(linker.user_link(8).await.unwrap(), Some(Link::NotLinked));
 }
 
+/// The Kernel's side of the Plugin: its observer, its Job runner and its linker.
+type Syncing = (
+    Arc<dyn Observer<WatchStatesChanged>>,
+    Arc<dyn JobRunner>,
+    Arc<dyn ServerLinker>,
+);
+
 /// The Plugin enabled against `hub`, the Server and its User 7 Linked, as the Kernel tells it of
-/// Watch State changes and runs its Job.
-async fn syncing_user_7(
-    hub: &FakeHub,
-) -> (Arc<dyn Observer<WatchStatesChanged>>, Arc<dyn JobRunner>) {
-    let mut registrar = Registrar::new().with_kernel(store());
-    Hub::at(hub.url()).register(&mut registrar).unwrap();
-    let registrations = registrar.into_registrations();
-    let linker = (registrations.iter())
-        .find_map(Registration::provider::<dyn ServerLinker>)
-        .unwrap();
+/// Watch State changes, runs its Job and pulls.
+async fn syncing_user_7(hub: &FakeHub) -> Syncing {
+    let kernel = store();
+    let linker = enabled(hub, &kernel);
     link(hub, linker.as_ref()).await;
     link_user(hub, linker.as_ref(), 7).await;
+    let (observer, jobs, _) = syncing(hub, &kernel);
+    (observer, jobs, linker)
+}
+
+/// The Plugin enabled against `hub`, the Server Linked and its User 7 Linked on the Hub though
+/// Settings never asked, as the Kernel tells it of Watch State changes and runs its Job.
+async fn syncing_user_7_linked_on_hub(
+    hub: &FakeHub,
+) -> (Arc<dyn Observer<WatchStatesChanged>>, Arc<dyn JobRunner>) {
+    let kernel = store();
+    link(hub, enabled(hub, &kernel).as_ref()).await;
+    hub.link_user_on_hub(7);
+    let (observer, jobs, _) = syncing(hub, &kernel);
+    (observer, jobs)
+}
+
+/// The Plugin enabled against `hub`, keeping its Store in `kernel`, as the Kernel tells it of
+/// Watch State changes and runs its Job.
+fn syncing(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Syncing {
+    let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
+    Hub::at(hub.url()).register(&mut registrar).unwrap();
+    let registrations = registrar.into_registrations();
     let observer = (registrations.iter())
         .find_map(Registration::observer::<WatchStatesChanged>)
         .unwrap();
     let jobs = (registrations.iter())
         .find_map(Registration::provider::<dyn JobRunner>)
         .unwrap();
-    (observer, jobs)
+    let linker = (registrations.iter())
+        .find_map(Registration::provider::<dyn ServerLinker>)
+        .unwrap();
+    (observer, jobs, linker)
 }
 
 /// The Movie `tmdb-<id>` at `position_ms`, changed at `changed_at_ms`.
@@ -771,7 +797,7 @@ fn pushed(hub: &FakeHub) -> Vec<Vec<(String, u64, i64)>> {
 #[tokio::test]
 async fn changes_made_while_the_hub_is_down_reach_it_in_order_once_it_is_back() {
     let hub = FakeHub::start().await;
-    let (observer, jobs) = syncing_user_7(&hub).await;
+    let (observer, jobs, _) = syncing_user_7(&hub).await;
     hub.set_down(true);
 
     tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
@@ -812,22 +838,49 @@ async fn an_account_approving_on_the_hub_signs_in_as_its_user() {
     );
     assert_eq!(
         linker
-            .finish_account_sign_in(&started.handle)
+            .finish_account_sign_in(&started.handle, "")
             .await
             .unwrap(),
         None
     );
-    hub.approve_sign_in(7);
+    let code = hub.approve_sign_in(7);
     assert_eq!(
         linker
-            .finish_account_sign_in(&started.handle)
+            .finish_account_sign_in(&started.handle, &code)
             .await
             .unwrap(),
         Some(7)
     );
     assert_eq!(
         linker
-            .finish_account_sign_in(&started.handle)
+            .finish_account_sign_in(&started.handle, &code)
+            .await
+            .unwrap(),
+        None
+    );
+}
+
+#[tokio::test]
+async fn finishing_an_approved_sign_in_with_a_wrong_code_ends_it() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+    let started = linker
+        .start_account_sign_in("https://nama.example/sign-in")
+        .await
+        .unwrap();
+    let code = hub.approve_sign_in(7);
+
+    assert_eq!(
+        linker
+            .finish_account_sign_in(&started.handle, "wrong")
+            .await
+            .unwrap(),
+        None
+    );
+    assert_eq!(
+        linker
+            .finish_account_sign_in(&started.handle, &code)
             .await
             .unwrap(),
         None
@@ -874,7 +927,7 @@ async fn the_server_reports_its_addresses_once_linked_and_then_only_when_they_ch
 #[tokio::test]
 async fn a_change_told_after_a_later_one_of_the_same_title_is_dropped() {
     let hub = FakeHub::start().await;
-    let (observer, jobs) = syncing_user_7(&hub).await;
+    let (observer, jobs, _) = syncing_user_7(&hub).await;
 
     tell(observer.as_ref(), 7, vec![movie_at(348, 3000, 2_000)]).await;
     tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
@@ -886,18 +939,58 @@ async fn a_change_told_after_a_later_one_of_the_same_title_is_dropped() {
 #[tokio::test]
 async fn a_user_who_isnt_linked_keeps_their_watch_state_on_the_server() {
     let hub = FakeHub::start().await;
-    let (observer, jobs) = syncing_user_7(&hub).await;
+    let (observer, jobs, _) = syncing_user_7(&hub).await;
+    let asks = hub.user_link_asks();
 
     tell(observer.as_ref(), 8, vec![movie_at(348, 1000, 1_000)]).await;
     run_sync(jobs.as_ref()).await.unwrap();
 
+    assert_eq!(hub.user_link_asks(), asks + 1);
     assert_eq!(hub.pushes(), Vec::<Vec<HubChange>>::new());
+}
+
+#[tokio::test]
+async fn a_user_linked_on_the_hub_has_their_changes_pushed_though_settings_never_asked() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs) = syncing_user_7_linked_on_hub(&hub).await;
+
+    tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(pushed(&hub), [[("tmdb-348".to_owned(), 1000, 1_000)]]);
+}
+
+#[tokio::test]
+async fn a_user_whose_link_the_hub_cant_be_asked_about_has_nothing_queued_and_isnt_asked_again() {
+    let hub = FakeHub::start().await;
+    let (observer, jobs) = syncing_user_7_linked_on_hub(&hub).await;
+    hub.fail_user_links();
+    let asks = hub.user_link_asks();
+
+    tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
+    tell(observer.as_ref(), 7, vec![movie_at(348, 2000, 2_000)]).await;
+    run_sync(jobs.as_ref()).await.unwrap();
+
+    assert_eq!(hub.user_link_asks(), asks + 1);
+    assert_eq!(hub.pushes(), Vec::<Vec<HubChange>>::new());
+}
+
+#[tokio::test]
+async fn changes_dont_ask_the_hub_again_about_a_user_it_was_just_asked_about() {
+    let hub = FakeHub::start().await;
+    let (observer, _) = syncing_user_7_linked_on_hub(&hub).await;
+    let asks = hub.user_link_asks();
+
+    tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
+    tell(observer.as_ref(), 7, vec![movie_at(348, 2000, 2_000)]).await;
+
+    assert_eq!(hub.user_link_asks(), asks + 1);
 }
 
 #[tokio::test]
 async fn a_write_of_many_changes_is_pushed_a_page_at_a_time_in_order() {
     let hub = FakeHub::start().await;
-    let (observer, jobs) = syncing_user_7(&hub).await;
+    let (observer, jobs, _) = syncing_user_7(&hub).await;
     let changes: Vec<_> = (1..=250).map(|id| movie_at(id, 1000, 1_000)).collect();
 
     tell(observer.as_ref(), 7, changes).await;
@@ -916,7 +1009,7 @@ async fn a_write_of_many_changes_is_pushed_a_page_at_a_time_in_order() {
 #[tokio::test]
 async fn ids_the_hub_wouldnt_take_are_left_out_and_a_change_with_none_stays_behind() {
     let hub = FakeHub::start().await;
-    let (observer, jobs) = syncing_user_7(&hub).await;
+    let (observer, jobs, _) = syncing_user_7(&hub).await;
     let long = format!("anidb-{}", "1".repeat(100));
     let with_a_long_id = WatchStateChange {
         ids: vec![long.clone(), "tmdb-348".to_owned()],
@@ -1012,6 +1105,23 @@ async fn addresses_the_hub_couldnt_take_are_reported_again() {
     linker.set_addresses(lan_only).await.unwrap();
 
     assert_eq!(hub.reported_addresses().len(), 1);
+}
+
+#[tokio::test]
+async fn a_pull_sends_the_queue_first_and_answers_the_accounts_watch_state() {
+    let hub = FakeHub::start().await;
+    let (observer, _, linker) = syncing_user_7(&hub).await;
+    tell(observer.as_ref(), 7, vec![movie_at(348, 3000, 2_000)]).await;
+
+    let pulled = linker.watch_states(7).await.unwrap();
+
+    assert_eq!(pushed(&hub), [[("tmdb-348".to_owned(), 3000, 2_000)]]);
+    assert_eq!(pulled, [movie_at(348, 3000, 2_000)]);
+    assert_eq!(
+        linker.watch_states(8).await.unwrap(),
+        [],
+        "User 8 isn't Linked"
+    );
 }
 
 /// The Version holding the Movie `tmdb-603`.
@@ -1198,6 +1308,14 @@ async fn a_linked_users_play_of_a_matched_title_goes_to_the_hub() {
             ..Default::default()
         }
     );
+}
+
+#[tokio::test]
+async fn a_server_that_isnt_linked_pulls_nothing() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+
+    assert_eq!(linker.watch_states(7).await.unwrap(), []);
 }
 
 #[tokio::test]

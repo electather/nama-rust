@@ -1,6 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
-use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use nama_plugin_api::{
+    metadata::{ExternalId, ExternalIds},
+    points::WatchStateChange,
+};
 
 use super::{Kind, MovieOrEpisode, Progress, WatchState, WatchStates, Watched};
 use crate::{
@@ -407,4 +410,112 @@ async fn each_write_returns_the_watch_state_it_left_under_every_id_preferred_fir
         ),
         (false, 0, 0)
     );
+}
+
+/// Another Server's change to Alien: at `position_ms` of 2000, or played, made `secs_ago`
+/// seconds ago, which may be negative.
+fn pulled(position_ms: u64, played: bool, secs_ago: i64) -> WatchStateChange {
+    WatchStateChange {
+        episode: false,
+        ids: vec![alien_imdb().to_string()],
+        played,
+        position_ms,
+        duration_ms: if position_ms == 0 && !played {
+            0
+        } else {
+            2_000
+        },
+        changed_at_ms: (db::now() - secs_ago) * 1000,
+    }
+}
+
+#[tokio::test]
+async fn a_pulled_change_is_taken_only_when_newer_than_the_servers_own_under_any_id() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user) = watch_states(&data).await;
+    let halfway = Progress::new(1_000, 2_000).unwrap();
+    (watch_states.report(
+        user,
+        vec![Some(MovieOrEpisode::movie(&alien_imdb()))],
+        halfway,
+    ))
+    .await
+    .unwrap();
+
+    let older = pulled(500, false, 60);
+    (watch_states.take_pulled(user, vec![(alien_by_both_ids(), older)]))
+        .await
+        .unwrap();
+    let own = movie_state(&watch_states, user, alien_imdb())
+        .await
+        .unwrap();
+    assert_eq!(own.position_ms, 1_000);
+    assert_eq!(movie_state(&watch_states, user, alien_id()).await, None);
+
+    let newer = pulled(1_500, false, -60);
+    (watch_states.take_pulled(user, vec![(alien_by_both_ids(), newer.clone())]))
+        .await
+        .unwrap();
+    let state = movie_state(&watch_states, user, alien_id()).await.unwrap();
+    assert_eq!(
+        (state.position_ms, state.updated_at * 1000),
+        (1_500, newer.changed_at_ms)
+    );
+}
+
+#[tokio::test]
+async fn a_pulled_change_marked_played_on_another_server_stays_played_here() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user) = watch_states(&data).await;
+
+    let played = pulled(0, true, 60);
+    (watch_states.take_pulled(user, vec![(alien_by_both_ids(), played)]))
+        .await
+        .unwrap();
+
+    let state = movie_state(&watch_states, user, alien_id()).await.unwrap();
+    assert!(state.played);
+    assert_eq!(state.played_at, Some(state.updated_at));
+}
+
+#[tokio::test]
+async fn a_newer_pulled_change_marking_it_unplayed_forgets_it_under_every_id() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user) = watch_states(&data).await;
+    let halfway = Progress::new(1_000, 2_000).unwrap();
+    (watch_states.report(user, vec![Some(alien())], halfway))
+        .await
+        .unwrap();
+
+    let unplayed = pulled(0, false, -60);
+    (watch_states.take_pulled(user, vec![(alien_by_both_ids(), unplayed)]))
+        .await
+        .unwrap();
+
+    assert_eq!(movie_state(&watch_states, user, alien_id()).await, None);
+}
+
+#[tokio::test]
+async fn of_a_titles_pulled_changes_under_several_ids_only_the_newest_is_taken_in_any_order() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user) = watch_states(&data).await;
+    let played_earlier = pulled(0, true, 120);
+    let unplayed_later = WatchStateChange {
+        ids: vec![alien_id().to_string()],
+        ..pulled(0, false, 60)
+    };
+
+    for pulled in [
+        vec![played_earlier.clone(), unplayed_later.clone()],
+        vec![unplayed_later, played_earlier],
+    ] {
+        let taken = pulled
+            .into_iter()
+            .map(|change| (alien_by_both_ids(), change));
+        (watch_states.take_pulled(user, taken.collect()))
+            .await
+            .unwrap();
+
+        assert_eq!(movie_state(&watch_states, user, alien_id()).await, None);
+    }
 }

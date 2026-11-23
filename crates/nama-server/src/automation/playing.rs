@@ -8,7 +8,7 @@ use nama_plugin_api::{
     contract::{Device, Devices, DevicesAsked, TitleRefKind, VersionTitles, VersionTitlesAsked},
 };
 
-use super::{Caller, title_ref};
+use super::{Caller, title_id, title_ref};
 use crate::library::{Contents, TitlesIn};
 
 impl Caller {
@@ -22,19 +22,28 @@ impl Caller {
         let Some(library) = contents.library_of_version(version).await.map_err(read)? else {
             return Ok(VersionTitles::default());
         };
-        let (kind, ids) = match contents.titles_in(version).await.map_err(read)? {
+        let (kind, found): (_, Vec<_>) = match contents.titles_in(version).await.map_err(read)? {
             TitlesIn::NoSuchVersion => return Ok(VersionTitles::default()),
-            TitlesIn::Movie(movie) => (TitleRefKind::TITLE_REF_KIND_MOVIE, Vec::from_iter(movie)),
+            TitlesIn::Movie(movie) => (
+                TitleRefKind::TITLE_REF_KIND_MOVIE,
+                movie.into_iter().map(|(id, _ids)| (id, None)).collect(),
+            ),
             TitlesIn::Episodes(episodes) => (
                 TitleRefKind::TITLE_REF_KIND_EPISODE,
-                episodes.into_iter().flatten().collect(),
+                (episodes.into_iter().flatten())
+                    .map(|(id, _ids, show)| (id, show))
+                    .collect(),
             ),
         };
-        let titles = (ids.iter())
-            .map(|(id, _)| title_ref(library, kind, id))
-            .collect();
+        let (titles, show_ids) = (found.iter())
+            .map(|(id, show)| {
+                let show = show.as_ref().map_or_default(title_id);
+                (title_ref(library, kind, id), show)
+            })
+            .unzip();
         Ok(VersionTitles {
             titles,
+            show_ids,
             ..VersionTitles::default()
         })
     }

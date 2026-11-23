@@ -6132,6 +6132,14 @@ impl ::serde::Serialize for VersionTitlesAskedOwnedView {
 pub struct VersionTitlesView<'a> {
     /// Field 1: `titles`
     pub titles: ::buffa::RepeatedView<'a, super::super::__buffa::view::TitleRefView<'a>>,
+    /// Each title's Show's id, in the same place as the title in `titles` and picked as
+    /// `Title.show_id` is. Unset for a Movie, or an Episode whose Match gives its Show no id.
+    ///
+    /// Field 2: `show_ids`
+    pub show_ids: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::TitleIdView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for VersionTitlesView<'a> {
@@ -6182,6 +6190,24 @@ impl<'a> ::buffa::MessageView<'a> for VersionTitlesView<'a> {
                         )?,
                     );
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TitleIdView>(),
+                )?;
+                view.show_ids
+                    .push(
+                        <super::super::__buffa::view::TitleIdView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -6209,6 +6235,11 @@ impl<'a> ::buffa::MessageView<'a> for VersionTitlesView<'a> {
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            show_ids: self
+                .show_ids
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -6221,6 +6252,14 @@ impl<'a> ::buffa::ViewEncode<'a> for VersionTitlesView<'a> {
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
         for v in &self.titles {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
+        for v in &self.show_ids {
             let __slot = __cache.reserve();
             let inner_size = v.compute_size(__cache);
             __cache.set(__slot, inner_size);
@@ -6242,6 +6281,14 @@ impl<'a> ::buffa::ViewEncode<'a> for VersionTitlesView<'a> {
         for v in &self.titles {
             ::buffa::types::put_len_delimited_header(
                 1u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.show_ids {
+            ::buffa::types::put_len_delimited_header(
+                2u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -6270,6 +6317,9 @@ impl<'__a> ::serde::Serialize for VersionTitlesView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !self.titles.is_empty() {
             __map.serialize_entry("titles", &*self.titles)?;
+        }
+        if !self.show_ids.is_empty() {
+            __map.serialize_entry("showIds", &*self.show_ids)?;
         }
         __map.end()
     }
@@ -6368,6 +6418,16 @@ impl VersionTitlesOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleRefView<'_>> {
         &self.0.reborrow().titles
+    }
+    /// Each title's Show's id, in the same place as the title in `titles` and picked as
+    /// `Title.show_id` is. Unset for a Movie, or an Episode whose Match gives its Show no id.
+    ///
+    /// Field 2: `show_ids`
+    #[must_use]
+    pub fn show_ids(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleIdView<'_>> {
+        &self.0.reborrow().show_ids
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<VersionTitlesView<'static>>>

@@ -16,12 +16,13 @@ use nama_hub_proto::nama::hub::v1::{
     ListRecommendedTitlesRequest, ListRecommendedTitlesResponse, ListSimilarTitlesRequest,
     ListSimilarTitlesResponse, ListUserInvitesRequest, ListUserInvitesResponse,
     PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
-    PollServerSignInResponse, PushWatchStatesRequest, PushWatchStatesResponse,
-    RecordViewingEventsRequest, RecordViewingEventsResponse, RefusalReason, ServerLinkService,
-    SetServerAddressesRequest, SetServerAddressesResponse, StartServerLinkRequest,
-    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
-    StartUserLinkRequest, StartUserLinkResponse, UnlinkLinkedUserRequest, UnlinkLinkedUserResponse,
-    UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
+    PollServerSignInResponse, PullWatchStatesRequest, PullWatchStatesResponse,
+    PushWatchStatesRequest, PushWatchStatesResponse, RecordViewingEventsRequest,
+    RecordViewingEventsResponse, RefusalReason, ServerLinkService, SetServerAddressesRequest,
+    SetServerAddressesResponse, StartServerLinkRequest, StartServerLinkResponse,
+    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
+    StartUserLinkResponse, UnlinkLinkedUserRequest, UnlinkLinkedUserResponse, UnlinkServerRequest,
+    UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
 };
 use sqlx::PgPool;
 
@@ -383,6 +384,22 @@ impl LinkedServerService for LinkedServerServiceHandler {
         Response::ok(PushWatchStatesResponse::default())
     }
 
+    async fn pull_watch_states(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PullWatchStatesRequest>,
+    ) -> ServiceResult<PullWatchStatesResponse> {
+        let pulled = self
+            .watch_states
+            .pull(linked_server(&ctx)?, request.user_id)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(PullWatchStatesResponse {
+            watch_states: pulled.into_iter().map(change_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+
     async fn invite_user(
         &self,
         ctx: RequestContext,
@@ -425,7 +442,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
     ) -> ServiceResult<PollServerSignInResponse> {
         let token = self
             .links
-            .poll_sign_in(linked_server(&ctx)?, request.device_code)
+            .poll_sign_in(linked_server(&ctx)?, request.device_code, request.code)
             .await
             .map_err(refused)?;
         Response::ok(PollServerSignInResponse {
@@ -659,6 +676,21 @@ fn change_from_proto(
         duration_ms,
         changed_at_ms: change.changed_at_ms,
     })
+}
+
+/// `change`, as a Linked Server takes it.
+fn change_to_proto(change: WatchStateChange) -> proto::WatchStateChange {
+    proto::WatchStateChange {
+        user_id: change.user_id,
+        episode: change.episode,
+        ids: change.ids,
+        played: change.played,
+        // Never negative: `watch_states` checks it.
+        position_ms: u64::try_from(change.position_ms).unwrap_or_default(),
+        duration_ms: u64::try_from(change.duration_ms).unwrap_or_default(),
+        changed_at_ms: change.changed_at_ms,
+        ..Default::default()
+    }
 }
 
 /// Refuses a push for a change at `field` that breaks a limit, which `message` names.

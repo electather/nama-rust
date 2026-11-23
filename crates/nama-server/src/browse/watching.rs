@@ -67,7 +67,9 @@ impl Browse {
             // An Item that isn't Matched keeps its share of the file, so the others' shares don't
             // move.
             TitlesIn::Episodes(episodes) => (episodes.into_iter())
-                .map(|episode| episode.map(|(id, ids)| MovieOrEpisode::episode(&id).known_as(&ids)))
+                .map(|episode| {
+                    episode.map(|(id, ids, _show)| MovieOrEpisode::episode(&id).known_as(&ids))
+                })
                 .collect(),
         };
         Ok(self.watch_states.report(user, titles, progress).await?)
@@ -136,6 +138,35 @@ impl Browse {
             }
             Target::Show(id) => Targeted::entry(every_episode(&titles.show(&id)?)),
         })
+    }
+
+    /// Takes from `pulled`, the User `user`'s Watch State on their other Servers, that of each
+    /// Movie or Episode a Library has under any of its ids, in the oldest Library that has it,
+    /// where it is newer than this Server's own (see [`crate::library::WatchStates::take_pulled`]).
+    /// One no Library has stays with the service, which hands it back on the pull after the scan
+    /// that adds it.
+    pub(crate) async fn take_pulled(
+        &self,
+        user: i64,
+        pulled: Vec<WatchStateChange>,
+    ) -> Result<(), Error> {
+        if pulled.is_empty() {
+            return Ok(());
+        }
+        // Each Movie or Episode here, by whether it's an Episode and each of its ids.
+        let mut here = HashMap::new();
+        // ponytail: whole-Library read
+        for library in self.libraries.list().await.map_err(finding_failed)? {
+            add_watched(&mut here, self.titles(&library).await?);
+        }
+        let taken = (pulled.into_iter())
+            .filter_map(|change| {
+                let found =
+                    (change.ids.iter()).find_map(|id| here.get(&(change.episode, id.clone())))?;
+                Some((found.clone(), change))
+            })
+            .collect();
+        Ok(self.watch_states.take_pulled(user, taken).await?)
     }
 
     /// A page of the User `user`'s Continue Watching, most recent first: the Movies they've
@@ -378,6 +409,27 @@ impl Found {
                 state,
             };
             self.listed.push((started, recency));
+        }
+    }
+}
+
+/// Adds each Movie or Episode of `titles` to `here` under whether it's an Episode and each of its
+/// ids, unless an older Library's took that id.
+fn add_watched(here: &mut HashMap<(bool, String), WatchedTitle>, titles: Titles) {
+    let watched: Vec<(bool, MovieOrEpisode, ExternalIds)> = match titles {
+        Titles::Movies(movies) => (movies.into_iter())
+            .map(|movie| (false, MovieOrEpisode::movie(&movie.id), movie.ids))
+            .collect(),
+        Titles::Shows(shows) => (shows.iter().flat_map(Show::episodes))
+            .map(|episode| {
+                let title = MovieOrEpisode::episode(&episode.id);
+                (true, title, episode.ids.clone())
+            })
+            .collect(),
+    };
+    for (episode, title, ids) in watched {
+        for id in ids.iter() {
+            (here.entry((episode, id.to_string()))).or_insert_with(|| title.clone().known_as(&ids));
         }
     }
 }

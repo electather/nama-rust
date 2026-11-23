@@ -10,7 +10,7 @@ Links (GLOSSARY.md): registering a Server through an OAuth device flow (ADR 0011
 - **The public port is checked where the report came from** (ADR 0057): the Hub opens a TCP connection to the request's own IP address, never one the Server names, so a Server can't have the Hub call anyone else, and sends nothing on it. Addresses go best first: the Server URL, the public address only if reached, then the LAN ones.
 - **Only a proven email Links** (ADR 0100), Servers and Users alike, accepting a User created from the Account included, and only from a session with Recent Authentication.
 - **Inviting reveals nothing** (ADR 0092): asking an email with no Account answers as one with an Account does.
-- **A sign-in is a device flow too.** The Server polls with a device code it got over its credential; the Account approves on the page for the sign-in's id. The token names the User through their Link, `aud` the Linked Server, and is handed out once. The page navigates to the return address, so only `http` and `https` ones are kept.
+- **A sign-in is a device flow too.** The Server polls with a device code it got over its credential; the Account approves on the page for the sign-in's id. The token names the User through their Link, `aud` the Linked Server, and is handed out once. The return address must be on one of the Server's Server Addresses, and approving adds a one-time code to it that the Server's first poll after must bring, so only the browser sent back there finishes (#1934).
 - **Scoped by Account** (ADR 0097): an Account lists only the Linked Servers it owns or has a User on, lists and Unlinks only its own Linked Users, and a Linked Server Unlinks only itself and its own Users.
 
 ### Neighbours

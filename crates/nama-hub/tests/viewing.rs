@@ -1,5 +1,5 @@
-//! A Linked Server recording its Users' Viewing Events, an Account listing and deleting its own,
-//! and the titles the Hub recommends from them, against a real PostgreSQL.
+//! A Linked Server recording its Users' Viewing Events, an Account listing and deleting its own
+//! and turning pooling off, and the titles the Hub recommends from them, against a real PostgreSQL.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/hub.rs"]
@@ -17,11 +17,11 @@ use mail::{Inbox, fake_mail};
 use nama_hub::titles;
 use nama_hub_proto::nama::hub::v1::{
     AccountServiceClient, ApproveServerLinkRequest, ApproveUserLinkRequest, CreateAccountRequest,
-    DeleteViewingEventRequest, DeviceKind, LinkServiceClient, LinkedServerServiceClient,
-    ListRecommendedTitlesRequest, ListViewingEventsRequest, PollServerLinkRequest,
-    RecordViewingEventsRequest, RefusalReason, SendSignInLinkRequest, ServerLinkServiceClient,
-    SignInWithLinkRequest, StartServerLinkRequest, StartUserLinkRequest, TitleKind,
-    UserViewingEvent, ViewingEvent, ViewingEventServiceClient,
+    DeleteViewingEventRequest, DeviceKind, GetPoolingRequest, LinkServiceClient,
+    LinkedServerServiceClient, ListRecommendedTitlesRequest, ListViewingEventsRequest,
+    PollServerLinkRequest, RecordViewingEventsRequest, RefusalReason, SendSignInLinkRequest,
+    ServerLinkServiceClient, SetPoolingRequest, SignInWithLinkRequest, StartServerLinkRequest,
+    StartUserLinkRequest, TitleKind, UserViewingEvent, ViewingEvent, ViewingEventServiceClient,
 };
 use refused::assert_refused;
 use sqlx::PgPool;
@@ -203,6 +203,19 @@ async fn listed_ids(hub: &TestHub, token: &str) -> Vec<String> {
     (listed(hub, token).await.into_iter())
         .map(|event| event.external_id)
         .collect()
+}
+
+/// Whether the signed-in Account pools.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn pooling(hub: &TestHub, token: &str) -> bool {
+    let got = history(hub, token)
+        .get_pooling(GetPoolingRequest::default())
+        .await
+        .unwrap();
+    got.into_owned().pooling
 }
 
 /// A Hub with Ada's Account, a Server she Linked, and that Server's User 7 Linked to her.
@@ -480,4 +493,43 @@ async fn a_server_gets_recommendations_only_for_its_own_linked_users(db: PgPool)
         ErrorCode::Unauthenticated,
         RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
     );
+}
+
+#[sqlx::test(migrations = false)]
+async fn an_account_turns_off_only_its_own_pooling(db: PgPool) {
+    let (hub, mut inbox, ada, _server) = ada_watching(db).await;
+    let bea = create_proven(&hub, &mut inbox, "bea@example.com").await;
+    assert!(pooling(&hub, &ada).await);
+
+    history(&hub, &ada)
+        .set_pooling(SetPoolingRequest {
+            pooling: false,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert!(!pooling(&hub, &ada).await);
+    assert!(pooling(&hub, &bea).await);
+}
+
+#[sqlx::test(migrations = false)]
+async fn pooling_needs_a_session(db: PgPool) {
+    let (hub, _inbox, ada, _server) = ada_watching(db).await;
+
+    assert_refused(
+        history(&hub, "not-a-session")
+            .set_pooling(SetPoolingRequest::default())
+            .await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
+    );
+    assert_refused(
+        history(&hub, "not-a-session")
+            .get_pooling(GetPoolingRequest::default())
+            .await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
+    );
+    assert!(pooling(&hub, &ada).await);
 }

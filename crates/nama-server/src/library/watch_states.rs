@@ -6,7 +6,7 @@
 //! rescans, renames and new Versions. Which Movie or Episodes a Version or a marked title stands
 //! for is for [`crate::browse::Browse`] to work out.
 
-use std::{iter, sync::Arc};
+use std::{cmp::Reverse, collections::HashSet, iter, sync::Arc};
 
 use nama_plugin_api::{
     metadata::{ExternalId, ExternalIds},
@@ -261,6 +261,25 @@ impl WatchStates {
             .await
     }
 
+    /// Takes the newest of `pulled`, other Servers' changes to the User `user`'s Watch State, of
+    /// each Movie or Episode here, made after any this Server has of it under any of its ids, in
+    /// one write: as of when it was made, it forgets one marked unplayed and stores any other,
+    /// under the preferred id. One once played here stays played. Returns nothing to tell
+    /// Observers: the change is the service's own news.
+    pub(crate) async fn take_pulled(
+        &self,
+        user: i64,
+        mut pulled: Vec<(Watched, WatchStateChange)>,
+    ) -> Result<(), sqlx::Error> {
+        // The service may hand a title's ids apart; only the newest of them is the title's.
+        pulled.sort_by_key(|(_, change)| Reverse(change.changed_at_ms));
+        let mut seen = HashSet::new();
+        pulled.retain(|(watched, _)| seen.insert(watched.title.clone()));
+        self.db
+            .write(move |tx| Box::pin(take_each(tx, user, pulled)))
+            .await
+    }
+
     /// Hides each of `titles` from the User `user`'s Continue Watching, or shows it again, under
     /// every id, in one write. Leaves their Watch State alone; the next change to it shows the
     /// title again.
@@ -401,45 +420,110 @@ async fn upsert(
     let now = changed_at_ms.div_euclid(1000);
     let mut changes = Vec::with_capacity(titles.len());
     for (watched, progress) in titles {
-        let (kind, title, ids) = watched.key();
-        let played = progress.is_played();
-        // An upsert, never a replace: the triggers on `watch_states` make Home rows stale on an
-        // insert, a delete or a change to `played`, which a position report must not fire.
-        let stored = sqlx::query!(
-            r#"INSERT INTO watch_states
-                 (user_id, kind, title_id, position_ms, duration_ms, played, updated_at,
-                  played_at)
-             VALUES (?1, ?2, ?3, ?4, ?5,
-                     ?6 OR EXISTS (SELECT 1 FROM watch_states
-                                   WHERE user_id = ?1 AND kind = ?2 AND played
-                                     AND title_id IN (SELECT value FROM json_each(?8))),
-                     ?7,
-                     coalesce((SELECT max(played_at) FROM watch_states
-                               WHERE user_id = ?1 AND kind = ?2
+        let played = store(
+            &mut *conn,
+            user,
+            &watched,
+            progress,
+            progress.is_played(),
+            now,
+        )
+        .await?;
+        changes.push(watched.changed(played, progress, changed_at_ms));
+    }
+    Ok(changes)
+}
+
+/// Stores `watched` at `progress`, `played` or played before under any of its ids, as of `at`, in
+/// seconds since the Unix epoch. Returns whether it is played.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each is a column of the row it writes, which a struct would only rename"
+)]
+async fn store(
+    conn: &mut SqliteConnection,
+    user: i64,
+    watched: &Watched,
+    progress: Progress,
+    played: bool,
+    at: i64,
+) -> Result<bool, sqlx::Error> {
+    let (kind, title, ids) = watched.key();
+    // An upsert, never a replace: the triggers on `watch_states` make Home rows stale on an
+    // insert, a delete or a change to `played`, which a position report must not fire.
+    let stored = sqlx::query!(
+        r#"INSERT INTO watch_states
+             (user_id, kind, title_id, position_ms, duration_ms, played, updated_at,
+              played_at)
+         VALUES (?1, ?2, ?3, ?4, ?5,
+                 ?6 OR EXISTS (SELECT 1 FROM watch_states
+                               WHERE user_id = ?1 AND kind = ?2 AND played
                                  AND title_id IN (SELECT value FROM json_each(?8))),
-                              CASE WHEN ?6 THEN ?7 END))
-             ON CONFLICT (user_id, kind, title_id) DO UPDATE
-             SET position_ms = excluded.position_ms,
-                 duration_ms = excluded.duration_ms,
-                 played = watch_states.played OR excluded.played,
-                 updated_at = excluded.updated_at,
-                 played_at = coalesce(watch_states.played_at, excluded.played_at),
-                 hidden = 0
-             RETURNING played AS "played: bool""#,
+                 ?7,
+                 coalesce((SELECT max(played_at) FROM watch_states
+                           WHERE user_id = ?1 AND kind = ?2
+                             AND title_id IN (SELECT value FROM json_each(?8))),
+                          CASE WHEN ?6 THEN ?7 END))
+         ON CONFLICT (user_id, kind, title_id) DO UPDATE
+         SET position_ms = excluded.position_ms,
+             duration_ms = excluded.duration_ms,
+             played = watch_states.played OR excluded.played,
+             updated_at = excluded.updated_at,
+             played_at = coalesce(watch_states.played_at, excluded.played_at),
+             hidden = 0
+         RETURNING played AS "played: bool""#,
+        user,
+        kind,
+        title,
+        progress.position_ms,
+        progress.duration_ms,
+        played,
+        at,
+        ids,
+    )
+    .fetch_one(conn)
+    .await?;
+    Ok(stored.played)
+}
+
+/// Takes each change another Server made, as [`WatchStates::take_pulled`] says.
+async fn take_each(
+    conn: &mut SqliteConnection,
+    user: i64,
+    pulled: Vec<(Watched, WatchStateChange)>,
+) -> Result<(), sqlx::Error> {
+    for (watched, change) in pulled {
+        // The Server keeps seconds, so one made in the same second as its own, as its own pushed
+        // and pulled back is, isn't newer.
+        let at = change.changed_at_ms.div_euclid(1000);
+        let (kind, title, ids) = watched.key();
+        let newest = sqlx::query_scalar!(
+            r#"SELECT MAX(updated_at) AS "newest?: i64" FROM watch_states
+               WHERE user_id = ? AND kind = ? AND title_id IN (SELECT value FROM json_each(?))"#,
             user,
             kind,
-            title,
-            progress.position_ms,
-            progress.duration_ms,
-            played,
-            now,
             ids,
         )
         .fetch_one(&mut *conn)
         .await?;
-        changes.push(watched.changed(stored.played, progress, changed_at_ms));
+        if newest.is_some_and(|newest| newest >= at) {
+            continue;
+        }
+        let progress = Progress::new(change.position_ms, change.duration_ms);
+        match progress {
+            Some(progress) => {
+                store(&mut *conn, user, &watched, progress, change.played, at).await?;
+            }
+            None if change.played => {
+                mark_played(&mut *conn, user, kind, title, at).await?;
+            }
+            // Unplayed at 0 of 0: marked unplayed.
+            None => {
+                forget(&mut *conn, user, kind, ids).await?;
+            }
+        }
     }
-    Ok(changes)
+    Ok(())
 }
 
 async fn mark_each(
