@@ -3,7 +3,7 @@
 
 use nama_hub::{
     db,
-    titles::{self, ExternalId, ImportError, SimilarTitle, TitleKind},
+    titles::{self, ExternalId, ImportError, PooledCount, SimilarTitle, TitleKind},
 };
 use sqlx::PgPool;
 
@@ -41,7 +41,22 @@ fn id(namespace: &str, value: &str) -> ExternalId {
 )]
 async fn trained(db: &PgPool) {
     imported(db).await;
-    titles::train(db).await.unwrap();
+    titles::train(db, &[]).await.unwrap();
+}
+
+/// The pooled counts of `accounts` Accounts that finished both The Matrix and Alien.
+fn matrix_and_alien_finished_by(accounts: i64) -> Vec<PooledCount> {
+    [
+        ("tmdb-603", "tmdb-603"),
+        ("tmdb-348", "tmdb-348"),
+        ("tmdb-348", "tmdb-603"),
+    ]
+    .map(|(a, b)| PooledCount {
+        a: a.to_owned(),
+        b: b.to_owned(),
+        accounts,
+    })
+    .into()
 }
 
 /// The ids of `similar`, most alike first, checking their weights fall from at most 1.0.
@@ -152,7 +167,7 @@ async fn a_dump_cut_short_changes_nothing(db: PgPool) {
 async fn training_gives_a_vector_to_each_title_sharing_a_fact_with_another(db: PgPool) {
     imported(&db).await;
 
-    let trained = titles::train(&db).await.unwrap();
+    let trained = titles::train(&db, &[]).await.unwrap();
 
     // Not Breaking Bad, which has no facts.
     assert_eq!(trained, 4);
@@ -203,12 +218,53 @@ async fn a_title_wikidata_lacks_or_without_facts_gets_no_similar_titles(db: PgPo
 #[sqlx::test(migrations = false)]
 async fn a_new_training_run_replaces_the_previous_runs_vectors(db: PgPool) {
     trained(&db).await;
-    assert_eq!(titles::train(&db).await.unwrap(), 4);
+    assert_eq!(titles::train(&db, &[]).await.unwrap(), 4);
 
     titles::import(&db, NEXT_DUMP).await.unwrap();
-    let retrained = titles::train(&db).await.unwrap();
+    let retrained = titles::train(&db, &[]).await.unwrap();
 
     assert_eq!(retrained, 0);
     let similar = titles::similar(&db, TitleKind::Movie, &[id("tmdb", "604")]).await;
     assert_eq!(similar.unwrap(), []);
+}
+
+/// The Movies most like The Matrix, once trained with `pooled`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn like_the_matrix_after_training_on(db: &PgPool, pooled: &[PooledCount]) -> Vec<ExternalId> {
+    assert_eq!(titles::train(db, pooled).await.unwrap(), 4);
+    let similar = titles::similar(db, TitleKind::Movie, &[id("tmdb", "603")])
+        .await
+        .unwrap();
+    ids_by_weight(&similar)
+}
+
+#[sqlx::test(migrations = false)]
+async fn facts_outweigh_behaviour_while_few_accounts_finished_titles_together(db: PgPool) {
+    imported(&db).await;
+
+    let similar = like_the_matrix_after_training_on(&db, &matrix_and_alien_finished_by(20)).await;
+
+    assert_eq!(similar, [id("tmdb", "604"), id("tmdb", "348")]);
+}
+
+#[sqlx::test(migrations = false)]
+async fn behaviour_outweighs_facts_once_many_accounts_finished_titles_together(db: PgPool) {
+    imported(&db).await;
+
+    let similar = like_the_matrix_after_training_on(&db, &matrix_and_alien_finished_by(5000)).await;
+
+    assert_eq!(similar, [id("tmdb", "348"), id("tmdb", "604")]);
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_new_training_run_replaces_the_behaviour_the_previous_one_learnt(db: PgPool) {
+    imported(&db).await;
+    like_the_matrix_after_training_on(&db, &matrix_and_alien_finished_by(5000)).await;
+
+    let similar = like_the_matrix_after_training_on(&db, &[]).await;
+
+    assert_eq!(similar, [id("tmdb", "604"), id("tmdb", "348")]);
 }

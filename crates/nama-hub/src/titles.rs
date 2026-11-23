@@ -6,7 +6,7 @@ mod wikidata;
 
 use sqlx::PgPool;
 
-pub use vectors::{SimilarTitle, similar, train};
+pub use vectors::{PooledCount, SimilarTitle, similar, train};
 pub use wikidata::{ImportError, import};
 
 /// Whether a title is a Movie or a Show, whose External IDs are separate id spaces (ADR 0042).

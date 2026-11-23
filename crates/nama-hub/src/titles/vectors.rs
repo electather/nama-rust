@@ -1,9 +1,9 @@
-//! Title vectors (ADR 0095): each title's Wikidata facts hashed into a sparse vector, which
-//! pgvector searches for the titles most like one.
+//! Title vectors (ADR 0095): each title's Wikidata facts and the Movies Accounts finished with it
+//! hashed into a sparse vector, which pgvector searches for the titles most like one.
 
 use std::{
-    collections::BTreeMap,
-    hash::{DefaultHasher, Hash as _, Hasher as _},
+    collections::{BTreeMap, HashMap},
+    hash::{DefaultHasher, Hash, Hasher as _},
 };
 
 use futures_util::TryStreamExt as _;
@@ -20,6 +20,13 @@ const DIMENSIONS: u64 = 1_000_000_000;
 
 const VECTORS_PER_STATEMENT: usize = 1_000;
 
+/// How many Accounts finish a title before its behaviour weighs as much as its facts; fewer, and
+/// its facts weigh more, more, and its behaviour does.
+///
+/// ponytail: a guess. Tune it once Viewing Events can be measured against, which MovieLens can't
+/// stand in for (ADR 0095).
+const ACCOUNTS_WEIGHING_AS_MUCH_AS_FACTS: f32 = 100.0;
+
 /// The most titles a Similar answer holds: as many as the Server keeps of one (ADR 0084).
 const MOST_SIMILAR: i64 = 100;
 
@@ -32,8 +39,30 @@ pub struct SimilarTitle {
     pub weight: f32,
 }
 
-/// Builds every title's vector from its facts as the last import left them, in a new training
-/// run that replaces the previous run's vectors at once, and returns how many titles have one.
+/// How many Accounts finished both Movies of a pair, or one Movie when `a` is `b`: a pooled count
+/// (ADR 0093).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PooledCount {
+    /// One Movie's External ID as Servers send it, such as `tmdb-603`.
+    pub a: String,
+    /// The other's, or `a` again.
+    pub b: String,
+    /// How many Accounts finished both.
+    pub accounts: i64,
+}
+
+/// What pooled counts say about a title.
+#[derive(Debug)]
+pub(super) struct Behaviour {
+    /// How many Accounts finished it.
+    accounts: i64,
+    /// A dimension of its own, and one for each title Accounts finished with it.
+    vector: BTreeMap<u64, f32>,
+}
+
+/// Builds every title's vector from its facts as the last import left them and from `pooled`,
+/// which holds only counts of enough Accounts to read, in a new training run that replaces the
+/// previous run's vectors at once, and returns how many titles have one.
 ///
 /// Runs as the `train-vectors` subcommand, after each import, never in the serving process (ADR
 /// 0096). Until it commits, the Hub answers from the previous run.
@@ -41,8 +70,9 @@ pub struct SimilarTitle {
 /// # Errors
 ///
 /// If a query fails. The previous run's vectors stay.
-pub async fn train(db: &PgPool) -> Result<usize, sqlx::Error> {
+pub async fn train(db: &PgPool, pooled: &[PooledCount]) -> Result<usize, sqlx::Error> {
     let mut tx = db.begin().await?;
+    let mut behaviours = behaviours(pooled, &movies_of(&mut tx, pooled).await?);
     sqlx::query!("DELETE FROM title_vectors")
         .execute(&mut *tx)
         .await?;
@@ -64,7 +94,8 @@ pub async fn train(db: &PgPool) -> Result<usize, sqlx::Error> {
     let mut batch = Vec::with_capacity(VECTORS_PER_STATEMENT);
     let mut trained = 0;
     while let Some(title) = titles.try_next().await? {
-        let Some(vector) = embed(title.facts.iter().zip(title.sharing)) else {
+        let facts = embed(title.facts.iter().zip(title.sharing));
+        let Some(vector) = blend(facts, behaviours.remove(&title.title_id)) else {
             continue;
         };
         batch.push((title.title_id, vector));
@@ -76,8 +107,134 @@ pub async fn train(db: &PgPool) -> Result<usize, sqlx::Error> {
     }
     save(&mut tx, run, &batch).await?;
     trained += batch.len();
+    let behaviour_alone: Vec<_> = (behaviours.into_iter())
+        .map(|(title, behaviour)| (title, behaviour.vector))
+        .collect();
+    for chunk in behaviour_alone.chunks(VECTORS_PER_STATEMENT) {
+        save(&mut tx, run, chunk).await?;
+        trained += chunk.len();
+    }
     tx.commit().await?;
     Ok(trained)
+}
+
+/// The Movies `pooled` names, each by the External IDs it names them by, among the titles the
+/// last import left.
+///
+/// ponytail: a Movie Wikidata lacks is left out, so it gets no vector of its own and adds to no
+/// other's; key vectors by External ID too once Similar answers can name such a title.
+async fn movies_of(
+    tx: &mut PgConnection,
+    pooled: &[PooledCount],
+) -> Result<HashMap<String, Uuid>, sqlx::Error> {
+    // Servers name a title `namespace-value`, as `title_ids` splits it.
+    let (namespaces, values): (Vec<&str>, Vec<&str>) = (pooled.iter())
+        .flat_map(|count| [count.a.as_str(), count.b.as_str()])
+        .filter_map(|id| id.split_once('-'))
+        .unzip();
+    let movies = sqlx::query!(
+        "SELECT DISTINCT ON (title_ids.namespace, title_ids.value)
+             title_ids.namespace, title_ids.value, titles.id
+         FROM UNNEST($1::text[], $2::text[]) AS pooled (namespace, value)
+         JOIN title_ids ON title_ids.namespace = pooled.namespace
+             AND title_ids.value = pooled.value
+         JOIN titles ON titles.id = title_ids.title_id
+         WHERE titles.kind = $3
+         ORDER BY title_ids.namespace, title_ids.value, titles.wikidata_id",
+        &namespaces as _,
+        &values as _,
+        TitleKind::Movie.as_str(),
+    )
+    .fetch_all(tx)
+    .await?;
+    Ok((movies.into_iter())
+        .map(|movie| (format!("{}-{}", movie.namespace, movie.value), movie.id))
+        .collect())
+}
+
+/// What `pooled` says about each of the titles `movies` names, by their External IDs. A title has
+/// behaviour once Accounts finished it with another: a count of it alone tells nothing about which
+/// titles are like it.
+///
+/// shortcut: an Account that finished one title under two of its ids, on two Servers, counts twice
+/// for it; count Accounts per title rather than per External ID if that ever skews it.
+pub(super) fn behaviours(
+    pooled: &[PooledCount],
+    movies: &HashMap<String, Uuid>,
+) -> HashMap<Uuid, Behaviour> {
+    let mut alone: HashMap<Uuid, i64> = HashMap::new();
+    let mut pairs: HashMap<(Uuid, Uuid), i64> = HashMap::new();
+    for count in pooled {
+        let (Some(&a), Some(&b)) = (movies.get(&count.a), movies.get(&count.b)) else {
+            continue;
+        };
+        if count.a == count.b {
+            *alone.entry(a).or_default() += count.accounts;
+        } else if a != b {
+            *pairs.entry((a.min(b), a.max(b))).or_default() += count.accounts;
+        }
+    }
+    let mut behaviours: HashMap<Uuid, Behaviour> = HashMap::new();
+    for ((a, b), together) in pairs {
+        // An Account counted for a pair was counted for each of its Movies.
+        let (Some(&a_alone), Some(&b_alone)) = (alone.get(&a), alone.get(&b)) else {
+            continue;
+        };
+        #[expect(
+            clippy::cast_precision_loss,
+            reason = "a count of Accounts needn't be exact to weigh a pair"
+        )]
+        let weight = together as f32 / (a_alone as f32 * b_alone as f32).sqrt();
+        for (title, accounts, other) in [(a, a_alone, b), (b, b_alone, a)] {
+            let behaviour = behaviours.entry(title).or_insert_with(|| Behaviour {
+                accounts,
+                // Its own dimension is what makes two titles finished together alike, not only
+                // two finished with the same others.
+                vector: BTreeMap::from([(dimension(&title), 1.0)]),
+            });
+            behaviour.vector.insert(dimension(&other), weight);
+        }
+    }
+    behaviours
+}
+
+/// A title's vector from its `facts` and its `behaviour`, behaviour weighing more the more
+/// Accounts finished it. `None` without either.
+pub(super) fn blend(
+    facts: Option<BTreeMap<u64, f32>>,
+    behaviour: Option<Behaviour>,
+) -> Option<BTreeMap<u64, f32>> {
+    let Some(behaviour) = behaviour else {
+        return facts;
+    };
+    let Some(facts) = facts else {
+        return Some(behaviour.vector);
+    };
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "a count of Accounts needn't be exact to weigh behaviour"
+    )]
+    let accounts = behaviour.accounts as f32;
+    let weight = accounts / (accounts + ACCOUNTS_WEIGHING_AS_MUCH_AS_FACTS);
+    // Each scaled to its share of a unit vector, as cosine similarity ignores a vector's length.
+    let mut blended = scaled(facts, 1.0 - weight);
+    for (dimension, value) in scaled(behaviour.vector, weight) {
+        *blended.entry(dimension).or_insert(0.0) += value;
+    }
+    Some(blended)
+}
+
+/// `vector` scaled to `length`.
+fn scaled(mut vector: BTreeMap<u64, f32>, length: f32) -> BTreeMap<u64, f32> {
+    let norm = vector
+        .values()
+        .map(|value| value * value)
+        .sum::<f32>()
+        .sqrt();
+    for value in vector.values_mut() {
+        *value *= length / norm;
+    }
+    vector
 }
 
 /// A title's vector from its facts, each with how many titles share it: every fact hashed to one
@@ -91,20 +248,25 @@ pub(super) fn embed<'a>(
 ) -> Option<BTreeMap<u64, f32>> {
     let mut vector = BTreeMap::new();
     for (fact, sharing) in facts {
-        // Rust may change `DefaultHasher` between releases, which is harmless: a training run
-        // hashes every title's facts itself.
-        let mut hasher = DefaultHasher::new();
-        fact.hash(&mut hasher);
-        // pgvector numbers a `sparsevec`'s dimensions from 1.
-        let dimension = hasher.finish() % DIMENSIONS + 1;
         #[expect(
             clippy::cast_precision_loss,
             reason = "a count of titles needn't be exact to weigh a fact"
         )]
         let sharing = sharing as f32;
-        *vector.entry(dimension).or_insert(0.0) += 1.0 / sharing.ln_1p();
+        *vector.entry(dimension(fact)).or_insert(0.0) += 1.0 / sharing.ln_1p();
     }
     (!vector.is_empty()).then_some(vector)
+}
+
+/// The dimension `key`, a fact or a title, is hashed to. A fact is a `String` and a title a
+/// `Uuid`, which hash apart.
+fn dimension(key: &impl Hash) -> u64 {
+    // Rust may change `DefaultHasher` between releases, which is harmless: a training run hashes
+    // every key itself.
+    let mut hasher = DefaultHasher::new();
+    key.hash(&mut hasher);
+    // pgvector numbers a `sparsevec`'s dimensions from 1.
+    hasher.finish() % DIMENSIONS + 1
 }
 
 /// Inserts `vectors`, each a title's, as made by training run `run`.
