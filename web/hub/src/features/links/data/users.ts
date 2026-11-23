@@ -1,4 +1,5 @@
 import { createConnectQueryKey, useMutation, useQuery } from "@connectrpc/connect-query";
+import { serversKey } from "@hub/features/links/data/servers";
 import { LinkService } from "@hub/gen/nama/hub/v1/link_pb";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -16,22 +17,27 @@ export function useLinkedUsers() {
   return useQuery(LinkService.method.listLinkedUsers, {});
 }
 
-/** Links the User whose Server shows a code to the signed-in Account, then lists the Users again. */
+/**
+ * Links the User whose Server shows a code to the signed-in Account, then lists the Users and
+ * Servers again.
+ */
 export function useApproveUserLink() {
   const queryClient = useQueryClient();
   return useMutation(LinkService.method.approveUserLink, {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: usersKey });
+      await queryClient.invalidateQueries({ queryKey: serversKey });
     },
   });
 }
 
-/** Unlinks one of the signed-in Account's Users, then lists the Users again. */
+/** Unlinks one of the signed-in Account's Users, then lists the Users and Servers again. */
 export function useUnlinkLinkedUser() {
   const queryClient = useQueryClient();
   return useMutation(LinkService.method.unlinkLinkedUser, {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: usersKey });
+      await queryClient.invalidateQueries({ queryKey: serversKey });
     },
   });
 }

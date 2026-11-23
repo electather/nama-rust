@@ -2,7 +2,8 @@ import { createConnectQueryKey, useMutation, useQuery } from "@connectrpc/connec
 import { LinkService } from "@hub/gen/nama/hub/v1/link_pb";
 import { useQueryClient } from "@tanstack/react-query";
 
-const serversKey = createConnectQueryKey({
+/** The query key of the Linked Servers the signed-in Account owns or has a User on. */
+export const serversKey = createConnectQueryKey({
   schema: LinkService.method.listLinkedServers,
   cardinality: "finite",
 });
