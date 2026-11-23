@@ -35,6 +35,15 @@ pub struct Config {
     /// The Hub's address as people reach it, such as `https://hub.example.com`, which links in
     /// its mail lead to. Required with `resend_api_key`.
     pub public_url: Option<String>,
+    /// The Cloudflare API token the Hub writes Linked Servers' names with, which may edit the DNS
+    /// of `cloudflare_zone_id` (ADR 0104). Without one it names no Server.
+    pub cloudflare_api_token: Option<String>,
+    /// The id of the Cloudflare zone the Hub names Linked Servers in. Required with
+    /// `cloudflare_api_token`.
+    pub cloudflare_zone_id: Option<String>,
+    /// That zone's domain, used for nothing but Server names, such as `namadirect.net`. Required
+    /// with `cloudflare_api_token`.
+    pub server_names_zone: Option<String>,
     /// The OTLP/HTTP endpoint the Diagnostics and Usage Analytics Servers share go to, such as
     /// `https://otlp.example.com/otlp` (ADR 0054). Without one, what they share is dropped.
     pub diagnostics_endpoint: Option<String>,
@@ -49,16 +58,25 @@ impl Config {
     ///
     /// # Errors
     ///
-    /// If `NAMA_HUB_DATABASE_URL` is unset, a variable doesn't parse, or
-    /// `NAMA_HUB_RESEND_API_KEY` is set without `NAMA_HUB_MAIL_FROM` or `NAMA_HUB_PUBLIC_URL`.
+    /// If `NAMA_HUB_DATABASE_URL` is unset, a variable doesn't parse, `NAMA_HUB_RESEND_API_KEY`
+    /// is set without `NAMA_HUB_MAIL_FROM` or `NAMA_HUB_PUBLIC_URL`, or
+    /// `NAMA_HUB_CLOUDFLARE_API_TOKEN` without `NAMA_HUB_CLOUDFLARE_ZONE_ID` or
+    /// `NAMA_HUB_SERVER_NAMES_ZONE`.
     pub fn load() -> Result<Self, Box<figment::Error>> {
         let mut config: Self = Figment::from(Env::prefixed(ENV_PREFIX)).extract()?;
         // A deploy that blanks the variable means no mail, not a key Resend would refuse.
         config.resend_api_key = config.resend_api_key.filter(|key| !key.is_empty());
+        config.cloudflare_api_token = config
+            .cloudflare_api_token
+            .filter(|token| !token.is_empty());
         config.diagnostics_endpoint = config.diagnostics_endpoint.filter(|url| !url.is_empty());
-        match config.missing_for_mail() {
-            Some(missing) => Err(Box::new(figment::Error::from(format!(
-                "{ENV_PREFIX}RESEND_API_KEY is set, so {ENV_PREFIX}{missing} must be too"
+        let missing = (config
+            .missing_for_mail()
+            .map(|missing| ("RESEND_API_KEY", missing)))
+        .or_else(|| (config.missing_for_names()).map(|missing| ("CLOUDFLARE_API_TOKEN", missing)));
+        match missing {
+            Some((set, missing)) => Err(Box::new(figment::Error::from(format!(
+                "{ENV_PREFIX}{set} is set, so {ENV_PREFIX}{missing} must be too"
             )))),
             None => Ok(config),
         }
@@ -76,14 +94,26 @@ impl Config {
             None
         }
     }
+
+    /// The variable naming Servers needs that is unset, if `cloudflare_api_token` is set.
+    fn missing_for_names(&self) -> Option<&'static str> {
+        self.cloudflare_api_token.as_ref()?;
+        if self.cloudflare_zone_id.is_none() {
+            Some("CLOUDFLARE_ZONE_ID")
+        } else if self.server_names_zone.is_none() {
+            Some("SERVER_NAMES_ZONE")
+        } else {
+            None
+        }
+    }
 }
 
 fn default_listen() -> SocketAddr {
     SocketAddr::from(([0, 0, 0, 0], 7981))
 }
 
-// The URL may hold the database's password, and the keys, the API key and the Diagnostics
-// backend's headers are secrets, so none is printed.
+// The URL may hold the database's password, and the keys, the API key and token and the
+// Diagnostics backend's headers are secrets, so none is printed.
 impl fmt::Debug for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Config")
@@ -91,6 +121,7 @@ impl fmt::Debug for Config {
             .field("trusted_proxies", &self.trusted_proxies)
             .field("mail_from", &self.mail_from)
             .field("public_url", &self.public_url)
+            .field("server_names_zone", &self.server_names_zone)
             .field("diagnostics_endpoint", &self.diagnostics_endpoint)
             .finish_non_exhaustive()
     }

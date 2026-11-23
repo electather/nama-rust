@@ -13,6 +13,7 @@ use nama_hub::{
     config::Config,
     db,
     diagnostics::{Backend, Otlp, OtlpError},
+    dns::{Cloudflare, DnsError, ServerNames},
     mail::{Mail, MailError, Resend},
     signing::Keys,
     titles,
@@ -46,7 +47,10 @@ const OTLP_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
                   NAMA_HUB_SIGNING_KEYS, the Ed25519 private keys it signs with, as PEM blocks \
                   one after another, and, to email Sign-in Links, NAMA_HUB_RESEND_API_KEY, \
                   NAMA_HUB_MAIL_FROM, the address mail comes from, and NAMA_HUB_PUBLIC_URL, the \
-                  Hub's address that links lead to, and, to forward what Servers share, \
+                  Hub's address that links lead to, and, to name Linked Servers, \
+                  NAMA_HUB_CLOUDFLARE_API_TOKEN, NAMA_HUB_CLOUDFLARE_ZONE_ID, the Cloudflare \
+                  zone it writes their names in, and NAMA_HUB_SERVER_NAMES_ZONE, its domain, \
+                  and, to forward what Servers share, \
                   NAMA_HUB_DIAGNOSTICS_ENDPOINT, an OTLP/HTTP endpoint, and \
                   NAMA_HUB_DIAGNOSTICS_HEADERS, the headers sent to it, as key=value pairs."
 )]
@@ -110,6 +114,13 @@ async fn run() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    let names = match server_names(&config) {
+        Ok(names) => names,
+        Err(err) => {
+            error!("could not set up the DNS provider: {err}");
+            return ExitCode::FAILURE;
+        }
+    };
     let diagnostics = match diagnostics(&config) {
         Ok(diagnostics) => diagnostics,
         Err(err) => {
@@ -148,6 +159,7 @@ async fn run() -> ExitCode {
         keys,
         &config.trusted_proxies,
         mail,
+        names,
         diagnostics,
         shutdown,
     )
@@ -173,6 +185,22 @@ fn mail(config: &Config) -> Result<Option<Mail>, MailError> {
     Ok(Some(Mail {
         mailer: Arc::new(Resend::new(api_key.clone(), from.clone())?),
         public_url: public_url.clone(),
+    }))
+}
+
+/// The zone Linked Servers are named in, through Cloudflare, if `config` has its API token, which
+/// [`Config::load`] has checked comes with the zone.
+fn server_names(config: &Config) -> Result<Option<ServerNames>, DnsError> {
+    let (Some(api_token), Some(zone_id), Some(zone)) = (
+        &config.cloudflare_api_token,
+        &config.cloudflare_zone_id,
+        &config.server_names_zone,
+    ) else {
+        return Ok(None);
+    };
+    Ok(Some(ServerNames {
+        zone: zone.to_ascii_lowercase(),
+        records: Arc::new(Cloudflare::new(api_token.clone(), zone_id)?),
     }))
 }
 

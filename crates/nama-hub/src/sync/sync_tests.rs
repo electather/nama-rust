@@ -48,7 +48,7 @@ impl Hub {
         };
         let accounts = Accounts::new(db.clone(), Some(mail));
         let keys = Arc::new(Keys::from_pems(SIGNING_KEY).unwrap());
-        let links = Links::new(db.clone(), accounts.clone(), keys);
+        let links = Links::new(db.clone(), accounts.clone(), keys, None);
         Self {
             watch_states: WatchStates::new(db.clone(), links.clone()),
             watchlists: Watchlists::new(
@@ -481,7 +481,7 @@ async fn accounts_on(db: &PgPool, count: usize) -> (Watchlists, Viewing, Vec<Acc
         created.push(account.unwrap().account.id);
     }
     let keys = Arc::new(Keys::from_pems(SIGNING_KEY).unwrap());
-    let links = Links::new(db.clone(), Accounts::new(db.clone(), None), keys);
+    let links = Links::new(db.clone(), Accounts::new(db.clone(), None), keys, None);
     let viewing = Viewing::new(db.clone(), links.clone());
     let watchlists = Watchlists::new(db.clone(), links, viewing.clone());
     (watchlists, viewing, created)

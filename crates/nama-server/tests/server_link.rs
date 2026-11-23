@@ -211,6 +211,7 @@ async fn the_server_shows_the_code_its_plugin_starts_and_then_whose_it_is() {
         reachability: Some(Reachability {
             address: "http://203.0.113.7:7980".to_owned(),
             reachable: true,
+            names: vec!["abc.namadirect.net".to_owned()],
         }),
     });
     let shown = link(&server).await.unwrap();
@@ -218,6 +219,7 @@ async fn the_server_shows_the_code_its_plugin_starts_and_then_whose_it_is() {
     assert_eq!(shown.code, "");
     assert_eq!(shown.public_address, "http://203.0.113.7:7980");
     assert!(shown.reachable);
+    assert_eq!(shown.names, ["abc.namadirect.net"]);
 
     settings(&server)
         .unlink_server(UnlinkServerRequest::default())

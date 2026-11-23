@@ -144,6 +144,11 @@ message ServerLink {
   string public_address = 4;
   // Whether the Hub reached the Server at `public_address`, so clients outside the LAN try it.
   bool reachable = 5;
+  // The Server's names on the Hub (ADR 0104). Its own name comes first, such as
+  // `0193b6f2c4d87a1e9f3c5b2a1d0e4f67.namadirect.net`, and then one for each of its private IPv4
+  // LAN addresses, such as `192-168-1-10.<own name>`. Empty until the Hub named the Server, and on
+  // a Hub that names no Server.
+  repeated string names = 6;
 }
 
 message StartServerLinkRequest {}

@@ -70,6 +70,9 @@ pub(super) const PUBLIC_IP: &str = "203.0.113.7";
 /// The one public port the fake reaches the Server at.
 pub(super) const OPEN_PORT: u16 = 7980;
 
+/// The name the fake gives every Server that reports its addresses.
+pub(super) const SERVER_NAME: &str = "abc.namadirect.test";
+
 /// What the fake Hub knows.
 #[derive(Default)]
 struct State {
@@ -642,12 +645,17 @@ impl LinkedServerService for Linked {
         state
             .reported_addresses
             .push((request.url.to_owned(), lan.collect()));
+        let names = vec![SERVER_NAME.to_owned()];
         if request.public_port == 0 {
-            return Response::ok(SetServerAddressesResponse::default());
+            return Response::ok(SetServerAddressesResponse {
+                names,
+                ..Default::default()
+            });
         }
         Response::ok(SetServerAddressesResponse {
             public_address: format!("http://{PUBLIC_IP}:{}", request.public_port),
             reachable: request.public_port == u32::from(OPEN_PORT),
+            names,
             ..Default::default()
         })
     }

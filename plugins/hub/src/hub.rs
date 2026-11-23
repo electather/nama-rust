@@ -295,8 +295,9 @@ impl Hub {
     }
 
     /// Tells the Hub `addresses` are where clients reach the Server whose credential is
-    /// `credential`, and answers whether the Hub reached its public port, if it has one; a
-    /// [`LinkDropped`] error if the Hub doesn't know `credential` any more.
+    /// `credential`, and answers whether the Hub reached its public port, if it has one, and the
+    /// names it gave the Server, if any; a [`LinkDropped`] error if the Hub doesn't know
+    /// `credential` any more.
     pub(crate) async fn set_addresses(
         &self,
         credential: &str,
@@ -313,12 +314,12 @@ impl Hub {
             .await
             .map_err(link_dropped)?
             .into_owned();
-        Ok(
-            (!checked.public_address.is_empty()).then_some(Reachability {
-                address: checked.public_address,
-                reachable: checked.reachable,
-            }),
-        )
+        let found = !checked.public_address.is_empty() || !checked.names.is_empty();
+        Ok(found.then_some(Reachability {
+            address: checked.public_address,
+            reachable: checked.reachable,
+            names: checked.names,
+        }))
     }
 
     /// Records `events`, Viewing Events of the Server whose credential is `credential`. A refusal

@@ -656,6 +656,18 @@ pub struct ServerLink {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub reachable: bool,
+    /// The Server's names on the Hub (ADR 0104). Its own name comes first, such as
+    /// `0193b6f2c4d87a1e9f3c5b2a1d0e4f67.namadirect.net`, and then one for each of its private IPv4
+    /// LAN addresses, such as `192-168-1-10.<own name>`. Empty until the Hub named the Server, and on
+    /// a Hub that names no Server.
+    ///
+    /// Field 6: `names`
+    #[serde(
+        rename = "names",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub names: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -668,6 +680,7 @@ impl ::core::fmt::Debug for ServerLink {
             .field("account", &self.account)
             .field("public_address", &self.public_address)
             .field("reachable", &self.reachable)
+            .field("names", &self.names)
             .finish()
     }
 }
@@ -715,6 +728,9 @@ impl ::buffa::Message for ServerLink {
         if self.reachable {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        for v in &self.names {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -739,6 +755,9 @@ impl ::buffa::Message for ServerLink {
         }
         if self.reachable {
             ::buffa::types::put_bool_field(5u32, self.reachable, buf);
+        }
+        for v in &self.names {
+            ::buffa::types::put_string_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -788,6 +807,17 @@ impl ::buffa::Message for ServerLink {
                 )?;
                 self.reachable = ::buffa::types::decode_bool(buf)?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.names.push(__elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -801,6 +831,7 @@ impl ::buffa::Message for ServerLink {
         self.account.clear();
         self.public_address.clear();
         self.reachable = false;
+        self.names.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

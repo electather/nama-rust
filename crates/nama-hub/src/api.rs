@@ -35,6 +35,7 @@ use crate::{
     accounts::Accounts,
     db,
     diagnostics::{Backend, NotTaken, Shared, Signal},
+    dns::ServerNames,
     links::{LinkedServer, Links},
     mail::Mail,
     recommendations::Recommendations,
@@ -53,16 +54,21 @@ use self::{
 /// through `trusted_proxies` (ADR 0018) and which Account or Linked Server, if any, sent it, the
 /// public half of `keys` at `/.well-known/jwks.json`, and OTLP/HTTP's `/otlp/v1/traces` and
 /// `/otlp/v1/logs` taking what Linked Servers share for `diagnostics`. Sign-in Links go out
-/// through `mail`, if it is set up.
+/// through `mail`, if it is set up, and Linked Servers are named through `names`, if it is.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each is a separate handle the Hub is built from, as `serve` takes them"
+)]
 pub(crate) fn router(
     db: PgPool,
     keys: Arc<Keys>,
     trusted_proxies: &[IpRange],
     mail: Option<Mail>,
+    names: Option<ServerNames>,
     diagnostics: Option<Arc<dyn Backend>>,
 ) -> axum::Router {
     let accounts = Accounts::new(db.clone(), mail);
-    let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys));
+    let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys), names);
     let viewing = Viewing::new(db.clone(), links.clone());
     let watch_states = WatchStates::new(db.clone(), links.clone());
     let recommendations = Recommendations::new(db.clone(), links.clone(), viewing.clone());
@@ -75,6 +81,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(AccountServiceHandler {
             accounts: accounts.clone(),
+            links: links.clone(),
         }))
         .add_service(Arc::new(ServerLinkServiceHandler {
             links: links.clone(),

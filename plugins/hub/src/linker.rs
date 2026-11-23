@@ -144,8 +144,9 @@ pub(crate) struct Linker {
     queue: Mutex<()>,
     /// Held across telling the Hub, so a report never overtakes another.
     reported: Mutex<Option<Reported>>,
-    /// What the Hub found of the Server's public port, with the [`Kept::id`] of the Link it found
-    /// it through. Apart from `reported`, so showing the Link never waits on a report.
+    /// What the Hub found of the Server's public port and the names it gave it, with the
+    /// [`Kept::id`] of the Link it found them through. Apart from `reported`, so showing the Link
+    /// never waits on a report.
     reachability: std::sync::Mutex<Option<(String, Reachability)>>,
 }
 
@@ -309,7 +310,8 @@ impl Linker {
         Ok(())
     }
 
-    /// What the Hub found of the Server's public port through the Link `kept`, if it checked one.
+    /// What the Hub found of the Server's public port and names through the Link `kept`, if it
+    /// answered a report.
     fn reachability(&self, kept: &Kept) -> Option<Reachability> {
         let found = self
             .reachability

@@ -280,7 +280,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         self.links
             .unlink(linked_server(&ctx)?)
             .await
-            .map_err(|err| hub_failed(&err))?;
+            .map_err(refused)?;
         Response::ok(UnlinkServerResponse::default())
     }
 
@@ -533,15 +533,13 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .set_addresses(linked_server(&ctx)?, request.url, &lan_addresses, public)
             .await
             .map_err(refused)?;
-        Response::ok(
-            checked.map_or_else(SetServerAddressesResponse::default, |checked| {
-                SetServerAddressesResponse {
-                    public_address: checked.address,
-                    reachable: checked.reachable,
-                    ..Default::default()
-                }
-            }),
-        )
+        let probed = checked.public.unwrap_or_default();
+        Response::ok(SetServerAddressesResponse {
+            public_address: probed.address,
+            reachable: probed.reachable,
+            names: checked.names,
+            ..Default::default()
+        })
     }
 
     async fn record_viewing_events(
@@ -731,7 +729,7 @@ fn refused(err: links::Error) -> ConnectError {
             .param("maxLength", &ADDRESS_LENGTH)
             .param("maxLanAddresses", &MAX_LAN_ADDRESSES)
             .param("maxPort", &u16::MAX),
-        E::Random(_) | E::Database(_) => return hub_failed(&err),
+        E::Random(_) | E::Database(_) | E::Names(_) => return hub_failed(&err),
     };
     refused.into()
 }

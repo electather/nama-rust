@@ -158,7 +158,7 @@ async fn pool_of(db: &PgPool, count: usize) -> (Viewing, Vec<AccountId>) {
         created.push(account.unwrap().account.id);
     }
     let keys = Arc::new(Keys::from_pems(SIGNING_KEY).unwrap());
-    let links = Links::new(db.clone(), Accounts::new(db.clone(), None), keys);
+    let links = Links::new(db.clone(), Accounts::new(db.clone(), None), keys, None);
     (Viewing::new(db.clone(), links), created)
 }
 

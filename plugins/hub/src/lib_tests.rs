@@ -44,7 +44,7 @@ use nama_hub_proto::nama::hub::v1::WatchStateChange as HubChange;
 
 use super::*;
 use crate::fake_hub::{
-    EMAIL, FakeHub, OPEN_PORT, PUBLIC_IP, SIGN_IN_ID, USER_CODE, USER_LINK_CODE,
+    EMAIL, FakeHub, OPEN_PORT, PUBLIC_IP, SERVER_NAME, SIGN_IN_ID, USER_CODE, USER_LINK_CODE,
 };
 
 /// A Kernel whose only functions are the Plugin's Store, kept in memory.
@@ -1646,7 +1646,7 @@ async fn a_play_while_the_hub_is_down_is_sent_once_it_is_back_after_a_restart_an
 }
 
 #[tokio::test]
-async fn the_server_shows_whether_the_hub_reached_its_public_port() {
+async fn the_server_shows_whether_the_hub_reached_its_public_port_and_its_names() {
     let hub = FakeHub::start().await;
     let linker = enabled(&hub, &store());
     link(&hub, linker.as_ref()).await;
@@ -1673,11 +1673,13 @@ async fn the_server_shows_whether_the_hub_reached_its_public_port() {
     let missed = shown().await;
     linker.set_addresses(with_port(None)).await.unwrap();
 
+    let names = vec![SERVER_NAME.to_owned()];
     assert_eq!(
         reached,
         Some(Reachability {
             address: format!("http://{PUBLIC_IP}:{OPEN_PORT}"),
             reachable: true,
+            names: names.clone(),
         })
     );
     assert_eq!(
@@ -1685,9 +1687,16 @@ async fn the_server_shows_whether_the_hub_reached_its_public_port() {
         Some(Reachability {
             address: format!("http://{PUBLIC_IP}:{}", OPEN_PORT + 1),
             reachable: false,
+            names: names.clone(),
         })
     );
-    assert_eq!(shown().await, None);
+    assert_eq!(
+        shown().await,
+        Some(Reachability {
+            names,
+            ..Reachability::default()
+        })
+    );
 }
 
 /// The Movies Library that [`with_movies`]'s Kernel has.
