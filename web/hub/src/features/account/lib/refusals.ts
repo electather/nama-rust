@@ -15,17 +15,22 @@ export function refusalReason(error: unknown) {
 
 /** What to say about a refused attempt to create an Account, sign in or set a password, by its reason. */
 export function credentialErrors(error: unknown): CredentialErrors {
-  const refusal = refusalOf(error);
-  const say = refusal && wording[refusal.reason];
-  return say
-    ? say((key) => refusal.params[key] ?? "")
-    : { form: "The Hub couldn’t do that just now. Try again." };
+  return sayRefusal(error, wording, { form: "The Hub couldn’t do that just now. Try again." });
 }
 
-/** What each reason a form can be refused for says, given the Refusal's params by key. */
-const wording: Partial<
-  Record<RefusalReason, (param: (key: string) => string) => CredentialErrors>
-> = {
+/** What a screen says for each reason it words, given the Refusal's params by key. */
+export type RefusalWording<T> = Partial<
+  Record<RefusalReason, (param: (key: string) => string) => T>
+>;
+
+/** What `wording` says about the Refusal in `error`, or `fallback` for one it doesn't word. */
+export function sayRefusal<T>(error: unknown, wording: RefusalWording<T>, fallback: T): T {
+  const refusal = refusalOf(error);
+  const say = refusal && wording[refusal.reason];
+  return say ? say((key) => refusal.params[key] ?? "") : fallback;
+}
+
+const wording: RefusalWording<CredentialErrors> = {
   // The Hub doesn’t say which of the two is wrong, so neither do we.
   [RefusalReason.WRONG_EMAIL_OR_PASSWORD]: () => ({
     password: "That email and password don’t match an Account.",
@@ -50,7 +55,6 @@ const wording: Partial<
   }),
 };
 
-/** The Hub's Refusal in `error`, if it carries one (ADR 0019). */
-export function refusalOf(error: unknown) {
+function refusalOf(error: unknown) {
   return ConnectError.from(error).findDetails(RefusalSchema)[0];
 }

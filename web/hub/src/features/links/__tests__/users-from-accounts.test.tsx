@@ -30,16 +30,20 @@ const grace = create(UserInviteSchema, {
   invitedAt: 1_700_000_000n,
 });
 
-function refused(code: Code, reason: RefusalReason) {
+function refused(code: Code, reason: RefusalReason, params: Record<string, string> = {}) {
   return new ConnectError("refused", code, undefined, [
-    { desc: RefusalSchema, value: create(RefusalSchema, { reason }) },
+    { desc: RefusalSchema, value: create(RefusalSchema, { reason, params }) },
   ]);
 }
 
-/** What the fake Hub answers: signed in or not, and refusing to accept for `refusing`, if given. */
+/**
+ * What the fake Hub answers: signed in or not, and refusing to accept for `refusing`, if given,
+ * with `refusalParams`.
+ */
 interface Hub {
   signedIn?: boolean;
   refusing?: RefusalReason;
+  refusalParams?: Record<string, string>;
   /** Ada's User on the Server the sign-in is for: none if empty, and no such sign-in if undefined. */
   userOnServer?: string;
 }
@@ -67,7 +71,7 @@ function openHub(path: string, hub: Hub = {}) {
       listUserInvites: () => ({ invites }),
       acceptUserInvite: ({ id }) => {
         if (hub.refusing !== undefined) {
-          throw refused(Code.FailedPrecondition, hub.refusing);
+          throw refused(Code.FailedPrecondition, hub.refusing, hub.refusalParams);
         }
         invites = invites.filter((invite) => invite.id !== id);
         const user = create(LinkedUserSchema, {
@@ -153,6 +157,20 @@ test("an Account whose email isn't proven is offered a Sign-in Link before accep
     ),
   ).resolves.toBeDefined();
   expect(screen.getByRole("link", { name: "Email me a Sign-in Link" })).toBeDefined();
+});
+
+test("a sign-in too old says how recent one must be before accepting", async () => {
+  openHub("/", {
+    refusing: RefusalReason.RECENT_AUTHENTICATION_REQUIRED,
+    refusalParams: { recentMinutes: "12" },
+  });
+
+  fireEvent.click(await screen.findByRole("button", { name: "Accept Grace on Cabin" }));
+
+  await expect(
+    screen.findByText("To Link, sign in again: your sign-in is over 12 minutes old."),
+  ).resolves.toBeDefined();
+  expect(screen.getByRole("button", { name: "Sign in again" })).toBeDefined();
 });
 
 test("approving a sign-in to a Server names the User, then goes back to the Server", async () => {

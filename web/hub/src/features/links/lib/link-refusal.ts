@@ -1,4 +1,4 @@
-import { refusalOf } from "@hub/features/account/lib/refusals";
+import { type RefusalWording, sayRefusal } from "@hub/features/account/lib/refusals";
 import { RefusalReason } from "@hub/gen/nama/hub/v1/refusal_pb";
 
 /** Why entering a code failed: under the code, or for the whole form. */
@@ -26,11 +26,7 @@ function refusalErrors(error: unknown): LinkErrors {
   if (error === null) {
     return {};
   }
-  const refusal = refusalOf(error);
-  const say = refusal && wording[refusal.reason];
-  return say
-    ? say((key) => refusal.params[key] ?? "")
-    : { form: "The Hub couldn’t Link it just now. Try again." };
+  return sayRefusal(error, wording, { form: "The Hub couldn’t Link it just now. Try again." });
 }
 
 /** The code typed in `form`. */
@@ -43,8 +39,8 @@ const cannotProveEmail: LinkErrors = {
   form: "This Hub can’t prove emails, so Linking isn’t possible on it. Ask whoever runs it to set up email.",
 };
 
-/** What each reason a code can be refused for says, given the Refusal's params by key. */
-const wording: Partial<Record<RefusalReason, (param: (key: string) => string) => LinkErrors>> = {
+/** What each reason a code can be refused for says. */
+const wording: RefusalWording<LinkErrors> = {
   [RefusalReason.LINK_CODE_NOT_FOUND]: () => ({
     code: "Nothing is waiting on this code. Check it, or get a new one in the Server’s Settings.",
   }),
