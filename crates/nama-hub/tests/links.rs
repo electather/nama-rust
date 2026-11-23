@@ -579,7 +579,9 @@ async fn a_linked_server_syncs_a_watchlist_only_with_the_account_its_user_is_lin
 
 // How many Accounts it takes is checked where they're counted, in `src/sync/sync_tests.rs`.
 #[sqlx::test(migrations = false)]
-async fn a_title_on_one_accounts_watchlist_isnt_most_watchlisted(db: PgPool) {
+async fn a_title_on_one_accounts_watchlist_isnt_most_watchlisted_and_asking_needs_a_link(
+    db: PgPool,
+) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
     let server = linked(&hub, &ada, "Ada's").await;

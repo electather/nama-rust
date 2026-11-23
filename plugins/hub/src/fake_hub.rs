@@ -2,8 +2,9 @@
 //! one Server's device flow, Unlinking, its Users' Links, Users created from Accounts, one sign-in
 //! with an Account at a time, its Server Addresses and whether its public port is reached, the
 //! Watch State it pushes, which its Linked Users pull back, their Watchlists, its Viewing Events,
-//! the titles like The Matrix, what's trending and most watchlisted, and a key set of one Ed25519 key it signs with, as
-//! the Hub's API (`proto/nama/hub/v1/`) says the Hub does, and takes shared Diagnostics.
+//! the titles like The Matrix, what's trending and most watchlisted, and a key set of one Ed25519
+//! key it signs with, as the Hub's API (`proto/nama/hub/v1/`) says the Hub does, and takes shared
+//! Diagnostics.
 
 use std::{
     collections::HashMap,

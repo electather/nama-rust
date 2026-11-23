@@ -31,6 +31,7 @@ pub(crate) struct Charts {
 }
 
 impl Charts {
+    /// Nama's charts from `hub`, as the Server `kernel` serves.
     pub(crate) fn new(hub: Hub, kernel: Arc<dyn Kernel>) -> Self {
         Self { hub, kernel }
     }

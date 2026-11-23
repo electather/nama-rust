@@ -26,7 +26,8 @@ pub(crate) const MAX_CHANGED_AT_MS: i64 = 253_402_300_799_999;
 /// The most entries one Watchlist sync may hold.
 pub(crate) const MAX_WATCHLIST_ENTRIES: usize = 5000;
 
-/// The most titles [`Watchlists::most_watchlisted`] answers: as many as a Home row holds (ADR 0058).
+/// The most titles [`Watchlists::most_watchlisted`] answers: as many as a Home row holds (ADR
+/// 0058).
 const MAX_WATCHLISTED: i64 = 200;
 
 /// One User's Watch State of a Movie or Episode, as a change on their Server left it.
@@ -197,8 +198,9 @@ impl Watchlists {
     /// watchlisted first, by the pooled counts' rules (ADR 0093): a title is read only once
     /// [`MIN_POOLED_ACCOUNTS`] Accounts have it, and an Account that turned pooling off isn't
     /// counted.
-    // ponytail: counts every Watchlist on each call, which each Linked Server makes about once a
-    // day; keep counts as Watchlists change once that's slow.
+    // ponytail: counts every Watchlist, leaving out every opted-out Account by id, on each call,
+    // which each Linked Server makes about once a day; keep counts as Watchlists and pooling
+    // change once that's slow.
     pub(crate) async fn most_watchlisted(&self) -> Result<Vec<WatchlistedTitle>, sqlx::Error> {
         let not_pooling: Vec<_> = (self.viewing.not_pooling().await?)
             .into_iter()
