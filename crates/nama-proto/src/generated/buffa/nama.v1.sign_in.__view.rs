@@ -3224,6 +3224,11 @@ impl ::serde::Serialize for WhoAmIResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct ReauthenticateRequestView<'a> {
+    /// The one-time code the Hub added to `return_url`'s query as `code`. Needed with
+    /// `account_sign_in_handle`.
+    ///
+    /// Field 3: `account_sign_in_code`
+    pub account_sign_in_code: &'a str,
     pub proof: ::core::option::Option<
         super::super::__buffa::view::oneof::reauthenticate_request::Proof<'a>,
     >,
@@ -3259,6 +3264,13 @@ impl<'a> ::buffa::MessageView<'a> for ReauthenticateRequestView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.account_sign_in_code = ::buffa::types::borrow_str(&mut cur)?;
+            }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -3266,6 +3278,17 @@ impl<'a> ::buffa::MessageView<'a> for ReauthenticateRequestView<'a> {
                 )?;
                 view.proof = Some(
                     super::super::__buffa::view::oneof::reauthenticate_request::Proof::Password(
+                        ::buffa::types::borrow_str(&mut cur)?,
+                    ),
+                );
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.proof = Some(
+                    super::super::__buffa::view::oneof::reauthenticate_request::Proof::AccountSignInHandle(
                         ::buffa::types::borrow_str(&mut cur)?,
                     ),
                 );
@@ -3298,6 +3321,7 @@ impl<'a> ::buffa::MessageView<'a> for ReauthenticateRequestView<'a> {
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::ReauthenticateRequest {
+            account_sign_in_code: self.account_sign_in_code.to_string(),
             proof: self
                 .proof
                 .as_ref()
@@ -3306,6 +3330,13 @@ impl<'a> ::buffa::MessageView<'a> for ReauthenticateRequestView<'a> {
                         v,
                     ) => {
                         super::super::__buffa::oneof::reauthenticate_request::Proof::Password(
+                            v.to_string(),
+                        )
+                    }
+                    super::super::__buffa::view::oneof::reauthenticate_request::Proof::AccountSignInHandle(
+                        v,
+                    ) => {
+                        super::super::__buffa::oneof::reauthenticate_request::Proof::AccountSignInHandle(
                             v.to_string(),
                         )
                     }
@@ -3328,7 +3359,18 @@ impl<'a> ::buffa::ViewEncode<'a> for ReauthenticateRequestView<'a> {
                 ) => {
                     size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
                 }
+                super::super::__buffa::view::oneof::reauthenticate_request::Proof::AccountSignInHandle(
+                    x,
+                ) => {
+                    size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
+                }
             }
+        }
+        if !self.account_sign_in_code.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.account_sign_in_code)
+                        as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -3348,7 +3390,15 @@ impl<'a> ::buffa::ViewEncode<'a> for ReauthenticateRequestView<'a> {
                 ) => {
                     ::buffa::types::put_string_field(1u32, x, buf);
                 }
+                super::super::__buffa::view::oneof::reauthenticate_request::Proof::AccountSignInHandle(
+                    x,
+                ) => {
+                    ::buffa::types::put_string_field(2u32, x, buf);
+                }
             }
+        }
+        if !self.account_sign_in_code.is_empty() {
+            ::buffa::types::put_string_field(3u32, &self.account_sign_in_code, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3371,12 +3421,20 @@ impl<'__a> ::serde::Serialize for ReauthenticateRequestView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.account_sign_in_code) {
+            __map.serialize_entry("accountSignInCode", self.account_sign_in_code)?;
+        }
         if let ::core::option::Option::Some(ref __ov) = self.proof {
             match __ov {
                 super::super::__buffa::view::oneof::reauthenticate_request::Proof::Password(
                     v,
                 ) => {
                     __map.serialize_entry("password", v)?;
+                }
+                super::super::__buffa::view::oneof::reauthenticate_request::Proof::AccountSignInHandle(
+                    v,
+                ) => {
+                    __map.serialize_entry("accountSignInHandle", v)?;
                 }
             }
         }
@@ -3474,6 +3532,14 @@ impl ReauthenticateRequestOwnedView {
     #[must_use]
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
+    }
+    /// The one-time code the Hub added to `return_url`'s query as `code`. Needed with
+    /// `account_sign_in_handle`.
+    ///
+    /// Field 3: `account_sign_in_code`
+    #[must_use]
+    pub fn account_sign_in_code(&self) -> &'_ str {
+        self.0.reborrow().account_sign_in_code
     }
     /// Oneof `proof`.
     #[must_use]
