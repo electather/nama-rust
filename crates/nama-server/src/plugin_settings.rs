@@ -253,10 +253,7 @@ impl PluginSettings {
         // Blocking: reading an Installed Plugin compiles it, and so does enabling it.
         let settings = task::spawn_blocking(move || {
             let mut loaded = lock_ignoring_poison(&starting.loaded);
-            starting
-                .registry
-                .load_installed(&starting.data_dir, &mut loaded);
-            drop(loaded);
+            (starting.registry).load_installed(&starting.data_dir, &mut loaded);
             starting.enable_stored(&settings, &grants);
             settings
         })

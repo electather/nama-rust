@@ -670,9 +670,9 @@ fn a_plugin_is_compiled_again_only_once_its_file_changes_and_forgotten_once_it_i
 
     /// The `.wasm` each Plugin read holds, in the order read: the same `Arc` if it was reused.
     fn wasm(found: &[(PathBuf, Result<Installed, Refused>)]) -> Vec<Arc<[u8]>> {
-        let wasm =
+        let held =
             |(_, plugin): &(_, Result<Installed, _>)| Arc::clone(&plugin.as_ref().unwrap().wasm);
-        found.iter().map(wasm).collect()
+        found.iter().map(held).collect()
     }
     let reused = |before: &[Arc<[u8]>], after: &[Arc<[u8]>]| -> Vec<bool> {
         before

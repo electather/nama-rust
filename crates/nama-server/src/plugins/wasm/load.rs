@@ -92,15 +92,16 @@ impl std::fmt::Debug for Loaded {
 impl Loaded {
     /// The Plugin read from `file` before if `stamp` still matches it, or else `load`'s, kept
     /// for the next read unless refused.
-    // shortcut: a refused file is read again each time; keep refusals too if that gets slow.
+    // ponytail: a refused file is read again each time, and a copy keeping its size and modified
+    // time is missed until restart; keep refusals, or stamp ctime too, if either bites.
     fn reuse_or(
         &mut self,
         file: &Path,
         stamp: Stamp,
         load: impl FnOnce() -> Result<Installed, Refused>,
     ) -> Result<Installed, Refused> {
-        if let Some((read_at, plugin)) = self.0.get(file)
-            && *read_at == stamp
+        if let Some((was, plugin)) = self.0.get(file)
+            && *was == stamp
         {
             return Ok(plugin.clone());
         }
