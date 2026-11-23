@@ -255,6 +255,7 @@ fn an_h264_and_aac_mp4_direct_plays_with_no_reasons() {
                 audio: vec![1],
                 burn_in: vec![],
                 limits: vec![PlaybackLimit::P720, PlaybackLimit::P480],
+                cap: None,
             },
             chapters: vec![],
             segments: vec![],
@@ -485,7 +486,10 @@ fn picking_720p(facts: &mut Facts) {
 }
 
 fn remote_at_720p(facts: &mut Facts) {
-    facts.network = Network::Remote(Some(PlaybackLimit::P720));
+    facts.network = Network::Remote {
+        default: Some(PlaybackLimit::P720),
+        cap: None,
+    };
 }
 
 fn burning_in_pgs(facts: &mut Facts) {
@@ -726,6 +730,7 @@ fn a_plan_offers_the_choices_its_lasting_facts_allow_whatever_is_busy_or_failed(
         audio: vec![1, 2],
         burn_in: vec![3],
         limits: vec![PlaybackLimit::P720, PlaybackLimit::P480],
+        cap: None,
     };
     let cases: [(&str, Change, Offers); 5] = [
         (

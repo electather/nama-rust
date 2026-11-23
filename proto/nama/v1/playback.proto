@@ -504,6 +504,9 @@ message PlaybackPlan {
   repeated uint32 burn_in_tracks = 11;
   // The Playback Limits below Original it can scale the picture down to, largest first.
   repeated PlaybackLimit playback_limits = 12;
+  // The most the Device is sent, its User's cap for remote playback, when it's outside the local
+  // network and they have one: a pick above it plays at it. Unset otherwise.
+  PlaybackLimit remote_playback_limit = 20;
   // The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
   // burns in, or would if it could be played, or else, when the request left the choice to the
   // Server, one of `subtitles` that the player shows itself. Unset for none.
@@ -696,6 +699,10 @@ enum PlaybackReasonKind {
   // The default Playback Limit for remote playback chose the limit, as the Device is outside the
   // local network, and the limit scaled the picture down or was dropped. Params: `playbackLimit`.
   PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT = 21;
+  // The User's cap for remote playback chose the limit, below the one picked or the default, as
+  // the Device is outside the local network, and the limit scaled the picture down. A cap is never
+  // dropped. Params: `playbackLimit`.
+  PLAYBACK_REASON_KIND_REMOTE_CAP = 39;
   // A Playback Limit below Original is in effect and the picture's size isn't known, so it's
   // taken to fit. Params: `playbackLimit`.
   PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN = 22;

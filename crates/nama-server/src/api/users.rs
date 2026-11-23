@@ -34,9 +34,10 @@ use crate::{
     db::Database,
     home_rows::HomeRows,
     images::PluginLogos,
+    playback::limit_to_proto,
     plugin_settings::{Personal, PluginSettings},
     plugins::ExtensionPoints,
-    server_settings::{ServerUrl, Settings},
+    server_settings::{PlaybackLimit, ServerUrl, Settings},
     sync::Syncing,
     users::{
         self, AskedHomeLayout, Caller, Permissions, User, UserHomeLayout, Users,
@@ -48,6 +49,7 @@ use super::{
     access::permission_required,
     browse::home_rows_of,
     caller, database_failed,
+    playback::limit_from_proto,
     plugins::{change_refused, list_failed, logo_url, setting_to_proto, settings_from_proto},
     refuse,
     server::{home_layout_from_proto, home_row_from_proto},
@@ -124,10 +126,16 @@ impl UserService for UserServiceHandler {
         _request: ServiceRequest<'_, ListUsersRequest>,
     ) -> ServiceResult<ListUsersResponse> {
         let users = self.users.list().await.map_err(database_failed)?;
+        let caps = self.users.remote_caps().await.map_err(database_failed)?;
         let without_sign_in_method =
             (self.users.without_sign_in_method().await).map_err(database_failed)?;
         Response::ok(ListUsersResponse {
-            users: users.into_iter().map(user_to_proto).collect(),
+            users: (users.into_iter())
+                .map(|user| proto::User {
+                    remote_playback_limit: limit_to_proto(caps.get(&user.id).copied()).into(),
+                    ..user_to_proto(user)
+                })
+                .collect(),
             cannot_sign_in_user_ids: server_link::unlinked(&self.points, without_sign_in_method)
                 .await,
             ..Default::default()
@@ -141,8 +149,9 @@ impl UserService for UserServiceHandler {
     ) -> ServiceResult<SetPermissionsResponse> {
         let request = request.to_owned_message();
         let permissions = permissions_from_proto(request.permissions)?;
+        let cap = cap_from_proto(request.remote_playback_limit)?;
         self.users
-            .set_permissions(&caller(&ctx)?.user, request.user_id, permissions)
+            .set_permissions(&caller(&ctx)?.user, request.user_id, permissions, cap)
             .await?;
         Response::ok(SetPermissionsResponse::default())
     }
@@ -246,13 +255,14 @@ impl UserService for UserServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, GetDefaultPermissionsRequest>,
     ) -> ServiceResult<GetDefaultPermissionsResponse> {
-        let permissions = self
+        let (permissions, cap) = self
             .users
             .default_permissions()
             .await
             .map_err(database_failed)?;
         Response::ok(GetDefaultPermissionsResponse {
             permissions: permissions_to_proto(permissions),
+            remote_playback_limit: limit_to_proto(cap).into(),
             ..Default::default()
         })
     }
@@ -262,9 +272,11 @@ impl UserService for UserServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, SetDefaultPermissionsRequest>,
     ) -> ServiceResult<SetDefaultPermissionsResponse> {
-        let permissions = permissions_from_proto(request.to_owned_message().permissions)?;
+        let request = request.to_owned_message();
+        let permissions = permissions_from_proto(request.permissions)?;
+        let cap = cap_from_proto(request.remote_playback_limit)?;
         self.users
-            .set_default_permissions(&caller(&ctx)?.user, permissions)
+            .set_default_permissions(&caller(&ctx)?.user, permissions, cap)
             .await?;
         Response::ok(SetDefaultPermissionsResponse::default())
     }
@@ -667,6 +679,20 @@ fn permissions_from_proto(
 
 fn permissions_to_proto(permissions: Permissions) -> Vec<EnumValue<Permission>> {
     permissions.iter().map(EnumValue::from).collect()
+}
+
+/// The cap for remote playback `limit` names, `None` for none, refusing a value this Server doesn't
+/// know, which `limit_from_proto` would take as none.
+fn cap_from_proto(
+    limit: EnumValue<proto::PlaybackLimit>,
+) -> Result<Option<PlaybackLimit>, ConnectError> {
+    if let EnumValue::Unknown(_) = limit {
+        return Err(unknown_enum_value(
+            "remote_playback_limit",
+            "the cap for remote playback must be Original, 1080p, 720p or 480p",
+        ));
+    }
+    Ok(limit_from_proto(limit))
 }
 
 pub(super) fn user_to_proto(user: User) -> proto::User {

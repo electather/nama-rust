@@ -41,7 +41,8 @@ const {
  * A fake Server with Alien in Library 1, whose one Version is 1080p H.264 with English audio and a
  * commentary. It offers the Playback Limits `offered`, and Direct Plays it unless the one asked
  * for, or else `remoteDefault`, is below Original, which it Transcodes, unless it `cantTranscode`,
- * when it drops the limit. Each plan request goes in `asked`.
+ * when it drops the limit. Its plans say the User's cap for remote playback is `cap`. Each plan
+ * request goes in `asked`.
  */
 function server(
   asked: PlanPlaybackRequest[],
@@ -49,7 +50,13 @@ function server(
     offered = [PLAYBACK_LIMIT_720P, PLAYBACK_LIMIT_480P],
     remoteDefault = ORIGINAL,
     cantTranscode = false,
-  }: { offered?: PlaybackLimit[]; remoteDefault?: PlaybackLimit; cantTranscode?: boolean } = {},
+    cap = PlaybackLimit.PLAYBACK_LIMIT_UNSPECIFIED,
+  }: {
+    offered?: PlaybackLimit[];
+    remoteDefault?: PlaybackLimit;
+    cantTranscode?: boolean;
+    cap?: PlaybackLimit;
+  } = {},
 ) {
   const libraries = [{ id: 1n, name: "Films", kind: LibraryKind.MOVIES }];
   const audio = { case: "audio", value: { channels: 2 } } as const;
@@ -81,7 +88,7 @@ function server(
             : { method: PlaybackMethod.TRANSCODE, url: `/media/plans/${asked.length}/index.m3u8` };
         const audioTrack = request.audioTrack ?? 1;
         const reasons = cantTranscode ? [{ text: "It can’t be Transcoded here" }] : [];
-        const offers = { playbackLimits: offered, audioTracks: [1, 2] };
+        const offers = { playbackLimits: offered, audioTracks: [1, 2], remotePlaybackLimit: cap };
         return { plan: { ...played, playbackLimit: limit, audioTrack, reasons, ...offers } };
       },
     });
@@ -173,6 +180,24 @@ test("away from home the menu shows the remote default the Server chose, until O
     expect(asked).toHaveLength(2);
   });
   expect(asked[1]?.playbackLimit).toBe(PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL);
+});
+
+test("a User capped at 720p away from home sees Original as unavailable, above their cap", async () => {
+  openApp(PLAYER, server([], { remoteDefault: PLAYBACK_LIMIT_720P, cap: PLAYBACK_LIMIT_720P }));
+  await screen.findByLabelText("Alien");
+
+  const items = openLimits();
+
+  expect(items.map((item) => item.textContent)).toStrictEqual([
+    "Original Above your cap",
+    "720p",
+    "480p",
+  ]);
+  expect(items.map((item) => item.getAttribute("aria-disabled"))).toStrictEqual([
+    "true",
+    null,
+    null,
+  ]);
 });
 
 test("a remote default the Version already fits shows as Original", async () => {

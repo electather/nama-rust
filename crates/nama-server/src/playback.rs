@@ -82,7 +82,7 @@ use choices::{audio_asked, chosen_audio, chosen_subtitle, preferred_subtitles, s
 use codecs::{is_audio, played_audio_place, played_by, played_tracks};
 use direct_play::direct_play_url;
 use lasting::{offers, playable_versions};
-use limits::{limit_in_effect, network, on_local_network, playback_limit};
+use limits::{limit_in_effect, network, on_local_network, playback_limit, remote_cap_of};
 use steps::{
     converting, device_decoding, failed_on_device, failed_on_server, fallback, keyframes_unlisted,
     remux, server_busy, server_ffmpeg, too_busy_to_play, transcode, version_length, version_tracks,
@@ -123,8 +123,11 @@ pub(crate) enum PickedLimit {
 enum Network {
     Local,
     /// Outside the local network, with the default Playback Limit for remote playback an admin
-    /// set, `None` being Original.
-    Remote(Option<PlaybackLimit>),
+    /// set, and the most its User may be sent there, each `None` being Original.
+    Remote {
+        default: Option<PlaybackLimit>,
+        cap: Option<PlaybackLimit>,
+    },
 }
 
 /// How the Server will play one Version on one Device, and why.
@@ -301,6 +304,8 @@ pub(crate) struct Offers {
     pub(crate) burn_in: Vec<usize>,
     /// The Playback Limits below Original it can scale the picture down to, largest first.
     pub(crate) limits: Vec<PlaybackLimit>,
+    /// The User's cap for remote playback, when the Device is outside the local network.
+    pub(crate) cap: Option<PlaybackLimit>,
 }
 
 /// One of the User's choices, which a plan drops when no method is left to honour it.
@@ -512,7 +517,8 @@ const CHOICE_STEPS: [(Choice, Step); 4] = [
 /// The plan for `facts` that every step allows. A choice that would leave no method is added to
 /// `facts.dropped` and the steps run again without it, since what the earlier steps see, such as
 /// the audio the Device must decode, may change with it. A choice is kept if the plan doesn't play
-/// without it either, so an unplayable plan says what was asked.
+/// without it either, so an unplayable plan says what was asked. A Playback Limit under the User's
+/// cap for remote playback is never dropped, as dropping it would send more than the cap.
 fn build(facts: &mut Facts) -> Plan {
     // Matched here, not before, since a dropped audio choice changes the audio it's matched over.
     if let Some(preferred) = &facts.subtitle_preference {
@@ -535,6 +541,7 @@ fn build(facts: &mut Facts) -> Plan {
         // A step allowing every method has no choice in effect to drop.
         if allowed.is_disjoint(&allows)
             && allows != BTreeSet::from(Method::ALL)
+            && !(choice == Choice::Limit && remote_cap_of(facts).is_some())
             && let Some(plan) = plan_without(choice, facts)
         {
             return plan;

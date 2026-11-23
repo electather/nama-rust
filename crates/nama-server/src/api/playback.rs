@@ -585,6 +585,8 @@ fn planned_to_proto(planned: Planned, can_search_subtitles: bool) -> PlanPlaybac
         playback_limits: (plan.offers.limits.into_iter())
             .map(|limit| limit_to_proto(Some(limit)).into())
             .collect(),
+        remote_playback_limit: (plan.offers.cap)
+            .map_or_else(EnumValue::default, |cap| limit_to_proto(Some(cap)).into()),
         subtitles: (plan.subtitles.iter())
             .map(|subtitle| proto::PlaybackSubtitle {
                 track: track_to_proto(&subtitle.track).into(),

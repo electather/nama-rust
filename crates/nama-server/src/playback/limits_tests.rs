@@ -5,7 +5,7 @@ use crate::{
     ffmpeg::VideoLimit,
     playback::{
         Facts, Method, Network, PickedLimit, Playing, build,
-        tests::{audio, facts, given, kind_and_params, reason_of, track, transcoded, video},
+        tests::{audio, facts, given, kind_and_params, kinds, reason_of, track, transcoded, video},
         tracks::TrackKind,
     },
     server_settings::PlaybackLimit,
@@ -48,7 +48,10 @@ fn a_playback_limit_below_the_versions_picture_transcodes_it_down_to_fit_and_say
 fn outside_the_local_network_the_remote_default_limits_a_device_until_its_user_picks_one() {
     let remote = |picked_limit| Facts {
         picked_limit,
-        network: Network::Remote(Some(PlaybackLimit::P720)),
+        network: Network::Remote {
+            default: Some(PlaybackLimit::P720),
+            cap: None,
+        },
         ..facts(Some(vec![video("h264"), audio("aac", true)]))
     };
 
@@ -66,6 +69,65 @@ fn outside_the_local_network_the_remote_default_limits_a_device_until_its_user_p
     assert_eq!(picked.method(), Some(Method::DirectPlay));
     assert_eq!(picked.limit, None);
     assert_eq!(picked.reasons, []);
+}
+
+#[test]
+fn a_users_remote_cap_keeps_a_device_outside_the_local_network_to_it_whatever_it_picks() {
+    let capped = |picked_limit| Facts {
+        picked_limit,
+        network: Network::Remote {
+            default: None,
+            cap: Some(PlaybackLimit::P720),
+        },
+        ..facts(Some(vec![video("h264"), audio("aac", true)]))
+    };
+
+    for picked in [
+        PickedLimit::Unpicked,
+        PickedLimit::Picked(None),
+        PickedLimit::Picked(Some(PlaybackLimit::P1080)),
+    ] {
+        let plan = build(&mut capped(picked));
+
+        assert_eq!(plan.method(), Some(Method::Transcode), "{picked:?}");
+        assert_eq!(plan.limit, Some(PlaybackLimit::P720), "{picked:?}");
+        assert_eq!(plan.offers.cap, Some(PlaybackLimit::P720), "{picked:?}");
+        let cap = reason_of(&plan, Kind::PLAYBACK_REASON_KIND_REMOTE_CAP);
+        assert_eq!(
+            kind_and_params(cap).1,
+            [("playbackLimit", "PLAYBACK_LIMIT_720P")],
+            "{picked:?}"
+        );
+    }
+    let below = build(&mut capped(PickedLimit::Picked(Some(PlaybackLimit::P480))));
+    assert_eq!(below.limit, Some(PlaybackLimit::P480));
+    assert!(
+        !kinds(&below).contains(&Kind::PLAYBACK_REASON_KIND_REMOTE_CAP),
+        "{:?}",
+        kinds(&below)
+    );
+}
+
+#[test]
+fn a_remote_cap_is_never_dropped_for_original_when_nothing_can_transcode() {
+    let mut facts = Facts {
+        picked_limit: PickedLimit::Picked(None),
+        network: Network::Remote {
+            default: None,
+            cap: Some(PlaybackLimit::P720),
+        },
+        ..facts(Some(vec![video("h264"), audio("aac", true)]))
+    };
+    facts.can_do.libx264 = false;
+
+    let plan = build(&mut facts);
+
+    assert_eq!(plan.method(), None);
+    assert!(
+        !kinds(&plan).contains(&Kind::PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED),
+        "{:?}",
+        kinds(&plan)
+    );
 }
 
 #[test]
