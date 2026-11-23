@@ -7,23 +7,26 @@ import type { ControlSize } from "@/shared/lib/control-size";
 /**
  * `Field` as a setting's row, for a form in Settings: the label and hint at the start, and at the
  * end the control `children` renders, as wide as `size` says: a field's, unless it's a number's. A
- * row has no aside and is never a heading.
+ * `wide` control drops under them on a phone and fills the row. A row has no aside and is never a
+ * heading.
  */
 export function RowField({
   setting,
   label,
   hint,
   error,
+  wide = false,
   size = "field",
   children,
 }: Omit<FieldText, "name"> & {
   /** The key `?setting=` finds the row by. */
   setting?: string | undefined;
+  wide?: boolean;
   size?: ControlSize;
   children: (control: FieldControl) => ReactNode;
 }) {
   return (
-    <SettingRow setting={setting} label={label} hint={hint} error={error} size={size}>
+    <SettingRow setting={setting} label={label} hint={hint} error={error} wide={wide} size={size}>
       {(control) => (
         <>
           {children({

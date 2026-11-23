@@ -378,7 +378,7 @@ A User's Movies and Episodes whose Watch State says they've started and not play
 _Avoid_: on deck, in progress, resume list, Next Up
 
 **Home row**:
-A headed row of titles on a User's home page. The Kernel builds some, such as Continue Watching; a Plugin may provide others, shared by every User or each User's own, which can hold titles not on the Server for the User to Request.
+A headed row of titles on a User's home page. The Kernel builds some, such as Continue Watching and each Library's Recently Added row of its newest titles; a Plugin may provide others, shared by every User or each User's own, which can hold titles not on the Server for the User to Request.
 _Avoid_: shelf, section, rail, carousel
 
 **Featured**:

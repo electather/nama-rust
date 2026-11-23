@@ -468,17 +468,21 @@ fn kind_from_proto(kind: EnumValue<proto::LibraryKind>) -> Result<LibraryKind, C
     }
 }
 
+/// The Library kind `kind` as the API has it.
+pub(super) fn kind_to_proto(kind: LibraryKind) -> proto::LibraryKind {
+    match kind {
+        LibraryKind::Movies => proto::LibraryKind::LIBRARY_KIND_MOVIES,
+        LibraryKind::Shows => proto::LibraryKind::LIBRARY_KIND_SHOWS,
+    }
+}
+
 fn library_to_proto(library: Library, backdrops: &Backdrops) -> proto::Library {
     let newest = backdrops.newest.get(&library.id);
     let backdrop = backdrops.images.of_library(&library, newest);
     proto::Library {
         id: library.id,
         name: library.name,
-        kind: match library.kind {
-            LibraryKind::Movies => proto::LibraryKind::LIBRARY_KIND_MOVIES,
-            LibraryKind::Shows => proto::LibraryKind::LIBRARY_KIND_SHOWS,
-        }
-        .into(),
+        kind: kind_to_proto(library.kind).into(),
         folders: library.folders,
         backdrop_url: backdrop.url,
         backdrop_thumbhash: backdrop.thumbhash,

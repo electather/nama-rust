@@ -9,6 +9,9 @@ pub mod home_layout_row {
         Kernel(::buffa::EnumValue<super::super::super::KernelHomeRow>),
         Plugin(::buffa::alloc::boxed::Box<super::super::super::PluginHomeRow>),
         PluginUsersRows(::buffa::alloc::string::String),
+        RecentlyAdded(
+            ::buffa::alloc::boxed::Box<super::super::super::RecentlyAddedHomeRow>,
+        ),
     }
     impl ::buffa::Oneof for Row {}
     impl From<super::super::super::PluginHomeRow> for Row {
@@ -18,6 +21,17 @@ pub mod home_layout_row {
     }
     impl From<super::super::super::PluginHomeRow> for ::core::option::Option<Row> {
         fn from(v: super::super::super::PluginHomeRow) -> Self {
+            Self::Some(Row::from(v))
+        }
+    }
+    impl From<super::super::super::RecentlyAddedHomeRow> for Row {
+        fn from(v: super::super::super::RecentlyAddedHomeRow) -> Self {
+            Self::RecentlyAdded(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::RecentlyAddedHomeRow>
+    for ::core::option::Option<Row> {
+        fn from(v: super::super::super::RecentlyAddedHomeRow) -> Self {
             Self::Some(Row::from(v))
         }
     }
@@ -37,6 +51,9 @@ pub mod home_layout_row {
                 }
                 Self::PluginUsersRows(v) => {
                     map.serialize_entry("pluginUsersRows", v)?;
+                }
+                Self::RecentlyAdded(v) => {
+                    map.serialize_entry("recentlyAdded", &**v)?;
                 }
             }
             map.end()

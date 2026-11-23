@@ -219,7 +219,7 @@ test("a Movie's menu chooses its Version, each by its Edition, picture, sound an
   ).toStrictEqual([
     ["Director's Cut · 4K · HDR · 5.1 · 60 GB", "true"],
     ["Director's Cut · 720p · Stereo · 2 GB", "false"],
-    ["0.7 GB", "false"],
+    ["700 MB", "false"],
   ]);
 });
 

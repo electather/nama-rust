@@ -59,7 +59,7 @@ export function LayoutList({
             <LayoutRow
               key={rowKey(row)}
               setting={rowSetting(row)}
-              Icon={row.row.case === "kernel" ? CirclePlay : Puzzle}
+              Icon={isKernelRow(row) ? CirclePlay : Puzzle}
               name={name}
               hidden={row.hidden}
               place={{ index, count: layout.rows.length }}
@@ -80,4 +80,8 @@ export function LayoutList({
       )}
     </div>
   );
+}
+
+function isKernelRow({ row }: HomeLayoutRow) {
+  return row.case === "kernel" || row.case === "recentlyAdded";
 }

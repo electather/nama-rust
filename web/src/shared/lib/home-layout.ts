@@ -20,6 +20,9 @@ export function rowKey({ row }: HomeLayoutRow) {
   if (row.case === "pluginUsersRows") {
     return `users/${row.value}`;
   }
+  if (row.case === "recentlyAdded") {
+    return `recently-added/${row.value.libraryId}`;
+  }
   return `kernel/${String(row.value)}`;
 }
 
@@ -39,7 +42,10 @@ export function rowName({ row }: HomeLayoutRow, names?: Map<string, string>): Ro
   if (row.case === "pluginUsersRows") {
     return { label: "Each User’s own rows", from: fromPlugin(row.value, names) };
   }
-  // Continue Watching is the only Kernel row.
+  if (row.case === "recentlyAdded") {
+    return { label: `Recently added in ${row.value.libraryName}` };
+  }
+  // Continue Watching is the only Kernel row of the enum.
   return { label: "Continue Watching" };
 }
 

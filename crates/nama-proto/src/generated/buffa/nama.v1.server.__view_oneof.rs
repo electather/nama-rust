@@ -13,5 +13,10 @@ pub mod home_layout_row {
             >,
         ),
         PluginUsersRows(&'a str),
+        RecentlyAdded(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::RecentlyAddedHomeRowView<'a>,
+            >,
+        ),
     }
 }

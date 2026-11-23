@@ -32,7 +32,7 @@ export function VirtualShelf({
   tiles: { key: string; tile: ReactNode }[];
   tile: ShelfTile;
   setSize: number | undefined;
-  next: Parameters<typeof useLoadAtEnd>[0]["next"];
+  next?: Parameters<typeof useLoadAtEnd>[0]["next"];
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   // oxlint-disable-next-line react/incompatible-library -- the virtualizer re-renders this component itself whenever the shelf scrolls

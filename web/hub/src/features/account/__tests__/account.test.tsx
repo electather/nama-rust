@@ -109,6 +109,24 @@ describe("an Account", () => {
     });
   });
 
+  test.each([
+    { signedIn: true, way: "Your Account", href: "/" },
+    { signedIn: false, way: "Sign in", href: "/sign-in" },
+  ])("an unknown address offers $way", async ({ signedIn, way, href }) => {
+    openHub("/nothing-here", { signedIn });
+    await screen.findByRole("heading", { name: "Page not found" });
+
+    const link = await screen.findByRole("link", { name: way });
+    expect(link.getAttribute("href")).toBe(href);
+  });
+
+  test("“Nama Hub” over a page links to the Account page", async () => {
+    openHub("/sign-in");
+
+    const home = await screen.findByRole("link", { name: "Nama Hub" });
+    expect(home.getAttribute("href")).toBe("/");
+  });
+
   test("signing in opens the Account page, with the email and a sign-out button", async () => {
     openHub("/sign-in");
     await screen.findByRole("heading", { name: "Sign in" });
@@ -192,6 +210,14 @@ describe("an Account", () => {
       // TanStack Router's own error page, which this replaces.
       expect(screen.queryByText("Something went wrong!")).toBeNull();
       expect(document.body.textContent).not.toMatch(/unavailable|Hub down/iu);
+    });
+
+    test("an unknown address still says so, and offers Sign in", async () => {
+      openHub("/nothing-here", { down: true });
+
+      const signIn = await screen.findByRole("link", { name: "Sign in" });
+      expect(signIn.getAttribute("href")).toBe("/sign-in");
+      expect(screen.getByRole("heading", { name: "Page not found" })).toBeDefined();
     });
 
     test("“Try again” opens the Account page once the Hub is back up", async () => {
