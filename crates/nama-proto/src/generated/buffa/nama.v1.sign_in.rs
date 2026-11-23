@@ -2436,8 +2436,6 @@ pub const __WHO_AM_I_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = :
 #[derive(::serde::Serialize)]
 #[serde(default)]
 pub struct ReauthenticateRequest {
-    #[serde(flatten)]
-    pub proof: ::core::option::Option<__buffa::oneof::reauthenticate_request::Proof>,
     /// The one-time code the Hub added to `return_url`'s query as `code`. Needed with
     /// `account_sign_in_handle`.
     ///
@@ -2449,6 +2447,8 @@ pub struct ReauthenticateRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub account_sign_in_code: ::buffa::alloc::string::String,
+    #[serde(flatten)]
+    pub proof: ::core::option::Option<__buffa::oneof::reauthenticate_request::Proof>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2456,8 +2456,8 @@ pub struct ReauthenticateRequest {
 impl ::core::fmt::Debug for ReauthenticateRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("ReauthenticateRequest")
-            .field("proof", &self.proof)
             .field("account_sign_in_code", &self.account_sign_in_code)
+            .field("proof", &self.proof)
             .finish()
     }
 }
@@ -2613,14 +2613,32 @@ impl<'de> ::serde::Deserialize<'de> for ReauthenticateRequest {
                 self,
                 mut map: A,
             ) -> ::core::result::Result<ReauthenticateRequest, A::Error> {
-                let mut __oneof_proof: ::core::option::Option<
-                    __buffa::oneof::reauthenticate_request::Proof,
-                > = None;
                 let mut __f_account_sign_in_code: ::core::option::Option<
                     ::buffa::alloc::string::String,
                 > = None;
+                let mut __oneof_proof: ::core::option::Option<
+                    __buffa::oneof::reauthenticate_request::Proof,
+                > = None;
                 while let Some(key) = map.next_key::<::buffa::alloc::string::String>()? {
                     match key.as_str() {
+                        "accountSignInCode" | "account_sign_in_code" => {
+                            __f_account_sign_in_code = Some({
+                                struct _S;
+                                impl<'de> ::serde::de::DeserializeSeed<'de> for _S {
+                                    type Value = ::buffa::alloc::string::String;
+                                    fn deserialize<D: ::serde::Deserializer<'de>>(
+                                        self,
+                                        d: D,
+                                    ) -> ::core::result::Result<
+                                        ::buffa::alloc::string::String,
+                                        D::Error,
+                                    > {
+                                        ::buffa::json_helpers::proto_string::deserialize(d)
+                                    }
+                                }
+                                map.next_value_seed(_S)?
+                            });
+                        }
                         "password" => {
                             let v: ::core::option::Option<
                                 ::buffa::alloc::string::String,
@@ -2670,24 +2688,6 @@ impl<'de> ::serde::Deserialize<'de> for ReauthenticateRequest {
                                     ),
                                 );
                             }
-                        }
-                        "accountSignInCode" | "account_sign_in_code" => {
-                            __f_account_sign_in_code = Some({
-                                struct _S;
-                                impl<'de> ::serde::de::DeserializeSeed<'de> for _S {
-                                    type Value = ::buffa::alloc::string::String;
-                                    fn deserialize<D: ::serde::Deserializer<'de>>(
-                                        self,
-                                        d: D,
-                                    ) -> ::core::result::Result<
-                                        ::buffa::alloc::string::String,
-                                        D::Error,
-                                    > {
-                                        ::buffa::json_helpers::proto_string::deserialize(d)
-                                    }
-                                }
-                                map.next_value_seed(_S)?
-                            });
                         }
                         _ => {
                             map.next_value::<::serde::de::IgnoredAny>()?;

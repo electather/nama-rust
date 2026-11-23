@@ -194,7 +194,7 @@ test("an Item Matched elsewhere leaves Needs a Match when its Event arrives", as
   };
   events.send({ event: { case: "itemMatched", value: { libraryId: 1n, itemId: 7n } } });
 
-  await expect(screen.findByText("Everything is Matched.")).resolves.toBeDefined();
+  await expect(screen.findByText("Everything is Matched")).resolves.toBeDefined();
 });
 
 test("needs a Match says when everything is Matched", async () => {
@@ -205,5 +205,5 @@ test("needs a Match says when everything is Matched", async () => {
     }),
   );
 
-  await expect(screen.findByText("Everything is Matched.")).resolves.toBeDefined();
+  await expect(screen.findByText("Everything is Matched")).resolves.toBeDefined();
 });

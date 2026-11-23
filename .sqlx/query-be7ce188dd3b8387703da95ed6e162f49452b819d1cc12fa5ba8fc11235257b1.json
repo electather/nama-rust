@@ -1,0 +1,54 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT ON (title_ids.namespace, title_ids.value)\n             title_ids.namespace, title_ids.value, titles.id\n         FROM UNNEST($1::text[], $2::text[]) AS pooled (namespace, value)\n         JOIN title_ids ON title_ids.namespace = pooled.namespace\n             AND title_ids.value = pooled.value\n         JOIN titles ON titles.id = title_ids.title_id\n         WHERE titles.kind = $3\n         ORDER BY title_ids.namespace, title_ids.value, titles.wikidata_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "namespace",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_ids",
+            "name": "namespace"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "value",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "title_ids",
+            "name": "value"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "titles",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "TextArray",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "be7ce188dd3b8387703da95ed6e162f49452b819d1cc12fa5ba8fc11235257b1"
+}

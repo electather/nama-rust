@@ -39,6 +39,7 @@ function followedServer() {
   let followedShows = [followed];
   return fakeServer({ signedIn: admin }, {}, {}, (router) => {
     router.service(RequestService, {
+      listDefaultQualities: () => ({}),
       listRequests: () => ({ requests: [season1], followedShows }),
       countPendingRequests: () => ({}),
       listOfferedQualities: () => ({
@@ -65,7 +66,7 @@ function followedServer() {
 }
 
 test("approving a Followed Show once approves it and its Season Requests", async () => {
-  openApp("/requests", followedServer());
+  openApp("/?settings=requests", followedServer());
 
   fireEvent.click(
     await screen.findByRole("button", { name: "Approve the Followed Show for Dark" }),
@@ -78,7 +79,7 @@ test("approving a Followed Show once approves it and its Season Requests", async
 });
 
 test("a Request manager approves a 4K Followed Show at the other Quality, HD", async () => {
-  openApp("/requests", followedServer());
+  openApp("/?settings=requests", followedServer());
   await expect(screen.findByText("4K · Requested by Ada")).resolves.toBeDefined();
 
   fireEvent.click(
@@ -92,7 +93,7 @@ test("a Request manager approves a 4K Followed Show at the other Quality, HD", a
 });
 
 test("cancelling a Followed Show, once confirmed, removes it and leaves its Season Requests", async () => {
-  openApp("/requests", followedServer());
+  openApp("/?settings=requests", followedServer());
 
   fireEvent.click(await screen.findByRole("button", { name: "Cancel Followed Show for Dark" }));
   const dialog = await screen.findByRole("alertdialog", {

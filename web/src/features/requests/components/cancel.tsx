@@ -1,3 +1,5 @@
+import { Trash2 } from "lucide-react";
+
 import { useCancelRequest } from "@/features/requests/data/use-cancel-request";
 import { type Target, changeRefusal } from "@/features/requests/lib/request-target";
 import { ConfirmDialog } from "@/shared/components/confirm-dialog/confirm-dialog";
@@ -10,6 +12,7 @@ export function Cancel({ id, ...target }: Target) {
     <ConfirmDialog
       action={`Cancel ${changes.noun}`}
       dismiss="Keep it"
+      Icon={Trash2}
       name={`Cancel ${changes.noun} for ${title}`}
       title={`Cancel the ${changes.noun} for ${title}?`}
       description={changes.cancelling}

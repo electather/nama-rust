@@ -1,11 +1,11 @@
 import type { TitleSource } from "@/gen/nama/v1/library_pb";
 
 /** Why a source in the order can't be used now: no listed source keeps it, or it isn't running. */
-export function unusable(source: TitleSource | undefined) {
+function unusable(source: TitleSource | undefined) {
   if (source === undefined) {
-    return "not available";
+    return "Not available";
   }
-  return source.running ? undefined : "not running";
+  return source.running ? undefined : "Not running";
 }
 
 /** What people know `source` by: its Plugin's name, or else its namespace. */
@@ -37,4 +37,16 @@ export function whyNoSourceSearches(order: string[], listed: TitleSource[]) {
             : `${sourceName(source)} isn’t running`;
         }),
       );
+}
+
+/** The note under a source's name: why it can't be used, once `loaded`, and if it only adds artwork. */
+export function sourceNote(source: TitleSource | undefined, loaded: boolean) {
+  const notes = [loaded ? unusable(source) : undefined, artworkNote(source)].filter(
+    (note) => note !== undefined,
+  );
+  return notes.length > 0 ? notes.join(" · ") : undefined;
+}
+
+function artworkNote(source: TitleSource | undefined) {
+  return source?.searches === false ? "Artwork only" : undefined;
 }

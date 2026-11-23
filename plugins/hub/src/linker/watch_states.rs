@@ -1,20 +1,19 @@
-//! Syncing Linked Users' Watch State to the Hub (ADR 0008): each change the Kernel tells of is
+//! Syncing Linked Users' Watch State with the Hub (ADR 0008): each change the Kernel tells of is
 //! queued in the Plugin's Store, and the Sync Job sends the queue, in order, so changes made
-//! while the Hub is unreachable go once it is back. A User whose Link the Plugin never learned
-//! has nothing queued until the Hub can be asked.
+//! while the Hub is unreachable go once it is back. The Kernel pulls their Account's back. A User
+//! whose Link the Plugin never learned has nothing queued until the Hub can be asked.
 
 use std::sync::Arc;
 
 use nama_hub_proto::nama::hub::v1::WatchStateChange as Change;
 use nama_plugin_api::{
     BoxFuture, Observer, PluginError,
-    automation::functions::{StoreDelete, StorePut},
-    contract::StoreEntry,
+    automation::functions::StoreDelete,
     job::Job,
     points::{WatchStateChange, WatchStateChanges, WatchStatesChanged},
     server_link::Link,
 };
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize};
 
 use super::{Linker, store_key};
 
@@ -32,7 +31,7 @@ const PAGE_CHANGES: usize = 100;
 /// The most ids a change sends, and the most characters each may have, as the Hub takes them: past
 /// either it would refuse the page, which would hold back every later one.
 const MAX_IDS: usize = 20;
-const MAX_ID_LENGTH: usize = 100;
+pub(super) const MAX_ID_LENGTH: usize = 100;
 
 /// Which pages of queued changes the Store keeps: `first..next`, oldest first.
 #[derive(Default, Serialize, Deserialize)]
@@ -46,8 +45,9 @@ pub(crate) fn sync_job() -> Job {
     Job {
         id: SYNC.to_owned(),
         name: "Sync with the Hub".to_owned(),
-        description: "Sends Linked Users' Watch State changes to the Hub. Those made while it \
-                      is unreachable are kept and sent, in order, once it is back."
+        description: "Sends Linked Users' Watch State and Subtitle and Audio Preference changes \
+                      to the Hub. Those made while it is unreachable are kept and sent, in \
+                      order, once it is back."
             .to_owned(),
         schedule: Some("* * * * *".to_owned()),
     }
@@ -116,27 +116,24 @@ impl Linker {
         Ok(())
     }
 
+    /// The Watch State of the Account `user_id` is Linked to, once the Hub has every change queued
+    /// here, so what it answers is never older than this Server's own; empty without the Server's
+    /// Link.
+    pub(super) async fn pull(&self, user_id: i64) -> Result<Vec<WatchStateChange>, PluginError> {
+        self.send_queued().await?;
+        let Some(kept) = self.kept().await? else {
+            return Ok(Vec::new());
+        };
+        let pulled = self
+            .hub
+            .pull_watch_states(&kept.credential, user_id)
+            .await?;
+        Ok(pulled.into_iter().map(change_from_proto).collect())
+    }
+
     /// The changes queued in page `nth`.
     async fn page(&self, nth: u64) -> Result<Vec<Change>, PluginError> {
         Ok(self.stored_json(&page_key(nth)).await?.unwrap_or_default())
-    }
-
-    async fn stored_json<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>, PluginError> {
-        let Some(stored) = self.stored(key).await? else {
-            return Ok(None);
-        };
-        Ok(Some(serde_json::from_slice(&stored)?))
-    }
-
-    async fn put_json(&self, key: String, value: &impl Serialize) -> Result<(), PluginError> {
-        self.kernel
-            .ask::<StorePut>(StoreEntry {
-                key,
-                value: serde_json::to_vec(value)?,
-                ..Default::default()
-            })
-            .await?;
-        Ok(())
     }
 }
 
@@ -176,6 +173,18 @@ fn change_to_proto(user_id: i64, change: &WatchStateChange) -> Option<Change> {
         changed_at_ms: change.changed_at_ms,
         ..Default::default()
     })
+}
+
+/// A change the Hub answered, as the Kernel takes it.
+fn change_from_proto(change: Change) -> WatchStateChange {
+    WatchStateChange {
+        episode: change.episode,
+        ids: change.ids,
+        played: change.played,
+        position_ms: change.position_ms,
+        duration_ms: change.duration_ms,
+        changed_at_ms: change.changed_at_ms,
+    }
 }
 
 /// The Store key of the queue's page `nth`.

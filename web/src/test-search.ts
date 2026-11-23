@@ -1,9 +1,7 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
 import type { ServiceImpl } from "@connectrpc/connect";
 
-import { RequestService } from "@/gen/nama/v1/request_pb";
-import { type HitSchema, type SearchResponseSchema, SearchService } from "@/gen/nama/v1/search_pb";
-import { fakeServer, newUser } from "@/test-app";
+import type { HitSchema, SearchResponseSchema, SearchService } from "@/gen/nama/v1/search_pb";
 
 type Part = MessageInitShape<typeof SearchResponseSchema>;
 
@@ -27,15 +25,4 @@ export function searchFinding(
         controller.close();
       },
     });
-}
-
-/**
- * A fake Server for a new User, with no Requests, whose `Search` streams `batches` as
- * `searchFinding` does.
- */
-export function searchServer(batches: MessageInitShape<typeof HitSchema>[][], unavailable = false) {
-  return fakeServer({ signedIn: newUser }, {}, {}, (router) => {
-    router.service(SearchService, { search: searchFinding(() => batches, unavailable) });
-    router.service(RequestService, { listRequests: () => ({}) });
-  });
 }

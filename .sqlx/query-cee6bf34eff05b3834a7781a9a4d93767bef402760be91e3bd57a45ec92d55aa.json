@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO track_preferences\n             (user_id, scope, title_id, kind, off, language, forced, sdh, title,\n              foreign_audio_only, changed_at)\n         SELECT ?, ?, value, ?, ?, ?, ?, ?, ?, ?, ? FROM json_each(?) WHERE true\n         ON CONFLICT (user_id, scope, title_id, kind) DO UPDATE\n         SET off = excluded.off, language = excluded.language, forced = excluded.forced,\n             sdh = excluded.sdh, title = excluded.title,\n             foreign_audio_only = excluded.foreign_audio_only, changed_at = excluded.changed_at\n         WHERE ? OR excluded.changed_at > track_preferences.changed_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 12
+    },
+    "nullable": []
+  },
+  "hash": "cee6bf34eff05b3834a7781a9a4d93767bef402760be91e3bd57a45ec92d55aa"
+}

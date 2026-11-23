@@ -25,6 +25,7 @@ function server(...requests: MessageInitShape<typeof RequestSchema>[]) {
   let held = requests;
   return fakeServer({ signedIn: newUser }, {}, {}, (router) => {
     router.service(RequestService, {
+      listDefaultQualities: () => ({}),
       listRequests: () => ({ requests: held }),
       withdrawRequest: () => {
         held = [{ ...heat, requesters: [ada] }];
@@ -35,7 +36,7 @@ function server(...requests: MessageInitShape<typeof RequestSchema>[]) {
 }
 
 test("withdrawing from your Pending Request takes you off it", async () => {
-  openApp("/requests", server(heat));
+  openApp("/?settings=requests", server(heat));
 
   fireEvent.click(await screen.findByRole("button", { name: "Withdraw from Heat" }));
 
@@ -45,7 +46,7 @@ test("withdrawing from your Pending Request takes you off it", async () => {
 
 test("withdraw is offered only on your own Pending Requests", async () => {
   openApp(
-    "/requests",
+    "/?settings=requests",
     server(
       { ...heat, requesters: [ada] },
       {

@@ -1,19 +1,22 @@
-import { Button } from "nama-ui/components/button";
+import type { LucideIcon } from "lucide-react";
 import { type Ref, useImperativeHandle, useRef, useState } from "react";
 
+import { ConfirmButton } from "@/shared/components/confirm-dialog/confirm-button";
 import { type Confirmation, ConfirmModal } from "@/shared/components/confirm-dialog/confirm-modal";
 import type { Opener } from "@/shared/lib/opener";
 
 /**
  * A button that asks in a dialog before doing something that can't be undone. The dialog stays
  * open, saying why, if the Server refuses, and closes once it's done. Without `trigger`, only `ref`
- * opens it, such as from a menu's item.
+ * opens it, such as from a menu's item. With an `Icon`, the button shows only it, its action in a
+ * tooltip.
  */
 export function ConfirmDialog({
   name,
   ref,
   trigger = true,
   destructive = true,
+  Icon,
   ...confirmation
 }: Confirmation & {
   /** The button's accessible name, which says what it acts on, such as "Revoke Laptop". */
@@ -22,6 +25,7 @@ export function ConfirmDialog({
   trigger?: boolean | undefined;
   /** Whether confirming can't be undone, as most things asked about first can't. */
   destructive?: boolean;
+  Icon?: LucideIcon | undefined;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [openings, setOpenings] = useState(0);
@@ -33,9 +37,7 @@ export function ConfirmDialog({
   return (
     <>
       {trigger && (
-        <Button variant="ghost" aria-label={name} aria-haspopup="dialog" onClick={open}>
-          {confirmation.action}
-        </Button>
+        <ConfirmButton action={confirmation.action} name={name} Icon={Icon} onClick={open} />
       )}
       <ConfirmModal ref={dialog} openings={openings} destructive={destructive} {...confirmation}>
         {/* Only once opened, so what they fetch waits until someone asks. */}

@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/hub/v1/link.proto.
  */
 export const file_nama_hub_v1_link: GenFile = /*@__PURE__*/
-  fileDesc("ChZuYW1hL2h1Yi92MS9saW5rLnByb3RvEgtuYW1hLmh1Yi52MSJbCgxMaW5rZWRTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglsaW5rZWRfYXQYAyABKAMSCwoDdXJsGAQgASgJEhEKCWFkZHJlc3NlcxgFIAMoCSImChZTdGFydFNlcnZlckxpbmtSZXF1ZXN0EgwKBG5hbWUYASABKAkidwoXU3RhcnRTZXJ2ZXJMaW5rUmVzcG9uc2USEwoLZGV2aWNlX2NvZGUYASABKAkSEQoJdXNlcl9jb2RlGAIgASgJEhoKEmV4cGlyZXNfaW5fc2Vjb25kcxgDIAEoBRIYChBpbnRlcnZhbF9zZWNvbmRzGAQgASgFIiwKFVBvbGxTZXJ2ZXJMaW5rUmVxdWVzdBITCgtkZXZpY2VfY29kZRgBIAEoCSJLChZQb2xsU2VydmVyTGlua1Jlc3BvbnNlEg4KBmxpbmtlZBgBIAEoCBISCgpjcmVkZW50aWFsGAIgASgJEg0KBXRva2VuGAMgASgJIigKGEFwcHJvdmVTZXJ2ZXJMaW5rUmVxdWVzdBIMCgRjb2RlGAEgASgJIkYKGUFwcHJvdmVTZXJ2ZXJMaW5rUmVzcG9uc2USKQoGc2VydmVyGAEgASgLMhkubmFtYS5odWIudjEuTGlua2VkU2VydmVyIhoKGExpc3RMaW5rZWRTZXJ2ZXJzUmVxdWVzdCJHChlMaXN0TGlua2VkU2VydmVyc1Jlc3BvbnNlEioKB3NlcnZlcnMYASADKAsyGS5uYW1hLmh1Yi52MS5MaW5rZWRTZXJ2ZXIiFQoTVW5saW5rU2VydmVyUmVxdWVzdCIWChRVbmxpbmtTZXJ2ZXJSZXNwb25zZSIuCgpFeHRlcm5hbElkEhEKCW5hbWVzcGFjZRgBIAEoCRINCgV2YWx1ZRgCIAEoCSJmChhMaXN0U2ltaWxhclRpdGxlc1JlcXVlc3QSJAoEa2luZBgBIAEoDjIWLm5hbWEuaHViLnYxLlRpdGxlS2luZBIkCgNpZHMYAiADKAsyFy5uYW1hLmh1Yi52MS5FeHRlcm5hbElkIkYKGUxpc3RTaW1pbGFyVGl0bGVzUmVzcG9uc2USKQoGdGl0bGVzGAEgAygLMhkubmFtYS5odWIudjEuU2ltaWxhclRpdGxlIkMKDFNpbWlsYXJUaXRsZRIjCgJpZBgBIAEoCzIXLm5hbWEuaHViLnYxLkV4dGVybmFsSWQSDgoGd2VpZ2h0GAIgASgCIk4KCkxpbmtlZFVzZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRITCgtzZXJ2ZXJfbmFtZRgDIAEoCRIRCglsaW5rZWRfYXQYBCABKAMiJgoWQXBwcm92ZVVzZXJMaW5rUmVxdWVzdBIMCgRjb2RlGAEgASgJIkAKF0FwcHJvdmVVc2VyTGlua1Jlc3BvbnNlEiUKBHVzZXIYASABKAsyFy5uYW1hLmh1Yi52MS5MaW5rZWRVc2VyIhgKFkxpc3RMaW5rZWRVc2Vyc1JlcXVlc3QiQQoXTGlzdExpbmtlZFVzZXJzUmVzcG9uc2USJgoFdXNlcnMYASADKAsyFy5uYW1hLmh1Yi52MS5MaW5rZWRVc2VyIiUKF1VubGlua0xpbmtlZFVzZXJSZXF1ZXN0EgoKAmlkGAEgASgJIhoKGFVubGlua0xpbmtlZFVzZXJSZXNwb25zZSI1ChRTdGFydFVzZXJMaW5rUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkiRgoVU3RhcnRVc2VyTGlua1Jlc3BvbnNlEhEKCXVzZXJfY29kZRgBIAEoCRIaChJleHBpcmVzX2luX3NlY29uZHMYAiABKAUiJQoSR2V0VXNlckxpbmtSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiJgoTR2V0VXNlckxpbmtSZXNwb25zZRIPCgdhY2NvdW50GAEgASgJIiQKEVVubGlua1VzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiFAoSVW5saW5rVXNlclJlc3BvbnNlIkgKFlB1c2hXYXRjaFN0YXRlc1JlcXVlc3QSLgoHY2hhbmdlcxgBIAMoCzIdLm5hbWEuaHViLnYxLldhdGNoU3RhdGVDaGFuZ2UiGQoXUHVzaFdhdGNoU3RhdGVzUmVzcG9uc2UikgEKEFdhdGNoU3RhdGVDaGFuZ2USDwoHdXNlcl9pZBgBIAEoAxIPCgdlcGlzb2RlGAIgASgIEgsKA2lkcxgDIAMoCRIOCgZwbGF5ZWQYBCABKAgSEwoLcG9zaXRpb25fbXMYBSABKAQSEwoLZHVyYXRpb25fbXMYBiABKAQSFQoNY2hhbmdlZF9hdF9tcxgHIAEoAyJPCgpVc2VySW52aXRlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEwoLc2VydmVyX25hbWUYAyABKAkSEgoKaW52aXRlZF9hdBgEIAEoAyIYChZMaXN0VXNlckludml0ZXNSZXF1ZXN0IkMKF0xpc3RVc2VySW52aXRlc1Jlc3BvbnNlEigKB2ludml0ZXMYASADKAsyFy5uYW1hLmh1Yi52MS5Vc2VySW52aXRlIiUKF0FjY2VwdFVzZXJJbnZpdGVSZXF1ZXN0EgoKAmlkGAEgASgJIkEKGEFjY2VwdFVzZXJJbnZpdGVSZXNwb25zZRIlCgR1c2VyGAEgASgLMhcubmFtYS5odWIudjEuTGlua2VkVXNlciIkChZHZXRTZXJ2ZXJTaWduSW5SZXF1ZXN0EgoKAmlkGAEgASgJIkEKF0dldFNlcnZlclNpZ25JblJlc3BvbnNlEhMKC3NlcnZlcl9uYW1lGAEgASgJEhEKCXVzZXJfbmFtZRgCIAEoCSIoChpBcHByb3ZlU2VydmVyU2lnbkluUmVxdWVzdBIKCgJpZBgBIAEoCSIxChtBcHByb3ZlU2VydmVyU2lnbkluUmVzcG9uc2USEgoKcmV0dXJuX3VybBgBIAEoCSJBChFJbnZpdGVVc2VyUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkSDQoFZW1haWwYAyABKAkiFAoSSW52aXRlVXNlclJlc3BvbnNlIi4KGFN0YXJ0U2VydmVyU2lnbkluUmVxdWVzdBISCgpyZXR1cm5fdXJsGAEgASgJIlgKGVN0YXJ0U2VydmVyU2lnbkluUmVzcG9uc2USEwoLZGV2aWNlX2NvZGUYASABKAkSCgoCaWQYAiABKAkSGgoSZXhwaXJlc19pbl9zZWNvbmRzGAMgASgFIjwKF1BvbGxTZXJ2ZXJTaWduSW5SZXF1ZXN0EhMKC2RldmljZV9jb2RlGAEgASgJEgwKBGNvZGUYAiABKAkiKQoYUG9sbFNlcnZlclNpZ25JblJlc3BvbnNlEg0KBXRva2VuGAEgASgJIlQKGVNldFNlcnZlckFkZHJlc3Nlc1JlcXVlc3QSCwoDdXJsGAEgASgJEhUKDWxhbl9hZGRyZXNzZXMYAiADKAkSEwoLcHVibGljX3BvcnQYAyABKA0iRwoaU2V0U2VydmVyQWRkcmVzc2VzUmVzcG9uc2USFgoOcHVibGljX2FkZHJlc3MYASABKAkSEQoJcmVhY2hhYmxlGAIgASgIKlIKCVRpdGxlS2luZBIaChZUSVRMRV9LSU5EX1VOU1BFQ0lGSUVEEAASFAoQVElUTEVfS0lORF9NT1ZJRRABEhMKD1RJVExFX0tJTkRfU0hPVxACMswBChFTZXJ2ZXJMaW5rU2VydmljZRJcCg9TdGFydFNlcnZlckxpbmsSIy5uYW1hLmh1Yi52MS5TdGFydFNlcnZlckxpbmtSZXF1ZXN0GiQubmFtYS5odWIudjEuU3RhcnRTZXJ2ZXJMaW5rUmVzcG9uc2USWQoOUG9sbFNlcnZlckxpbmsSIi5uYW1hLmh1Yi52MS5Qb2xsU2VydmVyTGlua1JlcXVlc3QaIy5uYW1hLmh1Yi52MS5Qb2xsU2VydmVyTGlua1Jlc3BvbnNlMpIHCgtMaW5rU2VydmljZRJiChFBcHByb3ZlU2VydmVyTGluaxIlLm5hbWEuaHViLnYxLkFwcHJvdmVTZXJ2ZXJMaW5rUmVxdWVzdBomLm5hbWEuaHViLnYxLkFwcHJvdmVTZXJ2ZXJMaW5rUmVzcG9uc2USZwoRTGlzdExpbmtlZFNlcnZlcnMSJS5uYW1hLmh1Yi52MS5MaXN0TGlua2VkU2VydmVyc1JlcXVlc3QaJi5uYW1hLmh1Yi52MS5MaXN0TGlua2VkU2VydmVyc1Jlc3BvbnNlIgOQAgESXAoPQXBwcm92ZVVzZXJMaW5rEiMubmFtYS5odWIudjEuQXBwcm92ZVVzZXJMaW5rUmVxdWVzdBokLm5hbWEuaHViLnYxLkFwcHJvdmVVc2VyTGlua1Jlc3BvbnNlEmEKD0xpc3RMaW5rZWRVc2VycxIjLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRVc2Vyc1JlcXVlc3QaJC5uYW1hLmh1Yi52MS5MaXN0TGlua2VkVXNlcnNSZXNwb25zZSIDkAIBEmQKEFVubGlua0xpbmtlZFVzZXISJC5uYW1hLmh1Yi52MS5VbmxpbmtMaW5rZWRVc2VyUmVxdWVzdBolLm5hbWEuaHViLnYxLlVubGlua0xpbmtlZFVzZXJSZXNwb25zZSIDkAICEmEKD0xpc3RVc2VySW52aXRlcxIjLm5hbWEuaHViLnYxLkxpc3RVc2VySW52aXRlc1JlcXVlc3QaJC5uYW1hLmh1Yi52MS5MaXN0VXNlckludml0ZXNSZXNwb25zZSIDkAIBEl8KEEFjY2VwdFVzZXJJbnZpdGUSJC5uYW1hLmh1Yi52MS5BY2NlcHRVc2VySW52aXRlUmVxdWVzdBolLm5hbWEuaHViLnYxLkFjY2VwdFVzZXJJbnZpdGVSZXNwb25zZRJhCg9HZXRTZXJ2ZXJTaWduSW4SIy5uYW1hLmh1Yi52MS5HZXRTZXJ2ZXJTaWduSW5SZXF1ZXN0GiQubmFtYS5odWIudjEuR2V0U2VydmVyU2lnbkluUmVzcG9uc2UiA5ACARJoChNBcHByb3ZlU2VydmVyU2lnbkluEicubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlclNpZ25JblJlcXVlc3QaKC5uYW1hLmh1Yi52MS5BcHByb3ZlU2VydmVyU2lnbkluUmVzcG9uc2UyqAgKE0xpbmtlZFNlcnZlclNlcnZpY2USUwoMVW5saW5rU2VydmVyEiAubmFtYS5odWIudjEuVW5saW5rU2VydmVyUmVxdWVzdBohLm5hbWEuaHViLnYxLlVubGlua1NlcnZlclJlc3BvbnNlEmcKEUxpc3RTaW1pbGFyVGl0bGVzEiUubmFtYS5odWIudjEuTGlzdFNpbWlsYXJUaXRsZXNSZXF1ZXN0GiYubmFtYS5odWIudjEuTGlzdFNpbWlsYXJUaXRsZXNSZXNwb25zZSIDkAIBElYKDVN0YXJ0VXNlckxpbmsSIS5uYW1hLmh1Yi52MS5TdGFydFVzZXJMaW5rUmVxdWVzdBoiLm5hbWEuaHViLnYxLlN0YXJ0VXNlckxpbmtSZXNwb25zZRJVCgtHZXRVc2VyTGluaxIfLm5hbWEuaHViLnYxLkdldFVzZXJMaW5rUmVxdWVzdBogLm5hbWEuaHViLnYxLkdldFVzZXJMaW5rUmVzcG9uc2UiA5ACARJSCgpVbmxpbmtVc2VyEh4ubmFtYS5odWIudjEuVW5saW5rVXNlclJlcXVlc3QaHy5uYW1hLmh1Yi52MS5VbmxpbmtVc2VyUmVzcG9uc2UiA5ACAhJhCg9QdXNoV2F0Y2hTdGF0ZXMSIy5uYW1hLmh1Yi52MS5QdXNoV2F0Y2hTdGF0ZXNSZXF1ZXN0GiQubmFtYS5odWIudjEuUHVzaFdhdGNoU3RhdGVzUmVzcG9uc2UiA5ACAhJNCgpJbnZpdGVVc2VyEh4ubmFtYS5odWIudjEuSW52aXRlVXNlclJlcXVlc3QaHy5uYW1hLmh1Yi52MS5JbnZpdGVVc2VyUmVzcG9uc2USYgoRU3RhcnRTZXJ2ZXJTaWduSW4SJS5uYW1hLmh1Yi52MS5TdGFydFNlcnZlclNpZ25JblJlcXVlc3QaJi5uYW1hLmh1Yi52MS5TdGFydFNlcnZlclNpZ25JblJlc3BvbnNlEl8KEFBvbGxTZXJ2ZXJTaWduSW4SJC5uYW1hLmh1Yi52MS5Qb2xsU2VydmVyU2lnbkluUmVxdWVzdBolLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJTaWduSW5SZXNwb25zZRJqChJTZXRTZXJ2ZXJBZGRyZXNzZXMSJi5uYW1hLmh1Yi52MS5TZXRTZXJ2ZXJBZGRyZXNzZXNSZXF1ZXN0GicubmFtYS5odWIudjEuU2V0U2VydmVyQWRkcmVzc2VzUmVzcG9uc2UiA5ACAhJtChNSZWNvcmRWaWV3aW5nRXZlbnRzEicubmFtYS5odWIudjEuUmVjb3JkVmlld2luZ0V2ZW50c1JlcXVlc3QaKC5uYW1hLmh1Yi52MS5SZWNvcmRWaWV3aW5nRXZlbnRzUmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_hub_v1_viewing]);
+  fileDesc("ChZuYW1hL2h1Yi92MS9saW5rLnByb3RvEgtuYW1hLmh1Yi52MSJbCgxMaW5rZWRTZXJ2ZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIRCglsaW5rZWRfYXQYAyABKAMSCwoDdXJsGAQgASgJEhEKCWFkZHJlc3NlcxgFIAMoCSImChZTdGFydFNlcnZlckxpbmtSZXF1ZXN0EgwKBG5hbWUYASABKAkidwoXU3RhcnRTZXJ2ZXJMaW5rUmVzcG9uc2USEwoLZGV2aWNlX2NvZGUYASABKAkSEQoJdXNlcl9jb2RlGAIgASgJEhoKEmV4cGlyZXNfaW5fc2Vjb25kcxgDIAEoBRIYChBpbnRlcnZhbF9zZWNvbmRzGAQgASgFIiwKFVBvbGxTZXJ2ZXJMaW5rUmVxdWVzdBITCgtkZXZpY2VfY29kZRgBIAEoCSJLChZQb2xsU2VydmVyTGlua1Jlc3BvbnNlEg4KBmxpbmtlZBgBIAEoCBISCgpjcmVkZW50aWFsGAIgASgJEg0KBXRva2VuGAMgASgJIigKGEFwcHJvdmVTZXJ2ZXJMaW5rUmVxdWVzdBIMCgRjb2RlGAEgASgJIkYKGUFwcHJvdmVTZXJ2ZXJMaW5rUmVzcG9uc2USKQoGc2VydmVyGAEgASgLMhkubmFtYS5odWIudjEuTGlua2VkU2VydmVyIhoKGExpc3RMaW5rZWRTZXJ2ZXJzUmVxdWVzdCJHChlMaXN0TGlua2VkU2VydmVyc1Jlc3BvbnNlEioKB3NlcnZlcnMYASADKAsyGS5uYW1hLmh1Yi52MS5MaW5rZWRTZXJ2ZXIiFQoTVW5saW5rU2VydmVyUmVxdWVzdCIWChRVbmxpbmtTZXJ2ZXJSZXNwb25zZSIuCgpFeHRlcm5hbElkEhEKCW5hbWVzcGFjZRgBIAEoCRINCgV2YWx1ZRgCIAEoCSJmChhMaXN0U2ltaWxhclRpdGxlc1JlcXVlc3QSJAoEa2luZBgBIAEoDjIWLm5hbWEuaHViLnYxLlRpdGxlS2luZBIkCgNpZHMYAiADKAsyFy5uYW1hLmh1Yi52MS5FeHRlcm5hbElkIkYKGUxpc3RTaW1pbGFyVGl0bGVzUmVzcG9uc2USKQoGdGl0bGVzGAEgAygLMhkubmFtYS5odWIudjEuU2ltaWxhclRpdGxlIkMKDFNpbWlsYXJUaXRsZRIjCgJpZBgBIAEoCzIXLm5hbWEuaHViLnYxLkV4dGVybmFsSWQSDgoGd2VpZ2h0GAIgASgCIk4KCkxpbmtlZFVzZXISCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRITCgtzZXJ2ZXJfbmFtZRgDIAEoCRIRCglsaW5rZWRfYXQYBCABKAMiJgoWQXBwcm92ZVVzZXJMaW5rUmVxdWVzdBIMCgRjb2RlGAEgASgJIkAKF0FwcHJvdmVVc2VyTGlua1Jlc3BvbnNlEiUKBHVzZXIYASABKAsyFy5uYW1hLmh1Yi52MS5MaW5rZWRVc2VyIhgKFkxpc3RMaW5rZWRVc2Vyc1JlcXVlc3QiQQoXTGlzdExpbmtlZFVzZXJzUmVzcG9uc2USJgoFdXNlcnMYASADKAsyFy5uYW1hLmh1Yi52MS5MaW5rZWRVc2VyIiUKF1VubGlua0xpbmtlZFVzZXJSZXF1ZXN0EgoKAmlkGAEgASgJIhoKGFVubGlua0xpbmtlZFVzZXJSZXNwb25zZSI1ChRTdGFydFVzZXJMaW5rUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkiRgoVU3RhcnRVc2VyTGlua1Jlc3BvbnNlEhEKCXVzZXJfY29kZRgBIAEoCRIaChJleHBpcmVzX2luX3NlY29uZHMYAiABKAUiJQoSR2V0VXNlckxpbmtSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiJgoTR2V0VXNlckxpbmtSZXNwb25zZRIPCgdhY2NvdW50GAEgASgJIiQKEVVubGlua1VzZXJSZXF1ZXN0Eg8KB3VzZXJfaWQYASABKAMiFAoSVW5saW5rVXNlclJlc3BvbnNlIkgKFlB1c2hXYXRjaFN0YXRlc1JlcXVlc3QSLgoHY2hhbmdlcxgBIAMoCzIdLm5hbWEuaHViLnYxLldhdGNoU3RhdGVDaGFuZ2UiGQoXUHVzaFdhdGNoU3RhdGVzUmVzcG9uc2UiKQoWUHVsbFdhdGNoU3RhdGVzUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDIk4KF1B1bGxXYXRjaFN0YXRlc1Jlc3BvbnNlEjMKDHdhdGNoX3N0YXRlcxgBIAMoCzIdLm5hbWEuaHViLnYxLldhdGNoU3RhdGVDaGFuZ2UikgEKEFdhdGNoU3RhdGVDaGFuZ2USDwoHdXNlcl9pZBgBIAEoAxIPCgdlcGlzb2RlGAIgASgIEgsKA2lkcxgDIAMoCRIOCgZwbGF5ZWQYBCABKAgSEwoLcG9zaXRpb25fbXMYBSABKAQSEwoLZHVyYXRpb25fbXMYBiABKAQSFQoNY2hhbmdlZF9hdF9tcxgHIAEoAyJSChtQdXNoVHJhY2tQcmVmZXJlbmNlc1JlcXVlc3QSMwoHY2hhbmdlcxgBIAMoCzIiLm5hbWEuaHViLnYxLlRyYWNrUHJlZmVyZW5jZUNoYW5nZSIeChxQdXNoVHJhY2tQcmVmZXJlbmNlc1Jlc3BvbnNlIi4KG1B1bGxUcmFja1ByZWZlcmVuY2VzUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDIlcKHFB1bGxUcmFja1ByZWZlcmVuY2VzUmVzcG9uc2USNwoLcHJlZmVyZW5jZXMYASADKAsyIi5uYW1hLmh1Yi52MS5UcmFja1ByZWZlcmVuY2VDaGFuZ2Ui8wEKFVRyYWNrUHJlZmVyZW5jZUNoYW5nZRIPCgd1c2VyX2lkGAEgASgDEg0KBWF1ZGlvGAIgASgIEioKCnRpdGxlX2tpbmQYAyABKA4yFi5uYW1hLmh1Yi52MS5UaXRsZUtpbmQSEAoIdGl0bGVfaWQYBCABKAkSCwoDb2ZmGAUgASgIEhAKCGxhbmd1YWdlGAYgASgJEg4KBmZvcmNlZBgHIAEoCBILCgNzZGgYCCABKAgSDQoFdGl0bGUYCSABKAkSGgoSZm9yZWlnbl9hdWRpb19vbmx5GAogASgIEhUKDWNoYW5nZWRfYXRfbXMYCyABKAMiVQoUU3luY1dhdGNobGlzdFJlcXVlc3QSDwoHdXNlcl9pZBgBIAEoAxIsCgdlbnRyaWVzGAIgAygLMhsubmFtYS5odWIudjEuV2F0Y2hsaXN0RW50cnkiRQoVU3luY1dhdGNobGlzdFJlc3BvbnNlEiwKB2VudHJpZXMYASADKAsyGy5uYW1hLmh1Yi52MS5XYXRjaGxpc3RFbnRyeSJqCg5XYXRjaGxpc3RFbnRyeRIkCgRraW5kGAEgASgOMhYubmFtYS5odWIudjEuVGl0bGVLaW5kEgoKAmlkGAIgASgJEg8KB3JlbW92ZWQYAyABKAgSFQoNY2hhbmdlZF9hdF9tcxgEIAEoAyJPCgpVc2VySW52aXRlEgoKAmlkGAEgASgJEgwKBG5hbWUYAiABKAkSEwoLc2VydmVyX25hbWUYAyABKAkSEgoKaW52aXRlZF9hdBgEIAEoAyIYChZMaXN0VXNlckludml0ZXNSZXF1ZXN0IkMKF0xpc3RVc2VySW52aXRlc1Jlc3BvbnNlEigKB2ludml0ZXMYASADKAsyFy5uYW1hLmh1Yi52MS5Vc2VySW52aXRlIiUKF0FjY2VwdFVzZXJJbnZpdGVSZXF1ZXN0EgoKAmlkGAEgASgJIkEKGEFjY2VwdFVzZXJJbnZpdGVSZXNwb25zZRIlCgR1c2VyGAEgASgLMhcubmFtYS5odWIudjEuTGlua2VkVXNlciIkChZHZXRTZXJ2ZXJTaWduSW5SZXF1ZXN0EgoKAmlkGAEgASgJIkEKF0dldFNlcnZlclNpZ25JblJlc3BvbnNlEhMKC3NlcnZlcl9uYW1lGAEgASgJEhEKCXVzZXJfbmFtZRgCIAEoCSIoChpBcHByb3ZlU2VydmVyU2lnbkluUmVxdWVzdBIKCgJpZBgBIAEoCSIxChtBcHByb3ZlU2VydmVyU2lnbkluUmVzcG9uc2USEgoKcmV0dXJuX3VybBgBIAEoCSJBChFJbnZpdGVVc2VyUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEgwKBG5hbWUYAiABKAkSDQoFZW1haWwYAyABKAkiFAoSSW52aXRlVXNlclJlc3BvbnNlIi4KGFN0YXJ0U2VydmVyU2lnbkluUmVxdWVzdBISCgpyZXR1cm5fdXJsGAEgASgJIlgKGVN0YXJ0U2VydmVyU2lnbkluUmVzcG9uc2USEwoLZGV2aWNlX2NvZGUYASABKAkSCgoCaWQYAiABKAkSGgoSZXhwaXJlc19pbl9zZWNvbmRzGAMgASgFIjwKF1BvbGxTZXJ2ZXJTaWduSW5SZXF1ZXN0EhMKC2RldmljZV9jb2RlGAEgASgJEgwKBGNvZGUYAiABKAkiKQoYUG9sbFNlcnZlclNpZ25JblJlc3BvbnNlEg0KBXRva2VuGAEgASgJIlQKGVNldFNlcnZlckFkZHJlc3Nlc1JlcXVlc3QSCwoDdXJsGAEgASgJEhUKDWxhbl9hZGRyZXNzZXMYAiADKAkSEwoLcHVibGljX3BvcnQYAyABKA0iRwoaU2V0U2VydmVyQWRkcmVzc2VzUmVzcG9uc2USFgoOcHVibGljX2FkZHJlc3MYASABKAkSEQoJcmVhY2hhYmxlGAIgASgIIhsKGUxpc3RUcmVuZGluZ1RpdGxlc1JlcXVlc3QiSAoaTGlzdFRyZW5kaW5nVGl0bGVzUmVzcG9uc2USKgoGdGl0bGVzGAEgAygLMhoubmFtYS5odWIudjEuVHJlbmRpbmdUaXRsZSJECg1UcmVuZGluZ1RpdGxlEiMKAmlkGAEgASgLMhcubmFtYS5odWIudjEuRXh0ZXJuYWxJZBIOCgZ3ZWlnaHQYAiABKAIiIgogTGlzdE1vc3RXYXRjaGxpc3RlZFRpdGxlc1JlcXVlc3QiUgohTGlzdE1vc3RXYXRjaGxpc3RlZFRpdGxlc1Jlc3BvbnNlEi0KBnRpdGxlcxgBIAMoCzIdLm5hbWEuaHViLnYxLldhdGNobGlzdGVkVGl0bGUibQoQV2F0Y2hsaXN0ZWRUaXRsZRIkCgRraW5kGAEgASgOMhYubmFtYS5odWIudjEuVGl0bGVLaW5kEiMKAmlkGAIgASgLMhcubmFtYS5odWIudjEuRXh0ZXJuYWxJZBIOCgZ3ZWlnaHQYAyABKAIqUgoJVGl0bGVLaW5kEhoKFlRJVExFX0tJTkRfVU5TUEVDSUZJRUQQABIUChBUSVRMRV9LSU5EX01PVklFEAESEwoPVElUTEVfS0lORF9TSE9XEAIyzAEKEVNlcnZlckxpbmtTZXJ2aWNlElwKD1N0YXJ0U2VydmVyTGluaxIjLm5hbWEuaHViLnYxLlN0YXJ0U2VydmVyTGlua1JlcXVlc3QaJC5uYW1hLmh1Yi52MS5TdGFydFNlcnZlckxpbmtSZXNwb25zZRJZCg5Qb2xsU2VydmVyTGluaxIiLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVxdWVzdBojLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJMaW5rUmVzcG9uc2UykgcKC0xpbmtTZXJ2aWNlEmIKEUFwcHJvdmVTZXJ2ZXJMaW5rEiUubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXF1ZXN0GiYubmFtYS5odWIudjEuQXBwcm92ZVNlcnZlckxpbmtSZXNwb25zZRJnChFMaXN0TGlua2VkU2VydmVycxIlLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVxdWVzdBomLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRTZXJ2ZXJzUmVzcG9uc2UiA5ACARJcCg9BcHByb3ZlVXNlckxpbmsSIy5uYW1hLmh1Yi52MS5BcHByb3ZlVXNlckxpbmtSZXF1ZXN0GiQubmFtYS5odWIudjEuQXBwcm92ZVVzZXJMaW5rUmVzcG9uc2USYQoPTGlzdExpbmtlZFVzZXJzEiMubmFtYS5odWIudjEuTGlzdExpbmtlZFVzZXJzUmVxdWVzdBokLm5hbWEuaHViLnYxLkxpc3RMaW5rZWRVc2Vyc1Jlc3BvbnNlIgOQAgESZAoQVW5saW5rTGlua2VkVXNlchIkLm5hbWEuaHViLnYxLlVubGlua0xpbmtlZFVzZXJSZXF1ZXN0GiUubmFtYS5odWIudjEuVW5saW5rTGlua2VkVXNlclJlc3BvbnNlIgOQAgISYQoPTGlzdFVzZXJJbnZpdGVzEiMubmFtYS5odWIudjEuTGlzdFVzZXJJbnZpdGVzUmVxdWVzdBokLm5hbWEuaHViLnYxLkxpc3RVc2VySW52aXRlc1Jlc3BvbnNlIgOQAgESXwoQQWNjZXB0VXNlckludml0ZRIkLm5hbWEuaHViLnYxLkFjY2VwdFVzZXJJbnZpdGVSZXF1ZXN0GiUubmFtYS5odWIudjEuQWNjZXB0VXNlckludml0ZVJlc3BvbnNlEmEKD0dldFNlcnZlclNpZ25JbhIjLm5hbWEuaHViLnYxLkdldFNlcnZlclNpZ25JblJlcXVlc3QaJC5uYW1hLmh1Yi52MS5HZXRTZXJ2ZXJTaWduSW5SZXNwb25zZSIDkAIBEmgKE0FwcHJvdmVTZXJ2ZXJTaWduSW4SJy5uYW1hLmh1Yi52MS5BcHByb3ZlU2VydmVyU2lnbkluUmVxdWVzdBooLm5hbWEuaHViLnYxLkFwcHJvdmVTZXJ2ZXJTaWduSW5SZXNwb25zZTK5DQoTTGlua2VkU2VydmVyU2VydmljZRJTCgxVbmxpbmtTZXJ2ZXISIC5uYW1hLmh1Yi52MS5VbmxpbmtTZXJ2ZXJSZXF1ZXN0GiEubmFtYS5odWIudjEuVW5saW5rU2VydmVyUmVzcG9uc2USZwoRTGlzdFNpbWlsYXJUaXRsZXMSJS5uYW1hLmh1Yi52MS5MaXN0U2ltaWxhclRpdGxlc1JlcXVlc3QaJi5uYW1hLmh1Yi52MS5MaXN0U2ltaWxhclRpdGxlc1Jlc3BvbnNlIgOQAgESVgoNU3RhcnRVc2VyTGluaxIhLm5hbWEuaHViLnYxLlN0YXJ0VXNlckxpbmtSZXF1ZXN0GiIubmFtYS5odWIudjEuU3RhcnRVc2VyTGlua1Jlc3BvbnNlElUKC0dldFVzZXJMaW5rEh8ubmFtYS5odWIudjEuR2V0VXNlckxpbmtSZXF1ZXN0GiAubmFtYS5odWIudjEuR2V0VXNlckxpbmtSZXNwb25zZSIDkAIBElIKClVubGlua1VzZXISHi5uYW1hLmh1Yi52MS5VbmxpbmtVc2VyUmVxdWVzdBofLm5hbWEuaHViLnYxLlVubGlua1VzZXJSZXNwb25zZSIDkAICEmEKD1B1c2hXYXRjaFN0YXRlcxIjLm5hbWEuaHViLnYxLlB1c2hXYXRjaFN0YXRlc1JlcXVlc3QaJC5uYW1hLmh1Yi52MS5QdXNoV2F0Y2hTdGF0ZXNSZXNwb25zZSIDkAICEmEKD1B1bGxXYXRjaFN0YXRlcxIjLm5hbWEuaHViLnYxLlB1bGxXYXRjaFN0YXRlc1JlcXVlc3QaJC5uYW1hLmh1Yi52MS5QdWxsV2F0Y2hTdGF0ZXNSZXNwb25zZSIDkAIBEnAKFFB1c2hUcmFja1ByZWZlcmVuY2VzEigubmFtYS5odWIudjEuUHVzaFRyYWNrUHJlZmVyZW5jZXNSZXF1ZXN0GikubmFtYS5odWIudjEuUHVzaFRyYWNrUHJlZmVyZW5jZXNSZXNwb25zZSIDkAICEnAKFFB1bGxUcmFja1ByZWZlcmVuY2VzEigubmFtYS5odWIudjEuUHVsbFRyYWNrUHJlZmVyZW5jZXNSZXF1ZXN0GikubmFtYS5odWIudjEuUHVsbFRyYWNrUHJlZmVyZW5jZXNSZXNwb25zZSIDkAIBElsKDVN5bmNXYXRjaGxpc3QSIS5uYW1hLmh1Yi52MS5TeW5jV2F0Y2hsaXN0UmVxdWVzdBoiLm5hbWEuaHViLnYxLlN5bmNXYXRjaGxpc3RSZXNwb25zZSIDkAICEk0KCkludml0ZVVzZXISHi5uYW1hLmh1Yi52MS5JbnZpdGVVc2VyUmVxdWVzdBofLm5hbWEuaHViLnYxLkludml0ZVVzZXJSZXNwb25zZRJiChFTdGFydFNlcnZlclNpZ25JbhIlLm5hbWEuaHViLnYxLlN0YXJ0U2VydmVyU2lnbkluUmVxdWVzdBomLm5hbWEuaHViLnYxLlN0YXJ0U2VydmVyU2lnbkluUmVzcG9uc2USXwoQUG9sbFNlcnZlclNpZ25JbhIkLm5hbWEuaHViLnYxLlBvbGxTZXJ2ZXJTaWduSW5SZXF1ZXN0GiUubmFtYS5odWIudjEuUG9sbFNlcnZlclNpZ25JblJlc3BvbnNlEmoKElNldFNlcnZlckFkZHJlc3NlcxImLm5hbWEuaHViLnYxLlNldFNlcnZlckFkZHJlc3Nlc1JlcXVlc3QaJy5uYW1hLmh1Yi52MS5TZXRTZXJ2ZXJBZGRyZXNzZXNSZXNwb25zZSIDkAICEm0KE1JlY29yZFZpZXdpbmdFdmVudHMSJy5uYW1hLmh1Yi52MS5SZWNvcmRWaWV3aW5nRXZlbnRzUmVxdWVzdBooLm5hbWEuaHViLnYxLlJlY29yZFZpZXdpbmdFdmVudHNSZXNwb25zZSIDkAICEmoKEkxpc3RUcmVuZGluZ1RpdGxlcxImLm5hbWEuaHViLnYxLkxpc3RUcmVuZGluZ1RpdGxlc1JlcXVlc3QaJy5uYW1hLmh1Yi52MS5MaXN0VHJlbmRpbmdUaXRsZXNSZXNwb25zZSIDkAIBEn8KGUxpc3RNb3N0V2F0Y2hsaXN0ZWRUaXRsZXMSLS5uYW1hLmh1Yi52MS5MaXN0TW9zdFdhdGNobGlzdGVkVGl0bGVzUmVxdWVzdBouLm5hbWEuaHViLnYxLkxpc3RNb3N0V2F0Y2hsaXN0ZWRUaXRsZXNSZXNwb25zZSIDkAIBYgZwcm90bzM", [file_nama_hub_v1_viewing]);
 
 /**
  * A Server registered with the Hub, owned by an Account.
@@ -669,6 +669,45 @@ export const PushWatchStatesResponseSchema: GenMessage<PushWatchStatesResponse> 
   messageDesc(file_nama_hub_v1_link, 29);
 
 /**
+ * @generated from message nama.hub.v1.PullWatchStatesRequest
+ */
+export type PullWatchStatesRequest = Message<"nama.hub.v1.PullWatchStatesRequest"> & {
+  /**
+   * The User's id on the Server.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+};
+
+/**
+ * Describes the message nama.hub.v1.PullWatchStatesRequest.
+ * Use `create(PullWatchStatesRequestSchema)` to create a new message.
+ */
+export const PullWatchStatesRequestSchema: GenMessage<PullWatchStatesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 30);
+
+/**
+ * @generated from message nama.hub.v1.PullWatchStatesResponse
+ */
+export type PullWatchStatesResponse = Message<"nama.hub.v1.PullWatchStatesResponse"> & {
+  /**
+   * One per title and External ID, each with that one id, in no order. `user_id` is the asked
+   * User's.
+   *
+   * @generated from field: repeated nama.hub.v1.WatchStateChange watch_states = 1;
+   */
+  watchStates: WatchStateChange[];
+};
+
+/**
+ * Describes the message nama.hub.v1.PullWatchStatesResponse.
+ * Use `create(PullWatchStatesResponseSchema)` to create a new message.
+ */
+export const PullWatchStatesResponseSchema: GenMessage<PullWatchStatesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 31);
+
+/**
  * One User's Watch State of a Movie or Episode, as a change on their Server left it.
  *
  * @generated from message nama.hub.v1.WatchStateChange
@@ -731,7 +770,265 @@ export type WatchStateChange = Message<"nama.hub.v1.WatchStateChange"> & {
  * Use `create(WatchStateChangeSchema)` to create a new message.
  */
 export const WatchStateChangeSchema: GenMessage<WatchStateChange> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 30);
+  messageDesc(file_nama_hub_v1_link, 32);
+
+/**
+ * @generated from message nama.hub.v1.PushTrackPreferencesRequest
+ */
+export type PushTrackPreferencesRequest = Message<"nama.hub.v1.PushTrackPreferencesRequest"> & {
+  /**
+   * Up to 500.
+   *
+   * @generated from field: repeated nama.hub.v1.TrackPreferenceChange changes = 1;
+   */
+  changes: TrackPreferenceChange[];
+};
+
+/**
+ * Describes the message nama.hub.v1.PushTrackPreferencesRequest.
+ * Use `create(PushTrackPreferencesRequestSchema)` to create a new message.
+ */
+export const PushTrackPreferencesRequestSchema: GenMessage<PushTrackPreferencesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 33);
+
+/**
+ * @generated from message nama.hub.v1.PushTrackPreferencesResponse
+ */
+export type PushTrackPreferencesResponse = Message<"nama.hub.v1.PushTrackPreferencesResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.PushTrackPreferencesResponse.
+ * Use `create(PushTrackPreferencesResponseSchema)` to create a new message.
+ */
+export const PushTrackPreferencesResponseSchema: GenMessage<PushTrackPreferencesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 34);
+
+/**
+ * @generated from message nama.hub.v1.PullTrackPreferencesRequest
+ */
+export type PullTrackPreferencesRequest = Message<"nama.hub.v1.PullTrackPreferencesRequest"> & {
+  /**
+   * The User's id on the Server.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+};
+
+/**
+ * Describes the message nama.hub.v1.PullTrackPreferencesRequest.
+ * Use `create(PullTrackPreferencesRequestSchema)` to create a new message.
+ */
+export const PullTrackPreferencesRequestSchema: GenMessage<PullTrackPreferencesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 35);
+
+/**
+ * @generated from message nama.hub.v1.PullTrackPreferencesResponse
+ */
+export type PullTrackPreferencesResponse = Message<"nama.hub.v1.PullTrackPreferencesResponse"> & {
+  /**
+   * One per Preference, in no order. `user_id` is the asked User's.
+   *
+   * @generated from field: repeated nama.hub.v1.TrackPreferenceChange preferences = 1;
+   */
+  preferences: TrackPreferenceChange[];
+};
+
+/**
+ * Describes the message nama.hub.v1.PullTrackPreferencesResponse.
+ * Use `create(PullTrackPreferencesResponseSchema)` to create a new message.
+ */
+export const PullTrackPreferencesResponseSchema: GenMessage<PullTrackPreferencesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 36);
+
+/**
+ * One User's Subtitle or Audio Preference, as a change on their Server left it (ADR 0035): what
+ * describes the Track they want, never which Track it was, since each Server matches it against
+ * its own. Home layouts, Permissions, Library access and Plugin settings belong to each Server
+ * and never come here (ADR 0092).
+ *
+ * @generated from message nama.hub.v1.TrackPreferenceChange
+ */
+export type TrackPreferenceChange = Message<"nama.hub.v1.TrackPreferenceChange"> & {
+  /**
+   * The User's id on the Server.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+
+  /**
+   * Whether it is an Audio Preference rather than a Subtitle Preference.
+   *
+   * @generated from field: bool audio = 2;
+   */
+  audio: boolean;
+
+  /**
+   * Whose it is: a Movie's or a Show's, or, unspecified, the User's own for everything they play.
+   *
+   * @generated from field: nama.hub.v1.TitleKind title_kind = 3;
+   */
+  titleKind: TitleKind;
+
+  /**
+   * The Movie's or Show's External ID, such as `tmdb-348`, of 1 to 100 characters; empty for the
+   * User's own.
+   *
+   * @generated from field: string title_id = 4;
+   */
+  titleId: string;
+
+  /**
+   * Subtitles turned off, or the User's own Audio Preference left to each file's own audio. Then
+   * nothing describes a Track.
+   *
+   * @generated from field: bool off = 5;
+   */
+  off: boolean;
+
+  /**
+   * The Track's language as its file tagged it, such as `eng`, or empty for none: up to 100
+   * characters.
+   *
+   * @generated from field: string language = 6;
+   */
+  language: string;
+
+  /**
+   * A forced-only subtitle Track.
+   *
+   * @generated from field: bool forced = 7;
+   */
+  forced: boolean;
+
+  /**
+   * A subtitle Track for the deaf and hard of hearing.
+   *
+   * @generated from field: bool sdh = 8;
+   */
+  sdh: boolean;
+
+  /**
+   * The Track's title, or empty for none: up to 1000 characters.
+   *
+   * @generated from field: string title = 9;
+   */
+  title: string;
+
+  /**
+   * Full subtitles only over audio in another language, which only the User's own Subtitle
+   * Preference can ask.
+   *
+   * @generated from field: bool foreign_audio_only = 10;
+   */
+  foreignAudioOnly: boolean;
+
+  /**
+   * When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+   * 9999.
+   *
+   * @generated from field: int64 changed_at_ms = 11;
+   */
+  changedAtMs: bigint;
+};
+
+/**
+ * Describes the message nama.hub.v1.TrackPreferenceChange.
+ * Use `create(TrackPreferenceChangeSchema)` to create a new message.
+ */
+export const TrackPreferenceChangeSchema: GenMessage<TrackPreferenceChange> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 37);
+
+/**
+ * @generated from message nama.hub.v1.SyncWatchlistRequest
+ */
+export type SyncWatchlistRequest = Message<"nama.hub.v1.SyncWatchlistRequest"> & {
+  /**
+   * The User's id on the Server.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+
+  /**
+   * Every title on the User's Watchlist on the Server, and every one taken off it: up to 5000.
+   *
+   * @generated from field: repeated nama.hub.v1.WatchlistEntry entries = 2;
+   */
+  entries: WatchlistEntry[];
+};
+
+/**
+ * Describes the message nama.hub.v1.SyncWatchlistRequest.
+ * Use `create(SyncWatchlistRequestSchema)` to create a new message.
+ */
+export const SyncWatchlistRequestSchema: GenMessage<SyncWatchlistRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 38);
+
+/**
+ * @generated from message nama.hub.v1.SyncWatchlistResponse
+ */
+export type SyncWatchlistResponse = Message<"nama.hub.v1.SyncWatchlistResponse"> & {
+  /**
+   * The Account's, one per title and External ID, in no order.
+   *
+   * @generated from field: repeated nama.hub.v1.WatchlistEntry entries = 1;
+   */
+  entries: WatchlistEntry[];
+};
+
+/**
+ * Describes the message nama.hub.v1.SyncWatchlistResponse.
+ * Use `create(SyncWatchlistResponseSchema)` to create a new message.
+ */
+export const SyncWatchlistResponseSchema: GenMessage<SyncWatchlistResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 39);
+
+/**
+ * A title on a User's Watchlist, or taken off it, as the change made last left it. Kept by External
+ * ID whether or not a Server has the title.
+ *
+ * @generated from message nama.hub.v1.WatchlistEntry
+ */
+export type WatchlistEntry = Message<"nama.hub.v1.WatchlistEntry"> & {
+  /**
+   * A Movie or a Show, never unspecified.
+   *
+   * @generated from field: nama.hub.v1.TitleKind kind = 1;
+   */
+  kind: TitleKind;
+
+  /**
+   * The External ID it was added under, such as `tmdb-603` (ADR 0013): 1 to 100 characters.
+   *
+   * @generated from field: string id = 2;
+   */
+  id: string;
+
+  /**
+   * Whether it was taken off.
+   *
+   * @generated from field: bool removed = 3;
+   */
+  removed: boolean;
+
+  /**
+   * When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+   * 9999.
+   *
+   * @generated from field: int64 changed_at_ms = 4;
+   */
+  changedAtMs: bigint;
+};
+
+/**
+ * Describes the message nama.hub.v1.WatchlistEntry.
+ * Use `create(WatchlistEntrySchema)` to create a new message.
+ */
+export const WatchlistEntrySchema: GenMessage<WatchlistEntry> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 40);
 
 /**
  * A User an Admin created from an Account, waiting for it to accept them.
@@ -773,7 +1070,7 @@ export type UserInvite = Message<"nama.hub.v1.UserInvite"> & {
  * Use `create(UserInviteSchema)` to create a new message.
  */
 export const UserInviteSchema: GenMessage<UserInvite> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 31);
+  messageDesc(file_nama_hub_v1_link, 41);
 
 /**
  * @generated from message nama.hub.v1.ListUserInvitesRequest
@@ -786,7 +1083,7 @@ export type ListUserInvitesRequest = Message<"nama.hub.v1.ListUserInvitesRequest
  * Use `create(ListUserInvitesRequestSchema)` to create a new message.
  */
 export const ListUserInvitesRequestSchema: GenMessage<ListUserInvitesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 32);
+  messageDesc(file_nama_hub_v1_link, 42);
 
 /**
  * @generated from message nama.hub.v1.ListUserInvitesResponse
@@ -803,7 +1100,7 @@ export type ListUserInvitesResponse = Message<"nama.hub.v1.ListUserInvitesRespon
  * Use `create(ListUserInvitesResponseSchema)` to create a new message.
  */
 export const ListUserInvitesResponseSchema: GenMessage<ListUserInvitesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 33);
+  messageDesc(file_nama_hub_v1_link, 43);
 
 /**
  * @generated from message nama.hub.v1.AcceptUserInviteRequest
@@ -822,7 +1119,7 @@ export type AcceptUserInviteRequest = Message<"nama.hub.v1.AcceptUserInviteReque
  * Use `create(AcceptUserInviteRequestSchema)` to create a new message.
  */
 export const AcceptUserInviteRequestSchema: GenMessage<AcceptUserInviteRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 34);
+  messageDesc(file_nama_hub_v1_link, 44);
 
 /**
  * @generated from message nama.hub.v1.AcceptUserInviteResponse
@@ -841,7 +1138,7 @@ export type AcceptUserInviteResponse = Message<"nama.hub.v1.AcceptUserInviteResp
  * Use `create(AcceptUserInviteResponseSchema)` to create a new message.
  */
 export const AcceptUserInviteResponseSchema: GenMessage<AcceptUserInviteResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 35);
+  messageDesc(file_nama_hub_v1_link, 45);
 
 /**
  * @generated from message nama.hub.v1.GetServerSignInRequest
@@ -860,7 +1157,7 @@ export type GetServerSignInRequest = Message<"nama.hub.v1.GetServerSignInRequest
  * Use `create(GetServerSignInRequestSchema)` to create a new message.
  */
 export const GetServerSignInRequestSchema: GenMessage<GetServerSignInRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 36);
+  messageDesc(file_nama_hub_v1_link, 46);
 
 /**
  * @generated from message nama.hub.v1.GetServerSignInResponse
@@ -886,7 +1183,7 @@ export type GetServerSignInResponse = Message<"nama.hub.v1.GetServerSignInRespon
  * Use `create(GetServerSignInResponseSchema)` to create a new message.
  */
 export const GetServerSignInResponseSchema: GenMessage<GetServerSignInResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 37);
+  messageDesc(file_nama_hub_v1_link, 47);
 
 /**
  * @generated from message nama.hub.v1.ApproveServerSignInRequest
@@ -905,7 +1202,7 @@ export type ApproveServerSignInRequest = Message<"nama.hub.v1.ApproveServerSignI
  * Use `create(ApproveServerSignInRequestSchema)` to create a new message.
  */
 export const ApproveServerSignInRequestSchema: GenMessage<ApproveServerSignInRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 38);
+  messageDesc(file_nama_hub_v1_link, 48);
 
 /**
  * @generated from message nama.hub.v1.ApproveServerSignInResponse
@@ -925,7 +1222,7 @@ export type ApproveServerSignInResponse = Message<"nama.hub.v1.ApproveServerSign
  * Use `create(ApproveServerSignInResponseSchema)` to create a new message.
  */
 export const ApproveServerSignInResponseSchema: GenMessage<ApproveServerSignInResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 39);
+  messageDesc(file_nama_hub_v1_link, 49);
 
 /**
  * @generated from message nama.hub.v1.InviteUserRequest
@@ -959,7 +1256,7 @@ export type InviteUserRequest = Message<"nama.hub.v1.InviteUserRequest"> & {
  * Use `create(InviteUserRequestSchema)` to create a new message.
  */
 export const InviteUserRequestSchema: GenMessage<InviteUserRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 40);
+  messageDesc(file_nama_hub_v1_link, 50);
 
 /**
  * @generated from message nama.hub.v1.InviteUserResponse
@@ -972,7 +1269,7 @@ export type InviteUserResponse = Message<"nama.hub.v1.InviteUserResponse"> & {
  * Use `create(InviteUserResponseSchema)` to create a new message.
  */
 export const InviteUserResponseSchema: GenMessage<InviteUserResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 41);
+  messageDesc(file_nama_hub_v1_link, 51);
 
 /**
  * @generated from message nama.hub.v1.StartServerSignInRequest
@@ -993,7 +1290,7 @@ export type StartServerSignInRequest = Message<"nama.hub.v1.StartServerSignInReq
  * Use `create(StartServerSignInRequestSchema)` to create a new message.
  */
 export const StartServerSignInRequestSchema: GenMessage<StartServerSignInRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 42);
+  messageDesc(file_nama_hub_v1_link, 52);
 
 /**
  * @generated from message nama.hub.v1.StartServerSignInResponse
@@ -1026,7 +1323,7 @@ export type StartServerSignInResponse = Message<"nama.hub.v1.StartServerSignInRe
  * Use `create(StartServerSignInResponseSchema)` to create a new message.
  */
 export const StartServerSignInResponseSchema: GenMessage<StartServerSignInResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 43);
+  messageDesc(file_nama_hub_v1_link, 53);
 
 /**
  * @generated from message nama.hub.v1.PollServerSignInRequest
@@ -1050,7 +1347,7 @@ export type PollServerSignInRequest = Message<"nama.hub.v1.PollServerSignInReque
  * Use `create(PollServerSignInRequestSchema)` to create a new message.
  */
 export const PollServerSignInRequestSchema: GenMessage<PollServerSignInRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 44);
+  messageDesc(file_nama_hub_v1_link, 54);
 
 /**
  * @generated from message nama.hub.v1.PollServerSignInResponse
@@ -1071,7 +1368,7 @@ export type PollServerSignInResponse = Message<"nama.hub.v1.PollServerSignInResp
  * Use `create(PollServerSignInResponseSchema)` to create a new message.
  */
 export const PollServerSignInResponseSchema: GenMessage<PollServerSignInResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 45);
+  messageDesc(file_nama_hub_v1_link, 55);
 
 /**
  * @generated from message nama.hub.v1.SetServerAddressesRequest
@@ -1106,7 +1403,7 @@ export type SetServerAddressesRequest = Message<"nama.hub.v1.SetServerAddressesR
  * Use `create(SetServerAddressesRequestSchema)` to create a new message.
  */
 export const SetServerAddressesRequestSchema: GenMessage<SetServerAddressesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 46);
+  messageDesc(file_nama_hub_v1_link, 56);
 
 /**
  * @generated from message nama.hub.v1.SetServerAddressesResponse
@@ -1133,7 +1430,128 @@ export type SetServerAddressesResponse = Message<"nama.hub.v1.SetServerAddresses
  * Use `create(SetServerAddressesResponseSchema)` to create a new message.
  */
 export const SetServerAddressesResponseSchema: GenMessage<SetServerAddressesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_link, 47);
+  messageDesc(file_nama_hub_v1_link, 57);
+
+/**
+ * @generated from message nama.hub.v1.ListTrendingTitlesRequest
+ */
+export type ListTrendingTitlesRequest = Message<"nama.hub.v1.ListTrendingTitlesRequest"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.ListTrendingTitlesRequest.
+ * Use `create(ListTrendingTitlesRequestSchema)` to create a new message.
+ */
+export const ListTrendingTitlesRequestSchema: GenMessage<ListTrendingTitlesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 58);
+
+/**
+ * @generated from message nama.hub.v1.ListTrendingTitlesResponse
+ */
+export type ListTrendingTitlesResponse = Message<"nama.hub.v1.ListTrendingTitlesResponse"> & {
+  /**
+   * @generated from field: repeated nama.hub.v1.TrendingTitle titles = 1;
+   */
+  titles: TrendingTitle[];
+};
+
+/**
+ * Describes the message nama.hub.v1.ListTrendingTitlesResponse.
+ * Use `create(ListTrendingTitlesResponseSchema)` to create a new message.
+ */
+export const ListTrendingTitlesResponseSchema: GenMessage<ListTrendingTitlesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 59);
+
+/**
+ * A Movie many Accounts finished lately.
+ *
+ * @generated from message nama.hub.v1.TrendingTitle
+ */
+export type TrendingTitle = Message<"nama.hub.v1.TrendingTitle"> & {
+  /**
+   * Its id as Servers keep its Watch State, such as `tmdb` `603`.
+   *
+   * @generated from field: nama.hub.v1.ExternalId id = 1;
+   */
+  id?: ExternalId | undefined;
+
+  /**
+   * How watched it is, from 0.0 to 1.0: its two weeks' counts summed, against the most watched's.
+   *
+   * @generated from field: float weight = 2;
+   */
+  weight: number;
+};
+
+/**
+ * Describes the message nama.hub.v1.TrendingTitle.
+ * Use `create(TrendingTitleSchema)` to create a new message.
+ */
+export const TrendingTitleSchema: GenMessage<TrendingTitle> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 60);
+
+/**
+ * @generated from message nama.hub.v1.ListMostWatchlistedTitlesRequest
+ */
+export type ListMostWatchlistedTitlesRequest = Message<"nama.hub.v1.ListMostWatchlistedTitlesRequest"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.ListMostWatchlistedTitlesRequest.
+ * Use `create(ListMostWatchlistedTitlesRequestSchema)` to create a new message.
+ */
+export const ListMostWatchlistedTitlesRequestSchema: GenMessage<ListMostWatchlistedTitlesRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 61);
+
+/**
+ * @generated from message nama.hub.v1.ListMostWatchlistedTitlesResponse
+ */
+export type ListMostWatchlistedTitlesResponse = Message<"nama.hub.v1.ListMostWatchlistedTitlesResponse"> & {
+  /**
+   * @generated from field: repeated nama.hub.v1.WatchlistedTitle titles = 1;
+   */
+  titles: WatchlistedTitle[];
+};
+
+/**
+ * Describes the message nama.hub.v1.ListMostWatchlistedTitlesResponse.
+ * Use `create(ListMostWatchlistedTitlesResponseSchema)` to create a new message.
+ */
+export const ListMostWatchlistedTitlesResponseSchema: GenMessage<ListMostWatchlistedTitlesResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 62);
+
+/**
+ * A title on many Accounts' Watchlists.
+ *
+ * @generated from message nama.hub.v1.WatchlistedTitle
+ */
+export type WatchlistedTitle = Message<"nama.hub.v1.WatchlistedTitle"> & {
+  /**
+   * @generated from field: nama.hub.v1.TitleKind kind = 1;
+   */
+  kind: TitleKind;
+
+  /**
+   * Its id as Servers keep it on their Watchlists, such as `tmdb` `603`.
+   *
+   * @generated from field: nama.hub.v1.ExternalId id = 2;
+   */
+  id?: ExternalId | undefined;
+
+  /**
+   * How watchlisted it is, from 0.0 to 1.0: its Accounts against the most watchlisted's.
+   *
+   * @generated from field: float weight = 3;
+   */
+  weight: number;
+};
+
+/**
+ * Describes the message nama.hub.v1.WatchlistedTitle.
+ * Use `create(WatchlistedTitleSchema)` to create a new message.
+ */
+export const WatchlistedTitleSchema: GenMessage<WatchlistedTitle> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_link, 63);
 
 /**
  * Whether a title is a Movie or a Show, whose External IDs are separate id spaces (ADR 0042).
@@ -1399,6 +1817,56 @@ export const LinkedServerService: GenService<{
     output: typeof PushWatchStatesResponseSchema;
   },
   /**
+   * The Watch State of the Account one of the Server's Users is Linked to, as Servers pushed it:
+   * per title and External ID, the change made last. Empty for a User who isn't Linked.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.PullWatchStates
+   */
+  pullWatchStates: {
+    methodKind: "unary";
+    input: typeof PullWatchStatesRequestSchema;
+    output: typeof PullWatchStatesResponseSchema;
+  },
+  /**
+   * Merges changes to the Server's Users' Subtitle and Audio Preferences into their Accounts'
+   * (ADR 0092), as `PushWatchStates` merges Watch State: per Account and Preference, the change
+   * made last wins. A change of a User who isn't Linked is dropped. Fails with
+   * `REFUSAL_REASON_TRACK_PREFERENCE_INVALID` for a change it can't keep, keeping none of the
+   * call's.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.PushTrackPreferences
+   */
+  pushTrackPreferences: {
+    methodKind: "unary";
+    input: typeof PushTrackPreferencesRequestSchema;
+    output: typeof PushTrackPreferencesResponseSchema;
+  },
+  /**
+   * The Subtitle and Audio Preferences of the Account one of the Server's Users is Linked to, as
+   * Servers pushed them: per Preference, the change made last. Empty for a User who isn't Linked.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.PullTrackPreferences
+   */
+  pullTrackPreferences: {
+    methodKind: "unary";
+    input: typeof PullTrackPreferencesRequestSchema;
+    output: typeof PullTrackPreferencesResponseSchema;
+  },
+  /**
+   * Merges one of the Server's Users' whole Watchlist into their Account's (ADR 0056), and returns
+   * the Account's: per title and External ID, the change made last wins, removals included,
+   * whichever Server sends it and whenever, and of two made at the same moment, the removal. A User
+   * who isn't Linked gets none, and nothing of theirs is kept. Fails with
+   * `REFUSAL_REASON_WATCHLIST_INVALID` for an entry it can't keep, keeping none of the call's.
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.SyncWatchlist
+   */
+  syncWatchlist: {
+    methodKind: "unary";
+    input: typeof SyncWatchlistRequestSchema;
+    output: typeof SyncWatchlistResponseSchema;
+  },
+  /**
    * Asks the Account with `email`, if there is one, to accept one of the Server's Users created
    * from it (ADR 0092). It answers the same whether or not there is, so it reveals nothing about
    * which emails have Accounts. Asking again for the same User replaces the request.
@@ -1461,6 +1929,32 @@ export const LinkedServerService: GenService<{
     methodKind: "unary";
     input: typeof RecordViewingEventsRequestSchema;
     output: typeof RecordViewingEventsResponseSchema;
+  },
+  /**
+   * The Movies most Accounts finished this week and last, by the pooled counts (ADR 0093): at
+   * most 1000, most watched first. A week counts a Movie only once 20 Accounts finished it in
+   * that week, so the answer is empty until there are enough. The Hub answers ids, never titles
+   * or artwork (ADR 0094).
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.ListTrendingTitles
+   */
+  listTrendingTitles: {
+    methodKind: "unary";
+    input: typeof ListTrendingTitlesRequestSchema;
+    output: typeof ListTrendingTitlesResponseSchema;
+  },
+  /**
+   * The Movies and Shows on most Accounts' Watchlists, by the pooled counts' rules (ADR 0093):
+   * at most 200, most watchlisted first. A title counts only once 20 Accounts that pool have it
+   * on their Watchlist, so the answer is empty until there are enough. Servers may lack any of
+   * them. The Hub answers ids, never titles or artwork (ADR 0094).
+   *
+   * @generated from rpc nama.hub.v1.LinkedServerService.ListMostWatchlistedTitles
+   */
+  listMostWatchlistedTitles: {
+    methodKind: "unary";
+    input: typeof ListMostWatchlistedTitlesRequestSchema;
+    output: typeof ListMostWatchlistedTitlesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_nama_hub_v1_link, 2);

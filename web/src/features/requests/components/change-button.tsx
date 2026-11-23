@@ -1,19 +1,22 @@
-import { Button } from "nama-ui/components/button";
+import type { LucideIcon } from "lucide-react";
 
 import { QualityMenu } from "@/features/requests/components/quality-menu";
 import type { QualityTarget } from "@/features/requests/lib/quality-target";
+import { IconAction } from "@/shared/components/icon-action";
 
-/** A button that changes a Request at once, and says why if the Server refuses. */
+/** An icon button that changes a Request at once, and says why if the Server refuses. */
 export function ChangeButton({
   action,
+  Icon,
   name,
   change,
   id,
   refusal: whyRefused,
   quality,
 }: {
-  /** What the change is called, such as "Approve", which the button says. */
+  /** What the change is called, such as "Approve", which the button's tooltip says. */
   action: string;
+  Icon: LucideIcon;
   /** The button's accessible name, which says which Request it changes. */
   name: string;
   /** The mutation the button calls with the Request's ID, and the menu with a Quality's too. */
@@ -32,21 +35,20 @@ export function ChangeButton({
 }) {
   return (
     <>
-      <Button
-        variant="ghost"
+      <IconAction
+        label={action}
+        Icon={Icon}
         aria-label={name}
         disabled={change.isPending}
         onClick={() => {
           change.mutate({ id });
         }}
-      >
-        {action}
-      </Button>
+      />
       {quality && (
         <QualityMenu action={action} name={name} quality={quality} change={change} id={id} />
       )}
       {change.isError && (
-        <p role="alert" className="w-full ps-4 text-sm text-destructive">
+        <p role="alert" className="w-full text-sm text-destructive">
           {whyRefused(change.error)}
         </p>
       )}

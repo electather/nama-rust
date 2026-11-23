@@ -27,12 +27,14 @@ use nama_proto::nama::v1::{
 
 use crate::{
     backup::Backups,
+    browse::Browse,
     diagnostics::Sharing,
     ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
     home_rows::HomeRows,
     images::{self, Blobs, ImageStore, Persist, SwitchRefused, Switching},
     playback::{
-        MessageTooLong, PlayNow, RunningPlans, STOP_MESSAGE_LENGTH, accel_to_proto, limit_to_proto,
+        MessageTooLong, PlayNow, RunningPlans, STOP_MESSAGE_LENGTH, TrackPreferences,
+        accel_to_proto, limit_to_proto,
     },
     plugins::{ExtensionPoints, PluginBlobs},
     server_settings::{
@@ -51,6 +53,10 @@ use super::{
 pub(super) struct ServerServiceHandler {
     pub(super) name: String,
     pub(super) users: Users,
+    /// Reads each User's Watch State to push once the Server is Linked.
+    pub(super) browse: Browse,
+    /// Reads each User's Track Preferences to push once the Server is Linked.
+    pub(super) preferences: TrackPreferences,
     pub(super) settings: server_settings::Settings,
     pub(super) abilities: Abilities,
     pub(super) ffmpeg: Arc<Ffmpeg>,
@@ -77,7 +83,7 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, GetServerLinkRequest>,
     ) -> ServiceResult<GetServerLinkResponse> {
-        server_link::get(&self.points).await
+        server_link::get(&self.points, &self.browse, &self.preferences, &self.users).await
     }
 
     async fn start_server_link(

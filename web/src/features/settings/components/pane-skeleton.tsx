@@ -1,12 +1,10 @@
 import { SkeletonRow } from "@/features/settings/components/skeleton-row";
 
-const rows = ["first", "second", "third"];
-
-/** Where a pane's rows will be while they load. */
-export function PaneSkeleton() {
+/** Where `rows` of a pane will be while they load. */
+export function PaneSkeleton({ rows = 3 }: { rows?: number }) {
   return (
     <output className="flex flex-col">
-      {rows.map((row) => (
+      {Array.from({ length: rows }, (_, row) => (
         <SkeletonRow key={row} />
       ))}
       <span className="sr-only">Loading…</span>

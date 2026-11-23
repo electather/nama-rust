@@ -79,7 +79,8 @@ use crate::{
 ///
 /// The enabled Plugin that links the Server, if any, is told its Server Addresses every minute,
 /// and while there is one the Server keeps its port open on the router with UPnP or NAT-PMP,
-/// unless [`Config::forwarded_port`] names the one the Admin forwarded.
+/// unless [`Config::forwarded_port`] names the one the Admin forwarded. It is asked for each User's
+/// Watch State on their other Servers after each scan.
 ///
 /// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, unless the
 /// peer is in [`Config::trusted_proxies`], whose `X-Forwarded-For` names the client.
@@ -184,6 +185,11 @@ pub fn serve(
     let server_url = settings.server_url();
     // `listen` differs from the bound address only when it asks for port 0.
     let listening = listener.local_addr().unwrap_or(config.listen);
+    let (sync_browse, sync_db, sync_users) = (
+        browse::Browse::new(Arc::clone(&db)),
+        Arc::clone(&db),
+        users.clone(),
+    );
     let forwarded_port = config.forwarded_port;
     let load_settings = load_settings(
         settings.clone(),
@@ -224,6 +230,14 @@ pub fn serve(
         // before serving, so the sweeps delete no plan's files or upload but an earlier run's.
         load_settings.await;
         fill_sort_titles(&contents).await;
+        // Before the scans start, so it sees their Matching finish.
+        let syncing = api::sync_after_scans(
+            &events,
+            plugins.extension_points(),
+            sync_browse,
+            sync_db,
+            sync_users,
+        );
         scanner.start_all().await;
         preview_frames.start();
         text_passes.start();
@@ -275,6 +289,8 @@ pub fn serve(
         // Its calls run in the Plugin's scope, which shutting the Plugins down joins; telling it
         // again at the next start loses nothing.
         telling_addresses.abort();
+        // The next start's scans pull and sync again.
+        syncing.abort();
         plugins.shutdown().await;
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
         drop(automation);

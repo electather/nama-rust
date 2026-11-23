@@ -39,25 +39,14 @@ export function labelOf(pluginId: string, plugin: PluginSummary | undefined) {
   return plugin === undefined || plugin.name === "" ? pluginId : plugin.name;
 }
 
-/** What each of a row's buttons does to `order`, or `undefined` where it can't. */
-export interface Moves {
-  up: (() => void) | undefined;
-  down: (() => void) | undefined;
-  remove: () => void;
-}
-
-/** The changes to `order` the row at `index` offers, each handed to `setOrder`. */
-export function moves(order: string[], index: number, setOrder: (order: string[]) => void): Moves {
-  const swapWith = (other: number) => () => {
-    const next = [...order];
-    [next[index], next[other]] = [next[other] ?? "", next[index] ?? ""];
-    setOrder(next);
-  };
-  return {
-    up: index > 0 ? swapWith(index - 1) : undefined,
-    down: index < order.length - 1 ? swapWith(index + 1) : undefined,
-    remove: () => {
-      setOrder(order.filter((_, each) => each !== index));
-    },
-  };
+/**
+ * The note under the row for `plugin`: that it's off, which the Library skips until it's enabled,
+ * or, once the Plugins are `listed`, that there's no such Plugin. Until the list arrives, no stored
+ * Plugin is known to be missing.
+ */
+export function recogniserNote(plugin: PluginSummary | undefined, listed: boolean) {
+  if (plugin === undefined) {
+    return listed ? "Not available" : undefined;
+  }
+  return plugin.enabled ? undefined : "Not enabled";
 }

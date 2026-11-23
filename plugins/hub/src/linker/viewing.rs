@@ -19,8 +19,9 @@ use nama_plugin_api::{
         ListDevices, ListVersionTitles, ListWatchStates, StoreDelete, StorePut,
     },
     contract::{
-        DeviceKind, DevicesAsked, Playback, StoreEntry, TitleRefKind, TitleWatchStates,
-        VersionTitlesAsked, WatchStatesAsked, event::Event as Happened,
+        DeviceKind, DevicesAsked, Playback, StoreEntry, TitleId, TitleRef, TitleRefKind,
+        TitleWatchStates, VersionTitles, VersionTitlesAsked, WatchStatesAsked,
+        event::Event as Happened,
     },
     job::Job,
     points::{Events, ObservedEvents},
@@ -128,17 +129,16 @@ impl ViewingEvents {
         started: Started,
     ) -> Result<Vec<UserViewingEvent>, PluginError> {
         let kernel = &self.linker.kernel;
-        let titles = (kernel.ask::<ListVersionTitles>(VersionTitlesAsked {
+        let listed = (kernel.ask::<ListVersionTitles>(VersionTitlesAsked {
             version_id: playback.version_id,
             ..Default::default()
         }))
-        .await?
-        .titles;
-        if titles.is_empty() {
+        .await?;
+        if listed.titles.is_empty() {
             return Ok(Vec::new());
         }
         let states = (kernel.ask::<ListWatchStates>(WatchStatesAsked {
-            titles,
+            titles: listed.titles.clone(),
             user_id: Some(playback.user_id),
             ..Default::default()
         }))
@@ -153,7 +153,7 @@ impl ViewingEvents {
                 hub_device_kind(device.kind)
             });
         (states.titles.iter())
-            .filter_map(|title| viewed(title, started, device_kind))
+            .filter_map(|title| viewed(title, &listed, started, device_kind))
             .map(|event| {
                 Ok(UserViewingEvent {
                     user_id: playback.user_id,
@@ -242,9 +242,10 @@ impl Observer<Events> for ViewingEvents {
 }
 
 /// The Viewing Event of a play that `started` and changed `title`'s Watch State, on a Device of
-/// `device_kind`, if it did.
+/// `device_kind`, if it did. An Episode's names its Show, as `listed` pairs them.
 fn viewed(
     title: &TitleWatchStates,
+    listed: &VersionTitles,
     started: Started,
     device_kind: HubDeviceKind,
 ) -> Option<ViewingEvent> {
@@ -259,14 +260,12 @@ fn viewed(
     if state.updated_at_ms / 1000 < started.at || duration_ms == 0 {
         return None;
     }
-    let external_id = format!("{}-{}", id.namespace, id.value);
-    // The Hub refuses every event sent with a longer one, and `send` then forgets them all.
-    if external_id.chars().count() > MAX_EXTERNAL_ID_CHARS {
-        return None;
-    }
-    let episode = match title_ref.kind {
-        EnumValue::Known(TitleRefKind::TITLE_REF_KIND_MOVIE) => false,
-        EnumValue::Known(TitleRefKind::TITLE_REF_KIND_EPISODE) => true,
+    let external_id = hub_external_id(id)?;
+    let (episode, show_external_id) = match title_ref.kind {
+        EnumValue::Known(TitleRefKind::TITLE_REF_KIND_MOVIE) => (false, String::new()),
+        EnumValue::Known(TitleRefKind::TITLE_REF_KIND_EPISODE) => {
+            (true, hub_external_id(show_id(listed, title_ref)?)?)
+        }
         EnumValue::Known(TitleRefKind::TITLE_REF_KIND_UNSPECIFIED) | EnumValue::Unknown(_) => {
             return None;
         }
@@ -274,6 +273,7 @@ fn viewed(
     Some(ViewingEvent {
         episode,
         external_id,
+        show_external_id,
         started_at: started.at,
         time_of_day_minutes: started.time_of_day_minutes,
         stop_position_ms,
@@ -283,6 +283,20 @@ fn viewed(
         device_kind: device_kind.into(),
         ..Default::default()
     })
+}
+
+/// `id` as the Hub takes an External ID, such as `tmdb-603`, unless it is longer than that.
+fn hub_external_id(id: &TitleId) -> Option<String> {
+    let external_id = format!("{}-{}", id.namespace, id.value);
+    // The Hub refuses every event sent with a longer one, and `send` then forgets them all.
+    (external_id.chars().count() <= MAX_EXTERNAL_ID_CHARS).then_some(external_id)
+}
+
+/// The id of the Show of the Episode `title_ref`, as `listed` pairs them, unless it has none.
+fn show_id<'a>(listed: &'a VersionTitles, title_ref: &TitleRef) -> Option<&'a TitleId> {
+    (listed.titles.iter().zip(&listed.show_ids))
+        .find_map(|(title, show)| (title == title_ref).then_some(show))
+        .filter(|show| !show.value.is_empty())
 }
 
 fn hub_device_kind(kind: EnumValue<DeviceKind>) -> HubDeviceKind {

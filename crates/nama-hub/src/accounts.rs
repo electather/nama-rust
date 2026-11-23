@@ -1,5 +1,6 @@
 //! Accounts: creating one with an email and a password, signing it in, with its password or a
-//! Sign-in Link, and out, each sign-in a web session (ADR 0098), and setting its password.
+//! Sign-in Link, and out, each sign-in a web session (ADR 0098), setting its password, and
+//! deleting it.
 
 mod passwords;
 mod rate_limits;
@@ -222,6 +223,22 @@ impl Accounts {
         .execute(&mut *tx)
         .await?;
         sessions::end_others(&mut tx, session).await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Deletes `session`'s Account. Every table holding its data references `accounts(id) ON
+    /// DELETE CASCADE`, so this one `DELETE` removes it all and Unlinks its Users, while pooled
+    /// counts, which name no Account, stay (ADR 0093, ADR 0099). Needs Recent Authentication.
+    pub(crate) async fn delete(&self, session: &AccountSession) -> Result<(), Error> {
+        let mut tx = self.db.begin().await?;
+        // Under the row lock, so a Sign-in Link's takeover can't end the session meanwhile.
+        if !sessions::lock_while_recent(&mut tx, session).await? {
+            return Err(Error::RecentAuthenticationRequired);
+        }
+        sqlx::query!("DELETE FROM accounts WHERE id = $1", session.account.id.0)
+            .execute(&mut *tx)
+            .await?;
         tx.commit().await?;
         Ok(())
     }

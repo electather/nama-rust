@@ -7,7 +7,7 @@ import type { Job } from "@/gen/nama/v1/job_pb";
 
 /** Runs the Back up Job now, with why the Server wouldn't start it, if it wouldn't. */
 export function BackUpNow({ job }: { job: Job }) {
-  const run = useRunJob();
+  const run = useRunJob(job);
   const running = isRunning(job.lastRun);
   return (
     <div className="flex flex-col items-end gap-2">

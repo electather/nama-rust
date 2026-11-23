@@ -12,7 +12,7 @@ import {
   SearchService,
   TitleStatus,
 } from "@/gen/nama/v1/search_pb";
-import { Permission } from "@/gen/nama/v1/sign_in_pb";
+import type { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { modKey } from "@/shared/lib/mod-key";
 import { fakeServer, newUser, openApp } from "@/test-app";
 
@@ -141,7 +141,6 @@ test("⌘K opens the action bar on the pages a User may jump to, and closes it",
     "Search ShowsType to search the Shows in your LibrariesOpen",
     "Search MoviesType to search the Movies in your Libraries",
     "HomeContinue Watching and your Libraries",
-    "RequestsAsk for a Movie or Show, and follow it",
     "SettingsYour password, Devices and playback",
     `Keyboard shortcuts${modKey}/View every active hotkey`,
   ]);
@@ -149,15 +148,6 @@ test("⌘K opens the action bar on the pages a User may jump to, and closes it",
   await waitFor(() => {
     expect(screen.queryByRole("combobox", { name: "Command menu" })).toBeNull();
   });
-});
-
-test("a User Manager's Admin opens Settings at Users", async () => {
-  const router = openApp("/code", serverToSearch(findsOffice, [Permission.MANAGE_USERS]));
-  await openActionBar();
-  fireEvent.click(screen.getByRole("option", { name: /^Admin/u }));
-
-  await screen.findByRole("dialog", { name: "Settings" });
-  expect(router.state.location.search.settings).toBe("users");
 });
 
 test("typing lists the titles found, Enter opens the first, and it's a Recent next time", async () => {
@@ -281,21 +271,21 @@ test("a search that fails offers Retry, which searches again", async () => {
   await expect(screen.findByRole("option", { name: /^The Office/u })).resolves.toBeDefined();
 });
 
-test("g then a page's key goes to that page", async () => {
+test("g then a page's key goes to that page, Settings' sections opening over it", async () => {
   const router = openApp("/code", serverToSearch(findsOffice));
   await screen.findByRole("button", { name: "Search this Server" });
 
   fireEvent.keyDown(document.body, { key: "g" });
-  fireEvent.keyDown(document.body, { key: "r" });
-
+  fireEvent.keyDown(document.body, { key: "h" });
   await waitFor(() => {
-    expect(router.state.location.pathname).toBe("/requests");
+    expect(router.state.location.pathname).toBe("/");
   });
-  // Settings opens over the page it's asked for on.
+
   fireEvent.keyDown(document.body, { key: "g" });
   fireEvent.keyDown(document.body, { key: "s" });
   await screen.findByRole("dialog", { name: "Settings" });
-  expect(router.state.location.pathname).toBe("/requests");
+  expect(router.state.location.pathname).toBe("/");
+  expect(router.state.location.search.settings).toBe("playback");
 });
 
 test("a link to the old search page opens the action bar on what it searched for", async () => {

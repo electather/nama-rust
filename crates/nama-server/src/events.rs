@@ -144,7 +144,7 @@ impl EventBus {
             EventType::EVENT_TYPE_REQUEST_CANCELLED | EventType::EVENT_TYPE_REQUEST_WITHDRAWN
         );
         // A removed Request is no longer in the web app to link to.
-        let request_url = (self.server_url.request_link(request.id)).filter(|_| !removed);
+        let request_url = (self.server_url.requests_link()).filter(|_| !removed);
         let Some(notification) = plugins::notification(event, request, request_url) else {
             return;
         };
@@ -154,6 +154,13 @@ impl EventBus {
             .tell_each(move |plugin, notifier: Arc<dyn Notifier>| {
                 deliver(Arc::clone(&db), plugin, notifier, Arc::clone(&told))
             });
+    }
+
+    /// Every event published from now on, whole, for a Kernel task that acts on them, such as
+    /// pulling Watch State after a scan; one that falls [`BUFFERED`] behind misses the oldest.
+    /// Never for a client, who sees only what [`Self::subscribe`] lets through.
+    pub(crate) fn follow(&self) -> broadcast::Receiver<Event> {
+        self.sender.subscribe()
     }
 
     /// The events published from now on that `user` may see and `filter` lets through, as `user`

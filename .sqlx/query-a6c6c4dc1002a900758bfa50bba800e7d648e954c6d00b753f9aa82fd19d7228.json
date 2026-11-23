@@ -1,0 +1,134 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT scope, title_id, kind, off AS \"off: bool\", language,\n                      forced AS \"forced: bool\", sdh AS \"sdh: bool\", title,\n                      foreign_audio_only AS \"foreign_audio_only: bool\", changed_at\n               FROM track_preferences\n               WHERE user_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "scope",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "scope"
+          }
+        }
+      },
+      {
+        "name": "title_id",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "title_id"
+          }
+        }
+      },
+      {
+        "name": "kind",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "name": "off: bool",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "off"
+          }
+        }
+      },
+      {
+        "name": "language",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "language"
+          }
+        }
+      },
+      {
+        "name": "forced: bool",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "forced"
+          }
+        }
+      },
+      {
+        "name": "sdh: bool",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "sdh"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "foreign_audio_only: bool",
+        "ordinal": 8,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "foreign_audio_only"
+          }
+        }
+      },
+      {
+        "name": "changed_at",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "changed_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "a6c6c4dc1002a900758bfa50bba800e7d648e954c6d00b753f9aa82fd19d7228"
+}

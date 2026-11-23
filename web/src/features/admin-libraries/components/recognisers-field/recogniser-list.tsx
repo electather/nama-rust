@@ -1,9 +1,13 @@
-import { RecogniserRow } from "@/features/admin-libraries/components/recognisers-field/recogniser-row";
-import { type PluginOrderKind, moves } from "@/features/admin-libraries/lib/recognisers";
+import {
+  type PluginOrderKind,
+  labelOf,
+  recogniserNote,
+} from "@/features/admin-libraries/lib/recognisers";
 import type { PluginSummary } from "@/gen/nama/v1/plugin_pb";
+import { OrderList } from "@/shared/components/home-layout/order-list";
 
 /**
- * `order` as a list of rows, each with its Plugin among `recognisers`, once the Plugins are
+ * `order` as Home's rows are shown, each with its Plugin among `recognisers`, once the Plugins are
  * `listed`. Nothing while it's empty.
  */
 export function RecogniserList({
@@ -23,16 +27,14 @@ export function RecogniserList({
     return null;
   }
   return (
-    <ol aria-label={kind.legend} className="flex flex-col gap-1">
-      {order.map((pluginId, index) => (
-        <RecogniserRow
-          key={pluginId}
-          pluginId={pluginId}
-          plugin={recognisers.find((each) => each.id === pluginId)}
-          listed={listed}
-          moves={moves(order, index, setOrder)}
-        />
-      ))}
-    </ol>
+    <OrderList
+      label={kind.legend}
+      order={order}
+      setOrder={setOrder}
+      nameOf={(pluginId) => {
+        const plugin = recognisers.find((each) => each.id === pluginId);
+        return { label: labelOf(pluginId, plugin), from: recogniserNote(plugin, listed) };
+      }}
+    />
   );
 }

@@ -91,11 +91,11 @@ The connection between a User and an Account, made when a User Links later or wh
 _Avoid_: pairing, binding
 
 **Viewing Event**:
-One play of a Movie or Episode by a Linked User, as the Hub records it: when it started and stopped, how far it got, whether it finished, and on what kind of Device. Across Accounts, the Hub keeps them only as pooled counts: how many Accounts finished each Movie and each pair of Movies, which an Account can stop adding to (ADR 0093).
+One play of a Movie or Episode by a Linked User, as the Hub records it: when it started and stopped, how far it got, whether it finished, and on what kind of Device. Across Accounts, the Hub keeps them only as pooled counts: how many Accounts finished each Movie and each pair of Movies, and each Movie each week, which an Account can stop adding to (ADR 0093).
 _Avoid_: play log, scrobble, watch history entry, telemetry
 
 **Watchlist**:
-A User's list of titles to watch later, whether or not their Server has them.
+A User's list of titles to watch later, whether or not their Server has them. Across Accounts, the Hub counts them only by the pooled counts' rules (ADR 0093).
 _Avoid_: queue, favorites, wishlist
 
 **Setting**:

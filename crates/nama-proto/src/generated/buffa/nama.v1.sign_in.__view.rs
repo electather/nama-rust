@@ -3224,14 +3224,14 @@ impl ::serde::Serialize for WhoAmIResponseOwnedView {
 }
 #[derive(Clone, Debug, Default)]
 pub struct ReauthenticateRequestView<'a> {
-    pub proof: ::core::option::Option<
-        super::super::__buffa::view::oneof::reauthenticate_request::Proof<'a>,
-    >,
     /// The one-time code the Hub added to `return_url`'s query as `code`. Needed with
     /// `account_sign_in_handle`.
     ///
     /// Field 3: `account_sign_in_code`
     pub account_sign_in_code: &'a str,
+    pub proof: ::core::option::Option<
+        super::super::__buffa::view::oneof::reauthenticate_request::Proof<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ReauthenticateRequestView<'a> {
@@ -3264,6 +3264,13 @@ impl<'a> ::buffa::MessageView<'a> for ReauthenticateRequestView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.account_sign_in_code = ::buffa::types::borrow_str(&mut cur)?;
+            }
             1u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -3285,13 +3292,6 @@ impl<'a> ::buffa::MessageView<'a> for ReauthenticateRequestView<'a> {
                         ::buffa::types::borrow_str(&mut cur)?,
                     ),
                 );
-            }
-            3u32 => {
-                ::buffa::encoding::check_wire_type(
-                    tag,
-                    ::buffa::encoding::WireType::LengthDelimited,
-                )?;
-                view.account_sign_in_code = ::buffa::types::borrow_str(&mut cur)?;
             }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
@@ -3321,6 +3321,7 @@ impl<'a> ::buffa::MessageView<'a> for ReauthenticateRequestView<'a> {
         use ::buffa::alloc::string::ToString as _;
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::ReauthenticateRequest {
+            account_sign_in_code: self.account_sign_in_code.to_string(),
             proof: self
                 .proof
                 .as_ref()
@@ -3340,7 +3341,6 @@ impl<'a> ::buffa::MessageView<'a> for ReauthenticateRequestView<'a> {
                         )
                     }
                 }),
-            account_sign_in_code: self.account_sign_in_code.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -3421,6 +3421,9 @@ impl<'__a> ::serde::Serialize for ReauthenticateRequestView<'__a> {
     ) -> ::core::result::Result<__S::Ok, __S::Error> {
         use ::serde::ser::SerializeMap as _;
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.account_sign_in_code) {
+            __map.serialize_entry("accountSignInCode", self.account_sign_in_code)?;
+        }
         if let ::core::option::Option::Some(ref __ov) = self.proof {
             match __ov {
                 super::super::__buffa::view::oneof::reauthenticate_request::Proof::Password(
@@ -3434,9 +3437,6 @@ impl<'__a> ::serde::Serialize for ReauthenticateRequestView<'__a> {
                     __map.serialize_entry("accountSignInHandle", v)?;
                 }
             }
-        }
-        if !::buffa::json_helpers::skip_if::is_empty_str(self.account_sign_in_code) {
-            __map.serialize_entry("accountSignInCode", self.account_sign_in_code)?;
         }
         __map.end()
     }
@@ -3532,6 +3532,14 @@ impl ReauthenticateRequestOwnedView {
     #[must_use]
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
+    }
+    /// The one-time code the Hub added to `return_url`'s query as `code`. Needed with
+    /// `account_sign_in_handle`.
+    ///
+    /// Field 3: `account_sign_in_code`
+    #[must_use]
+    pub fn account_sign_in_code(&self) -> &'_ str {
+        self.0.reborrow().account_sign_in_code
     }
     /// Oneof `proof`.
     #[must_use]
