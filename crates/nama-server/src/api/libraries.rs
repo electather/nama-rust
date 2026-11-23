@@ -468,6 +468,7 @@ fn kind_from_proto(kind: EnumValue<proto::LibraryKind>) -> Result<LibraryKind, C
     }
 }
 
+/// The Library kind `kind` as the API has it.
 pub(super) fn kind_to_proto(kind: LibraryKind) -> proto::LibraryKind {
     match kind {
         LibraryKind::Movies => proto::LibraryKind::LIBRARY_KIND_MOVIES,

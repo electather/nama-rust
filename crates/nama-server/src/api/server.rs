@@ -445,11 +445,11 @@ impl ServerServiceHandler {
     async fn default_home_layout(&self) -> Result<proto::HomeLayout, ConnectError> {
         let placeable = self.home_rows.placeable().await.map_err(database_failed)?;
         let recently_added = recently_added_rows(&self.browse).await?;
-        let by_id =
+        let with_proto =
             |(id, heading): (HomeRowId, String)| (id.clone(), layout_row_to_proto(id, heading));
-        let rows = std::iter::once(by_id((HomeRowId::ContinueWatching, String::new())))
+        let rows = std::iter::once(with_proto((HomeRowId::ContinueWatching, String::new())))
             .chain((recently_added.into_iter()).map(|(id, row)| (id, row.into())))
-            .chain(placeable.into_iter().map(by_id))
+            .chain(placeable.into_iter().map(with_proto))
             .collect();
         let layout = self.settings.now().default_home_layout;
         let rows = layout.arrange(rows);
@@ -478,8 +478,8 @@ impl ServerServiceHandler {
     }
 }
 
-/// The row `id` of a Home layout, headed `heading` if a Plugin gives it, as the API has it: a
-/// Recently Added row by its Library's id alone, as a save reads it.
+/// The row `id` of a Home layout, headed `heading` if a Plugin gives it, as the API has it. A
+/// Recently Added row gets only its Library's id: `recently_added_rows` names the Library.
 fn layout_row_to_proto(id: HomeRowId, heading: String) -> LayoutRow {
     match id {
         HomeRowId::ContinueWatching => {
