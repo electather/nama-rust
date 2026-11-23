@@ -4,7 +4,7 @@ import type { ComponentProps } from "react";
 import { Field, type FieldControl, type FieldText } from "@/shared/components/form-field/field";
 import { FieldNumber } from "@/shared/components/form-field/field-number";
 import { RowField } from "@/shared/components/form-field/row-field";
-import { inputSize } from "@/shared/lib/control-size";
+import { inputLayout } from "@/shared/lib/control-size";
 
 /**
  * A labelled text input in a native form, with its hint and the Server's error. It is required
@@ -37,8 +37,7 @@ export function FormField({
       <Input {...given} {...input} />
     );
   return row ? (
-    // Beside its label on a phone, a text field is too narrow to read what's in it.
-    <RowField setting={setting} {...frame} wide={!number} size={inputSize(input.type)}>
+    <RowField setting={setting} {...frame} {...inputLayout(input.type)}>
       {control}
     </RowField>
   ) : (

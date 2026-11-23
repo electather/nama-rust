@@ -22,8 +22,9 @@ export function Overview({ text }: { text: string }) {
       if (paragraph) {
         observer.observe(paragraph);
       }
-      afterFontsLoad(update);
+      const stopWaiting = afterFontsLoad(update);
       return () => {
+        stopWaiting();
         observer.disconnect();
       };
     },

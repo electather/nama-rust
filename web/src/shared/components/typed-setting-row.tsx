@@ -3,7 +3,7 @@ import { type ComponentProps, useState } from "react";
 
 import { RowInput } from "@/shared/components/row-input";
 import { SettingRow } from "@/shared/components/setting-row";
-import { inputSize } from "@/shared/lib/control-size";
+import { inputLayout } from "@/shared/lib/control-size";
 
 /**
  * A setting typed on its row, saved once the field is left or Enter is pressed in it, never while
@@ -41,7 +41,6 @@ export function TypedSettingRow({
   const [left, setLeft] = useState(false);
   const problem = check?.(typed);
   const shown = left ? (problem ?? error) : undefined;
-  const size = inputSize(input.type);
 
   /**
    * Saves what's typed, or `stepped` to by − and +, unless `check` finds it wrong or it's `already`
@@ -62,9 +61,7 @@ export function TypedSettingRow({
       label={label}
       hint={hint}
       error={shown}
-      // Beside its label on a phone, a text field is too narrow to read what's in it.
-      wide={size === "field"}
-      size={size}
+      {...inputLayout(input.type)}
     >
       {(control) => (
         <RowInput
