@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT show, title_id, removed,\n                      (extract(epoch FROM changed_at) * 1000)::bigint AS \"changed_at_ms!\"\n               FROM watchlists WHERE account_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "show",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "watchlists",
+            "name": "show"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "title_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "watchlists",
+            "name": "title_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "removed",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "watchlists",
+            "name": "removed"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "changed_at_ms!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "54fce70f8a62654e3fabf8f51382d0c931e948bec63bd07848d797a3aa173290"
+}

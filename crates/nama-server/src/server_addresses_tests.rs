@@ -2,14 +2,10 @@ use super::*;
 
 #[test]
 fn the_lan_address_is_the_one_the_server_listens_on() {
-    assert_eq!(
-        lan_address("192.168.1.10:7980".parse().unwrap()).as_deref(),
-        Some("http://192.168.1.10:7980")
-    );
-    assert_eq!(
-        lan_address("[fd00::10]:7980".parse().unwrap()).as_deref(),
-        Some("http://[fd00::10]:7980")
-    );
+    for listening in ["192.168.1.10:7980", "[fd00::10]:7980"] {
+        let listening = listening.parse().unwrap();
+        assert_eq!(lan_address(listening), Some(listening));
+    }
 }
 
 #[test]
@@ -24,11 +20,7 @@ fn a_server_listening_on_every_address_has_its_default_routes_or_none() {
 
     // Whether the machine running the test has a default route is its own affair.
     assert!(
-        address
-            .as_ref()
-            .is_none_or(|address| address.starts_with("http://")
-                && address.ends_with(":7980")
-                && !address.contains("0.0.0.0")),
+        address.is_none_or(|address| address.port() == 7980 && !address.ip().is_unspecified()),
         "{address:?}"
     );
 }
@@ -44,4 +36,17 @@ fn the_server_url_is_sent_in_ascii_as_typed_otherwise() {
         "https://example.com/my%20media"
     );
     assert_eq!(as_sent(""), "");
+}
+
+#[test]
+fn a_reported_address_matches_the_lan_one_by_scheme_host_and_port() {
+    // No Server URL set, so the LAN address is the one reported.
+    let url = ServerUrl::default();
+    let reported = |address| is_reported(address, &url, "192.168.1.2:7980".parse().unwrap());
+
+    assert!(reported("HTTP://192.168.1.2:7980/sign-in"));
+    assert!(!reported("https://192.168.1.2:7980/sign-in"));
+    assert!(!reported("http://192.168.1.2/sign-in"));
+    assert!(!reported("http://localhost:7980/sign-in"));
+    assert!(!reported("/sign-in"));
 }

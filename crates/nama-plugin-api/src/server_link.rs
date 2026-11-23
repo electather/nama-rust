@@ -1,14 +1,18 @@
 //! Provide: Linking the Server to an outside service through a code an Admin enters there, such as
 //! the Hub (ADR 0011, ADR 0094), and then Linking its Users the same way. The Plugin keeps whatever
 //! identity the service gives the Server. Its Users then sign in with their accounts there, and an
-//! Admin creates Users from such accounts (ADR 0092). Only a Built-in Plugin provides it, by
-//! registering it:
+//! Admin creates Users from such accounts (ADR 0092). Their Watch State and Subtitle and Audio
+//! Preferences on their other Servers come back through it too (ADR 0008, ADR 0092), and their
+//! Watchlist syncs with them (ADR 0056). Only a Built-in Plugin provides it, by registering it:
 //!
 //! ```ignore
 //! registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::new(my_linker));
 //! ```
 
-use crate::{BoxFuture, PluginError};
+use crate::{
+    BoxFuture, PluginError,
+    points::{TrackPreference, WatchStateChange},
+};
 
 /// Where Linking the Server, or one of its Users, stands.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,7 +30,20 @@ pub enum Link {
     Linked {
         /// Who the Server or User belongs to at the service, as it names them.
         account: String,
+        /// Whether the service reached the Server from outside its LAN, once it tried. Always
+        /// `None` for a User.
+        reachability: Option<Reachability>,
     },
+}
+
+/// Where the service tried to reach the Server from outside its LAN, and whether it could.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Reachability {
+    /// The Server's public IP address with its [`ServerAddresses::public_port`], such as
+    /// `http://203.0.113.7:7980`.
+    pub address: String,
+    /// Whether the service reached it there, so clients outside the LAN try it.
+    pub reachable: bool,
 }
 
 /// A sign-in with an account at the service, just started. Not `Debug`, so its handle can't end up
@@ -50,6 +67,22 @@ pub struct ServerAddresses {
     pub url: String,
     /// Its LAN addresses, such as `http://192.168.1.10:7980`.
     pub lan: Vec<String>,
+    /// The port on its router's public IP address that reaches it: one the Server opened with UPnP
+    /// or NAT-PMP, or the one its Admin forwarded. `None` without one.
+    pub public_port: Option<u16>,
+}
+
+/// A title on a User's Watchlist, or taken off it, as the change made last left it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WatchlistEntry {
+    /// Whether it is a Show rather than a Movie, whose TMDB ids are a separate id space.
+    pub show: bool,
+    /// The External ID it was added under, such as `tmdb-603`, whether or not the Server has it.
+    pub id: String,
+    /// Whether it was taken off.
+    pub removed: bool,
+    /// When it changed, in milliseconds since the Unix epoch.
+    pub changed_at_ms: i64,
 }
 
 /// A Provider that Links the Server, and its Users, to an outside service.
@@ -132,8 +165,9 @@ pub trait ServerLinker: Send + Sync + 'static {
     ) -> BoxFuture<'a, Result<AccountSignIn, PluginError>>;
 
     /// The id of the User the sign-in `handle` stands for, as the service vouches, once their
-    /// account approved it there: the User Linked to it. `None` while it isn't approved, or once
-    /// it expired or was used.
+    /// account approved it there: the User Linked to it. `code` is the one-time code the service
+    /// sent the person back with, which the service checks. `None` while it isn't approved, once
+    /// it expired or was used, or with a wrong code, which ends it.
     ///
     /// # Errors
     ///
@@ -142,13 +176,56 @@ pub trait ServerLinker: Send + Sync + 'static {
     fn finish_account_sign_in<'a>(
         &'a self,
         handle: &'a str,
+        code: &'a str,
     ) -> BoxFuture<'a, Result<Option<i64>, PluginError>>;
     /// Tells the Plugin the Server's `addresses`, for the service to hand its clients. The Kernel
     /// tells it every minute whether or not they changed, so the Plugin passes on only a change,
-    /// and only while the Server is Linked.
+    /// or the same now and then for the service to check its public port again, and only while
+    /// the Server is Linked. [`ServerLinker::link`] then answers what the service found.
     ///
     /// # Errors
     ///
     /// When the service couldn't be told: the Kernel tells the Plugin again a minute later.
     fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>>;
+
+    /// The Watch State the service keeps of the User `user_id` from every Server they use, such as
+    /// their Account's on the Hub (ADR 0008), each title's by any of its ids, with when it last
+    /// changed; empty while they aren't Linked. The Kernel takes what is newer than its own.
+    ///
+    /// # Errors
+    ///
+    /// When the service couldn't be asked: the Kernel asks again at the next sign-in or scan.
+    fn watch_states(
+        &self,
+        user_id: i64,
+    ) -> BoxFuture<'_, Result<Vec<WatchStateChange>, PluginError>>;
+
+    /// The Subtitle and Audio Preferences the service keeps of the User `user_id` from every
+    /// Server they use, with when each last changed; empty while they aren't Linked, and from a
+    /// service that keeps none. The Kernel takes what is newer than its own.
+    ///
+    /// # Errors
+    ///
+    /// When the service couldn't be asked: the Kernel asks again at the next sign-in.
+    fn track_preferences(
+        &self,
+        _user_id: i64,
+    ) -> BoxFuture<'_, Result<Vec<TrackPreference>, PluginError>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+
+    /// Hands the service `watchlist`, the User `user_id`'s whole Watchlist, and answers the one it
+    /// keeps from every Server they use, such as their Account's on the Hub (ADR 0056), each
+    /// title's under each of its ids apart; empty while they aren't Linked. The Kernel takes what
+    /// is newer than its own.
+    ///
+    /// # Errors
+    ///
+    /// When the service couldn't be asked: the Kernel syncs again at the next change, sign-in or
+    /// scan.
+    fn sync_watchlist(
+        &self,
+        user_id: i64,
+        watchlist: Vec<WatchlistEntry>,
+    ) -> BoxFuture<'_, Result<Vec<WatchlistEntry>, PluginError>>;
 }

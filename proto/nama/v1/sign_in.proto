@@ -85,15 +85,20 @@ service SignInService {
 
   // Starts signing the calling Device in with a Hub Account, on a Server Linked to the Hub (ADR
   // 0092). The client sends the person to `url`, where they approve it on the Hub, which then sends
-  // them to `return_url`; the client then finishes with `SignInWithAccount`. Fails with
-  // `invalid_argument` and `REFUSAL_REASON_NOT_A_URL` if `return_url` isn't an `http` or `https`
-  // URL, with `failed_precondition` and `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled
-  // Plugin that links the Server, and with `unavailable` while the Server isn't Linked or the Hub
-  // can't be reached, which a Device already signed in never needs.
+  // them to `return_url` with a one-time code; the client then finishes with `SignInWithAccount`.
+  // Fails with `invalid_argument` and `REFUSAL_REASON_NOT_A_URL` if `return_url` isn't an `http`
+  // or `https` URL, with `invalid_argument` and `REFUSAL_REASON_NOT_A_SERVER_ADDRESS` if it's on
+  // none of the Server URL and LAN address the Server reports, with `failed_precondition` and
+  // `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled Plugin that links the Server, and with
+  // `unavailable` while the Server isn't Linked, the Hub can't be reached, or the Hub refuses a
+  // `return_url` on none of the Server Addresses it was last told, which a Device already signed
+  // in never needs.
   rpc StartAccountSignIn(StartAccountSignInRequest) returns (StartAccountSignInResponse);
   // Signs the calling Device in as the User whose Account approved the sign-in `handle` stands
-  // for, the way `SignIn` does, without Recent Authentication. Fails with `not_found` and
-  // `REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND` if it wasn't approved, expired or was used, with
+  // for, the way `SignIn` does, without Recent Authentication. Once it was approved, the first
+  // call ends it, signing in only with the right `code`. Fails with `not_found` and
+  // `REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND` if it wasn't approved, expired or was used, or the
+  // code is wrong, with
   // `not_found` and `REFUSAL_REASON_USER_NOT_FOUND` if the User was deleted, and like
   // `StartAccountSignIn` otherwise.
   rpc SignInWithAccount(SignInWithAccountRequest) returns (SignInWithAccountResponse);
@@ -327,8 +332,9 @@ message PollSignInCodeResponse {
 }
 
 message StartAccountSignInRequest {
-  // Where the Hub sends the person back to once they approve: an `http` or `https` address, such
-  // as the client's sign-in page.
+  // Where the Hub sends the person back to once they approve, adding the one-time code
+  // `SignInWithAccount` needs to its query as `code`: such as the client's sign-in page, on one of
+  // the Server's Server Addresses, since the Hub refuses any other address.
   string return_url = 1;
 }
 
@@ -348,6 +354,8 @@ message SignInWithAccountRequest {
   string device_name = 2;
   // How to hand out the session. Must be specified.
   SessionDelivery delivery = 3;
+  // The one-time code the Hub added to `return_url`'s query as `code`.
+  string code = 4;
 }
 
 message SignInWithAccountResponse {

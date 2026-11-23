@@ -29,6 +29,8 @@ import "nama/plugin/v1/title_source.proto";
 //   refresh_metadata:  RefreshMetadataAsked -> MetadataRefreshed  PERMISSION_REFRESH_METADATA
 //   list_titles_sharing: TitlesSharingAsked -> SharingTitles  PERMISSION_READ_LIBRARIES
 //   back_up:           BackUpAsked      -> BackedUp       PERMISSION_BACK_UP
+//   list_version_titles: VersionTitlesAsked -> VersionTitles  PERMISSION_READ_LIBRARIES
+//   list_devices:      DevicesAsked     -> Devices        PERMISSION_READ_USERS
 //
 // The functions are documented here rather than declared as a service: they are not an Extension
 // Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`.
@@ -49,13 +51,15 @@ enum Permission {
   PERMISSION_UNSPECIFIED = 0;
   // The Plugin's own Store: `store_get`, `store_put` and `store_delete`.
   PERMISSION_STORE = 1;
-  // Libraries and their titles: `list_libraries`, `list_titles` and `list_titles_sharing`.
+  // Libraries and their titles: `list_libraries`, `list_titles`, `list_titles_sharing` and
+  // `list_version_titles`.
   PERMISSION_READ_LIBRARIES = 2;
   // Every User's Watch State: `list_watch_states`.
   PERMISSION_READ_WATCH_STATES = 3;
   // Deleting a title's media files: `delete_media`.
   PERMISSION_DELETE_MEDIA = 4;
-  // Every User's id and display name: `list_users`.
+  // Every User's id and display name, and what kind of Device each Device is: `list_users` and
+  // `list_devices`.
   PERMISSION_READ_USERS = 5;
   // Who Requested each title: `list_requesters`.
   PERMISSION_READ_REQUESTS = 6;
@@ -228,6 +232,49 @@ message Users {
 message User {
   int64 id = 1;
   string display_name = 2;
+}
+
+// What `list_version_titles` takes.
+message VersionTitlesAsked {
+  // The Version, by its id as a `Playback` gives it.
+  int64 version_id = 1;
+}
+
+// What `list_version_titles` answers: the Movie, or each Episode in order, that the Version's file
+// holds, leaving out any whose Item isn't Matched. Empty for a Version that is gone.
+message VersionTitles {
+  repeated TitleRef titles = 1;
+  // Each title's Show's id, in the same place as the title in `titles` and picked as
+  // `Title.show_id` is. Unset for a Movie, or an Episode whose Match gives its Show no id.
+  repeated TitleId show_ids = 2;
+}
+
+// What `list_devices` takes.
+message DevicesAsked {
+  // The Devices, by their ids as a `Playback` gives them.
+  repeated int64 device_ids = 1;
+}
+
+// What `list_devices` answers: each Device asked for that the Kernel still has, in no order.
+message Devices {
+  repeated Device devices = 1;
+}
+
+// A Device, as a Plugin sees one: its id, its User's and its kind only.
+message Device {
+  int64 id = 1;
+  int64 user_id = 2;
+  DeviceKind kind = 3;
+}
+
+// What kind of Device a Device is, as the Kernel reads it from the `User-Agent` it signed in with.
+enum DeviceKind {
+  // One the Kernel couldn't tell.
+  DEVICE_KIND_UNSPECIFIED = 0;
+  DEVICE_KIND_COMPUTER = 1;
+  DEVICE_KIND_PHONE = 2;
+  DEVICE_KIND_TABLET = 3;
+  DEVICE_KIND_TV = 4;
 }
 
 // What `list_requesters` takes.

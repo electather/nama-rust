@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO track_preferences\n         (account_id, audio, scope, title_id, off, language, forced, sdh, title,\n          foreign_audio_only, changed_at)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,\n         'epoch'::timestamptz + $11::bigint * interval '1 millisecond')\n         ON CONFLICT (account_id, audio, scope, title_id) DO UPDATE\n         SET off = excluded.off, language = excluded.language, forced = excluded.forced,\n         sdh = excluded.sdh, title = excluded.title,\n         foreign_audio_only = excluded.foreign_audio_only, changed_at = excluded.changed_at\n         WHERE excluded.changed_at >= track_preferences.changed_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool",
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Bool",
+        "Bool",
+        "Text",
+        "Bool",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a2eb7f22acec0fa72d5b072db4af4074f6c6a747b582e4652c6e2319e57c4241"
+}

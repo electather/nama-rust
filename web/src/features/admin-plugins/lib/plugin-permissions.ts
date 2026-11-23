@@ -22,7 +22,8 @@ export const pluginPermissions: Partial<
   },
   [PluginPermission.READ_USERS]: {
     label: "Read Users",
-    about: "It sees every User's id and display name, and nothing else about them.",
+    about:
+      "It sees every User's id and display name, and whether each of their Devices is a phone, tablet, computer or TV, and nothing else about them.",
   },
   [PluginPermission.READ_REQUESTS]: {
     label: "Read Requests",

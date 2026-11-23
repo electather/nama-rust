@@ -12,6 +12,7 @@ use nama_plugin_api::{
     ObservePoint, Observer, PluginError, PluginId, PointKey, blob_store::BlobStore,
 };
 use nama_proto::nama::v1::PluginKind;
+use tokio::task::JoinHandle;
 use tracing::{Instrument as _, Span, error, info, warn};
 
 use crate::diagnostics::{self, PLUGIN_SPAN, PLUGIN_TARGET};
@@ -45,20 +46,39 @@ impl ExtensionPoints {
     /// without the Plugin's secret settings, until the Observer handles an event; one that panics
     /// is disabled. Must be called within a Tokio runtime.
     pub fn notify<P: ObservePoint>(&self, event: P::Event) {
+        drop(self.deliver_each::<P>(event));
+    }
+
+    /// [`ExtensionPoints::notify`], returning once every Observer has handled `event`, for a
+    /// caller whose next step needs them to have, such as a pull that sends what they queued.
+    ///
+    /// The deliveries outlive a caller dropped while it waits. Must be called within a Tokio
+    /// runtime.
+    pub async fn notify_and_wait<P: ObservePoint>(&self, event: P::Event) {
+        for delivering in self.deliver_each::<P>(event) {
+            if let Err(err) = delivering.await {
+                // A delivery contains its Observer's panic, so only a runtime shutting down fails it.
+                warn!(point = P::NAME, "an observer's delivery stopped: {err}");
+            }
+        }
+    }
+
+    /// Spawns a task delivering `event` to each Observer at `P`.
+    fn deliver_each<P: ObservePoint>(&self, event: P::Event) -> Vec<JoinHandle<()>> {
         let observers = self.entries(PointKey::observe::<P>());
         if observers.is_empty() {
-            return;
+            return Vec::new();
         }
         let event = Arc::new(event);
         let span = diagnostics::following_current(tracing::info_span!(parent: None, "notify"));
-        for entry in observers {
-            let Some(observer) = entry.registration.observer::<P>() else {
-                continue;
-            };
-            let observer = self.contained(entry.plugin.clone(), observer);
-            let delivering = self.clone().deliver(entry, observer, Arc::clone(&event));
-            tokio::spawn(delivering.instrument(span.clone()));
-        }
+        (observers.into_iter())
+            .filter_map(|entry| {
+                let observer = entry.registration.observer::<P>()?;
+                let observer = self.contained(entry.plugin.clone(), observer);
+                let delivering = self.clone().deliver(entry, observer, Arc::clone(&event));
+                Some(tokio::spawn(delivering.instrument(span.clone())))
+            })
+            .collect()
     }
 
     async fn deliver<P: ObservePoint>(

@@ -8,7 +8,9 @@ pub mod diagnostics;
 mod links;
 pub mod mail;
 pub mod signing;
+mod sync;
 pub mod titles;
+mod viewing;
 #[cfg(feature = "web")]
 mod web;
 
@@ -56,4 +58,16 @@ pub fn serve(
             .with_graceful_shutdown(shutdown)
             .await
     }
+}
+
+/// Builds every title's vector from Wikidata's facts and the pooled counts, replacing the previous
+/// training run's at once, and returns how many titles have one (ADR 0095). Only `train-vectors`
+/// and the offline evaluation call it, never the serving process (ADR 0096).
+///
+/// # Errors
+///
+/// If a query fails. The previous run's vectors stay.
+pub async fn train_vectors(db: &PgPool) -> Result<usize, sqlx::Error> {
+    // Here, not in `titles`, which sits below `viewing` and can't read its counts (ADR 0099).
+    titles::train(db, &viewing::pooled_counts(db).await?).await
 }

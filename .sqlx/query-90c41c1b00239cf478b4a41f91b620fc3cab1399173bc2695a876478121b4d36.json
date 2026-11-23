@@ -1,0 +1,93 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT scope = ? AS \"users_own!: bool\", off AS \"off: bool\", language,\n                      forced AS \"forced: bool\", sdh AS \"sdh: bool\", title,\n                      foreign_audio_only AS \"foreign_audio_only: bool\"\n               FROM track_preferences\n               WHERE user_id = ? AND kind = ?\n                 AND ((scope = ? AND title_id IN (SELECT value FROM json_each(?))) OR scope = ?)\n               ORDER BY scope = ?, changed_at DESC\n               LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "name": "users_own!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "off: bool",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "off"
+          }
+        }
+      },
+      {
+        "name": "language",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "language"
+          }
+        }
+      },
+      {
+        "name": "forced: bool",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "forced"
+          }
+        }
+      },
+      {
+        "name": "sdh: bool",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "sdh"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "foreign_audio_only: bool",
+        "ordinal": 6,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "track_preferences",
+            "name": "foreign_audio_only"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "90c41c1b00239cf478b4a41f91b620fc3cab1399173bc2695a876478121b4d36"
+}

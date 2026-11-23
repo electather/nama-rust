@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE watchlist SET changed_at_ms = ?\n         WHERE user_id = ? AND kind = ? AND title_id IN (SELECT value FROM json_each(?))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "14e4cb6a5ab7b82356ec25ff97d6f3c20c24734a9921df5dac1cd36d3934ed52"
+}

@@ -1,0 +1,49 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT show, title_id AS external_id,\n             (count(*)::float8 / max(count(*)) OVER ())::real AS \"weight!\"\n             FROM watchlists WHERE NOT removed AND account_id <> ALL($1)\n             GROUP BY show, title_id HAVING count(*) >= $2\n             ORDER BY count(*) DESC, show, title_id LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "show",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "watchlists",
+            "name": "show"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "external_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "watchlists",
+            "name": "title_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "weight!",
+        "type_info": "Float4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "0c0c82cf89f264d6fdaf8fb422cdd6bc97730a218313aadadfabb95f47a06d14"
+}

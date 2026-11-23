@@ -4,7 +4,10 @@ use std::sync::Arc;
 
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
-use nama_plugin_api::contract::SubtitleResult;
+use nama_plugin_api::{
+    contract::SubtitleResult,
+    points::{TrackPreference, TrackPreferenceChange, TrackPreferenceChanged},
+};
 use nama_proto::nama::v1::{
     self as proto, DownloadSubtitleRequest, DownloadSubtitleResponse, FoundSubtitle,
     GetAutoplayRequest, GetAutoplayResponse, GetSubtitleAppearanceRequest,
@@ -29,6 +32,7 @@ use crate::{
         set_autoplay, set_subtitle_background, set_subtitle_size, subtitle_appearance_of,
         track_to_proto,
     },
+    plugins::ExtensionPoints,
     server_settings::PlaybackLimit,
 };
 
@@ -38,8 +42,20 @@ use super::{caller, database_failed, refuse, sign_in::client_ip, unknown_enum_va
 pub(super) struct PlaybackServiceHandler {
     pub(super) plans: Plans,
     pub(super) preferences: TrackPreferences,
+    pub(super) points: ExtensionPoints,
     pub(super) downloads: SubtitleDownloads,
     pub(super) db: Arc<Database>,
+}
+
+impl PlaybackServiceHandler {
+    /// Tells the Plugins that observe Track Preferences, such as the Hub's, that the User
+    /// `user_id` changed `preference` (ADR 0092).
+    fn tell(&self, user_id: i64, preference: TrackPreference) {
+        (self.points).notify::<TrackPreferenceChanged>(TrackPreferenceChange {
+            user_id,
+            preference,
+        });
+    }
 }
 
 #[expect(
@@ -138,9 +154,12 @@ impl PlaybackService for PlaybackServiceHandler {
                 ));
             }
         };
-        (self.plans.keep_pick(user, request.version_id, pick))
+        let kept = (self.plans.keep_pick(user, request.version_id, pick))
             .await
             .map_err(pick_failed)?;
+        if let Some(preference) = kept {
+            self.tell(user, preference);
+        }
         Response::ok(ReportTrackPickResponse::default())
     }
 
@@ -175,10 +194,11 @@ impl PlaybackService for PlaybackServiceHandler {
             .into_option()
             .unwrap_or_default();
         let (preference, foreign_audio_only) = users_subtitle_from_proto(wanted)?;
-        (self.preferences)
+        let kept = (self.preferences)
             .keep_users_subtitle(user, preference, foreign_audio_only)
             .await
             .map_err(database_failed)?;
+        self.tell(user, kept);
         Response::ok(SetSubtitlePreferenceResponse::default())
     }
 
@@ -192,10 +212,11 @@ impl PlaybackService for PlaybackServiceHandler {
         let language = (wanted.and_then(|audio| audio.language))
             .map(|language| checked_language(&language, "audio.language"))
             .transpose()?;
-        (self.preferences)
+        let kept = (self.preferences)
             .keep_users_audio(user, language)
             .await
             .map_err(database_failed)?;
+        self.tell(user, kept);
         Response::ok(SetAudioPreferenceResponse::default())
     }
 

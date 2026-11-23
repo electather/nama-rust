@@ -9,3 +9,4 @@ Every Hub table holding an Account's data has an `account_id`, and every query o
 ## Consequences
 
 - Pooled counts (ADR 0093) and title vectors (ADR 0095) belong to no Account and have no `account_id`.
+- Charts of Watchlists (ADR 0093) are the one read across Accounts' rows: they count them by the pooled counts' rules and answer counts alone, never a row.

@@ -130,6 +130,54 @@ pub type OwnedUnlinkUserRequestView = ::buffa::view::OwnedView<
 pub type OwnedUnlinkUserResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::UnlinkUserResponseView<'static>,
 >;
+///Shorthand for `OwnedView<PushWatchStatesRequestView<'static>>`.
+pub type OwnedPushWatchStatesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PushWatchStatesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<PushWatchStatesResponseView<'static>>`.
+pub type OwnedPushWatchStatesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PushWatchStatesResponseView<'static>,
+>;
+///Shorthand for `OwnedView<PullWatchStatesRequestView<'static>>`.
+pub type OwnedPullWatchStatesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PullWatchStatesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<PullWatchStatesResponseView<'static>>`.
+pub type OwnedPullWatchStatesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PullWatchStatesResponseView<'static>,
+>;
+///Shorthand for `OwnedView<PushTrackPreferencesRequestView<'static>>`.
+pub type OwnedPushTrackPreferencesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PushTrackPreferencesRequestView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<PushTrackPreferencesResponseView<'static>>`.
+pub type OwnedPushTrackPreferencesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PushTrackPreferencesResponseView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<PullTrackPreferencesRequestView<'static>>`.
+pub type OwnedPullTrackPreferencesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PullTrackPreferencesRequestView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<PullTrackPreferencesResponseView<'static>>`.
+pub type OwnedPullTrackPreferencesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PullTrackPreferencesResponseView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<SyncWatchlistRequestView<'static>>`.
+pub type OwnedSyncWatchlistRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SyncWatchlistRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SyncWatchlistResponseView<'static>>`.
+pub type OwnedSyncWatchlistResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SyncWatchlistResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<InviteUserRequestView<'static>>`.
 pub type OwnedInviteUserRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::InviteUserRequestView<'static>,
@@ -161,6 +209,40 @@ pub type OwnedSetServerAddressesRequestView = ::buffa::view::OwnedView<
 ///Shorthand for `OwnedView<SetServerAddressesResponseView<'static>>`.
 pub type OwnedSetServerAddressesResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<RecordViewingEventsRequestView<'static>>`.
+pub type OwnedRecordViewingEventsRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsRequestView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<RecordViewingEventsResponseView<'static>>`.
+pub type OwnedRecordViewingEventsResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsResponseView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<ListTrendingTitlesRequestView<'static>>`.
+pub type OwnedListTrendingTitlesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListTrendingTitlesRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ListTrendingTitlesResponseView<'static>>`.
+pub type OwnedListTrendingTitlesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListTrendingTitlesResponseView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<ListMostWatchlistedTitlesRequestView<'static>>`.
+pub type OwnedListMostWatchlistedTitlesRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListMostWatchlistedTitlesRequestView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<ListMostWatchlistedTitlesResponseView<'static>>`.
+pub type OwnedListMostWatchlistedTitlesResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListMostWatchlistedTitlesResponseView<
         'static,
     >,
 >;
@@ -710,6 +792,188 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::PushWatchStatesResponse>
+for crate::messages::nama::hub::v1::__buffa::view::PushWatchStatesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::PushWatchStatesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PushWatchStatesResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::PullWatchStatesResponse>
+for crate::messages::nama::hub::v1::__buffa::view::PullWatchStatesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::PullWatchStatesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PullWatchStatesResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::messages::nama::hub::v1::PushTrackPreferencesResponse,
+>
+for crate::messages::nama::hub::v1::__buffa::view::PushTrackPreferencesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::messages::nama::hub::v1::PushTrackPreferencesResponse,
+>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PushTrackPreferencesResponseView<
+        'static,
+    >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::messages::nama::hub::v1::PullTrackPreferencesResponse,
+>
+for crate::messages::nama::hub::v1::__buffa::view::PullTrackPreferencesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::messages::nama::hub::v1::PullTrackPreferencesResponse,
+>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::PullTrackPreferencesResponseView<
+        'static,
+    >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SyncWatchlistResponse>
+for crate::messages::nama::hub::v1::__buffa::view::SyncWatchlistResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SyncWatchlistResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SyncWatchlistResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::InviteUserResponse>
 for crate::messages::nama::hub::v1::__buffa::view::InviteUserResponseView<'_> {
     fn encode(
@@ -824,6 +1088,120 @@ for crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseVie
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SetServerAddressesResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseView<
+        'static,
+    >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::RecordViewingEventsResponse>
+for crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::RecordViewingEventsResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsResponseView<
+        'static,
+    >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::ListTrendingTitlesResponse>
+for crate::messages::nama::hub::v1::__buffa::view::ListTrendingTitlesResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::ListTrendingTitlesResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListTrendingTitlesResponseView<
+        'static,
+    >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::messages::nama::hub::v1::ListMostWatchlistedTitlesResponse,
+>
+for crate::messages::nama::hub::v1::__buffa::view::ListMostWatchlistedTitlesResponseView<
+    '_,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::messages::nama::hub::v1::ListMostWatchlistedTitlesResponse,
+>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::ListMostWatchlistedTitlesResponseView<
         'static,
     >,
 > {
@@ -1705,8 +2083,8 @@ pub trait LinkService: Send + Sync + 'static {
         >,
     > + Send;
     /// Approves a sign-in with the signed-in Account, as its User on that Server, and returns where to
-    /// go back to. Fails like `GetServerSignIn`, and with `REFUSAL_REASON_NO_USER_ON_SERVER` if the
-    /// Account has no User Linked on that Server.
+    /// go back to, with the one-time code the Server finishes with. Fails like `GetServerSignIn`, and
+    /// with `REFUSAL_REASON_NO_USER_ON_SERVER` if the Account has no User Linked on that Server.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -2909,6 +3287,36 @@ pub const LINKED_SERVER_SERVICE_UNLINK_USER_SPEC: ::connectrpc::Spec = ::connect
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `PushWatchStates` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_PUSH_WATCH_STATES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/PushWatchStates",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `PullWatchStates` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_PULL_WATCH_STATES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/PullWatchStates",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `PushTrackPreferences` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_PUSH_TRACK_PREFERENCES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/PushTrackPreferences",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `PullTrackPreferences` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_PULL_TRACK_PREFERENCES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/PullTrackPreferences",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `SyncWatchlist` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_SYNC_WATCHLIST_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/SyncWatchlist",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
 /// Static [`Spec`](::connectrpc::Spec) for the `InviteUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const LINKED_SERVER_SERVICE_INVITE_USER_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.hub.v1.LinkedServerService/InviteUser",
@@ -2933,6 +3341,24 @@ pub const LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC: ::connectrpc::Spec = 
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `RecordViewingEvents` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_RECORD_VIEWING_EVENTS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/RecordViewingEvents",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListTrendingTitles` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_LIST_TRENDING_TITLES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/ListTrendingTitles",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `ListMostWatchlistedTitles` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_LIST_MOST_WATCHLISTED_TITLES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/ListMostWatchlistedTitles",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
 /// What a Linked Server asks the Hub. It sends the credential `PollServerLink` gave it in an
 /// `Authorization: Bearer <credential>` header, and every call fails with
 /// `REFUSAL_REASON_SERVER_NOT_LINKED` without one the Hub knows.
@@ -3108,6 +3534,134 @@ pub trait LinkedServerService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Merges changes to the Server's Users' Watch State into their Accounts' (ADR 0008): per Account
+    /// and title, the change made last wins, whichever Server sends it and whenever. A change of a User
+    /// who isn't Linked is dropped. Fails with `REFUSAL_REASON_WATCH_STATE_INVALID` for a change it
+    /// can't keep, keeping none of the call's.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn push_watch_states<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::PushWatchStatesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::PushWatchStatesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// The Watch State of the Account one of the Server's Users is Linked to, as Servers pushed it:
+    /// per title and External ID, the change made last. Empty for a User who isn't Linked.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn pull_watch_states<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::PullWatchStatesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::PullWatchStatesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Merges changes to the Server's Users' Subtitle and Audio Preferences into their Accounts'
+    /// (ADR 0092), as `PushWatchStates` merges Watch State: per Account and Preference, the change
+    /// made last wins. A change of a User who isn't Linked is dropped. Fails with
+    /// `REFUSAL_REASON_TRACK_PREFERENCE_INVALID` for a change it can't keep, keeping none of the
+    /// call's.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn push_track_preferences<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::PushTrackPreferencesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::PushTrackPreferencesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// The Subtitle and Audio Preferences of the Account one of the Server's Users is Linked to, as
+    /// Servers pushed them: per Preference, the change made last. Empty for a User who isn't Linked.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn pull_track_preferences<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::PullTrackPreferencesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::PullTrackPreferencesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Merges one of the Server's Users' whole Watchlist into their Account's (ADR 0056), and returns
+    /// the Account's: per title and External ID, the change made last wins, removals included,
+    /// whichever Server sends it and whenever, and of two made at the same moment, the removal. A User
+    /// who isn't Linked gets none, and nothing of theirs is kept. Fails with
+    /// `REFUSAL_REASON_WATCHLIST_INVALID` for an entry it can't keep, keeping none of the call's.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn sync_watchlist<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::SyncWatchlistRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::SyncWatchlistResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
     /// Asks the Account with `email`, if there is one, to accept one of the Server's Users created
     /// from it (ADR 0092). It answers the same whether or not there is, so it reveals nothing about
     /// which emails have Accounts. Asking again for the same User replaces the request.
@@ -3134,9 +3688,9 @@ pub trait LinkedServerService: Send + Sync + 'static {
         >,
     > + Send;
     /// Starts someone signing in to the Server with their Account, as an OAuth device flow: the
-    /// person approves it on the Hub's page for `id`, which then sends them to `return_url`, and the
-    /// Server collects the sign-in with `PollServerSignIn`. Both stop working after
-    /// `expires_in_seconds`.
+    /// person approves it on the Hub's page for `id`, which then sends them to `return_url` with a
+    /// one-time code, and the Server collects the sign-in with `PollServerSignIn` and that code. Both
+    /// stop working after `expires_in_seconds`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -3159,9 +3713,10 @@ pub trait LinkedServerService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Whether the sign-in was approved. Once it is, the first poll gets the token naming the User
-    /// and every later one fails. Fails with `REFUSAL_REASON_LINK_EXPIRED` for a device code that
-    /// expired, was used, or never existed.
+    /// Whether the sign-in was approved. Once it is, the first poll ends it: it gets the token naming
+    /// the User if it brings the code approving put in `return_url`, and fails otherwise, as every
+    /// later one does. Fails with `REFUSAL_REASON_LINK_EXPIRED` for a device code that expired, was
+    /// used, or never existed, and for a wrong code.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -3185,8 +3740,9 @@ pub trait LinkedServerService: Send + Sync + 'static {
         >,
     > + Send;
     /// Replaces the Server Addresses the calling Server reported before. The Server reports them
-    /// whenever they change. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an
-    /// `http` or `https` URL, or for too many.
+    /// whenever they change, and every half hour, since only then does the Hub check from outside
+    /// whether its `public_port` can be reached. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID`
+    /// for one that isn't an `http` or `https` URL, for too many, or for a port over 65535.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -3206,6 +3762,84 @@ pub trait LinkedServerService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::hub::v1::SetServerAddressesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Records a Viewing Event for each play by one of the Server's Users, under the Account they are
+    /// Linked to (ADR 0093); one for a User who isn't Linked is left out. Sending one again by its
+    /// `key` records it once. Fails with `REFUSAL_REASON_VIEWING_EVENT_INVALID`, recording none, when
+    /// any breaks the rules `ViewingEvent` gives, or more than 1000 come at once.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn record_viewing_events<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::RecordViewingEventsRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::RecordViewingEventsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// The Movies most Accounts finished this week and last, by the pooled counts (ADR 0093): at
+    /// most 1000, most watched first. A week counts a Movie only once 20 Accounts finished it in
+    /// that week, so the answer is empty until there are enough. The Hub answers ids, never titles
+    /// or artwork (ADR 0094).
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_trending_titles<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::ListTrendingTitlesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::ListTrendingTitlesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// The Movies and Shows on most Accounts' Watchlists, by the pooled counts' rules (ADR 0093):
+    /// at most 200, most watchlisted first. A title counts only once 20 Accounts that pool have it
+    /// on their Watchlist, so the answer is empty until there are enough. Servers may lack any of
+    /// them. The Hub answers ids, never titles or artwork (ADR 0094).
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn list_most_watchlisted_titles<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::ListMostWatchlistedTitlesRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::ListMostWatchlistedTitlesResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -3388,6 +4022,151 @@ impl<S: LinkedServerService> LinkedServerServiceExt for S {
             .with_spec(LINKED_SERVER_SERVICE_UNLINK_USER_SPEC)
             .route_view(
                 LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "PushWatchStates",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::PushWatchStatesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::PushWatchStatesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.push_watch_states(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::PushWatchStatesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_PUSH_WATCH_STATES_SPEC)
+            .route_view_idempotent(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "PullWatchStates",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::PullWatchStatesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::PullWatchStatesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.pull_watch_states(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::PullWatchStatesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_PULL_WATCH_STATES_SPEC)
+            .route_view(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "PushTrackPreferences",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::PushTrackPreferencesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::PushTrackPreferencesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.push_track_preferences(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::PushTrackPreferencesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_PUSH_TRACK_PREFERENCES_SPEC)
+            .route_view_idempotent(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "PullTrackPreferences",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::PullTrackPreferencesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::PullTrackPreferencesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.pull_track_preferences(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::PullTrackPreferencesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_PULL_TRACK_PREFERENCES_SPEC)
+            .route_view(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "SyncWatchlist",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::SyncWatchlistRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::SyncWatchlistRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.sync_watchlist(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::SyncWatchlistResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_SYNC_WATCHLIST_SPEC)
+            .route_view(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
                 "InviteUser",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
@@ -3502,6 +4281,93 @@ impl<S: LinkedServerService> LinkedServerServiceExt for S {
                 },
             )
             .with_spec(LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC)
+            .route_view(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "RecordViewingEvents",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::RecordViewingEventsRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.record_viewing_events(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::RecordViewingEventsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_RECORD_VIEWING_EVENTS_SPEC)
+            .route_view_idempotent(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "ListTrendingTitles",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::ListTrendingTitlesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::ListTrendingTitlesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_trending_titles(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::ListTrendingTitlesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_LIST_TRENDING_TITLES_SPEC)
+            .route_view_idempotent(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "ListMostWatchlistedTitles",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::ListMostWatchlistedTitlesRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::ListMostWatchlistedTitlesRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.list_most_watchlisted_titles(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::ListMostWatchlistedTitlesResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_LIST_MOST_WATCHLISTED_TITLES_SPEC)
     }
 }
 /// Type-inference marker used by [`Router::add_service`](::connectrpc::Router::add_service).
@@ -3588,6 +4454,36 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .with_spec(LINKED_SERVER_SERVICE_UNLINK_USER_SPEC),
                 )
             }
+            "PushWatchStates" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(LINKED_SERVER_SERVICE_PUSH_WATCH_STATES_SPEC),
+                )
+            }
+            "PullWatchStates" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(LINKED_SERVER_SERVICE_PULL_WATCH_STATES_SPEC),
+                )
+            }
+            "PushTrackPreferences" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(LINKED_SERVER_SERVICE_PUSH_TRACK_PREFERENCES_SPEC),
+                )
+            }
+            "PullTrackPreferences" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(LINKED_SERVER_SERVICE_PULL_TRACK_PREFERENCES_SPEC),
+                )
+            }
+            "SyncWatchlist" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(LINKED_SERVER_SERVICE_SYNC_WATCHLIST_SPEC),
+                )
+            }
             "InviteUser" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -3610,6 +4506,26 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC),
+                )
+            }
+            "RecordViewingEvents" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(LINKED_SERVER_SERVICE_RECORD_VIEWING_EVENTS_SPEC),
+                )
+            }
+            "ListTrendingTitles" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(LINKED_SERVER_SERVICE_LIST_TRENDING_TITLES_SPEC),
+                )
+            }
+            "ListMostWatchlistedTitles" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(
+                            LINKED_SERVER_SERVICE_LIST_MOST_WATCHLISTED_TITLES_SPEC,
+                        ),
                 )
             }
             _ => None,
@@ -3737,6 +4653,116 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         >(format)
                 })
             }
+            "PushWatchStates" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::PushWatchStatesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::PushWatchStatesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::PushWatchStatesRequest,
+                    >::from_parts(&req, &body);
+                    svc.push_watch_states(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::PushWatchStatesResponse,
+                        >(format)
+                })
+            }
+            "PullWatchStates" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::PullWatchStatesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::PullWatchStatesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::PullWatchStatesRequest,
+                    >::from_parts(&req, &body);
+                    svc.pull_watch_states(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::PullWatchStatesResponse,
+                        >(format)
+                })
+            }
+            "PushTrackPreferences" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::PushTrackPreferencesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::PushTrackPreferencesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::PushTrackPreferencesRequest,
+                    >::from_parts(&req, &body);
+                    svc.push_track_preferences(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::PushTrackPreferencesResponse,
+                        >(format)
+                })
+            }
+            "PullTrackPreferences" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::PullTrackPreferencesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::PullTrackPreferencesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::PullTrackPreferencesRequest,
+                    >::from_parts(&req, &body);
+                    svc.pull_track_preferences(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::PullTrackPreferencesResponse,
+                        >(format)
+                })
+            }
+            "SyncWatchlist" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::SyncWatchlistRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::SyncWatchlistRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::SyncWatchlistRequest,
+                    >::from_parts(&req, &body);
+                    svc.sync_watchlist(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::SyncWatchlistResponse,
+                        >(format)
+                })
+            }
             "InviteUser" => {
                 let svc = ::std::sync::Arc::clone(&self.inner);
                 Box::pin(async move {
@@ -3822,6 +4848,72 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .await?
                         .encode::<
                             crate::messages::nama::hub::v1::SetServerAddressesResponse,
+                        >(format)
+                })
+            }
+            "RecordViewingEvents" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::RecordViewingEventsRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::RecordViewingEventsRequest,
+                    >::from_parts(&req, &body);
+                    svc.record_viewing_events(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::RecordViewingEventsResponse,
+                        >(format)
+                })
+            }
+            "ListTrendingTitles" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::ListTrendingTitlesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::ListTrendingTitlesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::ListTrendingTitlesRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_trending_titles(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::ListTrendingTitlesResponse,
+                        >(format)
+                })
+            }
+            "ListMostWatchlistedTitles" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::ListMostWatchlistedTitlesRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::ListMostWatchlistedTitlesRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::ListMostWatchlistedTitlesRequest,
+                    >::from_parts(&req, &body);
+                    svc.list_most_watchlisted_titles(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::ListMostWatchlistedTitlesResponse,
                         >(format)
                 })
             }
@@ -4178,6 +5270,231 @@ where
             )
             .await
     }
+    /// Call the PushWatchStates RPC. Sends a request to /nama.hub.v1.LinkedServerService/PushWatchStates.
+    pub async fn push_watch_states(
+        &self,
+        request: crate::messages::nama::hub::v1::PushWatchStatesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::PushWatchStatesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.push_watch_states_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the PushWatchStates RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn push_watch_states_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::PushWatchStatesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::PushWatchStatesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_PUSH_WATCH_STATES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the PullWatchStates RPC. Sends a request to /nama.hub.v1.LinkedServerService/PullWatchStates.
+    pub async fn pull_watch_states(
+        &self,
+        request: crate::messages::nama::hub::v1::PullWatchStatesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::PullWatchStatesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.pull_watch_states_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the PullWatchStates RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn pull_watch_states_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::PullWatchStatesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::PullWatchStatesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_PULL_WATCH_STATES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the PushTrackPreferences RPC. Sends a request to /nama.hub.v1.LinkedServerService/PushTrackPreferences.
+    pub async fn push_track_preferences(
+        &self,
+        request: crate::messages::nama::hub::v1::PushTrackPreferencesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::PushTrackPreferencesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.push_track_preferences_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the PushTrackPreferences RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn push_track_preferences_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::PushTrackPreferencesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::PushTrackPreferencesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_PUSH_TRACK_PREFERENCES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the PullTrackPreferences RPC. Sends a request to /nama.hub.v1.LinkedServerService/PullTrackPreferences.
+    pub async fn pull_track_preferences(
+        &self,
+        request: crate::messages::nama::hub::v1::PullTrackPreferencesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::PullTrackPreferencesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.pull_track_preferences_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the PullTrackPreferences RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn pull_track_preferences_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::PullTrackPreferencesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::PullTrackPreferencesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_PULL_TRACK_PREFERENCES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SyncWatchlist RPC. Sends a request to /nama.hub.v1.LinkedServerService/SyncWatchlist.
+    pub async fn sync_watchlist(
+        &self,
+        request: crate::messages::nama::hub::v1::SyncWatchlistRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SyncWatchlistResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.sync_watchlist_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SyncWatchlist RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn sync_watchlist_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::SyncWatchlistRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SyncWatchlistResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_SYNC_WATCHLIST_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
     /// Call the InviteUser RPC. Sends a request to /nama.hub.v1.LinkedServerService/InviteUser.
     pub async fn invite_user(
         &self,
@@ -4352,6 +5669,141 @@ where
                 &self.transport,
                 &self.config,
                 LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the RecordViewingEvents RPC. Sends a request to /nama.hub.v1.LinkedServerService/RecordViewingEvents.
+    pub async fn record_viewing_events(
+        &self,
+        request: crate::messages::nama::hub::v1::RecordViewingEventsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.record_viewing_events_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the RecordViewingEvents RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn record_viewing_events_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::RecordViewingEventsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_RECORD_VIEWING_EVENTS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListTrendingTitles RPC. Sends a request to /nama.hub.v1.LinkedServerService/ListTrendingTitles.
+    pub async fn list_trending_titles(
+        &self,
+        request: crate::messages::nama::hub::v1::ListTrendingTitlesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::ListTrendingTitlesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_trending_titles_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListTrendingTitles RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_trending_titles_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::ListTrendingTitlesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::ListTrendingTitlesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_LIST_TRENDING_TITLES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListMostWatchlistedTitles RPC. Sends a request to /nama.hub.v1.LinkedServerService/ListMostWatchlistedTitles.
+    pub async fn list_most_watchlisted_titles(
+        &self,
+        request: crate::messages::nama::hub::v1::ListMostWatchlistedTitlesRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::ListMostWatchlistedTitlesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_most_watchlisted_titles_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListMostWatchlistedTitles RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_most_watchlisted_titles_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::ListMostWatchlistedTitlesRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::ListMostWatchlistedTitlesResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_LIST_MOST_WATCHLISTED_TITLES_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

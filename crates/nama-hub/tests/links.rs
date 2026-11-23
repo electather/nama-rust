@@ -1,6 +1,7 @@
 //! Registering a Server through the device flow, listing an Account's Servers with their Server
-//! Addresses, Unlinking one, and Linking a Linked Server's Users to
-//! Accounts, against a real PostgreSQL.
+//! Addresses, Unlinking one, Linking a Linked Server's Users to Accounts, pushing and pulling
+//! their Watch State, and syncing their Watchlists and reading the most watchlisted, against a
+//! real PostgreSQL.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/hub.rs"]
@@ -18,8 +19,10 @@ use hub::TestHub;
 use linking::*;
 use nama_hub::titles;
 use nama_hub_proto::nama::hub::v1::{
-    ExternalId, ListLinkedServersRequest, ListSimilarTitlesRequest, RefusalReason,
-    SetServerAddressesRequest, TitleKind, UnlinkServerRequest,
+    ExternalId, ListLinkedServersRequest, ListMostWatchlistedTitlesRequest,
+    ListSimilarTitlesRequest, PullWatchStatesRequest, PushWatchStatesRequest, RefusalReason,
+    SetServerAddressesRequest, SetServerAddressesResponse, SyncWatchlistRequest, TitleKind,
+    UnlinkServerRequest, WatchStateChange, WatchlistEntry,
 };
 use refused::assert_refused;
 use sqlx::PgPool;
@@ -306,13 +309,40 @@ async fn linking_a_user_needs_a_proven_email_and_a_linked_server(db: PgPool) {
     );
 }
 
+/// The User `user_id`'s Watch State of Alien at `position_ms` of 7000, changed at `changed_at_ms`.
+fn alien_at(user_id: i64, position_ms: u64, changed_at_ms: i64) -> WatchStateChange {
+    WatchStateChange {
+        user_id,
+        ids: vec!["tmdb-348".to_owned(), "imdb-tt0078748".to_owned()],
+        position_ms,
+        duration_ms: 7000,
+        changed_at_ms,
+        ..Default::default()
+    }
+}
+
+/// Pushes `changes` from the Server presenting `credential`.
+async fn push(
+    hub: &TestHub,
+    credential: &str,
+    changes: Vec<WatchStateChange>,
+) -> Result<(), connectrpc::ConnectError> {
+    linked_server(hub, credential)
+        .push_watch_states(PushWatchStatesRequest {
+            changes,
+            ..Default::default()
+        })
+        .await?;
+    Ok(())
+}
+
 #[sqlx::test(migrations = false)]
 async fn a_linked_server_gets_the_titles_like_one_it_names(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db.clone()).await;
     titles::import(&db, &include_bytes!("fixtures/wikidata-dump.json")[..])
         .await
         .unwrap();
-    titles::train(&db).await.unwrap();
+    nama_hub::train_vectors(&db).await.unwrap();
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
     let credential = linked(&hub, &ada, "Living room").await;
     let the_matrix = ListSimilarTitlesRequest {
@@ -351,17 +381,229 @@ async fn set_addresses(
     url: &str,
     lan_addresses: &[&str],
 ) -> Result<(), connectrpc::ConnectError> {
-    linked_server(hub, credential)
+    set_addresses_with_port(hub, credential, url, lan_addresses, 0).await?;
+    Ok(())
+}
+
+/// Reports `url`, `lan_addresses` and `public_port` as the Server Addresses of the Server
+/// presenting `credential`, and answers what the Hub found at the port.
+async fn set_addresses_with_port(
+    hub: &TestHub,
+    credential: &str,
+    url: &str,
+    lan_addresses: &[&str],
+    public_port: u32,
+) -> Result<SetServerAddressesResponse, connectrpc::ConnectError> {
+    let set = linked_server(hub, credential)
         .set_server_addresses(SetServerAddressesRequest {
             url: url.to_owned(),
             lan_addresses: lan_addresses
                 .iter()
                 .map(|&address| address.to_owned())
                 .collect(),
+            public_port,
             ..Default::default()
         })
         .await?;
-    Ok(())
+    Ok(set.into_owned())
+}
+
+// Which Account a push reaches, and which change wins, is checked where it merges, in
+// `src/sync/sync_tests.rs`, since only `sync` reads its table.
+#[sqlx::test(migrations = false)]
+async fn a_linked_server_pushes_its_users_watch_state_linked_or_not(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let code = start_user(&hub, &server, 7).await.unwrap();
+    approve_user(&hub, &ada, &code).await.unwrap();
+
+    push(
+        &hub,
+        &server,
+        vec![alien_at(7, 3000, 2_000), alien_at(8, 1000, 1_000)],
+    )
+    .await
+    .unwrap();
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_push_breaking_a_limit_or_from_no_linked_server_is_refused(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let unmatched = WatchStateChange {
+        ids: Vec::new(),
+        ..alien_at(7, 3000, 1_000)
+    };
+
+    let past_the_end = assert_refused(
+        push(
+            &hub,
+            &server,
+            vec![alien_at(7, 3000, 1_000), alien_at(7, 8000, 1_000)],
+        )
+        .await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WATCH_STATE_INVALID,
+    );
+    assert_eq!(past_the_end.field, "changes[1].position_ms");
+    let without_ids = assert_refused(
+        push(&hub, &server, vec![unmatched]).await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WATCH_STATE_INVALID,
+    );
+    assert_eq!(without_ids.field, "changes[0].ids");
+    assert_refused(
+        push(&hub, "no such credential", vec![alien_at(7, 3000, 1_000)]).await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+    );
+}
+
+/// The positions of the Watch State the Server presenting `credential` pulls for its User
+/// `user_id`, one per title and id.
+async fn pulled_positions(
+    hub: &TestHub,
+    credential: &str,
+    user_id: i64,
+) -> Result<Vec<u64>, connectrpc::ConnectError> {
+    let pulled = linked_server(hub, credential)
+        .pull_watch_states(PullWatchStatesRequest {
+            user_id,
+            ..Default::default()
+        })
+        .await?
+        .into_owned();
+    Ok((pulled.watch_states.iter())
+        .map(|state| state.position_ms)
+        .collect())
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_linked_server_pulls_only_the_account_its_user_is_linked_to(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let bea = create_proven(&hub, &mut inbox, "bea@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let ada_code = start_user(&hub, &server, 7).await.unwrap();
+    approve_user(&hub, &ada, &ada_code).await.unwrap();
+    let bea_code = start_user(&hub, &server, 8).await.unwrap();
+    approve_user(&hub, &bea, &bea_code).await.unwrap();
+    let pushed = vec![alien_at(7, 3000, 2_000), alien_at(8, 1000, 1_000)];
+    push(&hub, &server, pushed).await.unwrap();
+
+    assert_eq!(
+        pulled_positions(&hub, &server, 7).await.unwrap(),
+        [3000, 3000]
+    );
+    assert_eq!(
+        pulled_positions(&hub, &server, 9).await.unwrap(),
+        Vec::<u64>::new()
+    );
+    assert_refused(
+        pulled_positions(&hub, "no such credential", 7).await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+    );
+}
+
+/// The Watchlist entry of the Movie `tmdb-603`, on the Watchlist since `changed_at_ms`.
+fn the_matrix(changed_at_ms: i64) -> WatchlistEntry {
+    WatchlistEntry {
+        kind: TitleKind::TITLE_KIND_MOVIE.into(),
+        id: "tmdb-603".to_owned(),
+        changed_at_ms,
+        ..Default::default()
+    }
+}
+
+/// Syncs `entries` as the Watchlist of the User `user_id` of the Server presenting `credential`,
+/// and answers when each entry of the Account's changed.
+async fn sync_watchlist(
+    hub: &TestHub,
+    credential: &str,
+    user_id: i64,
+    entries: Vec<WatchlistEntry>,
+) -> Result<Vec<i64>, connectrpc::ConnectError> {
+    let synced = linked_server(hub, credential)
+        .sync_watchlist(SyncWatchlistRequest {
+            user_id,
+            entries,
+            ..Default::default()
+        })
+        .await?
+        .into_owned();
+    Ok((synced.entries.iter())
+        .map(|entry| entry.changed_at_ms)
+        .collect())
+}
+
+// Which change wins is checked where it merges, in `src/sync/sync_tests.rs`.
+#[sqlx::test(migrations = false)]
+async fn a_linked_server_syncs_a_watchlist_only_with_the_account_its_user_is_linked_to(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let bea = create_proven(&hub, &mut inbox, "bea@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let ada_code = start_user(&hub, &server, 7).await.unwrap();
+    approve_user(&hub, &ada, &ada_code).await.unwrap();
+    let bea_code = start_user(&hub, &server, 8).await.unwrap();
+    approve_user(&hub, &bea, &bea_code).await.unwrap();
+
+    let synced = sync_watchlist(&hub, &server, 8, vec![the_matrix(1_000)]).await;
+    assert_eq!(synced.unwrap(), [1_000]);
+    let not_linked = sync_watchlist(&hub, &server, 9, vec![the_matrix(2_000)]).await;
+    assert_eq!(not_linked.unwrap(), Vec::<i64>::new());
+    assert_eq!(
+        sync_watchlist(&hub, &server, 7, Vec::new()).await.unwrap(),
+        Vec::<i64>::new(),
+        "Ada gets none of Bea's Watchlist, nor User 9's"
+    );
+    let unspecified = WatchlistEntry {
+        kind: TitleKind::TITLE_KIND_UNSPECIFIED.into(),
+        ..the_matrix(1_000)
+    };
+    let refused = assert_refused(
+        sync_watchlist(&hub, &server, 7, vec![the_matrix(1_000), unspecified]).await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_WATCHLIST_INVALID,
+    );
+    assert_eq!(refused.field, "entries[1].kind");
+    assert_refused(
+        sync_watchlist(&hub, "no such credential", 7, Vec::new()).await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+    );
+}
+
+// How many Accounts it takes is checked where they're counted, in `src/sync/sync_tests.rs`.
+#[sqlx::test(migrations = false)]
+async fn a_title_on_one_accounts_watchlist_isnt_most_watchlisted_and_asking_needs_a_link(
+    db: PgPool,
+) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let code = start_user(&hub, &server, 7).await.unwrap();
+    approve_user(&hub, &ada, &code).await.unwrap();
+    sync_watchlist(&hub, &server, 7, vec![the_matrix(1_000)])
+        .await
+        .unwrap();
+    let most_watchlisted = async |credential| {
+        linked_server(&hub, credential)
+            .list_most_watchlisted_titles(ListMostWatchlistedTitlesRequest::default())
+            .await
+    };
+
+    let watchlisted = most_watchlisted(&server).await.unwrap();
+
+    assert_eq!(watchlisted.into_owned().titles, []);
+    assert_refused(
+        most_watchlisted("no such credential").await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+    );
 }
 
 /// Each Server the Account signed in as `token` lists: its name, its Server URL and its Server
@@ -482,6 +724,12 @@ async fn a_server_address_must_be_an_http_url(db: PgPool) {
             RefusalReason::REFUSAL_REASON_SERVER_ADDRESS_INVALID,
         );
     }
+    let port_refusal = assert_refused(
+        set_addresses_with_port(&hub, &living_room, "", &[], 65536).await,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_SERVER_ADDRESS_INVALID,
+    );
+    assert_eq!(port_refusal.params["maxPort"], "65535");
     assert_refused(
         set_addresses(&hub, "not a credential", "", &[]).await,
         ErrorCode::Unauthenticated,
@@ -490,5 +738,61 @@ async fn a_server_address_must_be_an_http_url(db: PgPool) {
     assert_eq!(
         server_addresses(&hub, &ada).await,
         [("Living room".to_owned(), String::new(), vec![])]
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn the_hub_lists_the_public_address_it_reached_between_the_server_url_and_the_lan(
+    db: PgPool,
+) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    // The test's calls come from 127.0.0.1, so the Hub tries the Server's port there.
+    let open = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = open.local_addr().unwrap().port();
+    let lan = ["http://192.168.1.10:7980"];
+
+    let reached = set_addresses_with_port(
+        &hub,
+        &living_room,
+        "https://nama.example.com",
+        &lan,
+        port.into(),
+    )
+    .await
+    .unwrap();
+    let listed = server_addresses(&hub, &ada).await;
+    drop(open);
+    let missed = set_addresses_with_port(
+        &hub,
+        &living_room,
+        "https://nama.example.com",
+        &lan,
+        port.into(),
+    )
+    .await
+    .unwrap();
+
+    let public = format!("http://127.0.0.1:{port}");
+    assert_eq!(
+        (reached.public_address.as_str(), reached.reachable),
+        (public.as_str(), true)
+    );
+    assert_eq!(
+        listed[0].2,
+        [
+            "https://nama.example.com",
+            public.as_str(),
+            "http://192.168.1.10:7980"
+        ]
+    );
+    assert_eq!(
+        (missed.public_address.as_str(), missed.reachable),
+        (public.as_str(), false)
+    );
+    assert_eq!(
+        server_addresses(&hub, &ada).await[0].2,
+        ["https://nama.example.com", "http://192.168.1.10:7980"]
     );
 }

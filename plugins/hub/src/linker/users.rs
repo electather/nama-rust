@@ -15,11 +15,11 @@ use nama_plugin_api::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{Kept, Linker, store_key};
+use super::{Kept, LinkDropped, Linker, store_key};
 
-/// How long what the Hub last said of a User's Link stands before Settings asks it again, so
-/// opening Settings doesn't call the Hub every time (ADR 0094). While a code waits, it asks every
-/// time, which is how the Plugin learns the code was entered.
+/// How long after the Hub was last asked of a User's Link the Plugin asks it again, so opening
+/// Settings or changing Watch State doesn't call the Hub every time (ADR 0094). While a code
+/// waits, it asks every time, which is how the Plugin learns the code was entered.
 const ASK_AGAIN_AFTER: Duration = Duration::from_secs(60);
 
 /// What the Plugin keeps in the Store of a User's Link.
@@ -38,12 +38,13 @@ struct KeptUser {
 pub(super) struct UserState {
     /// The code they show, and when it stops working.
     code: Option<(String, Instant)>,
-    /// When the Hub last said whether they are Linked.
+    /// When the Hub was last asked whether they are Linked.
     asked: Option<Instant>,
 }
 
 impl Linker {
-    /// Where Linking `user_id` stands, or `None` while the Server isn't Linked.
+    /// Where Linking `user_id` stands, or `None` while the Server isn't Linked, such as once the Hub
+    /// answered it doesn't know the Server's Link any more.
     pub(super) async fn current_user_link(
         &self,
         user_id: i64,
@@ -52,13 +53,22 @@ impl Linker {
             return Ok(None);
         };
         if self.asks_hub(user_id) {
-            // Unreachable, the Hub says nothing, and what it said last stands.
-            if let Ok(account) = self.hub.user_account(&kept.credential, user_id).await {
-                self.remember_account(user_id, &kept, &account).await?;
+            match self.hub.user_account(&kept.credential, user_id).await {
+                Ok(account) => self.remember_account(user_id, &kept, &account).await?,
+                Err(err) if err.is::<LinkDropped>() => {
+                    self.forget_dropped(&kept).await?;
+                    return Ok(None);
+                }
+                // What it said last stands, and it isn't asked again until it's due, so an outage
+                // doesn't make every Watch State change call it.
+                Err(_) => self.with_user(user_id, |user| user.asked = Some(Instant::now())),
             }
         }
         Ok(Some(match self.kept_account(user_id, &kept).await? {
-            Some(account) => Link::Linked { account },
+            Some(account) => Link::Linked {
+                account,
+                reachability: None,
+            },
             None => self
                 .user_code(user_id)
                 .map_or(Link::NotLinked, |code| self.waiting_on(code)),
@@ -72,13 +82,16 @@ impl Linker {
             .await?
             .ok_or("the Server isn't Linked to the Hub, so its Users can't Link")?;
         let Some(started) = self.hub.start_user(&kept.credential, user_id, name).await? else {
-            // Linked since Settings last asked the Hub, so Settings shows that Link instead.
+            // Linked since the Hub was last asked, so Settings shows that Link instead.
             let account = self.hub.user_account(&kept.credential, user_id).await?;
             self.remember_account(user_id, &kept, &account).await?;
             return Ok(if account.is_empty() {
                 Link::NotLinked
             } else {
-                Link::Linked { account }
+                Link::Linked {
+                    account,
+                    reachability: None,
+                }
             });
         };
         let lasts = Duration::from_secs(started.expires_in_seconds.try_into().unwrap_or(0));
@@ -99,7 +112,11 @@ impl Linker {
     }
 
     /// The email of the Account `user_id` Linked to under the Server's Link `kept`, as last kept.
-    async fn kept_account(&self, user_id: i64, kept: &Kept) -> Result<Option<String>, PluginError> {
+    pub(super) async fn kept_account(
+        &self,
+        user_id: i64,
+        kept: &Kept,
+    ) -> Result<Option<String>, PluginError> {
         let Some(stored) = self.stored(&user_key(user_id)).await? else {
             return Ok(None);
         };
@@ -141,8 +158,8 @@ impl Linker {
         Ok(())
     }
 
-    /// Whether to ask the Hub about `user_id`'s Link: while their code waits, or once what it
-    /// said last is [`ASK_AGAIN_AFTER`] old.
+    /// Whether to ask the Hub about `user_id`'s Link: while their code waits, or once it was last
+    /// asked [`ASK_AGAIN_AFTER`] ago.
     fn asks_hub(&self, user_id: i64) -> bool {
         let waiting = self.user_code(user_id).is_some();
         self.with_user(user_id, |user| {

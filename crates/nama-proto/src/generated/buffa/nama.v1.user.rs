@@ -1939,13 +1939,29 @@ pub struct ListUsersResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub users: ::buffa::alloc::vec::Vec<User>,
+    /// The IDs of those `users` who can't sign in: they have no Sign-in Method the Server keeps and
+    /// aren't Linked to an Account, such as one created from an Account that was since deleted or
+    /// Unlinked them. Asking whether they are Linked is how the Server learns of an Unlink. An Admin
+    /// gives them a way in with `ResetPassword`.
+    ///
+    /// Field 2: `cannot_sign_in_user_ids`
+    #[serde(
+        rename = "cannotSignInUserIds",
+        alias = "cannot_sign_in_user_ids",
+        with = "::buffa::json_helpers::proto_seq",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
+    )]
+    pub cannot_sign_in_user_ids: ::buffa::alloc::vec::Vec<i64>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
 }
 impl ::core::fmt::Debug for ListUsersResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        f.debug_struct("ListUsersResponse").field("users", &self.users).finish()
+        f.debug_struct("ListUsersResponse")
+            .field("users", &self.users)
+            .field("cannot_sign_in_user_ids", &self.cannot_sign_in_user_ids)
+            .finish()
     }
 }
 impl ListUsersResponse {
@@ -1983,6 +1999,14 @@ impl ::buffa::Message for ListUsersResponse {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if !self.cannot_sign_in_user_ids.is_empty() {
+            let payload: u64 = self
+                .cannot_sign_in_user_ids
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2000,6 +2024,17 @@ impl ::buffa::Message for ListUsersResponse {
                 buf,
             );
             v.write_to(__cache, buf);
+        }
+        if !self.cannot_sign_in_user_ids.is_empty() {
+            let payload: u64 = self
+                .cannot_sign_in_user_ids
+                .iter()
+                .map(|&v| ::buffa::types::int64_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(2u32, payload, buf);
+            for &v in &self.cannot_sign_in_user_ids {
+                ::buffa::types::encode_int64(v, buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2026,6 +2061,47 @@ impl ::buffa::Message for ListUsersResponse {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.users.push(elem);
             }
+            2u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    if buf.chunk().len() >= len {
+                        ::buffa::types::extend_packed_int64(
+                            &buf.chunk()[..len],
+                            &mut self.cannot_sign_in_user_ids,
+                            len,
+                        )?;
+                        buf.advance(len);
+                    } else {
+                        self.cannot_sign_in_user_ids.reserve(len);
+                        let mut limited = buf.take(len);
+                        while limited.has_remaining() {
+                            self.cannot_sign_in_user_ids
+                                .push(::buffa::types::decode_int64_packed(&mut limited)?);
+                        }
+                        let leftover = limited.remaining();
+                        if leftover > 0 {
+                            limited.advance(leftover);
+                        }
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.cannot_sign_in_user_ids
+                        .push(::buffa::types::decode_int64(buf)?);
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2035,6 +2111,7 @@ impl ::buffa::Message for ListUsersResponse {
     }
     fn clear(&mut self) {
         self.users.clear();
+        self.cannot_sign_in_user_ids.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

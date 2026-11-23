@@ -47,6 +47,10 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "src/sync",
+        &["watch_states", "track_preferences", "watchlists"],
+    ),
+    (
         "src/titles",
         &[
             "titles",
@@ -54,6 +58,15 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
             "title_facts",
             "training_runs",
             "title_vectors",
+        ],
+    ),
+    (
+        "src/viewing",
+        &[
+            "viewing_events",
+            "pooled_counts",
+            "weekly_counts",
+            "pooling_settings",
         ],
     ),
 ];

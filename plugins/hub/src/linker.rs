@@ -1,10 +1,17 @@
 //! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
 //! keeps in the Plugin's Store once someone entered it, the Server Addresses it tells the Hub, and
 //! through it shares what the Admin chooses with Nama's developers (ADR 0054). Its Users' Links are
-//! in `users.rs`, and signing in with an Account, and Users created from one, in `accounts.rs`.
+//! in `users.rs`, syncing their Watch State both ways in `watch_states.rs`, their Subtitle and
+//! Audio Preferences in `track_preferences.rs`, and their Watchlists in `watchlist.rs`, their plays
+//! as Viewing Events in `viewing.rs`, and signing in with an Account, and Users created from one,
+//! in `accounts.rs`.
 
 mod accounts;
+mod track_preferences;
 mod users;
+mod viewing;
+mod watch_states;
+mod watchlist;
 
 use std::{
     collections::HashMap,
@@ -21,22 +28,60 @@ use nama_plugin_api::{
     },
     contract::{StoreEntry, StoreKey},
     diagnostics_sharer::{DiagnosticsSharer, Signal},
-    server_link::{AccountSignIn, Link, ServerAddresses, ServerLinker},
+    job::{JobRunner, RunJob},
+    points::{TrackPreference, WatchStateChange},
+    server_link::{
+        AccountSignIn, Link, Reachability, ServerAddresses, ServerLinker, WatchlistEntry,
+    },
 };
 use ring::digest;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tokio::sync::Mutex;
 
 use crate::{
-    hub::{Hub, Polling},
+    hub::{Hub, LinkDropped, Polling},
     token::{self, Claims, Rejected},
 };
+
+pub(crate) use self::{
+    track_preferences::TrackPreferenceSync,
+    viewing::{ViewingEvents, send_job},
+    watch_states::{WatchStateSync, sync_job},
+};
+
+/// Runs the Hub Plugin's Jobs. One runner serves them all, as the Kernel asks only the first
+/// `JobRunner` a Plugin provides.
+pub(crate) struct Jobs {
+    pub(crate) linker: Arc<Linker>,
+    pub(crate) viewing: ViewingEvents,
+}
+
+impl JobRunner for Jobs {
+    fn run<'a>(&'a self, run: &'a RunJob) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(async move {
+            match run.job_id.as_str() {
+                watch_states::SYNC => {
+                    // Each queue apart, so one the Hub refuses holds back only its own.
+                    let watch_states = self.linker.send_queued().await;
+                    let preferences = self.linker.send_queued_preferences().await;
+                    watch_states.and(preferences)
+                }
+                viewing::SEND_JOB => self.viewing.send().await,
+                other => Err(format!("the Hub Plugin has no Job {other}").into()),
+            }
+        })
+    }
+}
 
 /// The Store key of the Link, a [`Kept`] as JSON.
 const LINK_KEY: &str = "link";
 
 /// The Store key of the Hub's key set, as the Hub publishes it.
 const KEY_SET_KEY: &str = "key-set";
+
+/// How long the Hub's check of the Server's public port stands: the same Server Addresses go to
+/// the Hub again after this, so it checks again, such as after the router's public IP changed.
+const RECHECK_EVERY: Duration = Duration::from_mins(30);
 
 /// A code the Server shows, waiting for someone to enter it on the Hub.
 struct Waiting {
@@ -64,6 +109,25 @@ impl Kept {
     }
 }
 
+/// The Server Addresses the Hub has.
+struct Reported {
+    /// The [`Kept::id`] of the Link it got them through.
+    link: String,
+    addresses: ServerAddresses,
+    /// When the Hub got them, and checked their public port.
+    at: Instant,
+}
+
+impl Reported {
+    /// Whether the Hub needs no report of `addresses` through `link` at `now`: it has them, and
+    /// checked their public port less than [`RECHECK_EVERY`] ago.
+    fn covers(&self, link: &str, addresses: &ServerAddresses, now: Instant) -> bool {
+        self.link == link
+            && self.addresses == *addresses
+            && now.duration_since(self.at) < RECHECK_EVERY
+    }
+}
+
 /// Who a Link whose token couldn't be checked belongs to, as Settings shows it.
 const UNCONFIRMED_ACCOUNT: &str = "an Account the Hub didn't confirm";
 
@@ -75,9 +139,14 @@ pub(crate) struct Linker {
     waiting: Mutex<Option<Waiting>>,
     /// What the Plugin knows of each User's Link but what it keeps in the Store.
     users: std::sync::Mutex<HashMap<i64, users::UserState>>,
-    /// The Server Addresses the Hub has, with the [`Kept::id`] of the Link it got them through.
+    /// Held while a queue of Watch State or Track Preference changes is read and written, so none
+    /// is lost.
+    queue: Mutex<()>,
     /// Held across telling the Hub, so a report never overtakes another.
-    reported: Mutex<Option<(String, ServerAddresses)>>,
+    reported: Mutex<Option<Reported>>,
+    /// What the Hub found of the Server's public port, with the [`Kept::id`] of the Link it found
+    /// it through. Apart from `reported`, so showing the Link never waits on a report.
+    reachability: std::sync::Mutex<Option<(String, Reachability)>>,
 }
 
 impl Linker {
@@ -87,7 +156,9 @@ impl Linker {
             kernel,
             waiting: Mutex::default(),
             users: std::sync::Mutex::default(),
+            queue: Mutex::default(),
             reported: Mutex::default(),
+            reachability: std::sync::Mutex::default(),
         }
     }
 
@@ -101,6 +172,7 @@ impl Linker {
         }
         Ok(match self.kept().await? {
             Some(kept) => Link::Linked {
+                reachability: self.reachability(&kept),
                 account: kept
                     .account
                     .unwrap_or_else(|| UNCONFIRMED_ACCOUNT.to_owned()),
@@ -169,6 +241,25 @@ impl Linker {
             return Ok(());
         };
         self.hub.unlink(&kept.credential).await?;
+        self.forget_kept().await
+    }
+
+    /// Forgets `dropped`, the Link the Hub answered [`LinkDropped`] to, as Unlinking does, so the
+    /// Server can Link again. A Link kept since, under another credential, stays.
+    async fn forget_dropped(&self, dropped: &Kept) -> Result<(), PluginError> {
+        // Held so a poll can't keep a new Link between the check and the delete.
+        let _waiting = self.waiting.lock().await;
+        if self
+            .kept()
+            .await?
+            .is_some_and(|kept| kept.credential == dropped.credential)
+        {
+            self.forget_kept().await?;
+        }
+        Ok(())
+    }
+
+    async fn forget_kept(&self) -> Result<(), PluginError> {
         self.kernel.ask::<StoreDelete>(store_key(LINK_KEY)).await?;
         // The Hub Unlinked the Server's Users with it: their codes are gone, and what the Store
         // keeps of their Links names this Link, so none shows once the Server is Linked again.
@@ -176,23 +267,58 @@ impl Linker {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clear();
+        *self
+            .reachability
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = None;
         Ok(())
     }
 
     /// Tells the Hub `addresses`, unless the Server isn't Linked or the Hub has them already from
-    /// this Link. Forgotten on a restart, so the Hub hears them once more then.
+    /// this Link and checked them lately. Forgotten on a restart, so the Hub hears them once more
+    /// then. A Link the Hub doesn't know any more is forgotten.
     async fn report(&self, addresses: ServerAddresses) -> Result<(), PluginError> {
         let Some(kept) = self.kept().await? else {
             return Ok(());
         };
         let mut reported = self.reported.lock().await;
-        let report = (kept.id(), addresses);
-        if reported.as_ref() == Some(&report) {
+        let (link, now) = (kept.id(), Instant::now());
+        if reported
+            .as_ref()
+            .is_some_and(|reported| reported.covers(&link, &addresses, now))
+        {
             return Ok(());
         }
-        self.hub.set_addresses(&kept.credential, &report.1).await?;
-        *reported = Some(report);
+        let reachability = match self.hub.set_addresses(&kept.credential, &addresses).await {
+            Err(err) if err.is::<LinkDropped>() => {
+                *reported = None;
+                return self.forget_dropped(&kept).await;
+            }
+            answered => answered?,
+        };
+        *self
+            .reachability
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) =
+            reachability.map(|reachability| (link.clone(), reachability));
+        *reported = Some(Reported {
+            link,
+            addresses,
+            at: now,
+        });
         Ok(())
+    }
+
+    /// What the Hub found of the Server's public port through the Link `kept`, if it checked one.
+    fn reachability(&self, kept: &Kept) -> Option<Reachability> {
+        let found = self
+            .reachability
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        found
+            .as_ref()
+            .filter(|(link, _)| *link == kept.id())
+            .map(|(_, reachability)| reachability.clone())
     }
 
     fn showing(&self, code: &Waiting) -> Link {
@@ -258,6 +384,24 @@ impl Linker {
     async fn stored(&self, key: &str) -> Result<Option<Vec<u8>>, PluginError> {
         Ok(self.kernel.ask::<StoreGet>(store_key(key)).await?.value)
     }
+
+    async fn stored_json<T: DeserializeOwned>(&self, key: &str) -> Result<Option<T>, PluginError> {
+        let Some(stored) = self.stored(key).await? else {
+            return Ok(None);
+        };
+        Ok(Some(serde_json::from_slice(&stored)?))
+    }
+
+    async fn put_json(&self, key: String, value: &impl Serialize) -> Result<(), PluginError> {
+        self.kernel
+            .ask::<StorePut>(StoreEntry {
+                key,
+                value: serde_json::to_vec(value)?,
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
+    }
 }
 
 impl ServerLinker for Linker {
@@ -308,12 +452,35 @@ impl ServerLinker for Linker {
     fn finish_account_sign_in<'a>(
         &'a self,
         handle: &'a str,
+        code: &'a str,
     ) -> BoxFuture<'a, Result<Option<i64>, PluginError>> {
-        Box::pin(self.finish_sign_in(handle))
+        Box::pin(self.finish_sign_in(handle, code))
     }
 
     fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
         Box::pin(self.report(addresses))
+    }
+
+    fn watch_states(
+        &self,
+        user_id: i64,
+    ) -> BoxFuture<'_, Result<Vec<WatchStateChange>, PluginError>> {
+        Box::pin(self.pull(user_id))
+    }
+
+    fn track_preferences(
+        &self,
+        user_id: i64,
+    ) -> BoxFuture<'_, Result<Vec<TrackPreference>, PluginError>> {
+        Box::pin(self.pull_preferences(user_id))
+    }
+
+    fn sync_watchlist(
+        &self,
+        user_id: i64,
+        watchlist: Vec<WatchlistEntry>,
+    ) -> BoxFuture<'_, Result<Vec<WatchlistEntry>, PluginError>> {
+        Box::pin(self.merge_watchlist(user_id, watchlist))
     }
 }
 
@@ -349,3 +516,7 @@ fn rejected(rejected: Rejected) -> PluginError {
         Rejected::Invalid(why) => format!("the Hub's token doesn't check out: {why}").into(),
     }
 }
+
+#[cfg(test)]
+#[path = "linker/linker_tests.rs"]
+mod tests;

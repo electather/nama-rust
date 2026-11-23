@@ -46,8 +46,8 @@ pub enum RefusalReason {
     /// Unlink them first.
     REFUSAL_REASON_USER_LINKED = 14i32,
     /// `invalid_argument`: a Server Address isn't an `http` or `https` URL of at most `maxLength`
-    /// characters, or the Server reported more than `maxLanAddresses` LAN addresses. Params:
-    /// `maxLength` and `maxLanAddresses`.
+    /// characters, the Server reported more than `maxLanAddresses` LAN addresses, or a public port
+    /// over `maxPort`. Params: `maxLength`, `maxLanAddresses` and `maxPort`.
     REFUSAL_REASON_SERVER_ADDRESS_INVALID = 15i32,
     /// `not_found`: the signed-in Account has no such User waiting for it: it was accepted already,
     /// or its Server Unlinked it.
@@ -60,6 +60,22 @@ pub enum RefusalReason {
     REFUSAL_REASON_NO_USER_ON_SERVER = 18i32,
     /// `invalid_argument`: the field isn't an `http` or `https` address.
     REFUSAL_REASON_URL_INVALID = 19i32,
+    /// `invalid_argument`: a Watch State change breaks a limit `PushWatchStatesRequest` sets, such as
+    /// too many changes, an id too long, a position past the duration, or a time out of range. `field` names it. Params:
+    /// `maxChanges`, `maxIds` and `maxIdLength`.
+    REFUSAL_REASON_WATCH_STATE_INVALID = 20i32,
+    /// `invalid_argument`: a Viewing Event breaks the rules `ViewingEvent` and `UserViewingEvent`
+    /// give, or more than `maxEvents` came at once. Params: `maxEvents`.
+    REFUSAL_REASON_VIEWING_EVENT_INVALID = 21i32,
+    /// `invalid_argument`: a Subtitle or Audio Preference change breaks a limit
+    /// `TrackPreferenceChange` and `PushTrackPreferencesRequest` set, such as too many changes, a
+    /// field too long, or a time out of range. `field` names it. Params: `maxChanges`, `maxIdLength`,
+    /// `maxLanguageLength` and `maxTitleLength`.
+    REFUSAL_REASON_TRACK_PREFERENCE_INVALID = 23i32,
+    /// `invalid_argument`: a Watchlist entry breaks a limit `SyncWatchlistRequest` sets, such as too
+    /// many entries, an id too long, no kind, or a time out of range. `field` names it. Params:
+    /// `maxEntries` and `maxIdLength`.
+    REFUSAL_REASON_WATCHLIST_INVALID = 22i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -122,6 +138,18 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_URL_INVALID`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const UrlInvalid: Self = Self::REFUSAL_REASON_URL_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_WATCH_STATE_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const WatchStateInvalid: Self = Self::REFUSAL_REASON_WATCH_STATE_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_VIEWING_EVENT_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const ViewingEventInvalid: Self = Self::REFUSAL_REASON_VIEWING_EVENT_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_TRACK_PREFERENCE_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const TrackPreferenceInvalid: Self = Self::REFUSAL_REASON_TRACK_PREFERENCE_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_WATCHLIST_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const WatchlistInvalid: Self = Self::REFUSAL_REASON_WATCHLIST_INVALID;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -257,6 +285,18 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             18i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_NO_USER_ON_SERVER),
             19i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_URL_INVALID),
+            20i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_WATCH_STATE_INVALID)
+            }
+            21i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_VIEWING_EVENT_INVALID)
+            }
+            23i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_TRACK_PREFERENCE_INVALID,
+                )
+            }
+            22i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_WATCHLIST_INVALID),
             _ => ::core::option::Option::None,
         }
     }
@@ -299,6 +339,16 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_NO_USER_ON_SERVER => "REFUSAL_REASON_NO_USER_ON_SERVER",
             Self::REFUSAL_REASON_URL_INVALID => "REFUSAL_REASON_URL_INVALID",
+            Self::REFUSAL_REASON_WATCH_STATE_INVALID => {
+                "REFUSAL_REASON_WATCH_STATE_INVALID"
+            }
+            Self::REFUSAL_REASON_VIEWING_EVENT_INVALID => {
+                "REFUSAL_REASON_VIEWING_EVENT_INVALID"
+            }
+            Self::REFUSAL_REASON_TRACK_PREFERENCE_INVALID => {
+                "REFUSAL_REASON_TRACK_PREFERENCE_INVALID"
+            }
+            Self::REFUSAL_REASON_WATCHLIST_INVALID => "REFUSAL_REASON_WATCHLIST_INVALID",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -369,6 +419,20 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_URL_INVALID" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_URL_INVALID)
             }
+            "REFUSAL_REASON_WATCH_STATE_INVALID" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_WATCH_STATE_INVALID)
+            }
+            "REFUSAL_REASON_VIEWING_EVENT_INVALID" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_VIEWING_EVENT_INVALID)
+            }
+            "REFUSAL_REASON_TRACK_PREFERENCE_INVALID" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_TRACK_PREFERENCE_INVALID,
+                )
+            }
+            "REFUSAL_REASON_WATCHLIST_INVALID" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_WATCHLIST_INVALID)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -394,6 +458,10 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND,
             Self::REFUSAL_REASON_NO_USER_ON_SERVER,
             Self::REFUSAL_REASON_URL_INVALID,
+            Self::REFUSAL_REASON_WATCH_STATE_INVALID,
+            Self::REFUSAL_REASON_VIEWING_EVENT_INVALID,
+            Self::REFUSAL_REASON_TRACK_PREFERENCE_INVALID,
+            Self::REFUSAL_REASON_WATCHLIST_INVALID,
         ]
     }
 }

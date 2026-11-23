@@ -1,6 +1,6 @@
 //! The Server's ConnectRPC API (ADR 0007), served on axum.
 
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
 use axum::{http::header::SET_COOKIE, middleware};
 use buffa::{EnumValue, MessageName};
@@ -15,7 +15,7 @@ use crate::{
     config::Config,
     connections::Connections,
     db::Database,
-    diagnostics::{self, BrowserSpans, RecordFailures},
+    diagnostics::{self, RecordFailures},
     events::EventBus,
     ffmpeg::{Abilities, Ffmpeg},
     home_rows::HomeRows,
@@ -56,7 +56,10 @@ mod users;
 mod watch_states;
 mod watchlist;
 
+pub(crate) use server_link::sync_after_scans;
+
 use access::require_access;
+pub(crate) use browser_spans::BrowserSpans;
 
 /// Routes every RPC the Server answers, its artwork and its Versions, each behind the layers
 /// that identify the caller and refuse calls they may not make.
@@ -71,6 +74,7 @@ use access::require_access;
 )]
 pub(crate) fn router(
     config: &Config,
+    listening: SocketAddr,
     db: Arc<Database>,
     plugin_settings: PluginSettings,
     users: Users,
@@ -89,6 +93,7 @@ pub(crate) fn router(
     running: RunningPlans,
     abilities: Abilities,
     preview_frames: PreviewFrames,
+    browser_spans: BrowserSpans,
     setup_code: Option<SetupCode>,
     ffmpeg: Arc<Ffmpeg>,
 ) -> axum::Router {
@@ -118,6 +123,8 @@ pub(crate) fn router(
         .add_service(Arc::new(server::ServerServiceHandler {
             name: config.name.clone(),
             users: users.clone(),
+            browse: Browse::new(Arc::clone(&db)),
+            preferences: TrackPreferences::new(Arc::clone(&db)),
             settings: settings.clone(),
             abilities: abilities.clone(),
             ffmpeg,
@@ -126,12 +133,17 @@ pub(crate) fn router(
             home_rows: home_rows.clone(),
             data_dir: config.data_dir.clone(),
             backups: Backups::new(&config.data_dir, &config.file, settings.clone()),
-            exports_diagnostics: config.otlp_endpoint.is_some(),
+            browser_spans: browser_spans.clone(),
             running: running.clone(),
         }))
         .add_service(Arc::new(sign_in::SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
             points: plugins.clone(),
+            browse: Browse::new(Arc::clone(&db)),
+            preferences: TrackPreferences::new(Arc::clone(&db)),
+            db: Arc::clone(&db),
+            server_url: settings.server_url(),
+            listening,
         }))
         .add_service(Arc::new(matches::MatchServiceHandler {
             matcher: scanner.matcher().clone(),
@@ -155,9 +167,11 @@ pub(crate) fn router(
         .add_service(Arc::new(watch_states::WatchStateServiceHandler {
             browse: Browse::new(Arc::clone(&db)),
             running: running.clone(),
+            points: plugins.clone(),
         }))
         .add_service(Arc::new(watchlist::WatchlistServiceHandler {
             db: Arc::clone(&db),
+            points: plugins.clone(),
         }))
         .add_service(Arc::new(playback::PlaybackServiceHandler {
             plans: Plans::new(
@@ -169,6 +183,7 @@ pub(crate) fn router(
                 Arc::clone(&db),
             ),
             preferences: TrackPreferences::new(Arc::clone(&db)),
+            points: plugins.clone(),
             downloads: SubtitleDownloads::new(&db, plugins.clone(), image_store),
             db: Arc::clone(&db),
         }))
@@ -206,6 +221,8 @@ pub(crate) fn router(
             connections,
             plugin_settings,
             plugin_logos: plugin_logos.clone(),
+            browse: Browse::new(Arc::clone(&db)),
+            preferences: TrackPreferences::new(Arc::clone(&db)),
             db,
             server_url,
             home_rows,
@@ -225,9 +242,7 @@ pub(crate) fn router(
         .merge(local_images_router(local_images, image_settings))
         .merge(plugin_logos_router(plugin_logos))
         .merge(media)
-        .merge(browser_spans::router(
-            config.otlp_endpoint.as_deref().map(BrowserSpans::new),
-        ))
+        .merge(browser_spans::router(browser_spans))
         .layer(middleware::from_fn(require_access))
         .layer(middleware::from_fn_with_state(users, identify_caller))
         .layer(middleware::from_fn_with_state(
@@ -367,6 +382,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SETTING_WRONG_KIND
         | R::REFUSAL_REASON_SETTING_OUT_OF_RANGE
         | R::REFUSAL_REASON_NOT_A_URL
+        | R::REFUSAL_REASON_NOT_A_SERVER_ADDRESS
         | R::REFUSAL_REASON_QUALITY_REPEATED
         | R::REFUSAL_REASON_DEFAULT_QUALITY_REQUIRED
         | R::REFUSAL_REASON_QUALITY_NOT_OFFERED

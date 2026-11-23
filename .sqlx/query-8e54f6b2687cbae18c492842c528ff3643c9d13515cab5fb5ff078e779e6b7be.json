@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO weekly_counts (week, title)\n         VALUES (date_trunc('week', to_timestamp($1::bigint) AT TIME ZONE 'UTC')::date, $2)\n         ON CONFLICT (week, title) DO UPDATE SET accounts = weekly_counts.accounts + 1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8e54f6b2687cbae18c492842c528ff3643c9d13515cab5fb5ff078e779e6b7be"
+}

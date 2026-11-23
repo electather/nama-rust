@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO watchlist (user_id, kind, title_id, changed_at_ms) VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "95a386785650a5e24b34d669e1b928bf8b15f7749e23e76ab0e4abb93603614a"
+}

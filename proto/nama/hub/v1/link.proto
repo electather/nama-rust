@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package nama.hub.v1;
 
+import "nama/hub/v1/viewing.proto";
+
 // Registering a Server with the Hub, as an OAuth device flow (RFC 8628, ADR 0011): the Server
 // starts it and polls, and the holder of an Account enters the code it shows on the Hub's pages.
 // The Hub never calls a Server. Anyone may call it, since a Server not yet Linked has no identity.
@@ -59,8 +61,8 @@ service LinkService {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Approves a sign-in with the signed-in Account, as its User on that Server, and returns where to
-  // go back to. Fails like `GetServerSignIn`, and with `REFUSAL_REASON_NO_USER_ON_SERVER` if the
-  // Account has no User Linked on that Server.
+  // go back to, with the one-time code the Server finishes with. Fails like `GetServerSignIn`, and
+  // with `REFUSAL_REASON_NO_USER_ON_SERVER` if the Account has no User Linked on that Server.
   rpc ApproveServerSignIn(ApproveServerSignInRequest) returns (ApproveServerSignInResponse);
 }
 
@@ -91,24 +93,80 @@ service LinkedServerService {
   rpc UnlinkUser(UnlinkUserRequest) returns (UnlinkUserResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Merges changes to the Server's Users' Watch State into their Accounts' (ADR 0008): per Account
+  // and title, the change made last wins, whichever Server sends it and whenever. A change of a User
+  // who isn't Linked is dropped. Fails with `REFUSAL_REASON_WATCH_STATE_INVALID` for a change it
+  // can't keep, keeping none of the call's.
+  rpc PushWatchStates(PushWatchStatesRequest) returns (PushWatchStatesResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // The Watch State of the Account one of the Server's Users is Linked to, as Servers pushed it:
+  // per title and External ID, the change made last. Empty for a User who isn't Linked.
+  rpc PullWatchStates(PullWatchStatesRequest) returns (PullWatchStatesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Merges changes to the Server's Users' Subtitle and Audio Preferences into their Accounts'
+  // (ADR 0092), as `PushWatchStates` merges Watch State: per Account and Preference, the change
+  // made last wins. A change of a User who isn't Linked is dropped. Fails with
+  // `REFUSAL_REASON_TRACK_PREFERENCE_INVALID` for a change it can't keep, keeping none of the
+  // call's.
+  rpc PushTrackPreferences(PushTrackPreferencesRequest) returns (PushTrackPreferencesResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // The Subtitle and Audio Preferences of the Account one of the Server's Users is Linked to, as
+  // Servers pushed them: per Preference, the change made last. Empty for a User who isn't Linked.
+  rpc PullTrackPreferences(PullTrackPreferencesRequest) returns (PullTrackPreferencesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Merges one of the Server's Users' whole Watchlist into their Account's (ADR 0056), and returns
+  // the Account's: per title and External ID, the change made last wins, removals included,
+  // whichever Server sends it and whenever, and of two made at the same moment, the removal. A User
+  // who isn't Linked gets none, and nothing of theirs is kept. Fails with
+  // `REFUSAL_REASON_WATCHLIST_INVALID` for an entry it can't keep, keeping none of the call's.
+  rpc SyncWatchlist(SyncWatchlistRequest) returns (SyncWatchlistResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
   // Asks the Account with `email`, if there is one, to accept one of the Server's Users created
   // from it (ADR 0092). It answers the same whether or not there is, so it reveals nothing about
   // which emails have Accounts. Asking again for the same User replaces the request.
   rpc InviteUser(InviteUserRequest) returns (InviteUserResponse);
   // Starts someone signing in to the Server with their Account, as an OAuth device flow: the
-  // person approves it on the Hub's page for `id`, which then sends them to `return_url`, and the
-  // Server collects the sign-in with `PollServerSignIn`. Both stop working after
-  // `expires_in_seconds`.
+  // person approves it on the Hub's page for `id`, which then sends them to `return_url` with a
+  // one-time code, and the Server collects the sign-in with `PollServerSignIn` and that code. Both
+  // stop working after `expires_in_seconds`.
   rpc StartServerSignIn(StartServerSignInRequest) returns (StartServerSignInResponse);
-  // Whether the sign-in was approved. Once it is, the first poll gets the token naming the User
-  // and every later one fails. Fails with `REFUSAL_REASON_LINK_EXPIRED` for a device code that
-  // expired, was used, or never existed.
+  // Whether the sign-in was approved. Once it is, the first poll ends it: it gets the token naming
+  // the User if it brings the code approving put in `return_url`, and fails otherwise, as every
+  // later one does. Fails with `REFUSAL_REASON_LINK_EXPIRED` for a device code that expired, was
+  // used, or never existed, and for a wrong code.
   rpc PollServerSignIn(PollServerSignInRequest) returns (PollServerSignInResponse);
   // Replaces the Server Addresses the calling Server reported before. The Server reports them
-  // whenever they change. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an
-  // `http` or `https` URL, or for too many.
+  // whenever they change, and every half hour, since only then does the Hub check from outside
+  // whether its `public_port` can be reached. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID`
+  // for one that isn't an `http` or `https` URL, for too many, or for a port over 65535.
   rpc SetServerAddresses(SetServerAddressesRequest) returns (SetServerAddressesResponse) {
     option idempotency_level = IDEMPOTENT;
+  }
+  // Records a Viewing Event for each play by one of the Server's Users, under the Account they are
+  // Linked to (ADR 0093); one for a User who isn't Linked is left out. Sending one again by its
+  // `key` records it once. Fails with `REFUSAL_REASON_VIEWING_EVENT_INVALID`, recording none, when
+  // any breaks the rules `ViewingEvent` gives, or more than 1000 come at once.
+  rpc RecordViewingEvents(RecordViewingEventsRequest) returns (RecordViewingEventsResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // The Movies most Accounts finished this week and last, by the pooled counts (ADR 0093): at
+  // most 1000, most watched first. A week counts a Movie only once 20 Accounts finished it in
+  // that week, so the answer is empty until there are enough. The Hub answers ids, never titles
+  // or artwork (ADR 0094).
+  rpc ListTrendingTitles(ListTrendingTitlesRequest) returns (ListTrendingTitlesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // The Movies and Shows on most Accounts' Watchlists, by the pooled counts' rules (ADR 0093):
+  // at most 200, most watchlisted first. A title counts only once 20 Accounts that pool have it
+  // on their Watchlist, so the answer is empty until there are enough. Servers may lack any of
+  // them. The Hub answers ids, never titles or artwork (ADR 0094).
+  rpc ListMostWatchlistedTitles(ListMostWatchlistedTitlesRequest) returns (ListMostWatchlistedTitlesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
   }
 }
 
@@ -122,8 +180,9 @@ message LinkedServer {
   int64 linked_at = 3;
   // The Server URL its Admin set, where people open its web app (ADR 0010), or empty for none.
   string url = 4;
-  // The Server Addresses a client tries, as the Server last reported them: its Server URL first,
-  // then its LAN addresses.
+  // The Server Addresses a client tries, best first, as the Server last reported them: its Server
+  // URL, then its public address if the Hub reached it there from outside, then its LAN addresses,
+  // plain `http://<lan-ip>` (ADR 0057).
   repeated string addresses = 5;
 }
 
@@ -281,6 +340,121 @@ message UnlinkUserRequest {
 
 message UnlinkUserResponse {}
 
+message PushWatchStatesRequest {
+  // In the order the Server made them: up to 500.
+  repeated WatchStateChange changes = 1;
+}
+
+message PushWatchStatesResponse {}
+
+message PullWatchStatesRequest {
+  // The User's id on the Server.
+  int64 user_id = 1;
+}
+
+message PullWatchStatesResponse {
+  // One per title and External ID, each with that one id, in no order. `user_id` is the asked
+  // User's.
+  repeated WatchStateChange watch_states = 1;
+}
+
+// One User's Watch State of a Movie or Episode, as a change on their Server left it.
+message WatchStateChange {
+  // The User's id on the Server.
+  int64 user_id = 1;
+  // Whether it is an Episode rather than a Movie, whose TMDB ids are a separate id space.
+  bool episode = 2;
+  // Every External ID it is known by, such as `tmdb-348` (ADR 0013): 1 to 20, each up to 100
+  // characters. An Unmatched Item has none, so its Watch State never leaves its Server.
+  repeated string ids = 3;
+  // Whether it was played. Marking it unplayed leaves it unplayed at 0 of 0 milliseconds.
+  bool played = 4;
+  // How far in, in milliseconds, up to `duration_ms`.
+  uint64 position_ms = 5;
+  // How long it is, in milliseconds; 0 if no player said.
+  uint64 duration_ms = 6;
+  // When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+  // 9999.
+  int64 changed_at_ms = 7;
+}
+
+message PushTrackPreferencesRequest {
+  // Up to 500.
+  repeated TrackPreferenceChange changes = 1;
+}
+
+message PushTrackPreferencesResponse {}
+
+message PullTrackPreferencesRequest {
+  // The User's id on the Server.
+  int64 user_id = 1;
+}
+
+message PullTrackPreferencesResponse {
+  // One per Preference, in no order. `user_id` is the asked User's.
+  repeated TrackPreferenceChange preferences = 1;
+}
+
+// One User's Subtitle or Audio Preference, as a change on their Server left it (ADR 0035): what
+// describes the Track they want, never which Track it was, since each Server matches it against
+// its own. Home layouts, Permissions, Library access and Plugin settings belong to each Server
+// and never come here (ADR 0092).
+message TrackPreferenceChange {
+  // The User's id on the Server.
+  int64 user_id = 1;
+  // Whether it is an Audio Preference rather than a Subtitle Preference.
+  bool audio = 2;
+  // Whose it is: a Movie's or a Show's, or, unspecified, the User's own for everything they play.
+  TitleKind title_kind = 3;
+  // The Movie's or Show's External ID, such as `tmdb-348`, of 1 to 100 characters; empty for the
+  // User's own.
+  string title_id = 4;
+  // Subtitles turned off, or the User's own Audio Preference left to each file's own audio. Then
+  // nothing describes a Track.
+  bool off = 5;
+  // The Track's language as its file tagged it, such as `eng`, or empty for none: up to 100
+  // characters.
+  string language = 6;
+  // A forced-only subtitle Track.
+  bool forced = 7;
+  // A subtitle Track for the deaf and hard of hearing.
+  bool sdh = 8;
+  // The Track's title, or empty for none: up to 1000 characters.
+  string title = 9;
+  // Full subtitles only over audio in another language, which only the User's own Subtitle
+  // Preference can ask.
+  bool foreign_audio_only = 10;
+  // When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+  // 9999.
+  int64 changed_at_ms = 11;
+}
+
+message SyncWatchlistRequest {
+  // The User's id on the Server.
+  int64 user_id = 1;
+  // Every title on the User's Watchlist on the Server, and every one taken off it: up to 5000.
+  repeated WatchlistEntry entries = 2;
+}
+
+message SyncWatchlistResponse {
+  // The Account's, one per title and External ID, in no order.
+  repeated WatchlistEntry entries = 1;
+}
+
+// A title on a User's Watchlist, or taken off it, as the change made last left it. Kept by External
+// ID whether or not a Server has the title.
+message WatchlistEntry {
+  // A Movie or a Show, never unspecified.
+  TitleKind kind = 1;
+  // The External ID it was added under, such as `tmdb-603` (ADR 0013): 1 to 100 characters.
+  string id = 2;
+  // Whether it was taken off.
+  bool removed = 3;
+  // When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+  // 9999.
+  int64 changed_at_ms = 4;
+}
+
 // A User an Admin created from an Account, waiting for it to accept them.
 message UserInvite {
   // The invite's id, a UUID.
@@ -327,7 +501,8 @@ message ApproveServerSignInRequest {
 }
 
 message ApproveServerSignInResponse {
-  // Where to send the person back to, on the Server.
+  // Where to send the person back to, on the Server: the sign-in's `return_url`, with the one-time
+  // code the Server finishes with added to its query as `code`.
   string return_url = 1;
 }
 
@@ -344,8 +519,9 @@ message InviteUserRequest {
 message InviteUserResponse {}
 
 message StartServerSignInRequest {
-  // Where the Hub's page sends the person once they approve: an `http` or `https` address on the
-  // Server. Fails with `invalid_argument` for any other.
+  // Where the Hub's page sends the person once they approve: an `http` or `https` address with the
+  // scheme, host and port of one of the Server Addresses the Server reported. Fails with
+  // `invalid_argument` and `REFUSAL_REASON_URL_INVALID` for any other.
   string return_url = 1;
 }
 
@@ -360,6 +536,8 @@ message StartServerSignInResponse {
 
 message PollServerSignInRequest {
   string device_code = 1;
+  // The one-time code approving added to `return_url`, once the sign-in was approved.
+  string code = 2;
 }
 
 message PollServerSignInResponse {
@@ -373,6 +551,45 @@ message SetServerAddressesRequest {
   string url = 1;
   // The Server's LAN addresses, such as `http://192.168.1.10:7980`: at most 16.
   repeated string lan_addresses = 2;
+  // The port on its router's public IP address that reaches it: one it opened with UPnP or
+  // NAT-PMP, or one its Admin forwarded. 0 for none. The Hub connects to it at the IP address the
+  // request came from, the only one it checks, so a Server can't have the Hub call anyone else.
+  uint32 public_port = 3;
 }
 
-message SetServerAddressesResponse {}
+message SetServerAddressesResponse {
+  // Where the Hub tried to reach the Server from outside, such as `http://203.0.113.7:7980`: the
+  // IP address the request came from, with `public_port`. Empty without one.
+  string public_address = 1;
+  // Whether the Hub reached it there. Only then is it one of the Server's Server Addresses.
+  bool reachable = 2;
+}
+
+message ListTrendingTitlesRequest {}
+
+message ListTrendingTitlesResponse {
+  repeated TrendingTitle titles = 1;
+}
+
+// A Movie many Accounts finished lately.
+message TrendingTitle {
+  // Its id as Servers keep its Watch State, such as `tmdb` `603`.
+  ExternalId id = 1;
+  // How watched it is, from 0.0 to 1.0: its two weeks' counts summed, against the most watched's.
+  float weight = 2;
+}
+
+message ListMostWatchlistedTitlesRequest {}
+
+message ListMostWatchlistedTitlesResponse {
+  repeated WatchlistedTitle titles = 1;
+}
+
+// A title on many Accounts' Watchlists.
+message WatchlistedTitle {
+  TitleKind kind = 1;
+  // Its id as Servers keep it on their Watchlists, such as `tmdb` `603`.
+  ExternalId id = 2;
+  // How watchlisted it is, from 0.0 to 1.0: its Accounts against the most watchlisted's.
+  float weight = 3;
+}

@@ -5,7 +5,10 @@ use std::{
     collections::{HashMap, HashSet},
 };
 
-use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use nama_plugin_api::{
+    metadata::{ExternalId, ExternalIds},
+    points::WatchStateChange,
+};
 use nama_proto::nama::v1::{PageRequest, PageResponse};
 
 use super::{
@@ -48,23 +51,25 @@ impl Browse {
     /// Records, as of now, that the User `user` has got as far as `progress` through the Version
     /// `version`: through its Movie, or split across each Episode its file holds, under each one's
     /// preferred id. An Unmatched Item has no Watch State, so progress on it stores nothing (ADR
-    /// 0013).
+    /// 0013). Returns each change it made.
     pub(crate) async fn report(
         &self,
         user: i64,
         version: i64,
         progress: Progress,
-    ) -> Result<(), Error> {
+    ) -> Result<Vec<WatchStateChange>, Error> {
         let titles = match self.contents.titles_in(version).await? {
             TitlesIn::NoSuchVersion => return Err(NotFound::NoSuchVersion.into()),
-            TitlesIn::Movie(None) => return Ok(()),
+            TitlesIn::Movie(None) => return Ok(Vec::new()),
             TitlesIn::Movie(Some((id, ids))) => {
                 vec![Some(MovieOrEpisode::movie(&id).known_as(&ids))]
             }
             // An Item that isn't Matched keeps its share of the file, so the others' shares don't
             // move.
             TitlesIn::Episodes(episodes) => (episodes.into_iter())
-                .map(|episode| episode.map(|(id, ids)| MovieOrEpisode::episode(&id).known_as(&ids)))
+                .map(|episode| {
+                    episode.map(|(id, ids, _show)| MovieOrEpisode::episode(&id).known_as(&ids))
+                })
                 .collect(),
         };
         Ok(self.watch_states.report(user, titles, progress).await?)
@@ -74,14 +79,14 @@ impl Browse {
     /// `user`: a Season or Show is each of its Episodes. Played is written under each one's
     /// preferred id; unplayed forgets it under every id. Either, where it changes a Watch State,
     /// shows the Movie or Show again in Continue Watching. Fails as browsing to it does if the
-    /// Library has no such title.
+    /// Library has no such title. Returns each change it made.
     pub(crate) async fn mark(
         &self,
         user: i64,
         library: i64,
         target: Target,
         played: bool,
-    ) -> Result<(), Error> {
+    ) -> Result<Vec<WatchStateChange>, Error> {
         let Targeted { titles, entry } = self.targeted(library, target).await?;
         if played {
             Ok(self.watch_states.mark(user, titles, true).await?)
@@ -133,6 +138,52 @@ impl Browse {
             }
             Target::Show(id) => Targeted::entry(every_episode(&titles.show(&id)?)),
         })
+    }
+
+    /// Takes from `pulled`, the User `user`'s Watch State on their other Servers, that of each
+    /// Movie or Episode a Library has under any of its ids, in the oldest Library that has it,
+    /// where it is newer than this Server's own (see [`crate::library::WatchStates::take_pulled`]).
+    /// One no Library has stays with the service, which hands it back on the pull after the scan
+    /// that adds it.
+    pub(crate) async fn take_pulled(
+        &self,
+        user: i64,
+        pulled: Vec<WatchStateChange>,
+    ) -> Result<(), Error> {
+        if pulled.is_empty() {
+            return Ok(());
+        }
+        let here = self.watched_here().await?;
+        let taken = (pulled.into_iter())
+            .filter_map(|change| {
+                let found =
+                    (change.ids.iter()).find_map(|id| here.get(&(change.episode, id.clone())))?;
+                Some((found.clone(), change))
+            })
+            .collect();
+        Ok(self.watch_states.take_pulled(user, taken).await?)
+    }
+
+    /// Every Watch State of the User `user`, as Plugins are told of changes: each known by every
+    /// id a Library has its title under and dated when it last changed (see
+    /// [`crate::library::WatchStates::changes_of_user`]).
+    pub(crate) async fn watch_state_changes(
+        &self,
+        user: i64,
+    ) -> Result<Vec<WatchStateChange>, Error> {
+        let here = self.watched_here().await?;
+        Ok(self.watch_states.changes_of_user(user, &here).await?)
+    }
+
+    /// Each Movie or Episode here, by whether it's an Episode and each of its ids, in the oldest
+    /// Library that has that id.
+    async fn watched_here(&self) -> Result<HashMap<(bool, String), WatchedTitle>, Error> {
+        let mut here = HashMap::new();
+        // ponytail: whole-Library read
+        for library in self.libraries.list().await.map_err(finding_failed)? {
+            add_watched(&mut here, self.titles(&library).await?);
+        }
+        Ok(here)
     }
 
     /// A page of the User `user`'s Continue Watching, most recent first: the Movies they've
@@ -375,6 +426,27 @@ impl Found {
                 state,
             };
             self.listed.push((started, recency));
+        }
+    }
+}
+
+/// Adds each Movie or Episode of `titles` to `here` under whether it's an Episode and each of its
+/// ids, unless an older Library's took that id.
+fn add_watched(here: &mut HashMap<(bool, String), WatchedTitle>, titles: Titles) {
+    let watched: Vec<(bool, MovieOrEpisode, ExternalIds)> = match titles {
+        Titles::Movies(movies) => (movies.into_iter())
+            .map(|movie| (false, MovieOrEpisode::movie(&movie.id), movie.ids))
+            .collect(),
+        Titles::Shows(shows) => (shows.iter().flat_map(Show::episodes))
+            .map(|episode| {
+                let title = MovieOrEpisode::episode(&episode.id);
+                (true, title, episode.ids.clone())
+            })
+            .collect(),
+    };
+    for (episode, title, ids) in watched {
+        for id in ids.iter() {
+            (here.entry((episode, id.to_string()))).or_insert_with(|| title.clone().known_as(&ids));
         }
     }
 }

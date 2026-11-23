@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\" FROM users u\n               WHERE NOT EXISTS (SELECT 1 FROM sign_in_methods m WHERE m.user_id = u.id)\n               ORDER BY id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4fa571a581b3f4c36fc48a70ea3837919bf6e9f0d25047599c445cfec22e9e58"
+}

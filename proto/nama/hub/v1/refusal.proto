@@ -58,8 +58,8 @@ enum RefusalReason {
   // Unlink them first.
   REFUSAL_REASON_USER_LINKED = 14;
   // `invalid_argument`: a Server Address isn't an `http` or `https` URL of at most `maxLength`
-  // characters, or the Server reported more than `maxLanAddresses` LAN addresses. Params:
-  // `maxLength` and `maxLanAddresses`.
+  // characters, the Server reported more than `maxLanAddresses` LAN addresses, or a public port
+  // over `maxPort`. Params: `maxLength`, `maxLanAddresses` and `maxPort`.
   REFUSAL_REASON_SERVER_ADDRESS_INVALID = 15;
   // `not_found`: the signed-in Account has no such User waiting for it: it was accepted already,
   // or its Server Unlinked it.
@@ -72,4 +72,20 @@ enum RefusalReason {
   REFUSAL_REASON_NO_USER_ON_SERVER = 18;
   // `invalid_argument`: the field isn't an `http` or `https` address.
   REFUSAL_REASON_URL_INVALID = 19;
+  // `invalid_argument`: a Watch State change breaks a limit `PushWatchStatesRequest` sets, such as
+  // too many changes, an id too long, a position past the duration, or a time out of range. `field` names it. Params:
+  // `maxChanges`, `maxIds` and `maxIdLength`.
+  REFUSAL_REASON_WATCH_STATE_INVALID = 20;
+  // `invalid_argument`: a Viewing Event breaks the rules `ViewingEvent` and `UserViewingEvent`
+  // give, or more than `maxEvents` came at once. Params: `maxEvents`.
+  REFUSAL_REASON_VIEWING_EVENT_INVALID = 21;
+  // `invalid_argument`: a Subtitle or Audio Preference change breaks a limit
+  // `TrackPreferenceChange` and `PushTrackPreferencesRequest` set, such as too many changes, a
+  // field too long, or a time out of range. `field` names it. Params: `maxChanges`, `maxIdLength`,
+  // `maxLanguageLength` and `maxTitleLength`.
+  REFUSAL_REASON_TRACK_PREFERENCE_INVALID = 23;
+  // `invalid_argument`: a Watchlist entry breaks a limit `SyncWatchlistRequest` sets, such as too
+  // many entries, an id too long, no kind, or a time out of range. `field` names it. Params:
+  // `maxEntries` and `maxIdLength`.
+  REFUSAL_REASON_WATCHLIST_INVALID = 22;
 }

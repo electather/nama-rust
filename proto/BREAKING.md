@@ -10,6 +10,24 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>, <package>` heading
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own. The entries from before the Hub API, which name no package, are all `nama.v1`'s.
 
+## 2026-11-23, #1952, nama.hub.v1
+
+- None that `buf breaking` reports: in `nama/hub/v1/viewing.proto`, `ViewingEvent` gains `show_external_id` (10).
+- `LinkedServerService.RecordViewingEvents` refuses an Episode's event without `show_external_id` and a Movie's with one, with `REFUSAL_REASON_VIEWING_EVENT_INVALID`, and records none of the call's events.
+- A Hub Plugin built before sends no Show, so each call holding an Episode's event is refused and the Plugin forgets the whole call, Movies' events too. It must regenerate and send each Episode's Show's External ID. Events it queued while the Hub was unreachable hold no Show either, so after upgrading, its first call holding an Episode's event is lost the same way. The Hub Plugin the Server bundles is the only caller.
+
+## 2026-11-22, #1934, nama.hub.v1
+
+- None that `buf breaking` reports: in `nama/hub/v1/link.proto`, `PollServerSignInRequest` gains `code` (2).
+- `StartServerSignIn` refuses a `return_url` on none of the calling Server's Server Addresses, `ApproveServerSignIn` adds a one-time `code` to the `return_url` it answers, and the first `PollServerSignIn` after approval fails with `REFUSAL_REASON_LINK_EXPIRED` unless it brings that code.
+- A Hub Plugin built before sends no code, so no sign-in with an Account finishes; it must regenerate and pass on the code the client brings. The Hub Plugin the Server bundles is the only caller.
+
+## 2026-11-22, #1934, nama.v1
+
+- None that `buf breaking` reports: in `nama/v1/sign_in.proto`, `SignInWithAccountRequest` gains `code` (4).
+- `SignInWithAccount` signs in only with the one-time code the Hub added to `return_url`'s query as `code`, and a wrong code ends the sign-in.
+- A client built before sends no code, so it never finishes a sign-in with an Account; it must regenerate, read `code` from the address the Hub sends the person back to, and send it. The web app is the only client.
+
 ## 2026-11-22, #1750
 
 - None that `buf breaking` reports: in `nama/v1/plugin.proto`, `PluginSummary.custom_logo` (12) is deleted with its number and name reserved.

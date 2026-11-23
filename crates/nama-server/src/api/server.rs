@@ -27,12 +27,14 @@ use nama_proto::nama::v1::{
 
 use crate::{
     backup::Backups,
+    browse::Browse,
     diagnostics::Sharing,
     ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
     home_rows::HomeRows,
     images::{self, Blobs, ImageStore, Persist, SwitchRefused, Switching},
     playback::{
-        MessageTooLong, PlayNow, RunningPlans, STOP_MESSAGE_LENGTH, accel_to_proto, limit_to_proto,
+        MessageTooLong, PlayNow, RunningPlans, STOP_MESSAGE_LENGTH, TrackPreferences,
+        accel_to_proto, limit_to_proto,
     },
     plugins::{ExtensionPoints, PluginBlobs},
     server_settings::{
@@ -42,12 +44,19 @@ use crate::{
     users::Users,
 };
 
-use super::{database_failed, playback::limit_from_proto, refuse, server_link, unknown_enum_value};
+use super::{
+    BrowserSpans, database_failed, playback::limit_from_proto, refuse, server_link,
+    unknown_enum_value,
+};
 
 /// `nama.v1.ServerService`: facts about this Server, its settings, and the ffmpeg it found.
 pub(super) struct ServerServiceHandler {
     pub(super) name: String,
     pub(super) users: Users,
+    /// Reads each User's Watch State to push once the Server is Linked.
+    pub(super) browse: Browse,
+    /// Reads each User's Track Preferences to push once the Server is Linked.
+    pub(super) preferences: TrackPreferences,
     pub(super) settings: server_settings::Settings,
     pub(super) abilities: Abilities,
     pub(super) ffmpeg: Arc<Ffmpeg>,
@@ -58,8 +67,8 @@ pub(super) struct ServerServiceHandler {
     /// Where local disk keeps the images.
     pub(super) data_dir: PathBuf,
     pub(super) backups: Backups,
-    /// Whether the Server exports Diagnostics, so the web app records its own.
-    pub(super) exports_diagnostics: bool,
+    /// Says whether the web app's Diagnostics go anywhere, so it records its own.
+    pub(super) browser_spans: BrowserSpans,
     pub(super) running: RunningPlans,
 }
 
@@ -74,7 +83,7 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, GetServerLinkRequest>,
     ) -> ServiceResult<GetServerLinkResponse> {
-        server_link::get(&self.points).await
+        server_link::get(&self.points, &self.browse, &self.preferences, &self.users).await
     }
 
     async fn start_server_link(
@@ -105,7 +114,7 @@ impl ServerService for ServerServiceHandler {
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_required,
             image_widths: images::WIDTHS.to_vec(),
-            exports_diagnostics: self.exports_diagnostics,
+            exports_diagnostics: self.browser_spans.exports(),
             account_sign_in,
             ..Default::default()
         })

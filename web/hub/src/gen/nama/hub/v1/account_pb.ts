@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/hub/v1/account.proto.
  */
 export const file_nama_hub_v1_account: GenFile = /*@__PURE__*/
-  fileDesc("ChluYW1hL2h1Yi92MS9hY2NvdW50LnByb3RvEgtuYW1hLmh1Yi52MSIkCgdBY2NvdW50EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJIjcKFENyZWF0ZUFjY291bnRSZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIj4KFUNyZWF0ZUFjY291bnRSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudCIwCg1TaWduSW5SZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIjcKDlNpZ25JblJlc3BvbnNlEiUKB2FjY291bnQYASABKAsyFC5uYW1hLmh1Yi52MS5BY2NvdW50IjsKFVNlbmRTaWduSW5MaW5rUmVxdWVzdBINCgVlbWFpbBgBIAEoCRITCgtjb250aW51ZV90bxgCIAEoCSIYChZTZW5kU2lnbkluTGlua1Jlc3BvbnNlIiUKFEdldFNpZ25JbkxpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFUdldFNpZ25JbkxpbmtSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudBIUCgxlbWFpbF9wcm92ZW4YAiABKAgiJgoVU2lnbkluV2l0aExpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFlNpZ25JbldpdGhMaW5rUmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQSEwoLY29udGludWVfdG8YAiABKAkiJgoSU2V0UGFzc3dvcmRSZXF1ZXN0EhAKCHBhc3N3b3JkGAEgASgJIhUKE1NldFBhc3N3b3JkUmVzcG9uc2UiEAoOU2lnbk91dFJlcXVlc3QiEQoPU2lnbk91dFJlc3BvbnNlIhMKEUdldEFjY291bnRSZXF1ZXN0IlEKEkdldEFjY291bnRSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudBIUCgxoYXNfcGFzc3dvcmQYAiABKAgypQUKDkFjY291bnRTZXJ2aWNlElYKDUNyZWF0ZUFjY291bnQSIS5uYW1hLmh1Yi52MS5DcmVhdGVBY2NvdW50UmVxdWVzdBoiLm5hbWEuaHViLnYxLkNyZWF0ZUFjY291bnRSZXNwb25zZRJBCgZTaWduSW4SGi5uYW1hLmh1Yi52MS5TaWduSW5SZXF1ZXN0GhsubmFtYS5odWIudjEuU2lnbkluUmVzcG9uc2USWQoOU2VuZFNpZ25JbkxpbmsSIi5uYW1hLmh1Yi52MS5TZW5kU2lnbkluTGlua1JlcXVlc3QaIy5uYW1hLmh1Yi52MS5TZW5kU2lnbkluTGlua1Jlc3BvbnNlElYKDUdldFNpZ25JbkxpbmsSIS5uYW1hLmh1Yi52MS5HZXRTaWduSW5MaW5rUmVxdWVzdBoiLm5hbWEuaHViLnYxLkdldFNpZ25JbkxpbmtSZXNwb25zZRJZCg5TaWduSW5XaXRoTGluaxIiLm5hbWEuaHViLnYxLlNpZ25JbldpdGhMaW5rUmVxdWVzdBojLm5hbWEuaHViLnYxLlNpZ25JbldpdGhMaW5rUmVzcG9uc2USUAoLU2V0UGFzc3dvcmQSHy5uYW1hLmh1Yi52MS5TZXRQYXNzd29yZFJlcXVlc3QaIC5uYW1hLmh1Yi52MS5TZXRQYXNzd29yZFJlc3BvbnNlEkQKB1NpZ25PdXQSGy5uYW1hLmh1Yi52MS5TaWduT3V0UmVxdWVzdBocLm5hbWEuaHViLnYxLlNpZ25PdXRSZXNwb25zZRJSCgpHZXRBY2NvdW50Eh4ubmFtYS5odWIudjEuR2V0QWNjb3VudFJlcXVlc3QaHy5uYW1hLmh1Yi52MS5HZXRBY2NvdW50UmVzcG9uc2UiA5ACAWIGcHJvdG8z");
+  fileDesc("ChluYW1hL2h1Yi92MS9hY2NvdW50LnByb3RvEgtuYW1hLmh1Yi52MSIkCgdBY2NvdW50EgoKAmlkGAEgASgJEg0KBWVtYWlsGAIgASgJIjcKFENyZWF0ZUFjY291bnRSZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIj4KFUNyZWF0ZUFjY291bnRSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudCIwCg1TaWduSW5SZXF1ZXN0Eg0KBWVtYWlsGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJIjcKDlNpZ25JblJlc3BvbnNlEiUKB2FjY291bnQYASABKAsyFC5uYW1hLmh1Yi52MS5BY2NvdW50IjsKFVNlbmRTaWduSW5MaW5rUmVxdWVzdBINCgVlbWFpbBgBIAEoCRITCgtjb250aW51ZV90bxgCIAEoCSIYChZTZW5kU2lnbkluTGlua1Jlc3BvbnNlIiUKFEdldFNpZ25JbkxpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFUdldFNpZ25JbkxpbmtSZXNwb25zZRIlCgdhY2NvdW50GAEgASgLMhQubmFtYS5odWIudjEuQWNjb3VudBIUCgxlbWFpbF9wcm92ZW4YAiABKAgiJgoVU2lnbkluV2l0aExpbmtSZXF1ZXN0Eg0KBXRva2VuGAEgASgJIlQKFlNpZ25JbldpdGhMaW5rUmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQSEwoLY29udGludWVfdG8YAiABKAkiJgoSU2V0UGFzc3dvcmRSZXF1ZXN0EhAKCHBhc3N3b3JkGAEgASgJIhUKE1NldFBhc3N3b3JkUmVzcG9uc2UiFgoURGVsZXRlQWNjb3VudFJlcXVlc3QiFwoVRGVsZXRlQWNjb3VudFJlc3BvbnNlIhAKDlNpZ25PdXRSZXF1ZXN0IhEKD1NpZ25PdXRSZXNwb25zZSITChFHZXRBY2NvdW50UmVxdWVzdCJRChJHZXRBY2NvdW50UmVzcG9uc2USJQoHYWNjb3VudBgBIAEoCzIULm5hbWEuaHViLnYxLkFjY291bnQSFAoMaGFzX3Bhc3N3b3JkGAIgASgIMv0FCg5BY2NvdW50U2VydmljZRJWCg1DcmVhdGVBY2NvdW50EiEubmFtYS5odWIudjEuQ3JlYXRlQWNjb3VudFJlcXVlc3QaIi5uYW1hLmh1Yi52MS5DcmVhdGVBY2NvdW50UmVzcG9uc2USQQoGU2lnbkluEhoubmFtYS5odWIudjEuU2lnbkluUmVxdWVzdBobLm5hbWEuaHViLnYxLlNpZ25JblJlc3BvbnNlElkKDlNlbmRTaWduSW5MaW5rEiIubmFtYS5odWIudjEuU2VuZFNpZ25JbkxpbmtSZXF1ZXN0GiMubmFtYS5odWIudjEuU2VuZFNpZ25JbkxpbmtSZXNwb25zZRJWCg1HZXRTaWduSW5MaW5rEiEubmFtYS5odWIudjEuR2V0U2lnbkluTGlua1JlcXVlc3QaIi5uYW1hLmh1Yi52MS5HZXRTaWduSW5MaW5rUmVzcG9uc2USWQoOU2lnbkluV2l0aExpbmsSIi5uYW1hLmh1Yi52MS5TaWduSW5XaXRoTGlua1JlcXVlc3QaIy5uYW1hLmh1Yi52MS5TaWduSW5XaXRoTGlua1Jlc3BvbnNlElAKC1NldFBhc3N3b3JkEh8ubmFtYS5odWIudjEuU2V0UGFzc3dvcmRSZXF1ZXN0GiAubmFtYS5odWIudjEuU2V0UGFzc3dvcmRSZXNwb25zZRJWCg1EZWxldGVBY2NvdW50EiEubmFtYS5odWIudjEuRGVsZXRlQWNjb3VudFJlcXVlc3QaIi5uYW1hLmh1Yi52MS5EZWxldGVBY2NvdW50UmVzcG9uc2USRAoHU2lnbk91dBIbLm5hbWEuaHViLnYxLlNpZ25PdXRSZXF1ZXN0GhwubmFtYS5odWIudjEuU2lnbk91dFJlc3BvbnNlElIKCkdldEFjY291bnQSHi5uYW1hLmh1Yi52MS5HZXRBY2NvdW50UmVxdWVzdBofLm5hbWEuaHViLnYxLkdldEFjY291bnRSZXNwb25zZSIDkAIBYgZwcm90bzM");
 
 /**
  * A person's identity on the Hub.
@@ -285,6 +285,32 @@ export const SetPasswordResponseSchema: GenMessage<SetPasswordResponse> = /*@__P
   messageDesc(file_nama_hub_v1_account, 12);
 
 /**
+ * @generated from message nama.hub.v1.DeleteAccountRequest
+ */
+export type DeleteAccountRequest = Message<"nama.hub.v1.DeleteAccountRequest"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.DeleteAccountRequest.
+ * Use `create(DeleteAccountRequestSchema)` to create a new message.
+ */
+export const DeleteAccountRequestSchema: GenMessage<DeleteAccountRequest> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 13);
+
+/**
+ * @generated from message nama.hub.v1.DeleteAccountResponse
+ */
+export type DeleteAccountResponse = Message<"nama.hub.v1.DeleteAccountResponse"> & {
+};
+
+/**
+ * Describes the message nama.hub.v1.DeleteAccountResponse.
+ * Use `create(DeleteAccountResponseSchema)` to create a new message.
+ */
+export const DeleteAccountResponseSchema: GenMessage<DeleteAccountResponse> = /*@__PURE__*/
+  messageDesc(file_nama_hub_v1_account, 14);
+
+/**
  * @generated from message nama.hub.v1.SignOutRequest
  */
 export type SignOutRequest = Message<"nama.hub.v1.SignOutRequest"> & {
@@ -295,7 +321,7 @@ export type SignOutRequest = Message<"nama.hub.v1.SignOutRequest"> & {
  * Use `create(SignOutRequestSchema)` to create a new message.
  */
 export const SignOutRequestSchema: GenMessage<SignOutRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_account, 13);
+  messageDesc(file_nama_hub_v1_account, 15);
 
 /**
  * @generated from message nama.hub.v1.SignOutResponse
@@ -308,7 +334,7 @@ export type SignOutResponse = Message<"nama.hub.v1.SignOutResponse"> & {
  * Use `create(SignOutResponseSchema)` to create a new message.
  */
 export const SignOutResponseSchema: GenMessage<SignOutResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_account, 14);
+  messageDesc(file_nama_hub_v1_account, 16);
 
 /**
  * @generated from message nama.hub.v1.GetAccountRequest
@@ -321,7 +347,7 @@ export type GetAccountRequest = Message<"nama.hub.v1.GetAccountRequest"> & {
  * Use `create(GetAccountRequestSchema)` to create a new message.
  */
 export const GetAccountRequestSchema: GenMessage<GetAccountRequest> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_account, 15);
+  messageDesc(file_nama_hub_v1_account, 17);
 
 /**
  * @generated from message nama.hub.v1.GetAccountResponse
@@ -345,7 +371,7 @@ export type GetAccountResponse = Message<"nama.hub.v1.GetAccountResponse"> & {
  * Use `create(GetAccountResponseSchema)` to create a new message.
  */
 export const GetAccountResponseSchema: GenMessage<GetAccountResponse> = /*@__PURE__*/
-  messageDesc(file_nama_hub_v1_account, 16);
+  messageDesc(file_nama_hub_v1_account, 18);
 
 /**
  * Creating an Account, and signing it in and out, for the Hub's web pages. A session is an
@@ -430,6 +456,22 @@ export const AccountService: GenService<{
     methodKind: "unary";
     input: typeof SetPasswordRequestSchema;
     output: typeof SetPasswordResponseSchema;
+  },
+  /**
+   * Deletes the signed-in Account and everything the Hub keeps for it: its sessions, Sign-in
+   * Methods, Watch State, Watchlist and Viewing Events, and its Links, so each of its Users is
+   * Unlinked, and each Server it Linked with every User Linked there. Pooled counts name no Account,
+   * so they stay (ADR 0093). A Server learns of an Unlink the next time it names the User. Clears
+   * the session cookie. Needs Recent Authentication, as `SetPassword` does. Fails with
+   * `REFUSAL_REASON_SIGN_IN_REQUIRED` without a session, and
+   * `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED`.
+   *
+   * @generated from rpc nama.hub.v1.AccountService.DeleteAccount
+   */
+  deleteAccount: {
+    methodKind: "unary";
+    input: typeof DeleteAccountRequestSchema;
+    output: typeof DeleteAccountResponseSchema;
   },
   /**
    * Ends the calling session and clears its cookie. Fails with `REFUSAL_REASON_SIGN_IN_REQUIRED`

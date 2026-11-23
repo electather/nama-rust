@@ -14,8 +14,8 @@
 
 ### Data
 
-- **Accounts' data is scoped by `account_id`** in every query, with an integration test per RPC that another Account's rows don't appear (ADR 0097). Every table holding it references `accounts(id) ON DELETE CASCADE` (ADR 0099).
-- **Migrations are for PostgreSQL 18 only** (ADR 0005), named by UTC timestamp (`README.md`), and never `-- no-transaction`: they all run in one transaction at startup, forward only (ADR 0060). A migration on main is never edited, renamed or deleted (`.github/scripts/migrations-unchanged.sh`). Primary keys are `uuid DEFAULT uuidv7()`, and times are `timestamptz`.
+- **Accounts' data is scoped by `account_id`** in every query but charts of Watchlists, which count across Accounts only by the pooled counts' rules (ADR 0093), with an integration test per RPC that another Account's rows don't appear (ADR 0097). Every table holding it references `accounts(id) ON DELETE CASCADE` (ADR 0099).
+- **Migrations are for PostgreSQL 18 only** (ADR 0005), named by UTC timestamp (`README.md`), and never `-- no-transaction`: they all run in one transaction at startup, forward only (ADR 0060). A migration on main is never edited, renamed or deleted (`.github/scripts/migrations-unchanged.sh`). Primary keys are `uuid DEFAULT uuidv7()`, and times are `timestamptz`, except `pooled_counts`' and `weekly_counts`' `gen_random_uuid()`: a uuidv7 holds the millisecond its row was made, which would point to the Account whose play made it (ADR 0093).
 - **Queries use sqlx's macros.** After changing one or a migration, regenerate `.sqlx/` at the workspace root (`README.md`).
 - **MovieLens stays in `nama-hub-eval`.** Its licence is for research, so nothing here reads it or is trained on it, and nothing here depends on that crate (ADR 0095).
 - **Spans carry ids only**, never an email, a name or a title (ADR 0054).

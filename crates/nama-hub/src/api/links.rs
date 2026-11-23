@@ -2,7 +2,10 @@
 //! `LinkService` and `LinkedServerService`, one for each kind of caller, and what a Linked Server
 //! asks of the Hub's titles.
 
+use std::net::SocketAddr;
+
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
+use nama_forwarded::RequestSource;
 use nama_hub_proto::nama::hub::v1::{
     self as proto, AcceptUserInviteRequest, AcceptUserInviteResponse, ApproveServerLinkRequest,
     ApproveServerLinkResponse, ApproveServerSignInRequest, ApproveServerSignInResponse,
@@ -10,24 +13,34 @@ use nama_hub_proto::nama::hub::v1::{
     GetServerSignInResponse, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest,
     InviteUserResponse, LinkService, LinkedServerService, ListLinkedServersRequest,
     ListLinkedServersResponse, ListLinkedUsersRequest, ListLinkedUsersResponse,
-    ListSimilarTitlesRequest, ListSimilarTitlesResponse, ListUserInvitesRequest,
-    ListUserInvitesResponse, PollServerLinkRequest, PollServerLinkResponse,
-    PollServerSignInRequest, PollServerSignInResponse, RefusalReason, ServerLinkService,
-    SetServerAddressesRequest, SetServerAddressesResponse, StartServerLinkRequest,
-    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
-    StartUserLinkRequest, StartUserLinkResponse, UnlinkLinkedUserRequest, UnlinkLinkedUserResponse,
-    UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
+    ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse, ListSimilarTitlesRequest,
+    ListSimilarTitlesResponse, ListTrendingTitlesRequest, ListTrendingTitlesResponse,
+    ListUserInvitesRequest, ListUserInvitesResponse, PollServerLinkRequest, PollServerLinkResponse,
+    PollServerSignInRequest, PollServerSignInResponse, PullTrackPreferencesRequest,
+    PullTrackPreferencesResponse, PullWatchStatesRequest, PullWatchStatesResponse,
+    PushTrackPreferencesRequest, PushTrackPreferencesResponse, PushWatchStatesRequest,
+    PushWatchStatesResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
+    RefusalReason, ServerLinkService, SetServerAddressesRequest, SetServerAddressesResponse,
+    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
+    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
+    SyncWatchlistResponse, UnlinkLinkedUserRequest, UnlinkLinkedUserResponse, UnlinkServerRequest,
+    UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse,
 };
 use sqlx::PgPool;
 
-use super::{accounts::signed_in, hub_failed, refuse};
+use super::{accounts::signed_in, hub_failed, refuse, track_preferences, viewing, watchlists};
 use crate::{
     links::{
         self, ADDRESS_LENGTH, CODE_LIFETIME_MINS, InviteId, LinkId, LinkedServer, Links,
         ListedInvite, ListedServer, ListedUser, MAX_LAN_ADDRESSES, POLL_INTERVAL_SECS, Polled,
         SignInId,
     },
+    sync::{
+        MAX_CHANGED_AT_MS, MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, TrackPreferences, WatchStateChange,
+        WatchStates, Watchlists,
+    },
     titles::{self, ExternalId, SimilarTitle, TitleKind},
+    viewing::{TrendingTitle, Viewing},
 };
 
 /// `nama.hub.v1.ServerLinkService`: a Server not yet Linked, so anyone.
@@ -244,7 +257,11 @@ impl LinkService for LinkServiceHandler {
 /// `nama.hub.v1.LinkedServerService`: a Linked Server, by its credential.
 pub(super) struct LinkedServerServiceHandler {
     pub(super) links: Links,
+    pub(super) watch_states: WatchStates,
+    pub(super) track_preferences: TrackPreferences,
+    pub(super) watchlists: Watchlists,
     pub(super) db: PgPool,
+    pub(super) viewing: Viewing,
 }
 
 #[expect(
@@ -340,6 +357,92 @@ impl LinkedServerService for LinkedServerServiceHandler {
         Response::ok(UnlinkUserResponse::default())
     }
 
+    async fn push_watch_states(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PushWatchStatesRequest>,
+    ) -> ServiceResult<PushWatchStatesResponse> {
+        let server = linked_server(&ctx)?;
+        let changes = changes_from_proto(request.to_owned_message().changes)?;
+        self.watch_states
+            .push(server, changes)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(PushWatchStatesResponse::default())
+    }
+
+    async fn pull_watch_states(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PullWatchStatesRequest>,
+    ) -> ServiceResult<PullWatchStatesResponse> {
+        let pulled = self
+            .watch_states
+            .pull(linked_server(&ctx)?, request.user_id)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(PullWatchStatesResponse {
+            watch_states: pulled.into_iter().map(change_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn push_track_preferences(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PushTrackPreferencesRequest>,
+    ) -> ServiceResult<PushTrackPreferencesResponse> {
+        let server = linked_server(&ctx)?;
+        let changes = track_preferences::changes_from_proto(request.to_owned_message().changes)?;
+        self.track_preferences
+            .push(server, changes)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(PushTrackPreferencesResponse::default())
+    }
+
+    async fn pull_track_preferences(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PullTrackPreferencesRequest>,
+    ) -> ServiceResult<PullTrackPreferencesResponse> {
+        let pulled = self
+            .track_preferences
+            .pull(linked_server(&ctx)?, request.user_id)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(PullTrackPreferencesResponse {
+            preferences: (pulled.into_iter())
+                .map(track_preferences::change_to_proto)
+                .collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn sync_watchlist(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SyncWatchlistRequest>,
+    ) -> ServiceResult<SyncWatchlistResponse> {
+        let server = linked_server(&ctx)?;
+        let SyncWatchlistRequest {
+            user_id, entries, ..
+        } = request.to_owned_message();
+        let entries = watchlists::watchlist_from_proto(entries)?;
+        let merged = self
+            .watchlists
+            .sync(server, user_id, entries)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(SyncWatchlistResponse {
+            entries: merged
+                .into_iter()
+                .map(watchlists::watchlist_entry_to_proto)
+                .collect(),
+            ..Default::default()
+        })
+    }
+
     async fn invite_user(
         &self,
         ctx: RequestContext,
@@ -382,7 +485,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
     ) -> ServiceResult<PollServerSignInResponse> {
         let token = self
             .links
-            .poll_sign_in(linked_server(&ctx)?, request.device_code)
+            .poll_sign_in(linked_server(&ctx)?, request.device_code, request.code)
             .await
             .map_err(refused)?;
         Response::ok(PollServerSignInResponse {
@@ -401,12 +504,82 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .iter()
             .map(|&address| address.to_owned())
             .collect();
-        self.links
-            .set_addresses(linked_server(&ctx)?, request.url, &lan_addresses)
+        let public = public_address(&ctx, request.public_port)?;
+        let checked = self
+            .links
+            .set_addresses(linked_server(&ctx)?, request.url, &lan_addresses, public)
             .await
             .map_err(refused)?;
-        Response::ok(SetServerAddressesResponse::default())
+        Response::ok(
+            checked.map_or_else(SetServerAddressesResponse::default, |checked| {
+                SetServerAddressesResponse {
+                    public_address: checked.address,
+                    reachable: checked.reachable,
+                    ..Default::default()
+                }
+            }),
+        )
     }
+
+    async fn record_viewing_events(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, RecordViewingEventsRequest>,
+    ) -> ServiceResult<RecordViewingEventsResponse> {
+        let server = linked_server(&ctx)?;
+        let events = viewing::recorded_from_proto(request.to_owned_message().events)?;
+        (self.viewing.record(server, events))
+            .await
+            .map_err(|err| viewing::refused(&err))?;
+        Response::ok(RecordViewingEventsResponse::default())
+    }
+
+    async fn list_trending_titles(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListTrendingTitlesRequest>,
+    ) -> ServiceResult<ListTrendingTitlesResponse> {
+        linked_server(&ctx)?;
+        let trending = (self.viewing.trending())
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(ListTrendingTitlesResponse {
+            titles: trending.iter().filter_map(trending_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn list_most_watchlisted_titles(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListMostWatchlistedTitlesRequest>,
+    ) -> ServiceResult<ListMostWatchlistedTitlesResponse> {
+        linked_server(&ctx)?;
+        let watchlisted = (self.watchlists.most_watchlisted())
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(ListMostWatchlistedTitlesResponse {
+            titles: (watchlisted.iter())
+                .filter_map(watchlists::watchlisted_to_proto)
+                .collect(),
+            ..Default::default()
+        })
+    }
+}
+
+/// The address to check the calling Server's public `port` at: the IP address its request `ctx`
+/// came from (ADR 0018), never one it names, so a Server can't have the Hub call anyone else.
+/// `None` for port 0.
+fn public_address(ctx: &RequestContext, port: u32) -> Result<Option<SocketAddr>, ConnectError> {
+    if port == 0 {
+        return Ok(None);
+    }
+    let port = u16::try_from(port).map_err(|_too_big| refused(links::Error::AddressInvalid))?;
+    let source = ctx
+        .extensions()
+        .get::<RequestSource>()
+        .ok_or_else(|| hub_failed(&"a request came without its peer's address"))?;
+    Ok(Some(SocketAddr::new(source.client_ip.to_canonical(), port)))
 }
 
 /// The invite `id` names. One that isn't a UUID names none.
@@ -443,6 +616,22 @@ fn similar_to_proto(similar: SimilarTitle) -> proto::SimilarTitle {
         weight: similar.weight,
         ..Default::default()
     }
+}
+
+/// `trending` as a Server reads it, or `None` for an External ID not written `namespace-value`,
+/// which no Server sends.
+fn trending_to_proto(trending: &TrendingTitle) -> Option<proto::TrendingTitle> {
+    let (namespace, value) = trending.external_id.split_once('-')?;
+    Some(proto::TrendingTitle {
+        id: proto::ExternalId {
+            namespace: namespace.to_owned(),
+            value: value.to_owned(),
+            ..Default::default()
+        }
+        .into(),
+        weight: trending.weight,
+        ..Default::default()
+    })
 }
 
 fn server_to_proto(server: ListedServer) -> proto::LinkedServer {
@@ -501,8 +690,92 @@ fn refused(err: links::Error) -> ConnectError {
         E::UrlInvalid => refuse(R::REFUSAL_REASON_URL_INVALID, message).field("return_url"),
         E::AddressInvalid => refuse(R::REFUSAL_REASON_SERVER_ADDRESS_INVALID, message)
             .param("maxLength", &ADDRESS_LENGTH)
-            .param("maxLanAddresses", &MAX_LAN_ADDRESSES),
+            .param("maxLanAddresses", &MAX_LAN_ADDRESSES)
+            .param("maxPort", &u16::MAX),
         E::Random(_) | E::Database(_) => return hub_failed(&err),
     };
     refused.into()
 }
+
+/// `changes` as `sync` takes them, or the refusal of the first limit they break.
+fn changes_from_proto(
+    changes: Vec<proto::WatchStateChange>,
+) -> Result<Vec<WatchStateChange>, ConnectError> {
+    if changes.len() > MAX_CHANGES {
+        return Err(invalid_change(
+            "changes",
+            format!("a push holds up to {MAX_CHANGES} changes"),
+        ));
+    }
+    (changes.into_iter().enumerate())
+        .map(|(nth, change)| change_from_proto(nth, change))
+        .collect()
+}
+
+/// The `nth` change of a push, as `sync` takes it.
+fn change_from_proto(
+    nth: usize,
+    change: proto::WatchStateChange,
+) -> Result<WatchStateChange, ConnectError> {
+    let field = |name: &str| format!("changes[{nth}].{name}");
+    let id_fits = |id: &String| !id.is_empty() && id.chars().count() <= MAX_ID_LENGTH;
+    if !(1..=MAX_IDS).contains(&change.ids.len()) || !change.ids.iter().all(id_fits) {
+        return Err(invalid_change(
+            &field("ids"),
+            format!(
+                "a change names 1 to {MAX_IDS} External IDs of 1 to {MAX_ID_LENGTH} characters"
+            ),
+        ));
+    }
+    let duration_ms = i64::try_from(change.duration_ms)
+        .map_err(|_too_long| invalid_change(&field("duration_ms"), "the duration is too long"))?;
+    let position_ms = (i64::try_from(change.position_ms).ok())
+        .filter(|&position_ms| position_ms <= duration_ms)
+        .ok_or_else(|| {
+            invalid_change(&field("position_ms"), "the position is past the duration")
+        })?;
+    if !(0..=MAX_CHANGED_AT_MS).contains(&change.changed_at_ms) {
+        return Err(invalid_change(
+            &field("changed_at_ms"),
+            "a change is dated from 1970 to the end of 9999",
+        ));
+    }
+    Ok(WatchStateChange {
+        user_id: change.user_id,
+        episode: change.episode,
+        ids: change.ids,
+        played: change.played,
+        position_ms,
+        duration_ms,
+        changed_at_ms: change.changed_at_ms,
+    })
+}
+
+/// `change`, as a Linked Server takes it.
+fn change_to_proto(change: WatchStateChange) -> proto::WatchStateChange {
+    proto::WatchStateChange {
+        user_id: change.user_id,
+        episode: change.episode,
+        ids: change.ids,
+        played: change.played,
+        // Never negative: `watch_states` checks it.
+        position_ms: u64::try_from(change.position_ms).unwrap_or_default(),
+        duration_ms: u64::try_from(change.duration_ms).unwrap_or_default(),
+        changed_at_ms: change.changed_at_ms,
+        ..Default::default()
+    }
+}
+
+/// Refuses a push for a change at `field` that breaks a limit, which `message` names.
+fn invalid_change(field: &str, message: impl Into<String>) -> ConnectError {
+    refuse(RefusalReason::REFUSAL_REASON_WATCH_STATE_INVALID, message)
+        .field(field)
+        .param("maxChanges", &MAX_CHANGES)
+        .param("maxIds", &MAX_IDS)
+        .param("maxIdLength", &MAX_ID_LENGTH)
+        .into()
+}
+
+#[cfg(test)]
+#[path = "links_tests.rs"]
+mod tests;

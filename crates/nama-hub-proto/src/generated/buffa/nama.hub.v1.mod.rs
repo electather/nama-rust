@@ -2,6 +2,7 @@
 
 include!("nama.hub.v1.account.rs");
 include!("nama.hub.v1.hub.rs");
+include!("nama.hub.v1.viewing.rs");
 include!("nama.hub.v1.link.rs");
 include!("nama.hub.v1.refusal.rs");
 #[allow(
@@ -23,6 +24,7 @@ pub mod __buffa {
         use super::*;
         include!("nama.hub.v1.account.__view.rs");
         include!("nama.hub.v1.hub.__view.rs");
+        include!("nama.hub.v1.viewing.__view.rs");
         include!("nama.hub.v1.link.__view.rs");
         include!("nama.hub.v1.refusal.__view.rs");
     }
@@ -41,12 +43,26 @@ pub mod __buffa {
         reg.register_json_any(super::__SIGN_IN_WITH_LINK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_PASSWORD_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_PASSWORD_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__DELETE_ACCOUNT_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DELETE_ACCOUNT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SIGN_OUT_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SIGN_OUT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_ACCOUNT_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_ACCOUNT_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_HUB_INFO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_HUB_INFO_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__VIEWING_EVENT_JSON_ANY);
+        reg.register_json_any(super::__LIST_VIEWING_EVENTS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_VIEWING_EVENTS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__DELETE_VIEWING_EVENT_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__DELETE_VIEWING_EVENT_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_POOLING_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_POOLING_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_POOLING_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_POOLING_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__USER_VIEWING_EVENT_JSON_ANY);
+        reg.register_json_any(super::__RECORD_VIEWING_EVENTS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__RECORD_VIEWING_EVENTS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LINKED_SERVER_JSON_ANY);
         reg.register_json_any(super::__START_SERVER_LINK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__START_SERVER_LINK_RESPONSE_JSON_ANY);
@@ -75,6 +91,19 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_USER_LINK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__UNLINK_USER_REQUEST_JSON_ANY);
         reg.register_json_any(super::__UNLINK_USER_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PUSH_WATCH_STATES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__PUSH_WATCH_STATES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PULL_WATCH_STATES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__PULL_WATCH_STATES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__WATCH_STATE_CHANGE_JSON_ANY);
+        reg.register_json_any(super::__PUSH_TRACK_PREFERENCES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__PUSH_TRACK_PREFERENCES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PULL_TRACK_PREFERENCES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__PULL_TRACK_PREFERENCES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__TRACK_PREFERENCE_CHANGE_JSON_ANY);
+        reg.register_json_any(super::__SYNC_WATCHLIST_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SYNC_WATCHLIST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__WATCHLIST_ENTRY_JSON_ANY);
         reg.register_json_any(super::__USER_INVITE_JSON_ANY);
         reg.register_json_any(super::__LIST_USER_INVITES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_USER_INVITES_RESPONSE_JSON_ANY);
@@ -92,6 +121,12 @@ pub mod __buffa {
         reg.register_json_any(super::__POLL_SERVER_SIGN_IN_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_SERVER_ADDRESSES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_SERVER_ADDRESSES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_TRENDING_TITLES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_TRENDING_TITLES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__TRENDING_TITLE_JSON_ANY);
+        reg.register_json_any(super::__LIST_MOST_WATCHLISTED_TITLES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_MOST_WATCHLISTED_TITLES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__WATCHLISTED_TITLE_JSON_ANY);
         reg.register_json_any(super::__REFUSAL_JSON_ANY);
     }
 }
@@ -148,6 +183,14 @@ pub use self::__buffa::view::SetPasswordResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetPasswordResponseOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::DeleteAccountRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteAccountRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteAccountResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteAccountResponseOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::SignOutRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::SignOutRequestOwnedView;
@@ -171,6 +214,54 @@ pub use self::__buffa::view::GetHubInfoRequestOwnedView;
 pub use self::__buffa::view::GetHubInfoResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::GetHubInfoResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ViewingEventView;
+#[doc(inline)]
+pub use self::__buffa::view::ViewingEventOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListViewingEventsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListViewingEventsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListViewingEventsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListViewingEventsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteViewingEventRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteViewingEventRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteViewingEventResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::DeleteViewingEventResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPoolingRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPoolingRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPoolingResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPoolingResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetPoolingRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetPoolingRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetPoolingResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetPoolingResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserViewingEventView;
+#[doc(inline)]
+pub use self::__buffa::view::UserViewingEventOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RecordViewingEventsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::RecordViewingEventsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RecordViewingEventsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::RecordViewingEventsResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::LinkedServerView;
 #[doc(inline)]
@@ -284,6 +375,58 @@ pub use self::__buffa::view::UnlinkUserResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::UnlinkUserResponseOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::PushWatchStatesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PushWatchStatesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PushWatchStatesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PushWatchStatesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PullWatchStatesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PullWatchStatesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PullWatchStatesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PullWatchStatesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchStateChangeView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchStateChangeOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PushTrackPreferencesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PushTrackPreferencesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PushTrackPreferencesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PushTrackPreferencesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PullTrackPreferencesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PullTrackPreferencesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PullTrackPreferencesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PullTrackPreferencesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TrackPreferenceChangeView;
+#[doc(inline)]
+pub use self::__buffa::view::TrackPreferenceChangeOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SyncWatchlistRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SyncWatchlistRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SyncWatchlistResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SyncWatchlistResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchlistEntryView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchlistEntryOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::UserInviteView;
 #[doc(inline)]
 pub use self::__buffa::view::UserInviteOwnedView;
@@ -351,6 +494,30 @@ pub use self::__buffa::view::SetServerAddressesRequestOwnedView;
 pub use self::__buffa::view::SetServerAddressesResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetServerAddressesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTrendingTitlesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTrendingTitlesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTrendingTitlesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListTrendingTitlesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::TrendingTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::TrendingTitleOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListMostWatchlistedTitlesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListMostWatchlistedTitlesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListMostWatchlistedTitlesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListMostWatchlistedTitlesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchlistedTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::WatchlistedTitleOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::RefusalView;
 #[doc(inline)]

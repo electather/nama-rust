@@ -1,8 +1,10 @@
 //! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
 //! one Server's device flow, Unlinking, its Users' Links, Users created from Accounts, one sign-in
-//! with an Account at a time, its Server Addresses, the titles like The Matrix, and a key set of
-//! one Ed25519 key it signs with, as the Hub's API (`proto/nama/hub/v1/link.proto`) says the Hub
-//! does, and takes shared Diagnostics.
+//! with an Account at a time, its Server Addresses and whether its public port is reached, the
+//! Watch State it pushes, which its Linked Users pull back, their Watchlists, its Viewing Events,
+//! the titles like The Matrix, what's trending and most watchlisted, and a key set of one Ed25519
+//! key it signs with, as the Hub's API (`proto/nama/hub/v1/`) says the Hub does, and takes shared
+//! Diagnostics.
 
 use std::{
     collections::HashMap,
@@ -17,16 +19,24 @@ use axum::{
     http::{HeaderMap, StatusCode},
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
+use connectrpc::{
+    ConnectError, ErrorCode, RequestContext, Response, ServiceRequest, ServiceResult,
+};
 use nama_hub_proto::nama::hub::v1::{
     ExternalId, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest, InviteUserResponse,
-    LinkedServerService, ListSimilarTitlesRequest, ListSimilarTitlesResponse,
-    PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
-    PollServerSignInResponse, ServerLinkService, SetServerAddressesRequest,
-    SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest, StartServerLinkResponse,
-    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
-    StartUserLinkResponse, TitleKind, UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest,
-    UnlinkUserResponse,
+    LinkedServerService, ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
+    ListSimilarTitlesRequest, ListSimilarTitlesResponse, ListTrendingTitlesRequest,
+    ListTrendingTitlesResponse, PollServerLinkRequest, PollServerLinkResponse,
+    PollServerSignInRequest, PollServerSignInResponse, PullTrackPreferencesRequest,
+    PullTrackPreferencesResponse, PullWatchStatesRequest, PullWatchStatesResponse,
+    PushTrackPreferencesRequest, PushTrackPreferencesResponse, PushWatchStatesRequest,
+    PushWatchStatesResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
+    ServerLinkService, SetServerAddressesRequest, SetServerAddressesResponse, SimilarTitle,
+    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
+    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
+    SyncWatchlistResponse, TitleKind, TrackPreferenceChange, TrendingTitle, UnlinkServerRequest,
+    UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse, UserViewingEvent,
+    WatchStateChange, WatchlistEntry, WatchlistedTitle,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::{Value, json};
@@ -47,8 +57,17 @@ const SIGN_IN_DEVICE_CODE: &str = "sign-in-device-code";
 /// The id of that sign-in.
 pub(super) const SIGN_IN_ID: &str = "sign-in-id";
 
+/// The one-time code approving that sign-in sends the person back with.
+const SIGN_IN_CODE: &str = "sign-in-code";
+
 /// The email of the Account the code is entered by.
 pub(super) const EMAIL: &str = "ada@example.com";
+
+/// The IP address the fake sees the Server's calls come from.
+pub(super) const PUBLIC_IP: &str = "203.0.113.7";
+
+/// The one public port the fake reaches the Server at.
+pub(super) const OPEN_PORT: u16 = 7980;
 
 /// What the fake Hub knows.
 #[derive(Default)]
@@ -72,6 +91,22 @@ struct State {
     user_accounts: HashMap<i64, String>,
     /// How often a User's Link was asked about.
     user_link_asks: usize,
+    /// Why asking about a User's Link fails, as if the Hub were down, while it does.
+    user_link_failure: Option<&'static str>,
+    /// Each Viewing Event recorded, in order.
+    viewing_events: Vec<UserViewingEvent>,
+    /// What recording Viewing Events fails with, if it does.
+    recording_failure: Option<ErrorCode>,
+    /// Each push's changes, in the order they came.
+    pushes: Vec<Vec<WatchStateChange>>,
+    /// Why pushes fail, as if the Hub were down, while they do.
+    push_failure: Option<&'static str>,
+    /// Each push's Track Preference changes, in the order they came.
+    preference_pushes: Vec<Vec<TrackPreferenceChange>>,
+    /// Each Watchlist entry Linked Users synced, in the order they came.
+    watchlist: Vec<WatchlistEntry>,
+    /// The User each Watchlist sync was of, in the order they came.
+    watchlist_syncs: Vec<i64>,
     /// The name and email each User created from an Account was invited with, by id.
     invites: HashMap<i64, (String, String)>,
     /// The sign-in with an Account waiting: where it returns to, and the User it signs in as once
@@ -147,9 +182,12 @@ impl FakeHub {
         lock(&self.state).entered = true;
     }
 
-    /// Forgets the Server's credential, as if it was Unlinked on the Hub's side.
+    /// Forgets the Server's credential and its Users' Links, as deleting its Account does.
     pub(super) fn forget_server(&self) {
-        lock(&self.state).linked = false;
+        let mut state = lock(&self.state);
+        state.linked = false;
+        state.user_codes.clear();
+        state.user_accounts.clear();
     }
 
     /// The User `user_id` enters their code on the Hub, signed in to [`EMAIL`]'s Account.
@@ -187,6 +225,31 @@ impl FakeHub {
         lock(&self.state).user_link_asks
     }
 
+    /// Has asking about a User's Link fail, though counted, as if the Hub were down.
+    pub(super) fn fail_user_links(&self) {
+        lock(&self.state).user_link_failure = Some("the Hub is down");
+    }
+
+    /// The User each Watchlist sync was of, in the order they came.
+    pub(super) fn watchlist_syncs(&self) -> Vec<i64> {
+        lock(&self.state).watchlist_syncs.clone()
+    }
+
+    /// Each push's changes, in the order they came.
+    pub(super) fn pushes(&self) -> Vec<Vec<WatchStateChange>> {
+        lock(&self.state).pushes.clone()
+    }
+
+    /// Each push's Track Preference changes, in the order they came.
+    pub(super) fn preference_pushes(&self) -> Vec<Vec<TrackPreferenceChange>> {
+        lock(&self.state).preference_pushes.clone()
+    }
+
+    /// Has pushes fail while `down`, as if the Hub were unreachable, and work again after.
+    pub(super) fn set_down(&self, down: bool) {
+        lock(&self.state).push_failure = down.then_some("the Hub is down");
+    }
+
     /// The name and email the User `user_id` was invited with.
     pub(super) fn invite(&self, user_id: i64) -> Option<(String, String)> {
         lock(&self.state).invites.get(&user_id).cloned()
@@ -200,11 +263,13 @@ impl FakeHub {
             .map(|(url, _)| url.clone())
     }
 
-    /// An Account approves the waiting sign-in as its User `user_id`.
-    pub(super) fn approve_sign_in(&self, user_id: i64) {
+    /// An Account approves the waiting sign-in as its User `user_id`, and gets the one-time code
+    /// that finishes it.
+    pub(super) fn approve_sign_in(&self, user_id: i64) -> String {
         if let Some((_, user)) = &mut lock(&self.state).sign_in {
             *user = Some(user_id);
         }
+        SIGN_IN_CODE.to_owned()
     }
 
     /// Each Server URL and LAN addresses the Server reported, in order.
@@ -215,6 +280,17 @@ impl FakeHub {
     /// Has the next report of Server Addresses fail, as if the Hub blinked.
     pub(super) fn fail_next_addresses(&self) {
         lock(&self.state).addresses_failures += 1;
+    }
+
+    /// Each Viewing Event recorded, in order.
+    pub(super) fn viewing_events(&self) -> Vec<UserViewingEvent> {
+        lock(&self.state).viewing_events.clone()
+    }
+
+    /// Has recording Viewing Events fail with `failure`, such as `unavailable` for a Hub that is
+    /// down, or work again with `None`.
+    pub(super) fn fail_recording(&self, failure: Option<ErrorCode>) {
+        lock(&self.state).recording_failure = failure;
     }
 
     /// Has the key set fail, as if the Hub went down right after handing out a credential.
@@ -370,6 +446,9 @@ impl LinkedServerService for Linked {
     ) -> ServiceResult<GetUserLinkResponse> {
         let mut state = self.caller(&ctx)?;
         state.user_link_asks += 1;
+        if let Some(failure) = state.user_link_failure {
+            return Err(ConnectError::unavailable(failure));
+        }
         Response::ok(GetUserLinkResponse {
             account: state
                 .user_accounts
@@ -389,6 +468,104 @@ impl LinkedServerService for Linked {
         state.user_codes.remove(&request.user_id);
         state.user_accounts.remove(&request.user_id);
         Response::ok(UnlinkUserResponse::default())
+    }
+
+    async fn push_watch_states(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PushWatchStatesRequest>,
+    ) -> ServiceResult<PushWatchStatesResponse> {
+        let mut state = self.caller(&ctx)?;
+        if let Some(failure) = state.push_failure {
+            return Err(ConnectError::unavailable(failure));
+        }
+        state.pushes.push(request.to_owned_message().changes);
+        Response::ok(PushWatchStatesResponse::default())
+    }
+
+    /// Every change pushed, as the asked User's, if they are Linked: the fake has one Account.
+    async fn pull_watch_states(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PullWatchStatesRequest>,
+    ) -> ServiceResult<PullWatchStatesResponse> {
+        let state = self.caller(&ctx)?;
+        let user_id = request.user_id;
+        let watch_states = if state.user_accounts.contains_key(&user_id) {
+            (state.pushes.iter().flatten())
+                .map(|change| WatchStateChange {
+                    user_id,
+                    ..change.clone()
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        Response::ok(PullWatchStatesResponse {
+            watch_states,
+            ..Default::default()
+        })
+    }
+
+    async fn push_track_preferences(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PushTrackPreferencesRequest>,
+    ) -> ServiceResult<PushTrackPreferencesResponse> {
+        let mut state = self.caller(&ctx)?;
+        if let Some(failure) = state.push_failure {
+            return Err(ConnectError::unavailable(failure));
+        }
+        state
+            .preference_pushes
+            .push(request.to_owned_message().changes);
+        Response::ok(PushTrackPreferencesResponse::default())
+    }
+
+    /// Every Track Preference change pushed, as the asked User's, if they are Linked: the fake
+    /// has one Account, and merges nothing.
+    async fn pull_track_preferences(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PullTrackPreferencesRequest>,
+    ) -> ServiceResult<PullTrackPreferencesResponse> {
+        let state = self.caller(&ctx)?;
+        let user_id = request.user_id;
+        let preferences = if state.user_accounts.contains_key(&user_id) {
+            (state.preference_pushes.iter().flatten())
+                .map(|change| TrackPreferenceChange {
+                    user_id,
+                    ..change.clone()
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        Response::ok(PullTrackPreferencesResponse {
+            preferences,
+            ..Default::default()
+        })
+    }
+
+    /// Every entry Linked Users synced, as the asked User's Account's: the fake has one Account.
+    async fn sync_watchlist(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SyncWatchlistRequest>,
+    ) -> ServiceResult<SyncWatchlistResponse> {
+        let mut state = self.caller(&ctx)?;
+        let SyncWatchlistRequest {
+            user_id, entries, ..
+        } = request.to_owned_message();
+        state.watchlist_syncs.push(user_id);
+        if !state.user_accounts.contains_key(&user_id) {
+            return Response::ok(SyncWatchlistResponse::default());
+        }
+        state.watchlist.extend(entries);
+        Response::ok(SyncWatchlistResponse {
+            entries: state.watchlist.clone(),
+            ..Default::default()
+        })
     }
 
     async fn invite_user(
@@ -432,6 +609,9 @@ impl LinkedServerService for Linked {
             return Response::ok(PollServerSignInResponse::default());
         };
         state.sign_in = None;
+        if request.code != SIGN_IN_CODE {
+            return Err(ConnectError::not_found("the code is wrong"));
+        }
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -461,7 +641,28 @@ impl LinkedServerService for Linked {
         state
             .reported_addresses
             .push((request.url.to_owned(), lan.collect()));
-        Response::ok(SetServerAddressesResponse::default())
+        if request.public_port == 0 {
+            return Response::ok(SetServerAddressesResponse::default());
+        }
+        Response::ok(SetServerAddressesResponse {
+            public_address: format!("http://{PUBLIC_IP}:{}", request.public_port),
+            reachable: request.public_port == u32::from(OPEN_PORT),
+            ..Default::default()
+        })
+    }
+
+    async fn record_viewing_events(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, RecordViewingEventsRequest>,
+    ) -> ServiceResult<RecordViewingEventsResponse> {
+        let mut state = self.caller(&ctx)?;
+        if let Some(failure) = state.recording_failure {
+            return Err(ConnectError::new(failure, "recording failed"));
+        }
+        let recorded = request.to_owned_message().events;
+        state.viewing_events.extend(recorded);
+        Response::ok(RecordViewingEventsResponse::default())
     }
 
     /// The Matrix's sequel and Alien, by IMDb id, for a Movie asked about by The Matrix's TMDB id;
@@ -481,6 +682,61 @@ impl LinkedServerService for Linked {
         };
         Response::ok(ListSimilarTitlesResponse {
             titles,
+            ..Default::default()
+        })
+    }
+
+    /// The Matrix, Blade Runner and Toy Story, by TMDB id, most watched first.
+    async fn list_trending_titles(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListTrendingTitlesRequest>,
+    ) -> ServiceResult<ListTrendingTitlesResponse> {
+        drop(self.caller(&ctx)?);
+        let trending = |value: &str, weight| TrendingTitle {
+            id: ExternalId {
+                namespace: "tmdb".to_owned(),
+                value: value.to_owned(),
+                ..Default::default()
+            }
+            .into(),
+            weight,
+            ..Default::default()
+        };
+        Response::ok(ListTrendingTitlesResponse {
+            titles: vec![
+                trending("603", 1.0),
+                trending("78", 0.9),
+                trending("862", 0.5),
+            ],
+            ..Default::default()
+        })
+    }
+
+    /// Dark, The Matrix and Blade Runner, by TMDB id, most watchlisted first.
+    async fn list_most_watchlisted_titles(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, ListMostWatchlistedTitlesRequest>,
+    ) -> ServiceResult<ListMostWatchlistedTitlesResponse> {
+        drop(self.caller(&ctx)?);
+        let watchlisted = |kind: TitleKind, value: &str, weight| WatchlistedTitle {
+            kind: kind.into(),
+            id: ExternalId {
+                namespace: "tmdb".to_owned(),
+                value: value.to_owned(),
+                ..Default::default()
+            }
+            .into(),
+            weight,
+            ..Default::default()
+        };
+        Response::ok(ListMostWatchlistedTitlesResponse {
+            titles: vec![
+                watchlisted(TitleKind::TITLE_KIND_SHOW, "70523", 1.0),
+                watchlisted(TitleKind::TITLE_KIND_MOVIE, "603", 0.8),
+                watchlisted(TitleKind::TITLE_KIND_MOVIE, "78", 0.5),
+            ],
             ..Default::default()
         })
     }

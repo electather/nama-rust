@@ -3,6 +3,9 @@
 
 mod accounts;
 mod links;
+mod track_preferences;
+mod viewing;
+mod watchlists;
 
 use std::{sync::Arc, time::Instant};
 
@@ -34,11 +37,14 @@ use crate::{
     links::{LinkedServer, Links},
     mail::Mail,
     signing::Keys,
+    sync::{TrackPreferences, WatchStates, Watchlists},
+    viewing::Viewing,
 };
 
 use self::{
     accounts::{AccountServiceHandler, COOKIE_NAME},
     links::{LinkServiceHandler, LinkedServerServiceHandler, ServerLinkServiceHandler},
+    viewing::ViewingEventServiceHandler,
 };
 
 /// The Hub's routes: every service, each call in a span of its own, knowing where it came from
@@ -55,6 +61,10 @@ pub(crate) fn router(
 ) -> axum::Router {
     let accounts = Accounts::new(db.clone(), mail);
     let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys));
+    let viewing = Viewing::new(db.clone(), links.clone());
+    let watch_states = WatchStates::new(db.clone(), links.clone());
+    let track_preferences = TrackPreferences::new(db.clone(), links.clone());
+    let watchlists = Watchlists::new(db.clone(), links.clone(), viewing.clone());
     let rpcs = connectrpc::Router::new()
         .add_service(Arc::new(HubServiceHandler {
             db: db.clone(),
@@ -71,8 +81,13 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(LinkedServerServiceHandler {
             links: links.clone(),
+            watch_states,
+            track_preferences,
+            watchlists,
+            viewing: viewing.clone(),
             db,
         }))
+        .add_service(Arc::new(ViewingEventServiceHandler { viewing }))
         .into_axum_service();
     let jwks = async move || {
         let jwks = keys.jwks().to_owned();
@@ -272,11 +287,15 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND => ErrorCode::NotFound,
         R::REFUSAL_REASON_TOO_MANY_ATTEMPTS => ErrorCode::ResourceExhausted,
         R::REFUSAL_REASON_EMAIL_TAKEN | R::REFUSAL_REASON_USER_LINKED => ErrorCode::AlreadyExists,
+        // `UNSPECIFIED` is never sent; a client sees it only for a reason it doesn't know.
         R::REFUSAL_REASON_EMAIL_INVALID
         | R::REFUSAL_REASON_PASSWORD_LENGTH
+        | R::REFUSAL_REASON_WATCH_STATE_INVALID
         | R::REFUSAL_REASON_URL_INVALID
         | R::REFUSAL_REASON_SERVER_ADDRESS_INVALID
-        // Never sent; a client sees it only for a reason it doesn't know.
+        | R::REFUSAL_REASON_VIEWING_EVENT_INVALID
+        | R::REFUSAL_REASON_TRACK_PREFERENCE_INVALID
+        | R::REFUSAL_REASON_WATCHLIST_INVALID
         | R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,
     }
 }

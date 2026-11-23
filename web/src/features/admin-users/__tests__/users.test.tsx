@@ -30,6 +30,27 @@ test("users isn't in Settings for a User who doesn't manage Users", async () => 
   expect(screen.queryByRole("link", { name: "Users" })).toBeNull();
 });
 
+test("a User the Server says can't sign in is marked so on the list", async () => {
+  const users = [
+    { id: 2n, name: "Alex", permissions: newUser },
+    { id: 3n, name: "Grace", permissions: newUser },
+  ];
+  openApp(
+    usersSection,
+    fakeServer(
+      { signedIn: admin },
+      {},
+      { listUsers: () => ({ users, cannotSignInUserIds: [3n] }) },
+    ),
+  );
+
+  const list = await screen.findByRole("list", { name: "Users" });
+  const marked = within(list)
+    .getAllByRole("listitem")
+    .map((item) => item.textContent.includes("Can’t sign in until given a password"));
+  expect(marked).toStrictEqual([false, true]);
+});
+
 test("a User opens in place of the list, and the crumb over it goes back", async () => {
   const router = openApp(
     usersSection,

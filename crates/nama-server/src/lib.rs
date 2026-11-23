@@ -21,6 +21,7 @@ mod page;
 mod playback;
 pub mod plugin_settings;
 pub mod plugins;
+mod port_mapping;
 mod requests;
 mod scanner;
 mod server_addresses;
@@ -76,7 +77,10 @@ use crate::{
 /// Admins see the `ffmpeg` found at startup with `GetPlaybackStatus`. Plans running when
 /// `shutdown` resolves are stopped and their segment files deleted.
 ///
-/// The enabled Plugin that links the Server, if any, is told its Server Addresses every minute.
+/// The enabled Plugin that links the Server, if any, is told its Server Addresses every minute,
+/// and while there is one the Server keeps its port open on the router with UPnP or NAT-PMP,
+/// unless [`Config::forwarded_port`] names the one the Admin forwarded. It is asked for each User's
+/// Watch State on their other Servers after each scan.
 ///
 /// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, unless the
 /// peer is in [`Config::trusted_proxies`], whose `X-Forwarded-For` names the client.
@@ -150,6 +154,11 @@ pub fn serve(
     let requests = Requests::new(Arc::clone(&db), events.clone(), points.clone());
     let users = Users::new(Arc::clone(&db), points.clone());
     let home_rows = HomeRows::new(Arc::clone(&db), points.clone(), requests.clone());
+    let browser_spans = api::BrowserSpans::new(
+        config.otlp_endpoint.as_deref(),
+        settings.clone(),
+        points.clone(),
+    );
     let artwork = Artwork::new(images.clone(), points);
     let plugin_logos = PluginLogos::new(images.clone());
     let custom_images = CustomImages::new(Arc::clone(&db), images.clone());
@@ -176,6 +185,12 @@ pub fn serve(
     let server_url = settings.server_url();
     // `listen` differs from the bound address only when it asks for port 0.
     let listening = listener.local_addr().unwrap_or(config.listen);
+    let (sync_browse, sync_db, sync_users) = (
+        browse::Browse::new(Arc::clone(&db)),
+        Arc::clone(&db),
+        users.clone(),
+    );
+    let forwarded_port = config.forwarded_port;
     let load_settings = load_settings(
         settings.clone(),
         images.clone(),
@@ -184,6 +199,7 @@ pub fn serve(
     );
     let app = api::router(
         config,
+        listening,
         db,
         plugins.clone(),
         users,
@@ -202,6 +218,7 @@ pub fn serve(
         running.clone(),
         abilities.clone(),
         preview_frames.clone(),
+        browser_spans.clone(),
         setup_code,
         ffmpeg,
     );
@@ -213,6 +230,14 @@ pub fn serve(
         // before serving, so the sweeps delete no plan's files or upload but an earlier run's.
         load_settings.await;
         fill_sort_titles(&contents).await;
+        // Before the scans start, so it sees their Matching finish.
+        let syncing = api::sync_after_scans(
+            &events,
+            plugins.extension_points(),
+            sync_browse,
+            sync_db,
+            sync_users,
+        );
         scanner.start_all().await;
         preview_frames.start();
         text_passes.start();
@@ -226,8 +251,12 @@ pub fn serve(
         // Every minute, as Seerr asks how its Requests are progressing (ADR 0012).
         let came_up = home_rows.refresh_as_plugins_come_up(plugins.take_came_up());
         requests.start(came_up, Duration::from_mins(1));
-        let telling_addresses =
-            server_addresses::tell_every_minute(plugins.extension_points(), server_url, listening);
+        let telling_addresses = server_addresses::tell_every_minute(
+            plugins.extension_points(),
+            server_url,
+            listening,
+            forwarded_port,
+        );
         let served = axum::serve(
             listener,
             // The peer's address decides whose rate limit counts and which proxies are trusted.
@@ -255,9 +284,13 @@ pub fn serve(
         // Before the Plugin settings, which save a Plugin that crashes as it is asked about progress.
         requests.shutdown().await;
         home_rows.shutdown().await;
+        // Before the Plugin settings, as a share in flight holds the Extension Points.
+        browser_spans.shutdown().await;
         // Its calls run in the Plugin's scope, which shutting the Plugins down joins; telling it
         // again at the next start loses nothing.
         telling_addresses.abort();
+        // The next start's scans pull and sync again.
+        syncing.abort();
         plugins.shutdown().await;
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
         drop(automation);
