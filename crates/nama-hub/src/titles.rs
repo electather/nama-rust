@@ -6,7 +6,7 @@ mod wikidata;
 
 use sqlx::PgPool;
 
-pub use vectors::{PooledCount, SimilarTitle, similar, train};
+pub use vectors::{PooledCount, RecommendedTitle, SimilarTitle, recommended, similar, train};
 pub use wikidata::{ImportError, import};
 
 /// Whether a title is a Movie or a Show, whose External IDs are separate id spaces (ADR 0042).
@@ -24,6 +24,15 @@ impl TitleKind {
         match self {
             Self::Movie => "movie",
             Self::Show => "show",
+        }
+    }
+
+    /// The kind `titles.kind` holds as `stored`.
+    fn stored(stored: &str) -> Self {
+        if stored == Self::Movie.as_str() {
+            Self::Movie
+        } else {
+            Self::Show
         }
     }
 }

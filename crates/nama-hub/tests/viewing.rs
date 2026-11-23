@@ -1,5 +1,6 @@
-//! A Linked Server recording its Users' Viewing Events, and an Account listing and deleting its
-//! own and turning pooling off, and what's trending, against a real PostgreSQL.
+//! A Linked Server recording its Users' Viewing Events, an Account listing and deleting its own
+//! and turning pooling off, the titles the Hub recommends from them, and what's trending, against
+//! a real PostgreSQL.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/hub.rs"]
@@ -14,13 +15,15 @@ use axum::http::HeaderMap;
 use connectrpc::{ErrorCode, client::HttpClient};
 use hub::TestHub;
 use mail::{Inbox, fake_mail};
+use nama_hub::{db, titles};
 use nama_hub_proto::nama::hub::v1::{
     AccountServiceClient, ApproveServerLinkRequest, ApproveUserLinkRequest, CreateAccountRequest,
     DeleteViewingEventRequest, DeviceKind, GetPoolingRequest, LinkServiceClient,
-    LinkedServerServiceClient, ListTrendingTitlesRequest, ListViewingEventsRequest,
-    PollServerLinkRequest, RecordViewingEventsRequest, RefusalReason, SendSignInLinkRequest,
-    ServerLinkServiceClient, SetPoolingRequest, SignInWithLinkRequest, StartServerLinkRequest,
-    StartUserLinkRequest, UserViewingEvent, ViewingEvent, ViewingEventServiceClient,
+    LinkedServerServiceClient, ListRecommendedTitlesRequest, ListTrendingTitlesRequest,
+    ListViewingEventsRequest, PollServerLinkRequest, RecommendedTitle, RecordViewingEventsRequest,
+    RefusalReason, SendSignInLinkRequest, ServerLinkServiceClient, SetPoolingRequest,
+    SignInWithLinkRequest, StartServerLinkRequest, StartUserLinkRequest, TitleKind,
+    UserViewingEvent, ViewingEvent, ViewingEventServiceClient,
 };
 use refused::assert_refused;
 use sqlx::PgPool;
@@ -416,6 +419,169 @@ async fn the_history_needs_a_session_and_recording_a_linked_server(db: PgPool) {
         RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
     );
     assert_eq!(listed_ids(&hub, &ada).await, Vec::<String>::new());
+}
+
+/// A Hub with the fixture's titles and their vectors, Ada's Account, a Server she Linked, and that
+/// Server's User 7 Linked to her.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn ada_watching_known_titles(db: PgPool) -> (TestHub, Inbox, String, String) {
+    db::migrate(&db).await.unwrap();
+    titles::import(&db, &include_bytes!("fixtures/wikidata-dump.json")[..])
+        .await
+        .unwrap();
+    titles::train(&db, &[]).await.unwrap();
+    ada_watching(db).await
+}
+
+/// The titles the Server presenting `credential` gets recommended for its User `user_id`, best
+/// first, each as its kind and External ID, such as `movie tmdb-603`.
+async fn recommended(
+    hub: &TestHub,
+    credential: &str,
+    user_id: i64,
+) -> Result<Vec<String>, connectrpc::ConnectError> {
+    let titles = recommended_titles(hub, credential, user_id).await?;
+    Ok((titles.into_iter())
+        .map(|title| {
+            assert!(title.weight > 0.0 && title.weight < 1.001, "{title:?}");
+            let kind = if title.kind == TitleKind::TITLE_KIND_SHOW {
+                "show"
+            } else {
+                "movie"
+            };
+            format!("{kind} {}-{}", title.id.namespace, title.id.value)
+        })
+        .collect())
+}
+
+/// The titles the Server presenting `credential` gets recommended for its User `user_id`.
+async fn recommended_titles(
+    hub: &TestHub,
+    credential: &str,
+    user_id: i64,
+) -> Result<Vec<RecommendedTitle>, connectrpc::ConnectError> {
+    Ok(linked_server(hub, credential)
+        .list_recommended_titles(ListRecommendedTitlesRequest {
+            user_id,
+            namespaces: vec!["tmdb".to_owned(), "imdb".to_owned()],
+            ..Default::default()
+        })
+        .await?
+        .into_owned()
+        .titles)
+}
+
+/// The weight Ada's User 7 is recommended The Matrix Reloaded with.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn sequel_weight(hub: &TestHub, server: &str) -> f32 {
+    let titles = recommended_titles(hub, server, 7).await.unwrap();
+    (titles.into_iter())
+        .find(|title| title.id.value == "604")
+        .unwrap()
+        .weight
+}
+
+/// `titles`, sorted, for a comparison that doesn't depend on the order of titles alike to one.
+fn sorted(mut titles: Vec<String>) -> Vec<String> {
+    titles.sort();
+    titles
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_linked_user_is_recommended_what_is_nearest_what_they_finished_and_not_that(db: PgPool) {
+    let (hub, _inbox, _ada, server) = ada_watching_known_titles(db).await;
+
+    record(&hub, &server, vec![played(7, "a", "tmdb-603")])
+        .await
+        .unwrap();
+
+    let recommended = recommended(&hub, &server, 7).await.unwrap();
+    // The sequel shares nearly every fact; Alien and the series each share one and the country.
+    assert_eq!(recommended.first().unwrap(), "movie tmdb-604");
+    assert_eq!(
+        sorted(recommended),
+        ["movie tmdb-348", "movie tmdb-604", "show tmdb-603"]
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_play_that_didnt_finish_recommends_nothing(db: PgPool) {
+    let (hub, _inbox, _ada, server) = ada_watching_known_titles(db).await;
+    let mut stopped = played(7, "a", "tmdb-603");
+    stopped.event.get_or_insert_default().finished = false;
+
+    record(&hub, &server, vec![stopped]).await.unwrap();
+
+    assert_eq!(
+        recommended(&hub, &server, 7).await.unwrap(),
+        Vec::<String>::new()
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn deleting_a_viewing_event_recomputes_the_taste_vector(db: PgPool) {
+    let (hub, _inbox, ada, server) = ada_watching_known_titles(db).await;
+    record(
+        &hub,
+        &server,
+        vec![played(7, "a", "tmdb-603"), played(7, "b", "tmdb-348")],
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        sorted(recommended(&hub, &server, 7).await.unwrap()),
+        ["movie tmdb-604", "show tmdb-603"]
+    );
+    let with_alien = sequel_weight(&hub, &server).await;
+    let alien = (listed(&hub, &ada).await.into_iter())
+        .find(|event| event.external_id == "tmdb-348")
+        .unwrap();
+
+    history(&hub, &ada)
+        .delete_viewing_event(DeleteViewingEventRequest {
+            id: alien.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    assert_eq!(
+        sorted(recommended(&hub, &server, 7).await.unwrap()),
+        ["movie tmdb-348", "movie tmdb-604", "show tmdb-603"]
+    );
+    // Alien, which shares little with the sequel, no longer pulls the taste vector from it.
+    assert!(sequel_weight(&hub, &server).await > with_alien);
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_server_gets_recommendations_only_for_its_own_linked_users(db: PgPool) {
+    let (hub, mut inbox, _ada, server) = ada_watching_known_titles(db).await;
+    let bea = create_proven(&hub, &mut inbox, "bea@example.com").await;
+    let beas_server = linked(&hub, &bea).await;
+    record(&hub, &server, vec![played(7, "a", "tmdb-603")])
+        .await
+        .unwrap();
+
+    // Bea's Server has no User 7 Linked, whatever Ada's Server calls its User 7.
+    assert_eq!(
+        recommended(&hub, &beas_server, 7).await.unwrap(),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        recommended(&hub, &server, 8).await.unwrap(),
+        Vec::<String>::new()
+    );
+    assert_refused(
+        recommended(&hub, "not-a-credential", 7).await,
+        ErrorCode::Unauthenticated,
+        RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
+    );
 }
 
 #[sqlx::test(migrations = false)]

@@ -78,6 +78,9 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_SIMILAR_TITLES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_SIMILAR_TITLES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SIMILAR_TITLE_JSON_ANY);
+        reg.register_json_any(super::__LIST_RECOMMENDED_TITLES_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_RECOMMENDED_TITLES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__RECOMMENDED_TITLE_JSON_ANY);
         reg.register_json_any(super::__LINKED_USER_JSON_ANY);
         reg.register_json_any(super::__APPROVE_USER_LINK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__APPROVE_USER_LINK_RESPONSE_JSON_ANY);
@@ -322,6 +325,18 @@ pub use self::__buffa::view::ListSimilarTitlesResponseOwnedView;
 pub use self::__buffa::view::SimilarTitleView;
 #[doc(inline)]
 pub use self::__buffa::view::SimilarTitleOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListRecommendedTitlesRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListRecommendedTitlesRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListRecommendedTitlesResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListRecommendedTitlesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RecommendedTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::RecommendedTitleOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::LinkedUserView;
 #[doc(inline)]

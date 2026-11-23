@@ -7,22 +7,25 @@
 //! (ADR 0093), and the Hub lists the Server, with its Server Addresses, to every Account it has a
 //! User on.
 //! Once Linked, it is also a Similar source answering the titles the Hub finds alike (ADR 0084,
-//! 0095), and shares Home rows of the Movies trending and the titles most watchlisted across
-//! Nama's Accounts (ADR 0058, 0093).
+//! 0095), a Home row source giving each Linked User the titles the Hub recommends from what
+//! their Account finished, as a row and as Featured suggestions (ADR 0072), and sharing Home rows
+//! of the Movies trending and the titles most watchlisted across Nama's Accounts (ADR 0058, 0093).
 
 mod charts;
 mod hub;
 mod linker;
+mod recommended;
 mod similar;
 mod token;
 
 use std::{env, sync::Arc};
 
 use nama_plugin_api::{
-    Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     automation::Permission,
+    contract::{FeaturedSuggestions, HomeRows, SharedRowsAsked, UserFeaturedAsked, UserRowsAsked},
     diagnostics_sharer::DiagnosticsSharer,
-    home_row::HomeRowSource,
+    home_row::{HomeRowMethod, HomeRowSource},
     job::JobRunner,
     points::{Events, TrackPreferenceChanged, WatchStatesChanged},
     server_link::ServerLinker,
@@ -35,6 +38,7 @@ use crate::{
     linker::{
         Jobs, Linker, TrackPreferenceSync, ViewingEvents, WatchStateSync, send_job, sync_job,
     },
+    recommended::Recommended,
     similar::Similar,
 };
 
@@ -81,8 +85,9 @@ impl Plugin for Hub {
                           Linked Users' Watch State, Subtitle and Audio Preferences and \
                           Watchlists there and sends it what they play, sends it the Diagnostics \
                           and Usage Analytics you share in Settings, adds the titles the Hub \
-                          finds alike to Similar titles, and shows Trending on Nama and Most \
-                          watchlisted on Nama rows on home."
+                          finds alike to Similar titles, gives each Linked User a Recommended \
+                          for you row and Featured suggestions from what they finished, and \
+                          shows Trending on Nama and Most watchlisted on Nama rows on home."
                 .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_markdown: "Enable it, then Link the Server under Settings, Server. The Server \
@@ -137,8 +142,10 @@ impl Plugin for Hub {
         let hub = HubApi::new(url)?;
         let similar: Arc<dyn SimilarSource> =
             Arc::new(Similar::new(hub.clone(), Arc::clone(&kernel)));
-        let charts: Arc<dyn HomeRowSource> =
-            Arc::new(Charts::new(hub.clone(), Arc::clone(&kernel)));
+        let rows: Arc<dyn HomeRowSource> = Arc::new(Rows {
+            recommended: Recommended::new(hub.clone(), Arc::clone(&kernel)),
+            charts: Charts::new(hub.clone(), Arc::clone(&kernel)),
+        });
         let linker = Arc::new(Linker::new(hub, kernel));
         let viewing = ViewingEvents::new(Arc::clone(&linker));
         let sharer: Arc<dyn DiagnosticsSharer> = Arc::<Linker>::clone(&linker);
@@ -150,8 +157,42 @@ impl Plugin for Hub {
         let jobs: Arc<dyn JobRunner> = Arc::new(Jobs { linker, viewing });
         registrar.provide::<dyn JobRunner>(Priority::DEFAULT, jobs);
         registrar.provide::<dyn SimilarSource>(Priority::DEFAULT, similar);
-        registrar.provide::<dyn HomeRowSource>(Priority::DEFAULT, charts);
+        registrar.provide::<dyn HomeRowSource>(Priority::DEFAULT, rows);
         Ok(())
+    }
+}
+
+/// The Hub's Home rows: the shared ones are Nama's charts, each User's own and Featured are what
+/// is recommended.
+struct Rows {
+    recommended: Recommended,
+    charts: Charts,
+}
+
+impl HomeRowSource for Rows {
+    fn shared_rows<'a>(
+        &'a self,
+        asked: &'a SharedRowsAsked,
+    ) -> BoxFuture<'a, Result<HomeRows, PluginError>> {
+        self.charts.shared_rows(asked)
+    }
+
+    fn user_rows<'a>(
+        &'a self,
+        asked: &'a UserRowsAsked,
+    ) -> BoxFuture<'a, Result<HomeRows, PluginError>> {
+        self.recommended.user_rows(asked)
+    }
+
+    fn user_featured<'a>(
+        &'a self,
+        asked: &'a UserFeaturedAsked,
+    ) -> BoxFuture<'a, Result<FeaturedSuggestions, PluginError>> {
+        self.recommended.user_featured(asked)
+    }
+
+    fn gives(&self, _method: HomeRowMethod) -> bool {
+        true
     }
 }
 

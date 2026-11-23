@@ -18,14 +18,15 @@ use nama_plugin_api::{
         },
     },
     contract::{
-        Device, DeviceKind, Devices, Event, Playback, PlaybackEnded, PlaybackStarted, StoreEntry,
-        StoreKey, StoreValue, Stored, TitleId, TitleRef, TitleRefKind, TitleWatchStates,
-        VersionTitles, VersionTitlesAsked, WatchState, WatchStates, WatchStatesAsked,
-        event::Event as Happened,
+        Device, DeviceKind, Devices, Event, Libraries, Library, Playback, PlaybackEnded,
+        PlaybackStarted, StoreEntry, StoreKey, StoreValue, Stored, Title, TitleId, TitleRef,
+        TitleRefKind, TitleWatchStates, Titles, VersionTitles, VersionTitlesAsked, WatchState,
+        WatchStates, WatchStatesAsked, event::Event as Happened,
     },
     contract::{
-        HomeRow, HomeRowTitle, HomeRows, Libraries, Library, LibraryKind, SharedRowsAsked,
-        SimilarAsked, SimilarTitle, SimilarTitles, Title, TitleKind, Titles, TitlesAsked,
+        FeaturedSuggestions, HomeRow, HomeRowTitle, HomeRows, LibraryKind, SharedRowsAsked,
+        SimilarAsked, SimilarTitle, SimilarTitles, TitleKind, TitlesAsked, UserFeaturedAsked,
+        UserRowsAsked,
     },
     diagnostics_sharer::{DiagnosticsSharer, Signal},
     home_row::{HomeRowMethod, HomeRowSource},
@@ -330,6 +331,168 @@ async fn a_linked_server_gets_the_titles_the_hub_finds_alike() {
         answered(&the_matrix),
         [("imdb", "tt0234215", 0.9), ("imdb", "tt0078748", 0.35)]
     );
+}
+
+/// The User `user_id`'s rows and Featured suggestions from the Plugin enabled against `hub`,
+/// keeping its Store in `kernel`.
+async fn recommended_for(
+    hub: &FakeHub,
+    kernel: &Arc<dyn Kernel>,
+    user_id: i64,
+) -> Result<(HomeRows, FeaturedSuggestions), PluginError> {
+    let source = provided::<dyn HomeRowSource>(hub, kernel);
+    let rows = (source.user_rows(&UserRowsAsked {
+        user_id,
+        ..Default::default()
+    }))
+    .await?;
+    let featured = (source.user_featured(&UserFeaturedAsked {
+        user_id,
+        ..Default::default()
+    }))
+    .await?;
+    Ok((rows, featured))
+}
+
+/// Each row as its key, heading, time to live and titles, each title as its kind and External ID,
+/// such as `recommended: Recommended for you, 3600 s: movie tmdb-604`.
+fn rows_of(rows: &HomeRows) -> Vec<String> {
+    (rows.rows.iter())
+        .map(|row| {
+            let titles: Vec<String> = (row.titles.iter())
+                .map(|title| {
+                    let kind = match title.kind.as_known() {
+                        Some(TitleKind::TITLE_KIND_SHOW) => "show",
+                        _ => "movie",
+                    };
+                    format!("{kind} {}-{}", title.id.namespace, title.id.value)
+                })
+                .collect();
+            let (key, heading, ttl) = (&row.key, &row.heading, row.ttl_seconds);
+            format!("{key}: {heading}, {ttl} s: {}", titles.join(", "))
+        })
+        .collect()
+}
+
+/// Each suggestion's kind, External ID and weight.
+fn suggested(featured: &FeaturedSuggestions) -> Vec<(TitleKind, String, f32)> {
+    (featured.suggestions.iter())
+        .map(|suggestion| {
+            let id = &suggestion.id;
+            let kind = suggestion.kind.as_known().unwrap();
+            (
+                kind,
+                format!("{}-{}", id.namespace, id.value),
+                suggestion.weight,
+            )
+        })
+        .collect()
+}
+
+/// A Kernel keeping the Store as [`store`] does, whose one Library holds an Episode of the Show
+/// `tmdb-1396`, and no Movie.
+fn with_a_show() -> Arc<dyn Kernel> {
+    let store = store();
+    Arc::new(
+        move |function: &str,
+              request: Vec<u8>|
+              -> BoxFuture<'static, Result<Vec<u8>, KernelRefused>> {
+            let answer = if function == ListLibraries::NAME {
+                let shows = Library {
+                    id: 1,
+                    ..Default::default()
+                };
+                Libraries {
+                    libraries: vec![shows],
+                    ..Default::default()
+                }
+                .encode_to_vec()
+            } else if function == ListTitles::NAME {
+                let episode = Title {
+                    ids: vec![tmdb("62085")],
+                    show_ids: vec![tmdb("1396")],
+                    ..Default::default()
+                };
+                Titles {
+                    titles: vec![episode],
+                    ..Default::default()
+                }
+                .encode_to_vec()
+            } else {
+                let (store, function) = (Arc::clone(&store), function.to_owned());
+                return Box::pin(async move { store.call(&function, request).await });
+            };
+            Box::pin(future::ready(Ok(answer)))
+        },
+    )
+}
+
+fn tmdb(value: &str) -> TitleId {
+    TitleId {
+        namespace: "tmdb".to_owned(),
+        value: value.to_owned(),
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn a_linked_user_gets_the_hubs_recommendations_as_a_row_and_those_on_the_server_featured() {
+    let hub = FakeHub::start().await;
+    let kernel = with_a_show();
+    let linker = enabled(&hub, &kernel);
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+
+    let (rows, featured) = recommended_for(&hub, &kernel, 7).await.unwrap();
+
+    assert_eq!(
+        rows_of(&rows),
+        ["recommended: Recommended for you, 3600 s: movie tmdb-604, show tmdb-1396"]
+    );
+    // Not the Movie, which no Library has, so Featured couldn't Play it (ADR 0072).
+    assert_eq!(
+        suggested(&featured),
+        [(TitleKind::TITLE_KIND_SHOW, "tmdb-1396".to_owned(), 0.4)]
+    );
+    assert_eq!(featured.ttl_seconds, 3600);
+    let source = provided::<dyn HomeRowSource>(&hub, &kernel);
+    assert!(source.gives(HomeRowMethod::User));
+    assert!(source.gives(HomeRowMethod::Featured));
+}
+
+#[tokio::test]
+async fn a_user_the_hub_recommends_nothing_gets_no_row_or_suggestions() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+
+    let (rows, featured) = recommended_for(&hub, &kernel, 8).await.unwrap();
+
+    assert_eq!(rows_of(&rows), Vec::<String>::new());
+    assert_eq!(suggested(&featured), []);
+}
+
+#[tokio::test]
+async fn a_server_that_isnt_linked_gets_no_recommendations_and_asks_the_hub_nothing() {
+    let hub = FakeHub::start().await;
+    hub.stop();
+
+    let (rows, featured) = recommended_for(&hub, &store(), 7).await.unwrap();
+
+    assert_eq!(rows_of(&rows), Vec::<String>::new());
+    assert_eq!(suggested(&featured), []);
+}
+
+#[tokio::test]
+async fn recommendations_fail_while_the_hub_is_unreachable_so_the_last_answer_stays() {
+    let hub = FakeHub::start().await;
+    let kernel = store();
+    let linker = enabled(&hub, &kernel);
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+    hub.stop();
+
+    recommended_for(&hub, &kernel, 7).await.unwrap_err();
 }
 
 #[tokio::test]
@@ -1697,12 +1860,10 @@ async fn whats_trending_fails_while_the_hub_is_unreachable() {
 }
 
 #[tokio::test]
-async fn the_trending_row_is_shared_and_never_asked_per_user() {
+async fn the_trending_row_is_shared() {
     let hub = FakeHub::start().await;
 
     let rows = provided::<dyn HomeRowSource>(&hub, &store());
 
     assert!(rows.gives(HomeRowMethod::Shared));
-    assert!(!rows.gives(HomeRowMethod::User));
-    assert!(!rows.gives(HomeRowMethod::Featured));
 }

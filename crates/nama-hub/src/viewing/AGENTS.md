@@ -14,5 +14,5 @@ Viewing Events (GLOSSARY.md): each play by a Linked User, recorded by their Link
 
 ### Neighbours
 
-- Uses: `links` (the Account a Linked Server's User is Linked to), `accounts` (`AccountId`) and `titles` (`PooledCount`).
-- Used by: `api`, which converts what `viewing.rs` defines, `lib`, which trains title vectors on `pooled_counts`, and `sync`, which counts Watchlists by the same pooling rules.
+- Uses: `links` (the Account a Linked Server's User is Linked to), `accounts` (`AccountId`) and `titles` (`ExternalId`, `PooledCount`).
+- Used by: `api`, which converts what `viewing.rs` defines, `lib`, which trains title vectors on `pooled_counts`, `recommendations` (an Account's finished Movies), and `sync`, which counts Watchlists by the same pooling rules.

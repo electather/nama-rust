@@ -13,7 +13,8 @@ use nama_hub_proto::nama::hub::v1::{
     GetServerSignInResponse, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest,
     InviteUserResponse, LinkService, LinkedServerService, ListLinkedServersRequest,
     ListLinkedServersResponse, ListLinkedUsersRequest, ListLinkedUsersResponse,
-    ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse, ListSimilarTitlesRequest,
+    ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
+    ListRecommendedTitlesRequest, ListRecommendedTitlesResponse, ListSimilarTitlesRequest,
     ListSimilarTitlesResponse, ListTrendingTitlesRequest, ListTrendingTitlesResponse,
     ListUserInvitesRequest, ListUserInvitesResponse, PollServerLinkRequest, PollServerLinkResponse,
     PollServerSignInRequest, PollServerSignInResponse, PullTrackPreferencesRequest,
@@ -28,18 +29,18 @@ use nama_hub_proto::nama::hub::v1::{
 };
 use sqlx::PgPool;
 
-use super::{accounts::signed_in, hub_failed, refuse, track_preferences, viewing, watchlists};
+use super::{
+    accounts::signed_in, hub_failed, refuse, track_preferences, viewing, watch_states, watchlists,
+};
 use crate::{
     links::{
         self, ADDRESS_LENGTH, CODE_LIFETIME_MINS, InviteId, LinkId, LinkedServer, Links,
         ListedInvite, ListedServer, ListedUser, MAX_LAN_ADDRESSES, POLL_INTERVAL_SECS, Polled,
         SignInId,
     },
-    sync::{
-        MAX_CHANGED_AT_MS, MAX_CHANGES, MAX_ID_LENGTH, MAX_IDS, TrackPreferences, WatchStateChange,
-        WatchStates, Watchlists,
-    },
-    titles::{self, ExternalId, SimilarTitle, TitleKind},
+    recommendations::Recommendations,
+    sync::{TrackPreferences, WatchStates, Watchlists},
+    titles::{self, ExternalId, RecommendedTitle, SimilarTitle, TitleKind},
     viewing::{TrendingTitle, Viewing},
 };
 
@@ -262,6 +263,7 @@ pub(super) struct LinkedServerServiceHandler {
     pub(super) watchlists: Watchlists,
     pub(super) db: PgPool,
     pub(super) viewing: Viewing,
+    pub(super) recommendations: Recommendations,
 }
 
 #[expect(
@@ -308,6 +310,24 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .map_err(|err| hub_failed(&err))?;
         Response::ok(ListSimilarTitlesResponse {
             titles: similar.into_iter().map(similar_to_proto).collect(),
+            ..Default::default()
+        })
+    }
+
+    async fn list_recommended_titles(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ListRecommendedTitlesRequest>,
+    ) -> ServiceResult<ListRecommendedTitlesResponse> {
+        let namespaces: Vec<String> = (request.namespaces.iter())
+            .map(|&namespace| namespace.to_owned())
+            .collect();
+        let recommended = (self.recommendations)
+            .for_user(linked_server(&ctx)?, request.user_id, &namespaces)
+            .await
+            .map_err(|err| hub_failed(&err))?;
+        Response::ok(ListRecommendedTitlesResponse {
+            titles: recommended.into_iter().map(recommended_to_proto).collect(),
             ..Default::default()
         })
     }
@@ -363,7 +383,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         request: ServiceRequest<'_, PushWatchStatesRequest>,
     ) -> ServiceResult<PushWatchStatesResponse> {
         let server = linked_server(&ctx)?;
-        let changes = changes_from_proto(request.to_owned_message().changes)?;
+        let changes = watch_states::changes_from_proto(request.to_owned_message().changes)?;
         self.watch_states
             .push(server, changes)
             .await
@@ -382,7 +402,10 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(PullWatchStatesResponse {
-            watch_states: pulled.into_iter().map(change_to_proto).collect(),
+            watch_states: pulled
+                .into_iter()
+                .map(watch_states::change_to_proto)
+                .collect(),
             ..Default::default()
         })
     }
@@ -607,13 +630,29 @@ fn linked_server(ctx: &RequestContext) -> Result<&LinkedServer, ConnectError> {
 
 fn similar_to_proto(similar: SimilarTitle) -> proto::SimilarTitle {
     proto::SimilarTitle {
-        id: proto::ExternalId {
-            namespace: similar.id.namespace,
-            value: similar.id.value,
-            ..Default::default()
-        }
-        .into(),
+        id: id_to_proto(similar.id).into(),
         weight: similar.weight,
+        ..Default::default()
+    }
+}
+
+fn recommended_to_proto(recommended: RecommendedTitle) -> proto::RecommendedTitle {
+    let kind = match recommended.kind {
+        TitleKind::Movie => proto::TitleKind::TITLE_KIND_MOVIE,
+        TitleKind::Show => proto::TitleKind::TITLE_KIND_SHOW,
+    };
+    proto::RecommendedTitle {
+        kind: kind.into(),
+        id: id_to_proto(recommended.id).into(),
+        weight: recommended.weight,
+        ..Default::default()
+    }
+}
+
+fn id_to_proto(id: ExternalId) -> proto::ExternalId {
+    proto::ExternalId {
+        namespace: id.namespace,
+        value: id.value,
         ..Default::default()
     }
 }
@@ -695,85 +734,6 @@ fn refused(err: links::Error) -> ConnectError {
         E::Random(_) | E::Database(_) => return hub_failed(&err),
     };
     refused.into()
-}
-
-/// `changes` as `sync` takes them, or the refusal of the first limit they break.
-fn changes_from_proto(
-    changes: Vec<proto::WatchStateChange>,
-) -> Result<Vec<WatchStateChange>, ConnectError> {
-    if changes.len() > MAX_CHANGES {
-        return Err(invalid_change(
-            "changes",
-            format!("a push holds up to {MAX_CHANGES} changes"),
-        ));
-    }
-    (changes.into_iter().enumerate())
-        .map(|(nth, change)| change_from_proto(nth, change))
-        .collect()
-}
-
-/// The `nth` change of a push, as `sync` takes it.
-fn change_from_proto(
-    nth: usize,
-    change: proto::WatchStateChange,
-) -> Result<WatchStateChange, ConnectError> {
-    let field = |name: &str| format!("changes[{nth}].{name}");
-    let id_fits = |id: &String| !id.is_empty() && id.chars().count() <= MAX_ID_LENGTH;
-    if !(1..=MAX_IDS).contains(&change.ids.len()) || !change.ids.iter().all(id_fits) {
-        return Err(invalid_change(
-            &field("ids"),
-            format!(
-                "a change names 1 to {MAX_IDS} External IDs of 1 to {MAX_ID_LENGTH} characters"
-            ),
-        ));
-    }
-    let duration_ms = i64::try_from(change.duration_ms)
-        .map_err(|_too_long| invalid_change(&field("duration_ms"), "the duration is too long"))?;
-    let position_ms = (i64::try_from(change.position_ms).ok())
-        .filter(|&position_ms| position_ms <= duration_ms)
-        .ok_or_else(|| {
-            invalid_change(&field("position_ms"), "the position is past the duration")
-        })?;
-    if !(0..=MAX_CHANGED_AT_MS).contains(&change.changed_at_ms) {
-        return Err(invalid_change(
-            &field("changed_at_ms"),
-            "a change is dated from 1970 to the end of 9999",
-        ));
-    }
-    Ok(WatchStateChange {
-        user_id: change.user_id,
-        episode: change.episode,
-        ids: change.ids,
-        played: change.played,
-        position_ms,
-        duration_ms,
-        changed_at_ms: change.changed_at_ms,
-    })
-}
-
-/// `change`, as a Linked Server takes it.
-fn change_to_proto(change: WatchStateChange) -> proto::WatchStateChange {
-    proto::WatchStateChange {
-        user_id: change.user_id,
-        episode: change.episode,
-        ids: change.ids,
-        played: change.played,
-        // Never negative: `watch_states` checks it.
-        position_ms: u64::try_from(change.position_ms).unwrap_or_default(),
-        duration_ms: u64::try_from(change.duration_ms).unwrap_or_default(),
-        changed_at_ms: change.changed_at_ms,
-        ..Default::default()
-    }
-}
-
-/// Refuses a push for a change at `field` that breaks a limit, which `message` names.
-fn invalid_change(field: &str, message: impl Into<String>) -> ConnectError {
-    refuse(RefusalReason::REFUSAL_REASON_WATCH_STATE_INVALID, message)
-        .field(field)
-        .param("maxChanges", &MAX_CHANGES)
-        .param("maxIds", &MAX_IDS)
-        .param("maxIdLength", &MAX_ID_LENGTH)
-        .into()
 }
 
 #[cfg(test)]

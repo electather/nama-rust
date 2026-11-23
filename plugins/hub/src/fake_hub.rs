@@ -2,9 +2,9 @@
 //! one Server's device flow, Unlinking, its Users' Links, Users created from Accounts, one sign-in
 //! with an Account at a time, its Server Addresses and whether its public port is reached, the
 //! Watch State it pushes, which its Linked Users pull back, their Watchlists, its Viewing Events,
-//! the titles like The Matrix, what's trending and most watchlisted, and a key set of one Ed25519
-//! key it signs with, as the Hub's API (`proto/nama/hub/v1/`) says the Hub does, and takes shared
-//! Diagnostics.
+//! the titles like The Matrix, what's trending and most watchlisted, two titles recommended to
+//! each Linked User, and a key set of one Ed25519 key it signs with, as the Hub's API
+//! (`proto/nama/hub/v1/`) says the Hub does, and takes shared Diagnostics.
 
 use std::{
     collections::HashMap,
@@ -25,18 +25,19 @@ use connectrpc::{
 use nama_hub_proto::nama::hub::v1::{
     ExternalId, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest, InviteUserResponse,
     LinkedServerService, ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
-    ListSimilarTitlesRequest, ListSimilarTitlesResponse, ListTrendingTitlesRequest,
-    ListTrendingTitlesResponse, PollServerLinkRequest, PollServerLinkResponse,
-    PollServerSignInRequest, PollServerSignInResponse, PullTrackPreferencesRequest,
-    PullTrackPreferencesResponse, PullWatchStatesRequest, PullWatchStatesResponse,
-    PushTrackPreferencesRequest, PushTrackPreferencesResponse, PushWatchStatesRequest,
-    PushWatchStatesResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
-    ServerLinkService, SetServerAddressesRequest, SetServerAddressesResponse, SimilarTitle,
-    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
-    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
-    SyncWatchlistResponse, TitleKind, TrackPreferenceChange, TrendingTitle, UnlinkServerRequest,
-    UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse, UserViewingEvent,
-    WatchStateChange, WatchlistEntry, WatchlistedTitle,
+    ListRecommendedTitlesRequest, ListRecommendedTitlesResponse, ListSimilarTitlesRequest,
+    ListSimilarTitlesResponse, ListTrendingTitlesRequest, ListTrendingTitlesResponse,
+    PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
+    PollServerSignInResponse, PullTrackPreferencesRequest, PullTrackPreferencesResponse,
+    PullWatchStatesRequest, PullWatchStatesResponse, PushTrackPreferencesRequest,
+    PushTrackPreferencesResponse, PushWatchStatesRequest, PushWatchStatesResponse,
+    RecommendedTitle, RecordViewingEventsRequest, RecordViewingEventsResponse, ServerLinkService,
+    SetServerAddressesRequest, SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest,
+    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
+    StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest, SyncWatchlistResponse,
+    TitleKind, TrackPreferenceChange, TrendingTitle, UnlinkServerRequest, UnlinkServerResponse,
+    UnlinkUserRequest, UnlinkUserResponse, UserViewingEvent, WatchStateChange, WatchlistEntry,
+    WatchlistedTitle,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::{Value, json};
@@ -686,6 +687,26 @@ impl LinkedServerService for Linked {
         })
     }
 
+    async fn list_recommended_titles(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ListRecommendedTitlesRequest>,
+    ) -> ServiceResult<ListRecommendedTitlesResponse> {
+        let state = self.caller(&ctx)?;
+        let titles = if state.user_accounts.contains_key(&request.user_id) {
+            vec![
+                recommended(TitleKind::TITLE_KIND_MOVIE, "604", 0.9),
+                recommended(TitleKind::TITLE_KIND_SHOW, "1396", 0.4),
+            ]
+        } else {
+            vec![]
+        };
+        Response::ok(ListRecommendedTitlesResponse {
+            titles,
+            ..Default::default()
+        })
+    }
+
     /// The Matrix, Blade Runner and Toy Story, by TMDB id, most watched first.
     async fn list_trending_titles(
         &self,
@@ -763,6 +784,20 @@ fn imdb(value: &str, weight: f32) -> SimilarTitle {
         id: ExternalId {
             namespace: "imdb".to_owned(),
             value: value.to_owned(),
+            ..Default::default()
+        }
+        .into(),
+        weight,
+        ..Default::default()
+    }
+}
+
+fn recommended(kind: TitleKind, tmdb: &str, weight: f32) -> RecommendedTitle {
+    RecommendedTitle {
+        kind: kind.into(),
+        id: ExternalId {
+            namespace: "tmdb".to_owned(),
+            value: tmdb.to_owned(),
             ..Default::default()
         }
         .into(),

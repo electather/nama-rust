@@ -5,6 +5,7 @@ mod accounts;
 mod links;
 mod track_preferences;
 mod viewing;
+mod watch_states;
 mod watchlists;
 
 use std::{sync::Arc, time::Instant};
@@ -36,6 +37,7 @@ use crate::{
     diagnostics::{Backend, NotTaken, Shared, Signal},
     links::{LinkedServer, Links},
     mail::Mail,
+    recommendations::Recommendations,
     signing::Keys,
     sync::{TrackPreferences, WatchStates, Watchlists},
     viewing::Viewing,
@@ -63,6 +65,7 @@ pub(crate) fn router(
     let links = Links::new(db.clone(), accounts.clone(), Arc::clone(&keys));
     let viewing = Viewing::new(db.clone(), links.clone());
     let watch_states = WatchStates::new(db.clone(), links.clone());
+    let recommendations = Recommendations::new(db.clone(), links.clone(), viewing.clone());
     let track_preferences = TrackPreferences::new(db.clone(), links.clone());
     let watchlists = Watchlists::new(db.clone(), links.clone(), viewing.clone());
     let rpcs = connectrpc::Router::new()
@@ -85,6 +88,7 @@ pub(crate) fn router(
             track_preferences,
             watchlists,
             viewing: viewing.clone(),
+            recommendations,
             db,
         }))
         .add_service(Arc::new(ViewingEventServiceHandler { viewing }))
