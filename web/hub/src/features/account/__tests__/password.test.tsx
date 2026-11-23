@@ -107,7 +107,10 @@ describe("an Account's password", () => {
 
   test("the hint to change one is the same whether the Hub emails Sign-in Links or not", async () => {
     const hint = "8 to 1024 characters. Changing it signs you out everywhere else.";
-    openAccountPage(true, true, true);
+    // Setting one first: the change hint then only shows once the Hub's answer is on screen.
+    openAccountPage(false, true, true);
+    await expect(screen.findByText(/as well as with Sign-in Links/u)).resolves.toBeDefined();
+    await submit("Password", "Set password");
     await expect(screen.findByText(hint)).resolves.toBeDefined();
     cleanup();
 
