@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import { DeviceItems } from "@/features/settings/components/device-items";
 import { OtherActions } from "@/features/settings/components/other-actions";
@@ -14,6 +15,7 @@ import type { Device } from "@/gen/nama/v1/sign_in_pb";
 export function OtherDevices({ others }: { others: Device[] }) {
   const [adding, setAdding] = useState(false);
   const [signedIn, setSignedIn] = useState<string>();
+  const addButton = useRef<HTMLButtonElement>(null);
   const add = () => {
     setSignedIn(undefined);
     setAdding(true);
@@ -25,7 +27,12 @@ export function OtherDevices({ others }: { others: Device[] }) {
         setSignedIn(name);
       }}
       onCancel={() => {
-        setAdding(false);
+        flushSync(() => {
+          setAdding(false);
+        });
+        // The form that had focus is gone, so focus goes back to what opened it, once
+        // `flushSync` has put that button back in the page.
+        addButton.current?.focus();
       }}
     />
   );
@@ -33,7 +40,7 @@ export function OtherDevices({ others }: { others: Device[] }) {
     <SettingGroup
       setting="others"
       title={deviceLabels.others.label}
-      action={<OtherActions others={others} adding={adding} onAdd={add} />}
+      action={<OtherActions others={others} adding={adding} addButton={addButton} onAdd={add} />}
     >
       {adding && signIn}
       <output className="py-1 text-sm text-muted-foreground empty:hidden">

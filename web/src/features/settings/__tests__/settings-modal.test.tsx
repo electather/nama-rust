@@ -2,7 +2,7 @@ import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
-import { fakeServer, newUser, openApp } from "@/test-app";
+import { admin, fakeServer, fill, newUser, openApp } from "@/test-app";
 import { openSettings } from "@/test-settings";
 
 afterEach(cleanup);
@@ -128,4 +128,18 @@ test("a part of a pane that doesn't load says so in its place, and the rest of t
   await waitFor(() => {
     expect(screen.queryByText("Couldn’t load what you’re messaged about.")).toBeNull();
   });
+});
+
+test("pressing Escape in a form holding typed text keeps Settings open, and leaves it to close from anywhere else", async () => {
+  openSettings("users", fakeServer({ signedIn: admin }, {}, { listUsers: () => ({}) }));
+  const name = await screen.findByLabelText("Username");
+  const password = screen.getByLabelText("Starting password");
+
+  // The dialog closes on an Escape keydown whose default nobody prevented.
+  expect(fireEvent.keyDown(name, { key: "Escape" })).toBe(true);
+  fill("Username", "ui-draft");
+  expect(fireEvent.keyDown(name, { key: "Escape" })).toBe(false);
+  expect(fireEvent.keyDown(password, { key: "Escape" })).toBe(false);
+  const close = screen.getByRole("button", { name: "Close Settings" });
+  expect(fireEvent.keyDown(close, { key: "Escape" })).toBe(true);
 });

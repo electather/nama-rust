@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useRef } from "react";
+import { type KeyboardEvent, useId, useLayoutEffect, useRef } from "react";
 
 import { SettingsHeader } from "@/features/settings/components/settings-header";
 import { SettingsPane } from "@/features/settings/components/settings-pane";
@@ -6,6 +6,36 @@ import { SettingsSide } from "@/features/settings/components/settings-side";
 import { useCloseSettings } from "@/features/settings/hooks/use-close-settings";
 import { type Section, groupsFor, openSection } from "@/features/settings/lib/sections";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
+
+/** A field of another kind, such as a checkbox, loses nothing to Escape. */
+const textFieldSelector =
+  "textarea, input:is(:not([type]), [type=text], [type=search], [type=email], [type=url], [type=tel], [type=password], [type=number])";
+
+function textField(target: EventTarget) {
+  const isField = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+  return isField && target.matches(textFieldSelector) ? target : undefined;
+}
+
+/**
+ * Whether closing from the text field `target` would throw typed text away. Its whole form counts:
+ * Escape at the autofill list of an empty Starting password would lose the Username typed above it.
+ */
+function holdsText(target: EventTarget) {
+  const field = textField(target);
+  if (field === undefined) {
+    return false;
+  }
+  const fields = field.form === null ? [field] : [...field.form.elements];
+  return fields.some((each) => (textField(each)?.value ?? "") !== "");
+}
+
+/** Keeps Settings open on Escape in a text field while it or its form holds text. */
+function keepTypedText(event: KeyboardEvent<HTMLDialogElement>) {
+  // Preventing Escape's keydown stops the browser asking the dialog to cancel.
+  if (event.key === "Escape" && holdsText(event.target)) {
+    event.preventDefault();
+  }
+}
 
 /**
  * Settings, over the page it was opened on: the sections `user` may open beside the pane of the one
@@ -34,6 +64,7 @@ export function SettingsModal({ section, user }: { section: Section; user: User 
     <dialog
       ref={dialog}
       aria-labelledby={titleId}
+      onKeyDown={keepTypedText}
       // Escape and the back gesture leave as the close button does, by the address.
       onCancel={(event) => {
         event.preventDefault();
