@@ -76,3 +76,68 @@ pub struct WatchStateChange {
     /// When it changed, in milliseconds since the Unix epoch.
     pub changed_at_ms: i64,
 }
+
+/// Observe: a User's Subtitle or Audio Preference changed (ADR 0035). Only Built-in Plugins
+/// observe it, as the Hub Plugin does to sync it (ADR 0092). Each change carries when it was made,
+/// since two may reach an Observer in either order.
+#[derive(Debug)]
+pub struct TrackPreferenceChanged;
+
+impl ObservePoint for TrackPreferenceChanged {
+    const NAME: &'static str = "track_preference_changed";
+    type Event = TrackPreferenceChange;
+}
+
+/// What [`TrackPreferenceChanged`] Observers are told: one of a User's Preferences, as the change
+/// left it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrackPreferenceChange {
+    /// The User's id.
+    pub user_id: i64,
+    /// The Preference.
+    pub preference: TrackPreference,
+}
+
+/// A Subtitle or Audio Preference: what describes the Track a User wants, never which Track it
+/// was, so any Server matches it against its own (ADR 0035).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TrackPreference {
+    /// An Audio Preference rather than a Subtitle Preference.
+    pub audio: bool,
+    /// What it is kept for.
+    pub kept_for: TrackPreferenceFor,
+    /// What describes the Track wanted. `None` for subtitles turned off, or for the User's own
+    /// Audio Preference left to each file's own audio.
+    pub like: Option<TrackDescription>,
+    /// Full subtitles only over audio in another language, which only the User's own Subtitle
+    /// Preference can ask.
+    pub foreign_audio_only: bool,
+    /// When it changed, in milliseconds since the Unix epoch.
+    pub changed_at_ms: i64,
+}
+
+/// What describes a Track a User picked, as its file tagged it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TrackDescription {
+    /// Its language, such as `eng`.
+    pub language: Option<String>,
+    /// A forced-only subtitle Track.
+    pub forced: bool,
+    /// A subtitle Track for the deaf and hard of hearing.
+    pub sdh: bool,
+    /// Its title.
+    pub title: Option<String>,
+}
+
+/// What a [`TrackPreference`] is kept for.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum TrackPreferenceFor {
+    /// Everything the User plays: their own, set in Settings.
+    #[default]
+    User,
+    /// The Movie with these External IDs, such as `tmdb-348`: every one the Server knows it by
+    /// (ADR 0013), so another Server finds it under any of its own.
+    Movie(Vec<String>),
+    /// The Show with these External IDs, as a Movie's.
+    Show(Vec<String>),
+}

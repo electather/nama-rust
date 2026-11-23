@@ -1,5 +1,6 @@
-//! Sync (ADR 0008): each Account's merged Watch State, which its Linked Users' Servers push their
-//! changes into and pull from, and its merged Watchlist (ADR 0056), which they sync whole.
+//! Sync (ADR 0008, ADR 0092): each Account's merged Watch State and Subtitle and Audio
+//! Preferences, which its Linked Users' Servers push their changes into and pull from, and its
+//! merged Watchlist (ADR 0056), which they sync whole.
 
 use std::collections::{HashMap, hash_map::Entry};
 
@@ -25,6 +26,12 @@ pub(crate) const MAX_CHANGED_AT_MS: i64 = 253_402_300_799_999;
 
 /// The most entries one Watchlist sync may hold.
 pub(crate) const MAX_WATCHLIST_ENTRIES: usize = 5000;
+
+/// The most characters a Track Preference's language may have.
+pub(crate) const MAX_LANGUAGE_LENGTH: usize = 100;
+
+/// The most characters a Track Preference's Track title may have.
+pub(crate) const MAX_TITLE_LENGTH: usize = 1000;
 
 /// The most titles [`Watchlists::most_watchlisted`] answers: as many as a Home row holds (ADR
 /// 0058).
@@ -256,6 +263,178 @@ async fn merge_watchlist(
         &ids,
         &removed,
         &changed_at_ms,
+    )
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// One User's Subtitle or Audio Preference, as a change on their Server left it (ADR 0035).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TrackPreferenceChange {
+    /// The User's id on their Server.
+    pub(crate) user_id: i64,
+    /// An Audio Preference rather than a Subtitle Preference.
+    pub(crate) audio: bool,
+    pub(crate) kept_for: PreferenceFor,
+    /// What describes the Track wanted; `None` for subtitles off, or for the User's own audio
+    /// left to each file's.
+    pub(crate) like: Option<Like>,
+    /// Full subtitles only over audio in another language.
+    pub(crate) foreign_audio_only: bool,
+    /// When the Server made it, in milliseconds since the Unix epoch.
+    pub(crate) changed_at_ms: i64,
+}
+
+/// What a Track Preference is kept for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum PreferenceFor {
+    /// Everything the User plays.
+    User,
+    /// The Movie with this External ID.
+    Movie(String),
+    /// The Show with this External ID.
+    Show(String),
+}
+
+impl PreferenceFor {
+    /// Its `scope` and `title_id` in `track_preferences`.
+    fn stored(&self) -> (&'static str, &str) {
+        match self {
+            Self::User => ("user", ""),
+            Self::Movie(id) => ("movie", id),
+            Self::Show(id) => ("show", id),
+        }
+    }
+
+    /// The one stored with `scope` and `title_id`.
+    fn of_stored(scope: &str, title_id: String) -> Self {
+        match scope {
+            "movie" => Self::Movie(title_id),
+            "show" => Self::Show(title_id),
+            _ => Self::User,
+        }
+    }
+}
+
+/// What describes a Track a User wants, as its file tagged it: never which Track it was, since
+/// each Server matches it against its own.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct Like {
+    /// Empty for none.
+    pub(crate) language: String,
+    pub(crate) forced: bool,
+    pub(crate) sdh: bool,
+    /// Empty for none.
+    pub(crate) title: String,
+}
+
+/// The Accounts' merged Track Preferences.
+#[derive(Clone)]
+pub(crate) struct TrackPreferences {
+    db: PgPool,
+    links: Links,
+}
+
+impl TrackPreferences {
+    /// The merged Track Preferences in `db`, of the Users `links` has Linked.
+    pub(crate) fn new(db: PgPool, links: Links) -> Self {
+        Self { db, links }
+    }
+
+    /// Merges `changes`, made on `server`, into the Accounts its Users are Linked to, in one
+    /// transaction. A change of a User who isn't Linked is dropped.
+    pub(crate) async fn push(
+        &self,
+        server: &LinkedServer,
+        changes: Vec<TrackPreferenceChange>,
+    ) -> Result<(), sqlx::Error> {
+        // Looked up before the transaction, which would otherwise hold a connection while asking
+        // the pool for another.
+        let mut accounts = HashMap::new();
+        for change in &changes {
+            if let Entry::Vacant(unknown) = accounts.entry(change.user_id) {
+                unknown.insert(self.links.linked_account(server, change.user_id).await?);
+            }
+        }
+        let mut tx = self.db.begin().await?;
+        for change in changes {
+            if let Some(&Some(account)) = accounts.get(&change.user_id) {
+                merge_preference(&mut tx, account, &change).await?;
+            }
+        }
+        tx.commit().await
+    }
+
+    /// The Track Preferences of the Account `server`'s User `user_id` is Linked to, as
+    /// `user_id`'s changes; empty if they aren't Linked.
+    // ponytail: one answer holds the Account's every Preference; page it as Watch State's would
+    // need, once one nears the largest message a client takes.
+    pub(crate) async fn pull(
+        &self,
+        server: &LinkedServer,
+        user_id: i64,
+    ) -> Result<Vec<TrackPreferenceChange>, sqlx::Error> {
+        let Some(account) = self.links.linked_account(server, user_id).await? else {
+            return Ok(Vec::new());
+        };
+        let rows = sqlx::query!(
+            r#"SELECT audio, scope, title_id, off, language, forced, sdh, title, foreign_audio_only,
+                      (extract(epoch FROM changed_at) * 1000)::bigint AS "changed_at_ms!"
+               FROM track_preferences WHERE account_id = $1"#,
+            account.0,
+        )
+        .fetch_all(&self.db)
+        .await?;
+        Ok((rows.into_iter())
+            .map(|row| TrackPreferenceChange {
+                user_id,
+                audio: row.audio,
+                kept_for: PreferenceFor::of_stored(&row.scope, row.title_id),
+                like: (!row.off).then_some(Like {
+                    language: row.language,
+                    forced: row.forced,
+                    sdh: row.sdh,
+                    title: row.title,
+                }),
+                foreign_audio_only: row.foreign_audio_only,
+                changed_at_ms: row.changed_at_ms,
+            })
+            .collect())
+    }
+}
+
+/// Keeps `change` as `account`'s Track Preference, unless a later change is kept there. Of two
+/// made at the same moment, the one pushed last wins, as for Watch State.
+async fn merge_preference(
+    conn: &mut PgConnection,
+    account: AccountId,
+    change: &TrackPreferenceChange,
+) -> Result<(), sqlx::Error> {
+    let (scope, title_id) = change.kept_for.stored();
+    let like = change.like.clone().unwrap_or_default();
+    sqlx::query!(
+        "INSERT INTO track_preferences
+         (account_id, audio, scope, title_id, off, language, forced, sdh, title,
+          foreign_audio_only, changed_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+         'epoch'::timestamptz + $11::bigint * interval '1 millisecond')
+         ON CONFLICT (account_id, audio, scope, title_id) DO UPDATE
+         SET off = excluded.off, language = excluded.language, forced = excluded.forced,
+         sdh = excluded.sdh, title = excluded.title,
+         foreign_audio_only = excluded.foreign_audio_only, changed_at = excluded.changed_at
+         WHERE excluded.changed_at >= track_preferences.changed_at",
+        account.0,
+        change.audio,
+        scope,
+        title_id,
+        change.like.is_none(),
+        like.language,
+        like.forced,
+        like.sdh,
+        like.title,
+        change.foreign_audio_only,
+        change.changed_at_ms,
     )
     .execute(conn)
     .await?;

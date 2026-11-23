@@ -3,6 +3,8 @@
 
 use std::{collections::BTreeSet, net::IpAddr, sync::Arc};
 
+use nama_plugin_api::points::TrackPreference;
+
 use super::{
     AskedAudio, Description, DeviceDecoding, Facts, Method, Network, PickedLimit, Plan, Planned,
     PreviewFrames, Probing, RunningPlans, StartError, StartedPlan, SubtitlePreference, Track,
@@ -174,34 +176,35 @@ impl Plans {
     }
 
     /// Keeps `pick`, made by the User `user` in the Version `version`, as their Preference for the
-    /// Show or Movie it is of, probing the Version first if its Tracks aren't current.
+    /// Show or Movie it is of, probing the Version first if its Tracks aren't current, and returns
+    /// the Preference kept; `None` for a Version of an Unmatched Item.
     pub(crate) async fn keep_pick(
         &self,
         user: i64,
         version: i64,
         pick: Pick,
-    ) -> Result<(), PickError> {
+    ) -> Result<Option<TrackPreference>, PickError> {
         // An Unmatched Item keeps nothing, as it keeps no Watch State (ADR 0013): its Tracks aren't
         // read, so the pick never fails, whatever it names.
         let Some(kept_for) = self.preferences.kept_for(version).await? else {
-            return Ok(());
+            return Ok(None);
         };
         let preferences = &self.preferences;
-        match pick {
+        let kept = match pick {
             Pick::Subtitle(None) => {
-                (preferences.keep_subtitle(user, kept_for, SubtitlePreference::Off)).await?;
+                (preferences.keep_subtitle(user, kept_for, SubtitlePreference::Off)).await?
             }
             Pick::Subtitle(Some(place)) => {
                 let picked = Description::of(&self.track_at(version, place, is_subtitle).await?);
                 let like = SubtitlePreference::Like(picked);
-                preferences.keep_subtitle(user, kept_for, like).await?;
+                preferences.keep_subtitle(user, kept_for, like).await?
             }
             Pick::Audio(place) => {
                 let picked = Description::of(&self.track_at(version, place, is_audio).await?);
-                preferences.keep_audio(user, kept_for, picked).await?;
+                preferences.keep_audio(user, kept_for, picked).await?
             }
-        }
-        Ok(())
+        };
+        Ok(Some(kept))
     }
 
     /// Sets the User `user`'s Subtitle Offset of the subtitle Track at `place` in the Version

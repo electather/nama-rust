@@ -20,12 +20,13 @@ use nama_hub_proto::nama::hub::v1::{
     GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient,
     ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse, ListSimilarTitlesRequest,
     ListSimilarTitlesResponse, ListTrendingTitlesRequest, ListTrendingTitlesResponse,
-    PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest, PullWatchStatesRequest,
+    PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
+    PullTrackPreferencesRequest, PullWatchStatesRequest, PushTrackPreferencesRequest,
     PushWatchStatesRequest, RecordViewingEventsRequest, ServerLinkServiceClient,
     SetServerAddressesRequest, StartServerLinkRequest, StartServerLinkResponse,
     StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
-    StartUserLinkResponse, SyncWatchlistRequest, UnlinkServerRequest, UnlinkUserRequest,
-    WatchStateChange, WatchlistEntry,
+    StartUserLinkResponse, SyncWatchlistRequest, TrackPreferenceChange, UnlinkServerRequest,
+    UnlinkUserRequest, WatchStateChange, WatchlistEntry,
 };
 use nama_plugin_api::{
     PluginError,
@@ -221,6 +222,39 @@ impl Hub {
             })
             .await?;
         Ok(pulled.into_owned().watch_states)
+    }
+
+    /// Merges `changes` to the Track Preferences of the Users of the Server whose credential is
+    /// `credential` into their Accounts'.
+    pub(crate) async fn push_track_preferences(
+        &self,
+        credential: &str,
+        changes: Vec<TrackPreferenceChange>,
+    ) -> Result<(), PluginError> {
+        self.linked_server(credential)?
+            .push_track_preferences(PushTrackPreferencesRequest {
+                changes,
+                ..Default::default()
+            })
+            .await?;
+        Ok(())
+    }
+
+    /// The Track Preferences of the Account the User `user_id` of the Server whose credential is
+    /// `credential` is Linked to; empty while they aren't Linked.
+    pub(crate) async fn pull_track_preferences(
+        &self,
+        credential: &str,
+        user_id: i64,
+    ) -> Result<Vec<TrackPreferenceChange>, PluginError> {
+        let pulled = self
+            .linked_server(credential)?
+            .pull_track_preferences(PullTrackPreferencesRequest {
+                user_id,
+                ..Default::default()
+            })
+            .await?;
+        Ok(pulled.into_owned().preferences)
     }
 
     /// Merges `entries`, the whole Watchlist of the User `user_id` of the Server whose credential

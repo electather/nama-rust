@@ -105,6 +105,19 @@ service LinkedServerService {
   rpc PullWatchStates(PullWatchStatesRequest) returns (PullWatchStatesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+  // Merges changes to the Server's Users' Subtitle and Audio Preferences into their Accounts'
+  // (ADR 0092), as `PushWatchStates` merges Watch State: per Account and Preference, the change
+  // made last wins. A change of a User who isn't Linked is dropped. Fails with
+  // `REFUSAL_REASON_TRACK_PREFERENCE_INVALID` for a change it can't keep, keeping none of the
+  // call's.
+  rpc PushTrackPreferences(PushTrackPreferencesRequest) returns (PushTrackPreferencesResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // The Subtitle and Audio Preferences of the Account one of the Server's Users is Linked to, as
+  // Servers pushed them: per Preference, the change made last. Empty for a User who isn't Linked.
+  rpc PullTrackPreferences(PullTrackPreferencesRequest) returns (PullTrackPreferencesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
   // Merges one of the Server's Users' whole Watchlist into their Account's (ADR 0056), and returns
   // the Account's: per title and External ID, the change made last wins, removals included,
   // whichever Server sends it and whenever, and of two made at the same moment, the removal. A User
@@ -363,6 +376,57 @@ message WatchStateChange {
   // When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
   // 9999.
   int64 changed_at_ms = 7;
+}
+
+message PushTrackPreferencesRequest {
+  // Up to 500.
+  repeated TrackPreferenceChange changes = 1;
+}
+
+message PushTrackPreferencesResponse {}
+
+message PullTrackPreferencesRequest {
+  // The User's id on the Server.
+  int64 user_id = 1;
+}
+
+message PullTrackPreferencesResponse {
+  // One per Preference, in no order. `user_id` is the asked User's.
+  repeated TrackPreferenceChange preferences = 1;
+}
+
+// One User's Subtitle or Audio Preference, as a change on their Server left it (ADR 0035): what
+// describes the Track they want, never which Track it was, since each Server matches it against
+// its own. Home layouts, Permissions, Library access and Plugin settings belong to each Server
+// and never come here (ADR 0092).
+message TrackPreferenceChange {
+  // The User's id on the Server.
+  int64 user_id = 1;
+  // Whether it is an Audio Preference rather than a Subtitle Preference.
+  bool audio = 2;
+  // Whose it is: a Movie's or a Show's, or, unspecified, the User's own for everything they play.
+  TitleKind title_kind = 3;
+  // The Movie's or Show's External ID, such as `tmdb-348`, of 1 to 100 characters; empty for the
+  // User's own.
+  string title_id = 4;
+  // Subtitles turned off, or the User's own Audio Preference left to each file's own audio. Then
+  // nothing describes a Track.
+  bool off = 5;
+  // The Track's language as its file tagged it, such as `eng`, or empty for none: up to 100
+  // characters.
+  string language = 6;
+  // A forced-only subtitle Track.
+  bool forced = 7;
+  // A subtitle Track for the deaf and hard of hearing.
+  bool sdh = 8;
+  // The Track's title, or empty for none: up to 1000 characters.
+  string title = 9;
+  // Full subtitles only over audio in another language, which only the User's own Subtitle
+  // Preference can ask.
+  bool foreign_audio_only = 10;
+  // When it changed on the Server, in milliseconds since the Unix epoch, from 1970 to the end of
+  // 9999.
+  int64 changed_at_ms = 11;
 }
 
 message SyncWatchlistRequest {

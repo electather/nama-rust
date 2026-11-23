@@ -27,14 +27,16 @@ use nama_hub_proto::nama::hub::v1::{
     LinkedServerService, ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
     ListSimilarTitlesRequest, ListSimilarTitlesResponse, ListTrendingTitlesRequest,
     ListTrendingTitlesResponse, PollServerLinkRequest, PollServerLinkResponse,
-    PollServerSignInRequest, PollServerSignInResponse, PullWatchStatesRequest,
-    PullWatchStatesResponse, PushWatchStatesRequest, PushWatchStatesResponse,
-    RecordViewingEventsRequest, RecordViewingEventsResponse, ServerLinkService,
-    SetServerAddressesRequest, SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest,
-    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
-    StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest, SyncWatchlistResponse,
-    TitleKind, TrendingTitle, UnlinkServerRequest, UnlinkServerResponse, UnlinkUserRequest,
-    UnlinkUserResponse, UserViewingEvent, WatchStateChange, WatchlistEntry, WatchlistedTitle,
+    PollServerSignInRequest, PollServerSignInResponse, PullTrackPreferencesRequest,
+    PullTrackPreferencesResponse, PullWatchStatesRequest, PullWatchStatesResponse,
+    PushTrackPreferencesRequest, PushTrackPreferencesResponse, PushWatchStatesRequest,
+    PushWatchStatesResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
+    ServerLinkService, SetServerAddressesRequest, SetServerAddressesResponse, SimilarTitle,
+    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
+    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
+    SyncWatchlistResponse, TitleKind, TrackPreferenceChange, TrendingTitle, UnlinkServerRequest,
+    UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse, UserViewingEvent,
+    WatchStateChange, WatchlistEntry, WatchlistedTitle,
 };
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::{Value, json};
@@ -99,6 +101,8 @@ struct State {
     pushes: Vec<Vec<WatchStateChange>>,
     /// Why pushes fail, as if the Hub were down, while they do.
     push_failure: Option<&'static str>,
+    /// Each push's Track Preference changes, in the order they came.
+    preference_pushes: Vec<Vec<TrackPreferenceChange>>,
     /// Each Watchlist entry Linked Users synced, in the order they came.
     watchlist: Vec<WatchlistEntry>,
     /// The User each Watchlist sync was of, in the order they came.
@@ -231,6 +235,11 @@ impl FakeHub {
     /// Each push's changes, in the order they came.
     pub(super) fn pushes(&self) -> Vec<Vec<WatchStateChange>> {
         lock(&self.state).pushes.clone()
+    }
+
+    /// Each push's Track Preference changes, in the order they came.
+    pub(super) fn preference_pushes(&self) -> Vec<Vec<TrackPreferenceChange>> {
+        lock(&self.state).preference_pushes.clone()
     }
 
     /// Has pushes fail while `down`, as if the Hub were unreachable, and work again after.
@@ -491,6 +500,46 @@ impl LinkedServerService for Linked {
         };
         Response::ok(PullWatchStatesResponse {
             watch_states,
+            ..Default::default()
+        })
+    }
+
+    async fn push_track_preferences(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PushTrackPreferencesRequest>,
+    ) -> ServiceResult<PushTrackPreferencesResponse> {
+        let mut state = self.caller(&ctx)?;
+        if let Some(failure) = state.push_failure {
+            return Err(ConnectError::unavailable(failure));
+        }
+        state
+            .preference_pushes
+            .push(request.to_owned_message().changes);
+        Response::ok(PushTrackPreferencesResponse::default())
+    }
+
+    /// Every Track Preference change pushed, as the asked User's, if they are Linked: the fake
+    /// has one Account, and merges nothing.
+    async fn pull_track_preferences(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PullTrackPreferencesRequest>,
+    ) -> ServiceResult<PullTrackPreferencesResponse> {
+        let state = self.caller(&ctx)?;
+        let user_id = request.user_id;
+        let preferences = if state.user_accounts.contains_key(&user_id) {
+            (state.preference_pushes.iter().flatten())
+                .map(|change| TrackPreferenceChange {
+                    user_id,
+                    ..change.clone()
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        Response::ok(PullTrackPreferencesResponse {
+            preferences,
             ..Default::default()
         })
     }
