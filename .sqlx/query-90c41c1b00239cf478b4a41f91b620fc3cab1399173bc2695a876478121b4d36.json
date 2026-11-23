@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT scope = ? AS \"users_own!: bool\", off AS \"off: bool\", language,\n                      forced AS \"forced: bool\", sdh AS \"sdh: bool\", title,\n                      foreign_audio_only AS \"foreign_audio_only: bool\"\n               FROM track_preferences\n               WHERE user_id = ? AND kind = ? AND ((scope = ? AND title_id = ?) OR scope = ?)\n               ORDER BY scope = ?\n               LIMIT 1",
+  "query": "SELECT scope = ? AS \"users_own!: bool\", off AS \"off: bool\", language,\n                      forced AS \"forced: bool\", sdh AS \"sdh: bool\", title,\n                      foreign_audio_only AS \"foreign_audio_only: bool\"\n               FROM track_preferences\n               WHERE user_id = ? AND kind = ?\n                 AND ((scope = ? AND title_id IN (SELECT value FROM json_each(?))) OR scope = ?)\n               ORDER BY scope = ?, changed_at DESC\n               LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -89,5 +89,5 @@
       false
     ]
   },
-  "hash": "85841d565af78eab93ecbd0f1eaabcc5bda77b0c58d0c8f23e33f2b96073c177"
+  "hash": "90c41c1b00239cf478b4a41f91b620fc3cab1399173bc2695a876478121b4d36"
 }

@@ -135,8 +135,9 @@ pub enum TrackPreferenceFor {
     /// Everything the User plays: their own, set in Settings.
     #[default]
     User,
-    /// The Movie with this External ID, such as `tmdb-348`.
-    Movie(String),
-    /// The Show with this External ID.
-    Show(String),
+    /// The Movie with these External IDs, such as `tmdb-348`: every one the Server knows it by
+    /// (ADR 0013), so another Server finds it under any of its own.
+    Movie(Vec<String>),
+    /// The Show with these External IDs, as a Movie's.
+    Show(Vec<String>),
 }

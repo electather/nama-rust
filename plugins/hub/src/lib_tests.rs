@@ -716,7 +716,7 @@ fn pushed_preferences(hub: &FakeHub) -> Vec<Vec<(String, String)>> {
 async fn preferences_changed_while_the_hub_is_down_reach_it_once_back_the_latest_of_each() {
     let hub = FakeHub::start().await;
     let (observer, jobs, _) = syncing_preferences_of_user_7(&hub).await;
-    let alien = || TrackPreferenceFor::Movie("tmdb-348".to_owned());
+    let alien = || TrackPreferenceFor::Movie(vec!["tmdb-348".to_owned()]);
     hub.set_down(true);
 
     let told = [
@@ -744,15 +744,13 @@ async fn preferences_changed_while_the_hub_is_down_reach_it_once_back_the_latest
 }
 
 #[tokio::test]
-async fn a_pull_sends_the_queued_preferences_first_and_answers_them_as_descriptions() {
+async fn a_pull_sends_the_queued_preferences_first_and_answers_them_under_each_id_as_descriptions()
+{
     let hub = FakeHub::start().await;
     let (observer, _, linker) = syncing_preferences_of_user_7(&hub).await;
-    let mut sdh = subtitles_in(
-        7,
-        TrackPreferenceFor::Show("tvdb-81189".to_owned()),
-        "eng",
-        1_000,
-    );
+    let show =
+        |ids: &[&str]| TrackPreferenceFor::Show(ids.iter().map(|&id| id.to_owned()).collect());
+    let mut sdh = subtitles_in(7, show(&["tmdb-1396", "tvdb-81189"]), "eng", 1_000);
     sdh.preference.like = Some(TrackDescription {
         language: Some("eng".to_owned()),
         sdh: true,
@@ -764,7 +762,14 @@ async fn a_pull_sends_the_queued_preferences_first_and_answers_them_as_descripti
     observer.observe(&sdh).await.unwrap();
     observer.observe(&not_linked).await.unwrap();
 
-    assert_eq!(linker.track_preferences(7).await.unwrap(), [sdh.preference]);
+    let under = |id| TrackPreference {
+        kept_for: show(&[id]),
+        ..sdh.preference.clone()
+    };
+    assert_eq!(
+        linker.track_preferences(7).await.unwrap(),
+        [under("tmdb-1396"), under("tvdb-81189")]
+    );
     assert_eq!(linker.track_preferences(8).await.unwrap(), []);
 }
 

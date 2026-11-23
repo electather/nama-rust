@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use nama_plugin_api::points::{TrackDescription, TrackPreference, TrackPreferenceFor};
+use nama_plugin_api::{
+    metadata::{ExternalId, ExternalIds},
+    points::{TrackDescription, TrackPreference, TrackPreferenceFor},
+};
 
 use super::{
     Description, Preferred, SubtitlePreference, TrackPreferences, is_language, same_language,
@@ -8,7 +11,7 @@ use super::{
 use crate::{
     db::{Database, now_ms},
     library::{
-        Contents, Decided,
+        Contents, Decided, Metadata,
         fixture::{MatchedMovie, tmdb_movie},
     },
     plugins::Registry,
@@ -216,7 +219,7 @@ async fn a_users_own_subtitles_kept_before_the_condition_start_over_any_audio_un
 /// `changed_at_ms`.
 fn pulled_english_for_alien(changed_at_ms: i64) -> TrackPreference {
     TrackPreference {
-        kept_for: TrackPreferenceFor::Movie("tmdb-348".to_owned()),
+        kept_for: TrackPreferenceFor::Movie(vec!["tmdb-348".to_owned()]),
         like: Some(TrackDescription {
             language: Some("en".to_owned()),
             ..TrackDescription::default()
@@ -242,6 +245,55 @@ async fn a_pulled_movies_subtitle_preference_reaches_its_versions_as_a_descripti
             users_own: false,
             foreign_audio_only: false,
         })
+    );
+}
+
+#[tokio::test]
+async fn a_preference_pulled_under_any_of_a_movies_ids_reaches_its_versions() {
+    let (data, media) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let (preferences, user) = track_preferences(&data).await;
+    let imdb = ExternalId::new("imdb", "tt0078748").unwrap();
+    let known_by_both = Metadata {
+        ids: ExternalIds::from_iter([ExternalId::tmdb(348), imdb.clone()]),
+        ..tmdb_movie(348, "Alien")
+    };
+    let alien = MatchedMovie::new(&preferences.db, media.path(), known_by_both).await;
+
+    let pulled = TrackPreference {
+        kept_for: TrackPreferenceFor::Movie(vec![imdb.to_string()]),
+        ..pulled_english_for_alien(now_ms())
+    };
+    preferences.take_pulled(user, vec![pulled]).await.unwrap();
+
+    let preferred = preferences.subtitle(user, alien.version).await.unwrap();
+    assert_eq!(
+        preferred.map(|preferred| preferred.preference),
+        Some(english())
+    );
+}
+
+#[tokio::test]
+async fn a_keep_for_a_movie_tells_every_id_it_is_known_by() {
+    let (data, media) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let (preferences, user) = track_preferences(&data).await;
+    let known_by_both = Metadata {
+        ids: ExternalIds::from_iter([
+            ExternalId::tmdb(348),
+            ExternalId::new("imdb", "tt0078748").unwrap(),
+        ]),
+        ..tmdb_movie(348, "Alien")
+    };
+    let alien = MatchedMovie::new(&preferences.db, media.path(), known_by_both).await;
+    let movie = preferences.kept_for(alien.version).await.unwrap().unwrap();
+
+    let kept = preferences
+        .keep_subtitle(user, movie, english())
+        .await
+        .unwrap();
+
+    assert_eq!(
+        kept.kept_for,
+        TrackPreferenceFor::Movie(vec!["imdb-tt0078748".to_owned(), "tmdb-348".to_owned()])
     );
 }
 
@@ -324,7 +376,7 @@ async fn each_keep_tells_what_it_kept_and_for_what() {
     assert_eq!(
         (movies.kept_for, movies.like, movies.audio),
         (
-            TrackPreferenceFor::Movie("tmdb-348".to_owned()),
+            TrackPreferenceFor::Movie(vec!["tmdb-348".to_owned()]),
             None,
             false
         )
