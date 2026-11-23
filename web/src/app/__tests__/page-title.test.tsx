@@ -65,6 +65,21 @@ test("settings' tab names its section, follows it to another, and gives way to t
   await expect.poll(() => document.title).toBe("Films – Nama");
 });
 
+test("settings keeps the tab while the page under it changes", async () => {
+  const router = openApp("/libraries/1?settings=playback", server());
+  await expect.poll(() => document.title, loaded).toBe("Settings: Playback – Nama");
+
+  await act(async () => {
+    await router.navigate({
+      to: "/libraries/$libraryId/movies/$movieId",
+      params: { libraryId: "1", movieId: "tmdb-603" },
+      search: { settings: "playback" },
+    });
+  });
+
+  await expect.poll(() => document.title).toBe("Settings: Playback – Nama");
+});
+
 test("an address with nothing at it says so in the tab", async () => {
   openApp("/nothing-here", server());
 

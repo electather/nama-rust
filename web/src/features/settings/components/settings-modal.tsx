@@ -11,7 +11,6 @@ import {
   sectionTitles,
 } from "@/features/settings/lib/sections";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
-import { PageTitle } from "@/shared/components/page-title";
 
 /**
  * Settings, over the page it was opened on: the sections `user` may open beside the pane of the one
@@ -53,7 +52,8 @@ export function SettingsModal({ section, user }: { section: Section; user: User 
       }}
       className="group/settings inset-0 m-auto size-auto max-h-none max-w-none flex-col overflow-hidden overscroll-contain bg-background text-foreground shadow-lg outline-none text-sm-dense backdrop:overflow-hidden backdrop:overscroll-contain backdrop:bg-scrim open:flex md:inset-4 md:max-h-125 md:max-w-175 md:flex-row md:rounded-lg md:border lg:max-w-200"
     >
-      <PageTitle name={`Settings: ${sectionTitles[shown]}`} />
+      {/* Each page's `PageTitle` gives the tab way to this while Settings is open. */}
+      <title>{`Settings: ${sectionTitles[shown]} – Nama`}</title>
       <SettingsSide groups={groups} section={shown} user={user} />
       {/* Wider, the sections run the full height beside the title and the pane. A phone drops
           this box so its title can sit over the strip of sections. */}
