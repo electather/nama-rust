@@ -1,16 +1,19 @@
 import { PasswordFormNote } from "@hub/features/account/components/password-form-note";
 import { TextField } from "@hub/features/account/components/text-field";
 import { usePasswordStatus, useSetPassword } from "@hub/features/account/data/password";
+import { useSendsSignInLinks } from "@hub/features/account/data/sign-in-links";
 import { credentialErrors } from "@hub/features/account/lib/refusals";
 import { Button } from "nama-ui/components/button";
 
 /** What the form says to an Account without a password, and to one with. */
 const wording = {
-  set: {
+  set: (sendsSignInLinks: boolean) => ({
     label: "Password",
-    hint: "8 to 1024 characters. You can sign in with it as well as with Sign-in Links.",
+    hint: sendsSignInLinks
+      ? "8 to 1024 characters. You can sign in with it as well as with Sign-in Links."
+      : "8 to 1024 characters.",
     action: "Set password",
-  },
+  }),
   change: {
     label: "New password",
     hint: "8 to 1024 characters. Changing it signs you out everywhere else.",
@@ -22,10 +25,11 @@ const wording = {
 export function PasswordForm() {
   const status = usePasswordStatus();
   const setPassword = useSetPassword();
+  const sendsSignInLinks = useSendsSignInLinks();
   if (!status) {
     return null;
   }
-  const words = status.hasPassword ? wording.change : wording.set;
+  const words = status.hasPassword ? wording.change : wording.set(sendsSignInLinks);
   const errors = setPassword.error ? credentialErrors(setPassword.error) : {};
   return (
     <form

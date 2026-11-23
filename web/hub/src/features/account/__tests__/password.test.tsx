@@ -1,10 +1,11 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
 import { AccountSchema, AccountService } from "@hub/gen/nama/hub/v1/account_pb";
+import { HubService } from "@hub/gen/nama/hub/v1/hub_pb";
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
-import { cleanup, configure, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, test } from "vite-plus/test";
 
 const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
@@ -16,13 +17,21 @@ function refused(code: Code, reason: RefusalReason, params: Record<string, strin
 }
 
 /**
- * Opens the Account page on a fake Hub where Ada is signed in, with a password if `hasPassword`
- * says so, and a sign-in in the last 10 minutes if `recent` does. Returns the passwords set.
+ * Opens the Account page on a fake Hub that emails Sign-in Links when `signInLinks` says so, where
+ * Ada is signed in, with a password if `hasPassword` says so, and a sign-in in the last 10 minutes
+ * if `recent` does. Returns the passwords set and whether the Hub has said if it emails links.
  */
-function openAccountPage(hasPassword: boolean, recent = true) {
+function openAccountPage(hasPassword: boolean, recent = true, signInLinks = true) {
   let password = hasPassword;
   const set: string[] = [];
+  let toldSignInLinks = false;
   const transport = createRouterTransport(({ service }) => {
+    service(HubService, {
+      getHubInfo: () => {
+        toldSignInLinks = true;
+        return { version: "0.1.0", signInLinks };
+      },
+    });
     service(AccountService, {
       getAccount: () => ({ account: ada, hasPassword: password }),
       setPassword: (request) => {
@@ -39,7 +48,7 @@ function openAccountPage(hasPassword: boolean, recent = true) {
   });
   globalThis.history.replaceState(null, "", "/");
   render(<RouterProvider router={getRouter(transport)} />);
-  return set;
+  return { set, toldSignInLinks: () => toldSignInLinks };
 }
 
 async function submit(label: string, button: string) {
@@ -59,7 +68,7 @@ describe("an Account's password", () => {
   });
 
   test("an Account without one sets one, after which it can change it", async () => {
-    const set = openAccountPage(false);
+    const { set } = openAccountPage(false);
 
     await submit("Password", "Set password");
 
@@ -69,7 +78,7 @@ describe("an Account's password", () => {
   });
 
   test("an Account with one changes it, signing out everywhere else", async () => {
-    const set = openAccountPage(true);
+    const { set } = openAccountPage(true);
 
     await submit("New password", "Change password");
 
@@ -79,8 +88,35 @@ describe("an Account's password", () => {
     expect(set).toStrictEqual(["staple battery horse"]);
   });
 
+  test("the hint to set one mentions Sign-in Links only on a Hub that emails them", async () => {
+    openAccountPage(false, true, true);
+    await expect(
+      screen.findByText(
+        "8 to 1024 characters. You can sign in with it as well as with Sign-in Links.",
+      ),
+    ).resolves.toBeDefined();
+    cleanup();
+
+    const hub = openAccountPage(false, true, false);
+    await expect(screen.findByText("8 to 1024 characters.")).resolves.toBeDefined();
+    await waitFor(() => {
+      expect(hub.toldSignInLinks()).toBe(true);
+    });
+    expect(screen.queryByText(/Sign-in Links/u)).toBeNull();
+  });
+
+  test("the hint to change one is the same whether the Hub emails Sign-in Links or not", async () => {
+    const hint = "8 to 1024 characters. Changing it signs you out everywhere else.";
+    openAccountPage(true, true, true);
+    await expect(screen.findByText(hint)).resolves.toBeDefined();
+    cleanup();
+
+    openAccountPage(true, true, false);
+    await expect(screen.findByText(hint)).resolves.toBeDefined();
+  });
+
   test("a sign-in older than the Hub allows is sent to sign in again", async () => {
-    const set = openAccountPage(true, false);
+    const { set } = openAccountPage(true, false);
 
     await submit("New password", "Change password");
 
