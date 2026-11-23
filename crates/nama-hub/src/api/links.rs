@@ -30,8 +30,8 @@ use nama_hub_proto::nama::hub::v1::{
 use sqlx::PgPool;
 
 use super::{
-    accounts::{recent_authentication_required, signed_in},
-    hub_failed, refuse, track_preferences, viewing, watch_states, watchlists,
+    accounts::signed_in, hub_failed, recent_authentication_required, refuse, track_preferences,
+    viewing, watch_states, watchlists,
 };
 use crate::{
     links::{

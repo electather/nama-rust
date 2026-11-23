@@ -42,10 +42,10 @@ function refused(code: Code, reason: RefusalReason, params: Record<string, strin
 /**
  * Opens the Account page, signed in as Ada, on a fake Hub where one Server, "Living room", shows
  * the code BDFH-JKLM, and its User Ida the code CDFG-HJKL, and entering either is refused for
- * `refusing`, if given, with `refusalParams`. Ada's Account has Attic Linked, and Grace on Cabin, whose Admin set its
- * Server URL. With `listFails`, the Hub fails to list the Account's Servers. Without
- * `signInLinks`, the Hub has no mail to email Sign-in Links. With `hubInfoFails`, it fails to say
- * whether it has.
+ * `refusing`, if given, with `refusalParams`. Ada's Account has Attic Linked, and Grace on Cabin,
+ * whose Admin set its Server URL. With `listFails`, the Hub fails to list the Account's Servers.
+ * Without `signInLinks`, the Hub has no mail to email Sign-in Links. With `hubInfoFails`, it fails
+ * to say whether it has.
  */
 function openAccount(
   refusing?: RefusalReason,

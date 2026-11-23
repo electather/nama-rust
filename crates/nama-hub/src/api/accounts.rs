@@ -19,11 +19,10 @@ use nama_hub_proto::nama::hub::v1::{
     SignInWithLinkRequest, SignInWithLinkResponse, SignOutRequest, SignOutResponse,
 };
 
-use super::{Refused, hub_failed, refuse};
+use super::{hub_failed, recent_authentication_required, refuse};
 use crate::accounts::{
     self, Account, AccountSession, Accounts, Blocked, Caller, EMAIL_LENGTH, PASSWORD_LENGTH,
-    RECENT_AUTHENTICATION_MINS, RecentAuthenticationRequired, SESSION_DAYS, SignInLink, SignedIn,
-    SignedInByLink,
+    SESSION_DAYS, SignInLink, SignedIn, SignedInByLink,
 };
 
 /// The cookie that holds a browser's session token.
@@ -284,16 +283,6 @@ fn refused(err: accounts::Error) -> ConnectError {
         }
     };
     refused.into()
-}
-
-/// Refuses a request whose session lacks Recent Authentication, whichever area found it, saying
-/// how recent a sign-in must be.
-pub(super) fn recent_authentication_required(err: &RecentAuthenticationRequired) -> Refused {
-    refuse(
-        RefusalReason::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED,
-        err.to_string(),
-    )
-    .param("recentMinutes", &RECENT_AUTHENTICATION_MINS)
 }
 
 /// Refuses a request until `blocked` lets it through, with the delay to wait in both `Retry-After`
