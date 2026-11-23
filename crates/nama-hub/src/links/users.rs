@@ -102,7 +102,8 @@ impl Links {
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(Error::CodeNotFound)?;
-        // Nothing conflicts but a Link made between starting this code and entering it.
+        // A conflict is a Link made between starting this code and entering it, or the User the
+        // Account has on this Server already.
         let user = insert_link(
             &mut tx,
             session.account.id,
@@ -234,7 +235,8 @@ impl Links {
 }
 
 /// Links `server`'s User `user_id`, named `name`, to `account`, failing with [`Error::UserLinked`]
-/// if they are Linked already.
+/// if they are Linked already, and with [`Error::AccountHasUserOnServer`] if `account` has another
+/// User there.
 pub(super) async fn insert_link(
     tx: &mut Transaction<'_, Postgres>,
     account: AccountId,
@@ -244,7 +246,7 @@ pub(super) async fn insert_link(
 ) -> Result<ListedUser, Error> {
     let linked = sqlx::query!(
         r#"INSERT INTO user_links (account_id, linked_server_id, server_user_id, user_name)
-             VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING
+             VALUES ($1, $2, $3, $4) ON CONFLICT (linked_server_id, server_user_id) DO NOTHING
              RETURNING id, extract(epoch FROM created_at)::bigint AS "linked_at!",
              (SELECT name FROM linked_servers WHERE id = $2) AS "server_name!""#,
         account.0,
@@ -253,7 +255,15 @@ pub(super) async fn insert_link(
         name,
     )
     .fetch_optional(&mut **tx)
-    .await?
+    .await
+    .map_err(|err| {
+        let constraint = err.as_database_error().and_then(|err| err.constraint());
+        if constraint == Some("user_links_one_per_account_and_server") {
+            Error::AccountHasUserOnServer
+        } else {
+            err.into()
+        }
+    })?
     .ok_or(Error::UserLinked)?;
     Ok(ListedUser {
         id: LinkId(linked.id),

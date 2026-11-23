@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO user_links (account_id, linked_server_id, server_user_id, user_name)\n             VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING\n             RETURNING id, extract(epoch FROM created_at)::bigint AS \"linked_at!\",\n             (SELECT name FROM linked_servers WHERE id = $2) AS \"server_name!\"",
+  "query": "INSERT INTO user_links (account_id, linked_server_id, server_user_id, user_name)\n             VALUES ($1, $2, $3, $4) ON CONFLICT (linked_server_id, server_user_id) DO NOTHING\n             RETURNING id, extract(epoch FROM created_at)::bigint AS \"linked_at!\",\n             (SELECT name FROM linked_servers WHERE id = $2) AS \"server_name!\"",
   "describe": {
     "columns": [
       {
@@ -41,5 +41,5 @@
       null
     ]
   },
-  "hash": "3a76e364a2b9d34c585063d2ba001c65cbfc92443e37dd8c124e90f088d5d88a"
+  "hash": "d39f91fb7085b5835c68539905b946f32e3445302030022347f3e7742308807f"
 }
