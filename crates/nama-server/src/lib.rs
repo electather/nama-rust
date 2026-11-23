@@ -185,7 +185,11 @@ pub fn serve(
     let server_url = settings.server_url();
     // `listen` differs from the bound address only when it asks for port 0.
     let listening = listener.local_addr().unwrap_or(config.listen);
-    let (pull_browse, pull_users) = (browse::Browse::new(Arc::clone(&db)), users.clone());
+    let (sync_browse, sync_db, sync_users) = (
+        browse::Browse::new(Arc::clone(&db)),
+        Arc::clone(&db),
+        users.clone(),
+    );
     let forwarded_port = config.forwarded_port;
     let load_settings = load_settings(
         settings.clone(),
@@ -227,11 +231,12 @@ pub fn serve(
         load_settings.await;
         fill_sort_titles(&contents).await;
         // Before the scans start, so it sees their Matching finish.
-        let pulling_watch_states = api::pull_watch_states_after_scans(
+        let syncing = api::sync_after_scans(
             &events,
             plugins.extension_points(),
-            pull_browse,
-            pull_users,
+            sync_browse,
+            sync_db,
+            sync_users,
         );
         scanner.start_all().await;
         preview_frames.start();
@@ -285,7 +290,7 @@ pub fn serve(
         // again at the next start loses nothing.
         telling_addresses.abort();
         // The next start's scans pull again.
-        pulling_watch_states.abort();
+        syncing.abort();
         plugins.shutdown().await;
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
         drop(automation);

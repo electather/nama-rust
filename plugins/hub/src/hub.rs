@@ -22,8 +22,8 @@ use nama_hub_proto::nama::hub::v1::{
     PollServerSignInRequest, PullWatchStatesRequest, PushWatchStatesRequest,
     RecordViewingEventsRequest, ServerLinkServiceClient, SetServerAddressesRequest,
     StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
-    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest,
-    UnlinkUserRequest, WatchStateChange,
+    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
+    UnlinkServerRequest, UnlinkUserRequest, WatchStateChange, WatchlistEntry,
 };
 use nama_plugin_api::{
     PluginError,
@@ -211,6 +211,26 @@ impl Hub {
             })
             .await?;
         Ok(pulled.into_owned().watch_states)
+    }
+
+    /// Merges `entries`, the whole Watchlist of the User `user_id` of the Server whose credential
+    /// is `credential`, into the Account they are Linked to, and answers the Account's, each title
+    /// by each id apart; empty while they aren't Linked.
+    pub(crate) async fn sync_watchlist(
+        &self,
+        credential: &str,
+        user_id: i64,
+        entries: Vec<WatchlistEntry>,
+    ) -> Result<Vec<WatchlistEntry>, PluginError> {
+        let synced = self
+            .linked_server(credential)?
+            .sync_watchlist(SyncWatchlistRequest {
+                user_id,
+                entries,
+                ..Default::default()
+            })
+            .await?;
+        Ok(synced.into_owned().entries)
     }
 
     /// Asks the Account with `email`, if any, to accept the User `user_id`, named `name`, of the

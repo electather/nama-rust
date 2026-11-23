@@ -1,5 +1,5 @@
 //! Sync (ADR 0008): each Account's merged Watch State, which its Linked Users' Servers push their
-//! changes into and pull from.
+//! changes into and pull from, and its merged Watchlist (ADR 0056), which they sync whole.
 
 use std::collections::{HashMap, hash_map::Entry};
 
@@ -21,6 +21,9 @@ pub(crate) const MAX_ID_LENGTH: usize = 100;
 
 /// The latest time a change may be made at, in milliseconds since the Unix epoch: the end of 9999.
 pub(crate) const MAX_CHANGED_AT_MS: i64 = 253_402_300_799_999;
+
+/// The most entries one Watchlist sync may hold.
+pub(crate) const MAX_WATCHLIST_ENTRIES: usize = 5000;
 
 /// One User's Watch State of a Movie or Episode, as a change on their Server left it.
 #[derive(Debug, Clone)]
@@ -106,6 +109,93 @@ impl WatchStates {
                 played: row.played,
                 position_ms: row.position_ms,
                 duration_ms: row.duration_ms,
+                changed_at_ms: row.changed_at_ms,
+            })
+            .collect())
+    }
+}
+
+/// A title on a User's Watchlist, or taken off it, as the change made last left it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct WatchlistEntry {
+    /// Whether it is a Show rather than a Movie, whose TMDB ids are a separate id space.
+    pub(crate) show: bool,
+    /// The External ID it was added under, such as `tmdb-603`.
+    pub(crate) id: String,
+    pub(crate) removed: bool,
+    /// When the Server made the change, in milliseconds since the Unix epoch.
+    pub(crate) changed_at_ms: i64,
+}
+
+/// The Accounts' merged Watchlists.
+#[derive(Clone)]
+pub(crate) struct Watchlists {
+    db: PgPool,
+    links: Links,
+}
+
+impl Watchlists {
+    /// The merged Watchlists in `db`, of the Users `links` has Linked.
+    pub(crate) fn new(db: PgPool, links: Links) -> Self {
+        Self { db, links }
+    }
+
+    /// Merges `entries`, `server`'s User `user_id`'s whole Watchlist, into the Account they are
+    /// Linked to, and returns the Account's, each title's under each of its ids apart; empty, and
+    /// nothing kept, if they aren't Linked. Per title and id, the change made last wins; of two
+    /// made at the same moment, the one kept first.
+    // ponytail: one call holds a User's whole Watchlist, removals included, both ways; page it, or
+    // send only what changed since the last sync, once one nears `MAX_WATCHLIST_ENTRIES`.
+    pub(crate) async fn sync(
+        &self,
+        server: &LinkedServer,
+        user_id: i64,
+        entries: Vec<WatchlistEntry>,
+    ) -> Result<Vec<WatchlistEntry>, sqlx::Error> {
+        let Some(account) = self.links.linked_account(server, user_id).await? else {
+            return Ok(Vec::new());
+        };
+        let mut columns = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        for entry in entries {
+            columns.0.push(entry.show);
+            columns.1.push(entry.id);
+            columns.2.push(entry.removed);
+            columns.3.push(entry.changed_at_ms);
+        }
+        let mut tx = self.db.begin().await?;
+        // DISTINCT ON, as an upsert may touch each row once: of one title's entries, the latest.
+        sqlx::query!(
+            "INSERT INTO watchlists (account_id, show, title_id, removed, changed_at)
+             SELECT DISTINCT ON (show, title_id) $1::uuid, show, title_id, removed,
+             'epoch'::timestamptz + changed_at_ms * interval '1 millisecond'
+             FROM unnest($2::boolean[], $3::text[], $4::boolean[], $5::bigint[])
+             AS entries (show, title_id, removed, changed_at_ms)
+             ORDER BY show, title_id, changed_at_ms DESC
+             ON CONFLICT (account_id, show, title_id) DO UPDATE
+             SET removed = excluded.removed, changed_at = excluded.changed_at
+             WHERE excluded.changed_at > watchlists.changed_at",
+            account.0,
+            &columns.0,
+            &columns.1,
+            &columns.2,
+            &columns.3,
+        )
+        .execute(&mut *tx)
+        .await?;
+        let rows = sqlx::query!(
+            r#"SELECT show, title_id, removed,
+                      (extract(epoch FROM changed_at) * 1000)::bigint AS "changed_at_ms!"
+               FROM watchlists WHERE account_id = $1"#,
+            account.0,
+        )
+        .fetch_all(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok((rows.into_iter())
+            .map(|row| WatchlistEntry {
+                show: row.show,
+                id: row.title_id,
+                removed: row.removed,
                 changed_at_ms: row.changed_at_ms,
             })
             .collect())

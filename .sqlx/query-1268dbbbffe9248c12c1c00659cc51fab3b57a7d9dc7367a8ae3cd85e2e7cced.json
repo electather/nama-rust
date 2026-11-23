@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS (SELECT 1 FROM watchlist\n                          WHERE user_id = ? AND kind = ? AND NOT removed\n                            AND title_id IN (SELECT value FROM json_each(?))) AS \"on: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "on: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1268dbbbffe9248c12c1c00659cc51fab3b57a7d9dc7367a8ae3cd85e2e7cced"
+}

@@ -1,4 +1,5 @@
-//! Each signed-in User's Watchlist: `nama.v1.WatchlistService`.
+//! Each signed-in User's Watchlist: `nama.v1.WatchlistService`. Each change syncs it with the
+//! enabled Plugin that links the Server (ADR 0056).
 
 use std::sync::Arc;
 
@@ -9,13 +10,15 @@ use nama_proto::nama::v1::{
     RemoveFromWatchlistResponse, WatchlistService,
 };
 
-use crate::{db::Database, library::TitleKind, watchlist};
+use crate::{db::Database, library::TitleKind, plugins::ExtensionPoints, watchlist};
 
-use super::{caller, database_failed, required_id, title_kind_from_proto};
+use super::{caller, database_failed, required_id, server_link, title_kind_from_proto};
 
 /// `nama.v1.WatchlistService`: each signed-in User's Watchlist.
 pub(super) struct WatchlistServiceHandler {
     pub(super) db: Arc<Database>,
+    /// Syncs a changed Watchlist.
+    pub(super) points: ExtensionPoints,
 }
 
 #[expect(
@@ -34,6 +37,7 @@ impl WatchlistService for WatchlistServiceHandler {
         let (kind, id) = title(kind, id.into_option())?;
         let added = watchlist::add(&self.db, user, kind, &id).await;
         added.map_err(database_failed)?;
+        server_link::sync_watchlist_soon(&self.points, &self.db, user);
         Response::ok(AddToWatchlistResponse::default())
     }
 
@@ -47,6 +51,7 @@ impl WatchlistService for WatchlistServiceHandler {
         let (kind, id) = title(kind, id.into_option())?;
         let removed = watchlist::remove(&self.db, user, kind, &id).await;
         removed.map_err(database_failed)?;
+        server_link::sync_watchlist_soon(&self.points, &self.db, user);
         Response::ok(RemoveFromWatchlistResponse::default())
     }
 }

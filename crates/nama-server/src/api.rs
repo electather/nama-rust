@@ -56,7 +56,7 @@ mod users;
 mod watch_states;
 mod watchlist;
 
-pub(crate) use server_link::pull_watch_states_after_scans;
+pub(crate) use server_link::sync_after_scans;
 
 use access::require_access;
 pub(crate) use browser_spans::BrowserSpans;
@@ -138,6 +138,7 @@ pub(crate) fn router(
             sign_in: SignIn::new(users.clone(), setup_code),
             points: plugins.clone(),
             browse: Browse::new(Arc::clone(&db)),
+            db: Arc::clone(&db),
             server_url: settings.server_url(),
             listening,
         }))
@@ -167,6 +168,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(watchlist::WatchlistServiceHandler {
             db: Arc::clone(&db),
+            points: plugins.clone(),
         }))
         .add_service(Arc::new(playback::PlaybackServiceHandler {
             plans: Plans::new(
