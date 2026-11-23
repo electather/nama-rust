@@ -105,9 +105,9 @@ pub(crate) enum TitlesIn {
     NoSuchVersion,
     /// The file holds a Movie or nothing: the Movie, unless its Item isn't Matched.
     Movie(Option<(ExternalId, ExternalIds)>),
-    /// Each Episode the file holds, by season and episode number, `None` if its Item isn't
-    /// Matched.
-    Episodes(Vec<Option<(ExternalId, ExternalIds)>>),
+    /// Each Episode the file holds, by season and episode number, with its Show's id as browsing
+    /// identifies it, `None` if its Item isn't Matched.
+    Episodes(Vec<Option<(ExternalId, ExternalIds, Option<ExternalId>)>>),
 }
 
 /// A Show as `library_titles` groups it, with the metadata the Match of its first Episode
@@ -238,8 +238,7 @@ impl Contents {
     /// its Movie, or for a file of Episodes only the Show of its first Matched one, by season and
     /// number. [`Contents::titles_in`] gives each Episode, with every id.
     pub(crate) async fn matched_to(&self, version: i64) -> Result<MatchedTo, sqlx::Error> {
-        // This query and `titles_in`'s must change together: it reads the same rows, adding only
-        // the Show's ids.
+        // This query and `titles_in`'s must change together: they read the same rows.
         macro_rules! select {
             ($ids:literal) => {
                 sqlx::query!(
@@ -285,14 +284,15 @@ impl Contents {
     /// What the Version `version` is Matched to, as [`Contents::matched_to`] finds it, with every
     /// id of each title, so Watch State is found under any of them.
     pub(crate) async fn titles_in(&self, version: i64) -> Result<TitlesIn, sqlx::Error> {
-        // This query and `matched_to`'s must change together: it reads the same rows, leaving out
-        // only the Show's ids.
+        // This query and `matched_to`'s must change together: they read the same rows.
         macro_rules! select {
             ($ids:literal) => {
                 sqlx::query!(
                     r#"SELECT library_items.kind AS "kind?: ItemKind", "#
                         + $ids
-                        + r#"'title') AS "ids?: String", libraries.title_sources
+                        + r#"'title') AS "ids?: String", "#
+                        + $ids
+                        + r#"'show') AS "show_ids?: String", libraries.title_sources
                        FROM library_files
                        JOIN libraries ON libraries.id = library_files.library_id
                        LEFT JOIN library_items ON library_items.file_id = library_files.id
@@ -311,12 +311,13 @@ impl Contents {
         let holds_episodes = first.kind == Some(ItemKind::Episode);
         let mut titles = rows.into_iter().map(|row| {
             let ids = ids_from_json(row.ids.as_deref());
-            Some((primary_id_in(&ids, &row.title_sources)?, ids))
+            let show = primary_id_in(&ids_from_json(row.show_ids.as_deref()), &row.title_sources);
+            Some((primary_id_in(&ids, &row.title_sources)?, ids, show))
         });
         Ok(if holds_episodes {
             TitlesIn::Episodes(titles.collect())
         } else {
-            TitlesIn::Movie(titles.find_map(|title| title))
+            TitlesIn::Movie(titles.find_map(|title| title.map(|(id, ids, _show)| (id, ids))))
         })
     }
 

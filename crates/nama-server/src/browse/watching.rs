@@ -67,7 +67,9 @@ impl Browse {
             // An Item that isn't Matched keeps its share of the file, so the others' shares don't
             // move.
             TitlesIn::Episodes(episodes) => (episodes.into_iter())
-                .map(|episode| episode.map(|(id, ids)| MovieOrEpisode::episode(&id).known_as(&ids)))
+                .map(|episode| {
+                    episode.map(|(id, ids, _show)| MovieOrEpisode::episode(&id).known_as(&ids))
+                })
                 .collect(),
         };
         Ok(self.watch_states.report(user, titles, progress).await?)

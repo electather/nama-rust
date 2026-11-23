@@ -114,6 +114,7 @@ The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move
   `CONTRACT_VERSION` 0.6.9: `Title` adds `ids`, every id of the Movie or Episode, and `show_ids`, every id of an Episode's Show, so a Plugin can match a title listed under one id to the same title named by another. A Plugin built before skips them.
   `TitleSourceService` 1.9.0 adds `box_set` to `Movie`, with `BoxSet`: the Box Set the Movie belongs to, its id, name, overview, Poster, Backdrop and its Movies' ids in release order, empty where the source doesn't list them. A Plugin built before gives none.
   `CONTRACT_VERSION` 0.6.10: the Kernel function `list_version_titles`, with `VersionTitlesAsked` and `VersionTitles`, under `PERMISSION_READ_LIBRARIES`, answers the Matched titles a played Version holds, and `list_devices`, with `DevicesAsked`, `Devices`, `Device` and `DeviceKind`, under `PERMISSION_READ_USERS`, answers what kind each Device is (ADR 0093). A Plugin built before doesn't call them.
+  `CONTRACT_VERSION` 0.6.11: `VersionTitles` adds `show_ids`, each Episode's Show's id in the place of its title, picked as `Title.show_id` is, and unset for a Movie. A Plugin built before skips it.
 
 - **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`. `NotifierService` 1.1.0 adds `UserRecipient`, and the Manifest adds `personal_settings`.
 

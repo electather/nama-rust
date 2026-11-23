@@ -244,6 +244,9 @@ message VersionTitlesAsked {
 // holds, leaving out any whose Item isn't Matched. Empty for a Version that is gone.
 message VersionTitles {
   repeated TitleRef titles = 1;
+  // Each title's Show's id, in the same place as the title in `titles` and picked as
+  // `Title.show_id` is. Unset for a Movie.
+  repeated TitleId show_ids = 2;
 }
 
 // What `list_devices` takes.
