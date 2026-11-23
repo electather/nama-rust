@@ -24,6 +24,8 @@ mod now_playing;
 mod other_versions;
 #[path = "support/refused.rs"]
 mod refused;
+#[path = "playback/remote_caps.rs"]
+mod remote_caps;
 #[path = "playback/resumed_ranges.rs"]
 mod resumed_ranges;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]

@@ -9741,6 +9741,11 @@ pub struct PlaybackPlanView<'a> {
         'a,
         ::buffa::EnumValue<super::super::PlaybackLimit>,
     >,
+    /// The most the Device is sent, its User's cap for remote playback, when it's outside the local
+    /// network and they have one: a pick above it plays at it. Unset otherwise.
+    ///
+    /// Field 20: `remote_playback_limit`
+    pub remote_playback_limit: ::buffa::EnumValue<super::super::PlaybackLimit>,
     /// The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
     /// burns in, or would if it could be played, or else, when the request left the choice to the
     /// Server, one of `subtitles` that the player shows itself. Unset for none.
@@ -9862,6 +9867,15 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.subtitle_track = Some(::buffa::types::decode_uint32(&mut cur)?);
+            }
+            20u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.remote_playback_limit = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
             }
             14u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -10113,6 +10127,7 @@ impl<'a> ::buffa::MessageView<'a> for PlaybackPlanView<'a> {
             audio_tracks: self.audio_tracks.to_vec(),
             burn_in_tracks: self.burn_in_tracks.to_vec(),
             playback_limits: self.playback_limits.to_vec(),
+            remote_playback_limit: self.remote_playback_limit,
             starting_subtitle: self.starting_subtitle,
             preview_frames: match self.preview_frames.as_option() {
                 Some(v) => {
@@ -10251,6 +10266,12 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
         if !self.recipe.is_empty() {
             size += 2u64 + ::buffa::types::string_encoded_len(&self.recipe) as u64;
         }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                size += 2u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -10376,6 +10397,12 @@ impl<'a> ::buffa::ViewEncode<'a> for PlaybackPlanView<'a> {
         if !self.recipe.is_empty() {
             ::buffa::types::put_string_field(19u32, &self.recipe, buf);
         }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(20u32, val, buf);
+            }
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -10449,6 +10476,11 @@ impl<'__a> ::serde::Serialize for PlaybackPlanView<'__a> {
                     "playbackLimits",
                     &::buffa::json_helpers::EnumSeqJson(&self.playback_limits),
                 )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(
+            &self.remote_playback_limit,
+        ) {
+            __map.serialize_entry("remotePlaybackLimit", &self.remote_playback_limit)?;
         }
         if let ::core::option::Option::Some(__v) = self.starting_subtitle {
             __map
@@ -10682,6 +10714,16 @@ impl PlaybackPlanOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::PlaybackLimit>> {
         &self.0.reborrow().playback_limits
+    }
+    /// The most the Device is sent, its User's cap for remote playback, when it's outside the local
+    /// network and they have one: a pick above it plays at it. Unset otherwise.
+    ///
+    /// Field 20: `remote_playback_limit`
+    #[must_use]
+    pub fn remote_playback_limit(
+        &self,
+    ) -> ::buffa::EnumValue<super::super::PlaybackLimit> {
+        self.0.reborrow().remote_playback_limit
     }
     /// The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
     /// burns in, or would if it could be played, or else, when the request left the choice to the

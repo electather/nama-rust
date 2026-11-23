@@ -2133,6 +2133,10 @@ pub enum PlaybackReasonKind {
     /// The default Playback Limit for remote playback chose the limit, as the Device is outside the
     /// local network, and the limit scaled the picture down or was dropped. Params: `playbackLimit`.
     PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT = 21i32,
+    /// The User's cap for remote playback chose the limit, below the one picked or the default, as
+    /// the Device is outside the local network, and the limit scaled the picture down. A cap is never
+    /// dropped. Params: `playbackLimit`.
+    PLAYBACK_REASON_KIND_REMOTE_CAP = 39i32,
     /// A Playback Limit below Original is in effect and the picture's size isn't known, so it's
     /// taken to fit. Params: `playbackLimit`.
     PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN = 22i32,
@@ -2249,6 +2253,9 @@ impl PlaybackReasonKind {
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const RemoteDefaultLimit: Self = Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_REMOTE_CAP`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RemoteCap: Self = Self::PLAYBACK_REASON_KIND_REMOTE_CAP;
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const PictureSizeUnknown: Self = Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN;
@@ -2507,6 +2514,7 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                     Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT,
                 )
             }
+            39i32 => ::core::option::Option::Some(Self::PLAYBACK_REASON_KIND_REMOTE_CAP),
             22i32 => {
                 ::core::option::Option::Some(
                     Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN,
@@ -2648,6 +2656,7 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT => {
                 "PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT"
             }
+            Self::PLAYBACK_REASON_KIND_REMOTE_CAP => "PLAYBACK_REASON_KIND_REMOTE_CAP",
             Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN => {
                 "PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN"
             }
@@ -2817,6 +2826,9 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                     Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT,
                 )
             }
+            "PLAYBACK_REASON_KIND_REMOTE_CAP" => {
+                ::core::option::Option::Some(Self::PLAYBACK_REASON_KIND_REMOTE_CAP)
+            }
             "PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN" => {
                 ::core::option::Option::Some(
                     Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN,
@@ -2901,6 +2913,7 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             Self::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_BURN_IN,
             Self::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_ENCODER,
             Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT,
+            Self::PLAYBACK_REASON_KIND_REMOTE_CAP,
             Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN,
             Self::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED,
             Self::PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED,
@@ -8272,6 +8285,17 @@ pub struct PlaybackPlan {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
     pub playback_limits: ::buffa::alloc::vec::Vec<::buffa::EnumValue<PlaybackLimit>>,
+    /// The most the Device is sent, its User's cap for remote playback, when it's outside the local
+    /// network and they have one: a pick above it plays at it. Unset otherwise.
+    ///
+    /// Field 20: `remote_playback_limit`
+    #[serde(
+        rename = "remotePlaybackLimit",
+        alias = "remote_playback_limit",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub remote_playback_limit: ::buffa::EnumValue<PlaybackLimit>,
     /// The subtitle Track playback starts with, by its place in the Version's `tracks`: the one it
     /// burns in, or would if it could be played, or else, when the request left the choice to the
     /// Server, one of `subtitles` that the player shows itself. Unset for none.
@@ -8362,6 +8386,7 @@ impl ::core::fmt::Debug for PlaybackPlan {
             .field("audio_tracks", &self.audio_tracks)
             .field("burn_in_tracks", &self.burn_in_tracks)
             .field("playback_limits", &self.playback_limits)
+            .field("remote_playback_limit", &self.remote_playback_limit)
             .field("starting_subtitle", &self.starting_subtitle)
             .field("preview_frames", &self.preview_frames)
             .field("chapters", &self.chapters)
@@ -8526,6 +8551,12 @@ impl ::buffa::Message for PlaybackPlan {
         if !self.recipe.is_empty() {
             size += 2u64 + ::buffa::types::string_encoded_len(&self.recipe) as u64;
         }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                size += 2u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -8649,6 +8680,12 @@ impl ::buffa::Message for PlaybackPlan {
         }
         if !self.recipe.is_empty() {
             ::buffa::types::put_string_field(19u32, &self.recipe, buf);
+        }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(20u32, val, buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -8925,6 +8962,15 @@ impl ::buffa::Message for PlaybackPlan {
                 )?;
                 ::buffa::types::merge_string(&mut self.recipe, buf)?;
             }
+            20u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.remote_playback_limit = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -8951,6 +8997,7 @@ impl ::buffa::Message for PlaybackPlan {
         self.segments.clear();
         self.can_search_subtitles = false;
         self.recipe.clear();
+        self.remote_playback_limit = ::buffa::EnumValue::from(0);
         self.__buffa_unknown_fields.clear();
     }
 }

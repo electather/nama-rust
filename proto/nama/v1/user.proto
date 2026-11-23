@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package nama.v1;
 
+import "nama/v1/playback.proto";
 import "nama/v1/plugin.proto";
 import "nama/v1/server.proto";
 import "nama/v1/sign_in.proto";
@@ -35,10 +36,10 @@ service UserService {
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Replaces a User's Permissions, which apply from their next request. Their Devices stay signed
-  // in. Fails with `invalid_argument` for `PERMISSION_UNSPECIFIED` or a value the Server doesn't
-  // know, `not_found` if no User has the ID, and `failed_precondition` if it would leave no User
-  // with `PERMISSION_ADMIN`.
+  // Replaces a User's Permissions and cap for remote playback, which apply from their next
+  // request. Their Devices stay signed in. Fails with `invalid_argument` for
+  // `PERMISSION_UNSPECIFIED` or a value the Server doesn't know, `not_found` if no User has the ID,
+  // and `failed_precondition` if it would leave no User with `PERMISSION_ADMIN`.
   rpc SetPermissions(SetPermissionsRequest) returns (SetPermissionsResponse) {
     option idempotency_level = IDEMPOTENT;
   }
@@ -71,13 +72,15 @@ service UserService {
   // password breaks the rules, `not_found` if no User has the ID, and `failed_precondition` for the
   // caller's own User, who uses `ChangePassword` instead to keep the calling Device signed in.
   rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse);
-  // Gets the default Permissions: those `CreateUser` gives a new User. A fresh Server's are
-  // `PERMISSION_REQUEST` and `PERMISSION_VIEW_REQUESTS`.
+  // Gets the default Permissions: those `CreateUser` gives a new User, with the cap for remote
+  // playback they get, as `CreateUser`, `CreateUserFromAccount` and `AcceptInvite` do. A fresh
+  // Server's are `PERMISSION_REQUEST` and `PERMISSION_VIEW_REQUESTS`, with no cap.
   rpc GetDefaultPermissions(GetDefaultPermissionsRequest) returns (GetDefaultPermissionsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
-  // Replaces the default Permissions. Users created before keep the Permissions they have. Fails
-  // with `invalid_argument` for `PERMISSION_UNSPECIFIED` or a value the Server doesn't know.
+  // Replaces the default Permissions and cap. Users created before keep the Permissions and cap
+  // they have. Fails with `invalid_argument` for `PERMISSION_UNSPECIFIED` or a value the Server
+  // doesn't know.
   rpc SetDefaultPermissions(SetDefaultPermissionsRequest) returns (SetDefaultPermissionsResponse) {
     option idempotency_level = IDEMPOTENT;
   }
@@ -265,6 +268,9 @@ message SetPermissionsRequest {
   int64 user_id = 1;
   // Every Permission the User is to have, replacing those they had. Empty takes them all away.
   repeated Permission permissions = 2;
+  // Their cap, as `User.remote_playback_limit` says, replacing the one they had: unset or
+  // `PLAYBACK_LIMIT_ORIGINAL` for none. A value this Server doesn't know is refused.
+  PlaybackLimit remote_playback_limit = 3;
 }
 
 message SetPermissionsResponse {}
@@ -318,11 +324,15 @@ message GetDefaultPermissionsRequest {}
 message GetDefaultPermissionsResponse {
   // In the order of `Permission`'s values, each once.
   repeated Permission permissions = 1;
+  // The cap new Users get, as `User.remote_playback_limit` says.
+  PlaybackLimit remote_playback_limit = 2;
 }
 
 message SetDefaultPermissionsRequest {
   // Every Permission new Users are to get. Empty gives them none.
   repeated Permission permissions = 1;
+  // The cap new Users are to get, as `SetPermissionsRequest.remote_playback_limit` says.
+  PlaybackLimit remote_playback_limit = 2;
 }
 
 message SetDefaultPermissionsResponse {}

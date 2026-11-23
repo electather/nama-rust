@@ -228,19 +228,19 @@ async fn demoting_two_admins_at_once_leaves_exactly_one() {
     add_other_sign_in_method(&users, ada).await;
     add_other_sign_in_method(&users, grace).await;
     users
-        .set_permissions(&admin(), ada, Permissions::ADMIN)
+        .set_permissions(&admin(), ada, Permissions::ADMIN, None)
         .await
         .unwrap();
     users
-        .set_permissions(&admin(), grace, Permissions::ADMIN)
+        .set_permissions(&admin(), grace, Permissions::ADMIN, None)
         .await
         .unwrap();
 
     // Unlike over the API, no access check stands between the two and the database.
     let root = admin();
     let (ada_demoted, grace_demoted) = tokio::join!(
-        users.set_permissions(&root, ada, Permissions::NEW_USER),
-        users.set_permissions(&root, grace, Permissions::NEW_USER),
+        users.set_permissions(&root, ada, Permissions::NEW_USER, None),
+        users.set_permissions(&root, grace, Permissions::NEW_USER, None),
     );
 
     let refused = [&ada_demoted, &grace_demoted]

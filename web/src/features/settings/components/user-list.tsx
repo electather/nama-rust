@@ -9,20 +9,21 @@ import { useDefaultPermissions } from "@/shared/hooks/use-default-permissions";
 
 /**
  * Every User on the Server, each opening in place of the list, then a form to create one, the
- * Permissions new Users get, saved as they're changed, and the Invites.
+ * Permissions and cap for remote playback new Users get, saved as they're changed, and the Invites.
  */
 export function UserList({ users, you }: { users: User[]; you: User | undefined }) {
   const setDefaults = useSetDefaultPermissions();
+  const defaults = useDefaultPermissions();
   const { values, refused, edit, dismiss } = useAutoSave(
-    { permissions: useDefaultPermissions() },
-    async ({ permissions }) => {
-      await setDefaults.mutateAsync({ permissions });
+    { permissions: defaults.permissions, cap: defaults.remotePlaybackLimit },
+    async ({ permissions, cap }) => {
+      await setDefaults.mutateAsync({ permissions, remotePlaybackLimit: cap });
     },
   );
   return (
     <>
       <PaneFrame section="users">
-        <UserListGroups users={users} you={you} defaults={values.permissions} onChange={edit} />
+        <UserListGroups users={users} you={you} defaults={values} onChange={edit} />
       </PaneFrame>
       <SaveToast
         says={refusedWords(refused, { permissions: { label: "the default Permissions" } }).form}
