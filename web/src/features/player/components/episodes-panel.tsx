@@ -25,7 +25,8 @@ export function EpisodesPanel({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger render={<Button variant="secondary" size="tall" />}>
         <ListVideo aria-hidden />
-        Episodes
+        {/* On a phone the Show's name needs the room, so the button is its icon. */}
+        <span className="max-sm:sr-only">Episodes</span>
       </PopoverTrigger>
       <PopoverContent
         width="list"
