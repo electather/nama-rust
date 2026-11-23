@@ -25,9 +25,9 @@ export function useSignInWithLink() {
   const router = useRouter();
   const recordSignedIn = useRecordSignedIn();
   return useMutation(AccountService.method.signInWithLink, {
-    onSuccess: async ({ account, continueTo }) => {
+    onSuccess: async ({ continueTo }) => {
       // Not clearing the cache: that would look the used link up again, which now says it expired.
-      recordSignedIn(account);
+      recordSignedIn();
       await router.navigate({ href: continueTo });
     },
   });
