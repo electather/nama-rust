@@ -264,6 +264,18 @@ pub struct ViewingEvent {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
     )]
     pub device_kind: ::buffa::EnumValue<DeviceKind>,
+    /// An Episode's Show, by its External ID formed as `external_id` is, such as `tmdb-1399`: 1 to
+    /// 100 characters. Empty for a Movie, and in the list for an Episode recorded before the Hub
+    /// took it.
+    ///
+    /// Field 10: `show_external_id`
+    #[serde(
+        rename = "showExternalId",
+        alias = "show_external_id",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub show_external_id: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -280,6 +292,7 @@ impl ::core::fmt::Debug for ViewingEvent {
             .field("duration_ms", &self.duration_ms)
             .field("finished", &self.finished)
             .field("device_kind", &self.device_kind)
+            .field("show_external_id", &self.show_external_id)
             .finish()
     }
 }
@@ -344,6 +357,11 @@ impl ::buffa::Message for ViewingEvent {
                 size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
             }
         }
+        if !self.show_external_id.is_empty() {
+            size
+                += 1u64
+                    + ::buffa::types::string_encoded_len(&self.show_external_id) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -383,6 +401,9 @@ impl ::buffa::Message for ViewingEvent {
             if val != 0 {
                 ::buffa::types::put_int32_field(9u32, val, buf);
             }
+        }
+        if !self.show_external_id.is_empty() {
+            ::buffa::types::put_string_field(10u32, &self.show_external_id, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -462,6 +483,13 @@ impl ::buffa::Message for ViewingEvent {
                     ::buffa::types::decode_int32(buf)?,
                 );
             }
+            10u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.show_external_id, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -479,6 +507,7 @@ impl ::buffa::Message for ViewingEvent {
         self.duration_ms = 0i64;
         self.finished = false;
         self.device_kind = ::buffa::EnumValue::from(0);
+        self.show_external_id.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
