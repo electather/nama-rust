@@ -287,6 +287,9 @@ pub mod __buffa {
         reg.register_json_any(super::__BOX_SET_SUMMARY_JSON_ANY);
         reg.register_json_any(super::__GET_BOX_SET_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_BOX_SET_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_PERSON_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_PERSON_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PERSON_ROLE_JSON_ANY);
         reg.register_json_any(super::__LIST_BOX_SETS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_BOX_SETS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SEARCH_SUBTITLES_REQUEST_JSON_ANY);
@@ -374,6 +377,7 @@ pub mod __buffa {
         reg.register_json_any(super::__HITS_JSON_ANY);
         reg.register_json_any(super::__HIT_JSON_ANY);
         reg.register_json_any(super::__EPISODE_HIT_JSON_ANY);
+        reg.register_json_any(super::__PERSON_HIT_JSON_ANY);
         reg.register_json_any(super::__DONE_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_LINK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_LINK_RESPONSE_JSON_ANY);
@@ -1341,6 +1345,18 @@ pub use self::__buffa::view::GetBoxSetResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::GetBoxSetResponseOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::GetPersonRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPersonRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPersonResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetPersonResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonRoleView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonRoleOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::ListBoxSetsRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::ListBoxSetsRequestOwnedView;
@@ -1688,6 +1704,10 @@ pub use self::__buffa::view::HitOwnedView;
 pub use self::__buffa::view::EpisodeHitView;
 #[doc(inline)]
 pub use self::__buffa::view::EpisodeHitOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonHitView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonHitOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::DoneView;
 #[doc(inline)]

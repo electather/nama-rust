@@ -104,3 +104,20 @@ pub mod home_row_title {
         ),
     }
 }
+pub mod person_role {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, Debug)]
+    pub enum Title<'a> {
+        Movie(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::MovieHitView<'a>,
+            >,
+        ),
+        Show(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::ShowHitView<'a>,
+            >,
+        ),
+    }
+}

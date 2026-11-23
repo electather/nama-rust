@@ -290,7 +290,7 @@ How well a Movie's or Show's audience liked it, from 0 to 10, as the title sourc
 _Avoid_: rating (that's Content Rating), stars, user score
 
 **Person**:
-Someone who worked on Movies or Shows, known by an External ID, with at most one headshot, shared by all their Roles. A Person has no page.
+Someone who worked on Movies or Shows, known by an External ID, with at most one headshot, shared by all their Roles. A Person's page lists the titles on the Server they have a Role in.
 _Avoid_: actor, talent, cast member
 
 **Role**:

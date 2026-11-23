@@ -8,6 +8,8 @@ mod browsing;
 mod http;
 #[path = "browse/next_episode.rs"]
 mod next_episode;
+#[path = "browse/people.rs"]
+mod people;
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "browse/roles.rs"]

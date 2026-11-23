@@ -19676,8 +19676,7 @@ impl ::serde::Serialize for FoundShowOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// A Person's part in a Movie or Show: a character they play (Cast) or a job they did (Crew). A
-/// Person has no page.
+/// A Person's part in a Movie or Show: a character they play (Cast) or a job they did (Crew).
 #[derive(Clone, Debug, Default)]
 pub struct RoleView<'a> {
     /// The Person's name.
@@ -19693,6 +19692,12 @@ pub struct RoleView<'a> {
     ///
     /// Field 3: `headshot_url`
     pub headshot_url: ::core::option::Option<&'a str>,
+    /// The Person's id, by which `BrowseService.GetPerson` opens their page.
+    ///
+    /// Field 4: `person_id`
+    pub person_id: ::buffa::MessageFieldView<
+        super::super::__buffa::view::ExternalIdView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for RoleView<'a> {
@@ -19746,6 +19751,27 @@ impl<'a> ::buffa::MessageView<'a> for RoleView<'a> {
                 )?;
                 view.headshot_url = Some(::buffa::types::borrow_str(&mut cur)?);
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                match view.person_id.as_mut() {
+                    Some(existing) => {
+                        ::buffa::MessageView::merge_into_view(existing, sub, __sub_ctx)?
+                    }
+                    None => {
+                        view.person_id = ::buffa::MessageFieldView::set(
+                            <super::super::__buffa::view::ExternalIdView as ::buffa::MessageView>::decode_view_ctx(
+                                sub,
+                                __sub_ctx,
+                            )?,
+                        );
+                    }
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -19771,6 +19797,15 @@ impl<'a> ::buffa::MessageView<'a> for RoleView<'a> {
             name: self.name.to_string(),
             part: self.part.to_string(),
             headshot_url: self.headshot_url.map(|s| s.to_string()),
+            person_id: match self.person_id.as_option() {
+                Some(v) => {
+                    ::buffa::MessageField::<
+                        super::super::ExternalId,
+                        ::buffa::Inline<super::super::ExternalId>,
+                    >::some(v.to_owned_from_source(__buffa_src)?)
+                }
+                None => ::buffa::MessageField::none(),
+            },
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -19778,7 +19813,7 @@ impl<'a> ::buffa::MessageView<'a> for RoleView<'a> {
 }
 impl<'a> ::buffa::ViewEncode<'a> for RoleView<'a> {
     #[allow(clippy::needless_borrow, clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u64;
@@ -19791,13 +19826,21 @@ impl<'a> ::buffa::ViewEncode<'a> for RoleView<'a> {
         if let Some(ref v) = self.headshot_url {
             size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
+        if self.person_id.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.person_id.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
     #[allow(clippy::needless_borrow)]
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::EncodeSink,
     ) {
         #[allow(unused_imports)]
@@ -19810,6 +19853,14 @@ impl<'a> ::buffa::ViewEncode<'a> for RoleView<'a> {
         }
         if let Some(ref v) = self.headshot_url {
             ::buffa::types::put_string_field(3u32, v, buf);
+        }
+        if self.person_id.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                4u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.person_id.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -19840,6 +19891,11 @@ impl<'__a> ::serde::Serialize for RoleView<'__a> {
         }
         if let ::core::option::Option::Some(__v) = self.headshot_url {
             __map.serialize_entry("headshotUrl", __v)?;
+        }
+        {
+            if let ::core::option::Option::Some(__v) = self.person_id.as_option() {
+                __map.serialize_entry("personId", __v)?;
+            }
         }
         __map.end()
     }
@@ -19949,6 +20005,15 @@ impl RoleOwnedView {
     #[must_use]
     pub fn headshot_url(&self) -> ::core::option::Option<&'_ str> {
         self.0.reborrow().headshot_url
+    }
+    /// The Person's id, by which `BrowseService.GetPerson` opens their page.
+    ///
+    /// Field 4: `person_id`
+    #[must_use]
+    pub fn person_id(
+        &self,
+    ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
+        &self.0.reborrow().person_id
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<RoleView<'static>>> for RoleOwnedView {

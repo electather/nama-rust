@@ -13,7 +13,9 @@ service SearchService {
   // as the User types. A last word of four digits after others is a year, which keeps only those
   // released or aired that year, or with it in their title: "dune 2021" finds the 2021 Dune. A
   // Show counts as of every year one of its Episodes aired. A Show is found by its own title,
-  // and an Episode by its own, not its Show's. A title in two Libraries is found in each.
+  // and an Episode by its own, not its Show's. A title in two Libraries is found in each. With
+  // `kind` unset, it also finds up to 5 People with a Role in a title in a Library whose names
+  // have each word of the query, matched the same way.
   //
   // A caller with `PERMISSION_REQUEST_MOVIE` also finds the Movies to request, and one with
   // `PERMISSION_REQUEST_TV` the Shows: for each kind, the first title source in the Admin's
@@ -56,9 +58,10 @@ message SearchResponse {
 }
 
 // A batch of results, ordered on the Server. The Libraries' batch: Movies and Shows before
-// Episodes, then an exact title ("Title Year" counts as exact), then a title starting with the
-// query, then one holding each of its words whole (in both, the year it ends with aside), then
-// one of that year, then the better fit, then the shorter title. The title source's batch holds
+// Episodes before People, then an exact title ("Title Year" counts as exact), then a title
+// starting with the query, then one holding each of its words whole (in both, the year it ends
+// with aside), then one of that year, then the better fit, then the shorter title. People go by
+// those same bands of their names, then the most Roles first. The title source's batch holds
 // none the Libraries' sent: by `status`, then by those same bands, then in the source's order.
 // A Search source's batch holds none an earlier batch sent: by `status`, then in the source's
 // order. A client lists every batch's results stably sorted by `status`.
@@ -66,7 +69,7 @@ message Hits {
   repeated Hit hits = 1;
 }
 
-// A Movie, Show or Episode `Search` found, and whether the caller can watch it.
+// A Movie, Show, Episode or Person `Search` found, and whether the caller can watch it.
 message Hit {
   oneof title {
     // A Movie, with the Library it is in in `library_id` if one has it.
@@ -74,6 +77,8 @@ message Hit {
     // A Show, with the Library it is in in `library_id` if one has an Episode of it.
     ShowHit show = 2;
     EpisodeHit episode = 3;
+    // Found only in the Libraries' batch, always `TITLE_STATUS_AVAILABLE`.
+    PersonHit person = 5;
   }
   TitleStatus status = 4;
 }
@@ -114,6 +119,14 @@ message EpisodeHit {
   optional string show_poster_url = 10;
   // As `ShowHit.poster_thumbhash`.
   optional bytes show_poster_thumbhash = 11;
+}
+
+// A Person a search found by name. `BrowseService.GetPerson` opens their page by `id`.
+message PersonHit {
+  ExternalId id = 1;
+  string name = 2;
+  // As `GetPersonResponse.headshot_url`.
+  optional string headshot_url = 3;
 }
 
 // Marks the end of what `Search` streams.
