@@ -5,7 +5,7 @@ import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
 
 /**
- * Episode `episodeNumber` of the Season `season`, unless an Event removed it, and the error of the
+ * Episode `episodeNumber` of the played Season, unless an Event removed it, and the error of the
  * last refetch, if it failed.
  */
 export function useEpisodeToPlay(
