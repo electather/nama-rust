@@ -160,6 +160,15 @@ service LinkedServerService {
   rpc SetServerAddresses(SetServerAddressesRequest) returns (SetServerAddressesResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Makes `values` the only TXT records at `_acme-challenge.<own name>`, under the calling Server's
+  // own name, so an ACME CA such as Let's Encrypt finds the DNS-01 challenge it set the Server for
+  // a certificate for its names (ADR 0057). The Server makes the certificate's key itself and sends
+  // only the challenge, so the Hub never holds the key. Empty `values` remove them. Fails with
+  // `REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID` for too many values or one that isn't one, with
+  // `failed_precondition` on a Hub that names no Server, and while the Hub can't write them.
+  rpc SetCertificateChallenge(SetCertificateChallengeRequest) returns (SetCertificateChallengeResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
   // Records a Viewing Event for each play by one of the Server's Users, under the Account they are
   // Linked to (ADR 0093); one for a User who isn't Linked is left out. Sending one again by its
   // `key` records it once. Fails with `REFUSAL_REASON_VIEWING_EVENT_INVALID`, recording none, when
@@ -605,6 +614,14 @@ message SetServerAddressesResponse {
   // Empty on a Hub that names no Server.
   repeated string names = 3;
 }
+
+message SetCertificateChallengeRequest {
+  // Each a DNS-01 challenge's value: a SHA-256 digest in unpadded base64url, 43 characters (RFC
+  // 8555, section 8.4). At most 2, one for the Server's own name and one for the wildcard under it.
+  repeated string values = 1;
+}
+
+message SetCertificateChallengeResponse {}
 
 message ListTrendingTitlesRequest {}
 

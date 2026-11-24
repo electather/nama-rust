@@ -21,7 +21,8 @@ use nama_hub_proto::nama::hub::v1::{
     PullTrackPreferencesResponse, PullWatchStatesRequest, PullWatchStatesResponse,
     PushTrackPreferencesRequest, PushTrackPreferencesResponse, PushWatchStatesRequest,
     PushWatchStatesResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
-    RefusalReason, ServerLinkService, SetServerAddressesRequest, SetServerAddressesResponse,
+    RefusalReason, ServerLinkService, SetCertificateChallengeRequest,
+    SetCertificateChallengeResponse, SetServerAddressesRequest, SetServerAddressesResponse,
     StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
     StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
     SyncWatchlistResponse, UnlinkLinkedUserRequest, UnlinkLinkedUserResponse, UnlinkServerRequest,
@@ -36,8 +37,8 @@ use super::{
 use crate::{
     links::{
         self, ADDRESS_LENGTH, CODE_LIFETIME_MINS, InviteId, LinkId, LinkedServer, Links,
-        ListedInvite, ListedServer, ListedUser, MAX_LAN_ADDRESSES, POLL_INTERVAL_SECS, Polled,
-        SignInId,
+        ListedInvite, ListedServer, ListedUser, MAX_CHALLENGE_VALUES, MAX_LAN_ADDRESSES,
+        POLL_INTERVAL_SECS, Polled, SignInId,
     },
     recommendations::Recommendations,
     sync::{TrackPreferences, WatchStates, Watchlists},
@@ -547,6 +548,18 @@ impl LinkedServerService for LinkedServerServiceHandler {
         })
     }
 
+    async fn set_certificate_challenge(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetCertificateChallengeRequest>,
+    ) -> ServiceResult<SetCertificateChallengeResponse> {
+        let values = request.to_owned_message().values;
+        (self.links.set_challenge(linked_server(&ctx)?, values))
+            .await
+            .map_err(refused)?;
+        Response::ok(SetCertificateChallengeResponse::default())
+    }
+
     async fn record_viewing_events(
         &self,
         ctx: RequestContext,
@@ -728,6 +741,10 @@ fn refused(err: links::Error) -> ConnectError {
             .param("maxLength", &ADDRESS_LENGTH)
             .param("maxLanAddresses", &MAX_LAN_ADDRESSES)
             .param("maxPort", &u16::MAX),
+        E::ChallengeInvalid => refuse(R::REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID, message)
+            .field("values")
+            .param("maxValues", &MAX_CHALLENGE_VALUES),
+        E::NamesOff => return ConnectError::failed_precondition(message),
         E::Random(_) | E::Database(_) | E::Names(_) => return hub_failed(&err),
     };
     refused.into()

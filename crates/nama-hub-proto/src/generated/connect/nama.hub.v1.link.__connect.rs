@@ -224,6 +224,18 @@ pub type OwnedSetServerAddressesResponseView = ::buffa::view::OwnedView<
         'static,
     >,
 >;
+///Shorthand for `OwnedView<SetCertificateChallengeRequestView<'static>>`.
+pub type OwnedSetCertificateChallengeRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SetCertificateChallengeRequestView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<SetCertificateChallengeResponseView<'static>>`.
+pub type OwnedSetCertificateChallengeResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SetCertificateChallengeResponseView<
+        'static,
+    >,
+>;
 ///Shorthand for `OwnedView<RecordViewingEventsRequestView<'static>>`.
 pub type OwnedRecordViewingEventsRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsRequestView<
@@ -1142,6 +1154,48 @@ for crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseVie
 impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::SetServerAddressesResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::SetServerAddressesResponseView<
+        'static,
+    >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::messages::nama::hub::v1::SetCertificateChallengeResponse,
+>
+for crate::messages::nama::hub::v1::__buffa::view::SetCertificateChallengeResponseView<
+    '_,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::messages::nama::hub::v1::SetCertificateChallengeResponse,
+>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::SetCertificateChallengeResponseView<
         'static,
     >,
 > {
@@ -3404,6 +3458,12 @@ pub const LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC: ::connectrpc::Spec = 
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetCertificateChallenge` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_SET_CERTIFICATE_CHALLENGE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/SetCertificateChallenge",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
 /// Static [`Spec`](::connectrpc::Spec) for the `RecordViewingEvents` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const LINKED_SERVER_SERVICE_RECORD_VIEWING_EVENTS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.hub.v1.LinkedServerService/RecordViewingEvents",
@@ -3854,6 +3914,34 @@ pub trait LinkedServerService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::hub::v1::SetServerAddressesResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Makes `values` the only TXT records at `_acme-challenge.<own name>`, under the calling Server's
+    /// own name, so an ACME CA such as Let's Encrypt finds the DNS-01 challenge it set the Server for
+    /// a certificate for its names (ADR 0057). The Server makes the certificate's key itself and sends
+    /// only the challenge, so the Hub never holds the key. Empty `values` remove them. Fails with
+    /// `REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID` for too many values or one that isn't one, with
+    /// `failed_precondition` on a Hub that names no Server, and while the Hub can't write them.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_certificate_challenge<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::SetCertificateChallengeRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::SetCertificateChallengeResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -4404,6 +4492,35 @@ impl<S: LinkedServerService> LinkedServerServiceExt for S {
             .with_spec(LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC)
             .route_view(
                 LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "SetCertificateChallenge",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::SetCertificateChallengeRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::SetCertificateChallengeRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_certificate_challenge(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::SetCertificateChallengeResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_SET_CERTIFICATE_CHALLENGE_SPEC)
+            .route_view(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
                 "RecordViewingEvents",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
@@ -4633,6 +4750,12 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC),
+                )
+            }
+            "SetCertificateChallenge" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(LINKED_SERVER_SERVICE_SET_CERTIFICATE_CHALLENGE_SPEC),
                 )
             }
             "RecordViewingEvents" => {
@@ -4997,6 +5120,28 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .await?
                         .encode::<
                             crate::messages::nama::hub::v1::SetServerAddressesResponse,
+                        >(format)
+                })
+            }
+            "SetCertificateChallenge" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::SetCertificateChallengeRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::SetCertificateChallengeRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::SetCertificateChallengeRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_certificate_challenge(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::SetCertificateChallengeResponse,
                         >(format)
                 })
             }
@@ -5863,6 +6008,51 @@ where
                 &self.transport,
                 &self.config,
                 LINKED_SERVER_SERVICE_SET_SERVER_ADDRESSES_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetCertificateChallenge RPC. Sends a request to /nama.hub.v1.LinkedServerService/SetCertificateChallenge.
+    pub async fn set_certificate_challenge(
+        &self,
+        request: crate::messages::nama::hub::v1::SetCertificateChallengeRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SetCertificateChallengeResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_certificate_challenge_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetCertificateChallenge RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_certificate_challenge_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::SetCertificateChallengeRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::SetCertificateChallengeResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_SET_CERTIFICATE_CHALLENGE_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

@@ -473,6 +473,16 @@ impl ServerLinker for Linker {
         Box::pin(self.report(addresses))
     }
 
+    fn set_certificate_challenge(
+        &self,
+        values: Vec<String>,
+    ) -> BoxFuture<'_, Result<(), PluginError>> {
+        Box::pin(async move {
+            let set = self.call(|hub| hub.set_certificate_challenge(values));
+            Ok(set.await?.ok_or(accounts::NOT_LINKED)?)
+        })
+    }
+
     fn watch_states(
         &self,
         user_id: i64,

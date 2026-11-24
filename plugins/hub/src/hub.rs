@@ -26,11 +26,11 @@ use nama_hub_proto::nama::hub::v1::{
     ListTrendingTitlesRequest, ListTrendingTitlesResponse, PollServerLinkRequest,
     PollServerLinkResponse, PollServerSignInRequest, PullTrackPreferencesRequest,
     PullWatchStatesRequest, PushTrackPreferencesRequest, PushWatchStatesRequest, RecommendedTitle,
-    RecordViewingEventsRequest, ServerLinkServiceClient, SetServerAddressesRequest,
-    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
-    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
-    TrackPreferenceChange, UnlinkServerRequest, UnlinkUserRequest, UserViewingEvent,
-    WatchStateChange, WatchlistEntry,
+    RecordViewingEventsRequest, ServerLinkServiceClient, SetCertificateChallengeRequest,
+    SetServerAddressesRequest, StartServerLinkRequest, StartServerLinkResponse,
+    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
+    StartUserLinkResponse, SyncWatchlistRequest, TrackPreferenceChange, UnlinkServerRequest,
+    UnlinkUserRequest, UserViewingEvent, WatchStateChange, WatchlistEntry,
 };
 use nama_plugin_api::{
     PluginError,
@@ -340,6 +340,21 @@ impl LinkedHub {
             reachable: checked.reachable,
             names: checked.names,
         }))
+    }
+
+    /// Has the Hub publish `values` as the Server's certificate challenge, or remove it when empty.
+    pub(crate) async fn set_certificate_challenge(
+        self,
+        values: Vec<String>,
+    ) -> Result<(), PluginError> {
+        (self.client()?)
+            .set_certificate_challenge(SetCertificateChallengeRequest {
+                values,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(())
     }
 
     /// Records `events`, the Server's Viewing Events.

@@ -58,6 +58,13 @@ pub(crate) const ADDRESS_LENGTH: usize = 2000;
 /// The most LAN addresses a Server may report.
 pub(crate) const MAX_LAN_ADDRESSES: usize = 16;
 
+/// The most certificate challenge values a Server may publish at once: one for its own name, one
+/// for the wildcard under it.
+pub(crate) const MAX_CHALLENGE_VALUES: usize = 2;
+
+/// How long a DNS-01 challenge's value is: a SHA-256 digest in unpadded base64url (RFC 8555).
+const CHALLENGE_VALUE_LENGTH: usize = 43;
+
 /// How long the Hub waits for a Server's public port to take a connection.
 const REACH_WITHIN: Duration = Duration::from_secs(5);
 
@@ -164,6 +171,13 @@ pub(crate) enum Error {
     AddressInvalid,
     #[error("could not generate a code: {0}")]
     Random(#[from] getrandom::Error),
+    #[error(
+        "a Server publishes up to {MAX_CHALLENGE_VALUES} certificate challenge values, each a \
+         DNS-01 challenge's"
+    )]
+    ChallengeInvalid,
+    #[error("this Hub names no Server")]
+    NamesOff,
     #[error("database error: {0}")]
     Database(#[from] sqlx::Error),
     #[error("could not write the Server's names: {0}")]
@@ -467,6 +481,26 @@ impl Links {
         Ok(())
     }
 
+    /// Makes `values` the only TXT records at `_acme-challenge.<own name>`, `server`'s DNS-01
+    /// challenge for a certificate for its names (ADR 0057), or removes them when it is empty.
+    pub(crate) async fn set_challenge(
+        &self,
+        server: &LinkedServer,
+        values: Vec<String>,
+    ) -> Result<(), Error> {
+        if values.len() > MAX_CHALLENGE_VALUES || !values.iter().all(|value| is_challenge(value)) {
+            return Err(Error::ChallengeInvalid);
+        }
+        let server_names = self.names.as_ref().ok_or(Error::NamesOff)?;
+        let own = names::own_name(server.id, &server_names.zone);
+        let challenge = format!("_acme-challenge.{own}");
+        server_names
+            .records
+            .replace_texts(&challenge, values)
+            .await?;
+        Ok(())
+    }
+
     /// The Linked Server whose credential is `credential`, if it is still Linked.
     pub(crate) async fn server(
         &self,
@@ -535,6 +569,13 @@ fn may_link(session: &AccountSession) -> Result<(), Error> {
         return Err(Error::EmailNotProven);
     }
     Ok(session.require_recent_authentication()?)
+}
+
+/// Whether `value` is a DNS-01 challenge's value. Only base64url, so it can't break out of the TXT
+/// record it is written into.
+fn is_challenge(value: &str) -> bool {
+    value.len() == CHALLENGE_VALUE_LENGTH
+        && (value.bytes()).all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
 }
 
 /// Whether `address` may be a Server Address: an absolute `http` or `https` URL, so the Hub's pages

@@ -32,10 +32,11 @@ use nama_hub_proto::nama::hub::v1::{
     PullWatchStatesRequest, PullWatchStatesResponse, PushTrackPreferencesRequest,
     PushTrackPreferencesResponse, PushWatchStatesRequest, PushWatchStatesResponse,
     RecommendedTitle, RecordViewingEventsRequest, RecordViewingEventsResponse, ServerLinkService,
-    SetServerAddressesRequest, SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest,
-    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
-    StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest, SyncWatchlistResponse,
-    TitleKind, TrackPreferenceChange, TrendingTitle, UnlinkServerRequest, UnlinkServerResponse,
+    SetCertificateChallengeRequest, SetCertificateChallengeResponse, SetServerAddressesRequest,
+    SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest, StartServerLinkResponse,
+    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
+    StartUserLinkResponse, SyncWatchlistRequest, SyncWatchlistResponse, TitleKind,
+    TrackPreferenceChange, TrendingTitle, UnlinkServerRequest, UnlinkServerResponse,
     UnlinkUserRequest, UnlinkUserResponse, UserViewingEvent, WatchStateChange, WatchlistEntry,
     WatchlistedTitle,
 };
@@ -125,6 +126,8 @@ struct State {
     reported_addresses: Vec<(String, Vec<String>)>,
     /// How many of the next reports of Server Addresses fail.
     addresses_failures: usize,
+    /// The certificate challenge the Server published last.
+    challenge: Vec<String>,
 }
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
@@ -294,6 +297,11 @@ impl FakeHub {
     /// Each Server URL and LAN addresses the Server reported, in order.
     pub(super) fn reported_addresses(&self) -> Vec<(String, Vec<String>)> {
         lock(&self.state).reported_addresses.clone()
+    }
+
+    /// The certificate challenge the Server published last.
+    pub(super) fn challenge(&self) -> Vec<String> {
+        lock(&self.state).challenge.clone()
     }
 
     /// Has the next report of Server Addresses fail, as if the Hub blinked.
@@ -641,6 +649,15 @@ impl LinkedServerService for Linked {
             token: sign(&self.0.key, &claims),
             ..Default::default()
         })
+    }
+
+    async fn set_certificate_challenge(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetCertificateChallengeRequest>,
+    ) -> ServiceResult<SetCertificateChallengeResponse> {
+        self.caller(&ctx)?.challenge = request.to_owned_message().values;
+        Response::ok(SetCertificateChallengeResponse::default())
     }
 
     async fn set_server_addresses(

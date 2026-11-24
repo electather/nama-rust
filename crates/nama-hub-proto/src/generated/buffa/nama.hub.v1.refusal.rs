@@ -92,6 +92,9 @@ pub enum RefusalReason {
     /// `already_exists`: the signed-in Account has a User Linked on that Server already, and an
     /// Account Links one User on each Server. Unlink that User first.
     REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER = 29i32,
+    /// `invalid_argument`: a Server sent more than `maxValues` certificate challenge values, or one
+    /// that isn't a DNS-01 challenge's value. Params: `maxValues`.
+    REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID = 30i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -184,6 +187,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const AccountHasUserOnServer: Self = Self::REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const CertificateChallengeInvalid: Self = Self::REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -347,6 +353,11 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER,
                 )
             }
+            30i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -412,6 +423,9 @@ impl ::buffa::Enumeration for RefusalReason {
             }
             Self::REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER => {
                 "REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER"
+            }
+            Self::REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID => {
+                "REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID"
             }
         }
     }
@@ -517,6 +531,11 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER,
                 )
             }
+            "REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -552,6 +571,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_PASSKEY_NOT_FOUND,
             Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD,
             Self::REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER,
+            Self::REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID,
         ]
     }
 }
