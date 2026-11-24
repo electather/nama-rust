@@ -446,3 +446,21 @@ async fn a_title_shows_its_downloaded_poster_only_with_no_custom_image_or_one_be
 
     assert_eq!(shown, [false, false, false, false, true, true]);
 }
+
+#[tokio::test]
+async fn a_poster_beside_the_media_shows_unless_a_custom_image_is_in_its_place() {
+    let data = tempfile::tempdir().unwrap();
+    let in_place = snapshot(artwork_in(&data).await, false).in_place;
+    let shows = |id, stored| {
+        let ids = ids(&tmdb(id), &[]);
+        in_place.shows_beside_media(&ids, POSTER, &local(stored))
+    };
+
+    let answers = (
+        shows(1, "movie-1-poster"),
+        shows(2, "movie-2-poster"),
+        shows(2, "movie-1-poster"),
+    );
+
+    assert_eq!(answers, (false, true, false));
+}

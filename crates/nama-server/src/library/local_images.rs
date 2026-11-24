@@ -35,12 +35,12 @@ use tokio_util::io::ReaderStream;
 
 use crate::{
     db::Database,
-    images::{Asked, ImageStore, LOCAL_IMAGES_DIR, UploadError},
+    images::{Asked, ImageStore, LOCAL_IMAGES_DIR, Resize, UploadError},
     library::{
         Role,
-        artwork::poster_grid_copy,
         contents::{Contents, LocalImage, LocalImageFile, LocalRole, TitleLocalImage},
-        custom_images::served_type,
+        custom_images::{CustomImages, served_type},
+        shown_images::{InPlaceOfDownloaded, TitleImage},
     },
     server_settings::ImageSettings,
 };
@@ -60,11 +60,8 @@ const ROLES: [LocalRole; 3] = [
 pub(crate) struct LocalImages {
     contents: Contents,
     store: ImageStore,
-    /// What the Posters it copies in are resized by right after, so a first visit finds them
-    /// made. `None` unless startup hands it over (`LocalImages::resizing_posters_ahead`).
-    image_settings: Option<ImageSettings>,
-    /// Held while one scan batch's Posters are resized, so at most one of them waits on the resize
-    /// thread ahead of a request's (ADR 0039).
+    /// Held while one Library's Posters are resized ahead, so at most one of them waits on the
+    /// resize thread ahead of a request's (ADR 0039).
     resizing: Arc<Mutex<()>>,
 }
 
@@ -156,23 +153,25 @@ fn first_of<K: Eq + Hash>(
         .find_map(|id| map.get(&key(id)).cloned())
 }
 
+impl TitleLocalImage {
+    /// Which of its title's Posters this is, if it is one.
+    fn poster(&self) -> Option<TitleImage> {
+        match (self.role, self.season) {
+            (LocalRole::Title(Role::Poster), None) => Some(TitleImage::Movie(Role::Poster)),
+            (LocalRole::Title(Role::Poster), Some(_)) => Some(TitleImage::Show(Role::Poster)),
+            (LocalRole::SeasonPoster, Some(number)) => Some(TitleImage::SeasonPoster(number)),
+            _ => None,
+        }
+    }
+}
+
 impl LocalImages {
     /// The images beside the media recorded in `db`, their copies kept in `store`.
     pub(crate) fn new(db: Arc<Database>, store: ImageStore) -> Self {
         Self {
             contents: Contents::new(db),
             store,
-            image_settings: None,
             resizing: Arc::default(),
-        }
-    }
-
-    /// This, resizing each Poster it copies in to the Poster grid's width as `images` says.
-    #[must_use]
-    pub(crate) fn resizing_posters_ahead(self, images: ImageSettings) -> Self {
-        Self {
-            image_settings: Some(images),
-            ..self
         }
     }
 
@@ -212,7 +211,7 @@ impl LocalImages {
 
     /// Replaces the images stored beside each of `versions`, in the Library `library`, with those
     /// `found` beside it, copying each into the store. One a Custom Image couldn't be is skipped,
-    /// and logged. Then resizes, in the background, each Poster kept to the Poster grid's width.
+    /// and logged.
     ///
     /// # Errors
     ///
@@ -242,36 +241,62 @@ impl LocalImages {
                 Err(err) => tracing::warn!("skipped the image {}: {err}", file.path),
             }
         }
-        let posters = (kept.iter())
-            .filter(|image| {
-                matches!(
-                    image.role,
-                    LocalRole::Title(Role::Poster) | LocalRole::SeasonPoster
-                )
-            })
-            .map(|image| image.stored.clone())
-            .collect();
         (self.contents)
             .replace_local_images(versions.to_vec(), kept)
-            .await?;
-        self.resize_ahead(library, posters);
-        Ok(())
+            .await
     }
 
-    /// Resizes, in the background, each of `posters`, as stored in the Library `library`'s folder,
-    /// to the Poster grid's width, where resizing is on.
-    fn resize_ahead(&self, library: i64, posters: HashSet<String>) {
-        let Some(copy) = self.image_settings.as_ref().and_then(poster_grid_copy) else {
-            return;
-        };
-        let (store, resizing) = (self.store.clone(), Arc::clone(&self.resizing));
+    /// Makes, in the background, `copy` of each Poster beside the Library `library`'s media that a
+    /// title shows, having none of `custom_images` in its place, where that copy isn't there. Each
+    /// one, not only those a scan just copied in, so a Library recorded before Posters were
+    /// resized ahead gets its copies too (#2152).
+    pub(crate) fn resize_shown_posters(
+        &self,
+        library: i64,
+        custom_images: CustomImages,
+        copy: Resize,
+    ) {
+        let local_images = self.clone();
         tokio::spawn(async move {
-            let _resizing = resizing.lock().await;
-            let library = library.to_string();
+            let _resizing = local_images.resizing.lock().await;
+            let posters = match local_images.shown_posters(library, &custom_images).await {
+                Ok(posters) => posters,
+                Err(err) => {
+                    tracing::error!(library, "could not list the Posters to resize: {err}");
+                    return;
+                }
+            };
+            let folder = library.to_string();
             for poster in posters {
-                store.copy_ahead(&[DIR, &library, &poster], copy).await;
+                (local_images.store)
+                    .copy_ahead(&[DIR, &folder, &poster], copy)
+                    .await;
             }
         });
+    }
+
+    /// Each Poster beside the Library `library`'s media, as stored in its folder, that a title
+    /// shows, having none of `custom_images` in its place.
+    async fn shown_posters(
+        &self,
+        library: i64,
+        custom_images: &CustomImages,
+    ) -> sqlx::Result<HashSet<String>> {
+        let (images, in_place) = tokio::try_join!(
+            self.contents.titles_local_images(),
+            InPlaceOfDownloaded::read(custom_images, self)
+        )?;
+        let shown = |image: &TitleLocalImage| {
+            image.library == library
+                && image.poster().is_some_and(|poster| {
+                    in_place.shows_beside_media(&image.ids, poster, &url(library, &image.stored))
+                })
+        };
+        Ok(images
+            .into_iter()
+            .filter(shown)
+            .map(|image| image.stored)
+            .collect())
     }
 
     /// Copies the image at `path` into the Library `library`'s folder in the store, as an upload

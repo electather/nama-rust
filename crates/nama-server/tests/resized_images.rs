@@ -364,6 +364,23 @@ async fn a_poster_beside_the_media_is_sent_at_the_poster_grids_width_without_res
 }
 
 #[tokio::test]
+async fn a_poster_beside_the_media_recorded_without_copies_gets_them_on_a_rescan() {
+    let fx = Fixture::alien().await;
+    fx.write("Alien (1979)/poster.jpg", &jpeg(1000, 1500));
+    fx.scan_and_match().await;
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    let poster = movie.poster_url.unwrap();
+    let copies = copies_of(&fx, &poster);
+    // As a Library scanned before Posters beside the media were resized ahead (#2152) has them.
+    until_exists(&copies.join("320.jxl")).await;
+    fs::remove_dir_all(&copies).unwrap();
+
+    fx.scan_and_match().await;
+
+    assert_sent_from_copies_made_ahead(&fx, &poster, &copies).await;
+}
+
+#[tokio::test]
 async fn an_uploaded_custom_poster_is_sent_at_the_poster_grids_width_without_resizing_on_request() {
     let fx = Fixture::alien().await;
 

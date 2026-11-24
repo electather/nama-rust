@@ -213,6 +213,19 @@ impl InPlaceOfDownloaded {
         (ids.iter().next()).is_none_or(|id| self.of_title(&id, ids, image).is_none())
     }
 
+    /// Whether the title with every id `ids` shows the image beside its media at `url` as its
+    /// `image`, having no Custom Image in its place.
+    pub(super) fn shows_beside_media(
+        &self,
+        ids: &ExternalIds,
+        image: TitleImage,
+        url: &str,
+    ) -> bool {
+        (ids.iter().next())
+            .and_then(|id| self.of_title(&id, ids, image))
+            .is_some_and(|(shown, custom)| !custom && shown == url)
+    }
+
     /// The URL of the image the title `id`, with every id `ids`, shows as its `image` in place of
     /// the downloaded one, and whether it is the Custom Image: its Custom Image kept under any of
     /// the ids, else the image beside its media.

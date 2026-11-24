@@ -161,8 +161,7 @@ pub fn serve(
         points.clone(),
     );
     let custom_images = CustomImages::new(Arc::clone(&db), images.clone());
-    let local_images =
-        LocalImages::new(Arc::clone(&db), images.clone()).resizing_posters_ahead(settings.images());
+    let local_images = LocalImages::new(Arc::clone(&db), images.clone());
     let artwork = Artwork::new(images.clone(), points).resizing_posters_ahead(
         settings.images(),
         custom_images.clone(),
