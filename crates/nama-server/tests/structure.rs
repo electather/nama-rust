@@ -112,7 +112,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
 // Plugin changes", stays in the crate's AGENTS.md.
 const ROWS: &[&[&str]] = &[
     &["api", "automation", "status"],
-    &["sync", "browse", "scanner", "plugin_settings"],
+    &["sync", "watch_sync", "browse", "scanner", "plugin_settings"],
     &["home_rows", "requests", "playback", "matching", "watchlist"],
     &["library"],
     &[

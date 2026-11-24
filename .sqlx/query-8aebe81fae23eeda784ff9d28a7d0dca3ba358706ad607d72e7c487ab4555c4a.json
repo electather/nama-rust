@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT cursor FROM watch_sync_cursors WHERE user_id = ? AND plugin_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "cursor",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "watch_sync_cursors",
+            "name": "cursor"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8aebe81fae23eeda784ff9d28a7d0dca3ba358706ad607d72e7c487ab4555c4a"
+}

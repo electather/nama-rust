@@ -134,6 +134,21 @@ pub(crate) async fn recipients(
     Ok(recipients)
 }
 
+/// A User's Personal `settings`, each value by key with whether it is secret, as the values by
+/// key a Plugin is asked with, and the secret values to blank from its failure.
+pub(crate) fn split(
+    settings: BTreeMap<String, (String, bool)>,
+) -> (Vec<(String, String)>, Vec<String>) {
+    let secrets = (settings.values())
+        .filter(|(_, secret)| *secret)
+        .map(|(value, _)| value.clone())
+        .collect();
+    let values = (settings.into_iter())
+        .map(|(key, (value, _))| (key, value))
+        .collect();
+    (values, secrets)
+}
+
 /// `value` as it is stored, the text a Plugin gets in a `UserRecipient`: a bool as `true` or
 /// `false`, a number in decimal.
 pub(crate) fn text(value: SettingValue) -> String {
