@@ -1,5 +1,6 @@
-//! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL. It serves
-//! one Server's device flow, Unlinking, its Users' Links, Users created from Accounts, one sign-in
+//! An in-process stand-in for the Hub, so the tests need no network and no PostgreSQL, and for the
+//! Server's Link with it, which the Kernel keeps ([`KernelLink`]). It serves one Linked Server, its
+//! Users' Links, Users created from Accounts, one sign-in
 //! with an Account at a time, its Server Addresses and whether its public port is reached, the
 //! Watch State it pushes, which its Linked Users pull back, their Watchlists, its Viewing Events,
 //! the titles like The Matrix, what's trending and most watchlisted, two titles recommended to
@@ -8,6 +9,7 @@
 
 use std::{
     collections::HashMap,
+    future,
     net::SocketAddr,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::{SystemTime, UNIX_EPOCH},
@@ -28,28 +30,23 @@ use nama_hub_proto::nama::hub::v1::{
     ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
     ListRecommendedTitlesRequest, ListRecommendedTitlesResponse, ListSimilarTitlesRequest,
     ListSimilarTitlesResponse, ListTrendingTitlesRequest, ListTrendingTitlesResponse,
-    PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
-    PollServerSignInResponse, PullTrackPreferencesRequest, PullTrackPreferencesResponse,
-    PullWatchStatesRequest, PullWatchStatesResponse, PushTrackPreferencesRequest,
-    PushTrackPreferencesResponse, PushWatchStatesRequest, PushWatchStatesResponse,
-    RecommendedTitle, RecordViewingEventsRequest, RecordViewingEventsResponse, ServerLinkService,
-    SetCertificateChallengeRequest, SetCertificateChallengeResponse, SetServerAddressesRequest,
-    SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest, StartServerLinkResponse,
-    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
-    StartUserLinkResponse, SyncWatchlistRequest, SyncWatchlistResponse, TitleKind,
-    TrackPreferenceChange, TrendingTitle, UnlinkServerRequest, UnlinkServerResponse,
-    UnlinkUserRequest, UnlinkUserResponse, UserViewingEvent, WatchStateChange, WatchlistEntry,
-    WatchlistedTitle,
+    PollServerSignInRequest, PollServerSignInResponse, PullTrackPreferencesRequest,
+    PullTrackPreferencesResponse, PullWatchStatesRequest, PullWatchStatesResponse,
+    PushTrackPreferencesRequest, PushTrackPreferencesResponse, PushWatchStatesRequest,
+    PushWatchStatesResponse, RecommendedTitle, RecordViewingEventsRequest,
+    RecordViewingEventsResponse, SetCertificateChallengeRequest, SetCertificateChallengeResponse,
+    SetServerAddressesRequest, SetServerAddressesResponse, SimilarTitle, StartServerSignInRequest,
+    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
+    SyncWatchlistResponse, TitleKind, TrackPreferenceChange, TrendingTitle, UnlinkServerRequest,
+    UnlinkServerResponse, UnlinkUserRequest, UnlinkUserResponse, UserViewingEvent,
+    WatchStateChange, WatchlistEntry, WatchlistedTitle,
 };
-use ring::signature::{Ed25519KeyPair, KeyPair as _};
+use nama_plugin_api::{BoxFuture, PluginError};
+use ring::signature::Ed25519KeyPair;
 use serde_json::{Value, json};
 use tokio::{net::TcpListener, task::JoinHandle};
 
-/// The one device code the fake hands out.
-const DEVICE_CODE: &str = "device-code";
-
-/// The one code the fake shows.
-pub(super) const USER_CODE: &str = "BDFH-JKLM";
+use crate::KernelLink;
 
 /// The one code the fake gives a User.
 pub(super) const USER_LINK_CODE: &str = "CDFG-HJKL";
@@ -66,29 +63,14 @@ const SIGN_IN_CODE: &str = "sign-in-code";
 /// The email of the Account the code is entered by.
 pub(super) const EMAIL: &str = "ada@example.com";
 
-/// The IP address the fake sees the Server's calls come from.
-pub(super) const PUBLIC_IP: &str = "203.0.113.7";
-
-/// The one public port the fake reaches the Server at.
-pub(super) const OPEN_PORT: u16 = 7980;
-
-/// The name the fake gives every Server that reports its addresses.
-pub(super) const SERVER_NAME: &str = "abc.namadirect.test";
-
 /// What the fake Hub knows.
 #[derive(Default)]
 struct State {
-    /// The name the Server started with, while its code waits.
-    starting: Option<String>,
-    entered: bool,
     /// Whether the Server holds a credential the fake knows.
     linked: bool,
     /// How many credentials the fake handed out. Each Link gets a new one, as on the Hub, and only
     /// the last works.
     credentials: usize,
-    key_set_fetches: usize,
-    /// What the key set answers in place of the keys, if anything.
-    key_set_failure: Option<StatusCode>,
     /// Each batch of shared Diagnostics, with the signal its path named.
     shared: Vec<(String, Vec<u8>)>,
     /// The name each User waiting on a code started with, by id.
@@ -123,19 +105,14 @@ struct State {
     /// The sign-in with an Account waiting: where it returns to, and the User it signs in as once
     /// approved.
     sign_in: Option<(String, Option<i64>)>,
-    /// Each Server URL and LAN addresses the Server reported, in order.
-    reported_addresses: Vec<(String, Vec<String>)>,
-    /// How many of the next reports of Server Addresses fail.
-    addresses_failures: usize,
-    /// The certificate challenge the Server published last.
-    challenge: Vec<String>,
 }
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
 pub(super) struct FakeHub {
     addr: SocketAddr,
     state: Arc<Mutex<State>>,
-    key: Arc<Ed25519KeyPair>,
+    /// The credential the Server keeps, as the Kernel would.
+    kept: Arc<Mutex<Option<String>>>,
     serving: JoinHandle<()>,
 }
 
@@ -148,23 +125,9 @@ impl FakeHub {
             key: Arc::clone(&key),
         });
         let rpcs = connectrpc::Router::new()
-            .add_service(Arc::new(Starting(Arc::clone(&shared))))
             .add_service(Arc::new(Linked(shared)))
             .into_axum_service();
-        let key_set = key_set(&key);
-        let key_set_state = Arc::clone(&state);
         let app = axum::Router::new()
-            .route(
-                "/.well-known/jwks.json",
-                axum::routing::get(async move || {
-                    let mut fetched = lock(&key_set_state);
-                    fetched.key_set_fetches += 1;
-                    match fetched.key_set_failure {
-                        Some(failure) => (failure, String::new()),
-                        None => (StatusCode::OK, key_set.to_string()),
-                    }
-                }),
-            )
             .route(
                 "/otlp/v1/{signal}",
                 axum::routing::post({
@@ -181,7 +144,7 @@ impl FakeHub {
         Self {
             addr,
             state,
-            key,
+            kept: Arc::default(),
             serving,
         }
     }
@@ -190,9 +153,31 @@ impl FakeHub {
         format!("http://{}", self.addr)
     }
 
-    /// Someone enters the code on the Hub.
-    pub(super) fn enter_code(&self) {
-        lock(&self.state).entered = true;
+    /// The Server Links, as the Kernel does it, getting a new credential.
+    pub(super) fn link_server(&self) {
+        let mut state = lock(&self.state);
+        state.linked = true;
+        state.credentials += 1;
+        *lock(&self.kept) = Some(credential(state.credentials));
+    }
+
+    /// The Server Unlinks, as the Kernel does it, which Unlinks its Users too.
+    pub(super) fn unlink_server(&self) {
+        self.forget_server();
+        *lock(&self.kept) = None;
+    }
+
+    /// Whether the Server keeps a Link.
+    pub(super) fn server_keeps_link(&self) -> bool {
+        lock(&self.kept).is_some()
+    }
+
+    /// The Kernel's Link with the fake.
+    pub(super) fn kernel_link(&self) -> Arc<dyn KernelLink> {
+        Arc::new(KeptLink {
+            url: self.url(),
+            kept: Arc::clone(&self.kept),
+        })
     }
 
     /// Forgets the Server's credential and its Users' Links, as deleting its Account does.
@@ -295,21 +280,6 @@ impl FakeHub {
         SIGN_IN_CODE.to_owned()
     }
 
-    /// Each Server URL and LAN addresses the Server reported, in order.
-    pub(super) fn reported_addresses(&self) -> Vec<(String, Vec<String>)> {
-        lock(&self.state).reported_addresses.clone()
-    }
-
-    /// The certificate challenge the Server published last.
-    pub(super) fn challenge(&self) -> Vec<String> {
-        lock(&self.state).challenge.clone()
-    }
-
-    /// Has the next report of Server Addresses fail, as if the Hub blinked.
-    pub(super) fn fail_next_addresses(&self) {
-        lock(&self.state).addresses_failures += 1;
-    }
-
     /// Each Viewing Event recorded, in order.
     pub(super) fn viewing_events(&self) -> Vec<UserViewingEvent> {
         lock(&self.state).viewing_events.clone()
@@ -321,34 +291,9 @@ impl FakeHub {
         lock(&self.state).recording_failure = failure;
     }
 
-    /// Has the key set fail, as if the Hub went down right after handing out a credential.
-    pub(super) fn break_key_set(&self) {
-        lock(&self.state).key_set_failure = Some(StatusCode::INTERNAL_SERVER_ERROR);
-    }
-
-    /// The name the waiting Server started with.
-    pub(super) fn starting(&self) -> Option<String> {
-        lock(&self.state).starting.clone()
-    }
-
-    /// Whether the Server holds a credential the Hub still knows.
-    pub(super) fn linked(&self) -> bool {
-        lock(&self.state).linked
-    }
-
-    /// How often the key set was fetched.
-    pub(super) fn key_set_fetches(&self) -> usize {
-        lock(&self.state).key_set_fetches
-    }
-
     /// Each batch of shared Diagnostics the Hub took, with the signal its path named.
     pub(super) fn shared(&self) -> Vec<(String, Vec<u8>)> {
         lock(&self.state).shared.clone()
-    }
-
-    /// `claims` signed as the Hub signs them.
-    pub(super) fn sign(&self, claims: &Value) -> String {
-        sign(&self.key, claims)
     }
 
     /// Goes down, as if unreachable.
@@ -368,66 +313,8 @@ struct Shared {
     key: Arc<Ed25519KeyPair>,
 }
 
-/// `ServerLinkService`.
-struct Starting(Arc<Shared>);
-
 /// `LinkedServerService`.
 struct Linked(Arc<Shared>);
-
-#[expect(
-    refining_impl_trait,
-    clippy::unused_async_trait_impl,
-    reason = "plain `async fn` returning the owned response is the form the generated trait \
-              documents, and a fake answers at once"
-)]
-impl ServerLinkService for Starting {
-    async fn start_server_link(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, StartServerLinkRequest>,
-    ) -> ServiceResult<StartServerLinkResponse> {
-        lock(&self.0.state).starting = Some(request.name.to_owned());
-        Response::ok(StartServerLinkResponse {
-            device_code: DEVICE_CODE.to_owned(),
-            user_code: USER_CODE.to_owned(),
-            expires_in_seconds: 600,
-            // So a test's every poll asks.
-            interval_seconds: 0,
-            ..Default::default()
-        })
-    }
-
-    async fn poll_server_link(
-        &self,
-        _ctx: RequestContext,
-        request: ServiceRequest<'_, PollServerLinkRequest>,
-    ) -> ServiceResult<PollServerLinkResponse> {
-        let mut state = lock(&self.0.state);
-        if request.device_code != DEVICE_CODE || state.starting.is_none() {
-            return Err(ConnectError::not_found("the code expired"));
-        }
-        if !state.entered {
-            return Response::ok(PollServerLinkResponse::default());
-        }
-        state.starting = None;
-        state.linked = true;
-        state.credentials += 1;
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        let token = sign(
-            &self.0.key,
-            &json!({ "sub": "server", "email": EMAIL, "iat": now, "exp": now + 300 }),
-        );
-        Response::ok(PollServerLinkResponse {
-            linked: true,
-            credential: credential(state.credentials),
-            token,
-            ..Default::default()
-        })
-    }
-}
 
 #[expect(
     refining_impl_trait,
@@ -438,14 +325,10 @@ impl ServerLinkService for Starting {
 impl LinkedServerService for Linked {
     async fn unlink_server(
         &self,
-        ctx: RequestContext,
+        _ctx: RequestContext,
         _request: ServiceRequest<'_, UnlinkServerRequest>,
     ) -> ServiceResult<UnlinkServerResponse> {
-        let mut state = self.caller(&ctx)?;
-        state.linked = false;
-        state.user_codes.clear();
-        state.user_accounts.clear();
-        Response::ok(UnlinkServerResponse::default())
+        Err(kernels_call())
     }
 
     async fn start_user_link(
@@ -654,56 +537,26 @@ impl LinkedServerService for Linked {
 
     async fn set_certificate_challenge(
         &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, SetCertificateChallengeRequest>,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, SetCertificateChallengeRequest>,
     ) -> ServiceResult<SetCertificateChallengeResponse> {
-        self.caller(&ctx)?.challenge = request.to_owned_message().values;
-        Response::ok(SetCertificateChallengeResponse::default())
+        Err(kernels_call())
     }
 
     async fn get_relay_token(
         &self,
-        ctx: RequestContext,
+        _ctx: RequestContext,
         _request: ServiceRequest<'_, GetRelayTokenRequest>,
     ) -> ServiceResult<GetRelayTokenResponse> {
-        // Only a Linked Server gets one.
-        drop(self.caller(&ctx)?);
-        Response::ok(GetRelayTokenResponse {
-            token: sign(&self.0.key, &relay_claims()),
-            ..Default::default()
-        })
+        Err(kernels_call())
     }
 
     async fn set_server_addresses(
         &self,
-        ctx: RequestContext,
-        request: ServiceRequest<'_, SetServerAddressesRequest>,
+        _ctx: RequestContext,
+        _request: ServiceRequest<'_, SetServerAddressesRequest>,
     ) -> ServiceResult<SetServerAddressesResponse> {
-        let mut state = self.caller(&ctx)?;
-        if state.addresses_failures > 0 {
-            state.addresses_failures -= 1;
-            return Err(ConnectError::unavailable("the fake Hub blinked"));
-        }
-        let lan = request
-            .lan_addresses
-            .iter()
-            .map(|&address| address.to_owned());
-        state
-            .reported_addresses
-            .push((request.url.to_owned(), lan.collect()));
-        let names = vec![SERVER_NAME.to_owned()];
-        if request.public_port == 0 {
-            return Response::ok(SetServerAddressesResponse {
-                names,
-                ..Default::default()
-            });
-        }
-        Response::ok(SetServerAddressesResponse {
-            public_address: format!("http://{PUBLIC_IP}:{}", request.public_port),
-            reachable: request.public_port == u32::from(OPEN_PORT),
-            names,
-            ..Default::default()
-        })
+        Err(kernels_call())
     }
 
     async fn record_viewing_events(
@@ -886,27 +739,11 @@ fn credential(nth: usize) -> String {
     format!("credential-{nth}")
 }
 
-fn lock(state: &Mutex<State>) -> MutexGuard<'_, State> {
+fn lock<T>(state: &Mutex<T>) -> MutexGuard<'_, T> {
     state.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 const KID: &str = "fake-key";
-
-fn key_set(key: &Ed25519KeyPair) -> Value {
-    json!({ "keys": [{
-        "kty": "OKP",
-        "crv": "Ed25519",
-        "x": URL_SAFE_NO_PAD.encode(key.public_key()),
-        "kid": KID,
-        "alg": "EdDSA",
-        "use": "sig",
-    }]})
-}
-
-/// What the token the fake Hub hands a Server for its Relay says.
-pub(super) fn relay_claims() -> Value {
-    json!({ "sub": SERVER_NAME, "aud": "relay" })
-}
 
 fn sign(key: &Ed25519KeyPair, claims: &Value) -> String {
     let header = json!({ "alg": "EdDSA", "typ": "JWT", "kid": KID });
@@ -919,4 +756,40 @@ fn sign(key: &Ed25519KeyPair, claims: &Value) -> String {
         "{signed}.{}",
         URL_SAFE_NO_PAD.encode(key.sign(signed.as_bytes()))
     )
+}
+
+/// What the fake answers a call only the Kernel makes, as the Server's own Link.
+fn kernels_call() -> ConnectError {
+    ConnectError::unimplemented("the Kernel makes this call, not the Plugin")
+}
+
+/// The Kernel's Link with the fake: the credential the Server keeps.
+#[derive(Debug)]
+struct KeptLink {
+    url: String,
+    kept: Arc<Mutex<Option<String>>>,
+}
+
+impl KernelLink for KeptLink {
+    fn hub_url(&self) -> &str {
+        &self.url
+    }
+
+    fn credential(&self) -> BoxFuture<'_, Result<Option<String>, PluginError>> {
+        Box::pin(future::ready(Ok(lock(&self.kept).clone())))
+    }
+
+    fn forget<'a>(&'a self, credential: &'a str) -> BoxFuture<'a, Result<(), PluginError>> {
+        lock(&self.kept).take_if(|kept| kept == credential);
+        Box::pin(future::ready(Ok(())))
+    }
+
+    /// The token's `sub`, unchecked: the Kernel checks the signature (`link/token.rs` there).
+    fn token_subject<'a>(&'a self, token: &'a str) -> BoxFuture<'a, Result<String, PluginError>> {
+        let claims = token.split('.').nth(1).unwrap();
+        let claims: Value =
+            serde_json::from_slice(&URL_SAFE_NO_PAD.decode(claims).unwrap()).unwrap();
+        let sub = claims["sub"].as_str().unwrap().to_owned();
+        Box::pin(future::ready(Ok(sub)))
+    }
 }

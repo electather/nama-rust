@@ -1,4 +1,5 @@
-//! A Plugin that links the Server, scripted by each test, and the calls tests make around it.
+//! A Plugin that links the Server's Users, scripted by each test, and the calls tests make around
+//! it.
 
 use std::{
     future,
@@ -13,7 +14,7 @@ use connectrpc::{
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     points::WatchStateChange,
-    server_link::{AccountSignIn, Link, ServerAddresses, ServerLinker, WatchlistEntry},
+    server_link::{AccountSignIn, Link, ServerLinker, WatchlistEntry},
 };
 use nama_proto::nama::v1::{DeleteUserRequest, UserServiceClient};
 use nama_server::plugins::Registry;
@@ -30,13 +31,10 @@ pub(crate) struct Scripted(Arc<Mutex<Script>>);
     reason = "each is a switch a test flips on its own, not states of one thing"
 )]
 pub(crate) struct Script {
-    /// What it answers `link`; `None` fails, as with the service unreachable.
-    pub(crate) link: Option<Link>,
-    /// Whether asking for the Server's Link, or a User's, never answers, as with the service slow
-    /// to time out.
+    /// Whether inviting and signing in with an Account fail, as with the service unreachable.
+    pub(crate) unreachable: bool,
+    /// Whether asking for a User's Link never answers, as with the service slow to time out.
     pub(crate) links_hang: bool,
-    /// The name it was last asked to start Linking as.
-    pub(crate) started_as: Option<String>,
     /// What it answers `user_link` for every User; `None` while the Server isn't Linked.
     pub(crate) user_link: Option<Link>,
     /// The User it was last asked to start Linking, by id and name.
@@ -49,10 +47,6 @@ pub(crate) struct Script {
     pub(crate) approved: Option<i64>,
     /// How often it was asked to finish a sign-in with an Account.
     pub(crate) finishes: usize,
-    /// The Server Addresses it was last told.
-    pub(crate) addresses: Option<ServerAddresses>,
-    /// What it answers `relay_token`; `None` fails, as with the Server not Linked.
-    pub(crate) relay_token: Option<String>,
     /// The Users it was asked to Unlink, by id, in order.
     pub(crate) unlinked_users: Vec<i64>,
     /// Whether Unlinking a User fails, as with the service unreachable.
@@ -66,11 +60,11 @@ impl Scripted {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn answer(&self) -> Result<Link, PluginError> {
-        self.script()
-            .link
-            .clone()
-            .ok_or_else(|| "the service is unreachable".into())
+    fn answer(&self) -> Result<(), PluginError> {
+        if self.script().unreachable {
+            return Err("the service is unreachable".into());
+        }
+        Ok(())
     }
 }
 
@@ -89,33 +83,6 @@ impl Plugin for Scripted {
 }
 
 impl ServerLinker for Scripted {
-    fn link(&self) -> BoxFuture<'_, Result<Link, PluginError>> {
-        if self.script().links_hang {
-            return Box::pin(future::pending());
-        }
-        Box::pin(future::ready(self.answer()))
-    }
-
-    fn start_link<'a>(&'a self, server_name: &'a str) -> BoxFuture<'a, Result<Link, PluginError>> {
-        self.script().started_as = Some(server_name.to_owned());
-        let started = self.answer().map(|_| Link::Waiting {
-            code: "BDFH-JKLM".to_owned(),
-            url: "https://hub.example".to_owned(),
-        });
-        if let Ok(waiting) = &started {
-            self.script().link = Some(waiting.clone());
-        }
-        Box::pin(future::ready(started))
-    }
-
-    fn unlink(&self) -> BoxFuture<'_, Result<(), PluginError>> {
-        let unlinked = self.answer().map(|_| ());
-        if unlinked.is_ok() {
-            self.script().link = Some(Link::NotLinked);
-        }
-        Box::pin(future::ready(unlinked))
-    }
-
     fn user_link(&self, _user_id: i64) -> BoxFuture<'_, Result<Option<Link>, PluginError>> {
         let script = self.script();
         if script.links_hang {
@@ -158,7 +125,7 @@ impl ServerLinker for Scripted {
         user_name: &'a str,
         email: &'a str,
     ) -> BoxFuture<'a, Result<(), PluginError>> {
-        let invited = self.answer().map(|_| {
+        let invited = self.answer().map(|()| {
             self.script().invited = Some((user_id, user_name.to_owned(), email.to_owned()));
         });
         Box::pin(future::ready(invited))
@@ -168,7 +135,7 @@ impl ServerLinker for Scripted {
         &'a self,
         return_url: &'a str,
     ) -> BoxFuture<'a, Result<AccountSignIn, PluginError>> {
-        let started = self.answer().map(|_| {
+        let started = self.answer().map(|()| {
             self.script().returns_to = Some(return_url.to_owned());
             AccountSignIn {
                 url: "https://hub.example/server-sign-in/1".to_owned(),
@@ -184,21 +151,11 @@ impl ServerLinker for Scripted {
         code: &'a str,
     ) -> BoxFuture<'a, Result<Option<i64>, PluginError>> {
         self.script().finishes += 1;
-        let finished = self.answer().map(|_| {
+        let finished = self.answer().map(|()| {
             let approved = self.script().approved.take();
             approved.filter(|_| handle == "handle" && code == "code")
         });
         Box::pin(future::ready(finished))
-    }
-
-    fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
-        self.script().addresses = Some(addresses);
-        Box::pin(future::ready(Ok(())))
-    }
-
-    fn relay_token(&self) -> BoxFuture<'_, Result<String, PluginError>> {
-        let token = (self.script().relay_token.clone()).ok_or_else(|| "not Linked".into());
-        Box::pin(future::ready(token))
     }
 
     /// Pulling is `tests/sync.rs`'s.

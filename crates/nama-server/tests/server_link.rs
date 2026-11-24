@@ -1,9 +1,12 @@
-//! Linking the Server, and a User, through the enabled Plugin that links it (ADR 0011, ADR 0094),
-//! here an in-process one scripted by each test, and a Server without one, which has nothing to
-//! Link. The Plugin is told the Server's Server Addresses, and shows whether the service reached it
-//! from outside. Through it too, Users created from Accounts, signing in with an Account, and the
-//! Admin who can always sign in without the Hub (ADR 0092).
+//! Linking the Server with the Hub its config names, which the Kernel does with no Plugin (ADR
+//! 0105), here an in-process fake, and a Server whose config names none, which has nothing to Link
+//! (ADR 0002). The Hub is told the Server's Server Addresses, and the Server shows whether it reached
+//! it from outside. A User Links through the enabled Plugin that links them (ADR 0011, ADR 0094),
+//! here one scripted by each test, as do Users created from Accounts, signing in with an Account,
+//! and the Admin who can always sign in without the Hub (ADR 0092).
 
+#[path = "support/fake_hub.rs"]
+mod fake_hub;
 #[path = "support/refused.rs"]
 mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
@@ -19,7 +22,8 @@ use connectrpc::{
     ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient},
 };
-use nama_plugin_api::server_link::{Link, Reachability, ServerAddresses};
+use fake_hub::{CODE, EMAIL, FakeHub, OPEN_PORT, OWN, PUBLIC_IP};
+use nama_plugin_api::server_link::Link;
 use nama_proto::nama::v1::{
     self as proto, CreateUserFromAccountRequest, DeleteUserRequest, GetServerInfoRequest,
     GetServerLinkRequest, GetUserLinkRequest, ListUsersRequest, Permission, ReauthenticateRequest,
@@ -80,7 +84,7 @@ async fn user_link(config: ClientConfig) -> Option<proto::UserLink> {
 }
 
 #[tokio::test]
-async fn a_server_without_a_plugin_that_links_it_has_nothing_to_link() {
+async fn a_server_whose_config_names_no_hub_has_nothing_to_link() {
     let server = TestServer::builder().start().await;
     set_server_url(&server, "https://nama.example").await;
 
@@ -184,10 +188,9 @@ async fn a_user_shows_the_code_the_plugin_starts_for_them_and_then_whose_they_ar
 }
 
 #[tokio::test]
-async fn the_server_shows_the_code_its_plugin_starts_and_then_whose_it_is() {
-    let linker = Scripted::default();
-    linker.script().link = Some(Link::NotLinked);
-    let server = with_linker(&linker).await;
+async fn the_server_links_and_unlinks_with_the_hub_with_no_plugin() {
+    let hub = FakeHub::start().await;
+    let server = TestServer::builder().config(hub.config()).start().await;
     assert_eq!(link(&server).await, Some(proto::ServerLink::default()));
 
     let started = settings(&server)
@@ -199,64 +202,83 @@ async fn the_server_shows_the_code_its_plugin_starts_and_then_whose_it_is() {
         .into_option();
 
     let waiting = proto::ServerLink {
-        code: "BDFH-JKLM".to_owned(),
-        url: "https://hub.example".to_owned(),
+        code: CODE.to_owned(),
+        url: hub.url(),
         ..Default::default()
     };
     assert_eq!(started, Some(waiting.clone()));
-    assert_eq!(linker.script().started_as.as_deref(), Some("Nama"));
+    assert_eq!(hub.started_as().as_deref(), Some("Nama"));
     assert_eq!(link(&server).await, Some(waiting));
-    linker.script().link = Some(Link::Linked {
-        account: "ada@example.com".to_owned(),
-        reachability: Some(Reachability {
-            address: "http://203.0.113.7:7980".to_owned(),
-            reachable: true,
-            names: vec!["abc.namadirect.net".to_owned()],
-        }),
-    });
+    hub.enter_code();
     let shown = link(&server).await.unwrap();
-    assert_eq!(shown.account, "ada@example.com");
+    assert_eq!(shown.account, EMAIL);
     assert_eq!(shown.code, "");
-    assert_eq!(shown.public_address, "http://203.0.113.7:7980");
-    assert!(shown.reachable);
-    assert_eq!(shown.names, ["abc.namadirect.net"]);
+    assert!(hub.linked());
+    // Signing in with an Account needs the Plugin that links Users, which isn't enabled.
+    assert!(!offers_account_sign_in(&server).await);
 
     settings(&server)
         .unlink_server(UnlinkServerRequest::default())
         .await
         .unwrap();
 
+    assert!(!hub.linked());
     assert_eq!(link(&server).await, Some(proto::ServerLink::default()));
 }
 
 #[tokio::test]
-async fn a_plugin_that_cant_reach_its_service_leaves_the_server_as_it_was() {
-    let linker = Scripted::default();
-    let server = with_linker(&linker).await;
+async fn a_hub_that_cant_be_reached_leaves_the_server_as_it_was() {
+    let (hub, down) = (FakeHub::start().await, FakeHub::start().await);
+    let linked = TestServer::builder().config(hub.config()).start().await;
+    hub.link(&linked).await;
+    hub.stop();
+    down.stop();
+    let not_linked = TestServer::builder().config(down.config()).start().await;
 
-    let started = settings(&server)
+    let started = settings(&not_linked)
         .start_server_link(StartServerLinkRequest::default())
         .await;
-    let unlinked = settings(&server)
+    let unlinked = settings(&linked)
         .unlink_server(UnlinkServerRequest::default())
         .await;
 
     assert_eq!(started.unwrap_err().code, ErrorCode::Unavailable);
     assert_eq!(unlinked.unwrap_err().code, ErrorCode::Unavailable);
+    assert_eq!(link(&linked).await.unwrap().account, EMAIL);
+}
+
+#[tokio::test]
+async fn a_server_the_hub_forgot_is_unlinked_by_its_next_report() {
+    let hub = FakeHub::start().await;
+    let server = TestServer::builder().config(hub.config()).start().await;
+    hub.link(&server).await;
+    hub.forget_server();
+
+    set_server_url(&server, "https://nama.example.com").await;
+
+    let unlinked = async {
+        while link(&server).await != Some(proto::ServerLink::default()) {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    };
+    tokio::time::timeout(server::WAIT, unlinked).await.unwrap();
 }
 
 /// A `return_url` on the Server URL [`linked_server`] sets.
 const ON_SERVER: &str = "https://nama.example/sign-in";
 
-/// A Server whose Plugin has it Linked to an Account, at the Server URL `https://nama.example`.
-async fn linked_server(linker: &Scripted) -> TestServer {
-    linker.script().link = Some(Link::Linked {
-        account: "ada@example.com".to_owned(),
-        reachability: None,
-    });
-    let server = with_linker(linker).await;
+/// A Server Linked to an Account on the fake Hub, at the Server URL `https://nama.example`, with
+/// `linker` enabled, and the Hub.
+async fn linked_server(linker: &Scripted) -> (TestServer, FakeHub) {
+    let hub = FakeHub::start().await;
+    let server = TestServer::builder()
+        .config(hub.config())
+        .plugins(enabling(linker))
+        .start()
+        .await;
+    hub.link(&server).await;
     set_server_url(&server, "https://nama.example").await;
-    server
+    (server, hub)
 }
 
 async fn create_from_account(server: &TestServer, name: &str) -> Result<i64, ConnectError> {
@@ -339,7 +361,7 @@ async fn offers_account_sign_in(server: &TestServer) -> bool {
 #[tokio::test]
 async fn a_user_created_from_an_account_signs_in_and_reauthenticates_once_the_account_approves() {
     let linker = Scripted::default();
-    let server = linked_server(&linker).await;
+    let (server, _hub) = linked_server(&linker).await;
 
     let grace = create_from_account(&server, " Grace ").await.unwrap();
 
@@ -414,7 +436,7 @@ async fn a_user_created_from_an_account_signs_in_and_reauthenticates_once_the_ac
 #[tokio::test]
 async fn with_the_hub_down_devices_stay_signed_in_but_accounts_cant_sign_in_or_reauthenticate() {
     let linker = Scripted::default();
-    let server = linked_server(&linker).await;
+    let (server, _hub) = linked_server(&linker).await;
     let grace = create_from_account(&server, "Grace").await.unwrap();
     let started = start_account_sign_in(&server, ON_SERVER).await.unwrap();
     linker.script().approved = Some(grace);
@@ -422,7 +444,7 @@ async fn with_the_hub_down_devices_stay_signed_in_but_accounts_cant_sign_in_or_r
         .await
         .unwrap();
 
-    linker.script().link = None;
+    linker.script().unreachable = true;
 
     let device = server.client_config_as(&signed_in.token);
     let not_confirmed = reauthenticate_with_account(device.clone(), &started.handle, "code").await;
@@ -439,7 +461,6 @@ async fn with_the_hub_down_devices_stay_signed_in_but_accounts_cant_sign_in_or_r
         !message.to_lowercase().contains("password"),
         "a User created from an Account has none: {refused:?}"
     );
-    assert!(!offers_account_sign_in(&server).await);
     let before = users(server.client_config())
         .list_users(ListUsersRequest::default())
         .await
@@ -474,7 +495,7 @@ async fn cannot_sign_in(server: &TestServer) -> Vec<i64> {
 #[tokio::test]
 async fn a_user_with_no_password_whose_account_unlinked_them_is_listed_as_unable_to_sign_in() {
     let linker = Scripted::default();
-    let server = linked_server(&linker).await;
+    let (server, _hub) = linked_server(&linker).await;
     let grace = create_from_account(&server, "Grace").await.unwrap();
     linker.script().user_link = Some(Link::Linked {
         account: "grace@example.com".to_owned(),
@@ -491,7 +512,7 @@ async fn a_user_with_no_password_whose_account_unlinked_them_is_listed_as_unable
 #[tokio::test]
 async fn a_user_who_signs_in_only_with_their_account_cant_unlink_from_it_but_can_cancel_a_code() {
     let linker = Scripted::default();
-    let server = linked_server(&linker).await;
+    let (server, _hub) = linked_server(&linker).await;
     let grace = create_from_account(&server, "Grace").await.unwrap();
     let started = start_account_sign_in(&server, ON_SERVER).await.unwrap();
     linker.script().approved = Some(grace);
@@ -527,10 +548,15 @@ async fn a_user_who_signs_in_only_with_their_account_cant_unlink_from_it_but_can
 const PAST_THE_BOUND: Duration = Duration::from_secs(20);
 
 #[tokio::test]
-async fn server_info_offers_passwords_alone_while_the_plugin_never_answers() {
-    let linker = Scripted::default();
-    let server = linked_server(&linker).await;
-    linker.script().links_hang = true;
+async fn server_info_offers_passwords_alone_while_the_hub_never_answers() {
+    let hub = FakeHub::start().await;
+    let server = TestServer::builder().config(hub.config()).start().await;
+    settings(&server)
+        .start_server_link(StartServerLinkRequest::default())
+        .await
+        .unwrap();
+    hub.enter_code();
+    hub.hang();
 
     let offered = tokio::time::timeout(PAST_THE_BOUND, offers_account_sign_in(&server)).await;
 
@@ -541,7 +567,7 @@ async fn server_info_offers_passwords_alone_while_the_plugin_never_answers() {
 async fn the_users_list_answers_while_the_plugin_never_answers_and_lists_no_one_unable_to_sign_in()
 {
     let linker = Scripted::default();
-    let server = linked_server(&linker).await;
+    let (server, _hub) = linked_server(&linker).await;
     create_from_account(&server, "Grace").await.unwrap();
     linker.script().links_hang = true;
 
@@ -553,7 +579,7 @@ async fn the_users_list_answers_while_the_plugin_never_answers_and_lists_no_one_
 #[tokio::test]
 async fn reauthenticating_with_an_account_past_the_limit_is_refused_without_asking_the_hub() {
     let linker = Scripted::default();
-    let server = linked_server(&linker).await;
+    let (server, _hub) = linked_server(&linker).await;
     let grace = create_from_account(&server, "Grace").await.unwrap();
     let started = start_account_sign_in(&server, ON_SERVER).await.unwrap();
     linker.script().approved = Some(grace);
@@ -592,7 +618,7 @@ async fn reauthenticating_with_an_account_past_the_limit_is_refused_without_aski
 #[tokio::test]
 async fn the_last_admin_who_signs_in_with_a_password_cant_be_demoted_or_deleted() {
     let linker = Scripted::default();
-    let server = linked_server(&linker).await;
+    let (server, _hub) = linked_server(&linker).await;
     let grace = create_from_account(&server, "Grace").await.unwrap();
     let admin = SignInServiceClient::new(HttpClient::plaintext(), server.client_config())
         .who_am_i(WhoAmIRequest::default())
@@ -634,51 +660,59 @@ async fn the_last_admin_who_signs_in_with_a_password_cant_be_demoted_or_deleted(
 }
 
 #[tokio::test]
-async fn the_plugin_is_told_the_server_url_and_port_the_admin_set() {
-    let linker = Scripted::default();
-    let server = with_linker(&linker).await;
+async fn the_hub_is_told_the_server_url_and_port_the_admin_set_and_the_server_shows_what_it_found()
+{
+    let hub = FakeHub::start().await;
+    let server = TestServer::builder().config(hub.config()).start().await;
+    hub.link(&server).await;
     set_server_url(&server, "https://nama.example.com").await;
 
-    let _restarted = TestServer::builder()
+    let restarted = TestServer::builder()
         .config(Config {
-            forwarded_port: NonZeroU16::new(7443),
-            ..Config::default()
+            forwarded_port: NonZeroU16::new(OPEN_PORT),
+            ..hub.config()
         })
-        .plugins(enabling(&linker))
         .restart(server)
         .await;
 
     // The test Server listens on 127.0.0.1, which no other device on its LAN can reach.
-    let told = ServerAddresses {
-        url: "https://nama.example.com/".to_owned(),
-        lan: vec![],
-        public_port: Some(7443),
-        relay: None,
+    until_told(&hub, "https://nama.example.com/", OPEN_PORT).await;
+    let found = async {
+        while !link(&restarted).await.unwrap().reachable {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
     };
-    until_told(&linker, &told).await;
+    tokio::time::timeout(server::WAIT, found).await.unwrap();
+    let shown = link(&restarted).await.unwrap();
+    assert_eq!(shown.account, EMAIL);
+    assert_eq!(
+        shown.public_address,
+        format!("http://{PUBLIC_IP}:{OPEN_PORT}")
+    );
+    assert_eq!(shown.names, [OWN]);
 }
 
 #[tokio::test]
-async fn the_plugin_is_told_a_new_server_url_as_soon_as_it_is_saved() {
-    let linker = Scripted::default();
-    let server = with_linker(&linker).await;
-    let mut told = ServerAddresses::default();
-    // The first telling, at startup, so the next one isn't due for a minute.
-    until_told(&linker, &told).await;
+async fn the_hub_is_told_a_new_server_url_as_soon_as_it_is_saved() {
+    let hub = FakeHub::start().await;
+    let server = TestServer::builder().config(hub.config()).start().await;
+    // Linked after the first telling, at startup, so the next one isn't due for a minute.
+    hub.link(&server).await;
 
     set_server_url(&server, "https://nama.example.com").await;
 
-    told.url = "https://nama.example.com/".to_owned();
-    until_told(&linker, &told).await;
+    until_told(&hub, "https://nama.example.com/", 0).await;
 }
 
-/// Waits until `linker` was last told `told`, well within the minute between tellings.
-async fn until_told(linker: &Scripted, told: &ServerAddresses) {
+/// Waits until `hub` was last told the Server URL `url` and the public port `port`, well within
+/// the minute between tellings.
+async fn until_told(hub: &FakeHub, url: &str, port: u16) {
+    let told = || hub.last_told().map(|told| (told.url, told.public_port));
     let waited = tokio::time::timeout(server::WAIT, async {
-        while linker.script().addresses.as_ref() != Some(told) {
+        while told() != Some((url.to_owned(), u32::from(port))) {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })
     .await;
-    assert!(waited.is_ok(), "told {:?}", linker.script().addresses);
+    assert!(waited.is_ok(), "told {:?}", told());
 }

@@ -443,9 +443,9 @@ fn decoded<T: DeserializeOwned>(part: &str) -> Result<T, Rejected> {
 }
 
 /// Keeps [`WAITING_PER_SERVER`] connections waiting at `relay`, the Relay the Admin runs, each
-/// dialed with a token the Plugin that links the Server gets through `linking`, and hands
-/// `relayed` each that the Relay sends a client on, with the address the Relay names as its peer.
-/// A dial that fails is tried again after [`RETRY_AFTER`]. Runs until the task is aborted.
+/// dialed with a token the Hub signs, which `linking` gets, and hands `relayed` each that the
+/// Relay sends a client on, with the address the Relay names as its peer. A dial that fails is
+/// tried again after [`RETRY_AFTER`]. Runs until the task is aborted.
 pub(crate) fn keep_dialing(
     relay: SocketAddr,
     linking: Linking,
@@ -477,7 +477,7 @@ async fn keep_one_waiting(
     relayed: mpsc::Sender<(TcpStream, SocketAddr)>,
 ) {
     loop {
-        // Linking logs why there is none, if a Plugin links the Server.
+        // Linking logs why there is none, if the Server's config names a Hub.
         let Some(token) = tokens.get().await else {
             tokio::time::sleep(RETRY_AFTER).await;
             continue;
@@ -544,7 +544,7 @@ struct Tokens {
 
 impl Tokens {
     /// A token for the Relay: the last one, for up to [`TOKEN_REUSED_FOR`], or else a new one,
-    /// with `None` while the Plugin that links the Server gives none, asked again only after
+    /// with `None` while the Hub gives none, asked again only after
     /// [`RETRY_AFTER`].
     async fn get(&self) -> Option<String> {
         let mut last = self.last.lock().await;

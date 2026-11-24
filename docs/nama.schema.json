@@ -31,12 +31,20 @@
     },
     "forwarded_port": {
       "default": null,
-      "description": "The port on the router's public IP address that the Admin forwards to the Server, for\nclients outside the LAN of a Server Linked to the Hub. Unset, the default, has the Server\nopen one itself with UPnP or NAT-PMP while the Plugin that links it is enabled.",
+      "description": "The port on the router's public IP address that the Admin forwards to the Server, for\nclients outside the LAN of a Server Linked to the Hub. Unset, the default, has the Server\nopen one itself with UPnP or NAT-PMP while it is Linked.",
       "format": "uint16",
       "maximum": 65535,
       "minimum": 1,
       "type": [
         "integer",
+        "null"
+      ]
+    },
+    "hub_url": {
+      "default": null,
+      "description": "The Hub the Server Links with, such as `https://hub.example`. Unset, the default, the\nServer never calls a Hub and its Settings show no Hub section.",
+      "type": [
+        "string",
         "null"
       ]
     },

@@ -38,18 +38,14 @@ use nama_plugin_api::{
         ObservedEvents, TrackDescription, TrackPreference, TrackPreferenceChange,
         TrackPreferenceFor, WatchStateChange, WatchStateChanges,
     },
-    server_link::{Link, Reachability, ServerAddresses, ServerLinker, WatchlistEntry},
+    server_link::{Link, ServerLinker, WatchlistEntry},
     similar_source::SimilarSource,
 };
-use serde_json::json;
 
 use nama_hub_proto::nama::hub::v1::WatchStateChange as HubChange;
 
 use super::*;
-use crate::fake_hub::{
-    EMAIL, FakeHub, OPEN_PORT, PUBLIC_IP, SERVER_NAME, SIGN_IN_ID, USER_CODE, USER_LINK_CODE,
-    relay_claims,
-};
+use crate::fake_hub::{EMAIL, FakeHub, SIGN_IN_ID, USER_LINK_CODE};
 use crate::linker::queue::MAX_VALUE_BYTES;
 
 /// A Kernel whose only functions are the Plugin's Store, kept in memory.
@@ -100,7 +96,9 @@ fn provided<T: ?Sized + Send + Sync + 'static>(hub: &FakeHub, kernel: &Arc<dyn K
 /// The Plugin enabled against `hub`, keeping its Store in `kernel`, as the Kernel holds it.
 fn registered(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Vec<Registration> {
     let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
-    Hub::at(hub.url()).register(&mut registrar).unwrap();
+    Hub::through(hub.kernel_link())
+        .register(&mut registrar)
+        .unwrap();
     registrar.into_registrations()
 }
 
@@ -147,19 +145,6 @@ fn answered(similar: &SimilarTitles) -> Vec<(&str, &str, f32)> {
         .collect()
 }
 
-/// Links the Server through `linker` to [`EMAIL`]'s Account on `hub`.
-async fn link(hub: &FakeHub, linker: &dyn ServerLinker) {
-    linker.start_link("Living room").await.unwrap();
-    hub.enter_code();
-    assert_eq!(
-        linker.link().await.unwrap(),
-        Link::Linked {
-            account: EMAIL.to_owned(),
-            reachability: None,
-        }
-    );
-}
-
 /// Links the User `user_id` through `linker` to [`EMAIL`]'s Account on `hub`.
 async fn link_user(hub: &FakeHub, linker: &dyn ServerLinker, user_id: i64) {
     linker.start_user_link(user_id, "Grace").await.unwrap();
@@ -173,125 +158,6 @@ async fn link_user(hub: &FakeHub, linker: &dyn ServerLinker, user_id: i64) {
     );
 }
 
-#[tokio::test]
-async fn the_server_shows_a_code_and_is_linked_once_someone_enters_it() {
-    let hub = FakeHub::start().await;
-    let kernel = store();
-    let linker = enabled(&hub, &kernel);
-
-    let started = linker.start_link("Living room").await.unwrap();
-
-    let waiting = Link::Waiting {
-        code: USER_CODE.to_owned(),
-        url: hub.url(),
-    };
-    assert_eq!(started, waiting);
-    assert_eq!(hub.starting().as_deref(), Some("Living room"));
-    assert_eq!(linker.link().await.unwrap(), waiting);
-    hub.enter_code();
-    let linked_to_ada = Link::Linked {
-        account: EMAIL.to_owned(),
-        reachability: None,
-    };
-    assert_eq!(linker.link().await.unwrap(), linked_to_ada);
-    assert!(hub.linked());
-    // Enabled again, such as after a restart, it is still Linked.
-    assert_eq!(enabled(&hub, &kernel).link().await.unwrap(), linked_to_ada);
-}
-
-#[tokio::test]
-async fn a_server_that_isnt_linked_asks_the_hub_nothing() {
-    let hub = FakeHub::start().await;
-    hub.stop();
-
-    let link = enabled(&hub, &store()).link().await.unwrap();
-
-    assert_eq!(link, Link::NotLinked);
-}
-
-#[tokio::test]
-async fn the_code_keeps_showing_while_the_hub_is_unreachable() {
-    let hub = FakeHub::start().await;
-    let linker = enabled(&hub, &store());
-    let started = linker.start_link("Living room").await.unwrap();
-    hub.stop();
-
-    let link = linker.link().await.unwrap();
-
-    assert_eq!(link, started);
-}
-
-#[tokio::test]
-async fn a_linked_server_cant_start_linking_again() {
-    let hub = FakeHub::start().await;
-    let linker = enabled(&hub, &store());
-    link(&hub, linker.as_ref()).await;
-    let refused = linker.start_link("Living room").await.unwrap_err();
-
-    assert!(refused.to_string().contains("Unlink it first"), "{refused}");
-}
-
-#[tokio::test]
-async fn unlinking_revokes_the_servers_credential_on_the_hub() {
-    let hub = FakeHub::start().await;
-    let linker = enabled(&hub, &store());
-    link(&hub, linker.as_ref()).await;
-
-    linker.unlink().await.unwrap();
-
-    assert!(!hub.linked());
-    assert_eq!(linker.link().await.unwrap(), Link::NotLinked);
-}
-
-#[tokio::test]
-async fn unlinking_while_the_hub_is_unreachable_keeps_the_link() {
-    let hub = FakeHub::start().await;
-    let linker = enabled(&hub, &store());
-    link(&hub, linker.as_ref()).await;
-    hub.stop();
-
-    linker.unlink().await.unwrap_err();
-
-    assert!(matches!(linker.link().await.unwrap(), Link::Linked { .. }));
-}
-
-#[tokio::test]
-async fn a_credential_whose_token_cant_be_checked_is_kept_and_can_be_unlinked() {
-    let hub = FakeHub::start().await;
-    let linker = enabled(&hub, &store());
-    linker.start_link("Living room").await.unwrap();
-    hub.enter_code();
-    hub.break_key_set();
-
-    linker.link().await.unwrap_err();
-
-    assert_eq!(
-        linker.link().await.unwrap(),
-        Link::Linked {
-            account: "an Account the Hub didn't confirm".to_owned(),
-            reachability: None,
-        }
-    );
-    linker.unlink().await.unwrap();
-    assert!(!hub.linked());
-}
-
-#[tokio::test]
-async fn a_hub_signed_token_verifies_against_the_kept_key_set_while_the_hub_is_unreachable() {
-    let hub = FakeHub::start().await;
-    let kernel = store();
-    link(&hub, enabled(&hub, &kernel).as_ref()).await;
-    assert_eq!(hub.key_set_fetches(), 1);
-    let token = hub.sign(&json!({ "sub": "server", "email": "bea@example.com", "exp": u64::MAX }));
-    hub.stop();
-
-    let linker = Linker::new(HubApi::new(&hub.url()).unwrap(), kernel);
-    let claims = linker.verify(&token).await.unwrap();
-
-    assert_eq!(claims.email, "bea@example.com");
-    assert_eq!(hub.key_set_fetches(), 1);
-}
-
 /// The Plugin's sharer, enabled against `hub` with the Store in `kernel`.
 fn sharer(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Arc<dyn DiagnosticsSharer> {
     provided(hub, kernel)
@@ -301,7 +167,7 @@ fn sharer(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Arc<dyn DiagnosticsSharer>
 async fn a_linked_server_sends_each_shared_batch_to_the_hub_unchanged_with_its_credential() {
     let hub = FakeHub::start().await;
     let kernel = store();
-    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.link_server();
 
     let sharer = sharer(&hub, &kernel);
     sharer
@@ -333,19 +199,19 @@ async fn a_server_that_isnt_linked_sends_nothing() {
 }
 
 #[test]
-fn without_the_hubs_address_the_plugin_refuses_to_start() {
+fn without_the_kernels_link_the_plugin_refuses_to_start() {
     let mut registrar = Registrar::new().with_kernel(store());
 
-    let refused = Hub { url: None }.register(&mut registrar).unwrap_err();
+    let refused = Hub::default().register(&mut registrar).unwrap_err();
 
-    assert!(refused.to_string().contains("NAMA_HUB_URL"), "{refused}");
+    assert!(refused.to_string().contains("names no Hub"), "{refused}");
 }
 
 #[tokio::test]
 async fn a_linked_server_gets_the_titles_the_hub_finds_alike() {
     let hub = FakeHub::start().await;
     let kernel = store();
-    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.link_server();
     let similar = provided::<dyn SimilarSource>(&hub, &kernel);
 
     let the_matrix = similar
@@ -466,7 +332,7 @@ async fn a_linked_user_gets_the_hubs_recommendations_as_a_row_and_those_on_the_s
     let hub = FakeHub::start().await;
     let kernel = with_a_show();
     let linker = enabled(&hub, &kernel);
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
     link_user(&hub, linker.as_ref(), 7).await;
 
     let (rows, featured) = recommended_for(&hub, &kernel, 7).await.unwrap();
@@ -490,7 +356,7 @@ async fn a_linked_user_gets_the_hubs_recommendations_as_a_row_and_those_on_the_s
 async fn a_user_the_hub_recommends_nothing_gets_no_row_or_suggestions() {
     let hub = FakeHub::start().await;
     let kernel = store();
-    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.link_server();
 
     let (rows, featured) = recommended_for(&hub, &kernel, 8).await.unwrap();
 
@@ -514,7 +380,7 @@ async fn recommendations_fail_while_the_hub_is_unreachable_so_the_last_answer_st
     let hub = FakeHub::start().await;
     let kernel = store();
     let linker = enabled(&hub, &kernel);
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
     link_user(&hub, linker.as_ref(), 7).await;
     hub.stop();
 
@@ -525,7 +391,7 @@ async fn recommendations_fail_while_the_hub_is_unreachable_so_the_last_answer_st
 async fn a_user_shows_a_code_and_is_linked_once_it_is_entered() {
     let hub = FakeHub::start().await;
     let linker = enabled(&hub, &store());
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
     assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
 
     let started = linker.start_user_link(7, "Grace").await.unwrap();
@@ -562,7 +428,7 @@ async fn a_linked_user_shows_linked_while_the_hub_is_unreachable() {
     let hub = FakeHub::start().await;
     let kernel = store();
     let linker = enabled(&hub, &kernel);
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
     link_user(&hub, linker.as_ref(), 7).await;
     hub.stop();
 
@@ -582,7 +448,7 @@ async fn a_linked_user_shows_linked_while_the_hub_is_unreachable() {
 async fn a_title_the_hub_doesnt_know_gets_no_similar_titles() {
     let hub = FakeHub::start().await;
     let kernel = store();
-    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.link_server();
 
     let unknown = provided::<dyn SimilarSource>(&hub, &kernel)
         .similar(&movie(&[("tmdb", "1")]))
@@ -607,7 +473,7 @@ async fn a_server_that_isnt_linked_gets_no_similar_titles_and_asks_the_hub_nothi
 async fn similar_titles_fail_while_the_hub_is_unreachable_so_the_last_answer_stays() {
     let hub = FakeHub::start().await;
     let kernel = store();
-    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.link_server();
     hub.stop();
 
     let similar = provided::<dyn SimilarSource>(&hub, &kernel)
@@ -622,7 +488,7 @@ async fn the_server_unlinking_a_user_unlinks_them_on_the_hub() {
     let hub = FakeHub::start().await;
     let kernel = store();
     let linker = enabled(&hub, &kernel);
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
     link_user(&hub, linker.as_ref(), 7).await;
 
     linker.unlink_user(7).await.unwrap();
@@ -644,7 +510,7 @@ async fn the_account_unlinking_a_user_on_the_hub_shows_on_the_server() {
     let hub = FakeHub::start().await;
     let kernel = store();
     let linker = enabled(&hub, &kernel);
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
     link_user(&hub, linker.as_ref(), 7).await;
 
     hub.unlink_user_on_hub(7);
@@ -658,7 +524,7 @@ async fn the_account_unlinking_a_user_on_the_hub_shows_on_the_server() {
 async fn a_linked_users_settings_dont_ask_the_hub_each_time() {
     let hub = FakeHub::start().await;
     let linker = enabled(&hub, &store());
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
     link_user(&hub, linker.as_ref(), 7).await;
     let asks = hub.user_link_asks();
 
@@ -672,7 +538,7 @@ async fn a_linked_users_settings_dont_ask_the_hub_each_time() {
 async fn a_user_linked_already_who_starts_linking_sees_their_link() {
     let hub = FakeHub::start().await;
     let linker = enabled(&hub, &store());
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
     assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
     hub.link_user_on_hub(7);
 
@@ -691,10 +557,10 @@ async fn a_server_linked_again_doesnt_show_its_users_old_links_while_the_hub_is_
     let hub = FakeHub::start().await;
     let kernel = store();
     let linker = enabled(&hub, &kernel);
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
     link_user(&hub, linker.as_ref(), 7).await;
-    linker.unlink().await.unwrap();
-    link(&hub, linker.as_ref()).await;
+    hub.unlink_server();
+    hub.link_server();
     hub.stop();
 
     let link = enabled(&hub, &kernel).user_link(7).await.unwrap();
@@ -706,12 +572,12 @@ async fn a_server_linked_again_doesnt_show_its_users_old_links_while_the_hub_is_
 async fn a_server_linked_again_doesnt_show_its_users_old_links() {
     let hub = FakeHub::start().await;
     let linker = enabled(&hub, &store());
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
     link_user(&hub, linker.as_ref(), 7).await;
     linker.start_user_link(8, "Ida").await.unwrap();
 
-    linker.unlink().await.unwrap();
-    link(&hub, linker.as_ref()).await;
+    hub.unlink_server();
+    hub.link_server();
 
     assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
     assert_eq!(linker.user_link(8).await.unwrap(), Some(Link::NotLinked));
@@ -729,7 +595,7 @@ type Syncing = (
 async fn syncing_user_7(hub: &FakeHub) -> Syncing {
     let kernel = store();
     let linker = enabled(hub, &kernel);
-    link(hub, linker.as_ref()).await;
+    hub.link_server();
     link_user(hub, linker.as_ref(), 7).await;
     let (observer, jobs, _) = syncing(hub, &kernel);
     (observer, jobs, linker)
@@ -737,11 +603,11 @@ async fn syncing_user_7(hub: &FakeHub) -> Syncing {
 
 /// The Plugin enabled against `hub`, the Server Linked and its User 7 Linked on the Hub though
 /// Settings never asked, as the Kernel tells it of Watch State changes and runs its Job.
-async fn syncing_user_7_linked_on_hub(
+fn syncing_user_7_linked_on_hub(
     hub: &FakeHub,
 ) -> (Arc<dyn Observer<WatchStatesChanged>>, Arc<dyn JobRunner>) {
     let kernel = store();
-    link(hub, enabled(hub, &kernel).as_ref()).await;
+    hub.link_server();
     hub.link_user_on_hub(7);
     let (observer, jobs, _) = syncing(hub, &kernel);
     (observer, jobs)
@@ -751,7 +617,9 @@ async fn syncing_user_7_linked_on_hub(
 /// Watch State changes and runs its Job.
 fn syncing(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Syncing {
     let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
-    Hub::at(hub.url()).register(&mut registrar).unwrap();
+    Hub::through(hub.kernel_link())
+        .register(&mut registrar)
+        .unwrap();
     let registrations = registrar.into_registrations();
     let observer = (registrations.iter())
         .find_map(Registration::observer::<WatchStatesChanged>)
@@ -845,10 +713,12 @@ async fn syncing_preferences_of_user_7(
 ) {
     let kernel = store();
     let linker = enabled(hub, &kernel);
-    link(hub, linker.as_ref()).await;
+    hub.link_server();
     link_user(hub, linker.as_ref(), 7).await;
     let mut registrar = Registrar::new().with_kernel(kernel);
-    Hub::at(hub.url()).register(&mut registrar).unwrap();
+    Hub::through(hub.kernel_link())
+        .register(&mut registrar)
+        .unwrap();
     let registrations = registrar.into_registrations();
     let observer = (registrations.iter())
         .find_map(Registration::observer::<TrackPreferenceChanged>)
@@ -1005,7 +875,7 @@ async fn a_pull_sends_the_queued_preferences_first_and_answers_them_under_each_i
 async fn an_account_approving_on_the_hub_signs_in_as_its_user() {
     let hub = FakeHub::start().await;
     let linker = enabled(&hub, &store());
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
 
     let started = linker
         .start_account_sign_in("https://nama.example/sign-in")
@@ -1048,7 +918,7 @@ async fn an_account_approving_on_the_hub_signs_in_as_its_user() {
 async fn finishing_an_approved_sign_in_with_a_wrong_code_ends_it() {
     let hub = FakeHub::start().await;
     let linker = enabled(&hub, &store());
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
     let started = linker
         .start_account_sign_in("https://nama.example/sign-in")
         .await
@@ -1068,44 +938,6 @@ async fn finishing_an_approved_sign_in_with_a_wrong_code_ends_it() {
             .await
             .unwrap(),
         None
-    );
-}
-
-fn addresses(url: &str, lan: &[&str]) -> ServerAddresses {
-    ServerAddresses {
-        url: url.to_owned(),
-        lan: lan.iter().map(|&address| address.to_owned()).collect(),
-        public_port: None,
-        relay: None,
-    }
-}
-
-#[tokio::test]
-async fn the_server_reports_its_addresses_once_linked_and_then_only_when_they_change() {
-    let hub = FakeHub::start().await;
-    let linker = enabled(&hub, &store());
-    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
-    linker.set_addresses(lan_only.clone()).await.unwrap();
-    assert_eq!(hub.reported_addresses(), []);
-    link(&hub, linker.as_ref()).await;
-
-    linker.set_addresses(lan_only.clone()).await.unwrap();
-    linker.set_addresses(lan_only.clone()).await.unwrap();
-    linker
-        .set_addresses(addresses(
-            "https://nama.example.com",
-            &["http://192.168.1.10:7980"],
-        ))
-        .await
-        .unwrap();
-
-    let lan = vec!["http://192.168.1.10:7980".to_owned()];
-    assert_eq!(
-        hub.reported_addresses(),
-        [
-            (String::new(), lan.clone()),
-            ("https://nama.example.com".to_owned(), lan),
-        ]
     );
 }
 
@@ -1137,7 +969,7 @@ async fn a_user_who_isnt_linked_keeps_their_watch_state_on_the_server() {
 #[tokio::test]
 async fn a_user_linked_on_the_hub_has_their_changes_pushed_though_settings_never_asked() {
     let hub = FakeHub::start().await;
-    let (observer, jobs) = syncing_user_7_linked_on_hub(&hub).await;
+    let (observer, jobs) = syncing_user_7_linked_on_hub(&hub);
 
     tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
     run_sync(jobs.as_ref()).await.unwrap();
@@ -1148,7 +980,7 @@ async fn a_user_linked_on_the_hub_has_their_changes_pushed_though_settings_never
 #[tokio::test]
 async fn a_user_whose_link_the_hub_cant_be_asked_about_has_nothing_queued_and_isnt_asked_again() {
     let hub = FakeHub::start().await;
-    let (observer, jobs) = syncing_user_7_linked_on_hub(&hub).await;
+    let (observer, jobs) = syncing_user_7_linked_on_hub(&hub);
     hub.fail_user_links();
     let asks = hub.user_link_asks();
 
@@ -1163,7 +995,7 @@ async fn a_user_whose_link_the_hub_cant_be_asked_about_has_nothing_queued_and_is
 #[tokio::test]
 async fn changes_dont_ask_the_hub_again_about_a_user_it_was_just_asked_about() {
     let hub = FakeHub::start().await;
-    let (observer, _) = syncing_user_7_linked_on_hub(&hub).await;
+    let (observer, _) = syncing_user_7_linked_on_hub(&hub);
     let asks = hub.user_link_asks();
 
     tell(observer.as_ref(), 7, vec![movie_at(348, 1000, 1_000)]).await;
@@ -1273,7 +1105,7 @@ async fn a_watch_state_change_dated_before_1970_stays_behind() {
 async fn signing_in_with_an_account_fails_while_the_hub_is_unreachable() {
     let hub = FakeHub::start().await;
     let linker = enabled(&hub, &store());
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
 
     hub.stop();
 
@@ -1303,7 +1135,7 @@ async fn a_server_that_isnt_linked_cant_sign_in_with_accounts_or_invite() {
 async fn a_user_created_from_an_account_is_invited_on_the_hub() {
     let hub = FakeHub::start().await;
     let linker = enabled(&hub, &store());
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
 
     linker
         .invite_user(7, "Grace", "grace@example.com")
@@ -1317,113 +1149,11 @@ async fn a_user_created_from_an_account_is_invited_on_the_hub() {
 }
 
 #[tokio::test]
-async fn the_hub_publishes_the_certificate_challenge_the_server_hands_it() {
-    let hub = FakeHub::start().await;
-    let linker = enabled(&hub, &store());
-    link(&hub, linker.as_ref()).await;
-
-    linker
-        .set_certificate_challenge(vec!["value".to_owned()])
-        .await
-        .unwrap();
-
-    assert_eq!(hub.challenge(), ["value"]);
-}
-
-#[tokio::test]
-async fn a_server_not_linked_publishes_no_certificate_challenge() {
-    let hub = FakeHub::start().await;
-    let linker = enabled(&hub, &store());
-
-    let err = (linker.set_certificate_challenge(vec!["value".to_owned()]))
-        .await
-        .unwrap_err();
-
-    assert!(err.to_string().contains("isn't Linked"), "{err}");
-}
-
-#[tokio::test]
-async fn the_hub_hands_the_server_a_token_for_its_relay() {
-    let hub = FakeHub::start().await;
-    let linker = enabled(&hub, &store());
-    link(&hub, linker.as_ref()).await;
-
-    let token = linker.relay_token().await.unwrap();
-
-    assert_eq!(token, hub.sign(&relay_claims()));
-}
-
-#[tokio::test]
-async fn a_server_not_linked_gets_no_relay_token() {
-    let hub = FakeHub::start().await;
-    let linker = enabled(&hub, &store());
-
-    let err = linker.relay_token().await.unwrap_err();
-
-    assert!(err.to_string().contains("isn't Linked"), "{err}");
-}
-
-#[tokio::test]
-async fn a_server_linked_again_reports_its_addresses_again() {
-    let hub = FakeHub::start().await;
-    let linker = enabled(&hub, &store());
-    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
-    link(&hub, linker.as_ref()).await;
-    linker.set_addresses(lan_only.clone()).await.unwrap();
-    linker.unlink().await.unwrap();
-    link(&hub, linker.as_ref()).await;
-
-    linker.set_addresses(lan_only).await.unwrap();
-
-    assert_eq!(hub.reported_addresses().len(), 2);
-}
-
-#[tokio::test]
-async fn addresses_the_hub_couldnt_take_are_reported_again() {
-    let hub = FakeHub::start().await;
-    let linker = enabled(&hub, &store());
-    link(&hub, linker.as_ref()).await;
-    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
-    hub.fail_next_addresses();
-    assert!(linker.set_addresses(lan_only.clone()).await.is_err());
-
-    linker.set_addresses(lan_only).await.unwrap();
-
-    assert_eq!(hub.reported_addresses().len(), 1);
-}
-
-/// What the Plugin keeps in `kernel`'s Store of the Server's Link.
-async fn kept_link(kernel: &Arc<dyn Kernel>) -> Option<Vec<u8>> {
-    let key = StoreKey {
-        key: "link".to_owned(),
-        ..Default::default()
-    };
-    kernel.ask::<StoreGet>(key).await.unwrap().value
-}
-
-#[tokio::test]
-async fn a_server_the_hub_dropped_is_unlinked_by_its_next_report() {
-    let hub = FakeHub::start().await;
-    let kernel = store();
-    let linker = enabled(&hub, &kernel);
-    link(&hub, linker.as_ref()).await;
-    hub.forget_server();
-
-    linker
-        .set_addresses(addresses("", &["http://192.168.1.10:7980"]))
-        .await
-        .unwrap();
-
-    assert_eq!(linker.link().await.unwrap(), Link::NotLinked);
-    assert_eq!(kept_link(&kernel).await, None);
-}
-
-#[tokio::test]
 async fn a_server_the_hub_dropped_is_unlinked_once_a_users_link_is_asked() {
     let hub = FakeHub::start().await;
     let kernel = store();
     let linker = enabled(&hub, &kernel);
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
     link_user(&hub, linker.as_ref(), 7).await;
     hub.forget_server();
 
@@ -1431,52 +1161,14 @@ async fn a_server_the_hub_dropped_is_unlinked_once_a_users_link_is_asked() {
     let user_link = enabled(&hub, &kernel).user_link(7).await.unwrap();
 
     assert_eq!(user_link, None);
-    assert_eq!(linker.link().await.unwrap(), Link::NotLinked);
-    assert_eq!(kept_link(&kernel).await, None);
-}
-
-#[tokio::test]
-async fn a_server_the_hub_dropped_links_again_and_so_do_its_users() {
-    let hub = FakeHub::start().await;
-    let linker = enabled(&hub, &store());
-    link(&hub, linker.as_ref()).await;
-    link_user(&hub, linker.as_ref(), 7).await;
-    hub.forget_server();
-    linker
-        .set_addresses(addresses("", &["http://192.168.1.10:7980"]))
-        .await
-        .unwrap();
-
-    link(&hub, linker.as_ref()).await;
-
-    assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
-    link_user(&hub, linker.as_ref(), 7).await;
-}
-
-#[tokio::test]
-async fn a_hub_that_doesnt_answer_or_fails_keeps_the_link() {
-    let hub = FakeHub::start().await;
-    let kernel = store();
-    let linker = enabled(&hub, &kernel);
-    link(&hub, linker.as_ref()).await;
-    let lan_only = addresses("", &["http://192.168.1.10:7980"]);
-    hub.fail_next_addresses();
-    linker.set_addresses(lan_only.clone()).await.unwrap_err();
-    hub.stop();
-
-    linker.set_addresses(lan_only).await.unwrap_err();
-    let user_link = enabled(&hub, &kernel).user_link(7).await.unwrap();
-
-    assert_eq!(user_link, Some(Link::NotLinked));
-    assert!(matches!(linker.link().await.unwrap(), Link::Linked { .. }));
-    assert!(kept_link(&kernel).await.is_some());
+    assert!(!hub.server_keeps_link());
 }
 
 /// The Plugin enabled against `hub` with `kernel`, its Server and its User 7 Linked.
 async fn linked_user_7(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Vec<Registration> {
     let registrations = registered(hub, kernel);
     let linker = provider::<dyn ServerLinker>(&registrations);
-    link(hub, linker.as_ref()).await;
+    hub.link_server();
     link_user(hub, linker.as_ref(), 7).await;
     registrations
 }
@@ -1492,8 +1184,8 @@ async fn dropped(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Vec<Registration> {
 /// Checks that the Server shows Not Linked, and Links again at once, and so does its User 7.
 async fn links_again(hub: &FakeHub, registrations: &[Registration]) {
     let linker = provider::<dyn ServerLinker>(registrations);
-    assert_eq!(linker.link().await.unwrap(), Link::NotLinked);
-    link(hub, linker.as_ref()).await;
+    assert!(!hub.server_keeps_link());
+    hub.link_server();
     assert_eq!(linker.user_link(7).await.unwrap(), Some(Link::NotLinked));
     link_user(hub, linker.as_ref(), 7).await;
 }
@@ -1739,7 +1431,7 @@ async fn every_call_fails_and_keeps_the_link(outage: impl FnOnce(&FakeHub)) {
     let signing_in = linker.start_account_sign_in("https://nama.example/sign-in");
     assert!(signing_in.await.is_err());
 
-    assert!(matches!(linker.link().await.unwrap(), Link::Linked { .. }));
+    assert!(hub.server_keeps_link());
     assert!(matches!(
         linker.user_link(7).await.unwrap(),
         Some(Link::Linked { .. })
@@ -1762,21 +1454,7 @@ async fn a_hub_failing_the_syncs_pushes_keeps_the_link() {
         .await
         .unwrap_err();
 
-    let linker = provider::<dyn ServerLinker>(&points);
-    assert!(matches!(linker.link().await.unwrap(), Link::Linked { .. }));
-}
-
-#[tokio::test]
-async fn unlinking_a_server_the_hub_forgot_succeeds() {
-    let hub = FakeHub::start().await;
-    let points = dropped(&hub, &store()).await;
-
-    provider::<dyn ServerLinker>(&points)
-        .unlink()
-        .await
-        .unwrap();
-
-    links_again(&hub, &points).await;
+    assert!(hub.server_keeps_link());
 }
 
 #[tokio::test]
@@ -1796,7 +1474,7 @@ async fn unlinking_a_user_of_a_server_the_hub_forgot_succeeds() {
 async fn a_user_linked_on_the_hub_has_their_plays_sent_though_settings_never_asked() {
     let hub = FakeHub::start().await;
     let points = registered(&hub, &playing());
-    link(&hub, provider::<dyn ServerLinker>(&points).as_ref()).await;
+    hub.link_server();
     hub.link_user_on_hub(7);
 
     play(observer::<Events>(&points).as_ref(), 7, MATRIX_VERSION, 1).await;
@@ -1950,7 +1628,9 @@ struct Points {
 /// The Plugin enabled against `hub` with `kernel`.
 fn enabled_points(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Points {
     let mut registrar = Registrar::new().with_kernel(Arc::clone(kernel));
-    Hub::at(hub.url()).register(&mut registrar).unwrap();
+    Hub::through(hub.kernel_link())
+        .register(&mut registrar)
+        .unwrap();
     let registrations = registrar.into_registrations();
     let mut found = registrations.iter();
     Points {
@@ -2028,7 +1708,7 @@ async fn a_linked_users_play_of_a_matched_title_goes_to_the_hub() {
     let Points {
         linker, observer, ..
     } = enabled_points(&hub, &playing());
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
     link_user(&hub, linker.as_ref(), 7).await;
     let before = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
 
@@ -2066,7 +1746,7 @@ async fn a_play_left_open_keeps_where_it_stopped_though_a_later_play_of_its_titl
     let Points {
         linker, observer, ..
     } = enabled_points(&hub, &playing_at(Arc::clone(&position)));
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
     link_user(&hub, linker.as_ref(), 7).await;
     let (left_open, later) = (on_tv(7, MATRIX_VERSION, 1), on_tv(7, MATRIX_VERSION, 2));
 
@@ -2162,7 +1842,7 @@ async fn plays_by_users_who_arent_linked_or_of_unmatched_items_send_nothing() {
         observer,
         jobs,
     } = enabled_points(&hub, &playing());
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
     link_user(&hub, linker.as_ref(), 7).await;
 
     play(observer.as_ref(), 8, MATRIX_VERSION, 1).await;
@@ -2181,7 +1861,7 @@ async fn a_play_while_the_hub_is_down_is_sent_once_it_is_back_after_a_restart_an
         observer,
         jobs,
     } = enabled_points(&hub, &kernel);
-    link(&hub, linker.as_ref()).await;
+    hub.link_server();
     link_user(&hub, linker.as_ref(), 7).await;
     hub.fail_recording(Some(ErrorCode::Unavailable));
     play(observer.as_ref(), 7, MATRIX_VERSION, 1).await;
@@ -2195,60 +1875,6 @@ async fn a_play_while_the_hub_is_down_is_sent_once_it_is_back_after_a_restart_an
     send(restarted.jobs.as_ref()).await.unwrap();
 
     assert_eq!(hub.viewing_events().len(), 1);
-}
-
-#[tokio::test]
-async fn the_server_shows_whether_the_hub_reached_its_public_port_and_its_names() {
-    let hub = FakeHub::start().await;
-    let linker = enabled(&hub, &store());
-    link(&hub, linker.as_ref()).await;
-    let with_port = |port| ServerAddresses {
-        public_port: port,
-        ..addresses("", &["http://192.168.1.10:7980"])
-    };
-    let shown = async || {
-        let Link::Linked { reachability, .. } = linker.link().await.unwrap() else {
-            panic!("not Linked");
-        };
-        reachability
-    };
-
-    linker
-        .set_addresses(with_port(Some(OPEN_PORT)))
-        .await
-        .unwrap();
-    let reached = shown().await;
-    linker
-        .set_addresses(with_port(Some(OPEN_PORT + 1)))
-        .await
-        .unwrap();
-    let missed = shown().await;
-    linker.set_addresses(with_port(None)).await.unwrap();
-
-    let names = vec![SERVER_NAME.to_owned()];
-    assert_eq!(
-        reached,
-        Some(Reachability {
-            address: format!("http://{PUBLIC_IP}:{OPEN_PORT}"),
-            reachable: true,
-            names: names.clone(),
-        })
-    );
-    assert_eq!(
-        missed,
-        Some(Reachability {
-            address: format!("http://{PUBLIC_IP}:{}", OPEN_PORT + 1),
-            reachable: false,
-            names: names.clone(),
-        })
-    );
-    assert_eq!(
-        shown().await,
-        Some(Reachability {
-            names,
-            ..Reachability::default()
-        })
-    );
 }
 
 /// The Movies Library that [`with_movies`]'s Kernel has.
@@ -2325,7 +1951,7 @@ fn row_titles<'a>(rows: &'a HomeRows, key: &str) -> Vec<(&'a str, &'a str)> {
 async fn a_linked_server_shares_the_trending_movies_its_libraries_have_in_the_hubs_order() {
     let hub = FakeHub::start().await;
     let kernel = with_movies(&["862", "603", "1"]);
-    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.link_server();
 
     let rows = provided::<dyn HomeRowSource>(&hub, &kernel)
         .shared_rows(&SharedRowsAsked::default())
@@ -2357,7 +1983,7 @@ async fn a_linked_server_shares_the_trending_movies_its_libraries_have_in_the_hu
 async fn trending_movies_no_library_has_leave_the_row_empty() {
     let hub = FakeHub::start().await;
     let kernel = with_movies(&["1"]);
-    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.link_server();
 
     let rows = provided::<dyn HomeRowSource>(&hub, &kernel)
         .shared_rows(&SharedRowsAsked::default())
@@ -2371,7 +1997,7 @@ async fn trending_movies_no_library_has_leave_the_row_empty() {
 async fn a_linked_server_shares_the_most_watchlisted_titles_in_the_hubs_order_had_or_not() {
     let hub = FakeHub::start().await;
     let kernel = with_movies(&["603"]);
-    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.link_server();
 
     let rows = provided::<dyn HomeRowSource>(&hub, &kernel)
         .shared_rows(&SharedRowsAsked::default())
@@ -2410,7 +2036,7 @@ async fn a_server_that_isnt_linked_has_no_trending_row_and_asks_the_hub_nothing(
 async fn whats_trending_fails_while_the_hub_is_unreachable() {
     let hub = FakeHub::start().await;
     let kernel = with_movies(&["603"]);
-    link(&hub, enabled(&hub, &kernel).as_ref()).await;
+    hub.link_server();
     hub.stop();
 
     let rows = provided::<dyn HomeRowSource>(&hub, &kernel)
