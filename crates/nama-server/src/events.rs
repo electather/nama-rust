@@ -1,7 +1,7 @@
 //! The event bus: the Kernel publishes what happens on it, and it hands each event to every
 //! client subscribed through `EventService.Subscribe` and to every Observer at
 //! [`points::Events`], and each Request event to every [`Notifier`], for its channel and for the
-//! Plugin Connections and Personal settings of the Users told about it.
+//! Plugin Connections and Personal settings of the Users told about it, whose inbox it goes in too.
 //!
 //! Publishing never waits for a subscriber. Each subscriber may fall up to [`BUFFERED`] events
 //! behind; past that its oldest unread events are dropped, and it is sent a `Lagged` in their
@@ -32,8 +32,8 @@ use crate::{
     plugins::{self, ExtensionPoints, Failure, ProviderError, without_secrets},
     server_settings::ServerUrl,
     users::{
-        self, User, delete_personal_settings, every_notification_turned_off,
-        personal_settings_recipients,
+        self, User, delete_personal_settings, every_notification_turned_off, every_user,
+        personal_settings_recipients, store_in_inbox,
     },
 };
 
@@ -116,12 +116,14 @@ impl EventBus {
     }
 
     /// Publishes `events`, in order, to each subscriber, and those of the kinds the Plugin contract
-    /// has as one batch to each Observer. Each Request event goes to every Notifier too.
+    /// has as one batch to each Observer. Each Request event goes to every Notifier too, and each
+    /// personal notification in the inbox of each User told.
     pub(crate) fn publish(&self, events: Vec<Event>) {
         if events.is_empty() {
             return;
         }
         let batch = plugins::observed(&events);
+        self.keep_in_inboxes(&events);
         for event in events {
             // Fails only when nobody is subscribed, which is fine.
             let _: Result<usize, _> = self.sender.send(event.clone());
@@ -154,6 +156,20 @@ impl EventBus {
             .tell_each(move |plugin, notifier: Arc<dyn Notifier>| {
                 deliver(Arc::clone(&db), plugin, notifier, Arc::clone(&told))
             });
+    }
+
+    /// Stores each of `events` that makes a personal notification in the inbox of each User
+    /// [`users_to_tell`] picks, whether or not a Notifier reaches them. One task stores them all,
+    /// so they keep their order.
+    fn keep_in_inboxes(&self, events: &[Event]) {
+        let notifying: Vec<Event> = (events.iter())
+            .filter(|event| notification_kind(event).is_some())
+            .cloned()
+            .collect();
+        if notifying.is_empty() {
+            return;
+        }
+        tokio::spawn(keep_each_in_inboxes(Arc::clone(&self.db), notifying));
     }
 
     /// Every event published from now on, whole, for a Kernel task that acts on them, such as
@@ -325,6 +341,27 @@ async fn deliver(
     } else {
         Err(Undelivered(failed))
     }
+}
+
+/// [`keep_in_inbox`] for each of `events`, in order, logging each that fails.
+async fn keep_each_in_inboxes(db: Arc<Database>, events: Vec<Event>) {
+    for event in events {
+        if let Err(err) = keep_in_inbox(&db, &event).await {
+            error!("could not store a Request notification in the inbox: {err}");
+        }
+    }
+}
+
+/// Stores `event`, if it makes a personal notification, in the inbox of each User
+/// [`users_to_tell`] picks.
+async fn keep_in_inbox(db: &Database, event: &Event) -> Result<(), sqlx::Error> {
+    let Some((kind, request)) = notification_kind(event) else {
+        return Ok(());
+    };
+    let users = every_user(db).await?;
+    let turned_off = every_notification_turned_off(db).await?;
+    let told = users_to_tell(event, &users, &turned_off);
+    store_in_inbox(db, told, kind, request).await
 }
 
 /// The recipients a Notifier didn't reach, each with its error: a User by id, or the channel.
