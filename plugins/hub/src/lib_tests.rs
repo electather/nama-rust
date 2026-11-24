@@ -2031,7 +2031,10 @@ async fn a_play_left_open_keeps_where_it_stopped_though_a_later_play_of_its_titl
         let event = sent.event.as_option().unwrap();
         (event.stop_position_ms, event.finished)
     }));
-    assert_eq!(ends, [(14_000, false), (7_500_000, true)]);
+    assert_eq!(
+        ends,
+        [(14_000, false), (STOPPED_MS.try_into().unwrap(), true)]
+    );
 }
 
 /// The Movie `tmdb-<id>` on the Watchlist, changed at `changed_at_ms`.

@@ -114,7 +114,7 @@ impl ViewingEvents {
     /// User is Linked, and tries sending them.
     async fn ended(&self, playback: &Playback) -> Result<(), PluginError> {
         let open = self.open_lock().remove(&playback.plan_id);
-        // One that started before the Plugin was enabled, or that a later play ended, has none.
+        // None for one that started before the Plugin was enabled, or that a later play ended.
         let Some(Open { started, .. }) = open else {
             return Ok(());
         };
@@ -206,7 +206,9 @@ impl ViewingEvents {
         let earlier = Vec::from_iter(
             (self.open_lock().values())
                 .map(|open| &open.playback)
-                .filter(|open| open.user_id == later.user_id && open.plan_id != later.plan_id)
+                // Plan ids only grow, and two batches may reach an Observer in either order.
+                .filter(|earlier| earlier.user_id == later.user_id)
+                .filter(|earlier| earlier.plan_id < later.plan_id)
                 .cloned(),
         );
         if earlier.is_empty() {
