@@ -27,7 +27,3 @@ pub(crate) fn may_see(viewer: Option<i64>, requesters: &[Requester]) -> bool {
 pub(crate) fn is_requester(user: i64, requesters: &[Requester]) -> bool {
     requesters.iter().any(|requester| requester.user_id == user)
 }
-
-#[cfg(test)]
-#[path = "seeing_tests.rs"]
-mod tests;

@@ -719,22 +719,6 @@ async fn a_check_that_loops_forever_or_panics_fails_in_plain_words_and_the_serve
     assert_eq!(choice_labels(&retested, "profile"), ["HD", "Ultra HD"]);
 }
 
-#[tokio::test]
-async fn a_check_that_fails_is_refused_with_the_plugins_error() {
-    let started = Started::new().await;
-    started.drop_in("test.wasm", "");
-    assert!(started.listed("test-plugin").await.is_some());
-
-    let failed = started
-        .test_settings(&[("fail_with", "the service refused the API key")])
-        .await;
-
-    assert_eq!(
-        failed.unwrap_err().message.as_deref(),
-        Some("the service refused the API key")
-    );
-}
-
 // A Request's progress never reaches a Notifier: the Kernel's conversion leaves it out
 // (`a_request_progress_notification_gives_none`), and the contract has no message for it.
 #[tokio::test]

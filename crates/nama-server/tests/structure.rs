@@ -38,7 +38,7 @@ const CEILINGS: &[(&str, usize)] = &[
     ("tests/playback.rs", 2600),
     ("tests/plugin_service.rs", 1100),
     ("tests/plugins.rs", 900),
-    ("tests/requests.rs", 4200),
+    ("tests/requests.rs", 4100),
     ("tests/sign_in.rs", 1400),
     ("tests/users.rs", 1200),
 ];
@@ -133,6 +133,7 @@ const ROWS: &[&[&str]] = &[
         "port_mapping",
         "tls",
         "diagnostics",
+        "signed_urls",
         "db",
         "page",
         "config",
