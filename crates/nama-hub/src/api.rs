@@ -120,6 +120,7 @@ fn services(db: PgPool, accounts: &Accounts, links: &Links) -> connectrpc::Route
         .add_service(Arc::new(HubServiceHandler {
             db: db.clone(),
             sends_sign_in_links: accounts.sends_sign_in_links(),
+            offers_passkeys: accounts.offers_passkeys(),
         }))
         .add_service(Arc::new(AccountServiceHandler {
             accounts: accounts.clone(),
@@ -170,6 +171,7 @@ async fn share(
 struct HubServiceHandler {
     db: PgPool,
     sends_sign_in_links: bool,
+    offers_passkeys: bool,
 }
 
 #[expect(
@@ -190,6 +192,7 @@ impl HubService for HubServiceHandler {
         connectrpc::Response::ok(GetHubInfoResponse {
             version: env!("CARGO_PKG_VERSION").to_owned(),
             sign_in_links: self.sends_sign_in_links,
+            passkeys: self.offers_passkeys,
             ..Default::default()
         })
     }

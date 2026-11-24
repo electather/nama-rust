@@ -37,8 +37,8 @@ use tokio::sync::{OwnedSemaphorePermit, RwLock, RwLockReadGuard, Semaphore};
 
 use crate::{
     images::{
-        Asked, ImageStore, KEPT_ARTWORK_DIR, OFFERED_ARTWORK_DIR, Resize, SVG, file_name,
-        percent_decode,
+        Asked, ImageStore, KEPT_ARTWORK_DIR, MAX_SVG_BYTES, OFFERED_ARTWORK_DIR, Resize, SVG,
+        clean_svg, file_name, percent_decode,
     },
     library::contents::{Contents, ImageRef},
     library::title_source::{self, ArtworkKind, Source, TitleKind, TitleSources},
@@ -373,9 +373,12 @@ impl Artwork {
                 return Ok(sweeping);
             }
         }
-        let image = self.fetch(plugin, path).await?;
+        let mut bytes = self.fetch(plugin, path).await?.bytes;
+        if content_type(path) == SVG {
+            bytes = cleaned_svg(plugin, &bytes)?;
+        }
         let sweeping = self.sweeping.read().await;
-        self.store.write(&key, &image.bytes).await?;
+        self.store.write(&key, &bytes).await?;
         Ok(sweeping)
     }
 
@@ -543,6 +546,22 @@ async fn serve(
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
+}
+
+/// `svg` as [`clean_svg`] leaves it, if it is at most [`MAX_SVG_BYTES`] and an SVG document: a
+/// second guard beside the headers `ImageStore::serve` sends an SVG with. Logs why it refuses one,
+/// which then answers as an image the title source doesn't have.
+fn cleaned_svg(plugin: &PluginId, svg: &[u8]) -> Result<Vec<u8>, Error> {
+    let why = if svg.len() > MAX_SVG_BYTES {
+        format!("it is over {MAX_SVG_BYTES} bytes")
+    } else {
+        match clean_svg(svg) {
+            Ok(cleaned) => return Ok(cleaned),
+            Err(err) => format!("it isn't SVG: {err}"),
+        }
+    };
+    tracing::warn!(plugin = %plugin, "dropped an SVG image: {why}");
+    Err(Error::NotFound)
 }
 
 fn content_type(path: &str) -> &'static str {

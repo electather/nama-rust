@@ -62,3 +62,18 @@ async fn get_hub_info_answers_unavailable_while_postgres_is_down(db: PgPool) {
 
     assert_eq!(err.code, ErrorCode::Unavailable);
 }
+
+#[sqlx::test(migrations = false)]
+async fn get_hub_info_offers_passkeys_only_with_a_public_address(db: PgPool) {
+    let with_address = TestHub::start(db.clone(), None).await;
+    let without_address = TestHub::start_without_public_address(db).await;
+
+    for (hub, passkeys) in [(with_address, true), (without_address, false)] {
+        let info = client(&hub)
+            .get_hub_info(GetHubInfoRequest::default())
+            .await
+            .unwrap()
+            .into_owned();
+        assert_eq!(info.passkeys, passkeys);
+    }
+}
