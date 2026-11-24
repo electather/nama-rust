@@ -89,7 +89,7 @@ enum BackupCommand {
 async fn main() -> ExitCode {
     let args = Args::parse();
     // The traces exporter's client; the logs exporter's is made from it.
-    let sharing = ShareWithHub::default();
+    let sharing = ShareWithHub::new(Signal::Traces);
     let exporting = init_tracing(&sharing);
     let to_admin = exporting.as_ref().is_some_and(Exporting::to_admin);
     let exit = match args.command {

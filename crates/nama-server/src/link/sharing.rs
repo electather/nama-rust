@@ -29,17 +29,16 @@ pub struct ShareWithHub {
     serving: Arc<RwLock<Option<(Linking, Handle)>>>,
 }
 
-/// The client for the exporter of traces.
-impl Default for ShareWithHub {
-    fn default() -> Self {
+impl ShareWithHub {
+    /// A client for the exporter of `signal`, dropping batches until the Server serves.
+    #[must_use]
+    pub fn new(signal: Signal) -> Self {
         Self {
-            signal: Signal::Traces,
+            signal,
             serving: Arc::default(),
         }
     }
-}
 
-impl ShareWithHub {
     /// This client for the exporter of `signal`, sharing through the same Link.
     #[must_use]
     pub fn for_signal(&self, signal: Signal) -> Self {

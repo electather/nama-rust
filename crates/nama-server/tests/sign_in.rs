@@ -103,7 +103,7 @@ async fn start_with(setup_code: Option<SetupCode>, config: &Config) -> TestServe
         plugins,
         setup_code.clone(),
         Ffmpeg::default(),
-        nama_server::ShareWithHub::default(),
+        nama_server::ShareWithHub::new(nama_server::diagnostics::Signal::Traces),
         stopped.map(drop),
     ));
     TestServer {

@@ -311,8 +311,10 @@ pub fn serve(
         // Before the Plugin settings, which save a Plugin that crashes as it is asked about progress.
         requests.shutdown().await;
         home_rows.shutdown().await;
-        // Before the Plugin settings, as a share in flight holds the Extension Points.
+        // Before the Plugins stop and the database closes, as a share in flight holds the Link.
         browser_spans.shutdown().await;
+        // The same for the Server's own shares, and so the caller's handle on the database is the
+        // last once this ends: the exporters sharing through `sharing` outlive serving.
         sharing.serve(None).await;
         // Telling the Hub again at the next start loses nothing.
         telling_addresses.abort();

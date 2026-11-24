@@ -5,8 +5,8 @@ use std::sync::Arc;
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_tmdb::Tmdb;
 use nama_server::{
-    ShareWithHub, config::Config, db::Database, ffmpeg::Ffmpeg, plugin_settings::PluginSettings,
-    plugins::Registry, users::SetupCode,
+    ShareWithHub, config::Config, db::Database, diagnostics::Signal, ffmpeg::Ffmpeg,
+    plugin_settings::PluginSettings, plugins::Registry, users::SetupCode,
 };
 use tempfile::TempDir;
 use tokio::{net::TcpListener, sync::oneshot};
@@ -159,7 +159,7 @@ impl Builder {
         let addr = listener.local_addr().unwrap();
         let setup_code = (admin_token.is_none()).then(|| SetupCode::generate().unwrap());
         let (stop, stopped) = oneshot::channel::<()>();
-        let sharing = ShareWithHub::default();
+        let sharing = ShareWithHub::new(Signal::Traces);
         tokio::spawn(nama_server::serve(
             listener,
             &config,

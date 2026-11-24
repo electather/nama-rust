@@ -142,8 +142,8 @@ impl BrowserSpans {
             .spawn(self.stop_sharing.clone().run_until_cancelled_owned(shared));
     }
 
-    /// Cancels the shares in flight and waits until each has ended: before the Plugins shut down,
-    /// as a share holds their Extension Points through the Link.
+    /// Cancels the shares in flight and waits until each has ended: before the Plugins shut down
+    /// and the database closes, as a share holds the Link.
     pub(crate) async fn shutdown(&self) {
         self.stop_sharing.cancel();
         self.shares.close();

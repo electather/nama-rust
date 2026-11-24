@@ -59,6 +59,7 @@ use nama_proto::nama::v1::{
 use nama_server::{
     ShareWithHub,
     config::{Config, PluginConfig},
+    diagnostics::Signal,
     ffmpeg::Ffmpeg,
     plugin_settings::{self, PluginSettings},
     plugins::Registry,
@@ -205,7 +206,7 @@ impl Fixture {
             plugins,
             None,
             Ffmpeg::default(),
-            ShareWithHub::default(),
+            ShareWithHub::new(Signal::Traces),
             future::pending(),
         );
         tokio::spawn(async move {
