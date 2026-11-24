@@ -120,6 +120,24 @@ async fn an_account_whose_email_isnt_proven_cant_accept_a_user(db: PgPool) {
 }
 
 #[sqlx::test(migrations = false)]
+async fn on_a_hub_without_mail_an_unproven_account_cant_accept_a_user(db: PgPool) {
+    let (with_mail, mut inbox) = hub_with_mail(db.clone()).await;
+    let without_mail = TestHub::start(db, None).await;
+    let ada = create_proven(&with_mail, &mut inbox, "ada@example.com").await;
+    let bea = create(&without_mail, "bea@example.com").await;
+    let server = linked(&with_mail, &ada, "Ada's").await;
+    invite(&without_mail, &server, 7, "bea@example.com").await;
+    let (id, _) = &invites(&without_mail, &bea).await[0];
+
+    assert_refused(
+        accept(&without_mail, &bea, id).await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_SIGN_IN_LINKS_OFF,
+    );
+    assert_eq!(user_account(&without_mail, &server, 7).await, "");
+}
+
+#[sqlx::test(migrations = false)]
 async fn unlinking_a_user_forgets_the_account_asked_to_accept_them(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;

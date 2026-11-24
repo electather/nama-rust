@@ -131,7 +131,7 @@ async fn a_server_unlinking_leaves_another_accounts_servers_linked(db: PgPool) {
 
 #[sqlx::test(migrations = false)]
 async fn an_account_whose_email_isnt_proven_cant_link_a_server(db: PgPool) {
-    let hub = TestHub::start(db, None).await;
+    let (hub, _inbox) = hub_with_mail(db).await;
     let ada = create(&hub, "ada@example.com").await;
     let started = start(&hub, "Living room").await;
 
@@ -141,6 +141,34 @@ async fn an_account_whose_email_isnt_proven_cant_link_a_server(db: PgPool) {
         RefusalReason::REFUSAL_REASON_EMAIL_NOT_PROVEN,
     );
     assert!(!poll(&hub, &started.device_code).await.unwrap().linked);
+}
+
+#[sqlx::test(migrations = false)]
+async fn on_a_hub_without_mail_an_unproven_account_cant_link_a_server(db: PgPool) {
+    let hub = TestHub::start(db, None).await;
+    let ada = create(&hub, "ada@example.com").await;
+    let started = start(&hub, "Living room").await;
+
+    assert_refused(
+        approve(&hub, &ada, &started.user_code).await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_SIGN_IN_LINKS_OFF,
+    );
+    assert!(!poll(&hub, &started.device_code).await.unwrap().linked);
+}
+
+#[sqlx::test(migrations = false)]
+async fn an_email_proven_while_the_hub_had_mail_still_links_without_it(db: PgPool) {
+    let (with_mail, mut inbox) = hub_with_mail(db.clone()).await;
+    let without_mail = TestHub::start(db, None).await;
+    let ada = create_proven(&with_mail, &mut inbox, "ada@example.com").await;
+    let started = start(&without_mail, "Living room").await;
+
+    approve(&without_mail, &ada, &started.user_code)
+        .await
+        .unwrap();
+
+    assert_eq!(server_names(&without_mail, &ada).await, ["Living room"]);
 }
 
 #[sqlx::test(migrations = false)]
@@ -309,6 +337,23 @@ async fn linking_a_user_needs_a_proven_email(db: PgPool) {
         RefusalReason::REFUSAL_REASON_EMAIL_NOT_PROVEN,
     );
     assert_eq!(user_account(&hub, &server, 7).await, "");
+}
+
+#[sqlx::test(migrations = false)]
+async fn on_a_hub_without_mail_an_unproven_account_cant_link_a_user(db: PgPool) {
+    let (with_mail, mut inbox) = hub_with_mail(db.clone()).await;
+    let without_mail = TestHub::start(db, None).await;
+    let ada = create_proven(&with_mail, &mut inbox, "ada@example.com").await;
+    let bea = create(&without_mail, "bea@example.com").await;
+    let server = linked(&with_mail, &ada, "Ada's").await;
+    let code = start_user(&without_mail, &server, 7).await.unwrap();
+
+    assert_refused(
+        approve_user(&without_mail, &bea, &code).await,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_SIGN_IN_LINKS_OFF,
+    );
+    assert_eq!(user_account(&without_mail, &server, 7).await, "");
 }
 
 /// The User `user_id`'s Watch State of Alien at `position_ms` of 7000, changed at `changed_at_ms`.

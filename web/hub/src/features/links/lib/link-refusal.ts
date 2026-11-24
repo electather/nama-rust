@@ -11,18 +11,8 @@ export interface LinkErrors {
   proveEmail?: boolean;
 }
 
-/**
- * What to say about a code the Hub refused, read by its reason; nothing before it refused one.
- * When `sendsSignInLinks` is `false`, nothing on the Hub can prove an email, so none is offered.
- * When it's unknown, a Sign-in Link is still offered: the Hub may have mail, and if it hasn't,
- * asking for one says so.
- */
-export function linkErrors(error: unknown, sendsSignInLinks: boolean | undefined): LinkErrors {
-  const errors = refusalErrors(error);
-  return errors.proveEmail === true && sendsSignInLinks === false ? cannotProveEmail : errors;
-}
-
-function refusalErrors(error: unknown): LinkErrors {
+/** What to say about a code the Hub refused, read by its reason; nothing before it refused one. */
+export function linkErrors(error: unknown): LinkErrors {
   if (error === null) {
     return {};
   }
@@ -34,10 +24,6 @@ export function typedCode(form: HTMLFormElement) {
   const code = new FormData(form).get("code");
   return typeof code === "string" ? code : "";
 }
-
-const cannotProveEmail: LinkErrors = {
-  form: "This Hub can’t prove emails, so Linking isn’t possible on it. Ask whoever runs it to set up email.",
-};
 
 /** What each reason a code can be refused for says. */
 const wording: RefusalWording<LinkErrors> = {
@@ -53,6 +39,10 @@ const wording: RefusalWording<LinkErrors> = {
   [RefusalReason.EMAIL_NOT_PROVEN]: () => ({
     form: "Linking needs your email proven first. Sign in with a Sign-in Link sent to it, then try again.",
     proveEmail: true,
+  }),
+  // On a Link, the Hub has no mail, so nothing can prove the email Linking needs.
+  [RefusalReason.SIGN_IN_LINKS_OFF]: () => ({
+    form: "This Hub can’t prove emails, so Linking isn’t possible on it. Ask whoever runs it to set up email.",
   }),
   [RefusalReason.USER_INVITE_NOT_FOUND]: () => ({
     form: "This User isn’t waiting for you any more. Reload the page.",

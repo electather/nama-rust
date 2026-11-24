@@ -154,6 +154,19 @@ test("an Account whose email isn't proven is offered a Sign-in Link before accep
   expect(screen.getByRole("link", { name: "Email me a Sign-in Link" })).toBeDefined();
 });
 
+test("a Hub without mail says it can't prove emails before accepting", async () => {
+  openHub("/", { refusing: RefusalReason.SIGN_IN_LINKS_OFF });
+
+  fireEvent.click(await screen.findByRole("button", { name: "Accept Grace on Cabin" }));
+
+  await expect(
+    screen.findByText(
+      "This Hub can’t prove emails, so Linking isn’t possible on it. Ask whoever runs it to set up email.",
+    ),
+  ).resolves.toBeDefined();
+  expect(screen.queryByRole("link", { name: "Email me a Sign-in Link" })).toBeNull();
+});
+
 test("a sign-in too old says how recent one must be before accepting", async () => {
   openHub("/", {
     refusing: RefusalReason.RECENT_AUTHENTICATION_REQUIRED,
