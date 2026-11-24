@@ -70,7 +70,7 @@ async fn a_20_mib_upload_does_not_raise_memory_by_20_mib() {
         let chunk = if i == 0 { start.clone() } else { vec![0; MIB] };
         Ok::<_, std::convert::Infallible>(Frame::data(Bytes::from(chunk)))
     });
-    // Not a Poster: its upload spawns `copy_ahead`, which reads the whole file after the 204 (#2170).
+    // Not a Poster: its upload spawns `copy_ahead`, whose whole-file read lifts PEAK (#2170).
     let request = Request::put("/custom-images/movie/tmdb-348/backdrop")
         .body(StreamBody::new(stream::iter(chunks)))
         .unwrap();
