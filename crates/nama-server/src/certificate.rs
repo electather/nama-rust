@@ -131,11 +131,11 @@ fn unusable(err: impl Display) -> Error {
     Error::Unusable(err.to_string())
 }
 
-/// Every [`EVERY`], looks at the Server's names through `linking`. While the service has the Server Linked and named and
-/// `certificate` won't last another [`RENEW_BEFORE_SECS`] for its own name, it gets one from the
-/// ACME CA at `acme_directory`, waiting [`RETRY_AFTER_SECS`] after a failure. Meanwhile it keeps
-/// `server_url`'s default at the Server's public name. A certificate it gets is served with
-/// `certificate` and kept in `data_dir`. Runs until the task is aborted.
+/// Every [`EVERY`], looks at the Server's names through `linking`. While the service has the
+/// Server Linked and named and `certificate` won't last another [`RENEW_BEFORE_SECS`] for its own
+/// name, it gets one from the ACME CA at `acme_directory`, waiting [`RETRY_AFTER_SECS`] after a
+/// failure. Meanwhile it keeps `server_url`'s default at the Server's public name. A certificate it
+/// gets is served with `certificate` and kept in `data_dir`. Runs until the task is aborted.
 pub(crate) fn keep_renewed(
     certificate: Certificate,
     linking: Linking,

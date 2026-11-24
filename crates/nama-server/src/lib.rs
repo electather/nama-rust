@@ -93,7 +93,8 @@ use crate::{
 /// peer is in [`Config::trusted_proxies`], whose `X-Forwarded-For` names the client.
 ///
 /// Clients speak the Connect protocol over HTTP/1.1 or HTTP/2, with JSON or binary protobuf
-/// bodies, in cleartext, or over TLS on the same port once the Server has a certificate. With the `web` feature, any other `GET` gets the web app.
+/// bodies, in cleartext, or over TLS on the same port once the Server has a certificate. With the
+/// `web` feature, any other `GET` gets the web app.
 ///
 /// # Errors
 ///
