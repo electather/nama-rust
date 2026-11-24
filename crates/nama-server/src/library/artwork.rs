@@ -37,8 +37,8 @@ use tokio::sync::{OwnedSemaphorePermit, RwLock, RwLockReadGuard, Semaphore};
 
 use crate::{
     images::{
-        Asked, ImageStore, KEPT_ARTWORK_DIR, MAX_SVG_BYTES, OFFERED_ARTWORK_DIR, Resize, SVG,
-        clean_svg, file_name, percent_decode,
+        Asked, BACKDROP_WIDTHS, ImageStore, KEPT_ARTWORK_DIR, MAX_SVG_BYTES, OFFERED_ARTWORK_DIR,
+        POSTER_WIDTHS, Resize, SVG, TITLE_LOGO_WIDTHS, clean_svg, file_name, percent_decode,
     },
     library::contents::{Contents, ImageRef},
     library::custom_images::CustomImages,
@@ -59,10 +59,6 @@ const OFFERED_DIR: &str = OFFERED_ARTWORK_DIR;
 /// How many images are downloaded in the background at once. Each crosses from the title source as
 /// one whole value, so this also bounds the memory downloads take on a 1 GiB machine.
 const DOWNLOADS: usize = 2;
-
-/// The width the web app's Poster grid asks for at one device pixel per CSS pixel
-/// (`web/src/shared/components/poster/poster.tsx`), which Posters are resized to ahead of it.
-const POSTER_GRID_WIDTH: u32 = 320;
 
 /// How many offered images are remembered before [`Artwork::offer`] forgets them all.
 const MAX_OFFERED: usize = 10_000;
@@ -106,15 +102,15 @@ pub struct Artwork {
     /// Written while unused images are deleted, and read while one is looked for, written or
     /// served, so a Match stored meanwhile never finds its image there and then has it deleted.
     sweeping: Arc<RwLock<()>>,
-    /// What Posters are resized by once kept, so a first visit finds them made. `None` until
-    /// startup hands it over (`Artwork::resizing_posters_ahead`), so tests that build their own
-    /// `Artwork` make copies on request only.
-    posters_ahead: Option<PostersAhead>,
+    /// What Posters, Backdrops and Title Logos are resized by once kept, so a first visit finds
+    /// them made. `None` until startup hands it over (`Artwork::resizing_ahead`), so tests that
+    /// build their own `Artwork` make copies on request only.
+    ahead: Option<ResizingAhead>,
 }
 
-/// What [`Artwork`] resizes Posters ahead by.
+/// What [`Artwork`] resizes images ahead by.
 #[derive(Debug, Clone)]
-struct PostersAhead {
+struct ResizingAhead {
     images: ImageSettings,
     /// With `local_images`, what titles show in place of their downloaded Posters, which so
     /// get no copy.
@@ -147,22 +143,22 @@ impl Artwork {
             offered: Arc::default(),
             downloads: Arc::new(Semaphore::new(DOWNLOADS)),
             sweeping: Arc::default(),
-            posters_ahead: None,
+            ahead: None,
         }
     }
 
-    /// This, resizing each Poster of a Library it downloads images for to the Poster grid's width
-    /// as `images` says, so a first visit to the Library finds them made, unless a title shows
-    /// one of `custom_images` or `local_images` in its place.
+    /// This, resizing each Poster, Backdrop and Title Logo of a Library it downloads images for to
+    /// the widths the web app offers as `images` says, so a first visit to the Library finds them
+    /// made, unless a title shows one of `custom_images` or `local_images` in a Poster's place.
     #[must_use]
-    pub(crate) fn resizing_posters_ahead(
+    pub(crate) fn resizing_ahead(
         self,
         images: ImageSettings,
         custom_images: CustomImages,
         local_images: LocalImages,
     ) -> Self {
         Self {
-            posters_ahead: Some(PostersAhead {
+            ahead: Some(ResizingAhead {
                 images,
                 custom_images,
                 local_images,
@@ -281,24 +277,38 @@ impl Artwork {
 
     /// Downloads, in the background, each image a Match in the Library `library` stores that
     /// isn't kept yet, logging those that fail, which the Library's next scan tries again. Each
-    /// Poster a title of it shows, downloaded before or just now or beside its media, is resized
-    /// to the Poster grid's width too, where resizing is on now and that copy isn't there.
+    /// Poster a title of it shows, downloaded before or just now or beside its media, and each
+    /// downloaded Backdrop and Title Logo, is resized to the widths the web app offers it at too,
+    /// where resizing is on now and those copies aren't there.
     pub(crate) fn download_missing(&self, contents: Contents, library: i64) {
         let artwork = self.clone();
         // Read before any download lands, so a change of settings after the scan has no part in it.
-        let poster_copy =
-            (self.posters_ahead.as_ref()).and_then(|ahead| poster_grid_copy(&ahead.images));
-        if let (Some(ahead), Some(copy)) = (&self.posters_ahead, poster_copy) {
-            (ahead.local_images).resize_shown_posters(library, ahead.custom_images.clone(), copy);
+        let copies = (self.ahead.as_ref()).map_or_else(CopiesAhead::default, CopiesAhead::of);
+        if let Some(ahead) = &self.ahead
+            && !copies.posters.is_empty()
+        {
+            let posters = copies.posters.clone();
+            (ahead.local_images).resize_shown_posters(
+                library,
+                ahead.custom_images.clone(),
+                posters,
+            );
         }
         tokio::spawn(async move {
             let listed = tokio::try_join!(
                 contents.images(Some(library)),
-                artwork.shown_posters(&contents, library)
+                artwork.shown_posters(&contents, library),
+                contents.backdrops_and_logos(library)
             );
             match listed {
-                Ok((images, posters)) => {
-                    artwork.download(images, &posters, poster_copy).await;
+                Ok((images, posters, (backdrops, logos))) => {
+                    // A Poster that is also a Backdrop is rare enough to get only a Poster's.
+                    let ahead = (backdrops.into_iter())
+                        .map(|image| (image, &*copies.backdrops))
+                        .chain(logos.into_iter().map(|image| (image, &*copies.title_logos)))
+                        .chain(posters.into_iter().map(|image| (image, &*copies.posters)))
+                        .collect();
+                    artwork.download(images, &ahead).await;
                 }
                 Err(err) => {
                     tracing::error!(library, "could not list the images to download: {err}");
@@ -309,13 +319,13 @@ impl Artwork {
 
     /// Each Poster, as its Plugin and path, that some title of the Library `library` shows, not
     /// having a Custom Image or image beside its media in its place. None without
-    /// [`Self::resizing_posters_ahead`].
+    /// [`Self::resizing_ahead`].
     async fn shown_posters(
         &self,
         contents: &Contents,
         library: i64,
     ) -> sqlx::Result<HashSet<(String, String)>> {
-        let Some(ahead) = &self.posters_ahead else {
+        let Some(ahead) = &self.ahead else {
             return Ok(HashSet::new());
         };
         let (posters, in_place) = tokio::try_join!(
@@ -328,32 +338,33 @@ impl Artwork {
             .collect())
     }
 
-    /// Downloads each of `images`, a Plugin and a path, unless it is kept already, and makes
-    /// `poster_copy` of each of `posters` among them, kept already or not, at most [`DOWNLOADS`]
-    /// at a time across the Server. Returns once the last has started.
+    /// Downloads each of `images`, a Plugin and a path, unless it is kept already, and makes the
+    /// copies `ahead` lists of each, kept already or not, at most [`DOWNLOADS`] at a time across
+    /// the Server. Returns once the last has started.
     async fn download(
         &self,
         images: Vec<(String, String)>,
-        posters: &HashSet<(String, String)>,
-        poster_copy: Option<Resize>,
+        ahead: &HashMap<(String, String), &[Resize]>,
     ) {
         for image in images {
             // The semaphore is never closed.
             let Ok(permit) = Arc::clone(&self.downloads).acquire_owned().await else {
                 return;
             };
-            let copy = poster_copy.filter(|_| posters.contains(&image));
-            tokio::spawn(self.clone().download_one(image, copy, permit));
+            let copies = ahead
+                .get(&image)
+                .map_or_else(Vec::new, |copies| copies.to_vec());
+            tokio::spawn(self.clone().download_one(image, copies, permit));
         }
     }
 
-    /// Keeps one image for [`Self::download`], logging a failure, and makes `copy` of it, then
-    /// lets the next start. The copy is made under the download's permit, so at most
-    /// [`DOWNLOADS`] of them wait on the resize thread ahead of a request's.
+    /// Keeps one image for [`Self::download`], logging a failure, and makes `copies` of it, then
+    /// lets the next start. The copies are made under the download's permit, so those of at most
+    /// [`DOWNLOADS`] images wait on the resize thread ahead of a request's.
     async fn download_one(
         self,
         (plugin, path): (String, String),
-        copy: Option<Resize>,
+        copies: Vec<Resize>,
         _permit: OwnedSemaphorePermit,
     ) {
         match self
@@ -361,14 +372,12 @@ impl Artwork {
             .await
         {
             Err(err) => tracing::warn!(path, "could not download an image: {err}"),
-            // Held through the copy, as a request's resize holds it, so a sweep deleting the
-            // image meanwhile can't leave its copy and thumbhash behind.
+            // Held through the copies, as a request's resize holds it, so a sweep deleting the
+            // image meanwhile can't leave a copy and its thumbhash behind.
             Ok(_sweeping) => {
-                if let Some(copy) = copy {
-                    self.store
-                        .copy_ahead(&key(KEPT_DIR, &plugin, &path), copy)
-                        .await;
-                }
+                self.store
+                    .copy_ahead(&key(KEPT_DIR, &plugin, &path), &copies)
+                    .await;
             }
         }
     }
@@ -461,10 +470,30 @@ impl Artwork {
     }
 }
 
-/// The copy Posters are resized to ahead of the Poster grid asking for them, as `images` says:
-/// `None` while resizing is off.
-pub(super) fn poster_grid_copy(images: &ImageSettings) -> Option<Resize> {
-    Resize::to(POSTER_GRID_WIDTH, images)
+/// The copies Posters are resized to ahead of the Poster grid asking for them, as `images` says:
+/// none while resizing is off.
+pub(super) fn poster_copies(images: &ImageSettings) -> Vec<Resize> {
+    Resize::each(&POSTER_WIDTHS, images)
+}
+
+/// The copies [`Artwork::download_missing`] makes of each kind of image ahead of the web app
+/// asking for them.
+#[derive(Debug, Default)]
+struct CopiesAhead {
+    posters: Vec<Resize>,
+    backdrops: Vec<Resize>,
+    title_logos: Vec<Resize>,
+}
+
+impl CopiesAhead {
+    /// Those `ahead` makes as its settings are now: none while resizing is off.
+    fn of(ahead: &ResizingAhead) -> Self {
+        Self {
+            posters: poster_copies(&ahead.images),
+            backdrops: Resize::each(&BACKDROP_WIDTHS, &ahead.images),
+            title_logos: Resize::each(&TITLE_LOGO_WIDTHS, &ahead.images),
+        }
+    }
 }
 
 /// An image of an artwork list, with its source and that source's place in the order.

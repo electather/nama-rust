@@ -172,7 +172,7 @@ pub fn serve(
     );
     let custom_images = CustomImages::new(Arc::clone(&db), images.clone());
     let local_images = LocalImages::new(Arc::clone(&db), images.clone());
-    let artwork = Artwork::new(images.clone(), points).resizing_posters_ahead(
+    let artwork = Artwork::new(images.clone(), points).resizing_ahead(
         settings.images(),
         custom_images.clone(),
         local_images.clone(),

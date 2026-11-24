@@ -22,7 +22,7 @@ export function Poster({
   detail?: string | undefined;
   watchState?: WatchState | undefined;
 }) {
-  const srcSet = useSrcSet(url);
+  const srcSet = useSrcSet(url, "posterWidths");
   return (
     <>
       <div className="relative isolate aspect-2/3 overflow-hidden rounded-lg border bg-muted">

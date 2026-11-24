@@ -141,12 +141,14 @@ impl ImageStore {
             .map_err(io::Error::other)
     }
 
-    /// Makes the copy `resize` asks for of the image at `key` in each format a client may ask
+    /// Makes each copy `copies` asks for of the image at `key` in each format a client may ask
     /// for, where it isn't there, so the first request for it is sent from the cache. Each waits
     /// its turn on the one resize thread, as a request's does (ADR 0039).
-    pub(crate) async fn copy_ahead(&self, key: &[&str], resize: Resize) {
-        for format in [Format::Jpeg, Format::Jxl] {
-            self.ensure_copy(key, resize, format).await;
+    pub(crate) async fn copy_ahead(&self, key: &[&str], copies: &[Resize]) {
+        for &resize in copies {
+            for format in [Format::Jpeg, Format::Jxl] {
+                self.ensure_copy(key, resize, format).await;
+            }
         }
     }
 

@@ -15,7 +15,7 @@ export function ContinueWatchingCard({ card, actions }: { card: Card; actions: C
   const verb = isStarted(watchState) ? "Resume" : "Play";
   return (
     <BackdropCard
-      art={{ url, thumbhash, sizes: backdropTileSizes }}
+      art={{ url, thumbhash, sizes: backdropTileSizes, widths: "backdropWidths" }}
       link={card.link}
       label={[`${verb} ${title}`, detail].filter(Boolean).join(", ")}
       caption={

@@ -15,7 +15,7 @@ export function TitleOrLogo({
   logoUrl: string | undefined;
   logo: { className: string; sizes: string };
 }) {
-  const srcSet = useSrcSet(logoUrl);
+  const srcSet = useSrcSet(logoUrl, "titleLogoWidths");
   // Kept by URL, so the next title's logo, shown in the same place, gets its own try.
   const [failedUrl, setFailedUrl] = useState<string>();
   if (logoUrl === undefined || logoUrl === failedUrl) {

@@ -17,7 +17,7 @@ const artFocus = { "--art-focus": "center 35%" };
  * and dimmed while closed, and the scrim its copy sits on once open.
  */
 export function FeaturedArt({ panel, first }: { panel: Panel; first: boolean }) {
-  const srcSet = useSrcSet(panel.backdropUrl);
+  const srcSet = useSrcSet(panel.backdropUrl, "backdropWidths");
   return (
     <>
       <Thumbhash thumbhash={panel.backdropThumbhash} />
