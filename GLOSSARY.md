@@ -47,7 +47,7 @@ A person's identity on one Server.
 _Avoid_: profile, member, local user
 
 **Device**:
-A client installation signed in to a Server as a User. Revoking a Device signs it out.
+A client installation signed in to a Server as one or more Users, acting as one of them at a time and switching between them with a User picker (ADR 0106). Signing a User out of it leaves the others; revoking the Device signs them all out.
 _Avoid_: client, session, token (for the Device itself)
 
 **Sign-in Method**:
@@ -55,12 +55,16 @@ A way a User can prove who they are on a Server, or an Account on the Hub, such 
 _Avoid_: credential, account, login, identity
 
 **Recent Authentication**:
-A Device having proved who it is with one of its User's Sign-in Methods in the last 10 minutes, or a Hub session with one of its Account's, which sensitive changes need.
+A User on a Device having proved who they are there with one of their Sign-in Methods in the last 10 minutes, or a Hub session with one of its Account's, which sensitive changes need.
 _Avoid_: sudo mode, step-up, fresh session
 
 **Sign-in Code**:
-A short code a new Device shows so a User already signed in elsewhere can sign it in without typing a password on it.
+A short code a Device shows so a User already signed in elsewhere can sign it in as them without typing a password on it.
 _Avoid_: pairing code, PIN, device code
+
+**Switch PIN**:
+A few digits a User may set that a Device they are signed in to asks for before switching to them. It is never a Sign-in Method.
+_Avoid_: PIN, passcode, profile lock, parental PIN
 
 **Setup Code**:
 A one-time code a fresh Server prints to its log, which whoever creates the first Admin must enter.
@@ -284,6 +288,10 @@ _Avoid_: collateral, doomed
 **Content Rating**:
 The age guidance a country's ratings board gives a Movie or Show, such as PG-13 or TV-MA.
 _Avoid_: certification, age rating, parental rating, maturity rating
+
+**Maximum Age**:
+The highest age a title's Content Rating may call for and still reach a User, set for them by an Admin. A User with one also doesn't see titles with no Content Rating unless the Admin allows them; a User without one sees every title.
+_Avoid_: age cap, age limit, parental controls, rating cap
 
 **Score**:
 How well a Movie's or Show's audience liked it, from 0 to 10, as the title source it is Matched to averages it. A title nobody has voted on has none.
