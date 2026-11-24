@@ -23,8 +23,9 @@ service LinkService {
   // Makes the Server showing `code` a Linked Server of the signed-in Account. Fails with
   // `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` unless the session signed in within the last
   // 10 minutes, with `REFUSAL_REASON_EMAIL_NOT_PROVEN` until a Sign-in Link proved the Account's
-  // email (ADR 0100), and with `REFUSAL_REASON_LINK_CODE_NOT_FOUND` for a code no Server is waiting
-  // on.
+  // email (ADR 0100), or with `REFUSAL_REASON_SIGN_IN_LINKS_OFF` instead on a Hub without mail,
+  // where nothing can prove it, and with `REFUSAL_REASON_LINK_CODE_NOT_FOUND` for a code no Server
+  // is waiting on.
   rpc ApproveServerLink(ApproveServerLinkRequest) returns (ApproveServerLinkResponse);
   // Returns the Linked Servers the signed-in Account owns or has a User on, oldest first, each
   // with the Server Addresses a client tries. A client reaches a Server at those itself: the Hub
