@@ -40,7 +40,7 @@ export function Overview({ text }: { text: string }) {
         {text}
       </p>
       {clamped && (
-        // It stays once open, so keyboard focus isn't dropped.
+        // The button stays once open, so keyboard focus isn't dropped.
         <div className={ghostHang}>
           <Button
             variant="ghost"
