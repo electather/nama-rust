@@ -2555,7 +2555,6 @@ dependencies = [
  "bytes",
  "connectrpc",
  "http",
- "http-body-util",
  "hyper-rustls",
  "hyper-util",
  "jiff",
