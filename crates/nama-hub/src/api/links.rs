@@ -640,14 +640,19 @@ fn public_address(ctx: &RequestContext, port: u32) -> Result<Option<SocketAddr>,
     Ok(Some(SocketAddr::new(source.client_ip.to_canonical(), port)))
 }
 
-/// The Relay `relay` names, as `<ip>:<port>`, or `None` for empty.
+/// The Relay `relay` names, as `<ip>:<port>`, or `None` for empty. One no client could connect
+/// to, such as on port 0 or a loopback address, is refused, since the Hub names it and offers it.
 fn parse_relay(relay: &str) -> Result<Option<SocketAddr>, ConnectError> {
     if relay.is_empty() {
         return Ok(None);
     }
-    let relay = relay
+    let relay: SocketAddr = relay
         .parse()
         .map_err(|_not_an_address| refused(links::Error::AddressInvalid))?;
+    let ip = relay.ip().to_canonical();
+    if relay.port() == 0 || ip.is_unspecified() || ip.is_loopback() || ip.is_multicast() {
+        return Err(refused(links::Error::AddressInvalid));
+    }
     Ok(Some(relay))
 }
 

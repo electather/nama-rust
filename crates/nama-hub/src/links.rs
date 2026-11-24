@@ -183,7 +183,7 @@ pub(crate) enum Error {
     #[error(
         "a Server Address must be an http or https URL of up to {ADDRESS_LENGTH} characters, \
          a Server has up to {MAX_LAN_ADDRESSES} LAN addresses, a port is at most 65535, and a \
-         Relay is an <ip>:<port>"
+         Relay is an <ip>:<port> a client can connect to"
     )]
     AddressInvalid,
     #[error("could not generate a code: {0}")]
@@ -392,7 +392,12 @@ impl Links {
                 addresses: [
                     server.server_url.clone(),
                     server.public_address,
-                    server.relay_address,
+                    // A Server the Hub can't reach may have its Relay's as its Server URL too.
+                    if server.relay_address == server.server_url {
+                        String::new()
+                    } else {
+                        server.relay_address
+                    },
                 ]
                 .into_iter()
                 .filter(|address| !address.is_empty())

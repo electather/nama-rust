@@ -347,6 +347,11 @@ async fn a_relay_that_isnt_an_ip_address_and_port_is_refused(db: PgPool) {
         "relay.example.com:443",
         "198.51.100.4",
         "198.51.100.4:70000",
+        "198.51.100.4:0",
+        "0.0.0.0:443",
+        "127.0.0.1:443",
+        "[::1]:443",
+        "[::ffff:127.0.0.1]:443",
     ] {
         assert_refused(
             names_after_reporting_relay(&hub, &living_room, &[], 0, relay).await,
