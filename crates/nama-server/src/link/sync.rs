@@ -65,7 +65,7 @@ async fn queue(
     if !server::is_linked(conn).await? {
         return Ok(());
     }
-    // shortcut: a title queued again waits twice, as the Hub keeps the change made last anyway;
+    // ponytail: a title queued again waits twice, as the Hub keeps the change made last anyway;
     // replace a title's older change instead if queues grow long while the Hub is down.
     for change in changes {
         let change =

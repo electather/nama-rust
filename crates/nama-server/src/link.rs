@@ -376,37 +376,43 @@ impl Linking {
     /// The Watch State the Hub keeps of the User `user_id` from every Server they use.
     pub(crate) async fn watch_states(&self, user_id: i64) -> Option<Vec<WatchStateChange>> {
         let pull = async |server: &ServerLink| server.pull_watch_states(user_id).await;
-        self.transfer(user_id, "pull a User's Watch State", pull)
-            .await
+        (self
+            .transfer(user_id, "pull a User's Watch State", pull)
+            .await)
+            .ok()
+            .flatten()
     }
 
     /// The Subtitle and Audio Preferences the Hub keeps of the User `user_id`.
     pub(crate) async fn track_preferences(&self, user_id: i64) -> Option<Vec<TrackPreference>> {
         let pull = async |server: &ServerLink| server.pull_track_preferences(user_id).await;
-        self.transfer(user_id, "pull a User's Track Preferences", pull)
-            .await
+        (self
+            .transfer(user_id, "pull a User's Track Preferences", pull)
+            .await)
+            .ok()
+            .flatten()
     }
 
-    /// Hands the Hub the User `user_id`'s whole `watchlist`, and answers their Account's.
+    /// Hands the Hub the User `user_id`'s whole `watchlist`, and answers their Account's: `None`
+    /// while they aren't Linked. A failure is logged.
     pub(crate) async fn sync_watchlist(
         &self,
         user_id: i64,
         watchlist: Vec<WatchlistEntry>,
-    ) -> Option<Vec<WatchlistEntry>> {
+    ) -> Result<Option<Vec<WatchlistEntry>>, Error> {
         let sync = async |server: &ServerLink| server.sync_watchlist(user_id, watchlist).await;
         self.transfer(user_id, "sync a User's Watchlist", sync)
             .await
     }
 
     /// What `call` moves of the User `user_id` through the Server's Link: `None` while they aren't
-    /// Linked, or once it failed or took [`BULK`], which is logged as failing to `what`. The next
-    /// sign-in, scan or change tries again.
+    /// Linked. A failure, or a call taking longer than [`BULK`], is logged as failing to `what`.
     async fn transfer<'a, T, F>(
         &'a self,
         user_id: i64,
         what: &str,
         call: impl FnOnce(&'a ServerLink) -> F,
-    ) -> Option<T>
+    ) -> Result<Option<T>, Error>
     where
         F: Future<Output = Result<T, hub::Failure>>,
     {
@@ -417,17 +423,17 @@ impl Linking {
             self.ask_hub(call).await.map(Some)
         };
         match tokio::time::timeout(BULK, transferring).await {
-            Ok(Ok(moved)) => moved,
-            Ok(Err(_failed)) => {
+            Ok(Ok(moved)) => Ok(moved),
+            Ok(Err(failed)) => {
                 tracing::warn!(user = user_id, "could not {what}");
-                None
+                Err(failed)
             }
             Err(_elapsed) => {
                 tracing::warn!(
                     user = user_id,
                     "could not {what}: the Hub didn't answer in time"
                 );
-                None
+                Err(Error::Failed)
             }
         }
     }

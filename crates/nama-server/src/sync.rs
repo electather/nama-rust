@@ -10,22 +10,31 @@
 //! | The Server's Link is new               | every User's of both      |                           |                          |
 //! | A User changed their Watchlist         |                           |                           | yes                      |
 //! | Each scan's Matching                   |                           | each User's Watch State   | each User's              |
-//! | Every minute                           | what waits for the Hub    |                           |                          |
+//! | Every minute                           | what waits for the Hub    |                           | each User's that failed  |
 //!
 //! A Link is new when a look finds it Linked that the last didn't, or first since the Server
 //! started, as [`Linking`] tells it, so a restart pushes once more what a missed push left out. A
 //! push queues what it pushes for the Hub, as the owners of Watch State and Track Preferences
 //! queue each change in the write that makes it. Every pull sends what waits first, so a push comes
 //! before its pull, and the minute's send takes the rest, such as what waited while the Hub was
-//! unreachable. A Server with no Plugin that links its Users does no sync work at all but that
-//! minute's send, which forgets what waits, as none of its Users can be Linked.
+//! unreachable. A Watchlist is synced whole, so one whose sync failed is synced again each minute
+//! until it goes; a restart forgets which, as the first look at each Link syncs it anyway. A
+//! Server with no Plugin that links its Users does no sync work at all but that minute's send,
+//! which forgets what waits, as none of its Users can be Linked.
 
-use std::{future::Future, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet,
+    future::Future,
+    mem,
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    time::Duration,
+};
 
 use nama_proto::nama::v1::{Event, event};
 use tokio::{
     sync::broadcast::{self, error::RecvError},
     task::JoinHandle,
+    time::MissedTickBehavior,
 };
 use tracing::{Instrument, Span};
 
@@ -52,6 +61,8 @@ pub(crate) struct Syncing {
     preferences: TrackPreferences,
     db: Arc<Database>,
     users: Users,
+    /// The Users whose last Watchlist sync failed.
+    watchlists_unsynced: Arc<Mutex<HashSet<i64>>>,
 }
 
 impl Syncing {
@@ -63,23 +74,41 @@ impl Syncing {
             linking: users.linking().clone(),
             db,
             users,
+            watchlists_unsynced: Arc::default(),
         }
     }
 
-    /// Sends what waits for the Hub every [`SEND_EVERY`], until the task is aborted. A failure is
-    /// logged by the Link: what didn't go waits for the next.
+    /// Sends what waits for the Hub every [`SEND_EVERY`], and syncs again each Watchlist whose
+    /// sync failed, until the task is aborted. A failure is logged: what didn't go waits for the
+    /// next.
     pub(crate) fn keep_sending(&self) -> JoinHandle<()> {
-        let linking = self.linking.clone();
+        let sync = self.clone();
         tokio::spawn(async move {
             let mut ticks = tokio::time::interval(SEND_EVERY);
+            // A send slower than a minute is followed by one more, not by the ticks it missed.
+            ticks.set_missed_tick_behavior(MissedTickBehavior::Delay);
             loop {
                 ticks.tick().await;
                 let span = diagnostics::following_current(
                     tracing::info_span!(parent: None, "send_to_hub"),
                 );
-                let _: Result<(), link::Error> = linking.send_queued().instrument(span).await;
+                sync.send_waiting().instrument(span).await;
             }
         })
+    }
+
+    /// [`Syncing::keep_sending`]'s one send.
+    async fn send_waiting(&self) {
+        let _: Result<(), link::Error> = self.linking.send_queued().await;
+        let unsynced = mem::take(&mut *self.unsynced_watchlists());
+        for user_id in unsynced {
+            self.sync_watchlist(user_id).await;
+        }
+    }
+
+    /// [`Syncing::watchlists_unsynced`], locked.
+    fn unsynced_watchlists(&self) -> MutexGuard<'_, HashSet<i64>> {
+        (self.watchlists_unsynced.lock()).unwrap_or_else(PoisonError::into_inner)
     }
 
     /// The User `user_id` signed in: pulls their Watch State and Track Preferences, then syncs
@@ -304,8 +333,8 @@ impl Syncing {
     }
 
     /// Hands the User `user_id`'s whole Watchlist to the Hub, and takes what it answers where that
-    /// is newer than the Server's own. A failure is logged: the next change, sign-in or scan syncs
-    /// again, sending what this didn't.
+    /// is newer than the Server's own. A failure is logged, and the next minute's send syncs again,
+    /// sending what this didn't.
     async fn sync_watchlist(&self, user_id: i64) {
         let entries = match watchlist::entries(&self.db, user_id).await {
             Ok(entries) => entries,
@@ -317,8 +346,13 @@ impl Syncing {
                 return;
             }
         };
-        let Some(synced) = self.linking.sync_watchlist(user_id, entries).await else {
-            return;
+        let synced = match self.linking.sync_watchlist(user_id, entries).await {
+            Ok(Some(synced)) => synced,
+            Ok(None) => return,
+            Err(_logged) => {
+                self.unsynced_watchlists().insert(user_id);
+                return;
+            }
         };
         if let Err(err) = watchlist::take_synced(&self.db, user_id, synced).await {
             tracing::error!(

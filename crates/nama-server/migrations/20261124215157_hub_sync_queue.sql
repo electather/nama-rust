@@ -26,7 +26,9 @@ WHERE plugin_store.plugin_id = 'hub' AND plugin_store.user_id IS NULL
        OR plugin_store.key = 'track-preference-queue')
   AND queued.type = 'object'
   AND CAST(json_extract(queued.value, '$.userId') AS INTEGER) IN (SELECT id FROM users)
-ORDER BY CAST(substr(plugin_store.key, instr(plugin_store.key, '/') + 1) AS INTEGER), queued.key;
+-- The older Plugin's one array came before any page, and its key has no page number to sort by.
+ORDER BY plugin_store.key <> 'track-preference-queue',
+         CAST(substr(plugin_store.key, instr(plugin_store.key, '/') + 1) AS INTEGER), queued.key;
 
 DELETE FROM plugin_store
 WHERE plugin_id = 'hub' AND user_id IS NULL

@@ -2,8 +2,8 @@
 //! sharing what the Admin chooses with Nama's developers (ADR 0054). Every Hub call made as the
 //! Server goes through [`Linker::call`], so one rule decides what a Link the Hub dropped means.
 //! The Server's Users' Links are in `users.rs`, their plays as Viewing Events in `viewing.rs`, and
-//! signing in with an Account, and Users created from one, in `accounts.rs`. What goes to the Hub
-//! waits in a queue per kind, in `queue.rs`.
+//! signing in with an Account, and Users created from one, in `accounts.rs`. Viewing Events wait for
+//! the Hub in a queue, in `queue.rs`.
 
 mod accounts;
 pub(crate) mod queue;
