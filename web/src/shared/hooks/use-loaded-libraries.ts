@@ -5,7 +5,7 @@ import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
 
 /** The Server's Libraries without suspending, with whether they failed to load. */
 export function useLibrariesUnsuspended() {
-  // fallow-ignore-next-line policy-violation:feature-layout/suspense -- the app chrome and a Libraries setting show without the Libraries while they load or if they fail, so neither waits on them
+  // fallow-ignore-next-line policy-violation:feature-layout/suspense -- its callers show without the Libraries while they load or if they fail, so none waits on them
   return useQuery(LibraryService.method.listLibraries, {}, { staleTime: loaderStaleTime });
 }
 

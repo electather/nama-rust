@@ -1,13 +1,9 @@
 import { Link } from "@tanstack/react-router";
 
-import { useLibraries } from "@/shared/hooks/use-libraries";
+import type { Library } from "@/gen/nama/v1/library_pb";
 
-/** A link to the Library `libraryId`'s page, by its name, inline in text. */
-export function LibraryLink({ libraryId }: { libraryId: bigint }) {
-  const library = useLibraries().find(({ id }) => id === libraryId);
-  if (!library) {
-    return null;
-  }
+/** A link to `library`'s page, by its name, inline in text. */
+export function LibraryLink({ library }: { library: Library }) {
   return (
     <Link
       to="/libraries/$libraryId"
