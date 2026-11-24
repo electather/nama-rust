@@ -290,7 +290,7 @@ The age guidance a country's ratings board gives a Movie or Show, such as PG-13 
 _Avoid_: certification, age rating, parental rating, maturity rating
 
 **Maximum Age**:
-The highest age a title's Content Rating may call for and still reach a User, set for them by an Admin. A User without one sees every title.
+The highest age a title's Content Rating may call for and still reach a User, set for them by an Admin, who also chooses whether a title with no Content Rating reaches them. A User without one is kept from no title by its Content Rating.
 _Avoid_: age cap, age limit, parental controls, rating cap
 
 **Score**:
