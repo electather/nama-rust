@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT u.id AS \"id!\", u.display_username AS name,\n                      u.permissions AS \"permissions: Permissions\", u.created_at\n               FROM device_users du JOIN users u ON u.id = du.user_id\n               WHERE du.device_id = ? ORDER BY u.id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "display_username"
+          }
+        }
+      },
+      {
+        "name": "permissions: Permissions",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "permissions"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "acfa70021bd7f38e1a979df5967ffaac075353f0bed208c07d5fae3a8594b130"
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT d.id AS \"device_id!\", d.name AS device_name, d.created_at AS device_created_at,\n                      d.last_seen_at, d.authenticated_at,\n                      u.id AS \"user_id!\", u.display_username AS user_name,\n                      u.permissions AS \"permissions: Permissions\", u.created_at\n               FROM devices d JOIN users u ON u.id = d.user_id\n               WHERE d.token_hash = ? AND d.expires_at > ?",
+  "query": "SELECT d.id AS \"device_id!\", d.name AS device_name, d.created_at AS device_created_at,\n                      d.last_seen_at, du.authenticated_at AS \"authenticated_at?\",\n                      u.id AS \"user_id?\", u.display_username AS \"user_name?\",\n                      u.permissions AS \"permissions?: Permissions\", u.created_at AS \"created_at?\"\n               FROM devices d\n               LEFT JOIN device_users du ON du.device_id = d.id AND du.user_id = d.user_id\n               LEFT JOIN users u ON u.id = du.user_id\n               WHERE d.token_hash = ? AND d.expires_at > ?",
   "describe": {
     "columns": [
       {
@@ -48,18 +48,18 @@
         }
       },
       {
-        "name": "authenticated_at",
+        "name": "authenticated_at?",
         "ordinal": 4,
         "type_info": "Integer",
         "origin": {
           "Table": {
-            "table": "devices",
+            "table": "device_users",
             "name": "authenticated_at"
           }
         }
       },
       {
-        "name": "user_id!",
+        "name": "user_id?",
         "ordinal": 5,
         "type_info": "Integer",
         "origin": {
@@ -70,7 +70,7 @@
         }
       },
       {
-        "name": "user_name",
+        "name": "user_name?",
         "ordinal": 6,
         "type_info": "Text",
         "origin": {
@@ -81,7 +81,7 @@
         }
       },
       {
-        "name": "permissions: Permissions",
+        "name": "permissions?: Permissions",
         "ordinal": 7,
         "type_info": "Integer",
         "origin": {
@@ -92,7 +92,7 @@
         }
       },
       {
-        "name": "created_at",
+        "name": "created_at?",
         "ordinal": 8,
         "type_info": "Integer",
         "origin": {
@@ -111,12 +111,12 @@
       false,
       false,
       false,
+      true,
       false,
-      false,
-      false,
-      false,
-      false
+      true,
+      true,
+      true
     ]
   },
-  "hash": "c64a4fead0d691561d4c6955c09880b6705a4f5dc3e4eff717cb2e445fb9cbe3"
+  "hash": "36a8271a1e80078d7b15b50509696454adb04bfc2d856ec21ba25332cad69fef"
 }

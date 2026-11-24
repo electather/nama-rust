@@ -83,7 +83,7 @@ async fn deleting_expired_ones_deletes_them_signs_devices_out_and_keeps_the_rest
         expired_invite,
     )
     .await;
-    let mut signed_out = std::pin::pin!(users.signed_out(expired_device));
+    let mut signed_out = std::pin::pin!(users.signed_out(expired_device, admin.id));
     // Polled first, so it is past looking the Device up and only a sign-out can end it.
     let before = tokio::time::timeout(Duration::from_millis(200), &mut signed_out).await;
     assert!(before.is_err(), "the wait ended before the delete");
