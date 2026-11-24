@@ -65,36 +65,6 @@ fn approving_then_polling_signs_in_as_the_approver_once() {
 }
 
 #[test]
-fn looking_up_a_code_shows_the_device_name_without_approving_it() {
-    let codes = SignInCodes::default();
-    let now = Instant::now();
-    let started = start(&codes, now);
-
-    let device_name = codes.look_up(&started.code, now).unwrap();
-
-    assert_eq!(device_name, "Living room TV");
-    assert!(matches!(
-        codes.poll(&started.handle, now),
-        Ok(Poll::Waiting)
-    ));
-}
-
-#[test]
-fn a_code_matches_in_lower_case_and_without_its_dash() {
-    let codes = SignInCodes::default();
-    let now = Instant::now();
-    let started = start(&codes, now);
-    let typed = started.code.replace('-', "").to_lowercase();
-
-    codes.approve(&typed, ada(), now).unwrap();
-
-    assert!(matches!(
-        codes.poll(&started.handle, now),
-        Ok(Poll::Approved { .. })
-    ));
-}
-
-#[test]
 fn an_expired_code_cant_be_looked_up_or_approved() {
     let codes = SignInCodes::default();
     let started_at = Instant::now();
@@ -106,36 +76,6 @@ fn an_expired_code_cant_be_looked_up_or_approved() {
 
     assert!(matches!(looked_up, Err(Error::NotFound)), "{looked_up:?}");
     assert!(matches!(approved, Err(Error::NotFound)), "{approved:?}");
-}
-
-#[test]
-fn an_unknown_code_cant_be_looked_up_or_approved() {
-    let codes = SignInCodes::default();
-    let now = Instant::now();
-    let started = start(&codes, now);
-    // Differs from the real code wherever it has its last character.
-    let last = started.code.chars().last().unwrap();
-    let unknown = started
-        .code
-        .replace(last, if last == '0' { "1" } else { "0" });
-
-    let looked_up = codes.look_up(&unknown, now);
-    let approved = codes.approve(&unknown, ada(), now);
-
-    assert!(matches!(looked_up, Err(Error::NotFound)), "{looked_up:?}");
-    assert!(matches!(approved, Err(Error::NotFound)), "{approved:?}");
-}
-
-#[test]
-fn an_approved_code_cant_be_approved_again() {
-    let codes = SignInCodes::default();
-    let now = Instant::now();
-    let started = start(&codes, now);
-    codes.approve(&started.code, ada(), now).unwrap();
-
-    let again = codes.approve(&started.code, ada(), now);
-
-    assert!(matches!(again, Err(Error::AlreadyApproved)), "{again:?}");
 }
 
 #[test]

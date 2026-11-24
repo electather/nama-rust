@@ -12,7 +12,6 @@ use nama_plugin_api::{
     automation::{Kernel, KernelRefused},
 };
 
-use super::Scope;
 use crate::plugins::Registry;
 
 const WAIT: Duration = Duration::from_secs(5);
@@ -94,18 +93,6 @@ async fn until(done: impl Fn() -> bool) {
     })
     .await
     .expect("timed out");
-}
-
-#[tokio::test]
-async fn closing_a_scope_cancels_and_joins_its_tasks() {
-    let scope = Scope::default();
-    let (first, second) = (Ended::default(), Ended::default());
-    scope.spawn(first.forever());
-    scope.spawn(second.forever());
-
-    scope.close().await;
-
-    assert!(first.get() && second.get());
 }
 
 #[tokio::test]

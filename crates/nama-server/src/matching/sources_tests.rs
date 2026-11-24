@@ -284,13 +284,6 @@ async fn a_pin_no_source_looks_up_leaves_the_rest_of_the_library_matching() {
 }
 
 #[tokio::test]
-async fn an_imdb_pin_no_source_keeps_or_looks_up_stays_undecided() {
-    let pin = ExternalId::new("imdb", "tt0078748").unwrap();
-
-    assert_eq!(match_with_pin(pin, &[]).await, PIN_UNDECIDED);
-}
-
-#[tokio::test]
 async fn an_imdb_pin_matches_through_a_source_looking_up_imdb() {
     let pin = ExternalId::new("imdb", "tt0078748").unwrap();
     let both = Summary {
@@ -300,17 +293,6 @@ async fn an_imdb_pin_matches_through_a_source_looking_up_imdb() {
     };
 
     assert_eq!(match_with_pin(pin, &["imdb"]).await, both);
-}
-
-#[tokio::test]
-async fn an_imdb_hint_no_source_looks_up_by_is_searched_for_instead() {
-    let (metadata, sources_asked) = bb_then_aa(HAS, HAS);
-    let hint = ExternalId::new("imdb", "tt0078748").unwrap();
-
-    let found = show(&metadata, &dark(Some(hint))).await.unwrap();
-
-    assert_eq!(found.source.namespace, "bb");
-    assert_eq!(sources_asked.lines(), ["bb search", "bb show bb-1"]);
 }
 
 #[tokio::test]

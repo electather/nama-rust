@@ -3,6 +3,7 @@
 use std::{fs::File, io, io::Read, path::Path, process::Stdio};
 
 use super::{Hardware, finding::is_release_before, hardware::Decode};
+use crate::diagnostics;
 
 /// The filter that tags HDR10 and HLG frames for a tone-map in software, before any scaling.
 // HDR10 and HLG are always BT.2020, but probing calls a file HDR by its transfer alone, and
@@ -155,7 +156,7 @@ impl HlsRun {
     /// Starts ffmpeg. Dropping the child stops it.
     #[tracing::instrument(name = "ffmpeg launch", skip_all)]
     pub(crate) fn spawn(mut self) -> io::Result<tokio::process::Child> {
-        self.0.spawn()
+        diagnostics::outcome(self.0.spawn())
     }
 }
 

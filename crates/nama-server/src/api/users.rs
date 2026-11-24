@@ -53,7 +53,7 @@ use super::{
     plugins::{change_refused, list_failed, logo_url, setting_to_proto, settings_from_proto},
     refuse,
     server::{home_layout_from_proto, home_row_from_proto},
-    server_link, signed_out, unknown_enum_value,
+    server_link, signed_out, unknown_enum_value, url_signer,
 };
 
 mod refusals;
@@ -442,7 +442,7 @@ impl UserService for UserServiceHandler {
             .map_err(list_failed)?;
         let mut plugins = Vec::new();
         for personal in listed {
-            plugins.push(self.personal_to_proto(personal).await);
+            plugins.push(self.personal_to_proto(personal, &ctx).await);
         }
         Response::ok(ListPersonalSettingsResponse {
             plugins,
@@ -465,7 +465,7 @@ impl UserService for UserServiceHandler {
             .await
             .map_err(change_refused)?;
         Response::ok(UpdatePersonalSettingsResponse {
-            plugin: self.personal_to_proto(saved).await.into(),
+            plugin: self.personal_to_proto(saved, &ctx).await.into(),
             ..Default::default()
         })
     }
@@ -632,20 +632,20 @@ impl UserServiceHandler {
         })
     }
 
-    /// A User's `personal` settings for a Plugin, with its Manifest's logo.
-    async fn personal_to_proto(&self, personal: Personal) -> proto::PersonalSettings {
-        let Personal {
+    /// A User's personal settings for a Plugin, with its Manifest's logo as `ctx`'s caller gets it.
+    async fn personal_to_proto(
+        &self,
+        Personal {
             plugin,
             manifest,
             values,
-        } = personal;
+        }: Personal,
+        ctx: &RequestContext,
+    ) -> proto::PersonalSettings {
         proto::PersonalSettings {
             plugin_id: plugin.id.to_string(),
-            logo_url: logo_url(&self.plugin_logos, &plugin).await,
-            settings: manifest
-                .personal_settings
-                .fields
-                .iter()
+            logo_url: logo_url(&self.plugin_logos, &plugin, url_signer(ctx)).await,
+            settings: (manifest.personal_settings.fields.iter())
                 .map(|field| setting_to_proto(field, values.get(&field.key)))
                 .collect(),
             name: manifest.name,

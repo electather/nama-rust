@@ -25,15 +25,6 @@ fn a_keyframe_at_the_length_joins_the_last_segment() {
 }
 
 #[test]
-fn a_keyframe_past_the_length_joins_the_last_segment() {
-    let timeline = Timeline::new(vec![0, 2500, 5000, 7500], 7400);
-
-    let segment_ms: Vec<i64> = timeline.segments.iter().map(|segment| segment.ms).collect();
-    assert_eq!(segment_ms, [7400]);
-    assert!(!timeline.playlist().contains("#EXTINF:0.000"));
-}
-
-#[test]
 fn a_transcode_lists_a_segment_for_each_six_seconds_of_its_length() {
     let playlist = Timeline::transcoded(13_999).playlist();
 

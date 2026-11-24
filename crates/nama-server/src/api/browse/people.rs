@@ -6,8 +6,9 @@ use nama_proto::nama::v1::{self as proto, GetPersonRequest, GetPersonResponse, p
 use super::{BrowseServiceHandler, Fields, refused, seen_by};
 use crate::{
     api::{
-        caller, database_failed, required_id,
+        caller, required_id,
         search::{movie_hit, show_hit},
+        shown_images,
     },
     browse::{PersonPage, PersonTitle},
     library::{Downloaded, OnServer, ShownImages},
@@ -25,7 +26,7 @@ pub(super) async fn get_person(
         title: "person_id",
         ..Fields::NONE
     }))?;
-    let images = handler.images.shown().await.map_err(database_failed)?;
+    let images = shown_images(&handler.images, ctx).await?;
     let titles = |titles: Vec<PersonTitle>| {
         (titles.into_iter())
             .map(|title| person_role(title, &images))

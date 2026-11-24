@@ -37,6 +37,7 @@ use crate::{
 use super::{
     ImageSources, caller, database_failed, external_id_to_proto, proto_number, required_id,
     search::{movie_hits, show_hits},
+    shown_images,
 };
 
 mod box_sets;
@@ -119,7 +120,7 @@ impl BrowseService for BrowseServiceHandler {
             .movie_page(user, request.library_id, &listing, &request.page)
             .await;
         let (movies, page) = page.map_err(refused(Fields::LIBRARY))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         Response::ok(ListMoviesResponse {
             movies: movies
                 .into_iter()
@@ -143,7 +144,7 @@ impl BrowseService for BrowseServiceHandler {
             title: "movie_id",
             ..Fields::LIBRARY
         }))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         let (cast, crew) = roles_to_proto(page.roles, stored_by(&page.movie.plugin, &images));
         Response::ok(GetMovieResponse {
             similar: movie_hits(page.similar, &images),
@@ -189,7 +190,7 @@ impl BrowseService for BrowseServiceHandler {
             .show_page(user, request.library_id, &listing, &request.page)
             .await;
         let (shows, page) = page.map_err(refused(Fields::LIBRARY))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         Response::ok(ListShowsResponse {
             shows: shows
                 .into_iter()
@@ -227,7 +228,7 @@ impl BrowseService for BrowseServiceHandler {
             ..Fields::LIBRARY
         }))?;
         let show = page.show;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         // Without a Plugin it has no Episodes, so no Roles to show headshots of.
         let plugin = show.plugin().unwrap_or_default();
         let (cast, crew) = roles_to_proto(page.roles, stored_by(plugin, &images));
@@ -277,7 +278,7 @@ impl BrowseService for BrowseServiceHandler {
                 season: "season_number",
                 ..Fields::LIBRARY
             }))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         Response::ok(ListEpisodesResponse {
             episodes: episodes
                 .into_iter()
@@ -300,7 +301,9 @@ impl BrowseService for BrowseServiceHandler {
             .episode_after(user, request.library_id, &show, numbers)
             .await;
         Response::ok(GetNextEpisodeResponse {
-            next: episode_beside_to_proto(next, &self.images).await?.into(),
+            next: episode_beside_to_proto(next, &self.images, &ctx)
+                .await?
+                .into(),
             ..Default::default()
         })
     }
@@ -318,7 +321,7 @@ impl BrowseService for BrowseServiceHandler {
             .episode_before(user, request.library_id, &show, numbers)
             .await;
         Response::ok(GetPreviousEpisodeResponse {
-            previous: episode_beside_to_proto(previous, &self.images)
+            previous: episode_beside_to_proto(previous, &self.images, &ctx)
                 .await?
                 .into(),
             ..Default::default()
@@ -335,7 +338,7 @@ impl BrowseService for BrowseServiceHandler {
         let browse = seen_by(&self.browse, user).await?;
         let listed = browse.continue_watching(user, &asked).await;
         let (started, page) = listed.map_err(refused(Fields::NONE))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         let mut entries = Vec::with_capacity(started.len());
         // ponytail: one query per entry, on a page of at most 100; ask for the page's at once if
         // Continue Watching gets slow.
@@ -370,7 +373,7 @@ impl BrowseService for BrowseServiceHandler {
         let browse = seen_by(&self.browse, user).await?;
         let featured = browse.featured(user, &suggested).await;
         let featured = featured.map_err(refused(Fields::NONE))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         let mut titles = Vec::with_capacity(featured.len());
         // ponytail: one query per title, as Continue Watching asks; Featured lists a handful.
         for title in featured {
@@ -421,7 +424,7 @@ impl BrowseService for BrowseServiceHandler {
             .titles(reader, &plugin, &request.key, &request.page)
             .await;
         let (titles, page) = listed.map_err(home_rows_refused)?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         Response::ok(ListHomeRowTitlesResponse {
             titles: (titles.into_iter())
                 .map(|title| row_title_to_proto(title, &images))

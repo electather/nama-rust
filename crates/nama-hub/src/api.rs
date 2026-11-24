@@ -41,7 +41,7 @@ use crate::{
         AccountSession, Accounts, RECENT_AUTHENTICATION_MINS, RecentAuthenticationRequired,
     },
     db,
-    diagnostics::{Backend, NotTaken, Shared, Signal},
+    diagnostics::{Backend, NotTaken, Shared, Signal, naming},
     dns::ServerNames,
     links::{LinkedServer, Links},
     mail::Mail,
@@ -144,10 +144,10 @@ fn services(db: PgPool, accounts: &Accounts, links: &Links) -> connectrpc::Route
         .add_service(Arc::new(ViewingEventServiceHandler { viewing }))
 }
 
-/// Takes a Linked Server's batch of `signal`, as OTLP/HTTP protobuf, and forwards it unchanged
-/// (ADR 0054). OTLP/HTTP rather than a ConnectRPC method, so the Hub passes on what the Server's
-/// exporter wrote byte for byte. Anyone else gets 401, a Server that shared too much lately 429,
-/// and a failing backend 502.
+/// Takes a Linked Server's batch of `signal`, as OTLP/HTTP protobuf, and forwards it naming the
+/// Server (ADR 0054). OTLP/HTTP rather than a ConnectRPC method, so the Hub passes on what the
+/// Server's exporter wrote. Anyone else gets 401, a batch that isn't one 400, a Server that shared
+/// too much lately 429, and a failing backend 502.
 async fn share(
     signal: Signal,
     State(shared): State<Shared>,
@@ -156,6 +156,9 @@ async fn share(
 ) -> StatusCode {
     let Some(Extension(server)) = server else {
         return StatusCode::UNAUTHORIZED;
+    };
+    let Ok(batch) = naming(server.id, signal, &batch) else {
+        return StatusCode::BAD_REQUEST;
     };
     match shared.take(server.id, signal, batch, Instant::now()).await {
         Ok(()) => StatusCode::OK,

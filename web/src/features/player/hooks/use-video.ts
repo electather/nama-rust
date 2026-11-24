@@ -1,13 +1,13 @@
 import { type SyntheticEvent, useCallback, useRef, useState } from "react";
 
-import { firstFramePlayed } from "@/shared/lib/diagnostics";
+import { firstFramePlayed, stallEnded, stallStarted } from "@/shared/lib/diagnostics";
 
 /** What the controls need of the `<video>`: what it's doing, and a way to act on it. */
 export type Video = Pick<ReturnType<typeof useVideo>, "state" | "control">;
 
 /**
  * The `<video>`'s ref, what it's doing, and the handlers that keep that up to date and record when
- * its first frame played.
+ * its first frame played and when it stalled.
  */
 export function useVideo() {
   const ref = useRef<HTMLVideoElement>(null);
@@ -56,11 +56,15 @@ export function useVideo() {
     onLoadedData: () => {
       setState((was) => ({ ...was, framed: true }));
     },
-    onWaiting: waiting(true),
+    onWaiting: (event: SyntheticEvent<HTMLVideoElement>) => {
+      waiting(true)();
+      stallStarted(event.currentTarget);
+    },
     onCanPlay: waiting(false),
     onPlaying: () => {
       waiting(false)();
       firstFramePlayed();
+      stallEnded();
     },
   };
   /** Runs `action` on the `<video>`, from an event handler or an effect. */
