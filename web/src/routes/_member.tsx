@@ -1,8 +1,11 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { create } from "@bufbuild/protobuf";
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
 import { MemberLayout } from "@/app/member-layout";
 import { type Section, idParam, sectionParam, userParam } from "@/features/settings/lib/sections";
-import { serverInfo, whoIsSignedIn } from "@/shared/hooks/access";
+import { WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
+import { SignedOutLayout } from "@/shared/components/sign-in-layout/signed-out-layout";
+import { accountOrSignIn, isAtHub, serverInfo, whoIsSignedIn } from "@/shared/hooks/access";
 import { recordDiagnosticsIfExported } from "@/shared/lib/diagnostics";
 import { wordsParam } from "@/shared/lib/words-param";
 
@@ -31,12 +34,20 @@ export const Route = createFileRoute("/_member")({
     setting: idParam(search["setting"]),
   }),
   beforeLoad: async ({ context, location }) => {
-    // Asked together, so the page's own calls wait on one round trip, not two. Who is signed in is
-    // awaited only after the setup check, so a fresh Server still sends you to /setup if it fails.
+    // Asked together, so the page's own calls wait on one round trip, not two; at the Hub the
+    // Server's two fail unread. Who is signed in is awaited only after the setup check, so a fresh
+    // Server still sends you to /setup if it fails.
     const whoAmI = whoIsSignedIn(context);
-    // Handled now, so a failure while the Server's info loads isn't unhandled; awaited below.
+    const serverAnswer = serverInfo(context);
+    // Handled now, so a failure while another loads isn't unhandled; awaited below.
     void whoAmI.catch(() => null);
-    const info = await serverInfo(context);
+    void serverAnswer.catch(() => null);
+    if (await isAtHub(context)) {
+      const account = await accountOrSignIn(context, location.href);
+      // No Server User is signed in at the Hub, so every Permission check says no.
+      return { signedIn: create(WhoAmIResponseSchema), account };
+    }
+    const info = await serverAnswer;
     if (info.setupRequired) {
       throw redirect({ to: "/setup" });
     }
@@ -46,12 +57,21 @@ export const Route = createFileRoute("/_member")({
     }
     // Awaited, so the page's own calls are traced too.
     await recordDiagnosticsIfExported(info.exportsDiagnostics);
-    return { signedIn };
+    return { signedIn, account: null };
   },
   component: Member,
 });
 
 function Member() {
-  const { signedIn } = Route.useRouteContext();
+  const { signedIn, account } = Route.useRouteContext();
+  // shortcut: the Account's pages at the Hub sit in the signed-out pages' frame, without app
+  // chrome, until the Hub's Home gives them some (#2204).
+  if (account) {
+    return (
+      <SignedOutLayout>
+        <Outlet />
+      </SignedOutLayout>
+    );
+  }
   return <MemberLayout chrome={{ userName: signedIn.user?.name ?? "" }} user={signedIn.user} />;
 }
