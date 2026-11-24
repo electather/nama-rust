@@ -51,16 +51,20 @@ export function remainingOf(state: WatchState | undefined) {
   return minutes > 0 ? runtimeOf(minutes, "short") : undefined;
 }
 
-function sizeUnit(bytesPerUnit: number, unit: "gigabyte" | "megabyte" | "kilobyte") {
+function sizeUnit(bytesPerUnit: number, unit: "terabyte" | "gigabyte" | "megabyte" | "kilobyte") {
   const formatter = new Intl.NumberFormat("en", { style: "unit", unit, maximumFractionDigits: 1 });
   // 999.95 of the unit below rounds to "1,000", so from there a size reads in this unit.
   return { roundsUpFrom: bytesPerUnit * 0.99995, bytesPerUnit, formatter };
 }
 
 const kilobytes = sizeUnit(1e3, "kilobyte");
-const unitsLargestFirst = [sizeUnit(1e9, "gigabyte"), sizeUnit(1e6, "megabyte")];
+const unitsLargestFirst = [
+  sizeUnit(1e12, "terabyte"),
+  sizeUnit(1e9, "gigabyte"),
+  sizeUnit(1e6, "megabyte"),
+];
 
-/** A file's or download's size, `bytes`, in the largest unit up to GB it fills, as a file manager shows it. */
+/** A file's or download's size, `bytes`, in the largest unit up to TB it fills, as a file manager shows it. */
 export function sizeOf(bytes: bigint) {
   const size = Number(bytes);
   const { bytesPerUnit, formatter } =
