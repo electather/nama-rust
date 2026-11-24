@@ -30,7 +30,6 @@ const OPENING_WITHIN: Duration = Duration::from_secs(30);
 /// How many opened connections may wait for axum to take them.
 const OPENED_WAITING: usize = 64;
 
-/// A connection, plain or TLS.
 type Connection = Either<TcpStream, TlsStream<TcpStream>>;
 
 /// Serves `app` on `listener`, over TLS with `certificate`'s certificate to a client that starts a
