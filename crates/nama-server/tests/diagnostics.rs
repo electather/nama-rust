@@ -413,7 +413,7 @@ async fn a_server_that_isn_t_linked_sends_the_hub_nothing() {
 
     export_own(&server, Signal::Traces, b"spans").await;
 
-    assert_eq!(hub.shared(), []);
+    assert_eq!(hub.otlp_posts(), 0);
 }
 
 /// Turns sharing Diagnostics on or off, as the admin does in Settings.
@@ -537,6 +537,16 @@ async fn a_hub_that_never_answers_holds_neither_the_post_nor_the_collector() {
 
     assert_eq!(reply.map(|reply| reply.status).ok(), Some(200));
     assert_eq!(collector.received().len(), 1);
+    posted_once(&hub).await;
+}
+
+/// Waits until the Server has posted to `hub`'s OTLP paths, since it shares in the background.
+async fn posted_once(hub: &FakeHub) {
+    let started = Instant::now();
+    while hub.otlp_posts() == 0 {
+        assert!(started.elapsed() < WAIT, "nothing posted to the Hub");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
 }
 
 #[tokio::test]

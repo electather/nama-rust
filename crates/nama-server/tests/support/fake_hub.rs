@@ -75,6 +75,8 @@ struct State {
     told: Vec<SetServerAddressesRequest>,
     /// Each batch of shared Diagnostics, with the signal its path named, in order.
     shared: Vec<(String, Bytes)>,
+    /// How many posts reached the OTLP paths, the refused and the unanswered too.
+    otlp_posts: usize,
     /// Whether every call waits forever, as a Hub slow to time out.
     hanging: bool,
 }
@@ -178,6 +180,12 @@ impl FakeHub {
         lock(&self.state).shared.clone()
     }
 
+    /// How many posts reached the OTLP paths, whether the fake took, refused or never answered
+    /// them.
+    pub(crate) fn otlp_posts(&self) -> usize {
+        lock(&self.state).otlp_posts
+    }
+
     /// Has every call from now on wait forever.
     pub(crate) fn hang(&self) {
         lock(&self.state).hanging = true;
@@ -231,10 +239,7 @@ where
 {
     let (state, key) = (Arc::clone(state), Arc::clone(key));
     post(async move |headers: HeaderMap, body: Bytes| -> Response {
-        let hanging = lock(&state).hanging;
-        if hanging {
-            future::pending::<()>().await;
-        }
+        hang_if_asked(&state).await;
         let answered = Req::decode_from_slice(&body)
             .map_err(|_unreadable| ConnectError::invalid_argument("not a request"))
             .and_then(|request| answer(&mut lock(&state), &headers, &request, &key));
@@ -260,10 +265,8 @@ fn otlp(state: &Arc<Mutex<State>>) -> MethodRouter {
     let state = Arc::clone(state);
     post(
         async move |Path(signal): Path<String>, headers: HeaderMap, batch: Bytes| {
-            let hanging = lock(&state).hanging;
-            if hanging {
-                future::pending::<()>().await;
-            }
+            lock(&state).otlp_posts += 1;
+            hang_if_asked(&state).await;
             let mut state = lock(&state);
             if caller(&state, &headers).is_err() {
                 return StatusCode::UNAUTHORIZED;
@@ -272,6 +275,14 @@ fn otlp(state: &Arc<Mutex<State>>) -> MethodRouter {
             StatusCode::OK
         },
     )
+}
+
+/// Never returns while [`FakeHub::hang`] has been called.
+async fn hang_if_asked(state: &Mutex<State>) {
+    let hanging = lock(state).hanging;
+    if hanging {
+        future::pending::<()>().await;
+    }
 }
 
 #[expect(
