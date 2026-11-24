@@ -44,20 +44,33 @@ function episode(seasonNumber: number, episodeNumber: number) {
   };
 }
 
-/** A fake Server with two Seasons of Dark in Library 2, autoplay `on` or off. */
-function server(on = true) {
+/**
+ * A fake Server with `seasons` Seasons of Dark in Library 2, autoplay `on` or off. `asked` holds
+ * the Season of each `ListEpisodes` asked, `undefined` for the whole Show.
+ */
+function server(on = true, seasons = 2) {
+  const asked: (number | undefined)[] = [];
+  const numbers = Array.from({ length: seasons }, (_, index) => index + 1);
   const libraries = [{ id: 2n, name: "TV", kind: LibraryKind.SHOWS }];
-  return fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
+  const transport = fakeServer({ signedIn: newUser, libraries }, {}, {}, (router) => {
     router.service(BrowseService, {
+      // For the Show's page.
+      listGenres: () => ({}),
+      listUnmatched: () => ({}),
       getShow: () => ({
         show: { id: { namespace: "tmdb", value: "70523" }, title: "Dark" },
-        seasons: [{ number: 1 }, { number: 2 }],
+        seasons: numbers.map((number) => ({ number })),
       }),
-      listEpisodes: ({ seasonNumber = 0 }) => ({
-        episodes: (seasonNumber === 1 ? [1, 2, 3] : [1]).map((number) =>
-          episode(seasonNumber, number),
-        ),
-      }),
+      listEpisodes: ({ seasonNumber }) => {
+        asked.push(seasonNumber);
+        return {
+          episodes: numbers
+            .filter((number) => seasonNumber === undefined || number === seasonNumber)
+            .flatMap((season) =>
+              (season === 1 ? [1, 2, 3] : [1]).map((number) => episode(season, number)),
+            ),
+        };
+      },
       getNextEpisode: ({ episodeNumber }) =>
         episodeNumber < 3 ? { next: episode(1, episodeNumber + 1) } : { next: episode(2, 1) },
     });
@@ -69,15 +82,17 @@ function server(on = true) {
     });
     router.service(WatchStateService, { reportProgress: () => ({}) });
   });
+  return { transport, asked };
 }
 
-/** Opens Episode 2's player and its Episodes panel. */
-async function openEpisodes(on = true) {
-  const router = openApp(`${SHOW}/seasons/1/episodes/2/play`, server(on));
+/** Opens Episode 2's player, of a Show with `seasons` Seasons, and its Episodes panel. */
+async function openEpisodes(seasons = 2) {
+  const { transport, asked } = server(true, seasons);
+  const router = openApp(`${SHOW}/seasons/1/episodes/2/play`, transport);
   fireEvent.click(await screen.findByRole("button", { name: "Episodes" }));
   const panel = await screen.findByRole("dialog", { name: "Episodes" });
   await within(panel).findByRole("link", { name: /Lies/u });
-  return { router, panel };
+  return { router, panel, asked };
 }
 
 test("the Episodes panel lists every Season's Episodes, marking the one playing and those watched", async () => {
@@ -90,6 +105,23 @@ test("the Episodes panel lists every Season's Episodes, marking the one playing 
     expect.stringContaining("Episode 3 · 52mPast and Present"),
     expect.stringContaining("Episode 1 · 52mBeginnings and Endings"),
   ]);
+});
+
+test("the player and its Episodes panel ask for the Episodes once, however many Seasons", async () => {
+  const { panel, asked } = await openEpisodes(20);
+
+  expect(within(panel).getAllByRole("tab")).toHaveLength(20);
+  expect(asked).toStrictEqual([undefined]);
+});
+
+test("pressing Play on a Show's page asks for no Episodes beyond the page's", async () => {
+  const { transport, asked } = server();
+  openApp(SHOW, transport);
+
+  fireEvent.click(await screen.findByRole("link", { name: /^Play/u }));
+
+  await screen.findByRole("button", { name: "Episodes" });
+  expect(asked).toStrictEqual([undefined]);
 });
 
 test("a Season's tab scrolls to its start", async () => {
@@ -116,7 +148,7 @@ test("picking an Episode plays it and closes the panel", async () => {
 });
 
 test("next Episode links to the one after, with autoplay off too", async () => {
-  openApp(`${SHOW}/seasons/1/episodes/2/play`, server(false));
+  openApp(`${SHOW}/seasons/1/episodes/2/play`, server(false).transport);
 
   const next = await screen.findByRole("link", { name: "Next Episode: Past and Present" });
   expect(next.getAttribute("href")).toBe(`${SHOW}/seasons/1/episodes/3/play`);
