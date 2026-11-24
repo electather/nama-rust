@@ -110,8 +110,8 @@ impl ViewingEvents {
         }
     }
 
-    /// Keeps a Viewing Event for each title the play `playback`, which just ended, reached, if its
-    /// User is Linked, and tries sending them.
+    /// Keeps a Viewing Event for each title the play `playback` reached, if its User is Linked, and
+    /// tries sending them. Called when it ends, or when a later play ends it (`end_left_open`).
     async fn ended(&self, playback: &Playback) -> Result<(), PluginError> {
         let open = self.open_lock().remove(&playback.plan_id);
         // None for one that started before the Plugin was enabled, or that a later play ended.
@@ -183,16 +183,16 @@ impl ViewingEvents {
         self.unsent.send(push).await
     }
 
-    /// Notes when a play started, and records it once it ends.
+    /// Notes when a play started, ending the plays its User left open on its title, and records
+    /// it once it ends.
     async fn happened(&self, happened: &Happened) -> Result<(), PluginError> {
         if let Happened::PlaybackStarted(started) = happened {
-            let playback = Playback::clone(&started.playback);
             let open = Open {
-                playback: playback.clone(),
+                playback: Playback::clone(&started.playback),
                 started: Started::now(),
             };
-            self.open_lock().insert(playback.plan_id, open);
-            self.end_left_open(&playback).await?;
+            self.open_lock().insert(started.playback.plan_id, open);
+            self.end_left_open(&started.playback).await?;
         } else if let Happened::PlaybackEnded(ended) = happened {
             self.ended(&ended.playback).await?;
         }
