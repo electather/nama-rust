@@ -9,9 +9,10 @@
 //! it fetches the Hub's keys itself; the Server asks for its token through the Plugin that links it
 //! (ADR 0094).
 //!
-//! A Server's dial is the token's length as two big-endian bytes, then the token, then nothing
-//! until the Relay starts sending it a client's bytes. Both share the Relay's one port, told apart
-//! by their first byte.
+//! A Server's dial is the token, framed as its length in two big-endian bytes and then itself, and
+//! then nothing until the Relay sends it a client: the client's address as `<ip>:<port>`, framed
+//! the same way, then the client's bytes. Both share the Relay's one port, told apart by their
+//! first byte.
 
 use std::{
     collections::HashMap,
@@ -40,10 +41,10 @@ use crate::{db, diagnostics, link::Linking, tls};
 /// (RFC 8446, section 5.1).
 const HANDSHAKE: u8 = 0x16;
 
-/// The longest token a dial may carry, short enough that a dial's first byte is never
-/// [`HANDSHAKE`].
-const MAX_TOKEN_LENGTH: usize = 4096;
-const _: () = assert!(MAX_TOKEN_LENGTH >> 8 < HANDSHAKE as usize);
+/// The longest frame, a token or a client's address, short enough that a dial's first byte is
+/// never [`HANDSHAKE`].
+const MAX_FRAME_LENGTH: usize = 4096;
+const _: () = assert!(MAX_FRAME_LENGTH >> 8 < HANDSHAKE as usize);
 
 /// What a token for a Relay names as its audience, as the Hub signs it.
 const AUDIENCE: &str = "relay";
@@ -107,7 +108,7 @@ pub async fn serve(listener: TcpListener, hub_url: &str) -> io::Result<()> {
     loop {
         match listener.accept().await {
             Ok((stream, _)) => {
-                tokio::spawn(Arc::clone(&relay).take(stream));
+                tokio::spawn(Arc::clone(&relay).route(stream));
             }
             Err(err) => tls::pause_after(&err).await,
         }
@@ -153,7 +154,7 @@ impl Relay {
     }
 
     /// Keeps `stream` waiting if it is a Server's dial, or carries it if it is a client's.
-    async fn take(self: Arc<Self>, stream: TcpStream) {
+    async fn route(self: Arc<Self>, stream: TcpStream) {
         let mut first = [0; 1];
         if !matches!(
             timeout(OPENING_WITHIN, stream.peek(&mut first)).await,
@@ -171,7 +172,7 @@ impl Relay {
     /// Keeps `server`'s connection waiting under the own name its token names, once the token
     /// checks out, or drops it.
     async fn keep_waiting(&self, mut server: TcpStream) {
-        let Ok(Ok(token)) = timeout(OPENING_WITHIN, read_token(&mut server)).await else {
+        let Ok(Ok(token)) = timeout(OPENING_WITHIN, read_framed(&mut server)).await else {
             return;
         };
         let Some(name) = self.keys.name_in(&token).await else {
@@ -192,16 +193,24 @@ impl Relay {
         self.arrived.notify_waiters();
     }
 
-    /// Passes `client`'s TLS, untouched both ways, to a connection of the Server its SNI names.
+    /// Passes `client`'s TLS, untouched both ways, to a connection of the Server its SNI names,
+    /// after the client's address.
     async fn carry(&self, mut client: TcpStream) {
         let Ok(Ok((hello, server_name))) =
             timeout(OPENING_WITHIN, read_client_hello(&mut client)).await
         else {
             return;
         };
+        let Ok(peer) = client
+            .peer_addr()
+            .and_then(|peer| framed(peer.to_string().as_bytes()))
+        else {
+            return;
+        };
+        let opening = [peer, hello].concat();
         // Each connection that fails at once is gone from the queue, so the next one is tried.
         while let Some(mut server) = self.server_for(&server_name).await {
-            if server.write_all(&hello).await.is_ok() {
+            if server.write_all(&opening).await.is_ok() {
                 // Either side closing ends it, and there is no one left to tell.
                 let _: io::Result<_> =
                     tokio::io::copy_bidirectional(&mut client, &mut server).await;
@@ -241,15 +250,25 @@ fn names_under(server_name: &str) -> impl Iterator<Item = &str> {
     })
 }
 
-/// The token a Server's dial on `server` carries.
-async fn read_token(server: &mut TcpStream) -> io::Result<String> {
-    let length = usize::from(server.read_u16().await?);
-    if length > MAX_TOKEN_LENGTH {
-        return Err(io::Error::other("no token is that long"));
+/// `bytes`, after their length as two big-endian bytes, unless they are over
+/// [`MAX_FRAME_LENGTH`].
+fn framed(bytes: &[u8]) -> io::Result<Vec<u8>> {
+    let length = u16::try_from(bytes.len())
+        .ok()
+        .filter(|&length| usize::from(length) <= MAX_FRAME_LENGTH)
+        .ok_or_else(|| io::Error::other("too long to send a Relay"))?;
+    Ok([&length.to_be_bytes()[..], bytes].concat())
+}
+
+/// The next [`framed`] text on `stream`, such as the token a Server's dial carries.
+async fn read_framed(stream: &mut TcpStream) -> io::Result<String> {
+    let length = usize::from(stream.read_u16().await?);
+    if length > MAX_FRAME_LENGTH {
+        return Err(io::Error::other("no frame is that long"));
     }
-    let mut token = vec![0; length];
-    server.read_exact(&mut token).await?;
-    String::from_utf8(token).map_err(io::Error::other)
+    let mut text = vec![0; length];
+    stream.read_exact(&mut text).await?;
+    String::from_utf8(text).map_err(io::Error::other)
 }
 
 /// What `client` sent until its `ClientHello` was whole, and the server name it gives in its SNI,
@@ -425,7 +444,7 @@ fn decoded<T: DeserializeOwned>(part: &str) -> Result<T, Rejected> {
 
 /// Keeps [`WAITING_PER_SERVER`] connections waiting at `relay`, the Relay the Admin runs, each
 /// dialed with a token the Plugin that links the Server gets through `linking`, and hands
-/// `relayed` each that a client's bytes start arriving on, with the Relay's address as its peer.
+/// `relayed` each that the Relay sends a client on, with the address the Relay names as its peer.
 /// A dial that fails is tried again after [`RETRY_AFTER`]. Runs until the task is aborted.
 pub(crate) fn keep_dialing(
     relay: SocketAddr,
@@ -451,7 +470,7 @@ pub(crate) fn keep_dialing(
 }
 
 /// Keeps one connection waiting at `relay`, dialing again as each starts carrying a client, which
-/// goes to `relayed`, or has waited [`DIAL_AGAIN_AFTER`], until serving stops.
+/// goes to `relayed` with its address, or has waited [`DIAL_AGAIN_AFTER`], until serving stops.
 async fn keep_one_waiting(
     relay: SocketAddr,
     tokens: Arc<Tokens>,
@@ -465,7 +484,7 @@ async fn keep_one_waiting(
         };
         match wait_for_client(relay, &token).await {
             Ok(Some(client)) => {
-                if relayed.send((client, relay)).await.is_err() {
+                if relayed.send(client).await.is_err() {
                     return;
                 }
             }
@@ -478,9 +497,14 @@ async fn keep_one_waiting(
     }
 }
 
-/// A connection to `relay` dialed with `token`, once a client's bytes start arriving on it, or
-/// `None` once it waited [`DIAL_AGAIN_AFTER`] for none.
-async fn wait_for_client(relay: SocketAddr, token: &str) -> io::Result<Option<TcpStream>> {
+/// A connection to `relay` dialed with `token`, once the Relay sends a client on it, with the
+/// client's address, or `None` once it waited [`DIAL_AGAIN_AFTER`] for none.
+// The Server takes the address the Relay names, as it takes a trusted proxy's `X-Forwarded-For`:
+// its Admin named this Relay, and rate limits and the remote Playback Limit go by it.
+async fn wait_for_client(
+    relay: SocketAddr,
+    token: &str,
+) -> io::Result<Option<(TcpStream, SocketAddr)>> {
     let dial = dial(token)?;
     let mut stream = timeout(OPENING_WITHIN, TcpStream::connect(relay))
         .await
@@ -491,7 +515,13 @@ async fn wait_for_client(relay: SocketAddr, token: &str) -> io::Result<Option<Tc
         Ok(Ok(0)) => Err(io::Error::other(
             "the Relay closed the connection, as it does with a token it doesn't take",
         )),
-        Ok(Ok(_)) => Ok(Some(stream)),
+        Ok(Ok(_)) => {
+            let peer = timeout(OPENING_WITHIN, read_framed(&mut stream))
+                .await
+                .map_err(|_elapsed| io::Error::from(io::ErrorKind::TimedOut))??;
+            let peer = peer.parse().map_err(io::Error::other)?;
+            Ok(Some((stream, peer)))
+        }
         Ok(Err(err)) => Err(err),
     }
 }
@@ -501,11 +531,7 @@ async fn wait_for_client(relay: SocketAddr, token: &str) -> io::Result<Option<Tc
 // out the Server's waiting connections for its 5 minutes, though never read its clients' TLS; bind
 // it to one Relay and send it over TLS once the project runs Relays for everyone (ADR 0057).
 fn dial(token: &str) -> io::Result<Vec<u8>> {
-    let length = u16::try_from(token.len())
-        .ok()
-        .filter(|&length| usize::from(length) <= MAX_TOKEN_LENGTH)
-        .ok_or_else(|| io::Error::other("the token is too long for a Relay"))?;
-    Ok([&length.to_be_bytes()[..], token.as_bytes()].concat())
+    framed(token.as_bytes())
 }
 
 /// The Server's last token for its Relay, or the failure to get one, each kept a while so the

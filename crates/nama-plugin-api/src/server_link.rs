@@ -48,8 +48,9 @@ pub struct Reachability {
     /// Whether the service reached it there, so clients outside the LAN try it.
     pub reachable: bool,
     /// The Server's names, its own first, such as `<id>.namadirect.net`, then one for each of its
-    /// LAN IP addresses, such as `192-168-1-10.<id>.namadirect.net` (ADR 0104). Empty while the
-    /// service names no Server.
+    /// LAN IP addresses, such as `192-168-1-10.<id>.namadirect.net` (ADR 0104), and
+    /// `relay.<id>.namadirect.net` with a [`ServerAddresses::relay`]. Empty while the service names
+    /// no Server.
     pub names: Vec<String>,
 }
 

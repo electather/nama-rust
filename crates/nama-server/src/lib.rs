@@ -91,8 +91,9 @@ use crate::{
 /// Server URL while the Admin sets none (ADR 0057). With [`Config::relay`], it keeps connections
 /// waiting at that Relay with a token the Plugin gets, and serves the clients they carry.
 ///
-/// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, unless the
-/// peer is in [`Config::trusted_proxies`], whose `X-Forwarded-For` names the client.
+/// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, or through
+/// the Relay the one the Relay names, unless the peer is in [`Config::trusted_proxies`], whose
+/// `X-Forwarded-For` names the client.
 ///
 /// Clients speak the Connect protocol over HTTP/1.1 or HTTP/2, with JSON or binary protobuf
 /// bodies, in cleartext, or over TLS on the same port once the Server has a certificate. With the
@@ -265,6 +266,7 @@ pub fn serve(
             certificate.clone(),
             linking.clone(),
             server_url.clone(),
+            relay,
             data_dir,
             acme_directory,
         );

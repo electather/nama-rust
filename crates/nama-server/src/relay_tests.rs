@@ -91,8 +91,14 @@ async fn read(stream: &mut TcpStream, length: usize) -> Vec<u8> {
     read
 }
 
+/// The client's address the Relay sends `server` first, then the next `length` bytes.
+async fn client_on(server: &mut TcpStream, length: usize) -> (SocketAddr, Vec<u8>) {
+    let peer = timeout(WAIT, read_framed(server)).await.unwrap().unwrap();
+    (peer.parse().unwrap(), read(server, length).await)
+}
+
 #[tokio::test]
-async fn a_client_reaches_the_server_waiting_under_its_sni_with_its_bytes_untouched() {
+async fn a_client_reaches_the_server_waiting_under_its_sni_with_its_address_and_bytes_untouched() {
     let key = key();
     let relay = relay(hub_publishing(&key).await).await;
     let mut server = dialed(relay, &signed(&key, &relay_claims(OWN))).await;
@@ -101,9 +107,29 @@ async fn a_client_reaches_the_server_waiting_under_its_sni_with_its_bytes_untouc
     let mut client = TcpStream::connect(relay).await.unwrap();
     client.write_all(&hello).await.unwrap();
 
-    assert_eq!(read(&mut server, hello.len()).await, hello);
+    assert_eq!(
+        client_on(&mut server, hello.len()).await,
+        (client.local_addr().unwrap(), hello)
+    );
     server.write_all(b"answer").await.unwrap();
     assert_eq!(read(&mut client, 6).await, b"answer");
+}
+
+#[tokio::test]
+async fn a_client_naming_another_server_never_takes_this_ones_connection() {
+    let key = key();
+    let relay = relay(hub_publishing(&key).await).await;
+    let mut server = dialed(relay, &signed(&key, &relay_claims(OWN))).await;
+    let (elsewhere, here) = (client_hello("def.namadirect.test"), client_hello(OWN));
+
+    let mut other = TcpStream::connect(relay).await.unwrap();
+    other.write_all(&elsewhere).await.unwrap();
+    // Time for the Relay to route it, which would take the waiting connection were it wrong.
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let mut client = TcpStream::connect(relay).await.unwrap();
+    client.write_all(&here).await.unwrap();
+
+    assert_eq!(client_on(&mut server, here.len()).await.1, here);
 }
 
 #[tokio::test]

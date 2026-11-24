@@ -20,7 +20,7 @@ Where the Hub can't reach the Server's port, such as behind CGNAT, a Linked Serv
    relay = "198.51.100.4:443"
    ```
 
-The Hub then gives the Server the name `relay.<id>.namadirect.net`, pointing at the Relay, and offers `https://relay.<id>.namadirect.net:443` to clients after the Server's direct addresses, before plain `http://<lan-ip>`. Every byte of a stream through it crosses the Relay's machine twice, so it counts against that machine's bandwidth.
+The Hub then gives the Server the name `relay.<id>.namadirect.net`, pointing at the Relay, and offers `https://relay.<id>.namadirect.net:443` to clients after the Server's direct addresses, before plain `http://<lan-ip>`. While the Hub can't reach the Server's own port, that is its Server URL, unless you set one. Every byte of a stream through it crosses the Relay's machine twice, so it counts against that machine's bandwidth.
 
 ## Without the Hub
 
