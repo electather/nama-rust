@@ -23,7 +23,7 @@ export function HardwareRow({
       {canTranscode && (
         <p className="text-xs text-pretty text-muted-foreground">
           {toneMappings.get(found.toneMapping)}
-          {!found.hevc && " Didn’t pass its test of HEVC, so Transcodes on it make H.264."}
+          {!found.hevc && " Can’t make HEVC, so Transcodes on it make H.264."}
           {found.automatic && " Automatic picks this one."}
         </p>
       )}

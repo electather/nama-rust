@@ -111,7 +111,7 @@ test("an Admin sees the hardware acceleration that passed its test and whether i
   expect(screen.queryByText(/Transcodes run in software/u)).toBeNull();
 });
 
-test("an Admin sees which hardware didn’t pass its test of HEVC", async () => {
+test("an Admin sees which hardware can’t make HEVC", async () => {
   openSettings(
     "server-playback",
     fakeServer({
@@ -131,8 +131,8 @@ test("an Admin sees which hardware didn’t pass its test of HEVC", async () => 
   );
 
   const vaapi = await screen.findByRole("heading", { name: "VAAPI" });
-  expect(vaapi.nextElementSibling?.textContent).toMatch(/Didn’t pass its test of HEVC/u);
-  expect(screen.getAllByText(/test of HEVC/u)).toHaveLength(1);
+  expect(vaapi.nextElementSibling?.textContent).toMatch(/Can’t make HEVC/u);
+  expect(screen.getAllByText(/make HEVC/u)).toHaveLength(1);
 });
 
 test("an Admin sees a row for each API on each GPU that passed its test", async () => {
