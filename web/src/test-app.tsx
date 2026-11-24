@@ -23,12 +23,16 @@ import { Permission, SignInService, WhoAmIResponseSchema } from "@/gen/nama/v1/s
 // oxlint-disable-next-line import/max-dependencies -- the fake Server answers each service a signed-in page calls as it loads, through the app's own interceptors
 import { UserService } from "@/gen/nama/v1/user_pb";
 import { traceCalls } from "@/shared/lib/diagnostics";
+import { tickWorker } from "@/test-worker";
 
 import { getRouter } from "./router";
 
 // A file's first `findBy…` waits while the app's route chunks load for the first time, which took
 // over 5 s under a full parallel run (#2100); `vite.config.ts`'s `testTimeout` stays above it.
 configure({ asyncUtilTimeout: 10_000 });
+
+// Not `vi.stubGlobal`, which the files that call `vi.unstubAllGlobals` would undo after one test.
+Object.assign(globalThis, { Worker: tickWorker });
 
 /** What a new User gets: the Permissions to make Requests, which manage nothing. */
 export const newUser = [Permission.REQUEST, Permission.VIEW_REQUESTS];

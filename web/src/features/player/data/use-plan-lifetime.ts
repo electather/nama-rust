@@ -20,6 +20,18 @@ export const planKey = ["planPlayback"] as const;
 const KEEP_ALIVE_MS = 30_000;
 
 /**
+ * A Worker's script that, sent a number of milliseconds, posts an empty message that often. Chrome
+ * doesn't throttle a dedicated Worker's timers, while a silent page hidden for 5 minutes fires its
+ * own at most once a minute, which would let the Server stop a paused player's plan (#2164). A page
+ * Chrome freezes stops its Workers too, and plans again when it's back (#2084).
+ */
+const TICKER_URL = URL.createObjectURL(
+  new Blob(["onmessage = ({ data }) => setInterval(() => postMessage(null), data);"], {
+    type: "text/javascript",
+  }),
+);
+
+/**
  * The plans one Query client's players ended, kept outside React since a stop fires after its
  * player is gone.
  */
@@ -85,9 +97,12 @@ function keepPlaying(plans: Plans, { id: planId, url }: Playing) {
   // mounting: a stop sent at once would end the plan the `<video>` goes on playing.
   clearTimeout(plans.letGo.get(planId));
   plans.letGo.delete(planId);
-  const asking = setInterval(() => {
+  const ticker = new Worker(TICKER_URL);
+  ticker.addEventListener("message", () => {
     void ask(url);
-  }, KEEP_ALIVE_MS);
+  });
+  // oxlint-disable-next-line unicorn/require-post-message-target-origin -- a Worker's, which takes no origin
+  ticker.postMessage(KEEP_ALIVE_MS);
   // Closing or reloading the tab unmounts nothing, and a reloaded one no longer knows this plan,
   // whose Transcode would count toward the limit for that minute. A page the browser keeps to go
   // back to plays on when it does. ponytail: best effort, as the page may go before it's sent.
@@ -98,7 +113,7 @@ function keepPlaying(plans: Plans, { id: planId, url }: Playing) {
   };
   globalThis.addEventListener("pagehide", leaving);
   return () => {
-    clearInterval(asking);
+    ticker.terminate();
     globalThis.removeEventListener("pagehide", leaving);
     stopLater(plans, planId);
   };
