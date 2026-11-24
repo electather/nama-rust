@@ -59,7 +59,8 @@ async fn serve(
     let user = caller.map(|caller| caller.user.id);
     let device = caller.map(|caller| caller.device.id);
     let client = (request.extensions().get::<RequestSource>()).map(|source| source.client_ip);
-    let kept_to_remote_cap = device.is_some_and(|device| running.ask_direct_plays(id, device));
+    let planned_under_remote_cap =
+        device.is_some_and(|device| running.ask_direct_plays(id, device));
     let path = match contents.version_file(id).await {
         Ok(Some((path, _))) => path,
         Ok(None) => return StatusCode::NOT_FOUND.into_response(),
@@ -69,9 +70,9 @@ async fn serve(
         }
     };
     // A plan made off the local network applied the cap where it could, so one running lets the
-    // file through. That's past the cap for a Version of unknown picture size, which the cap is
-    // best-effort for (#2134). One made on the local network never applied the cap (#2130).
-    if !kept_to_remote_cap {
+    // file through, even past the cap for a picture of unknown size (ADR 0031, #2134). One made
+    // on the local network never applied the cap (#2130).
+    if !planned_under_remote_cap {
         match capped_remotely(&db, user, client).await {
             Ok(false) => {}
             Ok(true) => return StatusCode::FORBIDDEN.into_response(),
