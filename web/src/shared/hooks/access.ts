@@ -96,7 +96,7 @@ export async function hubInfo({ queryClient, transport }: RouterContext) {
 /** The Account signed in at the Hub, or `null` when none is. */
 export async function signedInAccount({ queryClient, transport }: RouterContext) {
   const signedIn = await queryClient.query({
-    queryKey: ["signed-in-account"],
+    queryKey: signedInAccountKey,
     // The Hub refuses with `SIGN_IN_REQUIRED`, the only refusal `GetAccount` has.
     queryFn: async () => {
       const answer = await nullWhen(
@@ -109,6 +109,16 @@ export async function signedInAccount({ queryClient, transport }: RouterContext)
   });
   return signedIn?.account ?? null;
 }
+
+/**
+ * Forgets which Account is signed in at the Hub, for when a page finds its session ended, so the
+ * next access check asks the Hub again.
+ */
+export function forgetSignedInAccount(queryClient: QueryClient) {
+  queryClient.removeQueries({ queryKey: signedInAccountKey });
+}
+
+const signedInAccountKey = ["signed-in-account"];
 
 /** The Account signed in at the Hub; without one, sends the visitor to sign in, then to `href`. */
 export async function accountOrSignIn(context: RouterContext, href: string) {
