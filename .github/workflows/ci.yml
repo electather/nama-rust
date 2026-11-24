@@ -454,6 +454,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
+          components: clippy
       - uses: Swatinem/rust-cache@v2
         with:
           # As in `test`.
@@ -467,10 +468,13 @@ jobs:
           working-directory: web
           cache: true
       - run: vp -C web build
+      # `rust-check` lints without `web`, which needs the built app, so its code is linted here.
+      - run: cargo clippy -p nama-server --features web --all-targets --locked -- -D warnings
       - run: cargo nextest run -p nama-server --features web --test web --locked --profile ci-web
       # The Hub embeds its web app as the Server does. Its other tests need PostgreSQL, which `hub`
       # has, so this runs only its web pages' unit tests, which need none.
       - run: vp -C web/hub build
+      - run: cargo clippy -p nama-hub --features web --all-targets --locked -- -D warnings
       - run: cargo nextest run -p nama-hub --features web --lib --locked --profile ci -E 'test(/^web::/)'
       - if: ${{ !cancelled() && hashFiles('target/nextest/*/junit.xml') != '' }}
         run: git rev-parse 'HEAD^{tree}' > target/nextest/tree
