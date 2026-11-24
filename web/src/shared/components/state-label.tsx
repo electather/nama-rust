@@ -7,17 +7,15 @@ export interface Shown {
 }
 
 const TONES = {
-  quiet: "border text-muted-foreground",
-  // It's as it should be, such as Connected or Saved: lit, as a chosen thing is.
+  quiet: "bg-secondary text-foreground",
+  // It's as it should be, such as Connected or Password changed: lit, as a chosen thing is.
   positive: "bg-accent text-primary",
-  // Something gave way, such as a Playback Limit the player couldn't keep: it stands out of the
-  // picture without the alarm of Destructive.
+  // Something gave way, such as a Playback Limit the player couldn't keep. Drawn as quiet for now,
+  // as DESIGN.md says; whether it should stand apart is #2202.
   warning: "bg-secondary text-foreground",
-  // Declined or Failed: DESIGN.md keeps Destructive the only status colour, so no other state uses it.
+  // Declined, Failed or a setting not saved: DESIGN.md keeps Destructive the only status colour.
   destructive: "bg-destructive/15 text-destructive",
 };
-
-const LARGE_QUIET = "bg-secondary text-foreground";
 
 const SIZES = {
   default: { pill: "gap-1.5 px-2.5 py-0.5 text-sm", icon: "size-3.5" },
@@ -33,11 +31,9 @@ export function StateLabel({
   large = false,
 }: Shown & { tone?: keyof typeof TONES; large?: boolean }) {
   const size = large ? "large" : "default";
-  // Over a title's art a hairline would be lost, so a quiet large pill is filled instead.
-  const toneClasses = large && tone === "quiet" ? LARGE_QUIET : TONES[tone];
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-full ${SIZES[size].pill} ${toneClasses}`}
+      className={`inline-flex shrink-0 items-center rounded-full ${SIZES[size].pill} ${TONES[tone]}`}
     >
       <Icon aria-hidden className={`shrink-0 ${SIZES[size].icon}`} />
       {label}
