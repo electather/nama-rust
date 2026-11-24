@@ -39,8 +39,8 @@ const CHALLENGE_LIFETIME: Duration = Duration::from_mins(5);
 /// The most challenges that may wait at once, so a flood of requests can't fill the Hub's memory.
 const MOST_WAITING: usize = 10_000;
 
-/// The most challenges one client, as `counted_ip` counts it, may have waiting, so it would take
-/// 500 of them to fill the Hub's.
+/// The most challenges one client, as `counted_ip` counts it, may have waiting, far below
+/// `MOST_WAITING` so one client can't fill the Hub's.
 ///
 /// ponytail: a client rotating through a /48's /64s is bounded only by `MOST_WAITING`; stateless,
 /// HMAC-signed challenges would close that, should it matter (#2049).
@@ -126,29 +126,19 @@ impl RelyingParty {
     }
 
     /// A fresh challenge for `ceremony`, handed to `caller`, which waits for its answer from when
-    /// it asked. Refused while `caller` holds its share of waiting challenges, or all wait.
+    /// it asked. Refused with `Blocked` while `caller` holds its share of waiting challenges, and
+    /// with `ChallengesBusy` while the Hub holds `MOST_WAITING`.
     pub(super) fn challenge(&self, ceremony: Ceremony, caller: Caller) -> Result<[u8; 32], Error> {
-        let client = counted_ip(caller.ip);
         let mut challenge = [0; 32];
         getrandom::fill(&mut challenge)?;
-        let mut waiting = self.lock();
-        if let Some(retry_after) = waiting.wait(client, caller.now) {
-            return Err(Blocked { retry_after }.into());
-        }
-        if waiting.challenges.len() >= MOST_WAITING {
-            waiting.drop_expired(caller.now);
-            if waiting.challenges.len() >= MOST_WAITING {
-                return Err(Error::ChallengesBusy);
-            }
-        }
-        waiting.insert(
+        self.lock().hand_out(
             challenge,
             Handed {
                 ceremony,
                 at: caller.now,
-                client,
+                client: counted_ip(caller.ip),
             },
-        );
+        )?;
         Ok(challenge)
     }
 
@@ -197,12 +187,29 @@ impl RelyingParty {
     }
 
     fn lock(&self) -> MutexGuard<'_, Waiting> {
-        // Each change keeps `held` in step with `challenges`, so a panic elsewhere doesn't spoil it.
+        // Nothing panics between a change to `challenges` and the matching one to `held`, so a
+        // panic elsewhere doesn't spoil them.
         self.waiting.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
 impl Waiting {
+    /// Keeps `challenge` waiting for `handed.client`, unless that client holds its share or the
+    /// Hub holds `MOST_WAITING`.
+    fn hand_out(&mut self, challenge: [u8; 32], handed: Handed) -> Result<(), Error> {
+        if let Some(retry_after) = self.wait(handed.client, handed.at) {
+            return Err(Blocked { retry_after }.into());
+        }
+        if self.challenges.len() >= MOST_WAITING {
+            self.drop_expired(handed.at);
+            if self.challenges.len() >= MOST_WAITING {
+                return Err(Error::ChallengesBusy);
+            }
+        }
+        self.insert(challenge, handed);
+        Ok(())
+    }
+
     /// How long `client` must wait for one of its challenges to expire, if it holds its share at
     /// `now`. Forgets its expired ones; their challenges go when the waiting ones are full.
     fn wait(&mut self, client: IpAddr, now: Instant) -> Option<Duration> {
@@ -211,6 +218,7 @@ impl Waiting {
         if times.len() < WAITING_PER_CLIENT {
             return None;
         }
+        // At its share, so `times` isn't empty.
         let oldest = times.iter().min()?;
         Some(CHALLENGE_LIFETIME.saturating_sub(now.saturating_duration_since(*oldest)))
     }
