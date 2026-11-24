@@ -44,6 +44,7 @@ function refused(code: Code, reason: RefusalReason, params: Record<string, strin
  * the code BDFH-JKLM, and its User Ida the code CDFG-HJKL, and entering either is refused for
  * `refusing`, if given, with `refusalParams`. Ada's Account has Attic Linked, and Grace on Cabin,
  * whose Admin set its Server URL. With `listFails`, the Hub fails to list the Account's Servers.
+ * The Hub says it has no mail, so a Sign-in Link still offered shows a refusal is read alone.
  */
 function openAccount(
   refusing?: RefusalReason,
@@ -59,7 +60,7 @@ function openAccount(
   const servers = [attic, cabin];
   let users = [grace];
   const transport = createRouterTransport(({ service }) => {
-    service(HubService, { getHubInfo: () => ({ version: "0.1.0", signInLinks: true }) });
+    service(HubService, { getHubInfo: () => ({ version: "0.1.0", signInLinks: false }) });
     service(AccountService, {
       getAccount: () => {
         if (!session) {
