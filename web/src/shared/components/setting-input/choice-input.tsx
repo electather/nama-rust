@@ -19,22 +19,20 @@ export function ChoiceInput({
   const stored = setting.value?.value.case === "textValue" ? setting.value.value.value : "";
   if (choices === undefined) {
     return (
-      <>
-        <FormSelect
-          row
-          label={setting.label}
-          name={setting.key}
-          disabled
-          hint={[
-            setting.description,
-            "Test the settings to choose from what the Plugin offers.",
-          ].join(" ")}
-          error={error}
-          options={[{ value: stored, label: stored === "" ? "Not chosen" : stored }]}
-        />
-        {/* A disabled dropdown isn't sent, so this sends the stored choice as it was. */}
-        <input type="hidden" name={setting.key} value={stored} />
-      </>
+      <FormSelect
+        row
+        label={setting.label}
+        name={setting.key}
+        disabled
+        hint={[
+          setting.description,
+          "Test the settings to choose from what the Plugin offers.",
+        ].join(" ")}
+        error={error}
+        options={[{ value: stored, label: stored === "" ? "Not chosen" : stored }]}
+        // A disabled dropdown isn't sent, so this sends the stored choice as it was.
+        hiddenInput={<input type="hidden" name={setting.key} value={stored} />}
+      />
     );
   }
   return (

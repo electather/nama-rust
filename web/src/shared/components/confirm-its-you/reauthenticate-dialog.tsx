@@ -21,6 +21,7 @@ export function ReauthenticateDialog({
   openings,
   confirming,
   onReauthenticated,
+  onCancel,
   onClose,
 }: {
   dialog: RefObject<HTMLDialogElement | null>;
@@ -28,6 +29,7 @@ export function ReauthenticateDialog({
   /** What the password is for, such as `sign in “Laptop”`, or else it's to go on with a change. */
   confirming: string | undefined;
   onReauthenticated: () => void;
+  onCancel: () => void;
   onClose: () => void;
 }) {
   const reauthenticate = useReauthenticate(onReauthenticated);
@@ -40,6 +42,7 @@ export function ReauthenticateDialog({
     <ConfirmModal
       ref={dialog}
       openings={openings}
+      onCancel={onCancel}
       onClose={onClose}
       action="Confirm"
       title="Confirm it’s you"

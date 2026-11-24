@@ -112,10 +112,11 @@ test("refused again after you confirm it’s you, the change shows an error, not
 
 /**
  * Settings' Users section, with the Admin Sam and Alex, who isn't one, on a Server that refuses
- * `ResetPassword` and `SetPermissions` for want of Recent Authentication until `Reauthenticate`. Returns
- * the resets it made and the Permissions it gave the Users it made Admin.
+ * `ResetPassword` and `SetPermissions` for want of Recent Authentication until `Reauthenticate`, or
+ * always if `alwaysRefuse`. Returns the resets it made and the Permissions it gave the Users it
+ * made Admin.
  */
-function openUsersNeedingRecentAuthentication() {
+function openUsersNeedingRecentAuthentication(alwaysRefuse = false) {
   let reauthenticated = false;
   const resets: [bigint, string][] = [];
   const promoted: [bigint, Permission[]][] = [];
@@ -137,14 +138,14 @@ function openUsersNeedingRecentAuthentication() {
           ],
         }),
         resetPassword: ({ userId, newPassword }) => {
-          if (!reauthenticated) {
+          if (alwaysRefuse || !reauthenticated) {
             throw recentAuthenticationRequired();
           }
           resets.push([userId, newPassword]);
           return {};
         },
         setPermissions: ({ userId, permissions }) => {
-          if (!reauthenticated) {
+          if (alwaysRefuse || !reauthenticated) {
             throw recentAuthenticationRequired();
           }
           if (permissions.includes(Permission.ADMIN)) {
@@ -239,4 +240,96 @@ test("on a Server Linked to the Hub, “Confirm it’s you” offers your Accoun
     ["/reauthenticate/account", "/code?settings=signin"],
   ]);
   expect(sessionStorage.getItem("nama.account-sign-in")).toBe("secret");
+});
+
+/**
+ * Closes dialogs without their `close` event: Chromium fires it only when it next draws the page,
+ * which a page in a background or hidden window may not do for a long time.
+ */
+function closeWithoutCloseEvent() {
+  vi.spyOn(HTMLDialogElement.prototype, "close").mockImplementation(function closeUndrawn(
+    this: HTMLDialogElement,
+  ) {
+    this.removeAttribute("open");
+  });
+}
+
+/** Opens Alex's page and ticks Admin there, returning its checkbox. */
+async function tickAdminForAlex() {
+  fireEvent.click(await screen.findByRole("link", { name: "Alex" }));
+  const alex = await screen.findByRole("region", { name: "Alex" });
+  const promote = within(alex).getByRole("checkbox", { name: "Admin" });
+  fireEvent.click(promote);
+  return promote;
+}
+
+test("a Permission is saved once you confirm it’s you, before the browser draws the page again", async () => {
+  closeWithoutCloseEvent();
+  const { promoted } = openUsersNeedingRecentAuthentication();
+
+  await tickAdminForAlex();
+  await confirmItsYou();
+
+  await waitFor(() => {
+    expect(promoted).toStrictEqual([[2n, [...newUser, Permission.ADMIN]]]);
+  });
+});
+
+test("cancelling “Confirm it’s you” unticks the Permission it was for, before the browser draws the page again", async () => {
+  closeWithoutCloseEvent();
+  const { promoted } = openUsersNeedingRecentAuthentication();
+
+  const promote = await tickAdminForAlex();
+  const dialog = await screen.findByRole("alertdialog", { name: "Confirm it’s you" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+  await waitFor(() => {
+    expect(promote).toHaveProperty("checked", false);
+  });
+  expect(promoted).toStrictEqual([]);
+});
+
+test("a Permission refused again after you confirm it’s you is unticked, and says so", async () => {
+  openUsersNeedingRecentAuthentication(true);
+
+  const promote = await tickAdminForAlex();
+  await confirmItsYou();
+
+  await expect(screen.findByText("Sign in again to do this.")).resolves.toBeDefined();
+  expect(promote).toHaveProperty("checked", false);
+});
+
+test("a late close event from a cancelled “Confirm it’s you” leaves the next one waiting", async () => {
+  closeWithoutCloseEvent();
+  const { promoted } = openUsersNeedingRecentAuthentication();
+
+  const promote = await tickAdminForAlex();
+  const dialog = await screen.findByRole("alertdialog", { name: "Confirm it’s you" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  await waitFor(() => {
+    expect(promote).toHaveProperty("checked", false);
+  });
+  fireEvent.click(promote);
+  await screen.findByRole("alertdialog", { name: "Confirm it’s you" });
+  fireEvent(dialog, new Event("close"));
+  await confirmItsYou();
+
+  await waitFor(() => {
+    expect(promoted).toStrictEqual([[2n, [...newUser, Permission.ADMIN]]]);
+  });
+});
+
+test("dismissing “Confirm it’s you” with Escape unticks the Permission it was for", async () => {
+  openUsersNeedingRecentAuthentication();
+
+  const promote = await tickAdminForAlex();
+  const dialog = await screen.findByRole<HTMLDialogElement>("alertdialog", {
+    name: "Confirm it’s you",
+  });
+  // jsdom doesn't close a dialog on Escape, so this closes it the way the browser then does.
+  dialog.close();
+
+  await waitFor(() => {
+    expect(promote).toHaveProperty("checked", false);
+  });
 });

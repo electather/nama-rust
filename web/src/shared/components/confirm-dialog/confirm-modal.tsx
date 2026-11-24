@@ -28,6 +28,7 @@ export function ConfirmModal({
   openings,
   destructive = false,
   onClose,
+  onCancel,
   ...confirmation
 }: Confirmation & {
   ref: RefObject<HTMLDialogElement | null>;
@@ -36,6 +37,8 @@ export function ConfirmModal({
   destructive?: boolean;
   /** Called whenever it closes: confirmed, cancelled or dismissed with Escape. */
   onClose?: () => void;
+  /** Called as soon as Cancel or ✕ is pressed, without waiting for the `close` event. */
+  onCancel?: () => void;
 }) {
   const id = useId();
   return (
@@ -44,6 +47,7 @@ export function ConfirmModal({
         key={openings}
         id={id}
         close={() => ref.current?.close()}
+        onCancel={onCancel}
         destructive={destructive}
         {...confirmation}
       />

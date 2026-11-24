@@ -10,6 +10,7 @@ import { onSubmitted } from "@/shared/lib/forms";
 export function ConfirmForm({
   id,
   close,
+  onCancel,
   destructive,
   action,
   dismiss = "Cancel",
@@ -18,9 +19,20 @@ export function ConfirmForm({
   children,
   onConfirm,
   refusal,
-}: Confirmation & { id: string; close: () => void; destructive: boolean }) {
+}: Confirmation & {
+  id: string;
+  close: () => void;
+  /** Called as soon as Cancel or ✕ is pressed, before it closes. */
+  onCancel?: (() => void) | undefined;
+  destructive: boolean;
+}) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+
+  function cancel() {
+    onCancel?.();
+    close();
+  }
 
   async function confirm(typed: FormData) {
     setPending(true);
@@ -55,14 +67,14 @@ export function ConfirmForm({
       {children}
       <AlertText error={error} />
       <div className="flex flex-col-reverse gap-2 *:w-full sm:flex-row sm:justify-end sm:*:w-auto">
-        <Button variant="outline" disabled={pending} onClick={close}>
+        <Button variant="outline" disabled={pending} onClick={cancel}>
           {dismiss}
         </Button>
         <Button type="submit" variant={destructive ? "destructive" : "default"} disabled={pending}>
           {action}
         </Button>
       </div>
-      <CloseButton disabled={pending} onClose={close} />
+      <CloseButton disabled={pending} onClose={cancel} />
     </form>
   );
 }

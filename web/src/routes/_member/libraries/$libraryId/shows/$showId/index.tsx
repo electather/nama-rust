@@ -5,7 +5,8 @@ import { NotFound } from "@/app/route-error/not-found";
 import { ShowPage } from "@/features/title/components/show-page";
 import { TitlePending } from "@/features/title/components/title-pending";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
-import { externalIdFromParam, libraryFromParam, queryOrNotFound } from "@/shared/hooks/browse";
+import { externalIdFromParam, libraryIdFromParam, queryOrNotFound } from "@/shared/hooks/browse";
+import { prefetchLibraries } from "@/shared/hooks/use-libraries";
 import { deletedFromSearch, type DeletedSearch } from "@/shared/lib/deleted-search";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showId/")({
@@ -16,8 +17,11 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showI
   },
   loaderDeps: ({ search }) => ({ season: search.season }),
   loader: async ({ context, params, deps }) => {
-    const library = await libraryFromParam(context, params.libraryId);
-    const show = { libraryId: library.id, showId: externalIdFromParam(params.showId) };
+    void prefetchLibraries(context);
+    const show = {
+      libraryId: libraryIdFromParam(params.libraryId),
+      showId: externalIdFromParam(params.showId),
+    };
     const { queryClient, transport } = context;
     await Promise.all([
       queryOrNotFound(context, BrowseService.method.getShow, show),

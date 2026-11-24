@@ -8,7 +8,7 @@ import { versionSearch } from "@/features/player/lib/version-search";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import {
   externalIdFromParam,
-  libraryFromParam,
+  libraryIdFromParam,
   queryOrNotFound,
   wholeNumberFromParam,
 } from "@/shared/hooks/browse";
@@ -18,14 +18,20 @@ export const Route = createFileRoute(
 )({
   validateSearch: (search) => ({ ...versionSearch(search), ...streakSearch(search) }),
   loader: async ({ context, params }) => {
-    const input = {
-      libraryId: (await libraryFromParam(context, params.libraryId)).id,
+    const show = {
+      libraryId: libraryIdFromParam(params.libraryId),
       showId: externalIdFromParam(params.showId),
-      seasonNumber: wholeNumberFromParam(params.season),
     };
-    const { episodes } = await queryOrNotFound(context, BrowseService.method.listEpisodes, input);
+    // The whole Show's, as the Show page and the Episodes panel ask, so they share one request.
+    const { episodes } = await queryOrNotFound(context, BrowseService.method.listEpisodes, show);
+    const input = { ...show, seasonNumber: wholeNumberFromParam(params.season) };
     const episodeNumber = wholeNumberFromParam(params.episode);
-    if (!episodes.some((episode) => episode.episodeNumber === episodeNumber)) {
+    if (
+      !episodes.some(
+        (episode) =>
+          episode.seasonNumber === input.seasonNumber && episode.episodeNumber === episodeNumber,
+      )
+    ) {
       throw notFound();
     }
     return { input, episodeNumber };

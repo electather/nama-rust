@@ -165,8 +165,7 @@ fn snapshot(artwork: Artwork, resized: bool) -> ShownImages {
         });
     let local = LocalImageUrls::filed(local_images);
     ShownImages {
-        custom,
-        local,
+        in_place: InPlaceOfDownloaded { custom, local },
         thumbhashes: thumbhashes.collect(),
         artwork,
     }
@@ -422,4 +421,28 @@ async fn an_offered_image_is_offered_only_when_it_shows() {
         (shown, was_offered("/offered.jpg")),
         (showing(&offered_url, false), true)
     );
+}
+
+#[tokio::test]
+async fn a_title_shows_its_downloaded_poster_only_with_no_custom_image_or_one_beside_its_media() {
+    let data = tempfile::tempdir().unwrap();
+    let in_place = snapshot(artwork_in(&data).await, false).in_place;
+    let titles = [
+        // A Custom Poster.
+        (ids(&tmdb(1), &[]), POSTER),
+        // A Poster beside its media.
+        (ids(&tmdb(2), &[]), SHOW_POSTER),
+        // A Custom Poster kept under its other id.
+        (ids(&tmdb(5), &[&imdb("tt5")]), POSTER),
+        // A Poster beside its media filed under its other id.
+        (ids(&tmdb(6), &[&imdb("tt6")]), POSTER),
+        // Only its Show has a Poster beside the media.
+        (ids(&tmdb(2), &[]), SEASON_1),
+        // Nothing in its place.
+        (ids(&tmdb(3), &[]), POSTER),
+    ];
+
+    let shown = titles.map(|(ids, image)| in_place.shows_downloaded(&ids, image));
+
+    assert_eq!(shown, [false, false, false, false, true, true]);
 }

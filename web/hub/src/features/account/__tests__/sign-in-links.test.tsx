@@ -1,5 +1,6 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
+import { createConnectQueryKey } from "@connectrpc/connect-query";
 import {
   type Account,
   AccountSchema,
@@ -12,6 +13,12 @@ import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
 import { cleanup, configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, test } from "vite-plus/test";
+
+// Partial: the page's own key also holds the input and transport.
+const hubInfoKey = createConnectQueryKey({
+  schema: HubService.method.getHubInfo,
+  cardinality: "finite",
+});
 
 const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
 const bea = create(AccountSchema, { id: "0192-bea", email: "bea@example.com" });
@@ -28,19 +35,17 @@ function refused(code: Code, reason: RefusalReason) {
 /**
  * Opens `path` on a fake Hub that emails Sign-in Links when `signInLinks` says so, or fails to say
  * whether it does when it's `null`, with `signedIn` signed in, if anyone, and one waiting link for
- * Ada's unproven Account. Returns what was asked to be sent, whether the Hub has said if it emails
- * Sign-in Links, and how often a link was looked up.
+ * Ada's unproven Account. Returns what was asked to be sent, how far the page's `GetHubInfo` call
+ * has got, and how often a link was looked up.
  */
 function openHub(path: string, signInLinks: boolean | null, signedIn?: Account) {
   let session = signedIn;
   let waiting = true;
   const sent: SendSignInLinkRequest[] = [];
-  let toldSignInLinks = false;
   let linkLookUps = 0;
   const transport = createRouterTransport(({ service }) => {
     service(HubService, {
       getHubInfo: () => {
-        toldSignInLinks = true;
         if (signInLinks === null) {
           throw new ConnectError("the Hub failed", Code.Internal);
         }
@@ -73,8 +78,14 @@ function openHub(path: string, signInLinks: boolean | null, signedIn?: Account) 
     });
   });
   globalThis.history.replaceState(null, "", path);
-  render(<RouterProvider router={getRouter(transport)} />);
-  return { sent, toldSignInLinks: () => toldSignInLinks, linkLookUps: () => linkLookUps };
+  const router = getRouter(transport);
+  render(<RouterProvider router={router} />);
+  const queryCache = router.options.context.queryClient.getQueryCache();
+  return {
+    sent,
+    hubInfoStatus: () => queryCache.find({ queryKey: hubInfoKey, exact: false })?.state.status,
+    linkLookUps: () => linkLookUps,
+  };
 }
 
 describe("a Sign-in Link", () => {
@@ -90,7 +101,7 @@ describe("a Sign-in Link", () => {
     const hub = openHub("/sign-in", false);
     await screen.findByRole("heading", { name: "Sign in" });
     await waitFor(() => {
-      expect(hub.toldSignInLinks()).toBe(true);
+      expect(hub.hubInfoStatus()).toBe("success");
     });
     expect(screen.queryByRole("link", { name: "Email me a Sign-in Link" })).toBeNull();
     expect(screen.queryByText(/Forgot your password/u)).toBeNull();
@@ -108,7 +119,7 @@ describe("a Sign-in Link", () => {
     const hub = openHub("/sign-in", null);
     await screen.findByRole("heading", { name: "Sign in" });
     await waitFor(() => {
-      expect(hub.toldSignInLinks()).toBe(true);
+      expect(hub.hubInfoStatus()).toBe("error");
     });
 
     expect(screen.queryByRole("link", { name: "Email me a Sign-in Link" })).toBeNull();
