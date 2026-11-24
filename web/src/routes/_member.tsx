@@ -64,7 +64,7 @@ export const Route = createFileRoute("/_member")({
 
 function Member() {
   const { signedIn, account } = Route.useRouteContext();
-  // shortcut: the Account's pages at the Hub sit in the signed-out pages' frame, without app
+  // ponytail: the Account's pages at the Hub sit in the signed-out pages' frame, without app
   // chrome, until the Hub's Home gives them some (#2204).
   if (account) {
     return (

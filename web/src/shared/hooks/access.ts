@@ -16,8 +16,8 @@ export interface RouterContext {
 }
 
 // src/routes/AGENTS.md, "Access checks per route".
-// Both answers stay cached until signing in, signing out or setting up clears the cache. Saving the
-// Server settings also resets the Server's info.
+// Every answer here stays cached until signing in, signing out or setting up clears the cache. Saving
+// the Server settings also resets the Server's info.
 
 /**
  * Whether the Server has no Users yet, so the first Admin still has to be created. The Hub never

@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 
-import { LinkAccount } from "@/features/auth/components/link-account";
+import { SignInLinkAccount } from "@/features/auth/components/sign-in-link-account";
 import { useSignInWithLink } from "@/features/auth/data/use-sign-in-with-link";
 import { accountErrors } from "@/features/auth/lib/account-errors";
 import { SignInLayout } from "@/shared/components/sign-in-layout/sign-in-layout";
@@ -12,19 +12,19 @@ import { SignInLayout } from "@/shared/components/sign-in-layout/sign-in-layout"
 export function SignInLink({
   token,
   ...linked
-}: { token: string } & ComponentProps<typeof LinkAccount>) {
-  const use = useSignInWithLink();
+}: { token: string } & ComponentProps<typeof SignInLinkAccount>) {
+  const signIn = useSignInWithLink();
   return (
     <SignInLayout
       heading="Sign in"
-      action={use.isPending ? "Signing in…" : "Sign in"}
-      pending={use.isPending}
-      errors={use.error ? accountErrors(use.error) : {}}
+      action={signIn.isPending ? "Signing in…" : "Sign in"}
+      pending={signIn.isPending}
+      errors={signIn.error ? accountErrors(signIn.error) : {}}
       onSubmit={() => {
-        use.mutate({ token });
+        signIn.mutate({ token });
       }}
     >
-      <LinkAccount {...linked} />
+      <SignInLinkAccount {...linked} />
     </SignInLayout>
   );
 }

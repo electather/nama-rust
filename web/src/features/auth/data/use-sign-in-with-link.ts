@@ -17,7 +17,8 @@ export function useSignInWithLink() {
   return useMutation(AccountService.method.signInWithLink, {
     onSuccess: async ({ continueTo }) => {
       queryClient.clear();
-      await navigate({ href: continueTo });
+      // A used link can't sign in again, so Back skips its page (`src/routes/AGENTS.md`).
+      await navigate({ href: continueTo, replace: true });
     },
     onError: async (error) => {
       if (hubRefusalReason(error) === RefusalReason.SIGN_IN_LINK_EXPIRED) {

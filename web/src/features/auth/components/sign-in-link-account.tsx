@@ -5,7 +5,7 @@ import type { Account } from "@/gen/nama/hub/v1/account_pb";
  * the Account this browser is signed in to, if another, and takes over an Account whose email
  * wasn't `emailProven` (ADR 0100).
  */
-export function LinkAccount({
+export function SignInLinkAccount({
   account,
   emailProven,
   signedIn,
