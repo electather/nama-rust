@@ -8,6 +8,7 @@
 
 use std::{
     fmt::Display,
+    future::Future,
     io::{self, Write as _},
     path::{Path, PathBuf},
     sync::{Arc, PoisonError, RwLock},
@@ -55,6 +56,11 @@ const RETRY_AFTER_SECS: i64 = 60 * 60;
 
 /// How long the published challenge gets to reach the zone's nameservers before the CA checks it.
 const PUBLISHED_WITHIN: Duration = Duration::from_secs(10);
+
+/// How long the Server waits on a step at the ACME CA. instant-acme bounds no request, and one
+/// that hung would stop renewing, and the default Server URL with it, for good. Above the 30
+/// seconds its polling takes at most.
+const CA_WITHIN: Duration = Duration::from_mins(2);
 
 /// The certificate the Server serves over TLS, once it has one. Clones share it.
 #[derive(Debug, Clone, Default)]
@@ -121,7 +127,9 @@ enum Error {
     NotReady(OrderStatus),
     #[error("couldn't keep it: {0}")]
     Io(#[from] io::Error),
-    #[error("couldn't read the ACME account: {0}")]
+    #[error("the ACME CA didn't answer within {CA_WITHIN:?}")]
+    CaSilent(#[from] tokio::time::error::Elapsed),
+    #[error("couldn't keep the ACME account: {0}")]
     Account(#[from] serde_json::Error),
     #[error("isn't usable: {0}")]
     Unusable(String),
@@ -198,19 +206,25 @@ async fn renew(
     acme_directory: &str,
     own: &str,
 ) -> Result<(), Error> {
-    let account = account(data_dir, acme_directory).await?;
     let identifiers = [
         Identifier::Dns(own.to_owned()),
         Identifier::Dns(format!("*.{own}")),
     ];
-    let mut order = account.new_order(&NewOrder::new(&identifiers)).await?;
+    let mut order = at_ca(async {
+        let account = account(data_dir, acme_directory).await?;
+        Ok(account.new_order(&NewOrder::new(&identifiers)).await?)
+    })
+    .await?;
     let validated = validate(&mut order, linking).await;
     // Whether or not it worked, so the zone keeps no stale challenge. `ask` logs a failure, and the
     // next order replaces what this leaves.
     let _: Result<(), _> = linking.set_certificate_challenge(Vec::new()).await;
     validated?;
-    let key = order.finalize().await?;
-    let chain = order.poll_certificate(&RetryPolicy::default()).await?;
+    let (key, chain) = at_ca(async {
+        let key = order.finalize().await?;
+        Ok((key, order.poll_certificate(&RetryPolicy::default()).await?))
+    })
+    .await?;
     let pem = format!("{key}{chain}");
     let held = parse(pem.as_bytes())?;
     keep_secret(data_dir.join(CERTIFICATE_FILE), pem.into_bytes()).await?;
@@ -220,10 +234,15 @@ async fn renew(
 
 /// Has the service publish `order`'s DNS-01 challenges, and waits for the CA to check them.
 async fn validate(order: &mut Order, linking: &Linking) -> Result<(), Error> {
-    linking
-        .set_certificate_challenge(challenges(order).await?)
-        .await?;
+    let values = at_ca(challenges(order)).await?;
+    // Not bounded like the CA's steps: a change at the service isn't cut (`link.rs`).
+    linking.set_certificate_challenge(values).await?;
     tokio::time::sleep(PUBLISHED_WITHIN).await;
+    at_ca(checked(order)).await
+}
+
+/// Tells the CA `order`'s challenges are published, and waits for it to check them.
+async fn checked(order: &mut Order) -> Result<(), Error> {
     let mut authorizations = order.authorizations();
     while let Some(authorization) = authorizations.next().await {
         let mut authorization = authorization?;
@@ -261,6 +280,11 @@ async fn challenges(order: &mut Order) -> Result<Vec<String>, Error> {
     Ok(values)
 }
 
+/// `step` at the ACME CA, failed after [`CA_WITHIN`].
+async fn at_ca<T>(step: impl Future<Output = Result<T, Error>>) -> Result<T, Error> {
+    tokio::time::timeout(CA_WITHIN, step).await?
+}
+
 /// The Server's account at an ACME CA, as kept in [`ACCOUNT_FILE`].
 #[derive(Serialize, Deserialize)]
 struct KeptAccount {
@@ -270,17 +294,21 @@ struct KeptAccount {
 }
 
 /// The Server's account at the ACME CA at `directory`, made and kept in `data_dir` the first time.
-/// Making it agrees to the CA's terms, such as Let's Encrypt's Subscriber Agreement.
+/// Making it agrees to the CA's terms, such as Let's Encrypt's Subscriber Agreement. A kept one
+/// that can't be read is made again, as it never could be.
 async fn account(data_dir: &Path, directory: &str) -> Result<Account, Error> {
     let path = data_dir.join(ACCOUNT_FILE);
     match tokio::fs::read(&path).await {
-        Ok(kept) => {
-            let kept: KeptAccount = serde_json::from_slice(&kept)?;
-            if kept.directory == directory {
+        Ok(kept) => match serde_json::from_slice::<KeptAccount>(&kept) {
+            Ok(kept) if kept.directory == directory => {
                 let builder = Account::builder()?;
                 return Ok(builder.from_credentials(kept.credentials).await?);
             }
-        }
+            Ok(_) => {}
+            Err(err) => {
+                tracing::warn!("the ACME account kept can't be read, so one is made: {err}");
+            }
+        },
         Err(err) if err.kind() == io::ErrorKind::NotFound => {}
         Err(err) => return Err(err.into()),
     }

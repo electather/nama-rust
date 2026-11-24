@@ -1,7 +1,10 @@
 use nama_plugin_api::server_link::Reachability;
 use rcgen::{CertificateParams, KeyPair};
 
-use super::{CERTIFICATE_FILE, Certificate, RENEW_BEFORE_SECS, parse, public_url};
+use super::{
+    ACCOUNT_FILE, CERTIFICATE_FILE, Certificate, Error, RENEW_BEFORE_SECS, account, parse,
+    public_url,
+};
 
 const OWN: &str = "abc.namadirect.test";
 
@@ -106,4 +109,15 @@ async fn the_certificate_kept_in_the_data_directory_is_served() {
     certificate.load(data_dir.path()).await;
 
     assert!(certificate.lasts(OWN, EXPIRES_AT - DAY_SECS, 0));
+}
+
+#[tokio::test]
+async fn a_kept_acme_account_that_cant_be_read_is_made_again() {
+    let data_dir = tempfile::tempdir().unwrap();
+    std::fs::write(data_dir.path().join(ACCOUNT_FILE), "{").unwrap();
+
+    // Nothing listens there, so making the account fails at the CA, past reading the kept one.
+    let made = account(data_dir.path(), "https://127.0.0.1:1/").await;
+
+    assert!(matches!(made, Err(Error::Acme(_))), "{:?}", made.err());
 }
