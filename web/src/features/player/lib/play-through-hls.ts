@@ -1,5 +1,7 @@
 import type Hls from "hls.js";
 
+import { playbackFailed } from "@/shared/lib/diagnostics";
+
 /** Plays the HLS playlist `url` in `video` through hls.js, until the cleanup it returns. */
 export function playThroughHlsJs(
   video: HTMLVideoElement,
@@ -16,8 +18,9 @@ export function playThroughHlsJs(
         return;
       }
       hls = new HlsJs();
-      hls.on(HlsJs.Events.ERROR, (_event, { fatal }) => {
+      hls.on(HlsJs.Events.ERROR, (_event, { fatal, details }) => {
         if (fatal) {
+          playbackFailed(details);
           onCantPlay(video);
         }
       });

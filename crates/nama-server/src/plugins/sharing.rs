@@ -85,13 +85,16 @@ impl HttpClient for ShareThroughPlugins {
 /// [`DiagnosticsSharer`] among `points`, if any.
 pub(crate) async fn share_diagnostics(points: &ExtensionPoints, signal: Signal, batch: Bytes) {
     let shared = async {
-        // A failure shows on the Plugin's page, as any Provider's does.
-        let _: Option<_> = points
+        // A failure shows on the Plugin's page, as any Provider's does, and in the Server's status.
+        let answer = points
             .ask_first::<dyn DiagnosticsSharer, _, _, _, _>(|sharer| {
                 let batch = batch.to_vec();
                 async move { sharer.share(signal, batch).await }
             })
             .await;
+        if answer.is_some_and(|answer| answer.result.is_err()) {
+            crate::diagnostics::share_refused();
+        }
     };
     // Traced, sharing would record spans of its own that the next batch would share, and so on
     // for as long as the Server runs.

@@ -19,6 +19,8 @@ use std::{
     time::Duration,
 };
 
+use tracing::Span;
+
 pub(crate) use self::abilities::{Abilities, CanDo};
 use self::finding::{find, not_on_path};
 pub use self::hardware::{Accel, Gpu, Hardware, find_gpus};
@@ -39,7 +41,7 @@ pub use self::test_media::{
     write_black_with_pgs, write_black_with_pgs_sidecar, write_h264_with_5_1,
     write_hdr_ramp_with_pgs, write_hevc_with_5_1,
 };
-use crate::config::Config;
+use crate::{config::Config, diagnostics};
 
 /// A keyframe of a Version's video that a Remux starts at.
 #[derive(Clone, Copy, Debug)]
@@ -252,13 +254,16 @@ impl Ffmpeg {
             .kill_on_drop(true)
             .output();
         // Boxed, or `Abilities::can_do`, joining four of these, makes too large a future.
-        let output = match tokio::time::timeout(LIST_TIMEOUT, Box::pin(output)).await {
-            Ok(Ok(output)) if output.status.success() => output,
-            Ok(Ok(output)) => return Err(format!("it exited with {}", output.status)),
-            Ok(Err(err)) => return Err(err.to_string()),
-            Err(_) => return Err(format!("it took over {LIST_TIMEOUT:?}")),
+        let (kind, why) = match tokio::time::timeout(LIST_TIMEOUT, Box::pin(output)).await {
+            Ok(Ok(output)) if output.status.success() => {
+                return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
+            }
+            Ok(Ok(output)) => ("ffmpeg exited", format!("it exited with {}", output.status)),
+            Ok(Err(err)) => ("ffmpeg didn't run", err.to_string()),
+            Err(_) => ("timed out", format!("it took over {LIST_TIMEOUT:?}")),
         };
-        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+        diagnostics::failed(&Span::current(), kind);
+        Err(why)
     }
 
     /// The run of ffmpeg that copies the first video of the file at `path`, and `remux`'s audio
@@ -515,8 +520,10 @@ impl Ffmpeg {
         args: &[impl AsRef<OsStr>],
         priority: Priority,
     ) -> Result<Vec<u8>, RunError> {
-        self.run(Program::Ffmpeg, args, READ_OUT_TIMEOUT, priority)
-            .await
+        diagnostics::outcome(
+            self.run(Program::Ffmpeg, args, READ_OUT_TIMEOUT, priority)
+                .await,
+        )
     }
 
     /// What `program`, quiet but for errors, prints given `args` at `priority`, within `timeout`.

@@ -94,6 +94,7 @@ async fn main() -> ExitCode {
     // The traces exporter's client; the logs exporter's is made from it.
     let sharing = ShareThroughPlugins::new(Signal::Traces, Handle::current());
     let exporting = init_tracing(&sharing);
+    diagnostics::share_panics();
     let to_admin = exporting.as_ref().is_some_and(Exporting::to_admin);
     let exit = match args.command {
         None => run(args.config.as_deref(), to_admin, &sharing).await,

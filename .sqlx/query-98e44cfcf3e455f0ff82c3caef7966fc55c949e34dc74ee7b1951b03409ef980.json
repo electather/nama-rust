@@ -1,0 +1,35 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                       (SELECT COUNT(*) FROM libraries) AS \"libraries!: i64\",\n                       (SELECT COUNT(*) FROM users) AS \"users!: i64\",\n                       sqlite_version() AS \"sqlite_version!: String\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "libraries!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "users!: i64",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "sqlite_version!: String",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "98e44cfcf3e455f0ff82c3caef7966fc55c949e34dc74ee7b1951b03409ef980"
+}

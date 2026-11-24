@@ -14,7 +14,7 @@ use crate::{BoxFuture, PluginError};
 pub enum Signal {
     /// Spans.
     Traces,
-    /// Log records: the allow-listed log lines and Usage Analytics.
+    /// Log records: the shared log lines and Usage Analytics.
     Logs,
 }
 

@@ -110,7 +110,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
 // private helpers (`stored.rs`, `put_back.rs`, `running.rs`) and its one rule, "One owner for
 // Plugin changes", stays in the crate's AGENTS.md.
 const ROWS: &[&[&str]] = &[
-    &["api", "automation"],
+    &["api", "automation", "status"],
     &["sync", "browse", "scanner", "plugin_settings"],
     &["home_rows", "requests", "playback", "matching", "watchlist"],
     &["library"],
