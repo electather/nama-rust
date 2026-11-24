@@ -2,12 +2,15 @@ import { Link } from "@tanstack/react-router";
 import {
   Bell,
   CalendarClock,
+  CircleUser,
   Cpu,
   DatabaseBackup,
   FileQuestionMark,
   Film,
   HardDrive,
   House,
+  KeyRound,
+  Laptop,
   Library,
   type LucideIcon,
   MonitorPlay,
@@ -40,6 +43,9 @@ const icons: Record<Section, LucideIcon> = {
   "server-playback": Cpu,
   backups: DatabaseBackup,
   plugins: Puzzle,
+  account: CircleUser,
+  "account-signin": KeyRound,
+  "account-sessions": Laptop,
 };
 
 const LINK =

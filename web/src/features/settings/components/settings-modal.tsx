@@ -44,15 +44,23 @@ function keepTypedText(event: KeyboardEvent<HTMLDialogElement>) {
 }
 
 /**
- * Settings, over the page it was opened on: the sections `user` may open beside the pane of the one
- * `section` asks for. It opens as it mounts, and its owner unmounts it once the address stops asking
- * for it.
+ * Settings, over the page it was opened on: the sections `user` may open, or `atHub` the Account's,
+ * beside the pane of the one `section` asks for. It opens as it mounts, and its owner unmounts it
+ * once the address stops asking for it.
  */
-export function SettingsModal({ section, user }: { section: Section; user: User | undefined }) {
+export function SettingsModal({
+  section,
+  user,
+  atHub,
+}: {
+  section: Section;
+  user: User | undefined;
+  atHub: boolean;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const close = useCloseSettings();
-  const groups = groupsFor(user);
+  const groups = groupsFor(user, atHub);
   const shown = openSection(groups, section);
   // A layout effect, so its cleanup closes the dialog while it's still in the page: only then does
   // the browser hand focus back to what opened Settings.
