@@ -44,6 +44,13 @@ const DELETE_MEDIA: Access = Access::Needs(Permission::DeleteMedia);
 /// Searching the subtitle sources and downloading their subtitles.
 const DOWNLOAD_SUBTITLES: Access = Access::Needs(Permission::DownloadSubtitles);
 
+/// Downloading a Version's file, or a Transcode of it, for offline playback.
+#[expect(
+    dead_code,
+    reason = "no download endpoint (#2195, #2198) checks it yet"
+)]
+const DOWNLOAD: Access = Access::Needs(Permission::Download);
+
 /// Who may call each RPC, by path; one missing here is refused to everyone (see AGENTS.md, "New
 /// RPCs start closed"). Media and uploads have their own entries, in [`PREFIXES`].
 // One row per RPC reads as a table; rustfmt would split most rows over four lines.

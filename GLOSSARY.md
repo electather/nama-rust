@@ -74,6 +74,10 @@ _Avoid_: role, scope, right, group
 The Permission to search a subtitle source for the Version a User is watching and download one of its subtitles.
 _Avoid_: subtitle search permission
 
+**Download**:
+The Permission to save a Version's file, or a Transcode of it to a file, on a Device to play offline. Not what a Fulfiller's outside service does.
+_Avoid_: offline permission, sync, export
+
 **Invite**:
 A single-use link that lets one person create a User on a Server, with the Permissions chosen when it was made.
 _Avoid_: invitation code, share, referral
