@@ -81,6 +81,7 @@ impl InboxService for InboxServiceHandler {
                 format!("your inbox has no notification {id}"),
             )
             .field("id")
+            .param("id", &id)
             .into());
         }
         Response::ok(MarkInboxNotificationReadResponse::default())

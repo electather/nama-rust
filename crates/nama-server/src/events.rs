@@ -9,7 +9,7 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 use futures_util::{Stream, StreamExt, future, stream};
@@ -22,7 +22,10 @@ use nama_proto::nama::v1::{
     Event, EventType, FollowedShow, Lagged, NotificationKind, Permission, Request, RequestState,
     SubscribeResponse, event, subscribe_response,
 };
-use tokio::sync::broadcast::{self, error::RecvError};
+use tokio::sync::{
+    broadcast::{self, error::RecvError},
+    mpsc,
+};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
@@ -58,6 +61,9 @@ pub(crate) struct EventBus {
     server_url: ServerUrl,
     /// Cancelled when the Server shuts down, which ends every subscription.
     closed: CancellationToken,
+    /// Feeds the one task that stores personal notifications in inboxes, started by the first, so
+    /// they are stored in the order they were published.
+    inboxes: Arc<OnceLock<mpsc::UnboundedSender<Event>>>,
 }
 
 /// What a subscriber asked to narrow their events to. It only narrows what their [`Viewer`] sees.
@@ -112,6 +118,7 @@ impl EventBus {
             plugins,
             server_url,
             closed: CancellationToken::new(),
+            inboxes: Arc::default(),
         }
     }
 
@@ -159,17 +166,21 @@ impl EventBus {
     }
 
     /// Stores each of `events` that makes a personal notification in the inbox of each User
-    /// [`users_to_tell`] picks, whether or not a Notifier reaches them. One task stores them all,
-    /// so they keep their order.
+    /// [`users_to_tell`] picks, whether or not a Notifier reaches them.
     fn keep_in_inboxes(&self, events: &[Event]) {
-        let notifying: Vec<Event> = (events.iter())
+        for event in events
+            .iter()
             .filter(|event| notification_kind(event).is_some())
-            .cloned()
-            .collect();
-        if notifying.is_empty() {
-            return;
+        {
+            let inboxes = self.inboxes.get_or_init(|| {
+                // Unbounded, as `publish` can't wait; it carries one event per Request change.
+                let (sender, receiver) = mpsc::unbounded_channel();
+                tokio::spawn(keep_each_in_inboxes(Arc::clone(&self.db), receiver));
+                sender
+            });
+            // Fails only once the task ended, which it does only when every sender is gone.
+            let _: Result<(), _> = inboxes.send(event.clone());
         }
-        tokio::spawn(keep_each_in_inboxes(Arc::clone(&self.db), notifying));
     }
 
     /// Every event published from now on, whole, for a Kernel task that acts on them, such as
@@ -343,9 +354,9 @@ async fn deliver(
     }
 }
 
-/// [`keep_in_inbox`] for each of `events`, in order, logging each that fails.
-async fn keep_each_in_inboxes(db: Arc<Database>, events: Vec<Event>) {
-    for event in events {
+/// [`keep_in_inbox`] for each event `published` sends, in order, logging each that fails.
+async fn keep_each_in_inboxes(db: Arc<Database>, mut published: mpsc::UnboundedReceiver<Event>) {
+    while let Some(event) = published.recv().await {
         if let Err(err) = keep_in_inbox(&db, &event).await {
             error!("could not store a Request notification in the inbox: {err}");
         }
