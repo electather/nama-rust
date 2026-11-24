@@ -612,7 +612,9 @@ pub trait LibraryService: Send + Sync + 'static {
         >,
     > + Send;
     /// Replaces a Library's name and folders. Its kind can't change. Fails like `CreateLibrary`,
-    /// or with `not_found` if there is no such Library.
+    /// except that a title source the Library already names isn't refused as known to no Plugin, and
+    /// counts as searching once no Plugin keeps it, so a Library whose Plugin went away stays
+    /// editable. Also fails with `not_found` if there is no such Library.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
