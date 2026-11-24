@@ -1,12 +1,12 @@
 import { toMs } from "@/features/player/lib/to-ms";
 import type { ReportProgressRequest } from "@/gen/nama/v1/watch_state_pb";
 
-/** How often to report while playing. */
-const REPORT_EVERY_MS = 10_000;
+/** How often to report while playing or paused. */
+export const REPORT_EVERY_MS = 10_000;
 
 /**
  * Starts `video` from `startPositionMs` and passes how far in it is to `report` every few seconds,
- * on pause and seek, when the page is hidden or closed, and, as the `final` report, in the cleanup
+ * paused too, on pause and seek, when the page is hidden or closed, and, as the `final` report, in the cleanup
  * it returns.
  */
 export function followVideo(
@@ -45,11 +45,22 @@ export function followVideo(
       send();
     }
   };
+  // A paused `<video>` reads nothing, and the Server stops a plan nothing asks for within a minute.
+  let whilePaused: ReturnType<typeof setInterval> | undefined;
+  const stopSendingWhilePaused = () => {
+    clearInterval(whilePaused);
+  };
+  const sendNowAndWhilePaused = () => {
+    send();
+    stopSendingWhilePaused();
+    whilePaused = setInterval(send, REPORT_EVERY_MS);
+  };
 
   const listeners = [
     ["loadedmetadata", resume],
     ["timeupdate", sendEveryFewSeconds],
-    ["pause", send],
+    ["pause", sendNowAndWhilePaused],
+    ["play", stopSendingWhilePaused],
     ["seeked", send],
   ] as const;
   // Closing the tab unmounts nothing, and a phone may discard a page it hid without ever firing
@@ -74,6 +85,7 @@ export function followVideo(
     }
     document.removeEventListener("visibilitychange", sendIfHidden);
     window.removeEventListener("pagehide", send);
+    stopSendingWhilePaused();
     reportPosition(true);
   };
 }
