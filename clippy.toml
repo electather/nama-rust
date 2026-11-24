@@ -15,4 +15,4 @@ max-fn-params-bools = 1
 max-struct-bools = 2
 
 # Product and protocol names that doc_markdown would otherwise want in backticks. ".." keeps clippy's defaults.
-doc-valid-idents = ["ConnectRPC", "IMDb", "JUnit", "MDBList", "MovieLens", "OpenSubtitles", "TheIntroDB", "UPnP", "VobSub", "WebVTT", ".."]
+doc-valid-idents = ["ConnectRPC", "IMDb", "JUnit", "MDBList", "MovieLens", "OpenSubtitles", "TheIntroDB", "UPnP", "VobSub", "WebAuthn", "WebVTT", ".."]

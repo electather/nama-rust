@@ -9,5 +9,5 @@ Finding the system's ffmpeg and ffprobe, asking what they can do, and building t
 
 ### Neighbours
 
-- Uses: `config`.
+- Uses: `config`, and `diagnostics` (marking a failed run's span).
 - Used by: `playback` (with tracks and probing), `server_settings` (`Accel`, `Hardware`), other areas' tests (`fake::script`, `fake::vaapi_on_two_gpus` and `fake::vaapi_on_two_gpus_at`), the `api` parts for playback and the Server, and startup in `lib.rs` and `main.rs`.

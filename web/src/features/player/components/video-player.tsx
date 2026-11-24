@@ -23,6 +23,7 @@ import type { PlannedProps } from "@/features/player/lib/player-props";
 import { frameSheets } from "@/features/player/lib/preview-frame";
 import { seekSections } from "@/features/player/lib/seek-sections";
 import { creditsStart } from "@/features/player/lib/segments";
+import { videoFailed } from "@/shared/lib/diagnostics";
 
 /** The `<video>` with its controls, Watch State, lock screen and autoplay, for one plan. */
 export function VideoPlayer({
@@ -87,6 +88,7 @@ export function VideoPlayer({
         autoPlay
         playsInline
         onError={(event) => {
+          videoFailed(event.currentTarget.error);
           onCantPlay(event.currentTarget);
         }}
         onPointerUp={clickToToggle}
