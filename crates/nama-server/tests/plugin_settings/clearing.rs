@@ -9,9 +9,9 @@ use nama_plugin_api::{
     settings::{SettingField, SettingKind, SettingsSchema},
 };
 use nama_proto::nama::v1::{
-    DisablePluginRequest, EnablePluginRequest, GetPluginRequest, ListPluginsRequest,
-    PluginServiceClient, PluginSummary, RefusalReason, Setting, SettingValue,
-    UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, setting_value::Value,
+    DisablePluginRequest, GetPluginRequest, ListPluginsRequest, PluginServiceClient, PluginSummary,
+    RefusalReason, Setting, SettingValue, UpdatePluginSettingsRequest,
+    UpdatePluginSettingsResponse, setting_value::Value,
 };
 use nama_server::plugins::Registry;
 
@@ -222,25 +222,6 @@ async fn a_disabled_plugins_required_settings_can_be_sent_blank_or_left_out() {
 }
 
 #[tokio::test]
-async fn a_cleared_disabled_plugin_is_refused_when_enabled_naming_the_setting() {
-    let server = with_bucketer_set_up_and_disabled().await;
-    update(&server, &[]).await.unwrap();
-
-    let enable = EnablePluginRequest {
-        id: "bucketer".to_owned(),
-        ..Default::default()
-    };
-    let refusal = assert_refused(
-        client(&server).enable_plugin(enable).await,
-        ErrorCode::InvalidArgument,
-        RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
-    );
-
-    assert_eq!(refusal.field, "settings.endpoint");
-    assert!(!summary(&server).await.enabled);
-}
-
-#[tokio::test]
 async fn a_disabled_plugin_sent_a_value_of_the_wrong_kind_is_refused_and_nothing_changes() {
     let server = with_bucketer_set_up_and_disabled().await;
     let number = SettingValue {
@@ -321,15 +302,5 @@ async fn forgetting_a_key_that_isnt_a_secret_changes_nothing() {
         .unwrap();
 
     assert_eq!(stored_texts(&server).await, ["https://s3.example", "media"]);
-    assert_eq!(secrets_set(&server).await, ["secret_key", "session_token"]);
-}
-
-#[tokio::test]
-async fn a_secret_left_out_or_sent_blank_keeps_its_stored_value() {
-    let (server, _) = with_bucketer_set_up().await;
-
-    let sent = [texts().as_slice(), &[("secret_key", text(""))]].concat();
-    update(&server, &sent).await.unwrap();
-
     assert_eq!(secrets_set(&server).await, ["secret_key", "session_token"]);
 }

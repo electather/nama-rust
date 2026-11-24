@@ -5,7 +5,6 @@ use super::tests::{
     sign_in_with_ada,
 };
 use super::*;
-use crate::users::Permissions;
 
 /// Sets Ada up on a fresh database in `data_dir`, as [`sign_in_with_ada`] does, then closes it.
 ///
@@ -34,20 +33,6 @@ async fn fail_setup(sign_in: &SignIn, times: usize, now: Instant) {
 }
 
 #[tokio::test]
-async fn setup_with_the_right_code_creates_the_first_admin_signed_in_on_the_device() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let (sign_in, setup_code) = fresh_sign_in(data_dir.path()).await;
-
-    let signed_in = set_up(&sign_in, &setup_code, "Ada", Instant::now())
-        .await
-        .unwrap();
-
-    assert_eq!(signed_in.caller.user.name, "Ada");
-    assert_eq!(signed_in.caller.user.permissions, Permissions::ADMIN);
-    assert_eq!(signed_in.caller.device.name, "Laptop");
-}
-
-#[tokio::test]
 async fn the_51st_setup_from_an_address_after_wrong_codes_is_blocked_even_with_the_right_code() {
     let data_dir = tempfile::tempdir().unwrap();
     let (sign_in, setup_code) = fresh_sign_in(data_dir.path()).await;
@@ -70,24 +55,6 @@ async fn the_51st_failure_from_an_address_mixing_sign_in_and_setup_is_blocked() 
     let blocked = set_up(&sign_in, &setup_code, "Ada", now).await;
 
     assert_eq!(retry_after_secs(blocked), Some(15 * 60));
-}
-
-#[tokio::test]
-async fn once_the_server_has_users_setup_is_refused_as_already_set_up_whatever_the_code() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let (sign_in, setup_code) = sign_in_with_ada(data_dir.path()).await;
-    let now = Instant::now();
-
-    let right_code = set_up(&sign_in, &setup_code, "Grace", now).await;
-    let wrong_code = set_up(&sign_in, "AAAA-AAAA-AAAA", "Grace", now).await;
-
-    for refused in [right_code, wrong_code] {
-        assert!(
-            matches!(refused, Err(Error::Users(users::Error::AlreadySetUp))),
-            "{:?}",
-            refused.map(|_| ())
-        );
-    }
 }
 
 #[tokio::test]

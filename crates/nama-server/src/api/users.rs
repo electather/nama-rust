@@ -48,12 +48,12 @@ use crate::{
 use super::{
     access::permission_required,
     browse::home_rows_of,
-    caller, database_failed,
+    caller, calling_device, database_failed,
     playback::cap_from_proto,
     plugins::{change_refused, list_failed, logo_url, setting_to_proto, settings_from_proto},
     refuse,
     server::{home_layout_from_proto, home_row_from_proto},
-    server_link, signed_out, unknown_enum_value,
+    server_link, signed_out, unknown_enum_value, url_signer,
 };
 
 /// `nama.v1.UserService`: managing the Server's Users, their Devices and Plugin Connections. Needs
@@ -166,12 +166,7 @@ impl UserService for UserServiceHandler {
         let caller = caller(&ctx)?;
         self.users.delete(&caller.user, request.user_id).await?;
         self.linking.unlink_deleted_user(request.user_id);
-        let response = DeleteUserResponse::default();
-        Ok(if request.user_id == caller.user.id {
-            signed_out(response, &ctx)
-        } else {
-            Response::new(response)
-        })
+        self.signed_out_if_last(&ctx).await
     }
 
     async fn list_devices(
@@ -210,12 +205,7 @@ impl UserService for UserServiceHandler {
         self.users
             .revoke(&caller.user, owner, request.device_id)
             .await?;
-        let response = RevokeDeviceResponse::default();
-        Ok(if request.device_id == caller.device.id {
-            signed_out(response, &ctx)
-        } else {
-            Response::new(response)
-        })
+        self.signed_out_if_last(&ctx).await
     }
 
     async fn change_password(
@@ -418,7 +408,7 @@ impl UserService for UserServiceHandler {
             .map_err(list_failed)?;
         let mut plugins = Vec::new();
         for personal in listed {
-            plugins.push(self.personal_to_proto(personal).await);
+            plugins.push(self.personal_to_proto(personal, &ctx).await);
         }
         Response::ok(ListPersonalSettingsResponse {
             plugins,
@@ -441,7 +431,7 @@ impl UserService for UserServiceHandler {
             .await
             .map_err(change_refused)?;
         Response::ok(UpdatePersonalSettingsResponse {
-            plugin: self.personal_to_proto(saved).await.into(),
+            plugin: self.personal_to_proto(saved, &ctx).await.into(),
             ..Default::default()
         })
     }
@@ -593,6 +583,17 @@ impl UserService for UserServiceHandler {
 }
 
 impl UserServiceHandler {
+    /// The response to a call that may have signed a User out of the calling Device: a cookie
+    /// session has its cookie cleared only once the Device's last User is gone (ADR 0106).
+    async fn signed_out_if_last<M: Default>(&self, ctx: &RequestContext) -> ServiceResult<M> {
+        let still_signed_in = self.users.device_exists(calling_device(ctx)?.id).await;
+        Ok(if still_signed_in.map_err(database_failed)? {
+            Response::new(M::default())
+        } else {
+            signed_out(M::default(), ctx)
+        })
+    }
+
     /// `reader`'s Home layout with every Home row they could see now, as the API has it.
     async fn home_layout(&self, reader: &User) -> Result<proto::HomeLayout, ConnectError> {
         let rows = home_rows_of(&self.home_rows, &self.browse, reader).await?;
@@ -608,20 +609,20 @@ impl UserServiceHandler {
         })
     }
 
-    /// A User's `personal` settings for a Plugin, with its Manifest's logo.
-    async fn personal_to_proto(&self, personal: Personal) -> proto::PersonalSettings {
-        let Personal {
+    /// A User's personal settings for a Plugin, with its Manifest's logo as `ctx`'s caller gets it.
+    async fn personal_to_proto(
+        &self,
+        Personal {
             plugin,
             manifest,
             values,
-        } = personal;
+        }: Personal,
+        ctx: &RequestContext,
+    ) -> proto::PersonalSettings {
         proto::PersonalSettings {
             plugin_id: plugin.id.to_string(),
-            logo_url: logo_url(&self.plugin_logos, &plugin).await,
-            settings: manifest
-                .personal_settings
-                .fields
-                .iter()
+            logo_url: logo_url(&self.plugin_logos, &plugin, url_signer(ctx)).await,
+            settings: (manifest.personal_settings.fields.iter())
                 .map(|field| setting_to_proto(field, values.get(&field.key)))
                 .collect(),
             name: manifest.name,

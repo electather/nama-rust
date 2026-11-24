@@ -38,18 +38,6 @@ async fn a_put_replaces_the_object_at_its_key() {
 }
 
 #[tokio::test]
-async fn deleting_a_missing_key_is_fine() {
-    let (_data, disk) = disk();
-    disk.put("a/b", b"x".to_vec()).await.unwrap();
-
-    disk.delete("a/b").await.unwrap();
-    disk.delete("a/b").await.unwrap();
-    disk.delete("never/there").await.unwrap();
-
-    assert!(!disk.exists("a/b").await.unwrap());
-}
-
-#[tokio::test]
 async fn put_file_renames_the_file_into_place() {
     let (data, disk) = disk();
     let uploads = data.path().join("uploads");

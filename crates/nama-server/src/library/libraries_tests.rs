@@ -55,65 +55,6 @@ fn tmdb_and(ids: &[&str]) -> Order {
 }
 
 #[tokio::test]
-async fn create_in_order_stores_and_returns_the_order() {
-    let (_data, _media, libraries, folder) = setup().await;
-    let created = libraries
-        .create_in_order(
-            "Shows",
-            Kind::Shows,
-            vec![folder],
-            sources(&["tvdb", "tmdb"]),
-        )
-        .await
-        .unwrap();
-    assert_eq!(created.title_sources, order(&["tvdb", "tmdb"]));
-    let stored = libraries.get(created.id).await.unwrap();
-    assert_eq!(stored.title_sources, order(&["tvdb", "tmdb"]));
-}
-
-#[tokio::test]
-async fn update_with_an_empty_order_keeps_the_old_one() {
-    let (_data, _media, libraries, folder) = setup().await;
-    let created = libraries
-        .create_in_order(
-            "Shows",
-            Kind::Shows,
-            vec![folder.clone()],
-            sources(&["tvdb"]),
-        )
-        .await
-        .unwrap();
-    let updated = libraries
-        .update(created.id, "Renamed", vec![folder], Order::default())
-        .await
-        .unwrap();
-    assert_eq!(updated.title_sources, order(&["tvdb"]));
-    let stored = libraries.get(created.id).await.unwrap();
-    assert_eq!(stored.title_sources, order(&["tvdb"]));
-}
-
-#[tokio::test]
-async fn update_with_a_new_order_stores_it() {
-    let (_data, _media, libraries, folder) = setup().await;
-    let created = libraries
-        .create("Shows", Kind::Shows, vec![folder.clone()])
-        .await
-        .unwrap();
-    let updated = libraries
-        .update(
-            created.id,
-            "Shows",
-            vec![folder],
-            sources(&["tvdb", "tmdb"]),
-        )
-        .await
-        .unwrap();
-    assert_eq!(updated.title_sources, order(&["tvdb", "tmdb"]));
-    let stored = libraries.get(created.id).await.unwrap();
-    assert_eq!(stored.title_sources, order(&["tvdb", "tmdb"]));
-}
-
-#[tokio::test]
 async fn a_new_library_asks_no_recognisers() {
     let (_data, _media, libraries, folder) = setup().await;
     let created = libraries

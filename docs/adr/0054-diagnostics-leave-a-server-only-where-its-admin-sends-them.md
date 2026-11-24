@@ -18,4 +18,5 @@ What is shared with the Hub carries ids, counts, sizes, durations, codecs and ou
 - A Server that never sets an endpoint and never opts in behaves as before: logs on stdout, and nothing else.
 - The web app learns from its Server whether exporting is on, and loads the OpenTelemetry SDK only then, so most people's web app doesn't download it.
 - Usage Analytics are a named list in the code, so adding an event is a reviewed change, not something a call site decides.
-- Log lines were written for stdout and quote paths and names, so sharing Diagnostics with the Hub sends spans and only the logs on a reviewed allow-list in the code, as Usage Analytics are. A new log line reaches the Hub only once someone adds it.
+- Log lines were written for stdout and quote paths and names, so sharing Diagnostics with the Hub sends spans and only the log lines whose call site is marked `shared = true`, each reviewed to hold what a span may. A new log line reaches the Hub only once someone marks it.
+- The Hub names the Linked Server in each batch it forwards, as `service.instance.id`, so the backend can tell one Server's trouble from everyone's. It changes nothing else in a batch.

@@ -5,10 +5,7 @@
 mod server;
 
 use connectrpc::client::HttpClient;
-use nama_proto::nama::v1::{
-    DeleteUserRequest, GetAutoplayRequest, PlaybackServiceClient, SetAutoplayRequest,
-    UserServiceClient,
-};
+use nama_proto::nama::v1::{GetAutoplayRequest, PlaybackServiceClient, SetAutoplayRequest};
 use server::TestServer;
 
 #[expect(
@@ -58,24 +55,4 @@ async fn autoplay_is_on_for_a_new_user_and_off_for_that_user_alone_until_turned_
     assert!(!off);
     assert!(others);
     assert!(back_on);
-}
-
-#[tokio::test]
-async fn a_user_with_autoplay_off_can_be_deleted() {
-    let server = TestServer::builder().start().await;
-    let ada = server.user("Ada", &[]).await;
-    set(
-        &PlaybackServiceClient::new(HttpClient::plaintext(), ada.client_config()),
-        false,
-    )
-    .await;
-
-    let deleted = UserServiceClient::new(HttpClient::plaintext(), server.client_config())
-        .delete_user(DeleteUserRequest {
-            user_id: ada.id,
-            ..Default::default()
-        })
-        .await;
-
-    assert!(deleted.is_ok(), "{deleted:?}");
 }

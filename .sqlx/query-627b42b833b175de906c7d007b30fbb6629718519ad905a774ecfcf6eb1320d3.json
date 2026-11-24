@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM device_users WHERE user_id = ? AND device_id != ?\n           RETURNING device_id AS \"device_id!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "device_id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "device_users",
+            "name": "device_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "627b42b833b175de906c7d007b30fbb6629718519ad905a774ecfcf6eb1320d3"
+}

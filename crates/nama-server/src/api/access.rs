@@ -6,12 +6,19 @@ use connectrpc::ConnectError;
 use nama_proto::nama::v1::{self as proto, Permission, RefusalReason};
 
 use super::{refuse, sign_in_required};
-use crate::{db::now, diagnostics, users::Caller};
+use crate::{
+    db::now,
+    diagnostics,
+    signed_urls::SignedUrl,
+    users::{Caller, Device},
+};
 
 /// Who may call an RPC or fetch media.
 #[derive(Clone, Copy)]
 enum Access {
     Anyone,
+    /// A signed-in Device, whether or not it acts as one of its Users (ADR 0106).
+    Device,
     SignedIn,
     /// A signed-in User whose Permissions pass a check for this one.
     Needs(Permission),
@@ -76,8 +83,9 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SERVER_SERVICE_UNLINK_SERVER_SPEC.procedure,          MANAGE_SETTINGS),
     (proto::SIGN_IN_SERVICE_SETUP_SPEC.procedure,                 Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,               Access::Anyone),
-    (proto::SIGN_IN_SERVICE_SIGN_OUT_SPEC.procedure,              Access::SignedIn),
-    (proto::SIGN_IN_SERVICE_WHO_AM_I_SPEC.procedure,              Access::SignedIn),
+    (proto::SIGN_IN_SERVICE_SIGN_OUT_SPEC.procedure,              Access::Device),
+    (proto::SIGN_IN_SERVICE_WHO_AM_I_SPEC.procedure,              Access::Device),
+    (proto::SIGN_IN_SERVICE_SWITCH_USER_SPEC.procedure,           Access::Device),
     (proto::SIGN_IN_SERVICE_REAUTHENTICATE_SPEC.procedure,        Access::SignedIn),
     (proto::SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC.procedure,    Access::Anyone),
     (proto::SIGN_IN_SERVICE_LOOK_UP_SIGN_IN_CODE_SPEC.procedure,  Access::SignedIn),
@@ -232,10 +240,12 @@ impl Access {
             .map(|&(_, access)| access)
     }
 
-    /// Why `caller`, or nobody, may not make a call that needs this access, if they may not.
-    fn check(self, caller: Option<&Caller>) -> Result<(), ConnectError> {
+    /// Why `caller`, or nobody, may not make a call that needs this access from `device`, if they
+    /// may not.
+    fn check(self, device: Option<&Device>, caller: Option<&Caller>) -> Result<(), ConnectError> {
         match (self, caller) {
-            (Self::Anyone, _) | (Self::SignedIn, Some(_)) => Ok(()),
+            (Self::Device, _) if device.is_some() => Ok(()),
+            (Self::Anyone, _) | (Self::SignedIn | Self::Device, Some(_)) => Ok(()),
             (_, None) => Err(sign_in_required()),
             (Self::Needs(needed), Some(caller)) if caller.user.permissions.allow(needed) => Ok(()),
             (Self::Needs(needed), Some(_)) => Err(permission_required(needed)),
@@ -291,13 +301,18 @@ fn check_recent_authentication(path: &str, caller: Option<&Caller>) -> Result<()
 }
 
 /// Refuses `request`, before any handler sees it, unless the caller
-/// [`identify_caller`](crate::users::identify_caller) found may.
+/// [`identify_caller`](crate::users::identify_caller) found may, or its URL was signed.
 pub(super) async fn require_access(request: Request, next: Next) -> axum::response::Response {
+    let device = request.extensions().get::<Device>();
+    // Its signature, which `admit` checked, names this one path, so it needs no session.
+    if request.extensions().get::<SignedUrl>().is_some() {
+        return next.run(request).await;
+    }
     let caller = request.extensions().get::<Caller>();
     let path = request.uri().path();
     let allowed = Access::of(path)
         .ok_or_else(|| unlisted(path))
-        .and_then(|access| access.check(caller))
+        .and_then(|access| access.check(device, caller))
         .and_then(|()| check_recent_authentication(path, caller));
     match allowed {
         Ok(()) => next.run(request).await,

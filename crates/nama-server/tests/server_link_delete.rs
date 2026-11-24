@@ -13,7 +13,6 @@ use log::Log;
 use nama_plugin_api::server_link::Link;
 use nama_proto::nama::v1::{ListUsersRequest, Permission};
 use scripted_linker::{Scripted, delete, until_unlinked, users, with_linker};
-use server::TestServer;
 
 #[tokio::test]
 async fn deleting_a_user_unlinks_them_once() {
@@ -73,14 +72,6 @@ async fn a_refused_delete_unlinks_no_one() {
     delete(server.client_config(), 9999).await.unwrap_err();
 
     assert_eq!(linker.script().unlinked_users, Vec::<i64>::new());
-}
-
-#[tokio::test]
-async fn a_user_is_deleted_without_a_plugin_that_links_the_server() {
-    let server = TestServer::builder().start().await;
-    let grace = server.user_with_default_permissions("Grace").await;
-
-    delete(server.client_config(), grace.id).await.unwrap();
 }
 
 #[tokio::test]

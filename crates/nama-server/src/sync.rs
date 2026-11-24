@@ -164,6 +164,7 @@ impl Syncing {
             let listed = match sync.users.list().await {
                 Ok(listed) => listed,
                 Err(err) => {
+                    diagnostics::failed_with(&err, &Span::current());
                     tracing::error!(
                         "listing Users to push their Watch State and Track Preferences failed: \
                          {err}"
@@ -232,6 +233,7 @@ impl Syncing {
         let listed = match self.users.list().await {
             Ok(listed) => listed,
             Err(err) => {
+                diagnostics::failed_with(&err, &Span::current());
                 tracing::error!("listing Users to sync them failed: {err}");
                 return;
             }
@@ -249,6 +251,7 @@ impl Syncing {
         let changes = match self.browse.watch_state_changes(user_id).await {
             Ok(changes) => changes,
             Err(err) => {
+                diagnostics::failed_with(&err, &Span::current());
                 tracing::error!(user = user_id, "reading a User's Watch State failed: {err}");
                 return;
             }
@@ -270,6 +273,7 @@ impl Syncing {
         let stored = match self.preferences.changes_of_user(user_id).await {
             Ok(stored) => stored,
             Err(err) => {
+                diagnostics::failed_with(&err, &Span::current());
                 tracing::error!(
                     user = user_id,
                     "reading a User's Track Preferences failed: {err}"
@@ -307,6 +311,7 @@ impl Syncing {
             return;
         };
         if let Err(err) = self.browse.take_pulled(user_id, pulled).await {
+            diagnostics::failed_with(&err, &Span::current());
             tracing::error!(
                 user = user_id,
                 "taking a User's pulled Watch State failed: {err}"
@@ -325,6 +330,7 @@ impl Syncing {
             return;
         };
         if let Err(err) = self.preferences.take_pulled(user_id, pulled).await {
+            diagnostics::failed_with(&err, &Span::current());
             tracing::error!(
                 user = user_id,
                 "taking a User's pulled Track Preferences failed: {err}"
@@ -339,6 +345,7 @@ impl Syncing {
         let entries = match watchlist::entries(&self.db, user_id).await {
             Ok(entries) => entries,
             Err(err) => {
+                diagnostics::failed_with(&err, &Span::current());
                 tracing::error!(
                     user = user_id,
                     "reading a User's Watchlist to sync failed: {err}"
@@ -355,6 +362,7 @@ impl Syncing {
             }
         };
         if let Err(err) = watchlist::take_synced(&self.db, user_id, synced).await {
+            diagnostics::failed_with(&err, &Span::current());
             tracing::error!(
                 user = user_id,
                 "taking a User's synced Watchlist failed: {err}"
