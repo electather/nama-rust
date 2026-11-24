@@ -377,7 +377,7 @@ export type DeleteUserRequest = Message<"nama.v1.DeleteUserRequest"> & {
  * Use `create(DeleteUserRequestSchema)` to create a new message.
  */
 export const DeleteUserRequestSchema: GenMessage<DeleteUserRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 16);
+  messageDesc(file_nama_v1_user, 17);
 
 /**
  * @generated from message nama.v1.DeleteUserResponse
@@ -390,7 +390,7 @@ export type DeleteUserResponse = Message<"nama.v1.DeleteUserResponse"> & {
  * Use `create(DeleteUserResponseSchema)` to create a new message.
  */
 export const DeleteUserResponseSchema: GenMessage<DeleteUserResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 17);
+  messageDesc(file_nama_v1_user, 18);
 
 /**
  * @generated from message nama.v1.ListDevicesRequest
@@ -409,7 +409,7 @@ export type ListDevicesRequest = Message<"nama.v1.ListDevicesRequest"> & {
  * Use `create(ListDevicesRequestSchema)` to create a new message.
  */
 export const ListDevicesRequestSchema: GenMessage<ListDevicesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 18);
+  messageDesc(file_nama_v1_user, 19);
 
 /**
  * @generated from message nama.v1.ListDevicesResponse
@@ -426,7 +426,7 @@ export type ListDevicesResponse = Message<"nama.v1.ListDevicesResponse"> & {
  * Use `create(ListDevicesResponseSchema)` to create a new message.
  */
 export const ListDevicesResponseSchema: GenMessage<ListDevicesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 19);
+  messageDesc(file_nama_v1_user, 20);
 
 /**
  * @generated from message nama.v1.RevokeDeviceRequest
@@ -452,7 +452,7 @@ export type RevokeDeviceRequest = Message<"nama.v1.RevokeDeviceRequest"> & {
  * Use `create(RevokeDeviceRequestSchema)` to create a new message.
  */
 export const RevokeDeviceRequestSchema: GenMessage<RevokeDeviceRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 20);
+  messageDesc(file_nama_v1_user, 21);
 
 /**
  * @generated from message nama.v1.RevokeDeviceResponse
@@ -465,7 +465,7 @@ export type RevokeDeviceResponse = Message<"nama.v1.RevokeDeviceResponse"> & {
  * Use `create(RevokeDeviceResponseSchema)` to create a new message.
  */
 export const RevokeDeviceResponseSchema: GenMessage<RevokeDeviceResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 21);
+  messageDesc(file_nama_v1_user, 22);
 
 /**
  * @generated from message nama.v1.ChangePasswordRequest
@@ -484,7 +484,7 @@ export type ChangePasswordRequest = Message<"nama.v1.ChangePasswordRequest"> & {
  * Use `create(ChangePasswordRequestSchema)` to create a new message.
  */
 export const ChangePasswordRequestSchema: GenMessage<ChangePasswordRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 22);
+  messageDesc(file_nama_v1_user, 23);
 
 /**
  * @generated from message nama.v1.ChangePasswordResponse
@@ -497,7 +497,7 @@ export type ChangePasswordResponse = Message<"nama.v1.ChangePasswordResponse"> &
  * Use `create(ChangePasswordResponseSchema)` to create a new message.
  */
 export const ChangePasswordResponseSchema: GenMessage<ChangePasswordResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 23);
+  messageDesc(file_nama_v1_user, 24);
 
 /**
  * @generated from message nama.v1.ResetPasswordRequest
@@ -523,7 +523,7 @@ export type ResetPasswordRequest = Message<"nama.v1.ResetPasswordRequest"> & {
  * Use `create(ResetPasswordRequestSchema)` to create a new message.
  */
 export const ResetPasswordRequestSchema: GenMessage<ResetPasswordRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 24);
+  messageDesc(file_nama_v1_user, 25);
 
 /**
  * @generated from message nama.v1.ResetPasswordResponse
@@ -536,7 +536,7 @@ export type ResetPasswordResponse = Message<"nama.v1.ResetPasswordResponse"> & {
  * Use `create(ResetPasswordResponseSchema)` to create a new message.
  */
 export const ResetPasswordResponseSchema: GenMessage<ResetPasswordResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 25);
+  messageDesc(file_nama_v1_user, 26);
 
 /**
  * @generated from message nama.v1.GetDefaultPermissionsRequest
@@ -549,7 +549,7 @@ export type GetDefaultPermissionsRequest = Message<"nama.v1.GetDefaultPermission
  * Use `create(GetDefaultPermissionsRequestSchema)` to create a new message.
  */
 export const GetDefaultPermissionsRequestSchema: GenMessage<GetDefaultPermissionsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 26);
+  messageDesc(file_nama_v1_user, 27);
 
 /**
  * @generated from message nama.v1.GetDefaultPermissionsResponse
@@ -575,7 +575,7 @@ export type GetDefaultPermissionsResponse = Message<"nama.v1.GetDefaultPermissio
  * Use `create(GetDefaultPermissionsResponseSchema)` to create a new message.
  */
 export const GetDefaultPermissionsResponseSchema: GenMessage<GetDefaultPermissionsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 27);
+  messageDesc(file_nama_v1_user, 28);
 
 /**
  * @generated from message nama.v1.SetDefaultPermissionsRequest
@@ -601,7 +601,7 @@ export type SetDefaultPermissionsRequest = Message<"nama.v1.SetDefaultPermission
  * Use `create(SetDefaultPermissionsRequestSchema)` to create a new message.
  */
 export const SetDefaultPermissionsRequestSchema: GenMessage<SetDefaultPermissionsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 28);
+  messageDesc(file_nama_v1_user, 29);
 
 /**
  * @generated from message nama.v1.SetDefaultPermissionsResponse
@@ -614,7 +614,7 @@ export type SetDefaultPermissionsResponse = Message<"nama.v1.SetDefaultPermissio
  * Use `create(SetDefaultPermissionsResponseSchema)` to create a new message.
  */
 export const SetDefaultPermissionsResponseSchema: GenMessage<SetDefaultPermissionsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 29);
+  messageDesc(file_nama_v1_user, 30);
 
 /**
  * A pending Invite, as Users who manage Users see it.
@@ -671,7 +671,7 @@ export type Invite = Message<"nama.v1.Invite"> & {
  * Use `create(InviteSchema)` to create a new message.
  */
 export const InviteSchema: GenMessage<Invite> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 30);
+  messageDesc(file_nama_v1_user, 31);
 
 /**
  * @generated from message nama.v1.CreateInviteRequest
@@ -699,7 +699,7 @@ export type CreateInviteRequest = Message<"nama.v1.CreateInviteRequest"> & {
  * Use `create(CreateInviteRequestSchema)` to create a new message.
  */
 export const CreateInviteRequestSchema: GenMessage<CreateInviteRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 31);
+  messageDesc(file_nama_v1_user, 32);
 
 /**
  * @generated from message nama.v1.CreateInviteResponse
@@ -726,7 +726,7 @@ export type CreateInviteResponse = Message<"nama.v1.CreateInviteResponse"> & {
  * Use `create(CreateInviteResponseSchema)` to create a new message.
  */
 export const CreateInviteResponseSchema: GenMessage<CreateInviteResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 32);
+  messageDesc(file_nama_v1_user, 33);
 
 /**
  * @generated from message nama.v1.ListInvitesRequest
@@ -739,7 +739,7 @@ export type ListInvitesRequest = Message<"nama.v1.ListInvitesRequest"> & {
  * Use `create(ListInvitesRequestSchema)` to create a new message.
  */
 export const ListInvitesRequestSchema: GenMessage<ListInvitesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 33);
+  messageDesc(file_nama_v1_user, 34);
 
 /**
  * @generated from message nama.v1.ListInvitesResponse
@@ -765,7 +765,7 @@ export type ListInvitesResponse = Message<"nama.v1.ListInvitesResponse"> & {
  * Use `create(ListInvitesResponseSchema)` to create a new message.
  */
 export const ListInvitesResponseSchema: GenMessage<ListInvitesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 34);
+  messageDesc(file_nama_v1_user, 35);
 
 /**
  * @generated from message nama.v1.RevokeInviteRequest
@@ -784,7 +784,7 @@ export type RevokeInviteRequest = Message<"nama.v1.RevokeInviteRequest"> & {
  * Use `create(RevokeInviteRequestSchema)` to create a new message.
  */
 export const RevokeInviteRequestSchema: GenMessage<RevokeInviteRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 35);
+  messageDesc(file_nama_v1_user, 36);
 
 /**
  * @generated from message nama.v1.RevokeInviteResponse
@@ -797,7 +797,7 @@ export type RevokeInviteResponse = Message<"nama.v1.RevokeInviteResponse"> & {
  * Use `create(RevokeInviteResponseSchema)` to create a new message.
  */
 export const RevokeInviteResponseSchema: GenMessage<RevokeInviteResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 36);
+  messageDesc(file_nama_v1_user, 37);
 
 /**
  * @generated from message nama.v1.ListPluginConnectionsRequest
@@ -810,7 +810,7 @@ export type ListPluginConnectionsRequest = Message<"nama.v1.ListPluginConnection
  * Use `create(ListPluginConnectionsRequestSchema)` to create a new message.
  */
 export const ListPluginConnectionsRequestSchema: GenMessage<ListPluginConnectionsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 37);
+  messageDesc(file_nama_v1_user, 38);
 
 /**
  * @generated from message nama.v1.ListPluginConnectionsResponse
@@ -829,7 +829,7 @@ export type ListPluginConnectionsResponse = Message<"nama.v1.ListPluginConnectio
  * Use `create(ListPluginConnectionsResponseSchema)` to create a new message.
  */
 export const ListPluginConnectionsResponseSchema: GenMessage<ListPluginConnectionsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 38);
+  messageDesc(file_nama_v1_user, 39);
 
 /**
  * A User's Plugin Connection, as the User sees it.
@@ -855,7 +855,7 @@ export type PluginConnection = Message<"nama.v1.PluginConnection"> & {
  * Use `create(PluginConnectionSchema)` to create a new message.
  */
 export const PluginConnectionSchema: GenMessage<PluginConnection> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 39);
+  messageDesc(file_nama_v1_user, 40);
 
 /**
  * @generated from message nama.v1.StartPluginConnectionRequest
@@ -874,7 +874,7 @@ export type StartPluginConnectionRequest = Message<"nama.v1.StartPluginConnectio
  * Use `create(StartPluginConnectionRequestSchema)` to create a new message.
  */
 export const StartPluginConnectionRequestSchema: GenMessage<StartPluginConnectionRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 40);
+  messageDesc(file_nama_v1_user, 41);
 
 /**
  * @generated from message nama.v1.StartPluginConnectionResponse
@@ -893,7 +893,7 @@ export type StartPluginConnectionResponse = Message<"nama.v1.StartPluginConnecti
  * Use `create(StartPluginConnectionResponseSchema)` to create a new message.
  */
 export const StartPluginConnectionResponseSchema: GenMessage<StartPluginConnectionResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 41);
+  messageDesc(file_nama_v1_user, 42);
 
 /**
  * @generated from message nama.v1.DeletePluginConnectionRequest
@@ -912,7 +912,7 @@ export type DeletePluginConnectionRequest = Message<"nama.v1.DeletePluginConnect
  * Use `create(DeletePluginConnectionRequestSchema)` to create a new message.
  */
 export const DeletePluginConnectionRequestSchema: GenMessage<DeletePluginConnectionRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 42);
+  messageDesc(file_nama_v1_user, 43);
 
 /**
  * @generated from message nama.v1.DeletePluginConnectionResponse
@@ -925,7 +925,7 @@ export type DeletePluginConnectionResponse = Message<"nama.v1.DeletePluginConnec
  * Use `create(DeletePluginConnectionResponseSchema)` to create a new message.
  */
 export const DeletePluginConnectionResponseSchema: GenMessage<DeletePluginConnectionResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 43);
+  messageDesc(file_nama_v1_user, 44);
 
 /**
  * @generated from message nama.v1.ListPersonalSettingsRequest
@@ -938,7 +938,7 @@ export type ListPersonalSettingsRequest = Message<"nama.v1.ListPersonalSettingsR
  * Use `create(ListPersonalSettingsRequestSchema)` to create a new message.
  */
 export const ListPersonalSettingsRequestSchema: GenMessage<ListPersonalSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 44);
+  messageDesc(file_nama_v1_user, 45);
 
 /**
  * @generated from message nama.v1.ListPersonalSettingsResponse
@@ -957,7 +957,7 @@ export type ListPersonalSettingsResponse = Message<"nama.v1.ListPersonalSettings
  * Use `create(ListPersonalSettingsResponseSchema)` to create a new message.
  */
 export const ListPersonalSettingsResponseSchema: GenMessage<ListPersonalSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 45);
+  messageDesc(file_nama_v1_user, 46);
 
 /**
  * One Plugin's Personal settings, with the caller's own values.
@@ -1000,7 +1000,7 @@ export type PersonalSettings = Message<"nama.v1.PersonalSettings"> & {
  * Use `create(PersonalSettingsSchema)` to create a new message.
  */
 export const PersonalSettingsSchema: GenMessage<PersonalSettings> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 46);
+  messageDesc(file_nama_v1_user, 47);
 
 /**
  * @generated from message nama.v1.UpdatePersonalSettingsRequest
@@ -1027,7 +1027,7 @@ export type UpdatePersonalSettingsRequest = Message<"nama.v1.UpdatePersonalSetti
  * Use `create(UpdatePersonalSettingsRequestSchema)` to create a new message.
  */
 export const UpdatePersonalSettingsRequestSchema: GenMessage<UpdatePersonalSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 47);
+  messageDesc(file_nama_v1_user, 48);
 
 /**
  * @generated from message nama.v1.UpdatePersonalSettingsResponse
@@ -1046,7 +1046,7 @@ export type UpdatePersonalSettingsResponse = Message<"nama.v1.UpdatePersonalSett
  * Use `create(UpdatePersonalSettingsResponseSchema)` to create a new message.
  */
 export const UpdatePersonalSettingsResponseSchema: GenMessage<UpdatePersonalSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 48);
+  messageDesc(file_nama_v1_user, 49);
 
 /**
  * @generated from message nama.v1.DeletePersonalSettingsRequest
@@ -1065,7 +1065,7 @@ export type DeletePersonalSettingsRequest = Message<"nama.v1.DeletePersonalSetti
  * Use `create(DeletePersonalSettingsRequestSchema)` to create a new message.
  */
 export const DeletePersonalSettingsRequestSchema: GenMessage<DeletePersonalSettingsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 49);
+  messageDesc(file_nama_v1_user, 50);
 
 /**
  * @generated from message nama.v1.DeletePersonalSettingsResponse
@@ -1078,7 +1078,7 @@ export type DeletePersonalSettingsResponse = Message<"nama.v1.DeletePersonalSett
  * Use `create(DeletePersonalSettingsResponseSchema)` to create a new message.
  */
 export const DeletePersonalSettingsResponseSchema: GenMessage<DeletePersonalSettingsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 50);
+  messageDesc(file_nama_v1_user, 51);
 
 /**
  * @generated from message nama.v1.ListNotificationPreferencesRequest
@@ -1091,7 +1091,7 @@ export type ListNotificationPreferencesRequest = Message<"nama.v1.ListNotificati
  * Use `create(ListNotificationPreferencesRequestSchema)` to create a new message.
  */
 export const ListNotificationPreferencesRequestSchema: GenMessage<ListNotificationPreferencesRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 51);
+  messageDesc(file_nama_v1_user, 52);
 
 /**
  * @generated from message nama.v1.ListNotificationPreferencesResponse
@@ -1110,7 +1110,7 @@ export type ListNotificationPreferencesResponse = Message<"nama.v1.ListNotificat
  * Use `create(ListNotificationPreferencesResponseSchema)` to create a new message.
  */
 export const ListNotificationPreferencesResponseSchema: GenMessage<ListNotificationPreferencesResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 52);
+  messageDesc(file_nama_v1_user, 53);
 
 /**
  * Whether a User gets one kind of Request notification.
@@ -1138,7 +1138,7 @@ export type NotificationPreference = Message<"nama.v1.NotificationPreference"> &
  * Use `create(NotificationPreferenceSchema)` to create a new message.
  */
 export const NotificationPreferenceSchema: GenMessage<NotificationPreference> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 53);
+  messageDesc(file_nama_v1_user, 54);
 
 /**
  * @generated from message nama.v1.SetNotificationPreferenceRequest
@@ -1164,7 +1164,7 @@ export type SetNotificationPreferenceRequest = Message<"nama.v1.SetNotificationP
  * Use `create(SetNotificationPreferenceRequestSchema)` to create a new message.
  */
 export const SetNotificationPreferenceRequestSchema: GenMessage<SetNotificationPreferenceRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 54);
+  messageDesc(file_nama_v1_user, 55);
 
 /**
  * @generated from message nama.v1.SetNotificationPreferenceResponse
@@ -1177,7 +1177,7 @@ export type SetNotificationPreferenceResponse = Message<"nama.v1.SetNotification
  * Use `create(SetNotificationPreferenceResponseSchema)` to create a new message.
  */
 export const SetNotificationPreferenceResponseSchema: GenMessage<SetNotificationPreferenceResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 55);
+  messageDesc(file_nama_v1_user, 56);
 
 /**
  * @generated from message nama.v1.GetHomeLayoutRequest
@@ -1190,7 +1190,7 @@ export type GetHomeLayoutRequest = Message<"nama.v1.GetHomeLayoutRequest"> & {
  * Use `create(GetHomeLayoutRequestSchema)` to create a new message.
  */
 export const GetHomeLayoutRequestSchema: GenMessage<GetHomeLayoutRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 56);
+  messageDesc(file_nama_v1_user, 57);
 
 /**
  * @generated from message nama.v1.GetHomeLayoutResponse
@@ -1207,7 +1207,7 @@ export type GetHomeLayoutResponse = Message<"nama.v1.GetHomeLayoutResponse"> & {
  * Use `create(GetHomeLayoutResponseSchema)` to create a new message.
  */
 export const GetHomeLayoutResponseSchema: GenMessage<GetHomeLayoutResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 57);
+  messageDesc(file_nama_v1_user, 58);
 
 /**
  * @generated from message nama.v1.SetHomeLayoutRequest
@@ -1226,7 +1226,7 @@ export type SetHomeLayoutRequest = Message<"nama.v1.SetHomeLayoutRequest"> & {
  * Use `create(SetHomeLayoutRequestSchema)` to create a new message.
  */
 export const SetHomeLayoutRequestSchema: GenMessage<SetHomeLayoutRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 58);
+  messageDesc(file_nama_v1_user, 59);
 
 /**
  * @generated from message nama.v1.SetHomeLayoutResponse
@@ -1245,7 +1245,7 @@ export type SetHomeLayoutResponse = Message<"nama.v1.SetHomeLayoutResponse"> & {
  * Use `create(SetHomeLayoutResponseSchema)` to create a new message.
  */
 export const SetHomeLayoutResponseSchema: GenMessage<SetHomeLayoutResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 59);
+  messageDesc(file_nama_v1_user, 60);
 
 /**
  * @generated from message nama.v1.ReorderHomeRowsRequest
@@ -1264,7 +1264,7 @@ export type ReorderHomeRowsRequest = Message<"nama.v1.ReorderHomeRowsRequest"> &
  * Use `create(ReorderHomeRowsRequestSchema)` to create a new message.
  */
 export const ReorderHomeRowsRequestSchema: GenMessage<ReorderHomeRowsRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 60);
+  messageDesc(file_nama_v1_user, 61);
 
 /**
  * @generated from message nama.v1.ReorderHomeRowsResponse
@@ -1283,7 +1283,7 @@ export type ReorderHomeRowsResponse = Message<"nama.v1.ReorderHomeRowsResponse">
  * Use `create(ReorderHomeRowsResponseSchema)` to create a new message.
  */
 export const ReorderHomeRowsResponseSchema: GenMessage<ReorderHomeRowsResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 61);
+  messageDesc(file_nama_v1_user, 62);
 
 /**
  * @generated from message nama.v1.ResetHomeLayoutRequest
@@ -1296,7 +1296,7 @@ export type ResetHomeLayoutRequest = Message<"nama.v1.ResetHomeLayoutRequest"> &
  * Use `create(ResetHomeLayoutRequestSchema)` to create a new message.
  */
 export const ResetHomeLayoutRequestSchema: GenMessage<ResetHomeLayoutRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 62);
+  messageDesc(file_nama_v1_user, 63);
 
 /**
  * @generated from message nama.v1.ResetHomeLayoutResponse
@@ -1309,7 +1309,7 @@ export type ResetHomeLayoutResponse = Message<"nama.v1.ResetHomeLayoutResponse">
  * Use `create(ResetHomeLayoutResponseSchema)` to create a new message.
  */
 export const ResetHomeLayoutResponseSchema: GenMessage<ResetHomeLayoutResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_user, 63);
+  messageDesc(file_nama_v1_user, 64);
 
 /**
  * Where a User's Plugin Connection is.
