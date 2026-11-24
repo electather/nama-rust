@@ -242,6 +242,18 @@ test("on a Server Linked to the Hub, “Confirm it’s you” offers your Accoun
   expect(sessionStorage.getItem("nama.account-sign-in")).toBe("secret");
 });
 
+/**
+ * Closes dialogs without their `close` event: Chromium fires it only when it next draws the page,
+ * which a page in a background or hidden window may not do for a long time.
+ */
+function closeWithoutCloseEvent() {
+  vi.spyOn(HTMLDialogElement.prototype, "close").mockImplementation(function closeUndrawn(
+    this: HTMLDialogElement,
+  ) {
+    this.removeAttribute("open");
+  });
+}
+
 /** Opens Alex's page and ticks Admin there, returning its checkbox. */
 async function tickAdminForAlex() {
   fireEvent.click(await screen.findByRole("link", { name: "Alex" }));
@@ -252,13 +264,7 @@ async function tickAdminForAlex() {
 }
 
 test("a Permission is saved once you confirm it’s you, before the browser draws the page again", async () => {
-  // Chromium fires a dialog's `close` event only when it next draws the page, which a page in a
-  // background or hidden window may not do for a long time.
-  vi.spyOn(HTMLDialogElement.prototype, "close").mockImplementation(function closeUndrawn(
-    this: HTMLDialogElement,
-  ) {
-    this.removeAttribute("open");
-  });
+  closeWithoutCloseEvent();
   const { promoted } = openUsersNeedingRecentAuthentication();
 
   await tickAdminForAlex();
@@ -269,7 +275,8 @@ test("a Permission is saved once you confirm it’s you, before the browser draw
   });
 });
 
-test("cancelling “Confirm it’s you” unticks the Permission it was for", async () => {
+test("cancelling “Confirm it’s you” unticks the Permission it was for, before the browser draws the page again", async () => {
+  closeWithoutCloseEvent();
   const { promoted } = openUsersNeedingRecentAuthentication();
 
   const promote = await tickAdminForAlex();
@@ -290,4 +297,39 @@ test("a Permission refused again after you confirm it’s you is unticked, and s
 
   await expect(screen.findByText("Sign in again to do this.")).resolves.toBeDefined();
   expect(promote).toHaveProperty("checked", false);
+});
+
+test("a late close event from a cancelled “Confirm it’s you” leaves the next one waiting", async () => {
+  closeWithoutCloseEvent();
+  const { promoted } = openUsersNeedingRecentAuthentication();
+
+  const promote = await tickAdminForAlex();
+  const dialog = await screen.findByRole("alertdialog", { name: "Confirm it’s you" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  await waitFor(() => {
+    expect(promote).toHaveProperty("checked", false);
+  });
+  fireEvent.click(promote);
+  await screen.findByRole("alertdialog", { name: "Confirm it’s you" });
+  fireEvent(dialog, new Event("close"));
+  await confirmItsYou();
+
+  await waitFor(() => {
+    expect(promoted).toStrictEqual([[2n, [...newUser, Permission.ADMIN]]]);
+  });
+});
+
+test("dismissing “Confirm it’s you” with Escape unticks the Permission it was for", async () => {
+  openUsersNeedingRecentAuthentication();
+
+  const promote = await tickAdminForAlex();
+  const dialog = await screen.findByRole<HTMLDialogElement>("alertdialog", {
+    name: "Confirm it’s you",
+  });
+  // jsdom doesn't close a dialog on Escape, so this closes it the way the browser then does.
+  dialog.close();
+
+  await waitFor(() => {
+    expect(promote).toHaveProperty("checked", false);
+  });
 });

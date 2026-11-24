@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, HashSet},
+    io::Cursor,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -8,6 +9,7 @@ use std::{
 };
 
 use axum::{Router, body::Body, extract::Request, http::header};
+use image::{ImageFormat, RgbImage};
 use nama_plugin_api::{
     PluginId,
     settings::{SettingValue, Settings},
@@ -20,11 +22,14 @@ use crate::{
     db::Database,
     images::{ImageStore, MAX_SVG_BYTES},
     library::{
-        contents::{Contents, ImageRef},
+        CustomImages, FoundImages, LocalImages, Metadata, Role,
+        contents::{Contents, ImageRef, LocalImageFile, LocalRole},
+        fixture::{MatchedMovie, tmdb_movie},
         scripted::{ScriptedSource, SourcesAsked},
         title_source::{self, ArtworkKind, Source},
     },
     plugins::Registry,
+    server_settings::Settings as ServerSettings,
 };
 
 /// How many image requests are running, and the most that ever were.
@@ -493,5 +498,58 @@ fn titled_backdrops_rank_by_source_then_rating_then_votes() {
     assert_eq!(
         picked_titled_backdrop(&by_votes).as_deref(),
         Some("/many.jpg")
+    );
+}
+
+#[tokio::test]
+async fn a_poster_whose_title_shows_the_one_beside_its_media_in_its_place_gets_no_copy() {
+    let data = tempfile::tempdir().unwrap();
+    let media = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let store = ImageStore::new(data.path(), Arc::clone(&db));
+    let contents = Contents::new(Arc::clone(&db));
+    let poster = |path: &str| ImageRef {
+        plugin: PluginId::from_static("tmdb"),
+        path: path.to_owned(),
+    };
+    let with_poster = |tmdb, title, path| Metadata {
+        poster: Some(poster(path)),
+        ..tmdb_movie(tmdb, title)
+    };
+    let alien = MatchedMovie::new(&db, media.path(), with_poster(1, "Alien", "/hidden.jpg")).await;
+    let dune_path = media.path().canonicalize().unwrap().join("Dune.mkv");
+    let dune = with_poster(2, "Dune", "/shown.jpg");
+    MatchedMovie::store(&contents, alien.library, dune_path.to_str().unwrap(), dune).await;
+    let beside = media.path().join("poster.png");
+    let mut png = Cursor::new(Vec::new());
+    (RgbImage::new(2, 3).write_to(&mut png, ImageFormat::Png)).unwrap();
+    std::fs::write(&beside, png.into_inner()).unwrap();
+    let file = LocalImageFile {
+        path: beside.to_str().unwrap().to_owned(),
+        size: 1,
+        modified_ns: 0,
+    };
+    let found = FoundImages::from([((alien.version, LocalRole::Title(Role::Poster)), file)]);
+    let local_images = LocalImages::new(Arc::clone(&db), store.clone());
+    (local_images
+        .keep(alien.library, &[alien.version], &found)
+        .await)
+        .unwrap();
+    let images = ServerSettings::new(Arc::clone(&db), data.path().to_owned()).images();
+    let custom_images = CustomImages::new(Arc::clone(&db), store.clone());
+    let artwork = Artwork::new(store, Registry::new().extension_points()).resizing_posters_ahead(
+        images,
+        custom_images,
+        local_images,
+    );
+
+    let shown = artwork
+        .shown_posters(&contents, alien.library)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        shown,
+        HashSet::from([("tmdb".to_owned(), "/shown.jpg".to_owned())])
     );
 }

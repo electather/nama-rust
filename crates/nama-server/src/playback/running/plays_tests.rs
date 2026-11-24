@@ -73,6 +73,27 @@ async fn a_plan_its_device_reports_progress_through_is_kept_past_going_unused() 
 }
 
 #[tokio::test]
+async fn progress_goes_only_to_the_newest_plan_of_its_version_on_its_device() {
+    let data = tempfile::tempdir().unwrap();
+    let plans = running_plans(data.path()).await;
+    let (version, device) = (0, 7);
+    let left_open = start_remux(&plans, device).await;
+    let played_again = start_remux(&plans, device).await;
+    let at = ReportedProgress {
+        position_ms: 1_000,
+        duration_ms: 60_000,
+    };
+
+    plans.report_progress(version, device, at);
+
+    let listed = plans.plays().await.unwrap();
+    let progress: Vec<_> = (listed.iter())
+        .map(|play| (play.playback.plan_id, play.progress))
+        .collect();
+    assert_eq!(progress, [(left_open, None), (played_again, Some(at))]);
+}
+
+#[tokio::test]
 async fn an_admin_stops_a_plan_on_any_device_and_its_end_carries_their_message() {
     let data = tempfile::tempdir().unwrap();
     let db = database(data.path()).await;

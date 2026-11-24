@@ -21,7 +21,7 @@ export async function prefetchLibraries({ queryClient, transport }: RouterContex
   try {
     await queryClient.query(librariesQuery(transport));
   } catch {
-    // The page shows the failure when it reads them.
+    // The title page shows without its Library then.
   }
 }
 

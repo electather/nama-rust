@@ -135,6 +135,7 @@ cargo clippy -p nama-hub --features web --all-targets --locked -- -D warnings   
 cargo nextest run --workspace --locked
 cargo test --workspace --doc --locked
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+RUSTDOCFLAGS="-D warnings" cargo doc -p nama-server --no-deps --document-private-items --locked
 cargo machete
 cargo deny check bans licenses sources
 ```

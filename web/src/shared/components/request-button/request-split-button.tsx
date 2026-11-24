@@ -28,7 +28,7 @@ export function RequestSplitButton({
 }) {
   const mayChoose = useMay(Permission.CHOOSE_QUALITY);
   // A ghost button's icon lines up with the caption above it, its padding hanging outside.
-  const [variant, hanging] = primary ? (["default"] as const) : (["ghost", "-ms-4"] as const);
+  const [variant, hanging] = primary ? (["default"] as const) : (["ghost", "-ms-2.5"] as const);
   const bothParts = { what, variant, disabled: busy };
   return (
     <span className={hanging}>

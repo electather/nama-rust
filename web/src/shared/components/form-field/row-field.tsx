@@ -17,12 +17,18 @@ export function RowField({
   error,
   wide = false,
   size = "field",
+  hiddenInput,
   children,
 }: Omit<FieldText, "name"> & {
   /** The key `?setting=` finds the row by. */
   setting?: string | undefined;
   wide?: boolean;
   size?: ControlSize;
+  /**
+   * A hidden input the form sends with the setting, kept inside the row: the row's first/last-row
+   * styles need the row to be the only element its parent holds.
+   */
+  hiddenInput?: ReactNode;
   children: (control: FieldControl) => ReactNode;
 }) {
   return (
@@ -35,6 +41,7 @@ export function RowField({
             "aria-invalid": error !== undefined,
             "aria-describedby": control["aria-describedby"],
           })}
+          {hiddenInput}
         </>
       )}
     </SettingRow>

@@ -32,15 +32,15 @@ export function SetSecret({
     return <SecretIsSet setting={setting} forgettable={forgettable} onPress={setPressed} />;
   }
   return (
-    <>
-      {forgetting && (
-        <input ref={forgotten} type="hidden" name={forgottenField} value={setting.key} />
-      )}
-      <TypedInput
-        {...{ setting, error, forgetting }}
-        required={false}
-        focused={pressed !== undefined}
-      />
-    </>
+    <TypedInput
+      {...{ setting, error, forgetting }}
+      required={false}
+      focused={pressed !== undefined}
+      hiddenInput={
+        forgetting && (
+          <input ref={forgotten} type="hidden" name={forgottenField} value={setting.key} />
+        )
+      }
+    />
   );
 }

@@ -5,7 +5,7 @@ import { HubService } from "@hub/gen/nama/hub/v1/hub_pb";
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
-import { cleanup, configure, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, test, vi } from "vite-plus/test";
 
 const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
@@ -105,7 +105,6 @@ function openHub(path: string, { signedIn = false, passkeys = true, password = t
 
 describe("an Account's passkeys", () => {
   beforeAll(() => {
-    configure({ asyncUtilTimeout: 5000 });
     // happy-dom has no WebAuthn. As `Object`, every fake above passes the page's `instanceof` checks.
     vi.stubGlobal("PublicKeyCredential", Object);
     vi.stubGlobal("AuthenticatorAttestationResponse", Object);

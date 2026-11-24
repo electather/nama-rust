@@ -46,6 +46,10 @@ export function ConfirmItsYou({ children }: { children: ReactNode }) {
         onReauthenticated={() => {
           answerWith(true);
         }}
+        onCancel={() => {
+          answerWith(false);
+        }}
+        // Escape has no button, so only its `close` event answers it.
         onClose={() => {
           // A late `close` may arrive after the next "Confirm it’s you" opened, which it isn't for.
           if (dialog.current?.open !== true) {

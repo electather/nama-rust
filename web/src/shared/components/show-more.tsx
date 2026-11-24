@@ -30,7 +30,7 @@ export function ShowMore({
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- `loaded` is what re-runs it; keying the button to remount would lose a keyboard User's focus
   }, [loaded]);
   return (
-    <div className="-ms-4 mt-2">
+    <div className="-ms-2.5 mt-2">
       <Button
         ref={button}
         variant="ghost"

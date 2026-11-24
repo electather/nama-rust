@@ -334,7 +334,7 @@ pub(super) fn printable(text: &str) -> String {
     escaped
 }
 
-/// A Plugin to list as Installed once [`describe`] finds its id free.
+/// A Plugin to list as Installed once `listing::describe` finds its id free.
 pub(super) struct Listable {
     make: Make,
     manifest: Manifest,

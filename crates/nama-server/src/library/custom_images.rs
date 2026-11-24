@@ -35,7 +35,7 @@ use crate::{
     db::Database,
     images::{Asked, CUSTOM_IMAGES_DIR, ImageStore, Received, Resize, UploadError, percent_decode},
     library::{
-        artwork::{Artwork, Error as ArtworkError},
+        artwork::{Artwork, Error as ArtworkError, poster_grid_copy},
         contents::{library_with_movie, library_with_show, matched_episodes, parse_hint},
     },
     server_settings::ImageSettings,
@@ -134,6 +134,11 @@ impl Slot {
     /// A Library has only a Backdrop.
     pub(crate) fn library(id: i64) -> Self {
         Self(format!("library/{id}/backdrop"))
+    }
+
+    /// Whether it is a title's or a Season's Poster.
+    fn is_poster(&self) -> bool {
+        self.0.ends_with("/poster")
     }
 
     /// The Library whose image it is, if it is a Library's.
@@ -284,8 +289,14 @@ impl CustomImages {
         })
     }
 
-    /// Keeps `body` as the Custom Image at `slot`, in place of any there before.
-    async fn upload(&self, slot: Slot, body: Body) -> Result<(), Error> {
+    /// Keeps `body` as the Custom Image at `slot`, in place of any there before, then makes
+    /// `poster_copy` of it in the background.
+    async fn upload(
+        &self,
+        slot: Slot,
+        body: Body,
+        poster_copy: Option<Resize>,
+    ) -> Result<(), Error> {
         let received = self.store.receive(&slot.key(), body).await?;
         let version = received.version.clone();
         let stored = slot.0.clone();
@@ -297,12 +308,19 @@ impl CustomImages {
         if let Err(Error::NoLibrary(id)) = replaced {
             self.delete_library_dir(id).await?;
         }
-        let replaced = replaced?;
         // The same bytes again are the same version, which mustn't go.
-        match replaced {
-            Some(old) if old != version => self.delete_file(&slot, &old).await,
-            _ => Ok(()),
+        if let Some(old) = replaced?.filter(|old| *old != version) {
+            self.delete_file(&slot, &old).await?;
         }
+        if let Some(copy) = poster_copy {
+            let store = self.store.clone();
+            tokio::spawn(async move {
+                let mut key = slot.key();
+                key.push(&version);
+                store.copy_ahead(&key, copy).await;
+            });
+        }
+        Ok(())
     }
 
     /// Removes the Custom Image at `slot`, if there is one, which brings back the image it stood
@@ -470,7 +488,7 @@ fn raw_path<'a>(uri: &'a Uri, prefix: &str) -> &'a str {
 }
 
 async fn upload(
-    State((custom_images, artwork, _)): State<Handles>,
+    State((custom_images, artwork, images)): State<Handles>,
     uri: Uri,
     Query(picked): Query<UploadQuery>,
     body: Body,
@@ -487,6 +505,7 @@ async fn upload(
         }
         Err(err) => return failed("keep", &err.into()),
     }
+    let poster_copy = poster_grid_copy(&images).filter(|_| slot.is_poster());
     // The write commits even if the client goes away, so deleting what it replaced must follow
     // (ADR 0029).
     let uploaded = tokio::spawn(async move {
@@ -494,7 +513,7 @@ async fn upload(
             Some(url) => Body::from(artwork.offered_bytes(&url).await?),
             None => body,
         };
-        custom_images.upload(slot, body).await
+        custom_images.upload(slot, body, poster_copy).await
     });
     match uploaded.await.unwrap_or_else(|err| Err(err.into())) {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),

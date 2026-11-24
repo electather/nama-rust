@@ -41,6 +41,9 @@ use crate::{
         clean_svg, file_name, percent_decode,
     },
     library::contents::{Contents, ImageRef},
+    library::custom_images::CustomImages,
+    library::local_images::LocalImages,
+    library::shown_images::InPlaceOfDownloaded,
     library::title_source::{self, ArtworkKind, Source, TitleKind, TitleSources},
     plugins::ExtensionPoints,
     server_settings::ImageSettings,
@@ -103,10 +106,20 @@ pub struct Artwork {
     /// Written while unused images are deleted, and read while one is looked for, written or
     /// served, so a Match stored meanwhile never finds its image there and then has it deleted.
     sweeping: Arc<RwLock<()>>,
-    /// The settings Posters are resized by once kept, so a first visit finds them made.
-    /// `None` until startup hands them over (`Artwork::resizing_posters_ahead`), so tests that build
-    /// their own `Artwork` make copies on request only.
-    image_settings: Option<ImageSettings>,
+    /// What Posters are resized by once kept, so a first visit finds them made. `None` until
+    /// startup hands it over (`Artwork::resizing_posters_ahead`), so tests that build their own
+    /// `Artwork` make copies on request only.
+    posters_ahead: Option<PostersAhead>,
+}
+
+/// What [`Artwork`] resizes Posters ahead by.
+#[derive(Debug, Clone)]
+struct PostersAhead {
+    images: ImageSettings,
+    /// With `local_images`, what titles show in place of their downloaded Posters, which so
+    /// get no copy.
+    custom_images: CustomImages,
+    local_images: LocalImages,
 }
 
 /// Why an image couldn't be had.
@@ -134,16 +147,26 @@ impl Artwork {
             offered: Arc::default(),
             downloads: Arc::new(Semaphore::new(DOWNLOADS)),
             sweeping: Arc::default(),
-            image_settings: None,
+            posters_ahead: None,
         }
     }
 
     /// This, resizing each Poster of a Library it downloads images for to the Poster grid's width
-    /// as `images` says, so a first visit to the Library finds them made.
+    /// as `images` says, so a first visit to the Library finds them made, unless a title shows
+    /// one of `custom_images` or `local_images` in its place.
     #[must_use]
-    pub(crate) fn resizing_posters_ahead(self, images: ImageSettings) -> Self {
+    pub(crate) fn resizing_posters_ahead(
+        self,
+        images: ImageSettings,
+        custom_images: CustomImages,
+        local_images: LocalImages,
+    ) -> Self {
         Self {
-            image_settings: Some(images),
+            posters_ahead: Some(PostersAhead {
+                images,
+                custom_images,
+                local_images,
+            }),
             ..self
         }
     }
@@ -258,19 +281,20 @@ impl Artwork {
 
     /// Downloads, in the background, each image a Match in the Library `library` stores that
     /// isn't kept yet, logging those that fail, which the Library's next scan tries again. Then
-    /// resizes each of its Posters, kept before or just now, to the Poster grid's width, where
-    /// resizing is on now and that copy isn't there.
+    /// resizes each of its Posters a title shows, kept before or just now, to the Poster grid's
+    /// width, where resizing is on now and that copy isn't there.
     pub(crate) fn download_missing(&self, contents: Contents, library: i64) {
         let artwork = self.clone();
         // Read before any download lands, so a change of settings after the scan has no part in it.
         let poster_copy =
-            (self.image_settings.as_ref()).and_then(|images| Resize::to(POSTER_GRID_WIDTH, images));
+            (self.posters_ahead.as_ref()).and_then(|ahead| poster_grid_copy(&ahead.images));
         tokio::spawn(async move {
-            let listed =
-                tokio::try_join!(contents.images(Some(library)), contents.posters(library));
+            let listed = tokio::try_join!(
+                contents.images(Some(library)),
+                artwork.shown_posters(&contents, library)
+            );
             match listed {
                 Ok((images, posters)) => {
-                    let posters = posters.into_iter().collect();
                     artwork.download(images, &posters, poster_copy).await;
                 }
                 Err(err) => {
@@ -278,6 +302,27 @@ impl Artwork {
                 }
             }
         });
+    }
+
+    /// Each Poster, as its Plugin and path, that some title of the Library `library` shows, not
+    /// having a Custom Image or image beside its media in its place. None without
+    /// [`Self::resizing_posters_ahead`].
+    async fn shown_posters(
+        &self,
+        contents: &Contents,
+        library: i64,
+    ) -> sqlx::Result<HashSet<(String, String)>> {
+        let Some(ahead) = &self.posters_ahead else {
+            return Ok(HashSet::new());
+        };
+        let (posters, in_place) = tokio::try_join!(
+            contents.posters(library),
+            InPlaceOfDownloaded::read(&ahead.custom_images, &ahead.local_images)
+        )?;
+        Ok((posters.into_iter())
+            .filter(|poster| in_place.shows_downloaded(&poster.ids, poster.image))
+            .map(|poster| (poster.plugin, poster.path))
+            .collect())
     }
 
     /// Downloads each of `images`, a Plugin and a path, unless it is kept already, and makes
@@ -413,6 +458,12 @@ impl Artwork {
     }
 }
 
+/// The copy Posters are resized to ahead of the Poster grid asking for them, as `images` says:
+/// `None` while resizing is off.
+pub(super) fn poster_grid_copy(images: &ImageSettings) -> Option<Resize> {
+    Resize::to(POSTER_GRID_WIDTH, images)
+}
+
 /// An image of an artwork list, with its source and that source's place in the order.
 type Ranked<'a> = (usize, &'a Source, &'a title_source::Artwork);
 
@@ -503,7 +554,7 @@ pub(crate) fn url(plugin: &str, path: &str) -> String {
     format!("/media/artwork/{}/{}", file_name(plugin), file_name(path))
 }
 
-/// Serves `GET` [`url`]s, 404 unless `artwork` offered the image or `contents` has a Match that
+/// Serves `GET` [`url()`]s, 404 unless `artwork` offered the image or `contents` has a Match that
 /// stores it, resized as `images` says. Whether the caller has a session is up to the layers the
 /// router is put behind.
 pub(crate) fn router(artwork: Artwork, contents: Contents, images: ImageSettings) -> Router {

@@ -9,8 +9,9 @@ use super::{PluginSettings, set_enabled};
 impl PluginSettings {
     /// Saves each Plugin the registry disables for crashing as disabled, as an admin's disable is,
     /// so it stays disabled across a restart until an admin enables it again. Runs until
-    /// [`PluginSettings::shutdown`] and the crashes queued are saved, or until the registry hands a
-    /// later caller of [`Registry::crashed`] the crashes instead.
+    /// [`PluginSettings::shutdown`] and the crashes queued are saved, or until the registry hands
+    /// a later caller of [`Registry::crashed`](crate::plugins::Registry::crashed) the crashes
+    /// instead.
     pub(super) async fn save_crashed(self, mut crashed: mpsc::UnboundedReceiver<PluginId>) {
         loop {
             tokio::select! {

@@ -1173,7 +1173,12 @@ export const LibraryService: GenService<{
    * Creates a Library, then starts scanning it as `ScanLibrary` does, which Matches the Items the
    * scan finds, and returns without waiting for the scan to finish. Fails with `invalid_argument`
    * if the name is blank, the kind is unspecified, or a folder isn't an absolute path to a readable
-   * directory, and with `already_exists` if a folder already belongs to another Library.
+   * directory; with `invalid_argument` and `REFUSAL_REASON_TITLE_SOURCES_INVALID` if a title
+   * source is malformed, repeated or known to no Plugin, or none of them searches; with
+   * `invalid_argument` and `REFUSAL_REASON_RECOGNISERS_INVALID` or
+   * `REFUSAL_REASON_SEGMENT_SOURCES_INVALID` if a Recogniser or Segment source id is repeated or
+   * names no Plugin with that Extension Point; and with `already_exists` if a folder already
+   * belongs to another Library.
    *
    * @generated from rpc nama.v1.LibraryService.CreateLibrary
    */

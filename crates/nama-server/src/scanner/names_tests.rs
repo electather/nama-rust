@@ -229,6 +229,29 @@ fn movies_named_by_title_alone_only_where_file_and_folder_agree() {
 }
 
 #[test]
+fn a_movies_own_folder_names_it_before_a_grouping_folder_does() {
+    let cases = [
+        (
+            "Alien Anthology {tmdb-8091}/Alien/Alien.mkv",
+            movie("Alien", None, None),
+        ),
+        ("Best Of (2020)/Dune/Dune.mkv", movie("Dune", None, None)),
+        ("Dune (2021)/Dune.mkv", movie("Dune", Some(2021), None)),
+        (
+            "Best Of (2020)/clip.mkv",
+            movie("Best Of", Some(2020), None),
+        ),
+        (
+            "Best Of (2020)/Extras/clip.mkv",
+            movie("Best Of", Some(2020), None),
+        ),
+    ];
+    for (path, expected) in cases {
+        assert_eq!(parse(Movies, Path::new(path)), expected, "{path}");
+    }
+}
+
+#[test]
 fn movies_with_id_hints_in_any_namespace() {
     let cases = [
         // Any other namespace in curly braces, case-folded, but not Plex's edition tag, which
