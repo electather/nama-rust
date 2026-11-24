@@ -314,6 +314,7 @@ impl Probing {
                         finished(probed);
                     }
                     Some(Err(err)) => {
+                        diagnostics::failed_with(&err, &tracing::Span::current());
                         tracing::error!(library, "probing a Library's files failed: {err}");
                     }
                     None => {}
@@ -443,8 +444,9 @@ impl Probing {
 
     /// Probes the file at `path`, stored as the file `claim` is for, like
     /// [`Self::probe_and_store`], and sends what it found to whoever waited for it.
+    #[tracing::instrument(name = "probe", skip_all, fields(file.id = claim.file.id))]
     async fn probe_claimed(&self, path: &str, claim: Claim<Probed>) -> Result<Probe, Unprobed> {
-        let probed = self.probe_and_store(path, claim.file).await;
+        let probed = diagnostics::outcome(self.probe_and_store(path, claim.file).await);
         let found = match &probed {
             Ok(probe) => Ok(probe.clone()),
             Err(Unprobed::Probe(err, _)) => Err(Arc::clone(err)),
@@ -458,7 +460,6 @@ impl Probing {
     /// Probes the file at `path`, stored as `file`, and stores and returns what it holds, unless
     /// its Tracks became current since whoever claimed it found them stale. If ffprobe can't read
     /// it, stores that and why, and forgets what it held before.
-    #[tracing::instrument(name = "probe", skip_all, fields(file.id = file.id))]
     async fn probe_and_store(&self, path: &str, file: Stored) -> Result<Probe, Unprobed> {
         if self.inner.tracks.current(&[file]).await?.contains(&file.id)
             && let Some(probe) = self.inner.tracks.of(&[file]).await?.remove(&file.id)
@@ -506,6 +507,7 @@ impl Probing {
         let probing = self.clone();
         let listing = async move {
             if let Err(err) = probing.list_claimed(&path, claim).await {
+                diagnostics::failed_with(&err, &tracing::Span::current());
                 tracing::error!("could not keep the keyframes listed for {path}: {err}");
             }
         };
@@ -527,6 +529,7 @@ impl Probing {
         let kept = match &listed {
             Ok(keyframes) => Some(Keyframes::Listed(keyframes.clone())),
             Err(err) => {
+                diagnostics::failed_with(&**err, &tracing::Span::current());
                 // The plan that started it may have stopped waiting, and so won't log it.
                 tracing::warn!("could not list the keyframes of {path}: {err}");
                 matches!(

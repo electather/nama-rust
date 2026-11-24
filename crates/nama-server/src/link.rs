@@ -324,8 +324,9 @@ impl Linking {
                 })
                 .await;
             if let Some(answer) = unlinked
-                && answer.result.is_err()
+                && let Err(failure) = &answer.result
             {
+                diagnostics::failed_with(failure, &tracing::Span::current());
                 // Ids only: `ask_first` already puts the failure's message on the Plugin's page.
                 // The User may never have Linked, so this says only that the service wasn't told.
                 tracing::warn!(

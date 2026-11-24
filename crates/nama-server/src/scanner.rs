@@ -65,6 +65,7 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use crate::{
     db::{self, Database},
+    diagnostics,
     events::{EventBus, event},
     library::{
         Artwork, Change, Contents, CustomImages, LastScan, Libraries, LibraryError, LibraryKind,
@@ -328,12 +329,26 @@ impl Scanner {
         });
     }
 
+    #[tracing::instrument(name = "scan", skip_all, fields(library.id = scan.library()))]
+    async fn scan_locked(&self, scan: &ScanLock) -> Result<Summary, Error> {
+        let scanned = self.scan_steps(scan).await;
+        // Shutting down, or the Library deleted after the scan was asked for, isn't trouble.
+        if let Err(err) = &scanned
+            && !matches!(
+                err,
+                Error::Cancelled | Error::Library(LibraryError::NotFound(_))
+            )
+        {
+            diagnostics::failed_with(err, &tracing::Span::current());
+        }
+        scanned
+    }
+
     #[expect(
         clippy::too_many_lines,
         reason = "one scan's steps in the order they run; split, it would be read in pieces"
     )]
-    #[tracing::instrument(name = "scan", skip_all, fields(library.id = scan.library()))]
-    async fn scan_locked(&self, scan: &ScanLock) -> Result<Summary, Error> {
+    async fn scan_steps(&self, scan: &ScanLock) -> Result<Summary, Error> {
         let id = scan.library();
         let cancel = self.inner.cancel.clone();
         if cancel.is_cancelled() {

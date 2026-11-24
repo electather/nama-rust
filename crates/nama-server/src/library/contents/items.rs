@@ -166,6 +166,12 @@ pub(crate) struct FirstItem {
 }
 
 impl Contents {
+    /// How many Items every Library holds, for the Server's status.
+    pub(crate) async fn item_count(&self) -> Result<i64, sqlx::Error> {
+        sqlx::query_scalar!(r#"SELECT COUNT(*) AS "items!: i64" FROM library_items"#)
+            .fetch_one(self.db.reader())
+            .await
+    }
     /// The Version `version`'s [`FirstItem`], or `None` if there's no such Version or its file
     /// holds no Item.
     pub(crate) async fn first_item(&self, version: i64) -> Result<Option<FirstItem>, sqlx::Error> {

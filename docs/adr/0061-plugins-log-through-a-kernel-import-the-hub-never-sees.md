@@ -6,7 +6,7 @@ What a Plugin writes is its Plugin Log. Every line names its Plugin's id where s
 
 The Server has to run well on a machine with 1 GiB of RAM (ADR 0039), so the Server bounds what a Plugin writes. A line over 2 KiB is cut there and marked as cut. Each Installed Plugin has a bucket of 10 lines a second with a burst of 50; a line over it is dropped and counted, and the Server logs one `warn` a minute naming the Plugin and how many lines it dropped. A line the level filter drops costs nothing from the bucket. A Built-in has no bucket, since it is the Server's own code. Unlike the other `nama` imports, `nama.log` doesn't pause the call's clock, so a Plugin stuck logging in a loop still meets its time limit. Before writing a line, the host blanks the Plugin's secret setting values in it, as it does in a failure's message. That catches only a secret written as stored, so the `nama-pdk` README says never to log a setting's value, a token or a response's body. A call made with no enablement, to read a Manifest or check settings, has no Plugin Log: its lines are dropped.
 
-Plugin Logs are Diagnostics, so they go to stdout and to the admin's own collector like any other line (ADR 0054). They never reach the Hub, even when the admin shares Diagnostics: the Hub takes only log lines on a reviewed allow-list in the code, and a Plugin's text, written by a third party, can't be reviewed.
+Plugin Logs are Diagnostics, so they go to stdout and to the admin's own collector like any other line (ADR 0054). They never reach the Hub, even when the admin shares Diagnostics: the Hub takes only log lines marked shared in the code, each reviewed, and a Plugin's text, written by a third party, can't be reviewed.
 
 The Plugins page shows an admin each enabled Plugin's last 100 lines that passed the filter, kept in memory and cleared when the Plugin is disabled or the Server restarts, so at most about 200 KiB a Plugin.
 
@@ -16,7 +16,7 @@ The Plugins page shows an admin each enabled Plugin's last 100 lines that passed
 - **Re-export Extism's macros as `nama_pdk::log`**: rejected. A name Nama owns with nothing Nama controls behind it.
 - **A span with the Plugin's id around each Installed Plugin call**: rejected. Extism's line is emitted from inside Extism, but the host function is ours now and can put the id on the line directly, which costs nothing and survives any filter.
 - **Key and value fields on a line**: rejected. `tracing` needs field names at compile time, so a Plugin's keys would arrive as one string, which can be searched but not queried, and another place for a secret to slip past the blanking.
-- **Warnings and errors shared with the Hub**: rejected. A Plugin's warning is as likely to quote a path or a title as its other lines, and ADR 0054's allow-list is for lines someone reviewed.
+- **Warnings and errors shared with the Hub**: rejected. A Plugin's warning is as likely to quote a path or a title as its other lines, and ADR 0054's shared lines are lines someone reviewed.
 - **No Plugins page view**: rejected. Many admins run Nama on a NAS and never read its stdout.
 
 ## Consequences

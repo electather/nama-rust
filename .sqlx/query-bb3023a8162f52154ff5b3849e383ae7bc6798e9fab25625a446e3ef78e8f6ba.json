@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COUNT(*) AS \"items!: i64\" FROM library_items",
+  "describe": {
+    "columns": [
+      {
+        "name": "items!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "bb3023a8162f52154ff5b3849e383ae7bc6798e9fab25625a446e3ef78e8f6ba"
+}

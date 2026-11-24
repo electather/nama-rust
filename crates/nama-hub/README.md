@@ -19,7 +19,7 @@ It reads its config from environment variables only:
 | `NAMA_HUB_CLOUDFLARE_API_TOKEN` | The [Cloudflare](https://cloudflare.com) API token it writes each Linked Server's names with, allowed to edit the DNS of the zone below (ADR 0104). Unset by default, so it names no Server. |
 | `NAMA_HUB_CLOUDFLARE_ZONE_ID` | The id of the Cloudflare zone it names Linked Servers in. Required with a Cloudflare token. |
 | `NAMA_HUB_SERVER_NAMES_ZONE` | That zone's domain, used for nothing but Server names, such as `namadirect.net` (ADR 0057). Required with a Cloudflare token. |
-| `NAMA_HUB_DIAGNOSTICS_ENDPOINT` | The OTLP/HTTP endpoint the Diagnostics and Usage Analytics Linked Servers share go to, unchanged, such as `https://otlp.example.com/otlp`: each signal posts to its own path under it, as with `OTEL_EXPORTER_OTLP_ENDPOINT` (ADR 0054). Unset by default, so what Servers share is dropped. Each Linked Server may send 4 MiB a minute. |
+| `NAMA_HUB_DIAGNOSTICS_ENDPOINT` | The OTLP/HTTP endpoint the Diagnostics and Usage Analytics Linked Servers share go to, each batch naming its Server as `service.instance.id`, such as `https://otlp.example.com/otlp`: each signal posts to its own path under it, as with `OTEL_EXPORTER_OTLP_ENDPOINT` (ADR 0054). Unset by default, so what Servers share is dropped. Each Linked Server may send 4 MiB a minute. |
 | `NAMA_HUB_DIAGNOSTICS_HEADERS` | The headers sent with each batch to that endpoint, written as `OTEL_EXPORTER_OTLP_HEADERS` is, such as `authorization=Basic abc`. None by default. |
 
 Each release, prereleases aside, is also a Docker image for amd64 and arm64, `ghcr.io/electather/nama-hub`, with the Server's version; it listens on 7981 as user 1000.
