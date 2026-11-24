@@ -45,7 +45,7 @@ pub const WIDTHS: [u32; 7] = [320, 480, 640, 960, 1280, 1920, 2560];
 pub const POSTER_WIDTHS: [u32; 3] = [320, 480, 640];
 
 /// The widths of [`WIDTHS`] the web app offers Backdrops at, made of each ahead of it: a shelf
-/// tile at 1x and 2x, and a full-width one at 1x and 2x.
+/// tile's 280 to 440 px and a full-width one's, each at 1x and 2x.
 pub const BACKDROP_WIDTHS: [u32; 4] = [640, 1280, 1920, 2560];
 
 /// The widths of [`WIDTHS`] the web app offers Title Logos at, made of each ahead of it: a Continue

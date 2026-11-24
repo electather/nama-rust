@@ -26,7 +26,7 @@ const widths = {
 };
 
 /**
- * A fake Server that resizes to `offered` widths, with Library 1, shown by `backdrop`, and two
+ * A fake Server that lists `offered` widths, with Library 1, shown by `backdrop`, and two
  * Movies in it: Alien, whose poster has a thumbhash, and Heat, whose poster has none.
  */
 function serverWithAMovie(offered: Partial<typeof widths> = widths) {
@@ -63,6 +63,7 @@ function serverWithAMovie(offered: Partial<typeof widths> = widths) {
             backdropUrl: backdrop,
             titleLogoUrl: logo,
             versions: [{ id: 1n }],
+            trailers: [{ name: "Teaser", url: "https://vimeo.com/123456789" }],
           },
         }),
       });
@@ -73,6 +74,13 @@ function serverWithAMovie(offered: Partial<typeof widths> = widths) {
 /** The `srcset` of the one image whose `src` is `url`. */
 function srcSetOf(url: string) {
   return document.querySelector(`img[src="${url}"]`)?.getAttribute("srcset");
+}
+
+/** The `srcset` of each image whose `src` is `url`. */
+function srcSetsOf(url: string) {
+  return [...document.querySelectorAll(`img[src="${url}"]`)].map((img) =>
+    img.getAttribute("srcset"),
+  );
 }
 
 /** The thumbhash preview drawn in the box of the one image whose `src` is `url`, if there is one. */
@@ -93,8 +101,11 @@ test("a Backdrop and a Title Logo offer a copy at only each width the Server mak
   openApp("/libraries/1/movies/tmdb-348", serverWithAMovie());
 
   await screen.findByRole("img", { name: "Alien" });
+  await screen.findByRole("region", { name: "Trailers" });
 
-  expect(srcSetOf(backdrop)).toBe(`${backdrop}?width=640 640w, ${backdrop}?width=1280 1280w`);
+  // The page's Backdrop, and the Teaser's tile showing it.
+  const backdropSrcSet = `${backdrop}?width=640 640w, ${backdrop}?width=1280 1280w`;
+  expect(srcSetsOf(backdrop)).toStrictEqual([backdropSrcSet, backdropSrcSet]);
   expect(srcSetOf(logo)).toBe(`${logo}?width=480 480w`);
 });
 

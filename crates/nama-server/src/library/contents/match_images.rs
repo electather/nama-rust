@@ -102,7 +102,7 @@ impl Contents {
 
     /// Each Backdrop, titled ones among them, and then each Title Logo a Match in the Library
     /// `library` stores, as its Plugin and path.
-    pub(crate) async fn backdrops_and_logos(
+    pub(crate) async fn backdrops_and_title_logos(
         &self,
         library: i64,
     ) -> Result<(Vec<(String, String)>, Vec<(String, String)>), sqlx::Error> {
@@ -115,7 +115,7 @@ impl Contents {
                    JOIN library_items ON library_items.id = item_matches.item_id
                    JOIN library_files ON library_files.id = library_items.file_id
                    WHERE item_matches.state = 'matched' AND library_files.library_id = ?)
-               SELECT backdrop_plugin AS "plugin!", backdrop AS "path!", FALSE AS "logo!: bool"
+               SELECT backdrop_plugin AS "plugin!", backdrop AS "path!", FALSE AS "title_logo!: bool"
                FROM matched WHERE backdrop IS NOT NULL
                UNION
                SELECT titled_backdrop_plugin, titled_backdrop, FALSE FROM matched
@@ -126,12 +126,16 @@ impl Contents {
         )
         .fetch_all(self.db.reader())
         .await?;
-        let (mut backdrops, mut logos) = (Vec::new(), Vec::new());
+        let (mut backdrops, mut title_logos) = (Vec::new(), Vec::new());
         for row in rows {
-            let kind = if row.logo { &mut logos } else { &mut backdrops };
+            let kind = if row.title_logo {
+                &mut title_logos
+            } else {
+                &mut backdrops
+            };
             kind.push((row.plugin, row.path));
         }
-        Ok((backdrops, logos))
+        Ok((backdrops, title_logos))
     }
 
     /// Each Poster, a title's, its Season's or its Show's, a Match in the Library `library`

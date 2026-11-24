@@ -298,14 +298,14 @@ impl Artwork {
             let listed = tokio::try_join!(
                 contents.images(Some(library)),
                 artwork.shown_posters(&contents, library),
-                contents.backdrops_and_logos(library)
+                contents.backdrops_and_title_logos(library)
             );
             match listed {
-                Ok((images, posters, (backdrops, logos))) => {
+                Ok((images, posters, (backdrops, title_logos))) => {
                     // A Poster that is also a Backdrop is rare enough to get only a Poster's.
                     let ahead = (backdrops.into_iter())
                         .map(|image| (image, &*copies.backdrops))
-                        .chain(logos.into_iter().map(|image| (image, &*copies.title_logos)))
+                        .chain((title_logos.into_iter()).map(|image| (image, &*copies.title_logos)))
                         .chain(posters.into_iter().map(|image| (image, &*copies.posters)))
                         .collect();
                     artwork.download(images, &ahead).await;
@@ -372,12 +372,16 @@ impl Artwork {
             .await
         {
             Err(err) => tracing::warn!(path, "could not download an image: {err}"),
-            // Held through the copies, as a request's resize holds it, so a sweep deleting the
-            // image meanwhile can't leave a copy and its thumbhash behind.
-            Ok(_sweeping) => {
-                self.store
-                    .copy_ahead(&key(KEPT_DIR, &plugin, &path), &copies)
-                    .await;
+            Ok(sweeping) => {
+                drop(sweeping);
+                let key = key(KEPT_DIR, &plugin, &path);
+                for copy in copies {
+                    // Held through each width's copies, as a request's resize holds it, so a sweep
+                    // deleting the image meanwhile can't leave a copy and its thumbhash behind,
+                    // yet waits on one width's, not all of them, with image requests behind it.
+                    let _sweeping = self.sweeping.read().await;
+                    self.store.copy_ahead(&key, &[copy]).await;
+                }
             }
         }
     }
