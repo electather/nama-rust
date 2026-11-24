@@ -6,7 +6,7 @@ import { createRouter } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { RouteError } from "@/app/route-error/route-error";
-import { signedInQuery, whoIsSignedIn } from "@/shared/hooks/access";
+import { isAtHub, signedInQuery, whoIsSignedIn } from "@/shared/hooks/access";
 import { isCode, retryIfUnreachable } from "@/shared/lib/connect-errors";
 import { traceCalls, traceRouteChanges } from "@/shared/lib/diagnostics";
 
@@ -50,6 +50,10 @@ export function getRouter(transport: Transport = sameOrigin) {
     }
   }
   async function rerunAccessChecksIfChanged() {
+    // At the Hub no Server User is signed in; a Hub page handles its Account's ended session.
+    if (await isAtHub({ queryClient, transport })) {
+      return;
+    }
     const { queryKey } = signedInQuery(transport);
     const before = queryClient.getQueryData(queryKey)?.user;
     queryClient.removeQueries({ queryKey });
