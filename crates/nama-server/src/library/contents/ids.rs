@@ -139,8 +139,8 @@ pub(super) async fn insert_match_ids(
     Ok(())
 }
 
-/// The ids the Item `item`'s Version is searched by, as [`super::FirstItem`] reads them: a
-/// Movie's own, an Episode's Show's. None unless it's Matched.
+/// The ids the Item `item`'s Version is searched by, as [`FirstItem`](super::items::FirstItem)
+/// reads them: a Movie's own, an Episode's Show's. None unless it's Matched.
 pub(super) async fn searched_ids(
     conn: &mut SqliteConnection,
     item: i64,

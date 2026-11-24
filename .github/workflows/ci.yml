@@ -292,6 +292,10 @@ jobs:
       - run: cargo doc --workspace --no-deps --locked
         env:
           RUSTDOCFLAGS: -D warnings
+      # The Server's private items too, whose links the step above never checks (#2131).
+      - run: cargo doc -p nama-server --no-deps --document-private-items --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
 
   # The workspace's tests, each OS's split across two runners. A PR tests on Linux only; a push
   # to main also tests on macOS and Windows, which release builds target and where the Server has

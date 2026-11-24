@@ -554,7 +554,7 @@ pub(crate) fn url(plugin: &str, path: &str) -> String {
     format!("/media/artwork/{}/{}", file_name(plugin), file_name(path))
 }
 
-/// Serves `GET` [`url`]s, 404 unless `artwork` offered the image or `contents` has a Match that
+/// Serves `GET` [`url()`]s, 404 unless `artwork` offered the image or `contents` has a Match that
 /// stores it, resized as `images` says. Whether the caller has a session is up to the layers the
 /// router is put behind.
 pub(crate) fn router(artwork: Artwork, contents: Contents, images: ImageSettings) -> Router {

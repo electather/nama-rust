@@ -383,8 +383,8 @@ fn url(library: i64, stored: &str) -> String {
     format!("/media/local-images/{library}/{stored}")
 }
 
-/// Serves the copies at their [`url`]s, resized as `images` says. Whether the caller has a session
-/// is up to the layers the router is put behind.
+/// Serves the copies at their [`url()`]s, resized as `images` says. Whether the caller has a
+/// session is up to the layers the router is put behind.
 pub(crate) fn router(local_images: LocalImages, images: ImageSettings) -> Router {
     Router::new()
         .route("/media/local-images/{library}/{stored}", get(serve))
