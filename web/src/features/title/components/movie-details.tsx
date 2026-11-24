@@ -5,11 +5,15 @@ import { filesDetails } from "@/features/title/lib/files-details";
 import { listed } from "@/features/title/lib/listed";
 import { crewWithJob } from "@/features/title/lib/people";
 import type { Movie } from "@/gen/nama/v1/browse_pb";
+import { useLoadedLibraries } from "@/shared/hooks/use-loaded-libraries";
 import { yearOf } from "@/shared/lib/title-facts";
 
 /** A Movie's Details: when it came out and its rating, its languages, and its files here. */
 export function MovieDetails({ libraryId, movie }: { libraryId: bigint; movie: Movie }) {
   const directors = crewWithJob(movie.crew, "Director");
+  // Not suspending, so the page shows without waiting on the Libraries, and without its Library
+  // until they load or if they fail.
+  const library = useLoadedLibraries().find(({ id }) => id === libraryId);
   return (
     <TitleDetails
       groups={[
@@ -22,7 +26,7 @@ export function MovieDetails({ libraryId, movie }: { libraryId: bigint; movie: M
             ["Directed by", directors && <PeopleLinks key="crew" people={directors} />],
           ],
         },
-        ...filesDetails(movie, <LibraryLink key="library" libraryId={libraryId} />),
+        ...filesDetails(movie, library && <LibraryLink key="library" library={library} />),
       ]}
     />
   );
