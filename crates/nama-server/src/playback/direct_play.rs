@@ -68,8 +68,9 @@ async fn serve(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    // A plan made off the local network only Direct Plays a Version within the cap, so one running
-    // lets the file through. One made on it was never held to the cap (#2130).
+    // A plan made off the local network was held to the cap, so one running lets the file through,
+    // even past the cap for a Version of unknown picture size, which the cap can't be applied to
+    // (#2134). One made on it was never held to the cap (#2130).
     if !kept_to_remote_cap {
         match capped_remotely(&db, user, client).await {
             Ok(false) => {}

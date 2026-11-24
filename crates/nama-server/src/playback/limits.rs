@@ -39,7 +39,8 @@ pub(crate) fn limit_to_proto(limit: Option<PlaybackLimit>) -> proto::PlaybackLim
 
 /// The step for where the Device is: it rules nothing out, and says when the User's cap for
 /// remote playback, or else the default Playback Limit for remote playback, chose a limit the next
-/// step scales the picture down to or drops.
+/// step scales the picture down to or drops, or that the cap can't be applied to a picture of
+/// unknown size.
 pub(super) fn network(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
     let Network::Remote { default, cap } = facts.network else {
         return vec![];
@@ -50,17 +51,26 @@ pub(super) fn network(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
     };
     if let Some(cap) = cap
         && lower(wanted, Some(cap)) != wanted
-        && scales_down(facts, cap)
     {
         let text = format!(
             "This Device is outside the local network, where its User's cap for remote playback is {}",
             cap.name
         );
-        return vec![limit_reason(
-            Kind::PLAYBACK_REASON_KIND_REMOTE_CAP,
-            cap,
-            text,
-        )];
+        if scales_down(facts, cap) {
+            return vec![limit_reason(
+                Kind::PLAYBACK_REASON_KIND_REMOTE_CAP,
+                cap,
+                text,
+            )];
+        }
+        // A cap is a bandwidth courtesy: a Version that can't be probed still plays (ADR 0026).
+        if picture(facts).is_none() {
+            return vec![limit_reason(
+                Kind::PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN,
+                cap,
+                format!("{text}, but its picture size isn't known, so the cap can't be applied"),
+            )];
+        }
     }
     match lower(default, cap) {
         Some(limit) if facts.picked_limit == PickedLimit::Unpicked && scales_down(facts, limit) => {

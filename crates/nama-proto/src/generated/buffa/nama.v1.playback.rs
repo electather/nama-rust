@@ -2137,6 +2137,10 @@ pub enum PlaybackReasonKind {
     /// the Device is outside the local network, and the limit scaled the picture down. A cap is never
     /// dropped. Params: `playbackLimit`.
     PLAYBACK_REASON_KIND_REMOTE_CAP = 39i32,
+    /// The User's cap for remote playback chose the limit, as for `REMOTE_CAP`, but the picture's
+    /// size isn't known, so the cap can't be applied and the plan may send it larger. Params:
+    /// `playbackLimit`.
+    PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN = 40i32,
     /// A Playback Limit below Original is in effect and the picture's size isn't known, so it's
     /// taken to fit. Params: `playbackLimit`.
     PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN = 22i32,
@@ -2256,6 +2260,9 @@ impl PlaybackReasonKind {
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_REMOTE_CAP`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const RemoteCap: Self = Self::PLAYBACK_REASON_KIND_REMOTE_CAP;
+    ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const RemoteCapPictureSizeUnknown: Self = Self::PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN;
     ///Idiomatic alias for [`Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const PictureSizeUnknown: Self = Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN;
@@ -2515,6 +2522,11 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                 )
             }
             39i32 => ::core::option::Option::Some(Self::PLAYBACK_REASON_KIND_REMOTE_CAP),
+            40i32 => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN,
+                )
+            }
             22i32 => {
                 ::core::option::Option::Some(
                     Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN,
@@ -2657,6 +2669,9 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
                 "PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT"
             }
             Self::PLAYBACK_REASON_KIND_REMOTE_CAP => "PLAYBACK_REASON_KIND_REMOTE_CAP",
+            Self::PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN => {
+                "PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN"
+            }
             Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN => {
                 "PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN"
             }
@@ -2829,6 +2844,11 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             "PLAYBACK_REASON_KIND_REMOTE_CAP" => {
                 ::core::option::Option::Some(Self::PLAYBACK_REASON_KIND_REMOTE_CAP)
             }
+            "PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN" => {
+                ::core::option::Option::Some(
+                    Self::PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN,
+                )
+            }
             "PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN" => {
                 ::core::option::Option::Some(
                     Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN,
@@ -2914,6 +2934,7 @@ impl ::buffa::Enumeration for PlaybackReasonKind {
             Self::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_ENCODER,
             Self::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT,
             Self::PLAYBACK_REASON_KIND_REMOTE_CAP,
+            Self::PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN,
             Self::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN,
             Self::PLAYBACK_REASON_KIND_CHOSEN_AUDIO_DROPPED,
             Self::PLAYBACK_REASON_KIND_PLAYBACK_LIMIT_DROPPED,
