@@ -167,8 +167,9 @@ pub(super) fn edition(relative: &Path) -> Option<String> {
     })
 }
 
-/// A Movie, named by the file if its name gives a year or an ID Hint, or else by the nearest
-/// folder that does, or else by a title its file and folder both give.
+/// A Movie, named by the file if its name gives a year or an ID Hint, or else by its own folder
+/// if that does, or else by a title its file and own folder both give, or else by the nearest
+/// outer folder that gives a year or an ID Hint.
 ///
 /// A file that names its Movie takes the ID Hints of the folder it's in only if the folder names
 /// the same Movie, so a hint on a grouping folder isn't pinned on everything in it. Of each kind
@@ -189,11 +190,7 @@ fn parse_movie(folders: &[String], stem: &str) -> Option<Item> {
                 ..file
             }
         }
-        None => folders
-            .iter()
-            .rev()
-            .find_map(|folder| title_and_year(folder))
-            .or_else(|| titled_alike(folders, stem))?,
+        None => named_by_folders(folders, stem)?,
     };
     Some(Item::Movie {
         hint: named.hint(),
@@ -202,13 +199,22 @@ fn parse_movie(folders: &[String], stem: &str) -> Option<Item> {
     })
 }
 
+/// The Movie a file without a year or an ID Hint is in. Its own folder is tried before outer
+/// ones, so a grouping folder's year or hint doesn't name every Movie in it.
+fn named_by_folders(folders: &[String], stem: &str) -> Option<Named> {
+    let (own, outer) = folders.split_last()?;
+    title_and_year(own)
+        .or_else(|| titled_alike(own, stem))
+        .or_else(|| outer.iter().rev().find_map(|folder| title_and_year(folder)))
+}
+
 /// A Movie named by its folder's title alone, as in `Dune/Dune.mkv` or `Dune/Dune - 1080p.mkv`,
 /// only when the file's name agrees: a bare name such as `Movies/clip.mkv` could be anything.
-fn titled_alike(folders: &[String], stem: &str) -> Option<Named> {
-    let title = plain_title(folders.last()?)?;
+fn titled_alike(folder_name: &str, stem: &str) -> Option<Named> {
+    let title = plain_title(folder_name)?;
     let file = plain_title(stem)?.to_lowercase();
-    let folder = title.to_lowercase();
-    let agrees = file == folder || file.starts_with(&format!("{folder} - "));
+    let folder_title = title.to_lowercase();
+    let agrees = file == folder_title || file.starts_with(&format!("{folder_title} - "));
     agrees.then(|| Named::titled(title))
 }
 
