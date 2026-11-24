@@ -124,8 +124,8 @@ pub(crate) fn job_run_span(run: i64) -> Span {
     tracing::error_span!(target: PLUGIN_TARGET, JOB_RUN_SPAN, job_run = run)
 }
 
-/// Adds the line `line_at` builds from now, in milliseconds, to `plugin`'s last lines, dropping
-/// its oldest past [`KEPT_PLUGIN_LINES`], if its lines are kept: a line from a Plugin that isn't
+/// Adds the line `line_at` builds from [`db::now_ms`] to `plugin`'s last lines, dropping its
+/// oldest past [`KEPT_PLUGIN_LINES`], if its lines are kept: a line from a Plugin that isn't
 /// enabled, such as one checking its settings, is dropped. A line carries no enablement, so one
 /// from a call still running after a disable lands in the next enabling's lines.
 fn push_plugin_line(plugin: &PluginId, line_at: impl FnOnce(i64) -> PluginLine) {
