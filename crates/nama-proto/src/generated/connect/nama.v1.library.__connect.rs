@@ -533,9 +533,10 @@ pub const LIBRARY_SERVICE_LIST_ARTWORK_SPEC: ::connectrpc::Spec = ::connectrpc::
 /// example` doc.
 #[allow(clippy::type_complexity)]
 pub trait LibraryService: Send + Sync + 'static {
-    /// Creates a Library. Fails with `invalid_argument` if the name is blank, the kind is
-    /// unspecified, or a folder isn't an absolute path to a readable directory, and with
-    /// `already_exists` if a folder already belongs to another Library.
+    /// Creates a Library, then starts scanning it as `ScanLibrary` does, which Matches the Items the
+    /// scan finds, and returns without waiting for the scan to finish. Fails with `invalid_argument`
+    /// if the name is blank, the kind is unspecified, or a folder isn't an absolute path to a readable
+    /// directory, and with `already_exists` if a folder already belongs to another Library.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

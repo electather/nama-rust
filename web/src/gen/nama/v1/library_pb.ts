@@ -1170,9 +1170,10 @@ export const LibraryKindSchema: GenEnum<LibraryKind> = /*@__PURE__*/
  */
 export const LibraryService: GenService<{
   /**
-   * Creates a Library. Fails with `invalid_argument` if the name is blank, the kind is
-   * unspecified, or a folder isn't an absolute path to a readable directory, and with
-   * `already_exists` if a folder already belongs to another Library.
+   * Creates a Library, then starts scanning it as `ScanLibrary` does, which Matches the Items the
+   * scan finds, and returns without waiting for the scan to finish. Fails with `invalid_argument`
+   * if the name is blank, the kind is unspecified, or a folder isn't an absolute path to a readable
+   * directory, and with `already_exists` if a folder already belongs to another Library.
    *
    * @generated from rpc nama.v1.LibraryService.CreateLibrary
    */

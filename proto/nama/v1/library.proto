@@ -8,9 +8,10 @@ import "nama/v1/match.proto";
 // folders on the Server's disk. Every RPC but `ListLibraries` and those deleting media needs
 // `PERMISSION_MANAGE_LIBRARIES`, and fails with `permission_denied` without it.
 service LibraryService {
-  // Creates a Library. Fails with `invalid_argument` if the name is blank, the kind is
-  // unspecified, or a folder isn't an absolute path to a readable directory, and with
-  // `already_exists` if a folder already belongs to another Library.
+  // Creates a Library, then starts scanning it as `ScanLibrary` does, which Matches the Items the
+  // scan finds, and returns without waiting for the scan to finish. Fails with `invalid_argument`
+  // if the name is blank, the kind is unspecified, or a folder isn't an absolute path to a readable
+  // directory, and with `already_exists` if a folder already belongs to another Library.
   rpc CreateLibrary(CreateLibraryRequest) returns (CreateLibraryResponse);
   // Lists every Library on the Server, oldest first. Any signed-in User may list them, to browse,
   // but only one with `PERMISSION_MANAGE_LIBRARIES` gets their folders.
