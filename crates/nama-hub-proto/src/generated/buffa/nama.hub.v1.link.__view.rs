@@ -17060,6 +17060,13 @@ pub struct SetServerAddressesRequestView<'a> {
     ///
     /// Field 3: `public_port`
     pub public_port: u32,
+    /// The Relay its Admin runs, which the Server dials out to for clients that can't reach it
+    /// directly (ADR 0057), as `<ip>:<port>`, such as `198.51.100.4:443`, or empty for none.
+    /// `relay.<own name>` points at its IP address, and `https://relay.<own name>:<port>` is a
+    /// Server Address after the direct ones.
+    ///
+    /// Field 4: `relay`
+    pub relay: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for SetServerAddressesRequestView<'a> {
@@ -17106,6 +17113,13 @@ impl<'a> ::buffa::MessageView<'a> for SetServerAddressesRequestView<'a> {
                 )?;
                 view.public_port = ::buffa::types::decode_uint32(&mut cur)?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.relay = ::buffa::types::borrow_str(&mut cur)?;
+            }
             2u32 => {
                 ::buffa::encoding::check_wire_type(
                     tag,
@@ -17148,6 +17162,7 @@ impl<'a> ::buffa::MessageView<'a> for SetServerAddressesRequestView<'a> {
             url: self.url.to_string(),
             lan_addresses: self.lan_addresses.iter().map(|s| s.to_string()).collect(),
             public_port: self.public_port,
+            relay: self.relay.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -17168,6 +17183,9 @@ impl<'a> ::buffa::ViewEncode<'a> for SetServerAddressesRequestView<'a> {
         if self.public_port != 0u32 {
             size += 1u64 + ::buffa::types::uint32_encoded_len(self.public_port) as u64;
         }
+        if !self.relay.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.relay) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -17187,6 +17205,9 @@ impl<'a> ::buffa::ViewEncode<'a> for SetServerAddressesRequestView<'a> {
         }
         if self.public_port != 0u32 {
             ::buffa::types::put_uint32_field(3u32, self.public_port, buf);
+        }
+        if !self.relay.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.relay, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -17221,6 +17242,9 @@ impl<'__a> ::serde::Serialize for SetServerAddressesRequestView<'__a> {
                     "publicPort",
                     &::buffa::json_helpers::ProtoJson(&self.public_port),
                 )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.relay) {
+            __map.serialize_entry("relay", self.relay)?;
         }
         __map.end()
     }
@@ -17340,6 +17364,16 @@ impl SetServerAddressesRequestOwnedView {
     pub fn public_port(&self) -> u32 {
         self.0.reborrow().public_port
     }
+    /// The Relay its Admin runs, which the Server dials out to for clients that can't reach it
+    /// directly (ADR 0057), as `<ip>:<port>`, such as `198.51.100.4:443`, or empty for none.
+    /// `relay.<own name>` points at its IP address, and `https://relay.<own name>:<port>` is a
+    /// Server Address after the direct ones.
+    ///
+    /// Field 4: `relay`
+    #[must_use]
+    pub fn relay(&self) -> &'_ str {
+        self.0.reborrow().relay
+    }
 }
 impl ::core::convert::From<::buffa::OwnedView<SetServerAddressesRequestView<'static>>>
 for SetServerAddressesRequestOwnedView {
@@ -17385,8 +17419,8 @@ pub struct SetServerAddressesResponseView<'a> {
     /// The Server's names (ADR 0104). Its own name comes first, such as
     /// `0193b6f2c4d87a1e9f3c5b2a1d0e4f67.namadirect.net`, which never changes and points at
     /// `public_address` while the Hub reaches it there. Then comes a name for each private IPv4
-    /// address among `lan_addresses`, such as `192-168-1-10.<own name>`, which points at that address.
-    /// Empty on a Hub that names no Server.
+    /// address among `lan_addresses`, such as `192-168-1-10.<own name>`, which points at that address,
+    /// and `relay.<own name>` with a `relay`. Empty on a Hub that names no Server.
     ///
     /// Field 3: `names`
     pub names: ::buffa::RepeatedView<'a, &'a str>,
@@ -17663,8 +17697,8 @@ impl SetServerAddressesResponseOwnedView {
     /// The Server's names (ADR 0104). Its own name comes first, such as
     /// `0193b6f2c4d87a1e9f3c5b2a1d0e4f67.namadirect.net`, which never changes and points at
     /// `public_address` while the Hub reaches it there. Then comes a name for each private IPv4
-    /// address among `lan_addresses`, such as `192-168-1-10.<own name>`, which points at that address.
-    /// Empty on a Hub that names no Server.
+    /// address among `lan_addresses`, such as `192-168-1-10.<own name>`, which points at that address,
+    /// and `relay.<own name>` with a `relay`. Empty on a Hub that names no Server.
     ///
     /// Field 3: `names`
     #[must_use]
@@ -18205,6 +18239,492 @@ impl ::buffa::HasMessageView for super::super::SetCertificateChallengeResponse {
     type ViewHandle = SetCertificateChallengeResponseOwnedView;
 }
 impl ::serde::Serialize for SetCertificateChallengeResponseOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct GetRelayTokenRequestView<'a> {
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for GetRelayTokenRequestView<'a> {
+    type Owned = super::super::GetRelayTokenRequest;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::GetRelayTokenRequest,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::GetRelayTokenRequest,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::GetRelayTokenRequest {
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for GetRelayTokenRequestView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for GetRelayTokenRequestView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for GetRelayTokenRequestView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "GetRelayTokenRequest";
+    const FULL_NAME: &'static str = "nama.hub.v1.GetRelayTokenRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.GetRelayTokenRequest";
+}
+::buffa::impl_default_view_instance!(GetRelayTokenRequestView);
+::buffa::impl_view_reborrow!(GetRelayTokenRequestView);
+/** Self-contained, `'static` owned view of a `GetRelayTokenRequest` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`GetRelayTokenRequestView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`GetRelayTokenRequestView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct GetRelayTokenRequestOwnedView(
+    ::buffa::OwnedView<GetRelayTokenRequestView<'static>>,
+);
+impl GetRelayTokenRequestOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            GetRelayTokenRequestOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            GetRelayTokenRequestOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::GetRelayTokenRequest,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            GetRelayTokenRequestOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`GetRelayTokenRequestView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &GetRelayTokenRequestView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::GetRelayTokenRequest {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<GetRelayTokenRequestView<'static>>>
+for GetRelayTokenRequestOwnedView {
+    fn from(inner: ::buffa::OwnedView<GetRelayTokenRequestView<'static>>) -> Self {
+        GetRelayTokenRequestOwnedView(inner)
+    }
+}
+impl ::core::convert::From<GetRelayTokenRequestOwnedView>
+for ::buffa::OwnedView<GetRelayTokenRequestView<'static>> {
+    fn from(wrapper: GetRelayTokenRequestOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<GetRelayTokenRequestView<'static>>>
+for GetRelayTokenRequestOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<GetRelayTokenRequestView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::GetRelayTokenRequest {
+    type View<'a> = GetRelayTokenRequestView<'a>;
+    type ViewHandle = GetRelayTokenRequestOwnedView;
+}
+impl ::serde::Serialize for GetRelayTokenRequestOwnedView {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        ::serde::Serialize::serialize(&self.0, __s)
+    }
+}
+#[derive(Clone, Debug, Default)]
+pub struct GetRelayTokenResponseView<'a> {
+    /// Field 1: `token`
+    pub token: &'a str,
+    pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
+}
+impl<'a> ::buffa::MessageView<'a> for GetRelayTokenResponseView<'a> {
+    type Owned = super::super::GetRelayTokenResponse;
+    fn decode_view(buf: &'a [u8]) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        let __limit = ::core::cell::Cell::new(::buffa::DEFAULT_UNKNOWN_FIELD_LIMIT);
+        let __elem = ::core::cell::Cell::new(::buffa::DEFAULT_ELEMENT_MEMORY_LIMIT);
+        <Self as ::buffa::MessageView>::decode_view_ctx(
+            buf,
+            ::buffa::DecodeContext::new(::buffa::RECURSION_LIMIT, &__limit)
+                .with_element_memory(&__elem),
+        )
+    }
+    fn decode_view_with_ctx(
+        buf: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        <Self as ::buffa::MessageView>::decode_view_ctx(buf, ctx)
+    }
+    #[inline]
+    fn merge_view_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        cur: &'a [u8],
+        before_tag: &'a [u8],
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<&'a [u8], ::buffa::DecodeError> {
+        let _ = ctx;
+        #[allow(unused_variables)]
+        let view = self;
+        let mut cur = cur;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.token = ::buffa::types::borrow_str(&mut cur)?;
+            }
+            _ => {
+                ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
+                let span_len = before_tag.len() - cur.len();
+                view.__buffa_unknown_fields.push_record(before_tag, span_len, ctx)?;
+            }
+        }
+        ::core::result::Result::Ok(cur)
+    }
+    fn to_owned_message(
+        &self,
+    ) -> ::core::result::Result<
+        super::super::GetRelayTokenResponse,
+        ::buffa::DecodeError,
+    > {
+        self.to_owned_from_source(None)
+    }
+    #[allow(clippy::useless_conversion, clippy::needless_update)]
+    fn to_owned_from_source(
+        &self,
+        __buffa_src: ::core::option::Option<&::buffa::bytes::Bytes>,
+    ) -> ::core::result::Result<
+        super::super::GetRelayTokenResponse,
+        ::buffa::DecodeError,
+    > {
+        #[allow(unused_imports)]
+        use ::buffa::alloc::string::ToString as _;
+        let _ = __buffa_src;
+        ::core::result::Result::Ok(super::super::GetRelayTokenResponse {
+            token: self.token.to_string(),
+            __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
+            ..::core::default::Default::default()
+        })
+    }
+}
+impl<'a> ::buffa::ViewEncode<'a> for GetRelayTokenResponseView<'a> {
+    #[allow(clippy::needless_borrow, clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.token.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.token) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    #[allow(clippy::needless_borrow)]
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.token.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.token, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+}
+/// Serializes this view as protobuf JSON.
+///
+/// Implicit-presence fields with default values are omitted, `required`
+/// fields are always emitted, explicit-presence (`optional`) fields are
+/// emitted only when set, bytes fields are base64-encoded, and enum
+/// values are their proto name strings.
+///
+/// This impl uses `serialize_map(None)` because the number of emitted
+/// fields depends on default-omission rules; serializers that require
+/// known map lengths (e.g. `bincode`) will return a runtime error.
+/// Use the owned message type for those formats.
+impl<'__a> ::serde::Serialize for GetRelayTokenResponseView<'__a> {
+    fn serialize<__S: ::serde::Serializer>(
+        &self,
+        __s: __S,
+    ) -> ::core::result::Result<__S::Ok, __S::Error> {
+        use ::serde::ser::SerializeMap as _;
+        let mut __map = __s.serialize_map(::core::option::Option::None)?;
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.token) {
+            __map.serialize_entry("token", self.token)?;
+        }
+        __map.end()
+    }
+}
+impl<'a> ::buffa::MessageName for GetRelayTokenResponseView<'a> {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "GetRelayTokenResponse";
+    const FULL_NAME: &'static str = "nama.hub.v1.GetRelayTokenResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.GetRelayTokenResponse";
+}
+::buffa::impl_default_view_instance!(GetRelayTokenResponseView);
+::buffa::impl_view_reborrow!(GetRelayTokenResponseView);
+/** Self-contained, `'static` owned view of a `GetRelayTokenResponse` message.
+
+ Wraps [`::buffa::OwnedView`]`<`[`GetRelayTokenResponseView`]`<'static>>`: the decoded view and the [`::buffa::bytes::Bytes`] buffer it borrows from travel together, so the handle is `'static` and `Send + Sync` — suitable for async handlers, spawned tasks, and anywhere a `'static` bound is required.
+
+ Field accessors return borrows tied to `&self`. Use [`Self::view`] to get the full [`GetRelayTokenResponseView`] when you need struct patterns, iteration helpers, or to pass the view to lifetime-parameterised code.*/
+#[derive(Clone, Debug)]
+pub struct GetRelayTokenResponseOwnedView(
+    ::buffa::OwnedView<GetRelayTokenResponseView<'static>>,
+);
+impl GetRelayTokenResponseOwnedView {
+    /// Decode an owned view from a [`::buffa::bytes::Bytes`] buffer.
+    ///
+    /// The view borrows directly from the buffer's data; the buffer is
+    /// retained inside the returned handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer contains invalid
+    /// protobuf data.
+    pub fn decode(
+        bytes: ::buffa::bytes::Bytes,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            GetRelayTokenResponseOwnedView(::buffa::OwnedView::decode(bytes)?),
+        )
+    }
+    /// Decode with custom [`::buffa::DecodeOptions`] (recursion limit,
+    /// max message size).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError`] if the buffer is invalid or
+    /// exceeds the configured limits.
+    pub fn decode_with_options(
+        bytes: ::buffa::bytes::Bytes,
+        opts: &::buffa::DecodeOptions,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            GetRelayTokenResponseOwnedView(
+                ::buffa::OwnedView::decode_with_options(bytes, opts)?,
+            ),
+        )
+    }
+    /// Build from an owned message via an encode → decode round-trip.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`::buffa::DecodeError::MessageTooLarge`] if the
+    /// message's encoded size exceeds the 2 GiB protobuf limit, or
+    /// another [`::buffa::DecodeError`] if the re-encoded bytes are
+    /// somehow invalid (should not happen for well-formed messages).
+    pub fn from_owned(
+        msg: &super::super::GetRelayTokenResponse,
+    ) -> ::core::result::Result<Self, ::buffa::DecodeError> {
+        ::core::result::Result::Ok(
+            GetRelayTokenResponseOwnedView(::buffa::OwnedView::from_owned(msg)?),
+        )
+    }
+    /// Borrow the full [`GetRelayTokenResponseView`] with its lifetime tied to `&self`.
+    #[must_use]
+    pub fn view(&self) -> &GetRelayTokenResponseView<'_> {
+        self.0.reborrow()
+    }
+    /// Convert to the owned message type.
+    ///
+    /// Infallible: this type's constructors wire-decode their
+    /// buffer, and a view produced by wire decoding always
+    /// converts. Delegates to [`::buffa::OwnedView::to_owned_message`],
+    /// whose contract also governs handles converted from a raw
+    /// [`::buffa::OwnedView`].
+    #[must_use]
+    pub fn to_owned_message(&self) -> super::super::GetRelayTokenResponse {
+        self.0.to_owned_message()
+    }
+    /// The underlying bytes buffer.
+    #[must_use]
+    pub fn bytes(&self) -> &::buffa::bytes::Bytes {
+        self.0.bytes()
+    }
+    /// Consume the handle, returning the underlying bytes buffer.
+    #[must_use]
+    pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
+        self.0.into_bytes()
+    }
+    /// Field 1: `token`
+    #[must_use]
+    pub fn token(&self) -> &'_ str {
+        self.0.reborrow().token
+    }
+}
+impl ::core::convert::From<::buffa::OwnedView<GetRelayTokenResponseView<'static>>>
+for GetRelayTokenResponseOwnedView {
+    fn from(inner: ::buffa::OwnedView<GetRelayTokenResponseView<'static>>) -> Self {
+        GetRelayTokenResponseOwnedView(inner)
+    }
+}
+impl ::core::convert::From<GetRelayTokenResponseOwnedView>
+for ::buffa::OwnedView<GetRelayTokenResponseView<'static>> {
+    fn from(wrapper: GetRelayTokenResponseOwnedView) -> Self {
+        wrapper.0
+    }
+}
+impl ::core::convert::AsRef<::buffa::OwnedView<GetRelayTokenResponseView<'static>>>
+for GetRelayTokenResponseOwnedView {
+    fn as_ref(&self) -> &::buffa::OwnedView<GetRelayTokenResponseView<'static>> {
+        &self.0
+    }
+}
+impl ::buffa::HasMessageView for super::super::GetRelayTokenResponse {
+    type View<'a> = GetRelayTokenResponseView<'a>;
+    type ViewHandle = GetRelayTokenResponseOwnedView;
+}
+impl ::serde::Serialize for GetRelayTokenResponseOwnedView {
     fn serialize<__S: ::serde::Serializer>(
         &self,
         __s: __S,

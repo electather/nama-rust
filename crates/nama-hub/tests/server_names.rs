@@ -18,7 +18,7 @@ use hub::{TestHub, ZONE};
 use linking::*;
 use nama_hub::dns::Record;
 use nama_hub_proto::nama::hub::v1::{
-    ListLinkedServersRequest, RefusalReason, SetCertificateChallengeRequest,
+    GetRelayTokenRequest, ListLinkedServersRequest, RefusalReason, SetCertificateChallengeRequest,
     SetServerAddressesRequest, UnlinkServerRequest,
 };
 use refused::assert_refused;
@@ -277,4 +277,107 @@ async fn a_certificate_challenge_that_isnt_one_is_refused(db: PgPool) {
         assert_eq!(refusal.params["maxValues"], "2");
     }
     assert!(hub.texts().is_empty());
+}
+
+/// Reports `lan_addresses`, `public_port` and `relay` as the Server Addresses of the Server
+/// presenting `credential`, and answers the names the Hub gave it.
+async fn names_after_reporting_relay(
+    hub: &TestHub,
+    credential: &str,
+    lan_addresses: &[&str],
+    public_port: u16,
+    relay: &str,
+) -> Result<Vec<String>, ConnectError> {
+    let set = linked_server(hub, credential)
+        .set_server_addresses(SetServerAddressesRequest {
+            lan_addresses: lan_addresses
+                .iter()
+                .map(|&address| address.to_owned())
+                .collect(),
+            public_port: public_port.into(),
+            relay: relay.to_owned(),
+            ..Default::default()
+        })
+        .await?;
+    Ok(set.into_owned().names)
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_servers_relay_gets_a_name_under_its_own_and_comes_after_the_direct_addresses(
+    db: PgPool,
+) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    // The test's calls come from 127.0.0.1, so the Hub tries the Server's port there.
+    let open = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = open.local_addr().unwrap().port();
+    let lan = "http://192.168.1.10:7980";
+
+    let names = names_after_reporting_relay(&hub, &living_room, &[lan], port, "198.51.100.4:443")
+        .await
+        .unwrap();
+
+    let own = &names[0];
+    let relay = format!("relay.{own}");
+    assert_eq!(names[1..], [format!("192-168-1-10.{own}"), relay.clone()]);
+    assert!(hub.zone().contains(&record(&relay, "198.51.100.4")));
+    let listed = links(&hub, &ada)
+        .list_linked_servers(ListLinkedServersRequest::default())
+        .await
+        .unwrap()
+        .into_owned();
+    assert_eq!(
+        listed.servers[0].addresses,
+        [
+            format!("http://127.0.0.1:{port}"),
+            format!("https://{relay}:443"),
+            lan.to_owned(),
+        ]
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_relay_that_isnt_an_ip_address_and_port_is_refused(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+
+    for relay in [
+        "relay.example.com:443",
+        "198.51.100.4",
+        "198.51.100.4:70000",
+    ] {
+        assert_refused(
+            names_after_reporting_relay(&hub, &living_room, &[], 0, relay).await,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_SERVER_ADDRESS_INVALID,
+        );
+    }
+    assert_eq!(hub.zone(), []);
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_relay_token_names_the_servers_own_name_for_a_relay(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    let names = names_after_reporting(&hub, &living_room, &[], 0)
+        .await
+        .unwrap();
+
+    let token = linked_server(&hub, &living_room)
+        .get_relay_token(GetRelayTokenRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .token;
+
+    let claims = verified_claims(&hub, &token).await;
+    assert_eq!(claims["sub"], names[0]);
+    assert_eq!(claims["aud"], "relay");
+    assert_eq!(
+        claims["exp"].as_u64().unwrap() - claims["iat"].as_u64().unwrap(),
+        300
+    );
 }

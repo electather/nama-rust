@@ -48,6 +48,7 @@ use nama_hub_proto::nama::hub::v1::WatchStateChange as HubChange;
 use super::*;
 use crate::fake_hub::{
     EMAIL, FakeHub, OPEN_PORT, PUBLIC_IP, SERVER_NAME, SIGN_IN_ID, USER_CODE, USER_LINK_CODE,
+    relay_claims,
 };
 use crate::linker::queue::MAX_VALUE_BYTES;
 
@@ -1075,6 +1076,7 @@ fn addresses(url: &str, lan: &[&str]) -> ServerAddresses {
         url: url.to_owned(),
         lan: lan.iter().map(|&address| address.to_owned()).collect(),
         public_port: None,
+        relay: None,
     }
 }
 
@@ -1336,6 +1338,27 @@ async fn a_server_not_linked_publishes_no_certificate_challenge() {
     let err = (linker.set_certificate_challenge(vec!["value".to_owned()]))
         .await
         .unwrap_err();
+
+    assert!(err.to_string().contains("isn't Linked"), "{err}");
+}
+
+#[tokio::test]
+async fn the_hub_hands_the_server_a_token_for_its_relay() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+
+    let token = linker.relay_token().await.unwrap();
+
+    assert_eq!(token, hub.sign(&relay_claims()));
+}
+
+#[tokio::test]
+async fn a_server_not_linked_gets_no_relay_token() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+
+    let err = linker.relay_token().await.unwrap_err();
 
     assert!(err.to_string().contains("isn't Linked"), "{err}");
 }

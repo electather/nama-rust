@@ -1,6 +1,6 @@
 //! HTTPS on the Server's names on the Hub (ADR 0057): the certificate the Server keeps for them,
-//! served on the port it listens on beside plain HTTP, which the LAN keeps using, and its public
-//! name as its Server URL while the Admin sets none.
+//! served on the port it listens on beside plain HTTP, which the LAN keeps using, and through the
+//! Relay it dials out to, and its public name as its Server URL while the Admin sets none.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/scripted_linker.rs"]
@@ -9,19 +9,28 @@ mod scripted_linker;
 #[path = "support/server.rs"]
 mod server;
 
-use std::{io, sync::Arc, time::Duration};
+use std::{io, net::SocketAddr, sync::Arc, time::Duration};
+
+use axum::{Router, routing::get};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use nama_server::config::Config;
 
 use nama_plugin_api::server_link::{Link, Reachability};
 use nama_proto::nama::v1::CreateInviteRequest;
+use ring::{
+    rand::SystemRandom,
+    signature::{Ed25519KeyPair, KeyPair as _},
+};
 use rustls::{
     ClientConfig, RootCertStore,
     pki_types::{CertificateDer, ServerName},
 };
 use scripted_linker::{Scripted, enabling, users, with_linker};
+use serde_json::json;
 use server::{TestServer, WAIT};
 use tokio::{
     io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _},
-    net::TcpStream,
+    net::{TcpListener, TcpStream},
 };
 use tokio_rustls::TlsConnector;
 
@@ -76,13 +85,13 @@ async fn status(
     Ok(String::from_utf8_lossy(&status_line[9..]).into_owned())
 }
 
-/// A TLS connection to `server` as `name`, trusting only `trusted`.
+/// A TLS connection to `addr` as `name`, trusting only `trusted`.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
 async fn over_tls(
-    server: &TestServer,
+    addr: SocketAddr,
     name: &str,
     trusted: CertificateDer<'static>,
 ) -> io::Result<impl AsyncRead + AsyncWrite + Unpin> {
@@ -94,7 +103,7 @@ async fn over_tls(
         .unwrap()
         .with_root_certificates(roots)
         .with_no_client_auth();
-    let tcp = TcpStream::connect(server.addr).await?;
+    let tcp = TcpStream::connect(addr).await?;
     let name = ServerName::try_from(name.to_owned()).unwrap();
     TlsConnector::from(Arc::new(config))
         .connect(name, tcp)
@@ -109,7 +118,7 @@ async fn the_server_serves_https_on_its_names_and_plain_http_on_the_same_port() 
     let info = call("ServerService/GetServerInfo", None);
 
     for name in [OWN, &format!("192-168-1-10.{OWN}")] {
-        let tls = over_tls(&server, name, trusted.clone()).await.unwrap();
+        let tls = over_tls(server.addr, name, trusted.clone()).await.unwrap();
         assert_eq!(status(tls, &info).await.unwrap(), "200", "{name}");
     }
     let plain = TcpStream::connect(server.addr).await.unwrap();
@@ -124,7 +133,7 @@ async fn a_request_over_the_servers_own_tls_counts_as_https() {
     let cookie = format!("__Host-nama_session={}", server.admin_token);
     let who = call("SignInService/WhoAmI", Some(&cookie));
 
-    let tls = over_tls(&server, OWN, trusted).await.unwrap();
+    let tls = over_tls(server.addr, OWN, trusted).await.unwrap();
     let plain = TcpStream::connect(server.addr).await.unwrap();
 
     // Only over HTTPS does the Server take the `__Host-` cookie.
@@ -137,7 +146,7 @@ async fn without_a_certificate_the_server_serves_plain_http_alone() {
     let server = TestServer::builder().start().await;
     let (_, trusted) = certificate();
 
-    let refused = over_tls(&server, OWN, trusted).await;
+    let refused = over_tls(server.addr, OWN, trusted).await;
     let plain = TcpStream::connect(server.addr).await.unwrap();
 
     assert!(refused.is_err());
@@ -180,4 +189,92 @@ async fn a_linked_server_reached_from_outside_links_invites_to_its_public_name()
         created.starts_with("https://abc.namadirect.test:7980/invite/"),
         "{created}"
     );
+}
+
+/// A Relay, checking Servers' tokens against a Hub's key set holding `key`, and where it listens.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn relay_trusting(key: &Ed25519KeyPair) -> SocketAddr {
+    let key_set = json!({ "keys": [{
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "kid": "hub",
+        "x": URL_SAFE_NO_PAD.encode(key.public_key()),
+    }] })
+    .to_string();
+    let hub = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let hub_url = format!("http://{}", hub.local_addr().unwrap());
+    let key_set = Router::new().route("/.well-known/jwks.json", get(async move || key_set));
+    tokio::spawn(async move { axum::serve(hub, key_set).await });
+    let relay = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = relay.local_addr().unwrap();
+    tokio::spawn(async move { nama_server::relay::serve(relay, &hub_url).await });
+    addr
+}
+
+/// The token a Hub signing with `key` gives the Server for its Relay.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn relay_token(key: &Ed25519KeyPair) -> String {
+    let now = std::time::SystemTime::UNIX_EPOCH
+        .elapsed()
+        .unwrap()
+        .as_secs();
+    let header = json!({ "alg": "EdDSA", "typ": "JWT", "kid": "hub" });
+    let claims = json!({ "sub": OWN, "aud": "relay", "exp": now + 300 });
+    let signed = format!(
+        "{}.{}",
+        URL_SAFE_NO_PAD.encode(header.to_string()),
+        URL_SAFE_NO_PAD.encode(claims.to_string())
+    );
+    format!(
+        "{signed}.{}",
+        URL_SAFE_NO_PAD.encode(key.sign(signed.as_bytes()))
+    )
+}
+
+#[tokio::test]
+async fn a_client_reaches_the_server_over_its_own_tls_through_the_relay_it_dials() {
+    let pkcs8 = Ed25519KeyPair::generate_pkcs8(&SystemRandom::new()).unwrap();
+    let key = Ed25519KeyPair::from_pkcs8(pkcs8.as_ref()).unwrap();
+    let relay = relay_trusting(&key).await;
+    let linker = Scripted::default();
+    linker.script().relay_token = Some(relay_token(&key));
+    let (pem, trusted) = certificate();
+    let server = with_linker(&linker).await;
+    std::fs::write(server.data_dir().join("certificate.pem"), pem).unwrap();
+    let config = Config {
+        relay: Some(relay),
+        ..Config::default()
+    };
+
+    let server = (TestServer::builder()
+        .plugins(enabling(&linker))
+        .config(config))
+    .restart(server)
+    .await;
+
+    let relay_name = format!("relay.{OWN}");
+    let tls = over_tls(relay, &relay_name, trusted).await.unwrap();
+    let info = call("ServerService/GetServerInfo", None);
+    assert_eq!(status(tls, &info).await.unwrap(), "200");
+    let told_relay = async {
+        while linker
+            .script()
+            .addresses
+            .as_ref()
+            .and_then(|told| told.relay)
+            != Some(relay)
+        {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    };
+    tokio::time::timeout(WAIT, told_relay)
+        .await
+        .expect("the Plugin was never told the Relay");
+    drop(server);
 }

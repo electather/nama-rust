@@ -24,6 +24,7 @@ mod playback;
 pub mod plugin_settings;
 pub mod plugins;
 mod port_mapping;
+pub mod relay;
 mod requests;
 mod scanner;
 mod server_addresses;
@@ -37,7 +38,7 @@ mod web;
 
 use std::{future::Future, io, sync::Arc, time::Duration};
 
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, sync::mpsc};
 
 use crate::{
     automation::Automation,
@@ -87,7 +88,8 @@ use crate::{
 ///
 /// While that Plugin has the Server Linked and its service names it, the Server gets a certificate
 /// for its names from [`Config::acme_directory`] and keeps it renewed, and its public name is its
-/// Server URL while the Admin sets none (ADR 0057).
+/// Server URL while the Admin sets none (ADR 0057). With [`Config::relay`], it keeps connections
+/// waiting at that Relay with a token the Plugin gets, and serves the clients they carry.
 ///
 /// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, unless the
 /// peer is in [`Config::trusted_proxies`], whose `X-Forwarded-For` names the client.
@@ -202,7 +204,7 @@ pub fn serve(
     let listening = listener.local_addr().unwrap_or(config.listen);
     let syncing = sync::Syncing::new(Arc::clone(&db), plugins.extension_points(), users.clone());
     let linking = users.linking().clone();
-    let forwarded_port = config.forwarded_port;
+    let (forwarded_port, relay) = (config.forwarded_port, config.relay);
     let certificate = certificate::Certificate::default();
     let (data_dir, acme_directory) = (config.data_dir.clone(), config.acme_directory.clone());
     let load_settings = load_settings(settings.clone(), images.clone(), plugins.clone());
@@ -266,14 +268,17 @@ pub fn serve(
             data_dir,
             acme_directory,
         );
+        let (relaying, relayed) = mpsc::channel(1);
+        let dialing = relay.map(|relay| relay::keep_dialing(relay, linking.clone(), relaying));
         let telling_addresses = server_addresses::keep_telling(
             linking,
             server_url,
             url_saves,
             listening,
             forwarded_port,
+            relay,
         );
-        let served = tls::serve(listener, app, Arc::new(certificate), async move {
+        let served = tls::serve(listener, relayed, app, Arc::new(certificate), async move {
             shutdown.await;
             // A subscription never ends by itself, and the shutdown waits for every response.
             events.close();
@@ -301,6 +306,10 @@ pub fn serve(
         // again at the next start loses nothing.
         telling_addresses.abort();
         renewing.abort();
+        // The Relay drops the connections waiting there once they close.
+        if let Some(dialing) = dialing {
+            dialing.abort();
+        }
         // The next start's scans pull and sync again, and its first looks push each Link again.
         scan_follower.abort();
         link_follower.abort();

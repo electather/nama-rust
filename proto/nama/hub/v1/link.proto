@@ -156,7 +156,8 @@ service LinkedServerService {
   // whenever they change, and every half hour, since only then does the Hub check from outside
   // whether its `public_port` can be reached. Also names the Server after them (ADR 0104). Fails
   // with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an `http` or `https` URL, for
-  // too many, or for a port over 65535, and fails while the Hub can't write the Server's names.
+  // too many, for a port over 65535, or for a `relay` that isn't an `<ip>:<port>`, and fails while
+  // the Hub can't write the Server's names.
   rpc SetServerAddresses(SetServerAddressesRequest) returns (SetServerAddressesResponse) {
     option idempotency_level = IDEMPOTENT;
   }
@@ -168,6 +169,13 @@ service LinkedServerService {
   // on a Hub that names no Server or while the Hub can't write them.
   rpc SetCertificateChallenge(SetCertificateChallengeRequest) returns (SetCertificateChallengeResponse) {
     option idempotency_level = IDEMPOTENT;
+  }
+  // A token that proves to a Relay the calling Server holds its own name, so the Relay routes TLS
+  // whose SNI is that name, or one under it, to the Server (ADR 0057): a JWT signed as
+  // `PollServerLinkResponse`'s is, whose `sub` is the Server's own name and `aud` is `relay`, and
+  // which expires 5 minutes after it was made. Fails on a Hub that names no Server.
+  rpc GetRelayToken(GetRelayTokenRequest) returns (GetRelayTokenResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Records a Viewing Event for each play by one of the Server's Users, under the Account they are
   // Linked to (ADR 0093); one for a User who isn't Linked is left out. Sending one again by its
@@ -599,6 +607,11 @@ message SetServerAddressesRequest {
   // NAT-PMP, or one its Admin forwarded. 0 for none. The Hub connects to it at the IP address the
   // request came from, the only one it checks, so a Server can't have the Hub call anyone else.
   uint32 public_port = 3;
+  // The Relay its Admin runs, which the Server dials out to for clients that can't reach it
+  // directly (ADR 0057), as `<ip>:<port>`, such as `198.51.100.4:443`, or empty for none.
+  // `relay.<own name>` points at its IP address, and `https://relay.<own name>:<port>` is a
+  // Server Address after the direct ones.
+  string relay = 4;
 }
 
 message SetServerAddressesResponse {
@@ -610,8 +623,8 @@ message SetServerAddressesResponse {
   // The Server's names (ADR 0104). Its own name comes first, such as
   // `0193b6f2c4d87a1e9f3c5b2a1d0e4f67.namadirect.net`, which never changes and points at
   // `public_address` while the Hub reaches it there. Then comes a name for each private IPv4
-  // address among `lan_addresses`, such as `192-168-1-10.<own name>`, which points at that address.
-  // Empty on a Hub that names no Server.
+  // address among `lan_addresses`, such as `192-168-1-10.<own name>`, which points at that address,
+  // and `relay.<own name>` with a `relay`. Empty on a Hub that names no Server.
   repeated string names = 3;
 }
 
@@ -622,6 +635,12 @@ message SetCertificateChallengeRequest {
 }
 
 message SetCertificateChallengeResponse {}
+
+message GetRelayTokenRequest {}
+
+message GetRelayTokenResponse {
+  string token = 1;
+}
 
 message ListTrendingTitlesRequest {}
 

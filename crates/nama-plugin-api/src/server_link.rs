@@ -9,6 +9,8 @@
 //! registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::new(my_linker));
 //! ```
 
+use std::net::SocketAddr;
+
 use crate::{
     BoxFuture, PluginError,
     points::{TrackPreference, WatchStateChange},
@@ -75,6 +77,9 @@ pub struct ServerAddresses {
     /// The port on its router's public IP address that reaches it: one the Server opened with UPnP
     /// or NAT-PMP, or the one its Admin forwarded. `None` without one.
     pub public_port: Option<u16>,
+    /// The Relay its Admin runs, which the Server dials out to for clients that can't reach it
+    /// directly (ADR 0057). `None` without one.
+    pub relay: Option<SocketAddr>,
 }
 
 /// A title on a User's Watchlist, or taken off it, as the change made last left it.
@@ -207,6 +212,18 @@ pub trait ServerLinker: Send + Sync + 'static {
         _values: Vec<String>,
     ) -> BoxFuture<'_, Result<(), PluginError>> {
         Box::pin(async { Err("the service publishes no certificate challenge".into()) })
+    }
+
+    /// A token the service signed that proves to a Relay the Server holds its own name among its
+    /// [`Reachability::names`], so the Relay routes TLS for that name to the Server (ADR 0057). It
+    /// lasts minutes: the Kernel asks again for each new one.
+    ///
+    /// # Errors
+    ///
+    /// When the Server isn't Linked, the service names no Server or couldn't be asked, and from a
+    /// service that signs none.
+    fn relay_token(&self) -> BoxFuture<'_, Result<String, PluginError>> {
+        Box::pin(async { Err("the service signs no Relay token".into()) })
     }
 
     /// The Watch State the service keeps of the User `user_id` from every Server they use, such as

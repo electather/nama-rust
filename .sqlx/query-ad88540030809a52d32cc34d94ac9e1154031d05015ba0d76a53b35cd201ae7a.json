@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE linked_servers SET server_url = $1, lan_addresses = $2, relay_address = $3\n             WHERE id = $4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "TextArray",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ad88540030809a52d32cc34d94ac9e1154031d05015ba0d76a53b35cd201ae7a"
+}
