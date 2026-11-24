@@ -29,7 +29,7 @@ export function FormEnd({
         {refusal}
       </p>
       {/* A ghost button is pulled back by its own padding, so its words line up with the fields. */}
-      <div className={variant === "ghost" ? "-ms-4 flex gap-2" : "flex gap-2"}>
+      <div className={variant === "ghost" ? "-ms-2.5 flex gap-2" : "flex gap-2"}>
         <Button type="submit" variant={variant} disabled={pending}>
           {action}
         </Button>
