@@ -1991,41 +1991,18 @@ dependencies = [
 
 [[package]]
 name = "jiff"
-version = "0.2.46"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "175dc66334db3b9ab9985bf8b61cfed50dc16d20964bb47f9e479adcae984a7f"
-dependencies = [
- "jiff-core 0.1.8",
- "jiff-static 0.2.46",
- "log",
- "portable-atomic",
- "portable-atomic-util",
- "serde_core",
-]
-
-[[package]]
-name = "jiff"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9cc767b5763de45e810109520123bb2829a653f3a7ed9be40b2bc4f81158f595"
 dependencies = [
- "jiff-core 1.0.1",
- "jiff-static 1.0.0",
+ "jiff-core",
+ "jiff-static",
  "jiff-tzdb-platform",
  "log",
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
  "windows-link",
-]
-
-[[package]]
-name = "jiff-core"
-version = "0.1.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e599b80292e597019b8b3e392de3f4bea2959ddfb8c7dff60e035e9e311a2c1b"
-dependencies = [
- "log",
 ]
 
 [[package]]
@@ -2039,23 +2016,11 @@ dependencies = [
 
 [[package]]
 name = "jiff-static"
-version = "0.2.46"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7b1af7547d47354bc438d797e3854601bde8f8d185780c5ba4ab27afa54f1ba"
-dependencies = [
- "jiff-core 0.1.8",
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
-name = "jiff-static"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "955491488dc99b572ea6d67b172dcd98787d00744b1fb44a5689b4e6413695a6"
 dependencies = [
- "jiff-core 1.0.1",
+ "jiff-core",
  "proc-macro2",
  "quote",
  "syn 3.0.10",
@@ -2593,7 +2558,7 @@ dependencies = [
  "http-body-util",
  "hyper-rustls",
  "hyper-util",
- "jiff 1.0.0",
+ "jiff",
  "nama-hub-proto",
  "nama-plugin-api",
  "ring",
@@ -2671,7 +2636,7 @@ version = "0.1.0"
 dependencies = [
  "hmac",
  "instant-xml",
- "jiff 1.0.0",
+ "jiff",
  "nama-pdk",
  "rusty-s3",
  "sha2 0.11.1",
@@ -2814,7 +2779,7 @@ dependencies = [
  "image",
  "instant-acme",
  "isolang",
- "jiff 1.0.0",
+ "jiff",
  "jixel",
  "jxl",
  "nama-forwarded",
@@ -3846,13 +3811,13 @@ checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
 name = "rusty-s3"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1af5b74b316ee483ae486bd3cb206c8caa5dbb3cf0eab7269a868ae43aeece03"
+checksum = "7c091b4ca9c4d51c1a959fa746cc74f5a612a2242070a4ae7b14e22b04c71f8c"
 dependencies = [
  "hmac",
  "instant-xml",
- "jiff 0.2.46",
+ "jiff",
  "percent-encoding",
  "sha2 0.11.1",
  "url",

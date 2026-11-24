@@ -83,7 +83,7 @@ struct Started {
 
 impl Started {
     fn now() -> Self {
-        let now = jiff::Zoned::now();
+        let now = jiff::ZonedDateTime::now();
         Self {
             at: now.timestamp().as_second(),
             time_of_day_minutes: i32::from(now.hour()) * 60 + i32::from(now.minute()),

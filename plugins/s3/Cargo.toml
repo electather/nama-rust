@@ -17,7 +17,7 @@ crate-type = ["cdylib"]
 instant-xml = "0.7.7"
 jiff = { version = "1.0", default-features = false, features = ["std"] }
 nama-pdk = { version = "0.3.0", path = "../../crates/nama-pdk" }
-rusty-s3 = { version = "0.11.0", default-features = false, features = ["rustcrypto", "xml"] }
+rusty-s3 = { version = "0.12.0", default-features = false, features = ["rustcrypto", "xml"] }
 url = "2.5"
 
 [dev-dependencies]
