@@ -77,6 +77,7 @@ pub(super) async fn attempt(
         .sign_in(
             password(name, password_given),
             device("Laptop", LAPTOP_IP),
+            None,
             now,
         )
         .await
@@ -138,6 +139,7 @@ async fn the_51st_attempt_from_an_address_is_blocked_whatever_the_name_but_not_f
         .sign_in(
             password("Ada", PASSWORD),
             device("Phone", "198.51.100.1"),
+            None,
             now,
         )
         .await;
@@ -183,6 +185,7 @@ async fn a_bad_device_name_is_refused_without_counting_as_a_guess() {
             .sign_in(
                 password("Ada", "not the password"),
                 device(&too_long, LAPTOP_IP),
+                None,
                 now,
             )
             .await;
@@ -212,6 +215,7 @@ async fn a_device_name_holding_an_invisible_character_is_refused_without_countin
             .sign_in(
                 password("Ada", "not the password"),
                 device(name, LAPTOP_IP),
+                None,
                 now,
             )
             .await;
@@ -238,7 +242,7 @@ async fn ada_without_recent_authentication(sign_in: &SignIn) -> Caller {
     let phone = device("Phone", LAPTOP_IP);
     sign_in
         .users
-        .sign_in_as(Proved::Code(ApprovingDevice::from(&laptop)), phone)
+        .sign_in_as(Proved::Code(ApprovingDevice::from(&laptop)), phone, None)
         .await
         .unwrap()
         .caller
@@ -448,7 +452,7 @@ async fn a_code_started_without_a_name_is_named_after_the_devices_browser_and_os
 /// Polls `handle` at `now` from the Device that started it.
 async fn poll_code(sign_in: &SignIn, handle: &str, now: Instant) -> Result<Polled, Error> {
     let ip_address = TV_IP.parse().unwrap();
-    sign_in.poll_code(handle, ip_address, None, now).await
+    sign_in.poll_code(handle, ip_address, None, None, now).await
 }
 
 #[tokio::test]

@@ -298,6 +298,7 @@ impl TextPass {
     /// why it couldn't.
     async fn run(self, path: &str) {
         if let Err(err) = self.read_out_uncached(path).await {
+            diagnostics::failed_with(&err, &tracing::Span::current());
             // Whoever started it may have stopped waiting, and so won't log it.
             tracing::warn!("could not read the subtitles out of {path}: {err}");
         }

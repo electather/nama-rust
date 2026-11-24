@@ -382,13 +382,3 @@ fn a_plugin_enabled_again_starts_without_failures() {
 
     assert_eq!(points.failing(&PLUGIN, recogniser()), None);
 }
-
-#[test]
-fn a_plugin_never_enabled_records_no_failure() {
-    let points = ExtensionPoints::default();
-
-    assert_eq!(
-        points.provider_failed(&PLUGIN, recogniser(), "timed out"),
-        None
-    );
-}

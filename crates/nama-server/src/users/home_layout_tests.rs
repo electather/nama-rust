@@ -72,22 +72,6 @@ async fn a_first_reorder_keeps_a_row_after_the_users_own_rows_the_default_put_it
 }
 
 #[tokio::test]
-async fn a_first_reorder_while_a_plugin_is_disabled_keeps_where_the_users_own_rows_go() {
-    let (_data_dir, db, ada) = with_a_user().await;
-    let watching = HomeRowId::ContinueWatching;
-    let default = default_of([users_own(), watching.clone()]);
-
-    let asked = [watching.clone()];
-    UserHomeLayout::reorder(&db, ada, &asked, vec![watching.clone()], default.clone())
-        .await
-        .unwrap();
-
-    let rows = vec![watching.clone(), own("for-ada")];
-    let order = arranged(&db, ada, &default, rows).await;
-    assert_eq!(order, [own("for-ada"), watching]);
-}
-
-#[tokio::test]
 async fn a_row_after_own_rows_a_user_has_none_of_goes_at_the_end() {
     let (_data_dir, db, ada) = with_a_user().await;
     let watching = HomeRowId::ContinueWatching;

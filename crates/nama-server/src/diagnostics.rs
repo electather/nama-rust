@@ -9,7 +9,7 @@ use std::{
     fmt::{self, Write as _},
     sync::{
         Mutex, OnceLock, PoisonError,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, SystemTime},
 };
@@ -257,14 +257,45 @@ impl SharingSwitches {
 /// The target Usage Analytics are recorded under, which stdout leaves out.
 pub const USAGE_TARGET: &str = "nama::usage";
 
-/// The log lines shared with Diagnostics, by their call site's `name:`
-/// (`crates/nama-server/AGENTS.md`).
-const SHARED_LINES: [&str; 2] = [
-    // `db.rs`
-    "database write panicked",
-    // `playback/running/run.rs`
-    "hardware acceleration failed partway",
-];
+/// Batches the Plugin sharing Diagnostics failed to send since they were last taken, such as those
+/// the Hub refused for being over a Server's limit: otherwise the backend reads them as a quiet
+/// spell.
+static SHARES_REFUSED: AtomicU64 = AtomicU64::new(0);
+
+/// Counts a batch the Plugin sharing Diagnostics failed to send.
+pub(crate) fn share_refused() {
+    SHARES_REFUSED.fetch_add(1, Ordering::Relaxed);
+}
+
+/// The batches counted by [`share_refused`] since this was last called.
+pub(crate) fn take_shares_refused() -> u64 {
+    SHARES_REFUSED.swap(0, Ordering::Relaxed)
+}
+
+/// Shares where the Server panics from now on, after reporting the panic as before. Only where:
+/// what a panic says may quote a path or a title.
+pub fn share_panics() {
+    let report = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic| {
+        report(panic);
+        let at = panic.location().map(|at| {
+            let file = from_crate(at.file());
+            format!("{file}:{}", at.line())
+        });
+        tracing::error!(name: "panicked", shared = true, at, "panicked");
+    }));
+}
+
+/// `file` from its crate's folder on, such as `tokio-1.47.0/src/task.rs`. A dependency's is
+/// absolute, naming the home folder of whoever built the Server.
+fn from_crate(file: &str) -> String {
+    let parts: Vec<&str> = file.split('/').collect();
+    let start = parts.iter().rposition(|part| *part == "src").map_or_else(
+        || parts.len().saturating_sub(1),
+        |src| src.saturating_sub(1),
+    );
+    parts.get(start..).unwrap_or_default().join("/")
+}
 
 /// The Usage Analytics the Server records (`crates/nama-server/AGENTS.md`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -288,8 +319,8 @@ pub(crate) fn record(usage: Usage) {
     }
 }
 
-/// What of the Server's logs is shared: the lines on the shared list while `switches` share
-/// Diagnostics, and Usage Analytics while they share those.
+/// What of the Server's logs is shared: the lines logged with `shared = true` while `switches`
+/// share Diagnostics (`crates/nama-server/AGENTS.md`), and Usage Analytics while they share those.
 #[must_use]
 pub fn shared_logs_filter<S>(switches: &'static SharingSwitches) -> impl Filter<S> {
     dynamic_filter_fn(move |metadata, _| {
@@ -298,7 +329,8 @@ pub fn shared_logs_filter<S>(switches: &'static SharingSwitches) -> impl Filter<
         } else {
             switches.diagnostics()
                 && metadata.is_event()
-                && SHARED_LINES.contains(&metadata.name())
+                // A field's name is in the call site's static metadata, so its value is never read.
+                && metadata.fields().field("shared").is_some()
         }
     })
     // Every shared line is `info` or above, so `debug` lines stay as cheap as stdout makes them.
@@ -362,7 +394,34 @@ pub fn shared_resource() -> Resource {
     Resource::builder_empty()
         .with_service_name(env!("CARGO_PKG_NAME"))
         .with_attribute(KeyValue::new("service.version", env!("CARGO_PKG_VERSION")))
+        .with_attribute(KeyValue::new("os.type", os_type()))
+        .with_attribute(KeyValue::new("host.arch", host_arch()))
+        .with_attribute(KeyValue::new("nama.container", in_container()))
         .build()
+}
+
+/// The OS, as OpenTelemetry's `os.type` names it.
+fn os_type() -> &'static str {
+    match env::consts::OS {
+        "macos" => "darwin",
+        os => os,
+    }
+}
+
+/// The CPU architecture, as OpenTelemetry's `host.arch` names it.
+fn host_arch() -> &'static str {
+    match env::consts::ARCH {
+        "x86_64" => "amd64",
+        "aarch64" => "arm64",
+        arch => arch,
+    }
+}
+
+/// Whether the Server runs in a container, by the file Docker or Podman leaves at its root.
+fn in_container() -> bool {
+    ["/.dockerenv", "/run/.containerenv"]
+        .iter()
+        .any(|marker| std::path::Path::new(marker).exists())
 }
 
 /// What is exported to the admin's endpoint: `info`, or whatever `RUST_LOG` asks for, never
@@ -444,6 +503,22 @@ pub(crate) fn failed(span: &Span, kind: &'static str) {
     span.set_attribute("error.type", kind);
 }
 
+/// Marks `span` failed with the name of `E`, the type of the error it failed with. The type names
+/// no data, unlike the error's message, which may quote a path or a title.
+pub(crate) fn failed_with<E>(_err: &E, span: &Span) {
+    // ponytail: the type, not the variant; give an error a `kind()` once one type hides too much.
+    failed(span, std::any::type_name::<E>());
+}
+
+/// `result`, marking the current span failed if it is an error, for a function run in a span of
+/// its own, such as one `#[tracing::instrument]` makes.
+pub(crate) fn outcome<T, E>(result: Result<T, E>) -> Result<T, E> {
+    if let Err(err) = &result {
+        failed_with(err, &Span::current());
+    }
+    result
+}
+
 /// Marks a ConnectRPC call's span failed when its handler fails, with the error's code.
 pub(crate) struct RecordFailures;
 
@@ -502,12 +577,14 @@ where
             .unwrap_or_default();
         // Real time, not `db::now`: the exception to "One clock" in `crates/nama-server/AGENTS.md`.
         let ended = SystemTime::now();
+        let text = query.text();
         self.tracer
             .span_builder(query.summary)
             .with_kind(SpanKind::Client)
             .with_start_time(ended.checked_sub(query.elapsed).unwrap_or(ended))
             .with_attributes([
                 KeyValue::new("db.system.name", "sqlite"),
+                KeyValue::new("db.query.text", text),
                 KeyValue::new("db.response.returned_rows", query.rows_returned),
                 KeyValue::new("db.response.affected_rows", query.rows_affected),
             ])
@@ -516,20 +593,36 @@ where
     }
 }
 
-/// What sqlx logs of a query that has run. Its summary is the statement's first words, which hold
-/// no values: every query binds them.
+/// What sqlx logs of a query that has run. Its summary is the statement's first words, and its
+/// statement the whole of it, neither holding values: every query binds them.
 #[derive(Default)]
 struct Query {
     summary: String,
+    /// The statement, empty when the summary is all of it.
+    statement: String,
     rows_returned: i64,
     rows_affected: i64,
     elapsed: Duration,
 }
 
+impl Query {
+    /// The statement on one line, so the backend groups each query's runs however it was indented.
+    fn text(&self) -> String {
+        let statement = if self.statement.is_empty() {
+            &self.summary
+        } else {
+            &self.statement
+        };
+        statement.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+}
+
 impl Visit for Query {
     fn record_str(&mut self, field: &Field, value: &str) {
-        if field.name() == "summary" {
-            value.clone_into(&mut self.summary);
+        match field.name() {
+            "summary" => value.clone_into(&mut self.summary),
+            "db.statement" => value.clone_into(&mut self.statement),
+            _ => {}
         }
     }
 

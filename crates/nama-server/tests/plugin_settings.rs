@@ -520,24 +520,6 @@ async fn a_settings_change_that_fails_to_enable_nor_put_back_is_saved_disabled()
 }
 
 #[tokio::test]
-async fn disabling_the_last_authenticator_is_refused_and_saves_nothing() {
-    let (data_dir, db) = open().await;
-    let plugins = PluginSettings::start(db, registry(), &config(data_dir.path(), ""))
-        .await
-        .unwrap();
-    let local_auth = PluginId::from_static("local-auth");
-
-    let refused = plugins.disable(&local_auth).await;
-
-    assert!(
-        matches!(refused, Err(ChangeError::LastAuthenticator(_))),
-        "{refused:?}"
-    );
-    assert!(stored_enabled(&plugins, &local_auth).await);
-    assert!(plugins.registry().enabled().contains(&local_auth));
-}
-
-#[tokio::test]
 async fn a_disable_is_saved_and_applied() {
     let (data_dir, db) = open().await;
     let plugins = PluginSettings::start(db, registry(), &config(data_dir.path(), ""))

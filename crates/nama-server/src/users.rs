@@ -21,6 +21,7 @@ use crate::{
 mod accounts;
 mod codes;
 mod device_names;
+mod device_users;
 mod expired;
 mod home_layout;
 mod inbox;
@@ -41,6 +42,7 @@ mod sign_in_codes;
 pub use codes::SetupCode;
 use codes::new_token;
 pub(crate) use codes::random_secret;
+use device_users::insert_device;
 pub(crate) use home_layout::{AskedHomeLayout, UserHomeLayout};
 pub(crate) use inbox::{
     list as list_inbox, mark_all_read as mark_all_inbox_read, mark_read as mark_inbox_read,
@@ -64,11 +66,10 @@ pub(crate) use personal_settings::{
     value as personal_value,
 };
 pub(crate) use proved::Proved;
-use proved::proved_user;
 pub(crate) use rate_limits::Blocked;
 pub(crate) use seeing::{is_requester, may_see};
 pub(crate) use sessions::{
-    cleared_session_cookie, identify_caller, in_session_cookie, session_cookie,
+    cleared_session_cookie, identify_caller, in_session_cookie, session_cookie, session_token,
 };
 pub(crate) use sign_in::{Error as SignInError, Polled, Proof, SignIn};
 pub(crate) use sign_in_codes::{Delivery, Error as SignInCodeError};
@@ -85,12 +86,12 @@ pub(crate) const DEVICE_LIFETIME: i64 = 90 * 24 * 60 * 60;
 /// writer.
 const LAST_SEEN_PRECISION: i64 = 60 * 60;
 
-/// How long, in seconds, a Device has Recent Authentication after proving who it is: 10 minutes
-/// (ADR 0014).
+/// How long, in seconds, a User on a Device has Recent Authentication after proving who they are
+/// there: 10 minutes (ADR 0014).
 const RECENT_AUTHENTICATION_WINDOW: i64 = 10 * 60;
 
-/// How many sign-outs may happen before a waiter in [`Users::signed_out`] has seen them. One that
-/// falls further behind checks its Device in the database instead.
+/// How many sign-outs and switches may happen before a waiter in [`Users::signed_out`] has seen
+/// them. One that falls further behind checks its Device in the database instead.
 const SIGN_OUTS_BUFFERED: usize = 64;
 
 /// How many Permission changes may happen before a waiter in [`Users::permissions_changed`] has
@@ -130,19 +131,20 @@ pub(crate) struct Device {
     /// When it was last used, in seconds since the Unix epoch, to within
     /// [`LAST_SEEN_PRECISION`].
     pub(crate) last_seen_at: i64,
-    /// When it last proved who it is with one of its User's Sign-in Methods, in seconds since the
-    /// Unix epoch, or 0 if it never has.
+    /// When the User it is read for, the one it acts as or the one whose Devices are listed, last
+    /// proved who they are on it with one of their Sign-in Methods, in seconds since the Unix
+    /// epoch, or 0 if they haven't since signing in to it or it switched to them.
     pub(crate) authenticated_at: i64,
 }
 
 impl Device {
-    /// Whether it has Recent Authentication at `now`, in seconds since the Unix epoch.
+    /// Whether its User has Recent Authentication on it at `now`, in seconds since the Unix epoch.
     pub(crate) const fn authenticated_recently(&self, now: i64) -> bool {
         now - self.authenticated_at < RECENT_AUTHENTICATION_WINDOW
     }
 }
 
-/// Who sent a request: the User and Device its session belongs to.
+/// Who sent a request: the Device its session belongs to and the User it acts as.
 #[derive(Debug, Clone)]
 pub(crate) struct Caller {
     pub(crate) user: User,
@@ -169,8 +171,10 @@ impl From<&Caller> for ApprovingDevice {
 /// The session a request carried.
 #[derive(Debug)]
 pub(crate) struct Session {
-    /// Who it belongs to.
-    pub(crate) caller: Caller,
+    /// The Device it belongs to.
+    pub(crate) device: Device,
+    /// The User the Device acts as, or `None` until one of its Users is picked (ADR 0106).
+    pub(crate) user: Option<User>,
     /// Whether this use pushed the Device's expiry back, so a cookie's should be pushed back too.
     pub(crate) refreshed: bool,
 }
@@ -257,7 +261,7 @@ pub enum Error {
     /// No User has this ID.
     #[error("no User has that ID")]
     NoSuchUser,
-    /// The User has no Device with this ID.
+    /// The User isn't signed in to a Device with this ID.
     #[error("that User has no such Device")]
     NoSuchDevice,
     /// No working Invite has the token or ID given in the request field `field`.
@@ -411,8 +415,8 @@ impl Users {
         every_user(&self.db).await
     }
 
-    /// The Devices of the User `user` that haven't expired, oldest first, or `None` if there is no
-    /// such User.
+    /// The Devices the User `user` is signed in to that haven't expired, oldest first, or `None` if
+    /// there is no such User.
     pub(crate) async fn devices(&self, user: i64) -> Result<Option<Vec<Device>>, sqlx::Error> {
         let mut conn = self.db.reader().acquire().await?;
         if !user_exists(&mut conn, user).await? {
@@ -421,8 +425,9 @@ impl Users {
         let now = now();
         let devices = sqlx::query_as!(
             Device,
-            r#"SELECT id AS "id!", name, created_at, last_seen_at, authenticated_at FROM devices
-               WHERE user_id = ? AND expires_at > ? ORDER BY id"#,
+            r#"SELECT d.id AS "id!", d.name, d.created_at, d.last_seen_at, du.authenticated_at
+               FROM device_users du JOIN devices d ON d.id = du.device_id
+               WHERE du.user_id = ? AND d.expires_at > ? ORDER BY d.id"#,
             user,
             now,
         )
@@ -431,15 +436,17 @@ impl Users {
         Ok(Some(devices))
     }
 
-    /// Signs the Device `device` of the User `user` out, as [`Users::sign_out`] does, as `by` asks.
-    /// Fails with [`Error::NoSuchDevice`] if it isn't theirs, or as [`ensure_may_change`] does.
+    /// Signs the User `user` out of their Device `device`, as `by` asks, leaving its other Users
+    /// signed in; the last one's going signs it out, as [`Users::sign_out`] does. Fails with
+    /// [`Error::NoSuchDevice`] if `user` isn't signed in to it, or as [`ensure_may_change`] does.
     pub(crate) async fn revoke(&self, by: &User, user: i64, device: i64) -> Result<(), Error> {
         let by = by.clone();
         self.write_signing_out(move |tx| {
             Box::pin(async move {
                 ensure_may_change(tx, &by, user).await?;
                 sqlx::query_scalar!(
-                    r#"DELETE FROM devices WHERE id = ? AND user_id = ? RETURNING id AS "id!""#,
+                    r#"DELETE FROM device_users WHERE device_id = ? AND user_id = ?
+                       RETURNING device_id AS "device_id!""#,
                     device,
                     user
                 )
@@ -453,32 +460,8 @@ impl Users {
         .map(drop)
     }
 
-    /// Signs `device`, whose name has been checked, in as whoever `proved` says. A User deleted
-    /// since their password was checked is refused as a wrong name or password; a Sign-in Code is
-    /// refused if its approving User was deleted or its approving Device signed out. The only place
-    /// sessions are issued.
-    pub(crate) async fn sign_in_as(
-        &self,
-        proved: Proved,
-        device: NewDevice,
-    ) -> Result<SignedIn, Error> {
-        let token = new_token()?;
-        let token_hash = hash_token(&token);
-        let caller = self
-            .db
-            .write(move |tx| {
-                Box::pin(async move {
-                    let (user, method) = proved_user(tx, proved).await?;
-                    let device = insert_device(tx, user.id, method, device, &token_hash).await?;
-                    Ok::<_, Error>(Caller { user, device })
-                })
-            })
-            .await?;
-        Ok(SignedIn { caller, token })
-    }
-
-    /// Signs the Device `device` out by deleting it, so its session stops working and
-    /// [`Users::signed_out`] resolves for it.
+    /// Signs the Device `device` out by deleting it, with every User signed in to it, so its
+    /// session stops working and [`Users::signed_out`] resolves for it.
     pub(crate) async fn sign_out(&self, device: i64) -> Result<(), sqlx::Error> {
         self.write_signing_out(move |tx| {
             Box::pin(async move {
@@ -492,9 +475,9 @@ impl Users {
         .map(drop)
     }
 
-    /// Runs `write`, which deletes Devices and returns their ids, tells the waiters in
-    /// [`Users::signed_out`] about them and answers how many. Both run in a task of their own: a
-    /// queued write goes through even if the caller stops waiting, and its waiters must hear of it.
+    /// Runs `write`, which signs Users out of Devices or switches them and returns those Devices'
+    /// ids, tells the waiters in [`Users::signed_out`] about them and answers how many, as
+    /// [`Users::write_telling`] does.
     async fn write_signing_out<E, F>(&self, write: F) -> Result<usize, E>
     where
         E: From<sqlx::Error> + Send + 'static,
@@ -502,15 +485,40 @@ impl Users {
             + Send
             + 'static,
     {
+        self.write_telling(move |tx| {
+            let written = write(tx);
+            Box::pin(async move {
+                let devices = written.await?;
+                let count = devices.len();
+                Ok((devices, count))
+            })
+        })
+        .await
+    }
+
+    /// Runs `write`, which answers the ids of the Devices it signed Users out of or switched, and
+    /// what else it made, tells the waiters in [`Users::signed_out`] about those Devices and
+    /// answers the rest. Both run in a task of their own: a queued write goes through even if the
+    /// caller stops waiting, and its waiters must hear of it.
+    async fn write_telling<T, E, F>(&self, write: F) -> Result<T, E>
+    where
+        T: Send + 'static,
+        E: From<sqlx::Error> + Send + 'static,
+        F: for<'t> FnOnce(
+                &'t mut Transaction<'_, Sqlite>,
+            ) -> BoxFuture<'t, Result<(Vec<i64>, T), E>>
+            + Send
+            + 'static,
+    {
         let users = self.clone();
         let written = tokio::spawn(
             async move {
-                let devices = users.db.write(write).await?;
+                let (devices, made) = users.db.write(write).await?;
                 for &device in &devices {
                     // Fails only when nobody is waiting, which is fine.
                     let _: Result<usize, _> = users.sign_outs.send(device);
                 }
-                Ok(devices.len())
+                Ok(made)
             }
             .in_current_span(),
         );
@@ -520,24 +528,31 @@ impl Users {
             .unwrap_or_else(|_| Err(sqlx::Error::WorkerCrashed.into()))
     }
 
-    /// Resolves once the Device `device` is signed out, so whatever it opened can end with it. It
-    /// resolves at once if `device` was already signed out before this call, such as by a sign-out
-    /// that came after its session was checked, or if whether it was can't be found out.
-    pub(crate) fn signed_out(&self, device: i64) -> impl Future<Output = ()> + Send + 'static {
+    /// Resolves once the Device `device` no longer acts as the User `user`, for it was signed out,
+    /// they were signed out of it or it switched, so whatever it opened as them can end. It
+    /// resolves at once if that happened before this call, such as by a sign-out that came after
+    /// its session was checked, or if whether it did can't be found out.
+    pub(crate) fn signed_out(
+        &self,
+        device: i64,
+        user: i64,
+    ) -> impl Future<Output = ()> + Send + 'static {
         // Listening before looking `device` up means no sign-out falls between the two.
         let sign_outs = self.sign_outs.subscribe();
         let users = self.clone();
         until_heard(sign_outs, device, async move || {
-            users.still_signed_in(device).await
+            users.still_acting_as(device, user).await
         })
     }
 
-    /// Whether the Device `device` still exists. If that can't be found out, it is taken not to,
-    /// so what it opened ends rather than outlive it.
-    async fn still_signed_in(&self, device: i64) -> bool {
+    /// Whether the Device `device` still acts as the User `user`. If that can't be found out, it is
+    /// taken not to, so what it opened ends rather than outlive it.
+    async fn still_acting_as(&self, device: i64, user: i64) -> bool {
         let found = sqlx::query_scalar!(
-            r#"SELECT EXISTS (SELECT 1 FROM devices WHERE id = ?) AS "exists!: bool""#,
-            device
+            r#"SELECT EXISTS (SELECT 1 FROM devices WHERE id = ? AND user_id = ?)
+                   AS "exists!: bool""#,
+            device,
+            user
         )
         .fetch_one(self.db.reader())
         .await;
@@ -545,6 +560,16 @@ impl Users {
             tracing::error!("could not look up a Device: {err}");
             false
         })
+    }
+
+    /// Whether the Device `device` is still signed in as any User, expired or not.
+    pub(crate) async fn device_exists(&self, device: i64) -> Result<bool, sqlx::Error> {
+        sqlx::query_scalar!(
+            r#"SELECT EXISTS (SELECT 1 FROM devices WHERE id = ?) AS "exists!: bool""#,
+            device
+        )
+        .fetch_one(self.db.reader())
+        .await
     }
 
     /// The session `token` is, if it is one whose Device hasn't expired, as of now.
@@ -560,10 +585,12 @@ impl Users {
         let token_hash = token_hash.as_slice();
         let row = sqlx::query!(
             r#"SELECT d.id AS "device_id!", d.name AS device_name, d.created_at AS device_created_at,
-                      d.last_seen_at, d.authenticated_at,
-                      u.id AS "user_id!", u.display_username AS user_name,
-                      u.permissions AS "permissions: Permissions", u.created_at
-               FROM devices d JOIN users u ON u.id = d.user_id
+                      d.last_seen_at, du.authenticated_at AS "authenticated_at?",
+                      u.id AS "user_id?", u.display_username AS "user_name?",
+                      u.permissions AS "permissions?: Permissions", u.created_at AS "created_at?"
+               FROM devices d
+               LEFT JOIN device_users du ON du.device_id = d.id AND du.user_id = d.user_id
+               LEFT JOIN users u ON u.id = du.user_id
                WHERE d.token_hash = ? AND d.expires_at > ?"#,
             token_hash,
             now,
@@ -581,22 +608,27 @@ impl Users {
                 .await
                 .inspect_err(|err| tracing::error!("could not record a Device's use: {err}"))
                 .is_ok();
-        let caller = Caller {
-            user: User {
-                id: row.user_id,
-                name: row.user_name,
-                permissions: row.permissions,
-                created_at: row.created_at,
-            },
-            device: Device {
-                id: row.device_id,
-                name: row.device_name,
-                created_at: row.device_created_at,
-                last_seen_at: row.last_seen_at,
-                authenticated_at: row.authenticated_at,
-            },
+        let user = match (row.user_id, row.user_name, row.permissions, row.created_at) {
+            (Some(id), Some(name), Some(permissions), Some(created_at)) => Some(User {
+                id,
+                name,
+                permissions,
+                created_at,
+            }),
+            _ => None,
         };
-        Ok(Some(Session { caller, refreshed }))
+        let device = Device {
+            id: row.device_id,
+            name: row.device_name,
+            created_at: row.device_created_at,
+            last_seen_at: row.last_seen_at,
+            authenticated_at: row.authenticated_at.unwrap_or_default(),
+        };
+        Ok(Some(Session {
+            device,
+            user,
+            refreshed,
+        }))
     }
 
     /// Records that the Device `device` was last seen at `now`, which pushes its expiry back,
@@ -728,53 +760,9 @@ async fn insert_user(
     })
 }
 
-/// Stores `device`, whose name has been checked, signed in as the User `user` with the Sign-in
-/// Method `method`, or by a Sign-in Code or an Account, and the hash of its session token.
-async fn insert_device(
-    conn: &mut SqliteConnection,
-    user: i64,
-    method: Option<i64>,
-    device: NewDevice,
-    token_hash: &[u8; 32],
-) -> Result<Device, sqlx::Error> {
-    let now = now();
-    let expires_at = now + DEVICE_LIFETIME;
-    // A Device signed in by a Sign-in Code or an Account never proved who it is itself (ADR 0014):
-    // whoever approved on the other Device, or on the Hub, may not be the one holding it.
-    let authenticated_at = if method.is_some() { now } else { 0 };
-    let token_hash = token_hash.as_slice();
-    let ip_address = device.ip_address.to_string();
-    let id = sqlx::query_scalar!(
-        r#"INSERT INTO devices
-               (user_id, sign_in_method_id, name, token_hash, ip_address, user_agent, created_at,
-                updated_at, last_seen_at, expires_at, authenticated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           RETURNING id AS "id!""#,
-        user,
-        method,
-        device.name,
-        token_hash,
-        ip_address,
-        device.user_agent,
-        now,
-        now,
-        now,
-        expires_at,
-        authenticated_at,
-    )
-    .fetch_one(conn)
-    .await?;
-    Ok(Device {
-        id,
-        name: device.name,
-        created_at: now,
-        last_seen_at: now,
-        authenticated_at,
-    })
-}
-
-/// Resolves once `heard` names `id`, or `unchanged` says whatever `id` names has changed. It asks
-/// `unchanged` first, and again whenever `heard` falls so far behind that it may have skipped `id`.
+/// Resolves once `unchanged` says whatever `id` names has changed. It asks `unchanged` first, again
+/// whenever `heard` names `id`, and whenever `heard` falls so far behind that it may have skipped
+/// `id`.
 async fn until_heard(
     mut heard: broadcast::Receiver<i64>,
     id: i64,
@@ -786,8 +774,7 @@ async fn until_heard(
             return;
         }
         look = match heard.recv().await {
-            Ok(named) if named == id => return,
-            Ok(_) => false,
+            Ok(named) => named == id,
             Err(broadcast::error::RecvError::Lagged(_)) => true,
             Err(broadcast::error::RecvError::Closed) => return,
         };

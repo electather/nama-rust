@@ -10,13 +10,13 @@ use tracing_subscriber::{Layer as _, layer::SubscriberExt as _};
 
 use super::{
     MAX_PLUGIN_LINE_BYTES, PLUGIN_TARGET, PluginLine, SharedSpans, Sharing, SharingSwitches,
-    USAGE_TARGET, Usage, exported_filter, following_current, forget_plugin_lines, job_run_span,
-    keep_plugin_lines, layer, plugin_lines, plugin_lines_layer, push_plugin_line, record,
-    service_and_method, shared_logs_filter, sharing_layer,
+    USAGE_TARGET, Usage, exported_filter, following_current, forget_plugin_lines, from_crate,
+    job_run_span, keep_plugin_lines, layer, plugin_lines, plugin_lines_layer, push_plugin_line,
+    record, service_and_method, shared_logs_filter, sharing_layer,
 };
 
 /// The names of the spans and log records a Server sharing what `sharing` says shares of a span,
-/// a line on the shared list, a line that isn't, and a Usage Analytics event.
+/// a line marked shared, a line that isn't, and a Usage Analytics event.
 fn shared(sharing: Sharing) -> (Vec<String>, Vec<String>) {
     // Its own, since the Server's are process-wide.
     let switches: &'static SharingSwitches = Box::leak(Box::default());
@@ -39,6 +39,7 @@ fn shared(sharing: Sharing) -> (Vec<String>, Vec<String>) {
         tracing::info_span!("transcode", plan = 7).in_scope(|| {
             tracing::warn!(
                 name: "hardware acceleration failed partway",
+                shared = true,
                 plan = 7,
                 "hardware acceleration failed partway, so the rest Transcodes in software"
             );
@@ -66,7 +67,7 @@ fn with_neither_shared_nothing_is() {
 }
 
 #[test]
-fn sharing_diagnostics_shares_spans_and_only_the_lines_on_the_list() {
+fn sharing_diagnostics_shares_spans_and_only_the_lines_marked_shared() {
     let sharing = Sharing {
         diagnostics: true,
         usage_analytics: false,
@@ -362,4 +363,17 @@ fn a_line_written_during_a_job_run_carries_its_id_and_one_outside_carries_none()
             ("built-in".to_owned(), Some(7)),
         ]
     );
+}
+
+#[test]
+fn a_panic_is_shared_from_its_crates_folder_on() {
+    assert_eq!(
+        from_crate("/home/ada/.cargo/registry/src/index/tokio-1.47.0/src/runtime/task.rs"),
+        "tokio-1.47.0/src/runtime/task.rs"
+    );
+    assert_eq!(
+        from_crate("crates/nama-server/src/db.rs"),
+        "nama-server/src/db.rs"
+    );
+    assert_eq!(from_crate("/home/ada/build.rs"), "build.rs");
 }

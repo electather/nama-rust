@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", user_id, user_agent FROM devices\n               WHERE id IN (SELECT value FROM json_each(?))",
+  "query": "SELECT id AS \"id!\", user_id AS \"user_id!\", user_agent FROM devices\n               WHERE id IN (SELECT value FROM json_each(?)) AND user_id IS NOT NULL",
   "describe": {
     "columns": [
       {
@@ -15,7 +15,7 @@
         }
       },
       {
-        "name": "user_id",
+        "name": "user_id!",
         "ordinal": 1,
         "type_info": "Integer",
         "origin": {
@@ -42,9 +42,9 @@
     },
     "nullable": [
       false,
-      false,
+      true,
       true
     ]
   },
-  "hash": "b4879b5cd4f659b70569ddf5d20996750cd96bf8042987e2937916834ae19cb4"
+  "hash": "85e86bf16a0e2e3749b41e041a3e0fbfa685864553a63000d3f7886c1d2c9142"
 }
