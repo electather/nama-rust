@@ -117,7 +117,7 @@ impl Contents {
                 found.extend(ranked(corrected_rows, &corrected));
             }
         }
-        // shortcut: filtered after the SQL keeps the best `CANDIDATES` of every Library, so hidden
+        // ponytail: filtered after the SQL keeps the best `CANDIDATES` of every Library, so hidden
         // Libraries' fits can crowd out a User's own; filter in SQL if that's ever seen.
         found.retain(|found| seen(found.library()));
         found.truncate(limit);

@@ -246,7 +246,7 @@ _Avoid_: maintenance, housekeeping, garbage collection
 ## Media
 
 **Library**:
-A named collection of one kind of media (Movies or Shows) on a Server, backed by one or more folders, whose titles come from its title sources, asked in its own order. Its name is unique on its Server, ignoring case. A User sees every Library, those added later included, unless an Admin chose which they see, a list that never grows by itself; nowhere is a User shown or played a title only a Library they don't see has.
+A named collection of one kind of media (Movies or Shows) on a Server, backed by one or more folders, whose titles come from its title sources, asked in its own order. Its name is unique on its Server, ignoring case. A User sees every Library, those added later included, or only a list chosen for them by a User who may Manage Users, which never grows by itself. A User who may Manage Libraries sees every one.
 _Avoid_: collection, section
 
 **Item**:
