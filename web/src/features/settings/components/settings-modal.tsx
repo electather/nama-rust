@@ -62,9 +62,12 @@ export function SettingsModal({ section, user }: { section: Section; user: User 
     if (opened?.open === false) {
       opened.showModal();
       // Chosen here, after `showModal()` focused the first control: React's `autoFocus` would fire
-      // while the dialog is still closed. Wider, Settings starts on Search, the first combobox in the
-      // dialog, so typing finds a setting at once. On a phone, that would open the keyboard over it.
-      const start = phoneWidth() ? opened : opened.querySelector<HTMLElement>('[role="combobox"]');
+      // while the dialog is still closed. Wider, Settings starts on Search, so typing finds a setting
+      // at once; it's found by its name, as a Section's pane holds comboboxes too. On a phone, Search
+      // would open the keyboard over Settings.
+      const start = phoneWidth()
+        ? opened
+        : opened.querySelector<HTMLElement>('[aria-label="Search settings"]');
       start?.focus();
     }
     return () => opened?.close();
