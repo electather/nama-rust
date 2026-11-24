@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { type Setting, SettingKind } from "@/gen/nama/v1/plugin_pb";
 import { FormField } from "@/shared/components/form-field/form-field";
 import { changed } from "@/shared/lib/forms";
@@ -17,6 +19,7 @@ export function TypedInput({
   required,
   focused,
   forgetting = false,
+  hiddenInput,
 }: {
   setting: Setting;
   error: string | undefined;
@@ -25,6 +28,8 @@ export function TypedInput({
   focused?: boolean;
   /** Whether leaving a set secret blank forgets it, rather than keeping it. */
   forgetting?: boolean;
+  /** A hidden input sent with it, kept inside its row. */
+  hiddenInput?: ReactNode;
 }) {
   return (
     <FormField
@@ -42,6 +47,7 @@ export function TypedInput({
       required={required}
       hint={hint(setting, forgetting ? "forget" : "keep")}
       error={error}
+      hiddenInput={hiddenInput}
       // A number's − and + don't leave the field, so each saves the form as a change would.
       onStep={(_value, field) => {
         changed(field);
