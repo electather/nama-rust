@@ -272,6 +272,14 @@ fn known(namespace: &str, searches: bool) -> SourceManifest {
     }
 }
 
+/// A title source keeping `namespace`, searching or not, that also looks titles up by `looked_up`.
+fn known_looking_up(namespace: &str, searches: bool, looked_up: &str) -> SourceManifest {
+    SourceManifest {
+        looks_up: vec![looked_up.to_owned()],
+        ..known(namespace, searches)
+    }
+}
+
 #[test]
 fn an_order_may_drop_sources_beside_one_whose_plugin_is_gone() {
     let known = [known("fanart", false), known("tmdb", true)];
@@ -296,4 +304,22 @@ fn a_known_stored_source_that_cannot_search_still_counts_as_not_searching() {
     let dropped_tmdb = check_known(&order(&["fanart"]), &order(&["fanart", "tmdb"]), &known);
 
     assert!(matches!(dropped_tmdb, Err(Error::NoTitleSourceSearches)));
+}
+
+#[test]
+fn an_order_left_with_only_a_looked_up_namespace_does_not_search() {
+    let known = [known_looking_up("tmdb", true, "imdb")];
+
+    let dropped_tmdb = check_known(&order(&["imdb"]), &order(&["tmdb", "imdb"]), &known);
+
+    assert!(matches!(dropped_tmdb, Err(Error::NoTitleSourceSearches)));
+}
+
+#[test]
+fn a_stored_namespace_no_source_keeps_or_looks_up_still_searches_beside_a_looked_up_one() {
+    let known = [known_looking_up("tmdb", true, "imdb")];
+
+    let reordered = check_known(&order(&["imdb", "gone"]), &order(&["gone", "imdb"]), &known);
+
+    reordered.unwrap();
 }
