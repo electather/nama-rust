@@ -108,7 +108,9 @@ impl ServerService for ServerServiceHandler {
         _request: ServiceRequest<'_, GetServerInfoRequest>,
     ) -> ServiceResult<GetServerInfoResponse> {
         let setup_required = !self.users.any().await.map_err(database_failed)?;
-        let account_sign_in = self.linking.is_server_linked().await;
+        // Signing in with an Account is the Plugin's until it moves into the Kernel (#2218).
+        let account_sign_in =
+            self.linking.has_linking_plugin() && self.linking.is_server_linked().await;
         Response::ok(GetServerInfoResponse {
             name: self.name.clone(),
             version: env!("CARGO_PKG_VERSION").to_owned(),

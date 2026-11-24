@@ -14,7 +14,7 @@ use tracing::Instrument as _;
 
 use crate::{
     db::{BoxFuture, Database, now},
-    link::Linking,
+    link::{Linking, ServerLink},
     plugins::ExtensionPoints,
 };
 
@@ -318,10 +318,19 @@ impl Users {
     pub fn new(db: Arc<Database>, plugins: ExtensionPoints) -> Self {
         Self {
             db,
-            linking: Linking::new(plugins.clone()),
+            linking: Linking::new(plugins.clone(), None),
             plugins,
             sign_outs: broadcast::channel(SIGN_OUTS_BUFFERED).0,
             permission_changes: broadcast::channel(PERMISSION_CHANGES_BUFFERED).0,
+        }
+    }
+
+    /// These Users, whose Server Links with the Hub through `server`, its own Link (ADR 0105).
+    #[must_use]
+    pub(crate) fn linking_through(self, server: Option<Arc<ServerLink>>) -> Self {
+        Self {
+            linking: Linking::new(self.plugins.clone(), server),
+            ..self
         }
     }
 

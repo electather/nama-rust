@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM hub_link WHERE credential = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "d9981e6b4377b80334606cfbe7495eb16e1ad667687177685a40dcec8aea828e"
+}

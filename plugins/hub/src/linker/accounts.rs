@@ -48,7 +48,7 @@ impl Linker {
         let Some(token) = polled.ok_or(NOT_LINKED)? else {
             return Ok(None);
         };
-        let user = self.verify(&token).await?.sub;
+        let user = self.token_subject(&token).await?;
         Ok(Some(user.parse().map_err(|_not_a_number| {
             format!("the Hub's token names no User: {user:?}")
         })?))

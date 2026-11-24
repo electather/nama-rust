@@ -13,12 +13,12 @@ use figment::{
     providers::{Format, Serialized, Toml},
 };
 use nama_plugin_api::{
-    BoxFuture, Plugin, PluginId, Registrar, Registration,
+    BoxFuture, Plugin, PluginError, PluginId, Registrar, Registration,
     auth::Authenticator,
     automation::{Kernel, KernelRefused, Permission},
     settings::{SettingValue, Settings},
 };
-use nama_plugin_hub::Hub;
+use nama_plugin_hub::{Hub, KernelLink};
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_log_events::LogEvents;
 use nama_plugin_test_choices::TestChoices;
@@ -99,20 +99,16 @@ async fn the_hub_plugin_stays_off_across_restarts_until_an_admin_enables_it() {
     let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
     let config = Config {
         data_dir: data_dir.path().to_owned(),
+        // So nothing but its stored state could keep it off.
+        hub_url: Some("http://hub.invalid".to_owned()),
         ..Config::default()
     };
-    // With an address, so nothing but its stored state could keep it off.
-    let registry = || {
-        let registry = Registry::with_builtins();
-        registry.describe_builtin(|| Arc::new(Hub::at("http://hub.invalid")));
-        registry
-    };
-    let first = PluginSettings::start(Arc::clone(&db), registry(), &config)
+    let first = PluginSettings::start(Arc::clone(&db), Registry::with_builtins(), &config)
         .await
         .unwrap();
     drop(first);
 
-    let restarted = PluginSettings::start(db, registry(), &config)
+    let restarted = PluginSettings::start(db, Registry::with_builtins(), &config)
         .await
         .unwrap();
 
@@ -181,7 +177,7 @@ fn a_plugin_that_isnt_running_may_be_disabled_only_while_another_provides_an_aut
 #[test]
 fn each_builtin_plugin_registers_at_exactly_the_extension_points_its_manifest_names() {
     let plugins: [Arc<dyn Plugin>; 6] = [
-        Arc::new(Hub::at("http://hub.invalid")),
+        Arc::new(Hub::through(Arc::new(Uncalled))),
         Arc::new(LocalAuth),
         Arc::new(LogEvents),
         Arc::new(TestChoices),
@@ -219,6 +215,28 @@ fn each_builtin_plugin_registers_at_exactly_the_extension_points_its_manifest_na
             .map(Registration::point)
             .collect();
         assert_eq!(registered, manifest.extension_points, "{}", manifest.id);
+    }
+}
+
+/// The Kernel's Link with a Hub never called, for the Hub Plugin to register with.
+#[derive(Debug)]
+struct Uncalled;
+
+impl KernelLink for Uncalled {
+    fn hub_url(&self) -> &'static str {
+        "http://hub.invalid"
+    }
+
+    fn credential(&self) -> BoxFuture<'_, Result<Option<String>, PluginError>> {
+        Box::pin(async { Ok(None) })
+    }
+
+    fn forget<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<(), PluginError>> {
+        Box::pin(async { Ok(()) })
+    }
+
+    fn token_subject<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<String, PluginError>> {
+        Box::pin(async { Err("not called".into()) })
     }
 }
 

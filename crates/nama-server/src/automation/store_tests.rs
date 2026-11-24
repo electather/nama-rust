@@ -1,8 +1,16 @@
+use std::sync::Arc;
+
 use nama_plugin_api::PluginId;
+use nama_plugin_hub::KernelLink;
+use sqlx::{Connection, SqliteConnection, sqlite::SqliteConnectOptions};
 use tempfile::TempDir;
 
 use super::{Error, delete, get, put, put_within};
-use crate::db::Database;
+use crate::{
+    db::{self, Database},
+    link::{Link, Linking, ServerLink},
+    plugins::ExtensionPoints,
+};
 
 async fn open() -> (TempDir, Database) {
     let data_dir = tempfile::tempdir().unwrap();
@@ -173,4 +181,55 @@ async fn at_the_cap_a_new_key_is_refused_and_a_replacement_allowed() {
     let adas = get(&db, &cleanup, Some(ada), "seen").await.unwrap();
     assert_eq!(adas.as_deref(), Some(&b"2"[..]));
     assert_eq!(get(&db, &cleanup, None, "other").await.unwrap(), None);
+}
+
+/// The version of the migration that moves the Hub Plugin's Link into the Kernel.
+const HUB_LINK: i64 = 20_261_124_195_716;
+
+#[tokio::test]
+async fn upgrading_hands_the_kernel_the_link_the_hub_plugin_kept_and_leaves_its_users_links() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let options = SqliteConnectOptions::new()
+        .filename(data_dir.path().join(db::FILE_NAME))
+        .create_if_missing(true);
+    let mut conn = SqliteConnection::connect_with(&options).await.unwrap();
+    let migrations = sqlx::migrate!();
+    let before = (migrations.iter().map(|migration| migration.version))
+        .filter(|&version| version < HUB_LINK)
+        .max();
+    migrations.run_to(before.unwrap(), &mut conn).await.unwrap();
+    sqlx::raw_sql(
+        r#"INSERT INTO plugin_store (plugin_id, user_id, key, value)
+           VALUES ('hub', NULL, 'link',
+                   CAST('{"credential":"credential-1","account":"ada@example.com"}' AS BLOB)),
+                  ('hub', NULL, 'key-set', CAST('{"keys":[]}' AS BLOB)),
+                  ('hub', NULL, 'user-link/7', CAST('{"account":"grace@example.com"}' AS BLOB));"#,
+    )
+    .execute(&mut conn)
+    .await
+    .unwrap();
+    conn.close().await.unwrap();
+
+    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    // Nothing listens there: the kept Link is read without asking the Hub.
+    let server = Arc::new(ServerLink::new("http://127.0.0.1:1", Arc::clone(&db)).unwrap());
+    let credential = KernelLink::credential(server.as_ref()).await.unwrap();
+    let link = Linking::new(ExtensionPoints::default(), Some(server))
+        .server_link()
+        .await
+        .unwrap();
+    let left: Vec<String> = sqlx::query_scalar("SELECT key FROM plugin_store")
+        .fetch_all(db.reader())
+        .await
+        .unwrap();
+
+    assert_eq!(credential.as_deref(), Some("credential-1"));
+    assert_eq!(
+        link,
+        Link::Linked {
+            account: "ada@example.com".to_owned(),
+            reachability: None,
+        }
+    );
+    assert_eq!(left, ["user-link/7"]);
 }
