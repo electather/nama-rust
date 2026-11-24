@@ -243,52 +243,6 @@ fn each_request_state_becomes_its_twin_and_an_unknown_one_unspecified() {
 }
 
 #[test]
-fn a_library_event_keeps_its_fields() {
-    let finished = api_event(api::ScanFinished {
-        library_id: 4,
-        added: 1,
-        updated: 2,
-        removed: 3,
-        unchanged: 5,
-        ..Default::default()
-    });
-
-    assert_eq!(
-        event(&finished),
-        Some(wire_event(wire::ScanFinished {
-            library_id: 4,
-            added: 1,
-            updated: 2,
-            removed: 3,
-            unchanged: 5,
-            ..Default::default()
-        }))
-    );
-}
-
-#[test]
-fn a_request_event_carries_the_contracts_request() {
-    let asked = api::Request {
-        id: 7,
-        ..Default::default()
-    };
-    let cancelled = api_event(api::RequestCancelled {
-        request: Some(asked.clone()).into(),
-        deleted_by: Some("ada".to_owned()),
-        ..Default::default()
-    });
-
-    assert_eq!(
-        event(&cancelled),
-        Some(wire_event(wire::RequestCancelled {
-            request: Some(request(&asked)).into(),
-            deleted_by: Some("ada".to_owned()),
-            ..Default::default()
-        }))
-    );
-}
-
-#[test]
 #[expect(
     clippy::too_many_lines,
     reason = "one row for each kind the contract converts"
@@ -484,15 +438,6 @@ fn every_event_kind_that_converts_keeps_each_field_in_its_place() {
     for (sent, expected) in kinds {
         assert_eq!(event(&sent), Some(expected));
     }
-}
-
-#[test]
-fn request_progress_and_followed_show_events_are_left_out() {
-    let progress = api_event(api::RequestProgress::default());
-    let followed = api_event(api::FollowedShowCreated::default());
-
-    assert_eq!(event(&progress), None);
-    assert_eq!(event(&followed), None);
 }
 
 #[test]

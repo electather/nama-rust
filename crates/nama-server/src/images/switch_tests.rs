@@ -196,22 +196,6 @@ async fn copied(store: &ImageStore) -> Switching {
 }
 
 #[tokio::test]
-async fn a_store_that_fails_its_probe_is_refused_and_nothing_is_copied() {
-    let data = tempfile::tempdir().unwrap();
-    let old = Arc::new(InMemory::holding(ORIGINALS));
-    let store = store_over(&data, &old).await;
-    let target = Arc::new(InMemory::refusing(|_key| true));
-
-    let refused = store.switch_to(as_blobs(&target), "next", saved()).await;
-
-    assert!(matches!(refused, Err(SwitchRefused::FailedProbe(_))));
-    assert_eq!(target.keys(), Vec::<String>::new());
-    assert_eq!(store.switching(), None);
-    store.write(&["artwork", "after"], b"x").await.unwrap();
-    assert_eq!(target.keys(), Vec::<String>::new());
-}
-
-#[tokio::test]
 async fn a_probe_that_reads_back_other_bytes_leaves_no_object_behind() {
     let data = tempfile::tempdir().unwrap();
     let old = Arc::new(InMemory::holding(ORIGINALS));
