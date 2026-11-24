@@ -143,6 +143,8 @@ async fn an_installed_plugins_lines_come_newest_first_and_go_when_it_is_disabled
     server
         .library(LibraryKind::LIBRARY_KIND_MOVIES, &["Heat (1995).mkv"])
         .await;
+    // The two Scan events may reach the Plugin in either order (`ExtensionPoints::notify`).
+    wait_for_line(&client, "test-plugin", "ScanStarted").await;
     let lines = wait_for_line(&client, "test-plugin", "ScanFinished").await;
 
     let observed: Vec<&str> = texts(&lines);
@@ -152,13 +154,10 @@ async fn an_installed_plugins_lines_come_newest_first_and_go_when_it_is_disabled
             .all(|text| text.starts_with("test-plugin observed")),
         "{observed:?}"
     );
-    let started = observed
-        .iter()
-        .position(|text| text.contains("ScanStarted"));
-    let finished = observed
-        .iter()
-        .position(|text| text.contains("ScanFinished"));
-    assert!(finished < started, "{observed:?}");
+    assert!(
+        lines.windows(2).all(|pair| pair[0].at_ms >= pair[1].at_ms),
+        "{lines:?}"
+    );
     assert!(
         lines
             .iter()
