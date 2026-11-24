@@ -47,7 +47,7 @@ export const pluginPermissions: Partial<
   [PluginPermission.FORGET_GONE_PLUGINS]: {
     label: "Forget removed Plugins",
     about:
-      "It deletes the settings, Plugin Store entries, Personal settings and Plugin Connections of Plugins the Server stopped having a while ago. A disabled Plugin is kept.",
+      "It deletes what Plugins the Server stopped having a while ago left behind. A disabled Plugin is kept.",
   },
   [PluginPermission.REFRESH_METADATA]: {
     label: "Refresh metadata",
