@@ -30,16 +30,19 @@ service InboxService {
 }
 
 message ListInboxNotificationsRequest {
+  // The page of notifications to list.
   PageRequest page = 1;
 }
 
 message ListInboxNotificationsResponse {
   repeated InboxNotification notifications = 1;
+  // The rest of the list: the next page's token, and on the first page how many the caller has.
   PageResponse page = 2;
 }
 
 // A Request notification in a User's inbox.
 message InboxNotification {
+  // What `MarkInboxNotificationRead` takes.
   int64 id = 1;
   // What happened to the Request.
   NotificationKind kind = 2;

@@ -309,7 +309,7 @@ pub enum RefusalReason {
     /// `person_id`.
     REFUSAL_REASON_PERSON_NOT_FOUND = 102i32,
     /// `not_found`: the caller's inbox has no notification with the ID, as another User's isn't in
-    /// theirs. `field` is `id`.
+    /// theirs. `field` is `id`. Params: `notificationId`.
     REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND = 103i32,
 }
 impl RefusalReason {

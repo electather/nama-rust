@@ -5,6 +5,8 @@
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct ListInboxNotificationsRequest {
+    /// The page of notifications to list.
+    ///
     /// Field 1: `page`
     #[serde(
         rename = "page",
@@ -151,6 +153,8 @@ pub struct ListInboxNotificationsResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub notifications: ::buffa::alloc::vec::Vec<InboxNotification>,
+    /// The rest of the list: the next page's token, and on the first page how many the caller has.
+    ///
     /// Field 2: `page`
     #[serde(
         rename = "page",
@@ -321,6 +325,8 @@ pub const __LIST_INBOX_NOTIFICATIONS_RESPONSE_JSON_ANY: ::buffa::type_registry::
 #[derive(::serde::Serialize, ::serde::Deserialize)]
 #[serde(default)]
 pub struct InboxNotification {
+    /// What `MarkInboxNotificationRead` takes.
+    ///
     /// Field 1: `id`
     #[serde(
         rename = "id",

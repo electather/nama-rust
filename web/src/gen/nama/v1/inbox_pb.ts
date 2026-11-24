@@ -21,6 +21,8 @@ export const file_nama_v1_inbox: GenFile = /*@__PURE__*/
  */
 export type ListInboxNotificationsRequest = Message<"nama.v1.ListInboxNotificationsRequest"> & {
   /**
+   * The page of notifications to list.
+   *
    * @generated from field: nama.v1.PageRequest page = 1;
    */
   page?: PageRequest | undefined;
@@ -43,6 +45,8 @@ export type ListInboxNotificationsResponse = Message<"nama.v1.ListInboxNotificat
   notifications: InboxNotification[];
 
   /**
+   * The rest of the list: the next page's token, and on the first page how many the caller has.
+   *
    * @generated from field: nama.v1.PageResponse page = 2;
    */
   page?: PageResponse | undefined;
@@ -62,6 +66,8 @@ export const ListInboxNotificationsResponseSchema: GenMessage<ListInboxNotificat
  */
 export type InboxNotification = Message<"nama.v1.InboxNotification"> & {
   /**
+   * What `MarkInboxNotificationRead` takes.
+   *
    * @generated from field: int64 id = 1;
    */
   id: bigint;

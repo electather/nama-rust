@@ -862,7 +862,7 @@ export const RefusalReason = {
 
   /**
    * `not_found`: the caller's inbox has no notification with the ID, as another User's isn't in
-   * theirs. `field` is `id`.
+   * theirs. `field` is `id`. Params: `notificationId`.
    *
    * @generated from enum value: REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND = 103;
    */

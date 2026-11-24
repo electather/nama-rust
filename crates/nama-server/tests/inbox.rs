@@ -156,7 +156,7 @@ async fn a_user_lists_counts_and_marks_read_only_their_own_notifications_newest_
     );
     assert_eq!(refusal.field, "id");
     assert_eq!(
-        refusal.params.get("id"),
+        refusal.params.get("notificationId"),
         Some(&notifications[0].id.to_string())
     );
     assert_eq!((before, after_one, unread(&adas).await), (2, 1, 0));

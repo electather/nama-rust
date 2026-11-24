@@ -3,6 +3,8 @@
 
 #[derive(Clone, Debug, Default)]
 pub struct ListInboxNotificationsRequestView<'a> {
+    /// The page of notifications to list.
+    ///
     /// Field 1: `page`
     pub page: ::buffa::MessageFieldView<
         super::super::__buffa::view::PageRequestView<'a>,
@@ -256,6 +258,8 @@ impl ListInboxNotificationsRequestOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
+    /// The page of notifications to list.
+    ///
     /// Field 1: `page`
     #[must_use]
     pub fn page(
@@ -305,6 +309,8 @@ pub struct ListInboxNotificationsResponseView<'a> {
         'a,
         super::super::__buffa::view::InboxNotificationView<'a>,
     >,
+    /// The rest of the list: the next page's token, and on the first page how many the caller has.
+    ///
     /// Field 2: `page`
     pub page: ::buffa::MessageFieldView<
         super::super::__buffa::view::PageResponseView<'a>,
@@ -612,6 +618,8 @@ impl ListInboxNotificationsResponseOwnedView {
     > {
         &self.0.reborrow().notifications
     }
+    /// The rest of the list: the next page's token, and on the first page how many the caller has.
+    ///
     /// Field 2: `page`
     #[must_use]
     pub fn page(
@@ -659,6 +667,8 @@ impl ::serde::Serialize for ListInboxNotificationsResponseOwnedView {
 /// A Request notification in a User's inbox.
 #[derive(Clone, Debug, Default)]
 pub struct InboxNotificationView<'a> {
+    /// What `MarkInboxNotificationRead` takes.
+    ///
     /// Field 1: `id`
     pub id: i64,
     /// What happened to the Request.
@@ -1016,6 +1026,8 @@ impl InboxNotificationOwnedView {
     pub fn into_bytes(self) -> ::buffa::bytes::Bytes {
         self.0.into_bytes()
     }
+    /// What `MarkInboxNotificationRead` takes.
+    ///
     /// Field 1: `id`
     #[must_use]
     pub fn id(&self) -> i64 {
