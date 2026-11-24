@@ -7,7 +7,7 @@ use nama_proto::nama::v1::{
 
 use super::{BrowseServiceHandler, Fields, refused, row_title_to_proto};
 use crate::{
-    api::{caller, database_failed, external_id_to_proto, required_id},
+    api::{caller, external_id_to_proto, required_id, shown_images},
     browse::SeenBoxSet,
     library::{Downloaded, ShownImages, StoredBoxSet},
 };
@@ -24,7 +24,7 @@ pub(super) async fn get_box_set(
         title: "box_set_id",
         ..Fields::NONE
     }))?;
-    let images = handler.images.shown().await.map_err(database_failed)?;
+    let images = shown_images(&handler.images, ctx).await?;
     Response::ok(GetBoxSetResponse {
         box_set: box_set_to_proto(seen, &images).into(),
         ..Default::default()
@@ -41,7 +41,7 @@ pub(super) async fn list_box_sets(
         .box_sets(user, request.library_id, &request.page)
         .await;
     let (box_sets, page) = listed.map_err(refused(Fields::LIBRARY))?;
-    let images = handler.images.shown().await.map_err(database_failed)?;
+    let images = shown_images(&handler.images, ctx).await?;
     Response::ok(ListBoxSetsResponse {
         box_sets: (box_sets.into_iter())
             .map(|box_set| box_set_summary(box_set, &images))
