@@ -1,6 +1,5 @@
-//! Linking the Server with the Hub its config names (ADR 0105), and its Users through the enabled
-//! Plugin that links them, such as the Hub Plugin (ADR 0011, ADR 0094), which `Linking` asks:
-//! `ServerService`'s `GetServerLink`, `StartServerLink` and `UnlinkServer`, `UserService`'s
+//! Linking the Server and its Users with the Hub its config names (ADR 0011, ADR 0105), which
+//! `Linking` asks: `ServerService`'s `GetServerLink`, `StartServerLink` and `UnlinkServer`, `UserService`'s
 //! `GetUserLink` and `StartUserLink`, and `SignInService`'s `StartAccountSignIn` (ADR 0092), with
 //! the Refusals of `Linking`'s errors.
 
@@ -22,8 +21,7 @@ use crate::{
 };
 
 /// What `unavailable` says when Linking fails, such as with the Hub unreachable.
-pub(super) const LINKING_FAILED: &str =
-    "Linking failed; the Server's log or the Hub Plugin's page says why";
+pub(super) const LINKING_FAILED: &str = "Linking failed; the Server's log says why";
 
 /// What `unavailable` says when a sign-in with an Account fails, such as while the Hub is down. A
 /// Device already signed in never needs the Hub (ADR 0092).
@@ -55,8 +53,8 @@ pub(super) async fn unlink(linking: &Linking) -> ServiceResult<UnlinkServerRespo
     Response::ok(UnlinkServerResponse::default())
 }
 
-/// Where Linking `user` stands, unset while they can't Link: without an enabled Plugin that links
-/// the Server, or before the Server is Linked.
+/// Where Linking `user` stands, unset while they can't Link: when the Server's config names no Hub,
+/// or before the Server is Linked.
 pub(super) async fn get_user(linking: &Linking, user: &User) -> ServiceResult<GetUserLinkResponse> {
     let link = unless_nothing_to_ask(linking.user_link(user.id).await)?;
     Response::ok(GetUserLinkResponse {
@@ -65,7 +63,7 @@ pub(super) async fn get_user(linking: &Linking, user: &User) -> ServiceResult<Ge
     })
 }
 
-/// Starts Linking `user`, whom the service lists by their name.
+/// Starts Linking `user`, whom the Hub lists by their name.
 pub(super) async fn start_user(
     linking: &Linking,
     user: &User,
@@ -77,7 +75,7 @@ pub(super) async fn start_user(
     })
 }
 
-/// Starts signing in with an Account, which the service sends back to `return_url`, one of the
+/// Starts signing in with an Account, which the Hub sends back to `return_url`, one of the
 /// Server Addresses the Server reports given its Server URL `server_url` and `listening`.
 pub(super) async fn start_account_sign_in(
     linking: &Linking,
@@ -113,15 +111,15 @@ pub(super) async fn start_account_sign_in(
     })
 }
 
-/// `answer`, `None` when the Server's config names no Hub or no Plugin links its Users.
+/// `answer`, `None` when the Server's config names no Hub.
 fn unless_nothing_to_ask<T>(answer: Result<T, link::Error>) -> Result<Option<T>, ConnectError> {
     match answer {
-        Err(link::Error::NoLinkingPlugin | link::Error::NoHub) => Ok(None),
+        Err(link::Error::NoHub) => Ok(None),
         answer => Ok(Some(answer?)),
     }
 }
 
-/// The Connect error a client gets for a call to the Plugin that links the Server that failed.
+/// The Connect error a client gets for a Link call that failed.
 impl From<link::Error> for ConnectError {
     fn from(err: link::Error) -> Self {
         linking_failed(err, LINKING_FAILED)
@@ -136,12 +134,7 @@ pub(super) fn account_sign_in_failed(err: link::Error) -> ConnectError {
 /// [`link::Error`]'s Connect error, saying `unavailable` when no answer came.
 fn linking_failed(err: link::Error, unavailable: &'static str) -> ConnectError {
     match err {
-        link::Error::NoLinkingPlugin => no_linking_plugin(),
-        link::Error::NoHub => refuse(
-            RefusalReason::REFUSAL_REASON_NO_SERVER_LINKER,
-            "the Server's config names no Hub",
-        )
-        .into(),
+        link::Error::NoHub => no_hub(),
         link::Error::Failed => ConnectError::unavailable(unavailable),
     }
 }
@@ -151,10 +144,10 @@ fn is_web_address(url: &str) -> bool {
     url::Url::parse(url).is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.has_host())
 }
 
-pub(super) fn no_linking_plugin() -> ConnectError {
+pub(super) fn no_hub() -> ConnectError {
     refuse(
         RefusalReason::REFUSAL_REASON_NO_SERVER_LINKER,
-        "no enabled Plugin links the Server",
+        "the Server's config names no Hub",
     )
     .into()
 }

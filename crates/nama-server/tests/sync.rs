@@ -1,6 +1,7 @@
 //! A User's Watch State and Track Preferences on their other Servers coming back through the
 //! enabled Plugin that links the Server (ADR 0008, ADR 0092), and their Watchlist syncing with them
-//! (ADR 0056), here a stand-in for the Hub that two Servers share.
+//! (ADR 0056), here a stand-in for the Hub that two Servers share. Where a test needs a User's
+//! Link, the Kernel's own fake Hub Links them (ADR 0105).
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
@@ -28,7 +29,7 @@ use nama_plugin_api::{
         TrackDescription, TrackPreference, TrackPreferenceChange, TrackPreferenceChanged,
         WatchStateChange, WatchStateChanges, WatchStatesChanged,
     },
-    server_link::{AccountSignIn, Link, ServerLinker, WatchlistEntry},
+    server_link::{ServerLinker, WatchlistEntry},
 };
 use nama_proto::nama::v1::{
     AddToWatchlistRequest, BrowseServiceClient, GetMovieRequest, GetTrackPreferencesRequest,
@@ -129,48 +130,7 @@ impl Observer<TrackPreferenceChanged> for Hub {
     }
 }
 
-/// Only what pulling and syncing ask; the rest is `tests/server_link.rs`'s.
 impl ServerLinker for Hub {
-    fn user_link(&self, _: i64) -> BoxFuture<'_, Result<Option<Link>, PluginError>> {
-        Box::pin(future::ready(Ok(Some(linked()))))
-    }
-
-    fn start_user_link<'a>(
-        &'a self,
-        _: i64,
-        _: &'a str,
-    ) -> BoxFuture<'a, Result<Link, PluginError>> {
-        Box::pin(future::ready(Ok(linked())))
-    }
-
-    fn unlink_user(&self, _: i64) -> BoxFuture<'_, Result<(), PluginError>> {
-        Box::pin(future::ready(Ok(())))
-    }
-
-    fn invite_user<'a>(
-        &'a self,
-        _: i64,
-        _: &'a str,
-        _: &'a str,
-    ) -> BoxFuture<'a, Result<(), PluginError>> {
-        Box::pin(future::ready(Ok(())))
-    }
-
-    fn start_account_sign_in<'a>(
-        &'a self,
-        _: &'a str,
-    ) -> BoxFuture<'a, Result<AccountSignIn, PluginError>> {
-        Box::pin(future::ready(Err("no sign-in with an Account here".into())))
-    }
-
-    fn finish_account_sign_in<'a>(
-        &'a self,
-        _: &'a str,
-        _: &'a str,
-    ) -> BoxFuture<'a, Result<Option<i64>, PluginError>> {
-        Box::pin(future::ready(Ok(None)))
-    }
-
     fn watch_states(&self, _: i64) -> BoxFuture<'_, Result<Vec<WatchStateChange>, PluginError>> {
         self.asked().push("pull");
         Box::pin(future::ready(Ok(self.kept().clone())))
@@ -196,13 +156,6 @@ impl ServerLinker for Hub {
             }
         }
         Box::pin(future::ready(Ok(kept.values().cloned().collect())))
-    }
-}
-
-fn linked() -> Link {
-    Link::Linked {
-        account: "ada@example.com".to_owned(),
-        reachability: None,
     }
 }
 
@@ -418,11 +371,45 @@ async fn unlink_admin(server: &TestServer) {
         .unwrap();
 }
 
+/// The id of the Admin a fresh Server sets up, its first User.
+const ADMIN: i64 = 1;
+
+/// A Server with the Kernel's fake Hub in its config, as `builder` starts it.
+fn with_kernels_hub(builder: server::Builder, kernels_hub: &FakeHub) -> server::Builder {
+    builder.config(kernels_hub.config())
+}
+
+/// Links `server` with `kernels_hub`, waits until `hub` has what that pushed, as `pushed` says,
+/// and forgets it, then Links the Admin on the Hub, so what `hub` has next the Admin's Link pushed.
+async fn link_server_then_admin(
+    kernels_hub: &FakeHub,
+    server: &TestServer,
+    hub: &Hub,
+    pushed: impl Fn(&Hub) -> bool,
+) {
+    kernels_hub.link(server).await;
+    until("the Server's Link pushed", async || pushed(hub)).await;
+    hub.kept().clear();
+    hub.kept_preferences().clear();
+    kernels_hub.link_user(ADMIN);
+}
+
+/// Whether `hub` has the one Watch State change the Server stored.
+fn has_one_change(hub: &Hub) -> bool {
+    hub.kept().len() == 1
+}
+
+/// Whether `hub` has the two Track Preferences the Server stored.
+fn has_two_preferences(hub: &Hub) -> bool {
+    hub.kept_preferences().len() == 2
+}
+
 #[tokio::test]
 async fn linking_a_user_pushes_their_watch_state_from_before_dated_as_stored() {
-    let hub = Hub::default();
-    let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
+    let (hub, kernels_hub) = (Hub::default(), FakeHub::start().await);
+    let fx = Fixture::alien_on(hub.on(with_kernels_hub(TestServer::builder(), &kernels_hub))).await;
     let stored = alien_watched_before_linking(&fx, &hub).await;
+    link_server_then_admin(&kernels_hub, &fx.server, &hub, has_one_change).await;
 
     look_at_admins_link(&fx.server).await;
 
@@ -433,37 +420,43 @@ async fn linking_a_user_pushes_their_watch_state_from_before_dated_as_stored() {
 #[tokio::test]
 async fn a_users_new_link_pushes_their_watch_state_once_however_often_looked_at_and_again_after_a_restart()
  {
-    let hub = Hub::default();
-    let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
+    let (hub, kernels_hub) = (Hub::default(), FakeHub::start().await);
+    let fx = Fixture::alien_on(hub.on(with_kernels_hub(TestServer::builder(), &kernels_hub))).await;
     let stored = alien_watched_before_linking(&fx, &hub).await;
+    link_server_then_admin(&kernels_hub, &fx.server, &hub, has_one_change).await;
     look_at_admins_link(&fx.server).await;
     until("the Hub has the push", async || !hub.kept().is_empty()).await;
 
     look_at_admins_link(&fx.server).await;
     // Pushed after any push the second look made, as new Links are pushed in the order seen.
     unlink_admin(&fx.server).await;
-    look_at_admins_link(&fx.server).await;
+    kernels_hub.link_user(ADMIN);
+    start_admins_link(&fx.server).await;
     until("the Hub has the relink's push", async || {
         hub.kept().len() > 1
     })
     .await;
     let pushed_before_restart = hub.kept().len();
-    let restarted = hub.on(TestServer::builder()).restart(fx.server).await;
+    let restarted = (hub.on(with_kernels_hub(TestServer::builder(), &kernels_hub)))
+        .restart(fx.server)
+        .await;
     look_at_admins_link(&restarted).await;
 
     assert_eq!(pushed_before_restart, 2, "a second look pushed again");
-    until("the Hub has the restart's push", async || {
-        hub.kept().len() == 3
+    // The restart's first look at the Server's Link pushes too, at startup.
+    until("the Hub has the restart's pushes", async || {
+        hub.kept().len() == 4
     })
     .await;
-    assert_eq!(*hub.kept(), [stored.clone(), stored.clone(), stored]);
+    assert_eq!(*hub.kept(), vec![stored; 4]);
 }
 
 #[tokio::test]
 async fn linking_a_user_leaves_a_title_the_account_has_newer_as_the_account_has_it() {
-    let hub = Hub::default();
-    let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
+    let (hub, kernels_hub) = (Hub::default(), FakeHub::start().await);
+    let fx = Fixture::alien_on(hub.on(with_kernels_hub(TestServer::builder(), &kernels_hub))).await;
     let stored = alien_watched_before_linking(&fx, &hub).await;
+    link_server_then_admin(&kernels_hub, &fx.server, &hub, has_one_change).await;
     let watched_on_another_server = WatchStateChange {
         position_ms: 90_000,
         changed_at_ms: stored.changed_at_ms + 60_000,
@@ -500,9 +493,10 @@ async fn start_admins_link(server: &TestServer) {
 
 #[tokio::test]
 async fn starting_a_link_already_made_pushes_then_pulls_and_syncs_the_watchlist() {
-    let hub = Hub::default();
-    let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
+    let (hub, kernels_hub) = (Hub::default(), FakeHub::start().await);
+    let fx = Fixture::alien_on(hub.on(with_kernels_hub(TestServer::builder(), &kernels_hub))).await;
     let stored = alien_watched_before_linking(&fx, &hub).await;
+    link_server_then_admin(&kernels_hub, &fx.server, &hub, has_one_change).await;
     let watched_on_another_server = WatchStateChange {
         position_ms: 90_000,
         changed_at_ms: stored.changed_at_ms + 60_000,
@@ -556,9 +550,12 @@ async fn linking_the_server_pushes_every_users_watch_state_dated_as_stored() {
 
 #[tokio::test]
 async fn linking_a_user_pushes_their_track_preferences_from_before_dated_as_stored() {
-    let hub = Hub::default();
-    let server = hub.on(TestServer::builder()).start().await;
+    let (hub, kernels_hub) = (Hub::default(), FakeHub::start().await);
+    let server = (hub.on(with_kernels_hub(TestServer::builder(), &kernels_hub)))
+        .start()
+        .await;
     let stored = preferences_set_before_linking(&server, &hub).await;
+    link_server_then_admin(&kernels_hub, &server, &hub, has_two_preferences).await;
 
     look_at_admins_link(&server).await;
 
@@ -571,10 +568,13 @@ async fn linking_a_user_pushes_their_track_preferences_from_before_dated_as_stor
 
 #[tokio::test]
 async fn linking_a_user_leaves_a_preference_the_account_has_newer_as_the_account_has_it() {
-    let hub = Hub::default();
-    let server = hub.on(TestServer::builder()).start().await;
+    let (hub, kernels_hub) = (Hub::default(), FakeHub::start().await);
+    let server = (hub.on(with_kernels_hub(TestServer::builder(), &kernels_hub)))
+        .start()
+        .await;
     let [_, japanese] = <[_; 2]>::try_from(preferences_set_before_linking(&server, &hub).await)
         .expect("one Subtitle and one Audio Preference");
+    link_server_then_admin(&kernels_hub, &server, &hub, has_two_preferences).await;
     let set_on_another_server = TrackPreference {
         like: Some(TrackDescription {
             language: Some("fre".to_owned()),

@@ -1,17 +1,15 @@
 //! Linking the Server with the Hub its config names, which the Kernel does with no Plugin (ADR
 //! 0105), here an in-process fake, and a Server whose config names none, which has nothing to Link
 //! (ADR 0002). The Hub is told the Server's Server Addresses, and the Server shows whether it reached
-//! it from outside. A User Links through the enabled Plugin that links them (ADR 0011, ADR 0094),
-//! here one scripted by each test, as do Users created from Accounts, signing in with an Account,
-//! and the Admin who can always sign in without the Hub (ADR 0092).
+//! it from outside. Its Users Link through the Kernel too (ADR 0011, ADR 0105), as do Users created
+//! from Accounts, signing in with an Account, and the Admin who can always sign in without the Hub
+//! (ADR 0092), all with no Plugin enabled.
 
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/fake_hub.rs"]
 mod fake_hub;
 #[path = "support/refused.rs"]
 mod refused;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/scripted_linker.rs"]
-mod scripted_linker;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
@@ -22,20 +20,24 @@ use connectrpc::{
     ConnectError, ErrorCode,
     client::{ClientConfig, HttpClient},
 };
-use fake_hub::{CODE, EMAIL, FakeHub, OPEN_PORT, OWN, PUBLIC_IP};
-use nama_plugin_api::server_link::Link;
+use fake_hub::{
+    CODE, EMAIL, FakeHub, OPEN_PORT, OWN, PUBLIC_IP, SIGN_IN_CODE, SIGN_IN_ID, USER_CODE,
+};
 use nama_proto::nama::v1::{
     self as proto, CreateUserFromAccountRequest, DeleteUserRequest, GetServerInfoRequest,
     GetServerLinkRequest, GetUserLinkRequest, ListUsersRequest, Permission, ReauthenticateRequest,
     RefusalReason, ServerServiceClient, ServerSettings, SessionDelivery, SetPermissionsRequest,
     SignInServiceClient, SignInWithAccountRequest, StartAccountSignInRequest,
     StartServerLinkRequest, StartUserLinkRequest, UnlinkServerRequest, UnlinkUserRequest,
-    UpdateServerSettingsRequest, WhoAmIRequest, reauthenticate_request::Proof,
+    UpdateServerSettingsRequest, UserServiceClient, WhoAmIRequest, reauthenticate_request::Proof,
 };
 use nama_server::config::Config;
 use refused::assert_refused;
-use scripted_linker::{Scripted, enabling, users, with_linker};
 use server::TestServer;
+
+fn users(config: ClientConfig) -> UserServiceClient<HttpClient> {
+    UserServiceClient::new(HttpClient::plaintext(), config)
+}
 
 fn settings(server: &TestServer) -> ServerServiceClient<HttpClient> {
     ServerServiceClient::new(HttpClient::plaintext(), server.client_config())
@@ -133,17 +135,15 @@ async fn a_server_whose_config_names_no_hub_has_nothing_to_link() {
 
 #[tokio::test]
 async fn a_users_link_is_unset_until_the_server_is_linked() {
-    let linker = Scripted::default();
-    let server = with_linker(&linker).await;
+    let hub = FakeHub::start().await;
+    let server = TestServer::builder().config(hub.config()).start().await;
 
     assert_eq!(user_link(server.client_config()).await, None);
 }
 
 #[tokio::test]
-async fn a_user_shows_the_code_the_plugin_starts_for_them_and_then_whose_they_are() {
-    let linker = Scripted::default();
-    linker.script().user_link = Some(Link::NotLinked);
-    let server = with_linker(&linker).await;
+async fn a_user_shows_the_code_the_hub_gives_them_and_then_whose_they_are() {
+    let (server, hub) = linked_server().await;
     let grace = server.user_with_default_permissions("Grace").await;
     assert_eq!(
         user_link(grace.client_config()).await,
@@ -159,22 +159,16 @@ async fn a_user_shows_the_code_the_plugin_starts_for_them_and_then_whose_they_ar
         .into_option();
 
     let waiting = proto::UserLink {
-        code: "CDFG-HJKL".to_owned(),
-        url: "https://hub.example".to_owned(),
+        code: USER_CODE.to_owned(),
+        url: hub.url(),
         ..Default::default()
     };
     assert_eq!(started, Some(waiting.clone()));
-    assert_eq!(
-        linker.script().user_started,
-        Some((grace.id, "Grace".to_owned()))
-    );
+    assert_eq!(hub.user_starting(grace.id).as_deref(), Some("Grace"));
     assert_eq!(user_link(grace.client_config()).await, Some(waiting));
-    linker.script().user_link = Some(Link::Linked {
-        account: "grace@example.com".to_owned(),
-        reachability: None,
-    });
+    hub.enter_user_code(grace.id);
     let shown = user_link(grace.client_config()).await.unwrap();
-    assert_eq!(shown.account, "grace@example.com");
+    assert_eq!(shown.account, EMAIL);
 
     users(grace.client_config())
         .unlink_user(UnlinkUserRequest::default())
@@ -185,6 +179,28 @@ async fn a_user_shows_the_code_the_plugin_starts_for_them_and_then_whose_they_ar
         user_link(grace.client_config()).await,
         Some(proto::UserLink::default())
     );
+    assert_eq!(hub.unlinked_users(), [grace.id]);
+}
+
+#[tokio::test]
+async fn a_server_linked_again_doesnt_show_its_users_old_links_while_the_hub_is_unreachable() {
+    let (server, hub) = linked_server().await;
+    let grace = server.user_with_default_permissions("Grace").await;
+    hub.link_user(grace.id);
+    assert_eq!(
+        user_link(grace.client_config()).await.unwrap().account,
+        EMAIL
+    );
+    settings(&server)
+        .unlink_server(UnlinkServerRequest::default())
+        .await
+        .unwrap();
+    hub.link(&server).await;
+    hub.stop();
+
+    let shown = user_link(grace.client_config()).await;
+
+    assert_eq!(shown, Some(proto::UserLink::default()));
 }
 
 #[tokio::test]
@@ -214,8 +230,7 @@ async fn the_server_links_and_unlinks_with_the_hub_with_no_plugin() {
     assert_eq!(shown.account, EMAIL);
     assert_eq!(shown.code, "");
     assert!(hub.linked());
-    // Signing in with an Account needs the Plugin that links Users, which isn't enabled.
-    assert!(!offers_account_sign_in(&server).await);
+    assert!(offers_account_sign_in(&server).await);
 
     settings(&server)
         .unlink_server(UnlinkServerRequest::default())
@@ -267,15 +282,11 @@ async fn a_server_the_hub_forgot_is_unlinked_by_its_next_report() {
 /// A `return_url` on the Server URL [`linked_server`] sets.
 const ON_SERVER: &str = "https://nama.example/sign-in";
 
-/// A Server Linked to an Account on the fake Hub, at the Server URL `https://nama.example`, with
-/// `linker` enabled, and the Hub.
-async fn linked_server(linker: &Scripted) -> (TestServer, FakeHub) {
+/// A Server Linked to an Account on the fake Hub, at the Server URL `https://nama.example`, with no
+/// Plugin enabled, and the Hub.
+async fn linked_server() -> (TestServer, FakeHub) {
     let hub = FakeHub::start().await;
-    let server = TestServer::builder()
-        .config(hub.config())
-        .plugins(enabling(linker))
-        .start()
-        .await;
+    let server = TestServer::builder().config(hub.config()).start().await;
     hub.link(&server).await;
     set_server_url(&server, "https://nama.example").await;
     (server, hub)
@@ -360,19 +371,21 @@ async fn offers_account_sign_in(server: &TestServer) -> bool {
 
 #[tokio::test]
 async fn a_user_created_from_an_account_signs_in_and_reauthenticates_once_the_account_approves() {
-    let linker = Scripted::default();
-    let (server, _hub) = linked_server(&linker).await;
+    let (server, hub) = linked_server().await;
 
     let grace = create_from_account(&server, " Grace ").await.unwrap();
 
     assert_eq!(
-        linker.script().invited,
+        hub.invited(),
         Some((grace, "Grace".to_owned(), "grace@example.com".to_owned()))
     );
     assert!(offers_account_sign_in(&server).await);
     let started = start_account_sign_in(&server, ON_SERVER).await.unwrap();
-    assert_eq!(started.url, "https://hub.example/server-sign-in/1");
-    assert_eq!(linker.script().returns_to.as_deref(), Some(ON_SERVER));
+    assert_eq!(
+        started.url,
+        format!("{}/server-sign-in/{SIGN_IN_ID}", hub.url())
+    );
+    assert_eq!(hub.returns_to().as_deref(), Some(ON_SERVER));
     assert_refused(
         start_account_sign_in(&server, "javascript:alert(1)").await,
         ErrorCode::InvalidArgument,
@@ -385,14 +398,14 @@ async fn a_user_created_from_an_account_signs_in_and_reauthenticates_once_the_ac
         RefusalReason::REFUSAL_REASON_NOT_A_SERVER_ADDRESS,
     );
     assert_eq!(off_server.params["serverUrl"], "https://nama.example");
-    assert_eq!(linker.script().returns_to.as_deref(), Some(ON_SERVER));
+    assert_eq!(hub.returns_to().as_deref(), Some(ON_SERVER));
     assert_refused(
-        sign_in_with_account(&server, &started.handle, "code").await,
+        sign_in_with_account(&server, &started.handle, SIGN_IN_CODE).await,
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND,
     );
-    linker.script().approved = Some(grace);
-    let signed_in = sign_in_with_account(&server, &started.handle, "code")
+    hub.approve_sign_in(grace);
+    let signed_in = sign_in_with_account(&server, &started.handle, SIGN_IN_CODE)
         .await
         .unwrap();
     assert_eq!(signed_in.user.into_option().unwrap().name, "Grace");
@@ -419,15 +432,15 @@ async fn a_user_created_from_an_account_signs_in_and_reauthenticates_once_the_ac
     );
     let hedy = create_from_account(&server, "Hedy").await.unwrap();
     let by_hedy = start_account_sign_in(&server, ON_SERVER).await.unwrap();
-    linker.script().approved = Some(hedy);
+    hub.approve_sign_in(hedy);
     assert_refused(
-        reauthenticate_with_account(device.clone(), &by_hedy.handle, "code").await,
+        reauthenticate_with_account(device.clone(), &by_hedy.handle, SIGN_IN_CODE).await,
         ErrorCode::Unauthenticated,
         RefusalReason::REFUSAL_REASON_WRONG_ACCOUNT,
     );
     let by_grace = start_account_sign_in(&server, ON_SERVER).await.unwrap();
-    linker.script().approved = Some(grace);
-    reauthenticate_with_account(device.clone(), &by_grace.handle, "code")
+    hub.approve_sign_in(grace);
+    reauthenticate_with_account(device.clone(), &by_grace.handle, SIGN_IN_CODE)
         .await
         .unwrap();
     start_user_link().await.unwrap();
@@ -435,19 +448,19 @@ async fn a_user_created_from_an_account_signs_in_and_reauthenticates_once_the_ac
 
 #[tokio::test]
 async fn with_the_hub_down_devices_stay_signed_in_but_accounts_cant_sign_in_or_reauthenticate() {
-    let linker = Scripted::default();
-    let (server, _hub) = linked_server(&linker).await;
+    let (server, hub) = linked_server().await;
     let grace = create_from_account(&server, "Grace").await.unwrap();
     let started = start_account_sign_in(&server, ON_SERVER).await.unwrap();
-    linker.script().approved = Some(grace);
-    let signed_in = sign_in_with_account(&server, &started.handle, "code")
+    hub.approve_sign_in(grace);
+    let signed_in = sign_in_with_account(&server, &started.handle, SIGN_IN_CODE)
         .await
         .unwrap();
 
-    linker.script().unreachable = true;
+    hub.stop();
 
     let device = server.client_config_as(&signed_in.token);
-    let not_confirmed = reauthenticate_with_account(device.clone(), &started.handle, "code").await;
+    let not_confirmed =
+        reauthenticate_with_account(device.clone(), &started.handle, SIGN_IN_CODE).await;
     assert_eq!(not_confirmed.unwrap_err().code, ErrorCode::Unavailable);
     let still = SignInServiceClient::new(HttpClient::plaintext(), device)
         .who_am_i(WhoAmIRequest::default())
@@ -494,37 +507,35 @@ async fn cannot_sign_in(server: &TestServer) -> Vec<i64> {
 
 #[tokio::test]
 async fn a_user_with_no_password_whose_account_unlinked_them_is_listed_as_unable_to_sign_in() {
-    let linker = Scripted::default();
-    let (server, _hub) = linked_server(&linker).await;
+    let (server, hub) = linked_server().await;
     let grace = create_from_account(&server, "Grace").await.unwrap();
-    linker.script().user_link = Some(Link::Linked {
-        account: "grace@example.com".to_owned(),
-        reachability: None,
-    });
+    hub.link_user(grace);
     assert_eq!(cannot_sign_in(&server).await, Vec::<i64>::new());
 
-    // As when Grace's Account is deleted on the Hub.
-    linker.script().user_link = Some(Link::NotLinked);
+    // As when Grace's Account is deleted on the Hub. The Server asks again a minute later, or at
+    // once after a restart.
+    hub.unlink_user_on_hub(grace);
+    let restarted = TestServer::builder()
+        .config(hub.config())
+        .restart(server)
+        .await;
 
-    assert_eq!(cannot_sign_in(&server).await, [grace]);
+    assert_eq!(cannot_sign_in(&restarted).await, [grace]);
 }
 
 #[tokio::test]
 async fn a_user_who_signs_in_only_with_their_account_cant_unlink_from_it_but_can_cancel_a_code() {
-    let linker = Scripted::default();
-    let (server, _hub) = linked_server(&linker).await;
+    let (server, hub) = linked_server().await;
     let grace = create_from_account(&server, "Grace").await.unwrap();
     let started = start_account_sign_in(&server, ON_SERVER).await.unwrap();
-    linker.script().approved = Some(grace);
-    let signed_in = sign_in_with_account(&server, &started.handle, "code")
+    hub.approve_sign_in(grace);
+    let signed_in = sign_in_with_account(&server, &started.handle, SIGN_IN_CODE)
         .await
         .unwrap();
-    linker.script().user_link = Some(Link::Linked {
-        account: "grace@example.com".to_owned(),
-        reachability: None,
-    });
+    hub.link_user(grace);
+    let device = server.client_config_as(&signed_in.token);
     let unlink = async || {
-        users(server.client_config_as(&signed_in.token))
+        users(device.clone())
             .unlink_user(UnlinkUserRequest::default())
             .await
     };
@@ -534,14 +545,33 @@ async fn a_user_who_signs_in_only_with_their_account_cant_unlink_from_it_but_can
         ErrorCode::FailedPrecondition,
         RefusalReason::REFUSAL_REASON_LAST_SIGN_IN_METHOD,
     );
-    assert_eq!(linker.script().unlinked_users, Vec::<i64>::new());
+    assert_eq!(hub.unlinked_users(), Vec::<i64>::new());
     // Unlinked on the Hub since, and Linking again, they can still stop showing their new code.
-    linker.script().user_link = Some(Link::Waiting {
-        code: "CDFG-HJKL".to_owned(),
-        url: "https://hub.example".to_owned(),
-    });
+    hub.unlink_user_on_hub(grace);
+    let again = start_account_sign_in(&server, ON_SERVER).await.unwrap();
+    hub.approve_sign_in(grace);
+    reauthenticate_with_account(device.clone(), &again.handle, SIGN_IN_CODE)
+        .await
+        .unwrap();
+    users(device.clone())
+        .start_user_link(StartUserLinkRequest::default())
+        .await
+        .unwrap();
     unlink().await.unwrap();
-    assert_eq!(linker.script().unlinked_users, [grace]);
+    assert_eq!(hub.unlinked_users(), [grace]);
+}
+
+#[tokio::test]
+async fn a_sign_in_token_the_hub_signed_for_another_server_is_refused() {
+    let (server, hub) = linked_server().await;
+    let grace = create_from_account(&server, "Grace").await.unwrap();
+    let started = start_account_sign_in(&server, ON_SERVER).await.unwrap();
+    hub.sign_in_for("another server");
+    hub.approve_sign_in(grace);
+
+    let refused = sign_in_with_account(&server, &started.handle, SIGN_IN_CODE).await;
+
+    assert_eq!(refused.unwrap_err().code, ErrorCode::Unavailable);
 }
 
 /// Longer than the bound on a look at a Link, shorter than forever.
@@ -564,12 +594,10 @@ async fn server_info_offers_passwords_alone_while_the_hub_never_answers() {
 }
 
 #[tokio::test]
-async fn the_users_list_answers_while_the_plugin_never_answers_and_lists_no_one_unable_to_sign_in()
-{
-    let linker = Scripted::default();
-    let (server, _hub) = linked_server(&linker).await;
+async fn the_users_list_answers_while_the_hub_never_answers_and_lists_no_one_unable_to_sign_in() {
+    let (server, hub) = linked_server().await;
     create_from_account(&server, "Grace").await.unwrap();
-    linker.script().links_hang = true;
+    hub.hang();
 
     let listed = tokio::time::timeout(PAST_THE_BOUND, cannot_sign_in(&server)).await;
 
@@ -578,12 +606,11 @@ async fn the_users_list_answers_while_the_plugin_never_answers_and_lists_no_one_
 
 #[tokio::test]
 async fn reauthenticating_with_an_account_past_the_limit_is_refused_without_asking_the_hub() {
-    let linker = Scripted::default();
-    let (server, _hub) = linked_server(&linker).await;
+    let (server, hub) = linked_server().await;
     let grace = create_from_account(&server, "Grace").await.unwrap();
     let started = start_account_sign_in(&server, ON_SERVER).await.unwrap();
-    linker.script().approved = Some(grace);
-    let signed_in = sign_in_with_account(&server, &started.handle, "code")
+    hub.approve_sign_in(grace);
+    let signed_in = sign_in_with_account(&server, &started.handle, SIGN_IN_CODE)
         .await
         .unwrap();
     let device = server.client_config_as(&signed_in.token);
@@ -591,34 +618,33 @@ async fn reauthenticating_with_an_account_past_the_limit_is_refused_without_aski
     // Each counts toward the limit on Grace's name: never approved, or approved by Hedy's Account.
     for _ in 0..5 {
         assert_refused(
-            reauthenticate_with_account(device.clone(), &started.handle, "code").await,
+            reauthenticate_with_account(device.clone(), &started.handle, SIGN_IN_CODE).await,
             ErrorCode::NotFound,
             RefusalReason::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND,
         );
-        linker.script().approved = Some(hedy);
+        hub.approve_sign_in(hedy);
         assert_refused(
-            reauthenticate_with_account(device.clone(), &started.handle, "code").await,
+            reauthenticate_with_account(device.clone(), &started.handle, SIGN_IN_CODE).await,
             ErrorCode::Unauthenticated,
             RefusalReason::REFUSAL_REASON_WRONG_ACCOUNT,
         );
     }
-    let asked = linker.script().finishes;
-    linker.script().approved = Some(grace);
+    let asked = hub.sign_in_polls();
+    hub.approve_sign_in(grace);
 
-    let blocked = reauthenticate_with_account(device, &started.handle, "code").await;
+    let blocked = reauthenticate_with_account(device, &started.handle, SIGN_IN_CODE).await;
 
     assert_refused(
         blocked,
         ErrorCode::ResourceExhausted,
         RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS,
     );
-    assert_eq!(linker.script().finishes, asked);
+    assert_eq!(hub.sign_in_polls(), asked);
 }
 
 #[tokio::test]
 async fn the_last_admin_who_signs_in_with_a_password_cant_be_demoted_or_deleted() {
-    let linker = Scripted::default();
-    let (server, _hub) = linked_server(&linker).await;
+    let (server, _hub) = linked_server().await;
     let grace = create_from_account(&server, "Grace").await.unwrap();
     let admin = SignInServiceClient::new(HttpClient::plaintext(), server.client_config())
         .who_am_i(WhoAmIRequest::default())
