@@ -60,6 +60,33 @@ test("a User's Permissions are saved as they're changed, and are there after rel
   expect(screen.queryByRole("button", { name: /Save/u })).toBeNull();
 });
 
+test("an Admin may give a User Download, which they lacked", async () => {
+  let alex: Holder = { id: 2n, name: "Alex", permissions: [...newUser] };
+  openApp(
+    usersSection,
+    fakeServer(
+      { signedIn: admin },
+      {},
+      {
+        listUsers: () => ({ users: [alex] }),
+        setPermissions: ({ permissions }) => {
+          alex = { ...alex, permissions };
+          return {};
+        },
+      },
+    ),
+  );
+
+  await openUser("Alex");
+  const download = await screen.findByRole("checkbox", { name: "Download" });
+  expect(download).toHaveProperty("checked", false);
+  fireEvent.click(download);
+
+  await waitFor(() => {
+    expect(alex.permissions).toStrictEqual([...newUser, Permission.DOWNLOAD]);
+  });
+});
+
 test("a User's cap for remote playback starts at No cap and is saved with their Permissions as it's picked", async () => {
   const saves: unknown[] = [];
   openApp(

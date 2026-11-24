@@ -484,7 +484,7 @@ pub(crate) fn following_current(span: Span) -> Span {
 }
 
 /// Marks the RPC span [`trace_call`] left in a request's `extensions` failed with `err`'s code.
-pub(crate) fn rpc_failed(extensions: &axum::http::Extensions, err: &ConnectError) {
+pub(crate) fn rpc_failed(extensions: &http::Extensions, err: &ConnectError) {
     mark_if_failed(extensions.get::<Span>(), Some(err));
 }
 

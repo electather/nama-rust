@@ -19,6 +19,7 @@ use crate::{
         local_images::{LocalImageUrls, LocalImages},
     },
     server_settings::ImageSettings,
+    signed_urls::{UrlSigner, signed_by},
 };
 
 /// Where a response finds the images it shows: see [`ImageSources::shown`].
@@ -38,6 +39,8 @@ pub(crate) struct ShownImages {
     thumbhashes: HashMap<String, Vec<u8>>,
     /// Offers a downloaded image no Match stores, once it is the one shown.
     artwork: Artwork,
+    /// Signs each URL given out, for a bearer caller.
+    signer: Option<UrlSigner>,
 }
 
 /// The Custom Images and images beside the media that titles show in place of their downloaded
@@ -99,12 +102,13 @@ impl<'a> Downloaded<'a> {
 }
 
 impl ImageSources {
-    /// What one response shows of images, with no thumbhashes while resizing is off (ADR 0039).
+    /// What one response shows of images, with no thumbhashes while resizing is off (ADR 0039),
+    /// its URLs signed by `signer` if there is one.
     ///
     /// # Errors
     ///
     /// If the database can't be read.
-    pub(crate) async fn shown(&self) -> sqlx::Result<ShownImages> {
+    pub(crate) async fn shown(&self, signer: Option<&UrlSigner>) -> sqlx::Result<ShownImages> {
         let in_place = InPlaceOfDownloaded::read(&self.custom_images, &self.local_images).await?;
         let mut thumbhashes = HashMap::new();
         if self.settings.resizing().is_some() {
@@ -116,6 +120,7 @@ impl ImageSources {
             in_place,
             thumbhashes,
             artwork: self.artwork.clone(),
+            signer: signer.cloned(),
         })
     }
 }
@@ -172,7 +177,7 @@ impl ShownImages {
         });
         ShownImage {
             thumbhash: self.thumbhash(url.as_deref()),
-            url,
+            url: url.map(|url| self.signed(url)),
             custom: false,
         }
     }
@@ -180,9 +185,14 @@ impl ShownImages {
     fn with_thumbhash(&self, url: String, custom: bool) -> ShownImage {
         ShownImage {
             thumbhash: self.thumbhash(Some(&url)),
-            url: Some(url),
+            url: Some(self.signed(url)),
             custom,
         }
+    }
+
+    /// `url` as the caller fetches it. Thumbhashes are kept by the unsigned URL.
+    fn signed(&self, url: String) -> String {
+        signed_by(self.signer.as_ref(), url)
     }
 
     fn thumbhash(&self, url: Option<&str>) -> Option<Vec<u8>> {

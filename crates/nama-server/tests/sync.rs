@@ -6,37 +6,37 @@
 #[path = "support/browsing.rs"]
 mod browsing;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
+#[path = "support/fake_hub.rs"]
+mod fake_hub;
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/server.rs"]
 mod server;
 
 use std::{
     collections::HashMap,
     future,
-    sync::{
-        Arc, Mutex, MutexGuard, PoisonError,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::Duration,
 };
 
 use browsing::{ALIEN_1080P, Fixture, tmdb_id};
 use connectrpc::client::{ClientConfig, HttpClient};
+use fake_hub::FakeHub;
 use nama_plugin_api::{
     BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     points::{
         TrackDescription, TrackPreference, TrackPreferenceChange, TrackPreferenceChanged,
         WatchStateChange, WatchStateChanges, WatchStatesChanged,
     },
-    server_link::{AccountSignIn, Link, ServerAddresses, ServerLinker, WatchlistEntry},
+    server_link::{AccountSignIn, Link, ServerLinker, WatchlistEntry},
 };
 use nama_proto::nama::v1::{
     AddToWatchlistRequest, BrowseServiceClient, GetMovieRequest, GetTrackPreferencesRequest,
     GetTrackPreferencesResponse, GetUserLinkRequest, LibraryKind, ListContinueWatchingRequest,
-    PlaybackServiceClient, RemoveFromWatchlistRequest, ReportProgressRequest, ServerServiceClient,
-    SetAudioPreferenceRequest, SetSubtitlePreferenceRequest, StartServerLinkRequest,
-    StartUserLinkRequest, SubtitleKind, TitleKind, UnlinkUserRequest, UserServiceClient,
-    UsersAudioPreference, UsersSubtitlePreference, WatchStateServiceClient, WatchlistServiceClient,
-    continue_watching_entry::MovieOrEpisode,
+    PlaybackServiceClient, RemoveFromWatchlistRequest, ReportProgressRequest,
+    SetAudioPreferenceRequest, SetSubtitlePreferenceRequest, StartUserLinkRequest, SubtitleKind,
+    TitleKind, UnlinkUserRequest, UserServiceClient, UsersAudioPreference, UsersSubtitlePreference,
+    WatchStateServiceClient, WatchlistServiceClient, continue_watching_entry::MovieOrEpisode,
 };
 use nama_server::plugins::Registry;
 use server::{TestServer, WAIT, tmdb::ALIEN};
@@ -51,9 +51,6 @@ struct Hub {
     watchlist: Arc<Mutex<HashMap<(bool, String), WatchlistEntry>>>,
     /// Each Watch State push (`"push"`) and pull (`"pull"`), in the order they came.
     asked: Arc<Mutex<Vec<&'static str>>>,
-    /// Whether a Server started Linking, which Links it at once. Not before, so the first look at
-    /// the Server's Link, the Server Addresses tick's at startup, doesn't find it new.
-    server_linked: Arc<AtomicBool>,
 }
 
 impl Hub {
@@ -134,24 +131,6 @@ impl Observer<TrackPreferenceChanged> for Hub {
 
 /// Only what pulling and syncing ask; the rest is `tests/server_link.rs`'s.
 impl ServerLinker for Hub {
-    fn link(&self) -> BoxFuture<'_, Result<Link, PluginError>> {
-        let link = if self.server_linked.load(Ordering::Relaxed) {
-            linked()
-        } else {
-            Link::NotLinked
-        };
-        Box::pin(future::ready(Ok(link)))
-    }
-
-    fn start_link<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<Link, PluginError>> {
-        self.server_linked.store(true, Ordering::Relaxed);
-        Box::pin(future::ready(Ok(linked())))
-    }
-
-    fn unlink(&self) -> BoxFuture<'_, Result<(), PluginError>> {
-        Box::pin(future::ready(Ok(())))
-    }
-
     fn user_link(&self, _: i64) -> BoxFuture<'_, Result<Option<Link>, PluginError>> {
         Box::pin(future::ready(Ok(Some(linked()))))
     }
@@ -190,10 +169,6 @@ impl ServerLinker for Hub {
         _: &'a str,
     ) -> BoxFuture<'a, Result<Option<i64>, PluginError>> {
         Box::pin(future::ready(Ok(None)))
-    }
-
-    fn set_addresses(&self, _: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
-        Box::pin(future::ready(Ok(())))
     }
 
     fn watch_states(&self, _: i64) -> BoxFuture<'_, Result<Vec<WatchStateChange>, PluginError>> {
@@ -569,27 +544,14 @@ async fn starting_a_link_already_made_pushes_then_pulls_and_syncs_the_watchlist(
 
 #[tokio::test]
 async fn linking_the_server_pushes_every_users_watch_state_dated_as_stored() {
-    let hub = Hub::default();
-    let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
+    let (hub, kernels_hub) = (Hub::default(), FakeHub::start().await);
+    let fx = Fixture::alien_on(hub.on(TestServer::builder().config(kernels_hub.config()))).await;
     let stored = alien_watched_before_linking(&fx, &hub).await;
 
-    link_server(&fx.server).await;
+    kernels_hub.link(&fx.server).await;
 
     until("the Hub has the progress", async || !hub.kept().is_empty()).await;
     assert_eq!(*hub.kept(), [stored]);
-}
-
-/// Links `server`, as an Admin does in Settings.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn link_server(server: &TestServer) {
-    let client = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
-    client
-        .start_server_link(StartServerLinkRequest::default())
-        .await
-        .unwrap();
 }
 
 #[tokio::test]
@@ -638,11 +600,13 @@ async fn linking_a_user_leaves_a_preference_the_account_has_newer_as_the_account
 
 #[tokio::test]
 async fn linking_the_server_pushes_every_users_track_preferences_dated_as_stored() {
-    let hub = Hub::default();
-    let server = hub.on(TestServer::builder()).start().await;
+    let (hub, kernels_hub) = (Hub::default(), FakeHub::start().await);
+    let server = (hub.on(TestServer::builder().config(kernels_hub.config())))
+        .start()
+        .await;
     let stored = preferences_set_before_linking(&server, &hub).await;
 
-    link_server(&server).await;
+    kernels_hub.link(&server).await;
 
     until("the Hub has both", async || {
         hub.kept_preferences().len() == 2

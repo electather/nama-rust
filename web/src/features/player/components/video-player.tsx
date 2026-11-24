@@ -20,7 +20,6 @@ import { clickToToggle } from "@/features/player/lib/click-to-toggle";
 import { nextLink, previousLink } from "@/features/player/lib/in-show";
 import { captionsToggled, frameSeconds } from "@/features/player/lib/key-targets";
 import type { PlannedProps } from "@/features/player/lib/player-props";
-import { frameSheets } from "@/features/player/lib/preview-frame";
 import { seekSections } from "@/features/player/lib/seek-sections";
 import { creditsStart } from "@/features/player/lib/segments";
 import { videoFailed } from "@/shared/lib/diagnostics";
@@ -107,7 +106,7 @@ export function VideoPlayer({
         refs={{ playerRef, videoRef }}
         tracks={tracks}
         planned={planned}
-        seekBar={{ sections, sheets: frameSheets(plan.previewFrames, versionId) }}
+        seekBar={{ sections, sheets: planned.sheets }}
         autoplay={autoplay.next !== undefined}
         inShow={inShow}
       />

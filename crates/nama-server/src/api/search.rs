@@ -33,7 +33,7 @@ use super::{
     browse::{Fields, headshot_url, refused},
     caller, database_failed, external_id_to_proto, proto_number, refuse,
     requests::{searched_show_to_proto, searched_to_proto},
-    title_kind_from_proto,
+    shown_images, title_kind_from_proto,
 };
 
 /// How many results a batch holds when the request doesn't say.
@@ -73,7 +73,7 @@ impl SearchService for SearchServiceHandler {
         let found = found.map_err(database_failed)?;
         let people = self.browse.people_named(query, kind).await;
         let people = people.map_err(refused(Fields::NONE))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         let sent = Sent {
             movies: library_ids(&found, TitleKind::Movie),
             shows: library_ids(&found, TitleKind::Show),

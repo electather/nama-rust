@@ -1,3 +1,4 @@
+import type { Transport } from "@connectrpc/connect";
 import { createConnectQueryKey, useSuspenseQuery } from "@connectrpc/connect-query";
 import type { QueryClient } from "@tanstack/react-query";
 
@@ -5,16 +6,19 @@ import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { UserService } from "@/gen/nama/v1/user_pb";
 
 /** What changing the signed-in User's Home layout changes: it, and their Home. */
-const changedKeys = [
-  createConnectQueryKey({ schema: UserService.method.getHomeLayout, cardinality: "finite" }),
-  createConnectQueryKey({ schema: BrowseService.method.listHomeRows, cardinality: "finite" }),
-  createConnectQueryKey({ schema: BrowseService.method.listFeatured, cardinality: "finite" }),
-];
+function changedKeys(transport: Transport) {
+  const finite = { transport, cardinality: "finite" } as const;
+  return [
+    createConnectQueryKey({ schema: UserService.method.getHomeLayout, ...finite }),
+    createConnectQueryKey({ schema: BrowseService.method.listHomeRows, ...finite }),
+    createConnectQueryKey({ schema: BrowseService.method.listFeatured, ...finite }),
+  ];
+}
 
-/** Refetches what changing the signed-in User's Home layout changes. */
-export async function refetchHomeLayout(queryClient: QueryClient) {
+/** Refetches what changing the signed-in User's Home layout on the Server `transport` talks to changes. */
+export async function refetchHomeLayout(queryClient: QueryClient, transport: Transport) {
   await Promise.all(
-    changedKeys.map(async (queryKey) => {
+    changedKeys(transport).map(async (queryKey) => {
       await queryClient.invalidateQueries({ queryKey });
     }),
   );

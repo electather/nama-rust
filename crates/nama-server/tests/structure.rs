@@ -100,6 +100,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
     ("src/watchlist", &["watchlist"]),
     ("src/playback/preview_frames", &["preview_frames"]),
     ("src/home_rows/refreshes", &["home_visits"]),
+    ("src/link/server", &["hub_link", "hub_key_set"]),
 ];
 
 /// The Server's modules in rows of who may call whom, highest row first (ADR 0051). A module may
@@ -132,6 +133,7 @@ const ROWS: &[&[&str]] = &[
         "port_mapping",
         "tls",
         "diagnostics",
+        "signed_urls",
         "db",
         "page",
         "config",

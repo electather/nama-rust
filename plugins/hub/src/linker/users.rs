@@ -182,7 +182,7 @@ impl Linker {
 
     fn with_user<R>(&self, user_id: i64, change: impl FnOnce(&mut UserState) -> R) -> R {
         let mut users = self.users.lock().unwrap_or_else(PoisonError::into_inner);
-        change(users.entry(user_id).or_default())
+        change(users.1.entry(user_id).or_default())
     }
 }
 
