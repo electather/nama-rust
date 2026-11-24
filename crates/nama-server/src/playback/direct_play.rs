@@ -63,13 +63,9 @@ async fn serve(
     let client = (request.extensions().get::<RequestSource>()).map(|source| source.client_ip);
     let planned_under_remote_cap =
         device.is_some_and(|device| running.ask_direct_plays(id, device));
-    let path = match contents.version_file(id).await {
-        Ok(Some((path, _))) => path,
-        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
-        Err(err) => {
-            tracing::error!("could not look up the Version {id}: {err}");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
+    let path = match version_file(&contents, id).await {
+        Ok(path) => path,
+        Err(status) => return status.into_response(),
     };
     // A plan made off the local network applied the cap where it could, so one running lets the
     // file through, even past the cap for a picture of unknown size (ADR 0031, #2134). One made
@@ -125,16 +121,24 @@ async fn download(
     if device.is_some_and(|device| running.has_direct_play(id, device)) {
         return serve(State((contents, running, db)), Path(id), request).await;
     }
-    match contents.version_file(id).await {
-        Ok(Some(_)) => (
+    match version_file(&contents, id).await {
+        Ok(_) => (
             StatusCode::CONFLICT,
             "only a Version the Device has a Direct Play plan for downloads",
         )
             .into_response(),
-        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(status) => status.into_response(),
+    }
+}
+
+/// Where the Version `id`'s file is, or the 404 or 500 to answer with instead.
+async fn version_file(contents: &Contents, id: i64) -> Result<String, StatusCode> {
+    match contents.version_file(id).await {
+        Ok(Some((path, _))) => Ok(path),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
         Err(err) => {
             tracing::error!("could not look up the Version {id}: {err}");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
 }

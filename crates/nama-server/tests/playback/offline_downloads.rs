@@ -45,7 +45,8 @@ async fn a_user_with_download_gets_the_bytes_and_a_range_of_a_version_their_devi
 
 #[tokio::test]
 async fn a_user_without_download_is_refused_a_version_their_device_direct_plays() {
-    let (fx, version, _) = alien_and_ada().await;
+    let fx = Fixture::alien().await;
+    let version = fx.version_ids(ALIEN).await[0];
     let bishop = fx.server.user_with_default_permissions("Bishop").await;
     let plan = plan_as(&bishop, version).await.unwrap();
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY);
@@ -53,8 +54,12 @@ async fn a_user_without_download_is_refused_a_version_their_device_direct_plays(
     let reply = fetch(&fx.server, &download_url(version), Some(&bishop.token)).await;
 
     assert_eq!(reply.status, 403);
-    let body = String::from_utf8_lossy(&reply.body);
-    assert!(body.contains("PERMISSION_DOWNLOAD"), "{body}");
+    let refusal = assert_refused(
+        Err::<(), ConnectError>(serde_json::from_slice(&reply.body).unwrap()),
+        ErrorCode::PermissionDenied,
+        RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
+    );
+    assert_eq!(refusal.params["permission"], "PERMISSION_DOWNLOAD");
 }
 
 #[tokio::test]
