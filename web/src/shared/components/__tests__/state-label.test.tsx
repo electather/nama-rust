@@ -11,8 +11,11 @@ test.each([false, true])(
   (large) => {
     render(<StateLabel label="Pending approval" Icon={Clock} large={large} />);
     const pill = screen.getByText("Pending approval");
-    expect(
-      ["bg-secondary", "text-foreground", "border"].map((name) => pill.classList.contains(name)),
-    ).toStrictEqual([true, true, false]);
+    const has = (name: string) => pill.classList.contains(name);
+    expect({
+      "bg-secondary": has("bg-secondary"),
+      "text-foreground": has("text-foreground"),
+      border: has("border"),
+    }).toStrictEqual({ "bg-secondary": true, "text-foreground": true, border: false });
   },
 );
