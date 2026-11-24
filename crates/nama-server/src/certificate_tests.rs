@@ -48,7 +48,8 @@ fn a_kept_certificate_reads_as_the_names_it_is_for_and_when_it_expires() {
 #[test]
 fn a_file_without_a_key_isnt_a_certificate() {
     let without_key = certificate_pem()
-        .split_once("-----END PRIVATE KEY-----\n")
+        // No line ending in the marker: rcgen ends PEM lines with CRLF on Windows.
+        .split_once("-----END PRIVATE KEY-----")
         .unwrap()
         .1
         .to_owned();
