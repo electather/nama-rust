@@ -540,7 +540,7 @@ pub trait LibraryService: Send + Sync + 'static {
     /// source is malformed, repeated or known to no Plugin, or none of them searches; with
     /// `invalid_argument` and `REFUSAL_REASON_RECOGNISERS_INVALID` or
     /// `REFUSAL_REASON_SEGMENT_SOURCES_INVALID` if a Recogniser or Segment source id is repeated or
-    /// names no Plugin with that extension point; and with `already_exists` if a folder already
+    /// names no Plugin with that Extension Point; and with `already_exists` if a folder already
     /// belongs to another Library.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
