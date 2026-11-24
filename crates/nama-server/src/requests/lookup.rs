@@ -202,12 +202,12 @@ impl Requests {
     ) -> Result<FoundShow, Error> {
         let (source, show) = self.show(asked).await?;
         let id = kept_under(asked, &show.ids);
-        let seen = library_access(&self.db, viewer.id).await?;
-        let mut conn = self.db.reader().acquire().await?;
-        if hidden(&seen, library_with_show(&mut conn, &id).await?) {
+        if self.hidden_from(viewer, TitleKind::Show, &id).await? {
             return Err(Error::NoSuchShow(asked.clone()));
         }
         let seasons = self.seasons_from(&source, asked, &show).await?;
+        // Taken after asking the title source, so no pooled reader waits on a Plugin.
+        let mut conn = self.db.reader().acquire().await?;
         let seasons = self
             .look_around_seasons(&mut conn, viewer, &id, seasons)
             .await?;
@@ -418,11 +418,28 @@ impl Requests {
         }
         Ok(found)
     }
+
+    /// Whether only a Library `viewer` doesn't see has the title of `kind` known by `id`: to them
+    /// there is no such title, neither to look up nor to Request.
+    pub(super) async fn hidden_from(
+        &self,
+        viewer: &User,
+        kind: TitleKind,
+        id: &ExternalId,
+    ) -> Result<bool, sqlx::Error> {
+        let seen = library_access(&self.db, viewer.id).await?;
+        let mut conn = self.db.reader().acquire().await?;
+        let library = match kind {
+            TitleKind::Movie => library_with_movie(&mut conn, id).await?,
+            TitleKind::Show => library_with_show(&mut conn, id).await?,
+        };
+        Ok(hidden(&seen, library))
+    }
 }
 
 /// Whether a title the Library `library` has, if any has it, is one a viewer who sees `seen`
 /// doesn't: neither shown to them nor theirs to Request.
-// shortcut: `library` is the oldest Library with the title, so one a newer Library they see also
+// ponytail: `library` is the oldest Library with the title, so one a newer Library they see also
 // has is hidden too; ask for the oldest Library they see if Libraries come to share titles.
 fn hidden(seen: &LibraryAccess, library: Option<i64>) -> bool {
     library.is_some_and(|library| !seen.sees(library))

@@ -385,11 +385,19 @@ impl Browse {
             return Ok(Vec::new());
         }
         let libraries = self.libraries().await?;
-        let kind = match kind {
-            TitleKind::Movie => LibraryKind::Movies,
-            TitleKind::Show => LibraryKind::Shows,
-        };
-        Ok(OnServer::in_order_of(&self.contents, &libraries, kind, ids).await?)
+        Ok(OnServer::in_order_of(&self.contents, &libraries, library_kind(kind), ids).await?)
+    }
+
+    /// Whether a Library it doesn't see has a title of `kind` that `ids` name: one to show
+    /// nowhere, nor offer to Request, wherever else it was found.
+    pub(crate) async fn hides(&self, kind: TitleKind, ids: &[ExternalId]) -> Result<bool, Error> {
+        if self.seen == LibraryAccess::All || ids.is_empty() {
+            return Ok(false);
+        }
+        let mut hidden = self.libraries.list().await.map_err(finding_failed)?;
+        hidden.retain(|library| !self.seen.sees(library.id));
+        let found = OnServer::in_order_of(&self.contents, &hidden, library_kind(kind), ids).await?;
+        Ok(!found.is_empty())
     }
 
     /// Every Library it sees, oldest first.
@@ -405,6 +413,13 @@ impl Browse {
             return Err(NotFound::NoSuchLibrary(library).into());
         }
         self.libraries.get(library).await.map_err(finding_failed)
+    }
+}
+
+const fn library_kind(kind: TitleKind) -> LibraryKind {
+    match kind {
+        TitleKind::Movie => LibraryKind::Movies,
+        TitleKind::Show => LibraryKind::Shows,
     }
 }
 

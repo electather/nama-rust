@@ -23,15 +23,16 @@ use connectrpc::{
 };
 use http::fetch;
 use nama_proto::nama::v1::{
-    BrowseServiceClient, ExternalId, GetMovieRequest, HomeRowTitle, LibraryAccess, LibraryKind,
-    LibraryServiceClient, ListHomeRowTitlesRequest, ListHomeRowsRequest, ListLibrariesRequest,
-    ListMoviesRequest, ListUsersRequest, LookUpMovieRequest, Permission, PlanPlaybackRequest,
-    PlaybackServiceClient, RefusalReason, RequestServiceClient, SetLibraryAccessRequest,
-    UserServiceClient, home_row::KernelOrPlugin, home_row_title::MovieOrShow,
+    BrowseServiceClient, CreateRequestRequest, EventType, ExternalId, GetMovieRequest,
+    HomeRowTitle, LibraryAccess, LibraryKind, LibraryServiceClient, ListHomeRowTitlesRequest,
+    ListHomeRowsRequest, ListLibrariesRequest, ListMoviesRequest, ListUnmatchedRequest,
+    ListUsersRequest, LookUpMovieRequest, Permission, PlanPlaybackRequest, PlaybackServiceClient,
+    RefusalReason, RequestServiceClient, SearchSubtitlesRequest, SetLibraryAccessRequest,
+    UserServiceClient, event, home_row::KernelOrPlugin, home_row_title::MovieOrShow,
 };
 use refused::{assert_refused, refusal_of};
 use server::{
-    Library, SignedIn, TestServer, WAIT, search,
+    Library, SignedIn, TestServer, WAIT, search, subscribe,
     tmdb::{ALIEN, DARK, DUNE, HEAT},
 };
 
@@ -396,4 +397,124 @@ async fn the_users_list_reads_each_chosen_list_back_less_a_deleted_library() {
     assert_eq!(access_of(fx.bishop.id), Some(vec![fx.alien.id]));
     assert_eq!(access_of(fx.vasquez.id), Some(vec![]));
     assert_eq!(access_of(fx.hicks.id), None);
+}
+
+#[tokio::test]
+async fn a_hidden_librarys_unmatched_items_are_not_listed() {
+    let fx = Fixture::start().await;
+    let list = async |who: &SignedIn| {
+        let request = ListUnmatchedRequest {
+            library_id: fx.heat.id,
+            ..Default::default()
+        };
+        browse(&who.client_config()).list_unmatched(request).await
+    };
+
+    let hidden = list(&fx.bishop).await;
+    let seen = list(&fx.hicks).await;
+
+    assert_refused(
+        hidden,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_LIBRARY_NOT_FOUND,
+    );
+    seen.unwrap();
+}
+
+#[tokio::test]
+async fn creating_a_request_for_a_hidden_librarys_movie_is_refused_as_an_unknown_title() {
+    let fx = Fixture::start().await;
+    let create = async |who: &SignedIn| {
+        let requests = RequestServiceClient::new(HttpClient::plaintext(), who.client_config());
+        let request = CreateRequestRequest {
+            movie_id: tmdb_id(ALIEN).into(),
+            ..Default::default()
+        };
+        requests.create_request(request).await.map(drop)
+    };
+
+    let hidden = create(&fx.vasquez).await;
+    let seen = create(&fx.hicks).await;
+
+    assert_refused(
+        hidden,
+        ErrorCode::InvalidArgument,
+        RefusalReason::REFUSAL_REASON_UNKNOWN_TITLE,
+    );
+    assert_refused(
+        seen,
+        ErrorCode::FailedPrecondition,
+        RefusalReason::REFUSAL_REASON_ALREADY_IN_LIBRARY,
+    );
+}
+
+#[tokio::test]
+async fn a_hidden_librarys_version_has_no_subtitles_to_search_for() {
+    let fx = Fixture::start().await;
+    let alien = fx.version(fx.alien.id, ALIEN).await;
+    let gorman = (fx.server)
+        .user("Gorman", &[Permission::PERMISSION_DOWNLOAD_SUBTITLES])
+        .await;
+    let admin = fx.server.client_config();
+    let search = async || {
+        let playback = PlaybackServiceClient::new(HttpClient::plaintext(), gorman.client_config());
+        let request = SearchSubtitlesRequest {
+            version_id: alien,
+            languages: vec!["en".to_owned()],
+            ..Default::default()
+        };
+        playback.search_subtitles(request).await.map(drop)
+    };
+
+    let seen = search().await;
+    set_access(&admin, gorman.id, Some(&[fx.heat.id]))
+        .await
+        .unwrap();
+    let hidden = search().await;
+
+    // With no subtitle source enabled, a Version they see gets as far as asking for one.
+    assert_refused(
+        seen,
+        ErrorCode::Unavailable,
+        RefusalReason::REFUSAL_REASON_NO_SUBTITLE_SOURCE,
+    );
+    assert_refused(
+        hidden,
+        ErrorCode::NotFound,
+        RefusalReason::REFUSAL_REASON_VERSION_NOT_FOUND,
+    );
+}
+
+#[tokio::test]
+async fn events_about_a_hidden_library_never_reach_its_subscriber() {
+    let fx = Fixture::start().await;
+    let item_added = [EventType::EVENT_TYPE_LIBRARY_ITEM_ADDED];
+    let mut vasquezs = subscribe(&fx.vasquez.client_config(), &item_added).await;
+    let mut hicks = subscribe(&fx.hicks.client_config(), &item_added).await;
+
+    fx.alien.add(&["Aliens (1986)/Aliens (1986).mkv"]);
+    fx.server.scan(fx.alien.id).await;
+    fx.heat.add(&["Dune (2021)/Dune (2021).mkv"]);
+    fx.server.scan(fx.heat.id).await;
+
+    let library_of = |event| {
+        let event::Event::LibraryItemAdded(added) = event else {
+            panic!("not an Item added: {event:?}");
+        };
+        added.library_id
+    };
+    assert_eq!(library_of(vasquezs.next().await), fx.heat.id);
+    assert_eq!(library_of(hicks.next().await), fx.alien.id);
+}
+
+#[tokio::test]
+async fn changing_a_users_library_access_ends_their_open_subscriptions() {
+    let fx = Fixture::start().await;
+    let mut hicks = subscribe(&fx.hicks.client_config(), &[]).await;
+
+    set_access(&fx.server.client_config(), fx.hicks.id, Some(&[]))
+        .await
+        .unwrap();
+
+    assert!(hicks.message().await.unwrap().is_none());
 }

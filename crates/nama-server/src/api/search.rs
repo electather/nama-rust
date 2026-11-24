@@ -329,7 +329,7 @@ impl<'a> SourceBatches<'a> {
     /// `title`, which the Search source `plugin` found by `ids`, as the viewer sees it, with every
     /// id it is known by: Available in the oldest Library with any of `ids`, shown as the Library
     /// has it, or else as [`Requests::unavailable`] tells, shown as the source gave it. `None` if
-    /// the viewer may neither watch nor request it.
+    /// the viewer may neither watch nor request it, as for one only a Library they don't see has.
     async fn hit(
         &self,
         plugin: &PluginId,
@@ -344,6 +344,11 @@ impl<'a> SourceBatches<'a> {
             };
             ids.extend(known.iter().chain([id.clone()]));
             return Ok(Some((available_hit(on_server, self.images), ids)));
+        }
+        // As a Plugin's Home row does, rather than offer it to Request.
+        let hidden = self.handler.browse.hides(title.kind, &ids).await;
+        if hidden.map_err(refused(Fields::NONE))? {
+            return Ok(None);
         }
         let requestable = match title.kind {
             TitleKind::Movie => &self.movie_namespaces,

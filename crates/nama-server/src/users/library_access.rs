@@ -1,11 +1,14 @@
 //! Which Libraries each User sees: every one, or a chosen list an Admin keeps (`user_libraries`).
 
-use std::collections::{BTreeSet, HashMap};
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
 
 use nama_proto::nama::v1::Permission;
 use sqlx::SqliteConnection;
 
-use super::{Error, Permissions, User, Users, ensure_may_change};
+use super::{Error, Permissions, User, Users, ensure_may_change, until_heard};
 use crate::db::{Database, now};
 
 /// Which Libraries a User sees.
@@ -69,9 +72,31 @@ impl Users {
         Ok(chosen)
     }
 
+    /// The Libraries the User `user` sees now, and a future that resolves once their Library
+    /// access is set again, so whatever they opened under it can end, to be opened again under the
+    /// new one. It resolves at once if their access no longer reads the same, or can't be read.
+    pub(crate) async fn library_access_watched(
+        &self,
+        user: i64,
+    ) -> Result<(LibraryAccess, impl Future<Output = ()> + Send + use<>), sqlx::Error> {
+        // Listening before reading means no change falls between the two.
+        let changes = self.library_access_changes.subscribe();
+        let seen = library_access(&self.db, user).await?;
+        let (db, held) = (Arc::clone(&self.db), seen.clone());
+        let set_again = until_heard(changes, user, async move || {
+            let read = library_access(&db, user).await;
+            read.inspect_err(|err| {
+                tracing::error!("could not look up a User's Library access: {err}");
+            })
+            .is_ok_and(|read| read == held)
+        });
+        Ok((seen, set_again))
+    }
+
     /// Gives the User `user` `access`, as `by` asks, leaving out an id no Library has. Without
     /// `PERMISSION_ADMIN`, `by` may change neither an Admin's nor their own, so a capped User
-    /// can't lift theirs. It applies from their next request, which reads it afresh.
+    /// can't lift theirs. It applies from their next request, which reads it afresh. Once the
+    /// change commits, [`Self::library_access_watched`]'s future resolves for them.
     pub(crate) async fn set_library_access(
         &self,
         by: &User,
@@ -82,13 +107,21 @@ impl Users {
             return Err(Error::AdminRequired);
         }
         let by = by.clone();
+        let changes = self.library_access_changes.clone();
+        let tell_waiters = move || {
+            // Fails only when nobody is waiting, which is fine.
+            let _: Result<usize, _> = changes.send(user);
+        };
         self.db
-            .write(move |tx| {
-                Box::pin(async move {
-                    ensure_may_change(tx, &by, user).await?;
-                    replace(tx, user, &access).await
-                })
-            })
+            .write_then(
+                move |tx| {
+                    Box::pin(async move {
+                        ensure_may_change(tx, &by, user).await?;
+                        replace(tx, user, &access).await
+                    })
+                },
+                tell_waiters,
+            )
             .await
     }
 }

@@ -457,11 +457,11 @@ impl BrowseService for BrowseServiceHandler {
 
     async fn list_unmatched(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, ListUnmatchedRequest>,
     ) -> ServiceResult<ListUnmatchedResponse> {
         let request = request.to_owned_message();
-        let listed = (self.browse)
+        let listed = (seen_by(&self.browse, caller(&ctx)?.user.id).await?)
             .unmatched(request.library_id, &request.page)
             .await;
         let (unmatched, page) = listed.map_err(refused(Fields::LIBRARY))?;
@@ -474,10 +474,10 @@ impl BrowseService for BrowseServiceHandler {
 
     async fn get_unmatched_version(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, GetUnmatchedVersionRequest>,
     ) -> ServiceResult<GetUnmatchedVersionResponse> {
-        let found = (self.browse)
+        let found = (seen_by(&self.browse, caller(&ctx)?.user.id).await?)
             .unmatched_version(request.library_id, request.version_id)
             .await;
         let (unmatched, version) = found.map_err(refused(Fields {
