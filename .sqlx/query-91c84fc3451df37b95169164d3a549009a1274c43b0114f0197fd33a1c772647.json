@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM inbox WHERE user_id = ? AND id <= (\n                       SELECT id FROM inbox WHERE user_id = ? ORDER BY id DESC LIMIT 1 OFFSET ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "91c84fc3451df37b95169164d3a549009a1274c43b0114f0197fd33a1c772647"
+}

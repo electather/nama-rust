@@ -221,7 +221,7 @@ struct Plan {
     hls: Option<Arc<Running>>,
     on_hardware: Option<OnHardware>,
     /// Whether a Direct Play was planned off the local network, under the User's remote cap.
-    kept_to_remote_cap: bool,
+    planned_under_remote_cap: bool,
     /// When the plan was last asked for anything, which keeps it another [`STOP_UNUSED_AFTER`].
     last_used: Mutex<Instant>,
     progress: Mutex<Option<ReportedProgress>>,
@@ -437,10 +437,10 @@ impl RunningPlans {
     }
 
     /// Keeps a plan playing `playback` that runs nothing, a Direct Play, and returns its id.
-    fn direct_play(&self, mut playback: Playback, kept_to_remote_cap: bool) -> u64 {
+    fn direct_play(&self, mut playback: Playback, planned_under_remote_cap: bool) -> u64 {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
         playback.plan_id = id;
-        self.insert(playback, None, None, kept_to_remote_cap);
+        self.insert(playback, None, None, planned_under_remote_cap);
         id
     }
 
@@ -528,20 +528,21 @@ impl RunningPlans {
     }
 
     /// Adds the plan playing `playback`, by its `plan_id`, with `hls` if it runs ffmpeg,
-    /// `on_hardware` and `kept_to_remote_cap` as [`Plan`] says, and publishes its `PlaybackStarted`.
+    /// `on_hardware` and `planned_under_remote_cap` as [`Plan`] says, and publishes its
+    /// `PlaybackStarted`.
     fn insert(
         &self,
         playback: Playback,
         hls: Option<Arc<Running>>,
         on_hardware: Option<OnHardware>,
-        kept_to_remote_cap: bool,
+        planned_under_remote_cap: bool,
     ) {
         let to_device = (playback.version_id, playback.device_id);
         let plan = Plan {
             playback,
             hls,
             on_hardware,
-            kept_to_remote_cap,
+            planned_under_remote_cap,
             last_used: Mutex::new(db::instant_now()),
             progress: Mutex::default(),
         };
@@ -578,7 +579,8 @@ impl RunningPlans {
     }
 
     /// Marks the Device `device`'s Direct Plays of the Version `version` asked for now, which
-    /// keeps them another [`STOP_UNUSED_AFTER`], and says whether any was kept to a remote cap.
+    /// keeps them another [`STOP_UNUSED_AFTER`], and says whether any was planned under a remote
+    /// cap.
     pub(crate) fn ask_direct_plays(&self, version: i64, device: i64) -> bool {
         let plans = lock(&self.inner.plans);
         let direct_plays = plans.values().filter(|plan| {
@@ -588,7 +590,7 @@ impl RunningPlans {
         });
         direct_plays.fold(false, |any_kept, plan| {
             *lock(&plan.last_used) = db::instant_now();
-            any_kept || plan.kept_to_remote_cap
+            any_kept || plan.planned_under_remote_cap
         })
     }
 

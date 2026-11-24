@@ -11,6 +11,7 @@ import {
 } from "@/gen/nama/v1/playback_pb";
 import { fakeServer, newUser, openApp } from "@/test-app";
 import { openTracks, rowIn, rowsOf } from "@/test-player";
+import { tickWorker } from "@/test-worker";
 
 /** The options of each ASS renderer made, each renderer, and whether the next one fails to start. */
 const libass = vi.hoisted(
@@ -40,9 +41,10 @@ vi.mock("jassub", () => ({
   },
 }));
 
-/** A Web Worker, which happy-dom lacks, that reads `type` as a browser with module workers does. */
+/** A Worker that reads `type` as a browser with module workers does. */
 function moduleWorker(_url: string, options?: WorkerOptions) {
   void options?.type;
+  return tickWorker();
 }
 
 beforeEach(() => {
@@ -209,11 +211,12 @@ test("an ASS Track whose font can't be fetched says so, and isn't drawn", async 
 });
 
 test.each([
-  { lacking: "OffscreenCanvas", global: "HTMLCanvasElement" },
-  { lacking: "module workers", global: "Worker" },
-])("a Device without $lacking doesn't list ASS", async ({ global }) => {
-  // Stands in for a constructor without the method, or one that never reads `type`.
-  vi.stubGlobal(global, vi.fn());
+  // A constructor without the method.
+  { lacking: "OffscreenCanvas", global: "HTMLCanvasElement", stub: vi.fn<() => void>() },
+  // A Worker that never reads `type`.
+  { lacking: "module workers", global: "Worker", stub: tickWorker },
+])("a Device without $lacking doesn't list ASS", async ({ global, stub }) => {
+  vi.stubGlobal(global, stub);
   const asked: PlanPlaybackRequest[] = [];
 
   await playingWith(asked, SERVED);

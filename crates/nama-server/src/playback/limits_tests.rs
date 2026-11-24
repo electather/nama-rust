@@ -109,6 +109,53 @@ fn a_users_remote_cap_keeps_a_device_outside_the_local_network_to_it_whatever_it
 }
 
 #[test]
+fn a_remote_cap_direct_plays_a_version_of_unknown_picture_size_and_says_it_cant_be_applied() {
+    // The cap's reason already says the size is unknown; a lower pick still gets its own.
+    let size_unknown_for_480p = vec![(
+        Kind::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN,
+        vec![("playbackLimit", "PLAYBACK_LIMIT_480P")],
+    )];
+    for (picked_limit, size_unknown) in [
+        (PickedLimit::Unpicked, vec![]),
+        (
+            PickedLimit::Picked(Some(PlaybackLimit::P480)),
+            size_unknown_for_480p,
+        ),
+    ] {
+        let mut facts = Facts {
+            picked_limit,
+            network: Network::Remote {
+                default: None,
+                cap: Some(PlaybackLimit::P720),
+            },
+            ..facts(None)
+        };
+
+        let plan = build(&mut facts);
+
+        assert_eq!(plan.method(), Some(Method::DirectPlay), "{picked_limit:?}");
+        assert_eq!(
+            plan.offers.cap,
+            Some(PlaybackLimit::P720),
+            "{picked_limit:?}"
+        );
+        let unapplied = reason_of(
+            &plan,
+            Kind::PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN,
+        );
+        assert_eq!(
+            kind_and_params(unapplied).1,
+            [("playbackLimit", "PLAYBACK_LIMIT_720P")],
+            "{picked_limit:?}"
+        );
+        let given_size_unknown: Vec<_> = (given(&plan).into_iter())
+            .filter(|(kind, _)| *kind == Kind::PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN)
+            .collect();
+        assert_eq!(given_size_unknown, size_unknown, "{picked_limit:?}");
+    }
+}
+
+#[test]
 fn a_remote_cap_is_never_dropped_for_original_when_nothing_can_transcode() {
     let mut facts = Facts {
         picked_limit: PickedLimit::Picked(None),
