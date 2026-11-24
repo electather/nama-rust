@@ -1,9 +1,13 @@
 //! The Relay (GLOSSARY.md) an Admin runs for clients that can't reach their Server directly, and
 //! the Server's side of it (ADR 0057). The Server dials out to the Relay and shows a token the Hub
 //! signed naming its own name (ADR 0011); the Relay keeps the connection waiting, and hands it the
-//! next client whose TLS `ClientHello` names that name, or one under it, in its SNI. The Relay reads
-//! only the `ClientHello` and copies bytes both ways, so it never decrypts the traffic: the Server's
-//! own TLS (`tls.rs`) answers the client through it.
+//! next client whose TLS `ClientHello` names that name, or one under it, in its SNI. The Relay
+//! reads only the `ClientHello` and copies bytes both ways, so it never decrypts the traffic: the
+//! Server's own TLS (`tls.rs`) answers the client through it.
+//!
+//! The Relay runs as a process of its own (`nama-server relay`), with no Kernel and no Plugins, so
+//! it fetches the Hub's keys itself; the Server asks for its token through the Plugin that links it
+//! (ADR 0094).
 //!
 //! A Server's dial is the token's length as two big-endian bytes, then the token, then nothing
 //! until the Relay starts sending it a client's bytes. Both share the Relay's one port, told apart
@@ -53,6 +57,8 @@ const WAITING_PER_SERVER: usize = 4;
 
 /// How long a Server's connection waits at the Relay before the Server dials again with a fresh
 /// token: under [`WAITS_AT_MOST`], so the Server always goes first.
+// ponytail: no TCP keepalive, so a NAT that forgets an idle connection sooner leaves the Relay
+// handing clients a dead one until this redial; send keepalives if Relays report such hangs.
 const DIAL_AGAIN_AFTER: Duration = Duration::from_mins(4);
 
 /// How long the Relay keeps a Server's connection waiting.
@@ -193,12 +199,14 @@ impl Relay {
         else {
             return;
         };
-        let Some(mut server) = self.server_for(&server_name).await else {
-            return;
-        };
-        if server.write_all(&hello).await.is_ok() {
-            // Either side closing ends it, and there is no one left to tell.
-            let _: io::Result<_> = tokio::io::copy_bidirectional(&mut client, &mut server).await;
+        // Each connection that fails at once is gone from the queue, so the next one is tried.
+        while let Some(mut server) = self.server_for(&server_name).await {
+            if server.write_all(&hello).await.is_ok() {
+                // Either side closing ends it, and there is no one left to tell.
+                let _: io::Result<_> =
+                    tokio::io::copy_bidirectional(&mut client, &mut server).await;
+                return;
+            }
         }
     }
 
@@ -244,8 +252,8 @@ async fn read_token(server: &mut TcpStream) -> io::Result<String> {
     String::from_utf8(token).map_err(io::Error::other)
 }
 
-/// What `client` sent until its `ClientHello` was whole, and the server name it gives in its SNI, in
-/// lowercase. Only the `ClientHello` is read, which TLS sends unencrypted.
+/// What `client` sent until its `ClientHello` was whole, and the server name it gives in its SNI,
+/// in lowercase. Only the `ClientHello` is read, which TLS sends unencrypted.
 async fn read_client_hello(client: &mut TcpStream) -> io::Result<(Vec<u8>, String)> {
     let mut acceptor = Acceptor::default();
     let mut hello = Vec::new();
@@ -377,6 +385,8 @@ impl HubKeys {
 
 /// The own name `token` names, if one of `keys` signed it for a Relay and it is unexpired at
 /// `now`, in seconds since the Unix epoch.
+// A copy of the Hub Plugin's check (`plugins/hub/src/token.rs`), which the Server can't depend on
+// (ADR 0006): a fix to one belongs in both.
 fn verify(keys: &[Key], token: &str, now: i64) -> Result<String, Rejected> {
     let (signed, signature) = token.rsplit_once('.').ok_or(Rejected::Invalid)?;
     let (header, claims) = signed.split_once('.').ok_or(Rejected::Invalid)?;
@@ -487,6 +497,9 @@ async fn wait_for_client(relay: SocketAddr, token: &str) -> io::Result<Option<Tc
 }
 
 /// A Server's dial carrying `token`.
+// ponytail: the token crosses in plain text and any Relay takes it, so whoever sees it can crowd
+// out the Server's waiting connections for its 5 minutes, though never read its clients' TLS; bind
+// it to one Relay and send it over TLS once the project runs Relays for everyone (ADR 0057).
 fn dial(token: &str) -> io::Result<Vec<u8>> {
     let length = u16::try_from(token.len())
         .ok()

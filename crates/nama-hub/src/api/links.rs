@@ -537,7 +537,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
             url: request.url,
             lan_addresses: &lan_addresses,
             public: public_address(&ctx, request.public_port)?,
-            relay: relay_address(request.relay)?,
+            relay: parse_relay(request.relay)?,
         };
         let checked = self
             .links
@@ -641,7 +641,7 @@ fn public_address(ctx: &RequestContext, port: u32) -> Result<Option<SocketAddr>,
 }
 
 /// The Relay `relay` names, as `<ip>:<port>`, or `None` for empty.
-fn relay_address(relay: &str) -> Result<Option<SocketAddr>, ConnectError> {
+fn parse_relay(relay: &str) -> Result<Option<SocketAddr>, ConnectError> {
     if relay.is_empty() {
         return Ok(None);
     }

@@ -28,9 +28,9 @@ const OPEN_PORT_EVERY: u64 = port_mapping::LEASE.as_secs() / 2 / EVERY.as_secs()
 /// soon as `url_saves` wakes, since the service refuses a sign-in returning anywhere else: the
 /// Server URL `url` holds, the LAN address of `listening`, the public port: `forwarded`, the one
 /// the Admin forwarded, or else one the Server opens on the router, only while such a Plugin has
-/// it Linked, and the `relay` the Admin runs, if any. Runs until the task is aborted; `linking` asks in the Plugin's scope, so
-/// disabling it or shutting down cancels and joins the call. A Plugin that fails shows it on its
-/// page.
+/// it Linked, and the `relay` the Admin runs, if any. Runs until the task is aborted; `linking`
+/// asks in the Plugin's scope, so disabling it or shutting down cancels and joins the call. A
+/// Plugin that fails shows it on its page.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is a separate input the Server Addresses are made of, or when to tell them"

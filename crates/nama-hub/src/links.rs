@@ -68,6 +68,9 @@ const CHALLENGE_VALUE_LENGTH: usize = 43;
 /// How long the Hub waits for a Server's public port to take a connection.
 const REACH_WITHIN: Duration = Duration::from_secs(5);
 
+/// The audience of the token a Server shows a Relay, which the Relay checks (ADR 0057).
+const RELAY_AUDIENCE: &str = "relay";
+
 /// How long the token a newly Linked Server gets, one for a sign-in, or one for a Relay, stays
 /// valid.
 const TOKEN_LIFETIME_SECS: u64 = 5 * 60;
@@ -113,6 +116,7 @@ pub(crate) struct ListedServer {
 pub(crate) struct ReportedAddresses<'a> {
     /// The Server URL its Admin set, or empty for none.
     pub(crate) url: &'a str,
+    /// Such as `http://192.168.1.10:7980`.
     pub(crate) lan_addresses: &'a [String],
     /// Its router's public IP address with the port that reaches it, if it has one.
     pub(crate) public: Option<SocketAddr>,
@@ -525,7 +529,7 @@ impl Links {
         let iat = issued_at();
         Ok(self.keys.sign(&RelayClaims {
             sub: names::own_name(server.id, &server_names.zone),
-            aud: "relay",
+            aud: RELAY_AUDIENCE,
             iat,
             exp: iat + TOKEN_LIFETIME_SECS,
         }))
