@@ -177,6 +177,7 @@ impl ServerService for ServerServiceHandler {
                 tone_maps: hardware.tone_maps,
                 tone_mapping: tone_mapping_to_proto(can_do.tone_mapper(Some(hardware))).into(),
                 automatic: automatic == Some(hardware),
+                hevc: hardware.hevc,
                 ..Default::default()
             })
             .collect();

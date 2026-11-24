@@ -308,6 +308,9 @@ message FoundHardware {
   ToneMapping tone_mapping = 3;
   // Whether Automatic picks it.
   bool automatic = 4;
+  // Whether it also passed decoding and encoding 10-bit HEVC, which a Transcode of a 4K or HDR
+  // Version makes on it.
+  bool hevc = 6;
 }
 
 // A GPU the Server found.
