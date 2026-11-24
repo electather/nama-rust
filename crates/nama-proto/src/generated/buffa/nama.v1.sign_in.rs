@@ -199,7 +199,8 @@ pub enum Permission {
     /// Searches the subtitle sources for the Version they're watching and downloads one of the
     /// subtitles found, which every User then sees as one of its Tracks (ADR 0067).
     PERMISSION_DOWNLOAD_SUBTITLES = 15i32,
-    /// Downloads a Version's file, or a Transcode of it to a file, to a Device for offline playback.
+    /// Downloads a Version's file, or one re-encoded as for a Transcode, to a Device for offline
+    /// playback.
     PERMISSION_DOWNLOAD = 16i32,
 }
 impl Permission {

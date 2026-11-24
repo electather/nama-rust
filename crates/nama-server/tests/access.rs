@@ -37,7 +37,7 @@ const DOWNLOAD_SUBTITLES: [&str; 2] = [
     "/nama.v1.PlaybackService/DownloadSubtitle",
 ];
 
-/// Every RPC that downloads a Version's file or a Transcode of it, which needs
+/// Every RPC that downloads a Version's file or one re-encoded as for a Transcode, which needs
 /// `PERMISSION_DOWNLOAD`: none yet (#2195, #2198).
 const DOWNLOAD: [&str; 0] = [];
 

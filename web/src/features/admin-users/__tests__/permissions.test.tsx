@@ -60,7 +60,7 @@ test("a User's Permissions are saved as they're changed, and are there after rel
   expect(screen.queryByRole("button", { name: /Save/u })).toBeNull();
 });
 
-test("an Admin may give a User Download, which no new User holds", async () => {
+test("an Admin may give a User Download, which they lacked", async () => {
   let alex: Holder = { id: 2n, name: "Alex", permissions: [...newUser] };
   openApp(
     usersSection,

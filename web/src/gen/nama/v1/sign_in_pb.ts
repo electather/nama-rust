@@ -933,7 +933,8 @@ export const Permission = {
   DOWNLOAD_SUBTITLES: 15,
 
   /**
-   * Downloads a Version's file, or a Transcode of it to a file, to a Device for offline playback.
+   * Downloads a Version's file, or one re-encoded as for a Transcode, to a Device for offline
+   * playback.
    *
    * @generated from enum value: PERMISSION_DOWNLOAD = 16;
    */

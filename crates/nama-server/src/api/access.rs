@@ -44,7 +44,7 @@ const DELETE_MEDIA: Access = Access::Needs(Permission::DeleteMedia);
 /// Searching the subtitle sources and downloading their subtitles.
 const DOWNLOAD_SUBTITLES: Access = Access::Needs(Permission::DownloadSubtitles);
 
-/// Downloading a Version's file, or a Transcode of it, for offline playback.
+/// Downloading a Version's file, or one re-encoded as for a Transcode, for offline playback.
 #[expect(
     dead_code,
     reason = "no download endpoint (#2195, #2198) checks it yet"

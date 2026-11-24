@@ -75,7 +75,7 @@ The Permission to search a subtitle source for the Version a User is watching an
 _Avoid_: subtitle search permission
 
 **Download**:
-The Permission to save a Version's file, or a Transcode of it to a file, on a Device to play offline. Not what a Fulfiller's outside service does.
+The Permission to save a Version's file, or one re-encoded as for a Transcode, on a Device to play offline. Not what a Fulfiller's outside service does.
 _Avoid_: offline permission, sync, export
 
 **Invite**:
