@@ -104,7 +104,6 @@ async fn chosen(conn: &mut SqliteConnection, user: i64) -> Result<BTreeSet<i64>,
     Ok(chosen.into_iter().collect())
 }
 
-/// Replaces the User `user`'s Library access with `access`.
 async fn replace(
     conn: &mut SqliteConnection,
     user: i64,

@@ -393,8 +393,8 @@ fn answered<R>(answer: Option<Answer<R>>, scope: &Scope, noun: &str) -> Option<R
 }
 
 /// The titles of `row` that `on_server` has in a Library the reader sees, or that are missing and
-/// of a kind `may_request`, each with its place in the row, in its order. A title the row names twice, or by two of its
-/// ids, shows once, at its first place.
+/// of a kind `may_request`, each with its place in the row, in its order. A title the row names
+/// twice, or by two of its ids, shows once, at its first place.
 fn shown(
     row: &Row,
     on_server: &HashMap<Title, Option<OnServer>>,

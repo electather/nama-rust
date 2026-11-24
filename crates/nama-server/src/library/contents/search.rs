@@ -89,12 +89,12 @@ pub(crate) struct FoundEpisode {
 
 impl Contents {
     /// The best `limit` Matched Movies, Shows and Episodes of each Library `seen` keeps whose
-    /// titles have each of the words of `query`, ignoring case, accents and the marks that join words, of
-    /// `kind` only if it's set, a Show's with its Episodes. A year after other words keeps only
-    /// those of that year, or with it in their title. Ordered as ADR 0080 says: Movies and Shows
-    /// before Episodes, then by [`Fit`], then the year asked for, FTS5's rank, and the shorter
-    /// title. With fewer than [`FEW_FOUND`] found, the titles a search with its typos corrected
-    /// finds come after all those.
+    /// titles have each of the words of `query`, ignoring case, accents and the marks that join
+    /// words, of `kind` only if it's set, a Show's with its Episodes. A year after other words
+    /// keeps only those of that year, or with it in their title. Ordered as ADR 0080 says: Movies
+    /// and Shows before Episodes, then by [`Fit`], then the year asked for, FTS5's rank, and the
+    /// shorter title. With fewer than [`FEW_FOUND`] found, the titles a search with its typos
+    /// corrected finds come after all those.
     pub(crate) async fn search(
         &self,
         query: &str,
@@ -117,6 +117,8 @@ impl Contents {
                 found.extend(ranked(corrected_rows, &corrected));
             }
         }
+        // shortcut: filtered after the SQL keeps the best `CANDIDATES` of every Library, so hidden
+        // Libraries' fits can crowd out a User's own; filter in SQL if that's ever seen.
         found.retain(|found| seen(found.library()));
         found.truncate(limit);
         Ok(found)

@@ -109,7 +109,11 @@ pub(crate) fn router(
     let media =
         crate::playback::router(running.clone(), &db, Arc::clone(&ffmpeg), subtitles, reads)
             .merge(running_router(running.clone()))
-            .merge(preview_frames_router(preview_frames.clone()));
+            .merge(preview_frames_router(preview_frames.clone()))
+            .layer(middleware::from_fn_with_state(
+                Arc::clone(&db),
+                crate::playback::seen_versions_only,
+            ));
     let images = ImageSources {
         custom_images: custom_images.clone(),
         local_images: local_images.clone(),

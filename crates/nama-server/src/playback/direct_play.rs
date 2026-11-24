@@ -10,6 +10,7 @@ use axum::{
         StatusCode,
         header::{ETAG, IF_RANGE, LAST_MODIFIED, RANGE},
     },
+    middleware::Next,
     response::{IntoResponse, Response},
     routing::get,
 };
@@ -30,7 +31,7 @@ pub(super) fn direct_play_url(version: i64) -> String {
 }
 
 /// Serves `GET /media/versions/<id>` with the file of the Version `id` in `db`, and 404 if
-/// there is none or the caller doesn't see its Library, marking the caller's Direct Plays of it in `running` asked for as the request
+/// there is none, marking the caller's Direct Plays of it in `running` asked for as the request
 /// arrives and with each part of the file sent, and the subtitles plans offer, found in `db`, read
 /// with `ffmpeg`, a Version's text ones in a background pass on `reads`, and cached in `cache`.
 /// A caller off the local network whose User has a cap for remote playback gets 403 unless their
@@ -69,16 +70,6 @@ async fn serve(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    if let Some(user) = user {
-        match sees_version(&db, user, id).await {
-            Ok(true) => {}
-            Ok(false) => return StatusCode::NOT_FOUND.into_response(),
-            Err(err) => {
-                tracing::error!("could not look up which Libraries a User sees: {err}");
-                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-            }
-        }
-    }
     // A plan made off the local network applied the cap where it could, so one running lets the
     // file through, even past the cap for a picture of unknown size (ADR 0031, #2134). One made
     // on the local network never applied the cap (#2130).
@@ -116,6 +107,31 @@ async fn serve(
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
+}
+
+/// Answers 404 to a request under `/media/versions/<id>`, for the Version's file, subtitles,
+/// fonts or Preview frames alike, from a caller who doesn't see the Library of the Version `id`.
+/// Put in front of every router serving there.
+pub(crate) async fn seen_versions_only(
+    State(db): State<Arc<Database>>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let version = (request.uri().path().strip_prefix("/media/versions/"))
+        .and_then(|rest| rest.split('/').next())
+        .and_then(|id| id.parse().ok());
+    let user = (request.extensions().get::<Caller>()).map(|caller| caller.user.id);
+    if let (Some(version), Some(user)) = (version, user) {
+        match sees_version(&db, user, version).await {
+            Ok(true) => {}
+            Ok(false) => return StatusCode::NOT_FOUND.into_response(),
+            Err(err) => {
+                tracing::error!("could not look up which Libraries a User sees: {err}");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        }
+    }
+    next.run(request).await
 }
 
 /// Whether the User `user` sees the Library of the Version `version`, as they must to play it.
