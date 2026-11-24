@@ -3,6 +3,10 @@ import { ConnectError } from "@connectrpc/connect";
 import { RefusalReason, RefusalSchema } from "@/gen/nama/hub/v1/refusal_pb";
 import type { FormErrors } from "@/shared/lib/forms";
 
+/** What an Account with no User on the Server it signs in to is told. */
+export const NO_USER_ON_SERVER =
+  "Your Account has no User on this Server. Ask whoever runs it to create one from your Account.";
+
 /** The reason the Hub's Refusal on `error` names, if it carries one (ADR 0019). */
 export function hubRefusalReason(error: unknown) {
   return hubRefusalOf(error)?.reason;
@@ -13,15 +17,23 @@ export function hubRefusalReason(error: unknown) {
  * it's about, or for the whole form.
  */
 export function hubErrors(error: unknown): FormErrors {
+  return sayHubRefusal(error, wording, "The Hub couldn’t do that just now. Try again.");
+}
+
+/** What a form says for each reason it words, given the Refusal's params by key. */
+export type HubWording = Partial<
+  Record<RefusalReason, (param: (key: string) => string) => FormErrors>
+>;
+
+/** What `wording` says about the Hub's Refusal on `error`, or `fallback` for the whole form. */
+export function sayHubRefusal(error: unknown, wording: HubWording, fallback: string): FormErrors {
   const refusal = hubRefusalOf(error);
   const say = refusal && wording[refusal.reason];
-  return say
-    ? say((key) => refusal.params[key] ?? "")
-    : { form: "The Hub couldn’t do that just now. Try again." };
+  return say ? say((key) => refusal.params[key] ?? "") : { form: fallback };
 }
 
 // web/AGENTS.md, "Read refusals by reason": `invalid_argument` is the email's or the password's.
-const wording: Partial<Record<RefusalReason, (param: (key: string) => string) => FormErrors>> = {
+const wording: HubWording = {
   // The Hub doesn’t say which of the two is wrong, so neither do we.
   [RefusalReason.WRONG_EMAIL_OR_PASSWORD]: () => ({
     password: "That email and password don’t match an Account.",
@@ -37,6 +49,10 @@ const wording: Partial<Record<RefusalReason, (param: (key: string) => string) =>
   [RefusalReason.PASSWORD_LENGTH]: (param) => ({
     password: `A password needs ${param("minLength")} to ${param("maxLength")} characters.`,
   }),
+  [RefusalReason.SERVER_SIGN_IN_NOT_FOUND]: () => ({
+    form: "This sign-in expired or was used. Start signing in again on your Server.",
+  }),
+  [RefusalReason.NO_USER_ON_SERVER]: () => ({ form: NO_USER_ON_SERVER }),
 };
 
 /** `seconds` rounded up to whole minutes, in words. */
