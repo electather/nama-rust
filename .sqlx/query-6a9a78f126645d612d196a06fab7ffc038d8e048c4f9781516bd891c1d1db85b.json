@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO device_users (device_id, user_id, sign_in_method_id, authenticated_at)\n         VALUES (?, ?, ?, ?)\n         ON CONFLICT (device_id, user_id) DO UPDATE\n             SET sign_in_method_id = excluded.sign_in_method_id,\n                 authenticated_at = excluded.authenticated_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "6a9a78f126645d612d196a06fab7ffc038d8e048c4f9781516bd891c1d1db85b"
+}

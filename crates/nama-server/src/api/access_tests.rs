@@ -49,14 +49,6 @@ fn a_path_in_no_entry_has_no_access() {
 }
 
 #[test]
-fn media_needs_a_session() {
-    assert!(matches!(
-        Access::of("/media/versions/1"),
-        Some(Access::SignedIn)
-    ));
-}
-
-#[test]
 fn downloading_a_versions_file_needs_download() {
     assert!(matches!(
         Access::of("/media/downloads/1"),

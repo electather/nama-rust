@@ -154,8 +154,8 @@ struct OnHardware {
 
 /// The Transcodes running, as a Transcode cap counts them.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(super) struct RunningTranscodes {
-    pub(super) all: u32,
+pub(crate) struct RunningTranscodes {
+    pub(crate) all: u32,
     /// Those that work the CPU hard, which the default cap counts.
     pub(super) cpu_bound: u32,
 }
@@ -270,7 +270,7 @@ impl RunningPlans {
     // ponytail: the plan isn't kept until after probing, the folder, spawning ffmpeg and up to
     // `START_WAIT` waiting for its first file, so Devices planning in that window can pass the cap
     // together until Transcodes end; reserve room under the plans' lock if that ever matters.
-    pub(super) fn running_transcodes(&self) -> RunningTranscodes {
+    pub(crate) fn running_transcodes(&self) -> RunningTranscodes {
         let plans = lock(&self.inner.plans);
         let transcodes: Vec<_> = (plans.values())
             .filter_map(|plan| {

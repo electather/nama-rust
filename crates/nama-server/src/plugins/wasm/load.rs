@@ -520,7 +520,7 @@ fn check_contract(wants: &str) -> Result<(), Refused> {
         wants: wants.to_owned(),
         error,
     })?;
-    // every_bundled_plugin_has_the_exports_its_manifests_points_need fails if this stops parsing.
+    // every_plugins_folder_is_bundled_and_loads_with_defaults_of_their_kinds_and_unique_keys fails if this stops parsing.
     if Version::parse(CONTRACT_VERSION).is_ok_and(|server| requirement.matches(&server)) {
         Ok(())
     } else {

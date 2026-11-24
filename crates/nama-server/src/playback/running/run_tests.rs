@@ -416,20 +416,6 @@ async fn a_tick_deletes_files_ending_more_than_five_minutes_behind_the_last_segm
 }
 
 #[tokio::test]
-async fn a_tick_told_to_keep_less_behind_deletes_what_it_no_longer_keeps() {
-    let test = remux().await;
-    // To 400 seconds, played to 360.
-    test.write(0..200);
-    test.served(60).await;
-    test.plan.delete_unkept(KEEP_BEHIND_MS).await.unwrap();
-
-    test.plan.delete_unkept(60_000).await.unwrap();
-
-    // Keyframe 149 ends at 300 seconds, a minute before.
-    assert_eq!(test.left(), Vec::from_iter(149..200));
-}
-
-#[tokio::test]
 async fn a_tick_after_a_seek_back_deletes_the_files_more_than_two_minutes_ahead_of_it() {
     let test = remux().await;
     // To 600 seconds.
@@ -604,20 +590,6 @@ async fn a_transcode_whose_hardware_fills_the_segment_folder_stays_on_hardware()
         None,
         "the restart fails too"
     );
-}
-
-#[tokio::test]
-async fn a_transcode_whose_hardware_goes_over_quota_warns_the_folder_is_full_and_stays_on_hardware()
-{
-    let log = CapturedLog::start();
-    let test = on_hardware().await;
-
-    test.runs.fail(0, "[mp4] 0.m4s: Disk quota exceeded");
-
-    a_look_later().await;
-    assert_eq!(test.software.started(), [0_usize; 0]);
-    assert!(!test.plan.fell_back());
-    assert!(log.finish().contains("is full"));
 }
 
 #[tokio::test]

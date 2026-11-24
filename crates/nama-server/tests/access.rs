@@ -332,8 +332,8 @@ async fn signed_in_by_code(server: &TestServer) -> String {
     polled.into_owned().token
 }
 
-/// Moves every Device's last authentication back past the 10 minutes Recent Authentication lasts,
-/// as if they had all signed in 11 minutes ago.
+/// Moves every User's last authentication on each Device back past the 10 minutes Recent
+/// Authentication lasts, as if they had all signed in 11 minutes ago.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -341,7 +341,7 @@ async fn signed_in_by_code(server: &TestServer) -> String {
 async fn authenticated_long_ago(db: &Database) {
     db.write(|tx| {
         Box::pin(async move {
-            sqlx::query("UPDATE devices SET authenticated_at = authenticated_at - 11 * 60")
+            sqlx::query("UPDATE device_users SET authenticated_at = authenticated_at - 11 * 60")
                 .execute(&mut **tx)
                 .await
         })

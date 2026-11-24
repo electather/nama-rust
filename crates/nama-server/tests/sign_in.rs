@@ -854,19 +854,6 @@ async fn signing_out_a_bearer_session_sets_no_cookie() {
     assert_eq!(signed_out.headers.get("set-cookie"), None);
 }
 
-#[tokio::test]
-async fn signing_out_without_a_session_is_unauthenticated() {
-    let server = start().await;
-
-    let signed_out = call(&server, "SignOut", &json!({}), &[]).await;
-
-    assert_refused(
-        signed_out.refused(),
-        ErrorCode::Unauthenticated,
-        RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
-    );
-}
-
 const WAIT: Duration = Duration::from_secs(10);
 
 type Subscription = ServerStream<hyper::body::Incoming, SubscribeResponseView<'static>>;

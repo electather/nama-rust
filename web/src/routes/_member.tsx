@@ -1,10 +1,10 @@
 import { create } from "@bufbuild/protobuf";
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+import { HubMemberLayout } from "@/app/hub-member-layout";
 import { MemberLayout } from "@/app/member-layout";
 import { type Section, idParam, sectionParam, userParam } from "@/features/settings/lib/sections";
 import { WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
-import { SignedOutLayout } from "@/shared/components/sign-in-layout/signed-out-layout";
 import { accountOrSignIn, isAtHub, serverInfo, whoIsSignedIn } from "@/shared/hooks/access";
 import { recordDiagnosticsIfExported } from "@/shared/lib/diagnostics";
 import { wordsParam } from "@/shared/lib/words-param";
@@ -64,14 +64,8 @@ export const Route = createFileRoute("/_member")({
 
 function Member() {
   const { signedIn, account } = Route.useRouteContext();
-  // ponytail: the Account's pages at the Hub sit in the signed-out pages' frame, without app
-  // chrome, until the Hub's Home gives them some (#2204).
   if (account) {
-    return (
-      <SignedOutLayout>
-        <Outlet />
-      </SignedOutLayout>
-    );
+    return <HubMemberLayout />;
   }
   return <MemberLayout chrome={{ userName: signedIn.user?.name ?? "" }} user={signedIn.user} />;
 }

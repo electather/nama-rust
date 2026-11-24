@@ -1,7 +1,14 @@
 import { backupLabels } from "@/features/admin-backups/lib/backup-settings";
 import { serverPlaybackLabels } from "@/features/admin-playback/lib/playback-labels";
 import { notificationLabels } from "@/features/settings/lib/notification-labels";
-import { deviceLabels, signinLabels, userLabels } from "@/features/settings/lib/pane-labels";
+import {
+  accountLabels,
+  accountSessionLabels,
+  accountSigninLabels,
+  deviceLabels,
+  signinLabels,
+  userLabels,
+} from "@/features/settings/lib/pane-labels";
 import { playbackLabels } from "@/features/settings/lib/playback-values";
 import { answers, typedWords } from "@/features/settings/lib/search-words";
 import {
@@ -45,6 +52,9 @@ const builtIn: Record<Section, Record<string, SettingText>> = {
   "default-home": homeLabels,
   "server-playback": serverPlaybackLabels,
   plugins: {},
+  account: accountLabels,
+  "account-signin": accountSigninLabels,
+  "account-sessions": accountSessionLabels,
 };
 
 /** What the built-in setting `key` of `section` says, if it has one by that key. */

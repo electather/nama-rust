@@ -104,11 +104,15 @@ impl ExtensionPoints {
         match delivered.await {
             Ok(Ok(())) => self.provider_answered(&entry.plugin, key),
             Ok(Err(failure)) => {
+                diagnostics::failed_with(&failure, &Span::current());
                 let error = failure.blanked(&entry.secrets).message;
                 self.provider_failed(&entry.plugin, key, &error);
                 warn!(plugin = %entry.plugin, point = P::NAME, error, "observer failed");
             }
-            Err(message) => self.disable_after_panic(entry, P::NAME, &message),
+            Err(message) => {
+                diagnostics::failed(&Span::current(), "panicked");
+                self.disable_after_panic(entry, P::NAME, &message);
+            }
         }
     }
 
@@ -191,6 +195,7 @@ impl ExtensionPoints {
         T: ?Sized + Send + Sync + 'static,
         F: Future<Output = Result<R, E>>,
         E: ProviderError<K>,
+        K: FailureKind,
     {
         let mut asked = Asked::Absent;
         for entry in self.ranked_entries(PointKey::provide::<T>(), only) {
@@ -233,6 +238,7 @@ impl ExtensionPoints {
         T: ?Sized + Send + Sync + 'static,
         F: Future<Output = Result<R, E>>,
         E: ProviderError<K>,
+        K: FailureKind,
     {
         let Some(provider) = entry.registration.provider::<T>() else {
             return Asked::Absent;
@@ -300,11 +306,15 @@ impl ExtensionPoints {
         match called.await {
             Ok(Ok(())) => self.provider_answered(&entry.plugin, key),
             Ok(Err(failure)) => {
+                diagnostics::failed_with(&failure, &Span::current());
                 let error = failure.blanked(&entry.secrets).message;
                 self.provider_failed(&entry.plugin, key, &error);
                 warn!(plugin = %entry.plugin, point, error, "provider failed");
             }
-            Err(message) => self.disable_after_panic(&entry, point, &message),
+            Err(message) => {
+                diagnostics::failed(&Span::current(), "panicked");
+                self.disable_after_panic(&entry, point, &message);
+            }
         }
     }
 

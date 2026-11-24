@@ -8,6 +8,7 @@
 //! |--------------------------------------------------------------------|---------------|
 //! | Reads a page needs: the Server's Link, a User's Link               | [`PAGE_READ`] |
 //! | Changes at the service: starting or ending a Link, inviting a User, starting or finishing an Account sign-in, Unlinking a deleted User, publishing a certificate challenge | none |
+//! | Whether a request comes from the web app at the Hub the Server is Linked with: only the Server's own table | none |
 //! | Bulk transfers                                                     | [`BULK`]      |
 //! | The Server Addresses tick, and a Relay token                       | the Hub client's own (`hub::TIMEOUT`) |
 //!
@@ -127,6 +128,15 @@ impl Linking {
     /// Whether the Server's config names a Hub, so the Server can Link with it.
     pub(crate) const fn has_hub(&self) -> bool {
         self.server.is_some()
+    }
+
+    /// Whether `origin` is that of the Hub the Server is Linked with, whose web app may call the
+    /// Server from the browser (ADR 0105).
+    pub(crate) async fn is_linked_hub_origin(&self, origin: &str) -> bool {
+        match &self.server {
+            Some(server) => server.is_linked_hub_origin(origin).await,
+            None => false,
+        }
     }
 
     /// The Server's Link.
@@ -314,8 +324,9 @@ impl Linking {
                 })
                 .await;
             if let Some(answer) = unlinked
-                && answer.result.is_err()
+                && let Err(failure) = &answer.result
             {
+                diagnostics::failed_with(failure, &tracing::Span::current());
                 // Ids only: `ask_first` already puts the failure's message on the Plugin's page.
                 // The User may never have Linked, so this says only that the service wasn't told.
                 tracing::warn!(

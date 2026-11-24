@@ -52,7 +52,7 @@ const wording: HubWording = {
     password: "That email and password don’t match an Account.",
   }),
   [RefusalReason.TOO_MANY_ATTEMPTS]: (param) => ({
-    wait: `There have been too many tries. Try again in ${minutes(param("retryAfterSeconds"))}.`,
+    wait: tooManyTries(param("retryAfterSeconds")),
   }),
   [RefusalReason.EMAIL_TAKEN]: () => ({ email: "This email has an Account already. Sign in." }),
   [RefusalReason.EMAIL_INVALID]: () => ({ email: "Enter an email, such as you@example.com." }),
@@ -72,6 +72,11 @@ const serverSignInWording: HubWording = {
     form: "You’re signed out. Sign in again to continue.",
   }),
 };
+
+/** That the Hub refused for too many tries, and to try again in `seconds`. */
+export function tooManyTries(seconds: string) {
+  return `There have been too many tries. Try again in ${minutes(seconds)}.`;
+}
 
 /** `seconds` rounded up to whole minutes, in words. */
 function minutes(seconds: string) {
