@@ -292,7 +292,7 @@ jobs:
       - run: cargo doc --workspace --no-deps --locked
         env:
           RUSTDOCFLAGS: -D warnings
-      # The Server's private modules too, whose links the step above never resolves (#2131).
+      # The Server's private items too, whose links the step above never checks (#2131).
       - run: cargo doc -p nama-server --no-deps --document-private-items --locked
         env:
           RUSTDOCFLAGS: -D warnings
