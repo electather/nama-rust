@@ -39,8 +39,8 @@ catalog:
   react: ^19.3.1
   react-dom: ^19.3.1
   tailwindcss: ^4
-  # vp refuses to run unless the alias matches vite-plus. Dependabot bumps only vite-plus, so bump both.
-  vite: npm:@voidzero-dev/vite-plus-core@1.6.0
+  # vp refuses to run unless the alias matches vite-plus's own `vite` dependency (core versions no longer track vite-plus's). Dependabot bumps only vite-plus, so bump both.
+  vite: npm:@voidzero-dev/vite-plus-core@8.3.8000
   vite-plus: 1.7.0
 overrides:
   vite@*: "catalog:"
