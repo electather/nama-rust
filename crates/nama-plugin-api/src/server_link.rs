@@ -1,7 +1,7 @@
-//! Provide: syncing the Users the Kernel Linked to Accounts with an outside service, once the Kernel
-//! has Linked the Server and them with the Hub (ADR 0011, ADR 0105): their Watch State and Subtitle
-//! and Audio Preferences on their other Servers come back through it (ADR 0008, ADR 0092), and
-//! their Watchlist syncs with them (ADR 0056). The Link types the Kernel answers in live here too.
+//! Provide: syncing the Users the Kernel Linked to Accounts with an outside service, once the
+//! Kernel has Linked the Server and them with the Hub (ADR 0011, ADR 0105): their Watch State and
+//! Subtitle and Audio Preferences on their other Servers come back through it (ADR 0008, ADR 0092),
+//! and their Watchlist syncs with them (ADR 0056). The Link types the Kernel answers in live here too.
 //! Only a Built-in Plugin provides it, by registering it:
 //!
 //! ```ignore

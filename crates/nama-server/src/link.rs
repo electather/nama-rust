@@ -139,7 +139,7 @@ impl Linking {
     }
 
     /// The User `user_id`'s Link, or `None` while they can't Link, before the Server is Linked.
-    /// Asking is how the Plugin learns of an Unlink made on the service, such as by deleting the
+    /// Asking is how the Server learns of an Unlink made on the Hub, such as by deleting the
     /// Account (ADR 0099).
     pub(crate) async fn user_link(&self, user_id: i64) -> Result<Option<Link>, Error> {
         self.look(Whose::User(user_id)).await

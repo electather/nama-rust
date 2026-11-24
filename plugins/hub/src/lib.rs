@@ -61,9 +61,10 @@ pub trait KernelLink: fmt::Debug + Send + Sync + 'static {
     /// When the Kernel couldn't forget it.
     fn forget<'a>(&'a self, credential: &'a str) -> BoxFuture<'a, Result<(), PluginError>>;
 
-    /// Whether the User `user_id` is Linked to an Account, as Settings shows it: the one answer that
-    /// decides whether their Watch State, Subtitle and Audio Preferences, Watchlist and plays go to
-    /// the Hub.
+    /// Whether the User `user_id` is Linked to an Account, as Settings shows it: the one answer
+    /// that decides whether their Watch State, Subtitle and Audio Preferences, Watchlist and plays
+    /// go to the Hub. It asks the Hub as Settings would, so a User who never opened Settings, such
+    /// as one who only signs in with their Account, counts once Linked there.
     ///
     /// # Errors
     ///

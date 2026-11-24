@@ -1,7 +1,7 @@
 //! Linking the Server and its Users with the Hub its config names (ADR 0011, ADR 0105), which
-//! `Linking` asks: `ServerService`'s `GetServerLink`, `StartServerLink` and `UnlinkServer`, `UserService`'s
-//! `GetUserLink` and `StartUserLink`, and `SignInService`'s `StartAccountSignIn` (ADR 0092), with
-//! the Refusals of `Linking`'s errors.
+//! `Linking` asks: `ServerService`'s `GetServerLink`, `StartServerLink` and `UnlinkServer`,
+//! `UserService`'s `GetUserLink` and `StartUserLink`, and `SignInService`'s `StartAccountSignIn`
+//! (ADR 0092), with the Refusals of `Linking`'s errors.
 
 use std::net::SocketAddr;
 
