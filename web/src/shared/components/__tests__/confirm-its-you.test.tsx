@@ -251,17 +251,6 @@ async function tickAdminForAlex() {
   return promote;
 }
 
-test("a Permission ticked without Recent Authentication is saved once you confirm it’s you", async () => {
-  const { promoted } = openUsersNeedingRecentAuthentication();
-
-  await tickAdminForAlex();
-  await confirmItsYou();
-
-  await waitFor(() => {
-    expect(promoted).toStrictEqual([[2n, [...newUser, Permission.ADMIN]]]);
-  });
-});
-
 test("a Permission is saved once you confirm it’s you, before the browser draws the page again", async () => {
   // Chromium fires a dialog's `close` event only when it next draws the page, which a page in a
   // background or hidden window may not do for a long time.
