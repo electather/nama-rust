@@ -72,17 +72,17 @@ async function follow(following: Following, resubscribing = false) {
   const { transport, queryClient, signal } = following;
   const catchUp = () => {
     if (resubscribing) {
-      forgetMissed(queryClient);
+      forgetMissed(following);
     } else {
-      void queryClient.invalidateQueries({ queryKey: unmatchedKey() });
-      void queryClient.invalidateQueries({ queryKey: playsKey });
+      void queryClient.invalidateQueries({ queryKey: unmatchedKey(transport) });
+      void queryClient.invalidateQueries({ queryKey: playsKey(transport) });
     }
   };
   try {
     const client = createClient(EventService, transport);
     const responses = client.subscribe({ types }, { signal, onHeader: catchUp });
     for await (const response of responses) {
-      applyEvent(response, queryClient);
+      applyEvent(response, following);
     }
   } catch {
     // The Server went away or hung up, or the session ended and the routes' access checks will

@@ -1,4 +1,7 @@
+import type { Transport } from "@connectrpc/connect";
+
 import type { PreviewFrames } from "@/gen/nama/v1/playback_pb";
+import { serverUrl } from "@/shared/lib/server";
 
 /** Where a Version's Preview frames are: their layout, and the path its sheets are numbered under. */
 export interface FrameSheets {
@@ -7,10 +10,17 @@ export interface FrameSheets {
   path: string;
 }
 
-/** The Preview frames of Version `versionId`, as its plan lays them out, if it has any. */
-export function frameSheets(frames: PreviewFrames | undefined, versionId: bigint) {
+/**
+ * The Preview frames of Version `versionId` on the Server `transport` talks to, as its plan lays
+ * them out, if it has any.
+ */
+export function frameSheets(
+  frames: PreviewFrames | undefined,
+  versionId: bigint,
+  transport: Transport,
+) {
   return frames && frames.count > 0
-    ? { frames, path: `/media/versions/${versionId}/preview-frames` }
+    ? { frames, path: serverUrl(transport, `/media/versions/${versionId}/preview-frames`) }
     : undefined;
 }
 

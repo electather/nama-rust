@@ -4,6 +4,7 @@ import { type QueryClient, queryOptions } from "@tanstack/react-query";
 
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { SignInService } from "@/gen/nama/v1/sign_in_pb";
+import { serverKey } from "@/shared/hooks/server-key";
 import { isCode } from "@/shared/lib/connect-errors";
 
 /** What every route's `beforeLoad` gets from the router. */
@@ -40,7 +41,7 @@ export async function whoIsSignedIn({ queryClient, transport }: RouterContext) {
 /** The query behind `whoIsSignedIn`: being signed out isn't an error. */
 export function signedInQuery(transport: Transport) {
   return queryOptions({
-    queryKey: ["signed-in"],
+    queryKey: ["signed-in", serverKey(transport)],
     queryFn: async () => {
       try {
         return await callUnaryMethod(transport, SignInService.method.whoAmI, {});

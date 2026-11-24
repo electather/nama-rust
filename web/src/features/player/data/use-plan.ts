@@ -28,7 +28,7 @@ export function usePlan(versionId: bigint, asking: Asking) {
   const { replacing } = asking;
   const { plan, playableVersions } = useSuspenseQuery({
     queryKey: [
-      ...planKey,
+      ...planKey(transport),
       String(versionId),
       failedRecipes,
       String(startPositionMs),
@@ -61,7 +61,7 @@ export function usePlan(versionId: bigint, asking: Asking) {
         );
         const planned = create(PlaybackPlanSchema, response.plan);
         // Plan ids start again when the Server restarts, so a stop kept under this one was another's.
-        client.removeQueries(adminStopQuery(planned.id));
+        client.removeQueries(adminStopQuery(transport, planned.id));
         return create(PlanPlaybackResponseSchema, {
           plan: planned,
           playableVersions: response.playableVersions,

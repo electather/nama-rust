@@ -1,12 +1,16 @@
+import type { Transport } from "@connectrpc/connect";
 import { createConnectQueryKey, useSuspenseQuery } from "@connectrpc/connect-query";
 
 import { PluginConnectionState, UserService } from "@/gen/nama/v1/user_pb";
 
 /** The query key of the Plugin Connections, to refetch after changing one. */
-export const connectionsKey = createConnectQueryKey({
-  schema: UserService.method.listPluginConnections,
-  cardinality: "finite",
-});
+export function connectionsKey(transport: Transport) {
+  return createConnectQueryKey({
+    schema: UserService.method.listPluginConnections,
+    cardinality: "finite",
+    transport,
+  });
+}
 
 /** How often to look again while a link waits for the User to finish in the other app. */
 const WAITING_POLL_MS = 2000;

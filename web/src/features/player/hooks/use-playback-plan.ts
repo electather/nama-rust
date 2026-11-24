@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useFrameSheets } from "@/features/player/data/use-frame-sheets";
 import { usePlan } from "@/features/player/data/use-plan";
 import { useCantPlay } from "@/features/player/hooks/use-cant-play";
 import { useSubtitleChoice } from "@/features/player/hooks/use-subtitle-choice";
@@ -18,7 +19,8 @@ import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
  * shows a subtitle the Device shows itself, which `shownSubtitle` then holds, starting as the first
  * plan's `startingSubtitle`, or asks for a new plan from there with a subtitle Track burned in. The
  * plan says which of these it honoured, which may drop `justChose` (ADR 0031). `offsetOf` and
- * `shiftSubtitle` read and set a subtitle's Subtitle Offset, which no plan is asked for.
+ * `shiftSubtitle` read and set a subtitle's Subtitle Offset, which no plan is asked for. `sheets` are
+ * the plan's Preview frames.
  */
 export function usePlaybackPlan({
   versionId,
@@ -41,6 +43,7 @@ export function usePlaybackPlan({
     versionId,
     plan,
     playableVersions,
+    sheets: useFrameSheets(plan.previewFrames, versionId),
     startPositionMs,
     justChose,
     asks,

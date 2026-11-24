@@ -1,13 +1,17 @@
+import type { Transport } from "@connectrpc/connect";
 import { createConnectQueryKey, useSuspenseQuery } from "@connectrpc/connect-query";
 
 import { UserService } from "@/gen/nama/v1/user_pb";
 import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
 
 /** The query key of the Users, to refetch after a change to them. */
-export const usersKey = createConnectQueryKey({
-  schema: UserService.method.listUsers,
-  cardinality: "finite",
-});
+export function usersKey(transport: Transport) {
+  return createConnectQueryKey({
+    schema: UserService.method.listUsers,
+    cardinality: "finite",
+    transport,
+  });
+}
 
 /** The Server's Users. */
 export function useUsers() {
