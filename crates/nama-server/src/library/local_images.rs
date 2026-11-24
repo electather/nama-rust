@@ -110,17 +110,17 @@ impl LocalImageUrls {
         let mut urls = Self::default();
         for image in images {
             let (ids, url) = (&image.ids, url(image.library, &image.stored));
-            match (image.role, image.season) {
-                (LocalRole::Title(role), None) => {
+            match image.shown_as() {
+                Some(TitleImage::Movie(role)) => {
                     insert_first(&mut urls.movies, ids, |id| (id, role), &url);
                 }
-                (LocalRole::Title(role), Some(_)) => {
+                Some(TitleImage::Show(role)) => {
                     insert_first(&mut urls.shows, ids, |id| (id, role), &url);
                 }
-                (LocalRole::SeasonPoster, Some(number)) => {
+                Some(TitleImage::SeasonPoster(number)) => {
                     insert_first(&mut urls.seasons, ids, |id| (id, number), &url);
                 }
-                (LocalRole::SeasonPoster, None) => {}
+                None => {}
             }
         }
         urls
@@ -154,14 +154,27 @@ fn first_of<K: Eq + Hash>(
 }
 
 impl TitleLocalImage {
-    /// Which of its title's Posters this is, if it is one.
-    fn poster(&self) -> Option<TitleImage> {
+    /// Which image of its title this stands in for: a Movie's, else, beside an Episode, its Show's
+    /// or Season's.
+    const fn shown_as(&self) -> Option<TitleImage> {
         match (self.role, self.season) {
-            (LocalRole::Title(Role::Poster), None) => Some(TitleImage::Movie(Role::Poster)),
-            (LocalRole::Title(Role::Poster), Some(_)) => Some(TitleImage::Show(Role::Poster)),
+            (LocalRole::Title(role), None) => Some(TitleImage::Movie(role)),
+            (LocalRole::Title(role), Some(_)) => Some(TitleImage::Show(role)),
             (LocalRole::SeasonPoster, Some(number)) => Some(TitleImage::SeasonPoster(number)),
-            _ => None,
+            (LocalRole::SeasonPoster, None) => None,
         }
+    }
+
+    /// Which of its title's Posters this stands in for, if it is one.
+    fn poster(&self) -> Option<TitleImage> {
+        self.shown_as().filter(|image| {
+            matches!(
+                image,
+                TitleImage::Movie(Role::Poster)
+                    | TitleImage::Show(Role::Poster)
+                    | TitleImage::SeasonPoster(_)
+            )
+        })
     }
 }
 
@@ -250,7 +263,7 @@ impl LocalImages {
     /// title shows, having none of `custom_images` in its place, where that copy isn't there. Each
     /// one, not only those a scan just copied in, so a Library recorded before Posters were
     /// resized ahead gets its copies too (#2152).
-    pub(crate) fn resize_shown_posters(
+    pub(super) fn resize_shown_posters(
         &self,
         library: i64,
         custom_images: CustomImages,
