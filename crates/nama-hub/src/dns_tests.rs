@@ -164,3 +164,49 @@ async fn records_cloudflare_refuses_fail_with_what_it_said() {
         "{err:?}"
     );
 }
+
+#[tokio::test]
+async fn cloudflare_replaces_the_txt_records_at_exactly_the_name() {
+    let (cloudflare, mut received) = cloudflare_listing(
+        json!([listed(
+            "old",
+            "TXT",
+            "_acme-challenge.abc.namadirect.net",
+            "\"stale\""
+        )]),
+        StatusCode::OK,
+    )
+    .await;
+
+    cloudflare
+        .replace_texts(
+            "_acme-challenge.abc.namadirect.net",
+            vec!["new-value".to_owned()],
+        )
+        .await
+        .unwrap();
+
+    let Some(Received::Listed { query, .. }) = received.recv().await else {
+        panic!("the name's records weren't listed first");
+    };
+    assert!(
+        query.contains("type=TXT&name.exact=_acme-challenge.abc.namadirect.net"),
+        "{query}"
+    );
+    let Some(Received::Batch(batch)) = received.recv().await else {
+        panic!("no batch was written");
+    };
+    assert_eq!(
+        batch,
+        json!({
+            "deletes": [{ "id": "old" }],
+            "posts": [{
+                "type": "TXT",
+                "name": "_acme-challenge.abc.namadirect.net",
+                "content": "new-value",
+                "ttl": 60,
+                "proxied": false,
+            }],
+        })
+    );
+}

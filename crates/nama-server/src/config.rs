@@ -68,6 +68,10 @@ pub struct Config {
     /// clients outside the LAN of a Server Linked to the Hub. Unset, the default, has the Server
     /// open one itself with UPnP or NAT-PMP while the Plugin that links it is enabled.
     pub forwarded_port: Option<NonZeroU16>,
+    /// The ACME directory a Server Linked to the Hub gets the certificate for its names from
+    /// (ADR 0057). Let's Encrypt's by default; its staging one,
+    /// `https://acme-staging-v02.api.letsencrypt.org/directory`, for trying things out.
+    pub acme_directory: String,
     /// Where the Server exports Diagnostics: the standard `OTEL_EXPORTER_OTLP_ENDPOINT`, which
     /// `nama-server` sets here once exporting has started, never a key in the file (ADR 0054).
     /// Unset, nothing is exported, and the web app records nothing.
@@ -182,6 +186,7 @@ impl Default for Config {
             ffprobe: None,
             watch_folders: true,
             forwarded_port: None,
+            acme_directory: instant_acme::LetsEncrypt::Production.url().to_owned(),
             otlp_endpoint: None,
             file: PathBuf::from(DEFAULT_FILE),
         }

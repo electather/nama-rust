@@ -1,4 +1,4 @@
-import { Button } from "nama-ui/components/button";
+import { Button, ghostHang } from "nama-ui/components/button";
 import { useCallback, useState } from "react";
 
 import { afterFontsLoad } from "@/shared/lib/after-fonts-load";
@@ -40,9 +40,8 @@ export function Overview({ text }: { text: string }) {
         {text}
       </p>
       {clamped && (
-        // Pulled out by the button's own padding, so its text lines up with the overview's. It
-        // stays once open, so keyboard focus isn't dropped.
-        <div className="-ms-2.5">
+        // The button stays once open, so keyboard focus isn't dropped.
+        <div className={ghostHang}>
           <Button
             variant="ghost"
             aria-expanded={open}

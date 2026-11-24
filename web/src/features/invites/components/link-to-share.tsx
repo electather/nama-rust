@@ -1,3 +1,6 @@
+import { cn } from "cn";
+import { ghostHang } from "nama-ui/components/button";
+
 import { CopyLinkButton } from "@/features/invites/components/copy-link-button";
 import { ShareLinkButton } from "@/features/invites/components/share-link-button";
 import type { Invite } from "@/gen/nama/v1/user_pb";
@@ -19,8 +22,7 @@ export function LinkToShare({ url, invite }: { url: string; invite: Invite }) {
         }}
         hint={`Anyone with it can create one User, once, until ${dayOf(invite.expiresAt)}.`}
       />
-      {/* Ghost buttons are pulled back by their own padding, so their words line up with the field. */}
-      <div className="-ms-2.5 flex flex-wrap gap-2">
+      <div className={cn(ghostHang, "flex flex-wrap gap-2")}>
         <CopyLinkButton url={url} />
         {"share" in navigator && <ShareLinkButton url={url} />}
       </div>

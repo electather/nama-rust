@@ -6,7 +6,7 @@
 //! | Calls                                                              | Bound         |
 //! |--------------------------------------------------------------------|---------------|
 //! | Reads a page needs: the Server's Link, a User's Link               | [`PAGE_READ`] |
-//! | Changes at the service: starting or ending a Link, inviting a User, starting or finishing an Account sign-in, Unlinking a deleted User | none |
+//! | Changes at the service: starting or ending a Link, inviting a User, starting or finishing an Account sign-in, Unlinking a deleted User, publishing a certificate challenge | none |
 //! | Bulk transfers, and the Server Addresses tick                      | [`BULK`]      |
 //!
 //! A change isn't cut: cut mid-way, it could leave the service changed without the Server knowing,
@@ -224,6 +224,13 @@ impl Linking {
         code: &str,
     ) -> Result<Option<i64>, Error> {
         self.ask(async |linker| linker.finish_account_sign_in(handle, code).await)
+            .await
+    }
+
+    /// Has the service publish `values` as the DNS-01 challenge for a certificate for the
+    /// Server's names, or remove it when empty (ADR 0057).
+    pub(crate) async fn set_certificate_challenge(&self, values: Vec<String>) -> Result<(), Error> {
+        self.ask(async |linker| linker.set_certificate_challenge(values.clone()).await)
             .await
     }
 

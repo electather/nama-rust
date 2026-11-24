@@ -41,6 +41,9 @@ pub trait Records: Send + Sync {
     /// Makes `records` the only A and AAAA records at `name` and the names under it, removing
     /// them all when it is empty. Records of other types stay, such as an ACME challenge's TXT.
     fn replace(&self, name: &str, records: Vec<Record>) -> Writing<'_>;
+
+    /// Makes `values` the only TXT records at `name` itself, removing them all when it is empty.
+    fn replace_texts(&self, name: &str, values: Vec<String>) -> Writing<'_>;
 }
 
 /// Why records weren't written.
@@ -114,6 +117,34 @@ impl Cloudflare {
             // The filter also matches a name that merely ends the same, such as `x<name>`.
             .filter(|listed| listed.name == name || listed.name.ends_with(&under))
             .collect())
+    }
+
+    /// The TXT records at `name` itself.
+    async fn listed_texts(&self, name: &str) -> Result<Vec<Listed>, DnsError> {
+        let response = self
+            .client
+            .get(format!("{}?type=TXT&name.exact={name}", self.url))
+            .bearer_auth(&self.api_token)
+            .send()
+            .await?;
+        let listing: Listing = succeeded(response).await?.json().await?;
+        Ok(listing.result)
+    }
+
+    /// Applies `batch`, unless it changes nothing.
+    async fn apply(&self, batch: Batch<'_>) -> Result<(), DnsError> {
+        if batch.deletes.is_empty() && batch.posts.is_empty() {
+            return Ok(());
+        }
+        let response = self
+            .client
+            .post(format!("{}/batch", self.url))
+            .bearer_auth(&self.api_token)
+            .json(&batch)
+            .send()
+            .await?;
+        succeeded(response).await?;
+        Ok(())
     }
 }
 
@@ -199,18 +230,27 @@ impl Records for Cloudflare {
                     proxied: false,
                 })
                 .collect();
-            if deletes.is_empty() && posts.is_empty() {
-                return Ok(());
-            }
-            let response = self
-                .client
-                .post(format!("{}/batch", self.url))
-                .bearer_auth(&self.api_token)
-                .json(&Batch { deletes, posts })
-                .send()
-                .await?;
-            succeeded(response).await?;
-            Ok(())
+            self.apply(Batch { deletes, posts }).await
+        })
+    }
+
+    fn replace_texts(&self, name: &str, values: Vec<String>) -> Writing<'_> {
+        let name = name.to_owned();
+        Box::pin(async move {
+            let listed = self.listed_texts(&name).await?;
+            let deletes = (listed.iter())
+                .map(|listed| Deleted { id: &listed.id })
+                .collect();
+            let posts = (values.into_iter())
+                .map(|value| Posted {
+                    kind: "TXT",
+                    name: &name,
+                    content: value,
+                    ttl: TTL_SECS,
+                    proxied: false,
+                })
+                .collect();
+            self.apply(Batch { deletes, posts }).await
         })
     }
 }

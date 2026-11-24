@@ -147,6 +147,30 @@ async fn a_capped_user_off_the_local_network_paused_past_a_minute_is_still_sent_
 }
 
 #[tokio::test]
+async fn a_capped_user_who_leaves_the_local_network_is_refused_a_version_planned_on_it() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [p1080, _], bishop) = capped_bishop(bin.path()).await;
+    let locally = (bishop.client_config()).with_default_header("x-forwarded-for", LOCAL);
+    let original = picking(p1080, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
+    let plan = ask_for_plan_as(locally, original).await.unwrap();
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY);
+
+    assert_eq!(status_for(&fx, p1080, &bishop.token, REMOTE).await, 403);
+}
+
+#[tokio::test]
+async fn a_capped_user_on_the_local_network_is_sent_a_version_planned_on_it() {
+    let bin = tempfile::tempdir().unwrap();
+    let (fx, [p1080, _], bishop) = capped_bishop(bin.path()).await;
+    let locally = (bishop.client_config()).with_default_header("x-forwarded-for", LOCAL);
+    let original = picking(p1080, PlaybackLimit::PLAYBACK_LIMIT_ORIGINAL);
+    let plan = ask_for_plan_as(locally, original).await.unwrap();
+    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY);
+
+    assert_eq!(status_for(&fx, p1080, &bishop.token, LOCAL).await, 200);
+}
+
+#[tokio::test]
 async fn a_capped_user_on_the_local_network_is_sent_a_version_with_no_plan() {
     let bin = tempfile::tempdir().unwrap();
     let (fx, [p1080, _], bishop) = capped_bishop(behind_proxy(), bin.path()).await;

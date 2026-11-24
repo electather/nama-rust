@@ -1,4 +1,5 @@
-import { Button } from "nama-ui/components/button";
+import { cn } from "cn";
+import { Button, ghostHang } from "nama-ui/components/button";
 
 import { ArtworkOnly } from "@/features/admin-libraries/components/title-sources-field/artwork-only";
 import { sourceName } from "@/features/admin-libraries/lib/title-sources";
@@ -15,7 +16,7 @@ export function AddSources({
   setOrder: (order: string[]) => void;
 }) {
   return (
-    <div className="-ms-2.5 flex flex-wrap gap-1">
+    <div className={cn(ghostHang, "flex flex-wrap gap-1")}>
       {listed
         .filter((source) => source.running && !order.includes(source.namespace))
         .map((source) => (

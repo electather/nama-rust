@@ -460,8 +460,8 @@ async fn a_direct_play_is_kept_while_its_device_asks_for_its_version_and_then_en
         ..Default::default()
     };
     let (asked, unasked) = (
-        plans.direct_play(direct_play(device)),
-        plans.direct_play(direct_play(another)),
+        plans.direct_play(direct_play(device), false),
+        plans.direct_play(direct_play(another), false),
     );
     tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -488,8 +488,8 @@ async fn a_direct_play_is_kept_while_its_file_is_sent_and_then_ends() {
         ..Default::default()
     };
     let (sent_to, not_sent_to) = (
-        plans.direct_play(direct_play(device)),
-        plans.direct_play(direct_play(another)),
+        plans.direct_play(direct_play(device), false),
+        plans.direct_play(direct_play(another), false),
     );
     let late_part = futures_util::stream::once(async {
         tokio::time::sleep(Duration::from_millis(100)).await;

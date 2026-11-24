@@ -427,6 +427,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_VIEWING_EVENT_INVALID
         | R::REFUSAL_REASON_TRACK_PREFERENCE_INVALID
         | R::REFUSAL_REASON_WATCHLIST_INVALID
+        | R::REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID
         | R::REFUSAL_REASON_UNSPECIFIED => ErrorCode::InvalidArgument,
     }
 }

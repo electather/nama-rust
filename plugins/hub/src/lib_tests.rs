@@ -1315,6 +1315,32 @@ async fn a_user_created_from_an_account_is_invited_on_the_hub() {
 }
 
 #[tokio::test]
+async fn the_hub_publishes_the_certificate_challenge_the_server_hands_it() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+    link(&hub, linker.as_ref()).await;
+
+    linker
+        .set_certificate_challenge(vec!["value".to_owned()])
+        .await
+        .unwrap();
+
+    assert_eq!(hub.challenge(), ["value"]);
+}
+
+#[tokio::test]
+async fn a_server_not_linked_publishes_no_certificate_challenge() {
+    let hub = FakeHub::start().await;
+    let linker = enabled(&hub, &store());
+
+    let err = (linker.set_certificate_challenge(vec!["value".to_owned()]))
+        .await
+        .unwrap_err();
+
+    assert!(err.to_string().contains("isn't Linked"), "{err}");
+}
+
+#[tokio::test]
 async fn a_server_linked_again_reports_its_addresses_again() {
     let hub = FakeHub::start().await;
     let linker = enabled(&hub, &store());

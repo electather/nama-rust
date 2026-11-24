@@ -5,6 +5,7 @@ mod automation;
 pub mod backup;
 pub use library::{Artwork, ArtworkError};
 mod browse;
+mod certificate;
 pub mod config;
 mod connections;
 pub mod db;
@@ -28,12 +29,13 @@ mod scanner;
 mod server_addresses;
 mod server_settings;
 mod sync;
+mod tls;
 pub mod users;
 mod watchlist;
 #[cfg(feature = "web")]
 mod web;
 
-use std::{future::Future, io, net::SocketAddr, sync::Arc, time::Duration};
+use std::{future::Future, io, sync::Arc, time::Duration};
 
 use tokio::net::TcpListener;
 
@@ -83,11 +85,16 @@ use crate::{
 /// on the router with UPnP or NAT-PMP, unless [`Config::forwarded_port`] names the one the Admin
 /// forwarded. It is asked for each User's Watch State on their other Servers after each scan.
 ///
+/// While that Plugin has the Server Linked and its service names it, the Server gets a certificate
+/// for its names from [`Config::acme_directory`] and keeps it renewed, and its public name is its
+/// Server URL while the Admin sets none (ADR 0057).
+///
 /// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, unless the
 /// peer is in [`Config::trusted_proxies`], whose `X-Forwarded-For` names the client.
 ///
-/// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
-/// protobuf bodies. With the `web` feature, any other `GET` gets the web app.
+/// Clients speak the Connect protocol over HTTP/1.1 or HTTP/2, with JSON or binary protobuf
+/// bodies, in cleartext, or over TLS on the same port once the Server has a certificate. With the
+/// `web` feature, any other `GET` gets the web app.
 ///
 /// # Errors
 ///
@@ -196,6 +203,8 @@ pub fn serve(
     let syncing = sync::Syncing::new(Arc::clone(&db), plugins.extension_points(), users.clone());
     let linking = users.linking().clone();
     let forwarded_port = config.forwarded_port;
+    let certificate = certificate::Certificate::default();
+    let (data_dir, acme_directory) = (config.data_dir.clone(), config.acme_directory.clone());
     let load_settings = load_settings(settings.clone(), images.clone(), plugins.clone());
     let app = api::router(
         config,
@@ -248,6 +257,15 @@ pub fn serve(
         // Every minute, as Seerr asks how its Requests are progressing (ADR 0012).
         let came_up = home_rows.refresh_as_plugins_come_up(plugins.take_came_up());
         requests.start(came_up, Duration::from_mins(1));
+        // Before serving, so the first client over TLS gets it, whether or not the Hub answers.
+        certificate.load(&data_dir).await;
+        let renewing = certificate::keep_renewed(
+            certificate.clone(),
+            linking.clone(),
+            server_url.clone(),
+            data_dir,
+            acme_directory,
+        );
         let telling_addresses = server_addresses::keep_telling(
             linking,
             server_url,
@@ -255,12 +273,7 @@ pub fn serve(
             listening,
             forwarded_port,
         );
-        let served = axum::serve(
-            listener,
-            // The peer's address decides whose rate limit counts and which proxies are trusted.
-            app.into_make_service_with_connect_info::<SocketAddr>(),
-        )
-        .with_graceful_shutdown(async move {
+        let served = tls::serve(listener, app, Arc::new(certificate), async move {
             shutdown.await;
             // A subscription never ends by itself, and the shutdown waits for every response.
             events.close();
@@ -287,6 +300,7 @@ pub fn serve(
         // Its calls run in the Plugin's scope, which shutting the Plugins down joins; telling it
         // again at the next start loses nothing.
         telling_addresses.abort();
+        renewing.abort();
         // The next start's scans pull and sync again, and its first looks push each Link again.
         scan_follower.abort();
         link_follower.abort();

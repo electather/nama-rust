@@ -74,8 +74,8 @@ service LinkService {
 // `REFUSAL_REASON_SERVER_NOT_LINKED` without one the Hub knows.
 service LinkedServerService {
   // Unlinks the calling Server: its credential stops working at once, it leaves its Account's
-  // Servers, and its names are removed (ADR 0104). Fails, leaving the Server Linked, while the Hub
-  // can't remove its names.
+  // Servers, and its names and certificate challenge are removed (ADR 0104). Fails, leaving the
+  // Server Linked, while the Hub can't remove them.
   rpc UnlinkServer(UnlinkServerRequest) returns (UnlinkServerResponse);
   // The titles most like one title, of its kind, by the vectors the Hub builds from Wikidata's
   // facts (ADR 0095): at most 100, most alike first. Empty when Wikidata lacks the title or the
@@ -158,6 +158,15 @@ service LinkedServerService {
   // with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an `http` or `https` URL, for
   // too many, or for a port over 65535, and fails while the Hub can't write the Server's names.
   rpc SetServerAddresses(SetServerAddressesRequest) returns (SetServerAddressesResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Makes `values` the only TXT records at `_acme-challenge.<own name>`, under the calling Server's
+  // own name, so an ACME CA such as Let's Encrypt finds the DNS-01 challenge it set the Server for
+  // a certificate for its names (ADR 0057). The Server makes the certificate's key itself and sends
+  // only the challenge, so the Hub never holds the key. Empty `values` remove them. Fails with
+  // `REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID` for too many values or one that isn't one, and
+  // on a Hub that names no Server or while the Hub can't write them.
+  rpc SetCertificateChallenge(SetCertificateChallengeRequest) returns (SetCertificateChallengeResponse) {
     option idempotency_level = IDEMPOTENT;
   }
   // Records a Viewing Event for each play by one of the Server's Users, under the Account they are
@@ -605,6 +614,14 @@ message SetServerAddressesResponse {
   // Empty on a Hub that names no Server.
   repeated string names = 3;
 }
+
+message SetCertificateChallengeRequest {
+  // Each a DNS-01 challenge's value: a SHA-256 digest in unpadded base64url, 43 characters (RFC
+  // 8555, section 8.4). At most 2, one for the Server's own name and one for the wildcard under it.
+  repeated string values = 1;
+}
+
+message SetCertificateChallengeResponse {}
 
 message ListTrendingTitlesRequest {}
 

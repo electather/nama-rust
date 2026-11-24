@@ -28,8 +28,14 @@ pub struct RequestSource {
     pub https: bool,
 }
 
-/// Adds the [`RequestSource`] to `request`'s extensions. A request served without its peer's
-/// address gets none, so serve with `into_make_service_with_connect_info::<SocketAddr>()`.
+/// Marks a request that reached the binary over TLS it serves itself, rather than through a
+/// proxy: it arrived over HTTPS whoever the peer is.
+#[derive(Debug, Clone, Copy)]
+pub struct ServedOverTls;
+
+/// Adds the [`RequestSource`] to `request`'s extensions, over HTTPS if it carries
+/// [`ServedOverTls`]. A request served without its peer's address gets none, so serve with
+/// `into_make_service_with_connect_info::<SocketAddr>()`, or insert its `ConnectInfo` per request.
 pub async fn identify_source(
     State(trusted_proxies): State<Arc<[IpRange]>>,
     mut request: Request,
@@ -37,7 +43,8 @@ pub async fn identify_source(
 ) -> Response {
     let peer = request.extensions().get::<ConnectInfo<SocketAddr>>();
     if let Some(&ConnectInfo(peer)) = peer {
-        let source = request_source(peer.ip(), request.headers(), &trusted_proxies);
+        let mut source = request_source(peer.ip(), request.headers(), &trusted_proxies);
+        source.https |= request.extensions().get::<ServedOverTls>().is_some();
         request.extensions_mut().insert(source);
     }
     next.run(request).await

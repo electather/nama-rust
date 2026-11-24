@@ -53,9 +53,9 @@ pub(crate) async fn identify_caller(
 }
 
 /// The `Set-Cookie` value that hands a browser `token`, to keep for as long as an unused Device
-/// lasts. `Secure`, and named `__Host-`, only when the request reached a trusted reverse proxy over HTTPS, since a
-/// browser drops a `Secure` cookie sent over plain HTTP, which is how a LAN Server is usually
-/// reached (ADR 0015, ADR 0018).
+/// lasts. `Secure`, and named `__Host-`, only when the request reached the Server's own TLS or a
+/// trusted reverse proxy over HTTPS, since a browser drops a `Secure` cookie sent over plain HTTP,
+/// which is how a LAN Server is usually reached (ADR 0015, ADR 0018).
 pub(crate) fn session_cookie(token: &str, request: &Extensions) -> String {
     cookie(token, DEVICE_LIFETIME, request)
 }

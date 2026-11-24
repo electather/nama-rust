@@ -3,6 +3,7 @@
 //! naming Servers in a fake zone.
 
 use std::{
+    collections::BTreeMap,
     future,
     net::SocketAddr,
     sync::{
@@ -45,26 +46,49 @@ pub(crate) struct TestHub {
     _stop: oneshot::Sender<()>,
 }
 
-/// The fake DNS provider: the zone's address records, and whether it fails, as if down.
+/// The fake DNS provider: the zone's address records, its TXT records by name, and whether it
+/// fails, as if down.
 #[derive(Debug, Default)]
 struct FakeZone {
     records: Mutex<Vec<Record>>,
+    texts: Mutex<BTreeMap<String, Vec<String>>>,
     down: AtomicBool,
+}
+
+impl FakeZone {
+    /// A failure, while it is down.
+    fn failure(&self) -> Option<Writing<'_>> {
+        let refused = DnsError::Refused {
+            status: reqwest::StatusCode::SERVICE_UNAVAILABLE,
+            body: String::new(),
+        };
+        let down = self.down.load(Ordering::Relaxed);
+        down.then(|| -> Writing<'_> { Box::pin(future::ready(Err(refused))) })
+    }
 }
 
 impl Records for FakeZone {
     fn replace(&self, name: &str, records: Vec<Record>) -> Writing<'_> {
-        if self.down.load(Ordering::Relaxed) {
-            let refused = DnsError::Refused {
-                status: reqwest::StatusCode::SERVICE_UNAVAILABLE,
-                body: String::new(),
-            };
-            return Box::pin(future::ready(Err(refused)));
+        if let Some(failure) = self.failure() {
+            return failure;
         }
         let under = format!(".{name}");
         let mut zone = self.records.lock().unwrap_or_else(PoisonError::into_inner);
         zone.retain(|record| record.name != name && !record.name.ends_with(&under));
         zone.extend(records);
+        Box::pin(future::ready(Ok(())))
+    }
+
+    fn replace_texts(&self, name: &str, values: Vec<String>) -> Writing<'_> {
+        if let Some(failure) = self.failure() {
+            return failure;
+        }
+        let mut texts = self.texts.lock().unwrap_or_else(PoisonError::into_inner);
+        if values.is_empty() {
+            texts.remove(name);
+        } else {
+            texts.insert(name.to_owned(), values);
+        }
         Box::pin(future::ready(Ok(())))
     }
 }
@@ -141,6 +165,13 @@ impl TestHub {
             .clone();
         records.sort();
         records
+    }
+
+    /// The TXT records in the zone the Hub names Servers in, by name.
+    pub(crate) fn texts(&self) -> BTreeMap<String, Vec<String>> {
+        (self.zone.texts.lock())
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// Has writing the zone fail while `down`, as if the DNS provider were, and work again after.
