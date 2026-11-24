@@ -237,9 +237,12 @@ fn a_movies_own_folder_names_it_before_a_grouping_folder_does() {
         ),
         ("Best Of (2020)/Dune/Dune.mkv", movie("Dune", None, None)),
         ("Dune (2021)/Dune.mkv", movie("Dune", Some(2021), None)),
-        // A file no folder agrees with takes the nearest one with a year or ID Hint.
         (
             "Best Of (2020)/clip.mkv",
+            movie("Best Of", Some(2020), None),
+        ),
+        (
+            "Best Of (2020)/Extras/clip.mkv",
             movie("Best Of", Some(2020), None),
         ),
     ];
