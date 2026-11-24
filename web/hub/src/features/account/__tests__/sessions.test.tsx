@@ -43,7 +43,7 @@ function openAccount() {
       }),
     ],
   };
-  const unlessRefused = () => {
+  const throwIfRefused = () => {
     if (hub.refusal) {
       throw hub.refusal;
     }
@@ -53,12 +53,12 @@ function openAccount() {
       getAccount: () => ({ account: ada, hasPassword: true }),
       listSessions: () => ({ sessions: hub.sessions }),
       signOutSession: ({ sessionId }) => {
-        unlessRefused();
+        throwIfRefused();
         hub.sessions = hub.sessions.filter((session) => session.id !== sessionId);
         return {};
       },
       signOutOtherSessions: () => {
-        unlessRefused();
+        throwIfRefused();
         hub.sessions = hub.sessions.filter((session) => session.isCurrent);
         return {};
       },
@@ -166,6 +166,7 @@ describe("where an Account is signed in", () => {
 
       await expect(screen.findByRole("heading", { name: "Sign in" })).resolves.toBeDefined();
       expect(screen.queryByText(/Try again/u)).toBeNull();
+      expect(hub.sessions).toHaveLength(3);
     },
   );
 
