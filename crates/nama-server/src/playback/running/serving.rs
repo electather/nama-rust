@@ -5,16 +5,27 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
+use tower_http::compression::CompressionLayer;
 
 use super::{INIT, PLAYLIST, RunningPlans};
 use crate::users::Caller;
 
+const PLAYLIST_CONTENT_TYPE: &str = "application/vnd.apple.mpegurl";
+
 /// Serves `GET /media/plans/<id>/<file>`: the playlist and segments of the plan `id`, to the
-/// Device it belongs to, and 404 to any other. Whether the caller has a session is up to the
-/// layers the router is put behind.
+/// Device it belongs to, and 404 to any other. It compresses the playlist with brotli or gzip when
+/// the request accepts one. Whether the caller has a session is up to the layers the router is put
+/// behind.
 pub(crate) fn router(plans: RunningPlans) -> Router {
+    // A playlist grows a line per segment; MP4 is compressed already.
+    let playlist_only = |_, _, headers: &header::HeaderMap, _: &_| {
+        headers
+            .get(header::CONTENT_TYPE)
+            .is_some_and(|value| value == PLAYLIST_CONTENT_TYPE)
+    };
     Router::new()
         .route("/media/plans/{id}/{file}", get(serve))
+        .layer(CompressionLayer::new().compress_when(playlist_only))
         .with_state(plans)
 }
 
@@ -34,7 +45,7 @@ async fn serve(
         return StatusCode::NOT_FOUND.into_response();
     };
     if file == PLAYLIST {
-        let content_type = [(header::CONTENT_TYPE, "application/vnd.apple.mpegurl")];
+        let content_type = [(header::CONTENT_TYPE, PLAYLIST_CONTENT_TYPE)];
         return (content_type, plan.playlist()).into_response();
     }
     let written = if file == INIT {
