@@ -82,6 +82,8 @@ async function listed() {
 }
 
 describe("where an Account is signed in", () => {
+  const signOutButtons = ["Sign out Safari on iPhone", "Sign out everywhere else"];
+
   beforeAll(() => {
     configure({ asyncUtilTimeout: 5000 });
   });
@@ -140,7 +142,7 @@ describe("where an Account is signed in", () => {
     });
   });
 
-  test.each(["Sign out Safari on iPhone", "Sign out everywhere else"])(
+  test.each(signOutButtons)(
     "past 10 minutes since signing in, “%s” offers to sign in again",
     async (button) => {
       const hub = openAccount();
@@ -154,7 +156,7 @@ describe("where an Account is signed in", () => {
     },
   );
 
-  test.each(["Sign out Safari on iPhone", "Sign out everywhere else"])(
+  test.each(signOutButtons)(
     "once this session ended elsewhere, “%s” opens the sign-in page",
     async (button) => {
       const hub = openAccount();
@@ -167,7 +169,7 @@ describe("where an Account is signed in", () => {
     },
   );
 
-  test.each(["Sign out Safari on iPhone", "Sign out everywhere else"])(
+  test.each(signOutButtons)(
     "when the Hub refuses “%s” for another reason, it says to try again",
     async (button) => {
       const hub = openAccount();
