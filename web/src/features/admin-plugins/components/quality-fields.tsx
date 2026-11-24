@@ -15,7 +15,8 @@ export function QualityFields({
   profiles: Choice[] | undefined;
 }) {
   return (
-    <div className="flex flex-col rounded-lg bg-muted/50 px-3.5">
+    // The last row gives back its bottom padding, so the panel puts it back inside its tint.
+    <div className="flex flex-col rounded-lg bg-muted/50 px-3.5 pb-3.5">
       <ProfileSelect profileId={quality.profileId} profiles={profiles} />
       <FormField
         row
