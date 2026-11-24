@@ -25,7 +25,8 @@ env:
 
 # GitHub-hosted runners, free for this public repo, so after `changes` every job runs at once.
 # Rust builds are split by mode: `rust-check` only type-checks (sqlx, clippy and rustdoc share
-# those artifacts), while `test` and `web-test` build to run and share one cache.
+# those artifacts), while `test` and `web-test` build to run and share one cache. `web-test` also
+# lints the `web` feature, which needs the built web app that only it has.
 # Never self-hosted: on a public repo, a fork's PR could run its own code on that machine.
 
 jobs:
@@ -468,7 +469,8 @@ jobs:
           working-directory: web
           cache: true
       - run: vp -C web build
-      # `rust-check` lints without `web`, which needs the built app, so its code is linted here.
+      # `rust-check` lints without `web`, which needs the built app, so both crates' `web` code
+      # is linted here.
       - run: cargo clippy -p nama-server --features web --all-targets --locked -- -D warnings
       - run: cargo nextest run -p nama-server --features web --test web --locked --profile ci-web
       # The Hub embeds its web app as the Server does. Its other tests need PostgreSQL, which `hub`
