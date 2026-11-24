@@ -7,6 +7,7 @@ import { ServerService } from "@/gen/nama/v1/server_pb";
 /**
  * What names the Server `transport` talks to in a query key the app writes itself, second after
  * its name. It's the name connect-query gives the Server in its own keys, which it doesn't export.
+ * The rule is in `web/src/AGENTS.md`, "Keys and paths name their Server".
  */
 export function serverKey(transport: Transport) {
   return createConnectQueryKey({ schema: ServerService, transport, cardinality: undefined })[1]

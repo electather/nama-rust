@@ -7,7 +7,7 @@ import { SignInService } from "@/gen/nama/v1/sign_in_pb";
 import { serverKey } from "@/shared/hooks/server-key";
 import { isCode } from "@/shared/lib/connect-errors";
 
-/** What every route's `beforeLoad` gets from the router. */
+/** What every route's `beforeLoad` gets from the router: the cache, and the Server it talks to. */
 export interface RouterContext {
   queryClient: QueryClient;
   transport: Transport;

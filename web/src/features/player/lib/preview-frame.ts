@@ -6,7 +6,7 @@ import { onServer } from "@/shared/lib/server";
 /** Where a Version's Preview frames are: their layout, and the path its sheets are numbered under. */
 export interface FrameSheets {
   frames: PreviewFrames;
-  /** Such as `/media/versions/7/preview-frames`, which `/<n>.jpg` follows. */
+  /** Such as `/media/versions/7/preview-frames` on the Server, which `/<n>.jpg` follows. */
   path: string;
 }
 
