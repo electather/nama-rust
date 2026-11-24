@@ -67,11 +67,12 @@ pub(crate) struct EventBus {
     /// Cancelled when the Server shuts down, which ends every subscription.
     closed: CancellationToken,
     /// The one task that stores personal notifications in inboxes, so they are stored in the
-    /// order they were published.
+    /// order they were published, and pushes them to their Users' browsers.
     inboxes: Arc<Mutex<Inboxes>>,
 }
 
-/// The task that stores personal notifications in inboxes, as [`EventBus::publish`] feeds it.
+/// The task that stores personal notifications in inboxes and pushes them, as
+/// [`EventBus::publish`] feeds it.
 #[derive(Debug, Default)]
 enum Inboxes {
     /// Started by the first personal notification, so building an [`EventBus`] needs no runtime.
@@ -206,8 +207,8 @@ impl EventBus {
         }
     }
 
-    /// Stores the personal notifications published so far and stops storing any more: once
-    /// nothing publishes, and before the database closes, as the task holds it.
+    /// Stores and pushes the personal notifications published so far and stops taking any more:
+    /// once nothing publishes, and before the database closes, as the task holds it.
     pub(crate) async fn shutdown(&self) {
         let stopped = std::mem::replace(&mut *lock(&self.inboxes), Inboxes::Stopped);
         let Inboxes::Storing(sender, storing) = stopped else {

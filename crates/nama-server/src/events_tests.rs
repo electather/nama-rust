@@ -15,7 +15,7 @@ use nama_plugin_api::{
 };
 
 use axum::http::StatusCode;
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use url::Url;
 
 use super::{EventBus, Filter, Viewer, deliver, event, users_to_tell};
 use crate::{
@@ -27,7 +27,7 @@ use crate::{
         Permissions, User, list_inbox, personal_settings_of, replace_personal_settings,
         set_notification_preference,
     },
-    web_push::{browser, push_service, subscribe as subscribe_web_push},
+    web_push::{assert_valid_vapid, browser, push_service, subscribe as subscribe_web_push},
 };
 
 fn user(id: i64, permissions: Permissions) -> User {
@@ -540,11 +540,10 @@ async fn a_published_notification_is_pushed_to_its_users_browsers_but_not_a_kind
     assert!(ada_got.lock().unwrap().is_empty());
     let (headers, _) = lin_got.lock().unwrap().pop().unwrap();
     let key = web_push_key(&db).await.unwrap();
-    let k = headers["authorization"]
-        .to_str()
+    let origin = Url::parse(&lin_endpoint)
         .unwrap()
-        .split_once(", k=")
-        .unwrap()
-        .1;
-    assert_eq!(k, URL_SAFE_NO_PAD.encode(key.public_key()));
+        .origin()
+        .ascii_serialization();
+    let authorization = headers["authorization"].to_str().unwrap();
+    assert_valid_vapid(authorization, &origin, key.public_key());
 }

@@ -28,17 +28,16 @@ use crate::{
     db::{BoxFuture, Database},
     diagnostics::{self, Sharing},
     ffmpeg::{Accel, Hardware},
+    web_push::VapidKey,
 };
 
 mod home_layout;
 mod playback;
-mod web_push_key;
 
 pub(crate) use home_layout::{HomeLayout, HomeRowId, PlacedRow, keep_unnamed};
 pub(crate) use playback::{
     HardwareChoice, PickedGpu, PlaybackChange, PlaybackLimit, PlaybackSettings, PlaybackValues,
 };
-pub(crate) use web_push_key::web_push_key;
 
 /// How many MiB the resized copies of images take while no limit is set.
 const DEFAULT_RESIZED_CACHE_MIB: u32 = 1024;
@@ -681,6 +680,39 @@ pub(crate) async fn stored_image_store(
         .fetch_optional(conn)
         .await?;
     Ok(stored.and_then(plugin_named))
+}
+
+/// The Server's VAPID key, which signs its Web Push (RFC 8292): made on first start, then kept, as
+/// browsers subscribed with its public key. If two make one at once, the first stored stays.
+///
+/// # Errors
+///
+/// If reading, making or storing it fails, or the stored key isn't one.
+pub(crate) async fn web_push_key(db: &Database) -> sqlx::Result<VapidKey> {
+    let stored = sqlx::query_scalar!("SELECT web_push_key FROM server_settings")
+        .fetch_optional(db.reader())
+        .await?
+        .flatten();
+    let pkcs8 = if let Some(pkcs8) = stored {
+        pkcs8
+    } else {
+        let made = VapidKey::new_pkcs8().map_err(|err| sqlx::Error::Encode(Box::new(err)))?;
+        db.write(move |tx| {
+            Box::pin(async move {
+                sqlx::query_scalar!(
+                    r#"INSERT INTO server_settings (id, url, web_push_key) VALUES (1, '', ?)
+                   ON CONFLICT (id) DO UPDATE
+                       SET web_push_key = coalesce(web_push_key, excluded.web_push_key)
+                   RETURNING web_push_key AS "web_push_key!""#,
+                    made
+                )
+                .fetch_one(&mut **tx)
+                .await
+            })
+        })
+        .await?
+    };
+    VapidKey::from_pkcs8(&pkcs8).map_err(|rejected| sqlx::Error::Decode(Box::new(rejected)))
 }
 
 /// The Plugin `stored` names, or `None` for an empty one.

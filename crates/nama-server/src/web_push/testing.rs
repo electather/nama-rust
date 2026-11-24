@@ -15,7 +15,7 @@ use super::{Subscription, VapidKey};
 use crate::db::now;
 
 /// A base64url string's bytes.
-pub(crate) fn decoded(base64: &str) -> Vec<u8> {
+pub(super) fn decoded(base64: &str) -> Vec<u8> {
     URL_SAFE_NO_PAD.decode(base64).unwrap()
 }
 
@@ -42,7 +42,7 @@ pub(crate) async fn push_service(status: StatusCode) -> (String, Received) {
 }
 
 /// A push service at the URL returned that takes each connection and never answers.
-pub(crate) async fn silent_push_service() -> String {
+pub(super) async fn silent_push_service() -> String {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let url = format!("http://{}/push/silent", listener.local_addr().unwrap());
     tokio::spawn(async move {
@@ -55,7 +55,7 @@ pub(crate) async fn silent_push_service() -> String {
 }
 
 /// A new key.
-pub(crate) fn new_key() -> VapidKey {
+pub(super) fn new_key() -> VapidKey {
     VapidKey::from_pkcs8(&VapidKey::new_pkcs8().unwrap()).unwrap()
 }
 

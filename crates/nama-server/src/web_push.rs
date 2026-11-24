@@ -25,7 +25,7 @@ mod testing;
 
 pub(crate) use subscriptions::{push as push_to_subscriptions, subscribe, unsubscribe};
 #[cfg(test)]
-pub(crate) use testing::{browser, push_service};
+pub(crate) use testing::{assert_valid_vapid, browser, push_service};
 
 /// How long a push service keeps a push for a browser that's offline, in seconds.
 const KEPT_FOR_SECONDS: u32 = 7 * 24 * 60 * 60;
