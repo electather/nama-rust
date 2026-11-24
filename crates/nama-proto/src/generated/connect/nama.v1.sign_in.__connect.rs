@@ -30,6 +30,14 @@ pub type OwnedWhoAmIRequestView = ::buffa::view::OwnedView<
 pub type OwnedWhoAmIResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::WhoAmIResponseView<'static>,
 >;
+///Shorthand for `OwnedView<SwitchUserRequestView<'static>>`.
+pub type OwnedSwitchUserRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SwitchUserRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SwitchUserResponseView<'static>>`.
+pub type OwnedSwitchUserResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SwitchUserResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<ReauthenticateRequestView<'static>>`.
 pub type OwnedReauthenticateRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ReauthenticateRequestView<'static>,
@@ -208,6 +216,40 @@ for crate::messages::nama::v1::__buffa::view::WhoAmIResponseView<'_> {
 impl ::connectrpc::Encodable<crate::messages::nama::v1::WhoAmIResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::WhoAmIResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SwitchUserResponse>
+for crate::messages::nama::v1::__buffa::view::SwitchUserResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SwitchUserResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SwitchUserResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -528,6 +570,12 @@ pub const SIGN_IN_SERVICE_WHO_AM_I_SPEC: ::connectrpc::Spec = ::connectrpc::Spec
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
+/// Static [`Spec`](::connectrpc::Spec) for the `SwitchUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SIGN_IN_SERVICE_SWITCH_USER_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.SignInService/SwitchUser",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `Reauthenticate` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const SIGN_IN_SERVICE_REAUTHENTICATE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.SignInService/Reauthenticate",
@@ -579,8 +627,14 @@ pub const SIGN_IN_SERVICE_SIGN_IN_WITH_ACCOUNT_SPEC: ::connectrpc::Spec = ::conn
 /// Signing Devices in to a Server as Users, and finding out who is signed in (ADR 0014).
 ///
 /// A signed-in Device holds a session: a cookie for browsers, or a bearer token (`Authorization:
-/// Bearer \<token\>`) for other clients. Either one identifies the same User and Device on every
-/// request.
+/// Bearer \<token\>`) for other clients. Either one identifies the same Device on every request.
+///
+/// A Device may be signed in as several Users, and acts as one of them at a time (ADR 0106): every
+/// request is made as that User. A Device that sends its session with `SignIn`, `PollSignInCode` or
+/// `SignInWithAccount` has the User added to it, keeps its session, and acts as them. It switches
+/// between its Users with `SwitchUser`. Once the User it acts as is signed out of it and others
+/// stay, it acts as none of them: until it switches, only `SignOut`, `WhoAmI` and `SwitchUser`
+/// accept its session, and other calls fail as they do without one.
 ///
 /// A Device that goes unused for 90 days expires, and its session stops working.
 ///
@@ -592,13 +646,14 @@ pub const SIGN_IN_SERVICE_SIGN_IN_WITH_ACCOUNT_SPEC: ::connectrpc::Spec = ::conn
 /// `ApproveSignInCode`s together from one Device within 15 minutes, its further lookups and
 /// approvals fail with `resource_exhausted`.
 ///
-/// Changes to who can sign in as whom need Recent Authentication: the calling Device proved who it
-/// is with one of its User's Sign-in Methods in the last 10 minutes. They are `ApproveSignInCode`
-/// and `UserService`'s `ChangePassword`, `ResetPassword`, `SetPermissions`,
+/// Changes to who can sign in as whom need Recent Authentication: the calling User proved who they
+/// are on the calling Device with one of their Sign-in Methods in the last 10 minutes. They are
+/// `ApproveSignInCode` and `UserService`'s `ChangePassword`, `ResetPassword`, `SetPermissions`,
 /// `SetDefaultPermissions` and `DeleteUser`.
-/// Signing in with `Setup` or `SignIn` gives a Device Recent Authentication; signing in with a
-/// Sign-in Code or an Account doesn't, since that Device proved nothing itself: whoever approved,
-/// on another Device or on the Hub, may not hold it. Without it, those calls fail with
+/// Signing in with `Setup` or `SignIn` gives the User Recent Authentication on the Device; signing
+/// in with a Sign-in Code or an Account doesn't, since that Device proved nothing itself: whoever
+/// approved, on another Device or on the Hub, may not hold it. Nor does switching to a User, which
+/// clears what they had on that Device. Without it, those calls fail with
 /// `failed_precondition` and the `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` Refusal before
 /// anything in the request is checked. `Reauthenticate` gives it back.
 ///
@@ -677,7 +732,8 @@ pub trait SignInService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Signs the calling Device in as an existing User, found by name ignoring case. Fails with
+    /// Signs the calling Device in as an existing User, found by name ignoring case, adding them to it
+    /// if it is already signed in, as above. Fails with
     /// `unauthenticated` if the name or the password is wrong, without saying which, and with
     /// `invalid_argument` if the Device name breaks the rules.
     ///
@@ -702,9 +758,10 @@ pub trait SignInService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Signs the calling Device out by deleting it: its session stops working at once, its open
-    /// `EventService.Subscribe` streams end, and a cookie session's cookie is cleared. Fails with
-    /// `unauthenticated` without a valid session.
+    /// Signs the calling Device out, with every User signed in to it: its session stops working at
+    /// once, its open `EventService.Subscribe` streams end, and a cookie session's cookie is cleared.
+    /// `UserService.RevokeDevice` signs out one User of it. Fails with `unauthenticated` without a
+    /// valid session.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -727,7 +784,8 @@ pub trait SignInService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Returns the calling User and Device, or fails with `unauthenticated` without a valid session.
+    /// Returns the calling Device, the User it acts as and the Users signed in to it, or fails with
+    /// `unauthenticated` without a valid session.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -747,6 +805,34 @@ pub trait SignInService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::WhoAmIResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Makes the calling Device act as another of the Users signed in to it, without a sign-in. It
+    /// stays as them across restarts until it switches again. The switched-to User has no Recent
+    /// Authentication on it until they prove who they are again, and the open
+    /// `EventService.Subscribe` streams of the User it acted as end. Fails with `not_found` and
+    /// `REFUSAL_REASON_USER_NOT_FOUND` for a User not signed in to it, and with `unauthenticated`
+    /// without a valid session.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn switch_user<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SwitchUserRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SwitchUserResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -834,8 +920,8 @@ pub trait SignInService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Approves a Sign-in Code, so the Device that shows it signs in as the calling User. Fails like
-    /// `LookUpSignInCode`.
+    /// Approves a Sign-in Code, so the Device that shows it signs in as the calling User, or adds
+    /// them to it if it polls with its session. Fails like `LookUpSignInCode`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -859,12 +945,12 @@ pub trait SignInService: Send + Sync + 'static {
         >,
     > + Send;
     /// Says whether the sign-in a poll handle stands for is still waiting for approval, expired, or
-    /// signed in. Signed in hands out the new Device's session, once, the way `SignIn` does: after
+    /// signed in. Signed in hands out the Device's session, once, the way `SignIn` does: after
     /// that, and for a handle the Server never gave out or has forgotten, it fails with `not_found`.
     /// Once the code is approved, it fails with `unauthenticated` and `REFUSAL_REASON_SIGNED_OUT` if
-    /// the approving Device has since signed out or expired, and with `not_found` and
-    /// `REFUSAL_REASON_USER_NOT_FOUND` if the approving User has since been deleted. Either uses the
-    /// code up: start again for a new one.
+    /// the approving User has since been signed out of the approving Device, or it expired, and with
+    /// `not_found` and `REFUSAL_REASON_USER_NOT_FOUND` if the approving User has since been deleted.
+    /// Either uses the code up: start again for a new one.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1119,6 +1205,35 @@ impl<S: SignInService> SignInServiceExt for S {
                 },
             )
             .with_spec(SIGN_IN_SERVICE_WHO_AM_I_SPEC)
+            .route_view(
+                SIGN_IN_SERVICE_SERVICE_NAME,
+                "SwitchUser",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SwitchUserRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SwitchUserRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.switch_user(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SwitchUserResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SIGN_IN_SERVICE_SWITCH_USER_SPEC)
             .route_view(
                 SIGN_IN_SERVICE_SERVICE_NAME,
                 "Reauthenticate",
@@ -1429,6 +1544,12 @@ impl<T: SignInService> ::connectrpc::Dispatcher for SignInServiceServer<T> {
                         .with_spec(SIGN_IN_SERVICE_WHO_AM_I_SPEC),
                 )
             }
+            "SwitchUser" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SIGN_IN_SERVICE_SWITCH_USER_SPEC),
+                )
+            }
             "Reauthenticate" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -1570,6 +1691,26 @@ impl<T: SignInService> ::connectrpc::Dispatcher for SignInServiceServer<T> {
                     svc.who_am_i(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::WhoAmIResponse>(format)
+                })
+            }
+            "SwitchUser" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SwitchUserRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SwitchUserRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SwitchUserRequest,
+                    >::from_parts(&req, &body);
+                    svc.switch_user(ctx, req)
+                        .await?
+                        .encode::<crate::messages::nama::v1::SwitchUserResponse>(format)
                 })
             }
             "Reauthenticate" => {
@@ -2021,6 +2162,47 @@ where
                 &self.transport,
                 &self.config,
                 SIGN_IN_SERVICE_WHO_AM_I_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SwitchUser RPC. Sends a request to /nama.v1.SignInService/SwitchUser.
+    pub async fn switch_user(
+        &self,
+        request: crate::messages::nama::v1::SwitchUserRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SwitchUserResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.switch_user_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SwitchUser RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn switch_user_with_options(
+        &self,
+        request: crate::messages::nama::v1::SwitchUserRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SwitchUserResponseView<'static>,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SIGN_IN_SERVICE_SWITCH_USER_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

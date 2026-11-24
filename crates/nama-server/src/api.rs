@@ -34,7 +34,7 @@ use crate::{
     server_settings,
     sync::Syncing,
     users::{
-        Caller, SetupCode, SignIn, Users, cleared_session_cookie, identify_caller,
+        Caller, Device, SetupCode, SignIn, Users, cleared_session_cookie, identify_caller,
         in_session_cookie,
     },
 };
@@ -145,6 +145,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(sign_in::SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
+            users: users.clone(),
             linking: users.linking().clone(),
             syncing: syncing.clone(),
             server_url: settings.server_url(),
@@ -265,6 +266,13 @@ fn caller(ctx: &RequestContext) -> Result<&Caller, ConnectError> {
         .ok_or_else(sign_in_required)
 }
 
+/// The signed-in Device making the call, whether or not it acts as one of its Users.
+fn calling_device(ctx: &RequestContext) -> Result<&Device, ConnectError> {
+    ctx.extensions()
+        .get::<Device>()
+        .ok_or_else(sign_in_required)
+}
+
 /// The Connect error for a call that needs a signed-in Device, made without one.
 fn sign_in_required() -> ConnectError {
     refuse(
@@ -283,6 +291,22 @@ fn signed_out<M>(body: M, ctx: &RequestContext) -> Response<M> {
     } else {
         response
     }
+}
+
+/// The response to a request that signed a User out of its own Device, carrying `body`, which
+/// clears a cookie session's cookie only if that was the Device's last User (ADR 0106).
+async fn signed_out_if_last<M>(
+    users: &Users,
+    body: M,
+    ctx: &RequestContext,
+) -> Result<Response<M>, ConnectError> {
+    let device = calling_device(ctx)?.id;
+    let still_signed_in = users.device_exists(device).await.map_err(database_failed)?;
+    Ok(if still_signed_in {
+        Response::new(body)
+    } else {
+        signed_out(body, ctx)
+    })
 }
 
 fn title_kind_from_proto(kind: EnumValue<proto::TitleKind>) -> Result<TitleKind, ConnectError> {

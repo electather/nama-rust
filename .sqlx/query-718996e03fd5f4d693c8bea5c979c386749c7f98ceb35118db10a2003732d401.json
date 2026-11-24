@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "DELETE FROM devices WHERE user_id = ? RETURNING id AS \"id!\"",
+  "query": "INSERT INTO devices\n               (user_id, name, token_hash, ip_address, user_agent, created_at, updated_at,\n                last_seen_at, expires_at)\n           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)\n           RETURNING id AS \"id!\"",
   "describe": {
     "columns": [
       {
@@ -16,11 +16,11 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 9
     },
     "nullable": [
       false
     ]
   },
-  "hash": "6a4febbc2d230a1ed50f5d89530ebba1509e38064d9fc6e0167df7ea6f65c5ee"
+  "hash": "718996e03fd5f4d693c8bea5c979c386749c7f98ceb35118db10a2003732d401"
 }

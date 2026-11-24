@@ -518,3 +518,64 @@ async fn upgrading_to_featured_refreshes_keeps_each_users_suggestions_and_when_t
         )]
     );
 }
+
+/// The version of the migration that adds `device_users`.
+const DEVICE_USERS: i64 = 20_261_124_205_739;
+
+/// A Device's id, the User it acts as, its name, token hash and expiry.
+type DeviceRow = (i64, Option<i64>, String, Vec<u8>, i64);
+
+#[tokio::test]
+async fn upgrading_to_device_users_keeps_each_device_signed_in_as_its_user() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let options = SqliteConnectOptions::new()
+        .filename(data_dir.path().join(db::FILE_NAME))
+        .create_if_missing(true);
+    let mut conn = SqliteConnection::connect_with(&options).await.unwrap();
+    let migrations = sqlx::migrate!();
+    let before = migrations
+        .iter()
+        .map(|m| m.version)
+        .filter(|&version| version < DEVICE_USERS)
+        .max();
+    migrations.run_to(before.unwrap(), &mut conn).await.unwrap();
+    sqlx::raw_sql(
+        "INSERT INTO users (id, username, display_username, permissions, created_at, updated_at)
+         VALUES (1, 'ada', 'Ada', 0, 0, 0);
+         INSERT INTO sign_in_methods (id, user_id, provider_id, credential, name, created_at,
+                                      updated_at)
+         VALUES (5, 1, 'local-auth', 'hash', 'Password', 0, 0);
+         INSERT INTO devices (id, user_id, sign_in_method_id, name, token_hash, ip_address,
+                              created_at, updated_at, last_seen_at, expires_at, authenticated_at)
+         VALUES (3, 1, 5, 'Phone', x'01', '127.0.0.1', 10, 10, 20, 30, 15),
+                (4, 1, NULL, 'TV', x'02', '127.0.0.1', 10, 10, 20, 30, 0);",
+    )
+    .execute(&mut conn)
+    .await
+    .unwrap();
+    conn.close().await.unwrap();
+
+    let db = Database::open(data_dir.path()).await.unwrap();
+    let devices: Vec<DeviceRow> =
+        sqlx::query_as("SELECT id, user_id, name, token_hash, expires_at FROM devices ORDER BY id")
+            .fetch_all(db.reader())
+            .await
+            .unwrap();
+    let signed_in: Vec<(i64, i64, Option<i64>, i64)> = sqlx::query_as(
+        "SELECT device_id, user_id, sign_in_method_id, authenticated_at FROM device_users
+         ORDER BY device_id",
+    )
+    .fetch_all(db.reader())
+    .await
+    .unwrap();
+    db.close().await;
+
+    assert_eq!(
+        devices,
+        [
+            (3, Some(1), "Phone".to_owned(), vec![1], 30),
+            (4, Some(1), "TV".to_owned(), vec![2], 30)
+        ]
+    );
+    assert_eq!(signed_in, [(3, 1, Some(5), 15), (4, 1, None, 0)]);
+}

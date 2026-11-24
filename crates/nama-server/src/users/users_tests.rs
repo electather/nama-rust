@@ -106,21 +106,26 @@ async fn using_a_device_an_hour_after_it_was_last_seen_writes_last_seen() {
 /// How long a test waits for a sign-out to be noticed before failing.
 const WAIT: std::time::Duration = std::time::Duration::from_secs(10);
 
-/// The id of the Device [`signed_in_device`] made, signed in at `signed_in_at`.
-async fn device_id(users: &Users, signed_in_at: i64) -> i64 {
-    let session = users.session_at(TOKEN, signed_in_at).await.unwrap();
-    session.unwrap().caller.device.id
+/// The id of the Device [`signed_in_device`] made, signed in at `signed_in_at`, and of the User it
+/// acts as.
+async fn device_id(users: &Users, signed_in_at: i64) -> (i64, i64) {
+    let session = users
+        .session_at(TOKEN, signed_in_at)
+        .await
+        .unwrap()
+        .unwrap();
+    (session.device.id, session.user.unwrap().id)
 }
 
 #[tokio::test]
 async fn waiting_for_a_device_already_signed_out_ends_at_once() {
     let data_dir = tempfile::tempdir().unwrap();
     let (users, signed_in_at) = signed_in_device(data_dir.path()).await;
-    let device = device_id(&users, signed_in_at).await;
+    let (device, user) = device_id(&users, signed_in_at).await;
 
     // As when the sign-out lands after the session was checked but before the wait began.
     users.sign_out(device).await.unwrap();
-    let waited = tokio::time::timeout(WAIT, users.signed_out(device)).await;
+    let waited = tokio::time::timeout(WAIT, users.signed_out(device, user)).await;
 
     assert!(waited.is_ok(), "the wait didn't end");
 }
@@ -129,8 +134,8 @@ async fn waiting_for_a_device_already_signed_out_ends_at_once() {
 async fn a_burst_of_other_sign_outs_doesnt_end_the_wait_for_a_device() {
     let data_dir = tempfile::tempdir().unwrap();
     let (users, signed_in_at) = signed_in_device(data_dir.path()).await;
-    let device = device_id(&users, signed_in_at).await;
-    let mut waiting = std::pin::pin!(users.signed_out(device));
+    let (device, user) = device_id(&users, signed_in_at).await;
+    let mut waiting = std::pin::pin!(users.signed_out(device, user));
 
     // More than the waiter can buffer, so it falls behind.
     for other in (device + 1..).take(SIGN_OUTS_BUFFERED * 2) {
@@ -153,8 +158,8 @@ async fn a_burst_of_other_sign_outs_doesnt_end_the_wait_for_a_device() {
 async fn a_sign_out_whose_caller_stops_waiting_still_ends_the_wait() {
     let data_dir = tempfile::tempdir().unwrap();
     let (users, signed_in_at) = signed_in_device(data_dir.path()).await;
-    let device = device_id(&users, signed_in_at).await;
-    let mut waiting = std::pin::pin!(users.signed_out(device));
+    let (device, user) = device_id(&users, signed_in_at).await;
+    let mut waiting = std::pin::pin!(users.signed_out(device, user));
     let before = tokio::time::timeout(std::time::Duration::from_millis(200), &mut waiting).await;
     assert!(before.is_err(), "the wait ended before the sign-out");
 
@@ -344,7 +349,7 @@ fn admitted() -> Attempt {
 async fn sign_in_with_password(users: &Users, name: &str) -> SignedIn {
     let (user, method) = users.verify(&admitted(), name, PASSWORD).await.unwrap();
     users
-        .sign_in_as(Proved::Method { user, method }, laptop())
+        .sign_in_as(Proved::Method { user, method }, laptop(), None)
         .await
         .unwrap()
 }
@@ -356,8 +361,9 @@ async fn sign_in_details(
     device: i64,
 ) -> (Option<String>, String, Option<String>, i64) {
     let row = sqlx::query!(
-        r#"SELECT m.name AS "method?", d.ip_address, d.user_agent, d.authenticated_at
-               FROM devices d LEFT JOIN sign_in_methods m ON m.id = d.sign_in_method_id
+        r#"SELECT m.name AS "method?", d.ip_address, d.user_agent, du.authenticated_at
+               FROM devices d JOIN device_users du ON du.device_id = d.id
+               LEFT JOIN sign_in_methods m ON m.id = du.sign_in_method_id
                WHERE d.id = ?"#,
         device
     )
@@ -482,7 +488,7 @@ async fn a_user_deleted_between_verify_and_sign_in_is_refused_as_a_wrong_name_or
     users.delete(&ada, grace).await.unwrap();
 
     let refused = users
-        .sign_in_as(Proved::Method { user, method }, laptop())
+        .sign_in_as(Proved::Method { user, method }, laptop(), None)
         .await;
 
     assert!(
@@ -503,6 +509,7 @@ async fn a_device_signed_in_by_a_sign_in_code_records_no_method_and_never_authen
         .sign_in_as(
             Proved::Code(ApprovingDevice::from(&approving.caller)),
             laptop(),
+            None,
         )
         .await
         .unwrap();
@@ -527,6 +534,7 @@ async fn a_sign_in_code_approved_from_a_device_that_expired_since_is_refused() {
         .sign_in_as(
             Proved::Code(ApprovingDevice::from(&approving.caller)),
             laptop(),
+            None,
         )
         .await;
 
@@ -559,6 +567,7 @@ async fn deleting_a_sign_in_method_signs_out_only_the_devices_that_used_it() {
         .sign_in_as(
             Proved::Code(ApprovingDevice::from(&by_password.caller)),
             laptop(),
+            None,
         )
         .await
         .unwrap();
@@ -566,8 +575,13 @@ async fn deleting_a_sign_in_method_signs_out_only_the_devices_that_used_it() {
     let password = password_method(&users, ada).await;
     delete_sign_in_method(&users, password).await.unwrap();
 
-    assert!(!users.still_signed_in(by_password.caller.device.id).await);
-    assert!(users.still_signed_in(by_code.caller.device.id).await);
+    assert!(
+        !users
+            .device_exists(by_password.caller.device.id)
+            .await
+            .unwrap()
+    );
+    assert!(users.device_exists(by_code.caller.device.id).await.unwrap());
 }
 
 #[tokio::test]

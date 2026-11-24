@@ -82,16 +82,16 @@ fn kind_from_user_agent(user_agent: Option<&str>) -> DeviceKind {
 }
 
 impl Users {
-    /// Each of the Devices `devices` the Server still has, by id, with its User's id and its kind,
-    /// in no order.
+    /// Each of the Devices `devices` the Server still has that acts as a User, by id, with that
+    /// User's id and its kind, in no order.
     pub(crate) async fn device_kinds(
         &self,
         devices: &[i64],
     ) -> Result<Vec<(i64, i64, DeviceKind)>, sqlx::Error> {
         let asked = serde_json::Value::from(devices).to_string();
         let rows = sqlx::query!(
-            r#"SELECT id AS "id!", user_id, user_agent FROM devices
-               WHERE id IN (SELECT value FROM json_each(?))"#,
+            r#"SELECT id AS "id!", user_id AS "user_id!", user_agent FROM devices
+               WHERE id IN (SELECT value FROM json_each(?)) AND user_id IS NOT NULL"#,
             asked,
         )
         .fetch_all(self.db.reader())

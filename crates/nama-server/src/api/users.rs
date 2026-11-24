@@ -53,7 +53,7 @@ use super::{
     plugins::{change_refused, list_failed, logo_url, setting_to_proto, settings_from_proto},
     refuse,
     server::{home_layout_from_proto, home_row_from_proto},
-    server_link, signed_out, unknown_enum_value,
+    server_link, signed_out_if_last, unknown_enum_value,
 };
 
 /// `nama.v1.UserService`: managing the Server's Users, their Devices and Plugin Connections. Needs
@@ -168,7 +168,7 @@ impl UserService for UserServiceHandler {
         self.linking.unlink_deleted_user(request.user_id);
         let response = DeleteUserResponse::default();
         Ok(if request.user_id == caller.user.id {
-            signed_out(response, &ctx)
+            signed_out_if_last(&self.users, response, &ctx).await?
         } else {
             Response::new(response)
         })
@@ -212,7 +212,7 @@ impl UserService for UserServiceHandler {
             .await?;
         let response = RevokeDeviceResponse::default();
         Ok(if request.device_id == caller.device.id {
-            signed_out(response, &ctx)
+            signed_out_if_last(&self.users, response, &ctx).await?
         } else {
             Response::new(response)
         })
