@@ -43,7 +43,7 @@
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
     "eslint-plugin-better-tailwindcss": "^4.11.0",
-    "fallow": "^3.42.0",
+    "fallow": "^3.45.0",
     "happy-dom": "^21.0.4",
     "jsqr": "^1.4.0",
     "vite": "catalog:",
