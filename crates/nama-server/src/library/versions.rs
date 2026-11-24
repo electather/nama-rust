@@ -12,5 +12,5 @@ pub(crate) const PARSER_VERSION: i64 = 12;
 /// Poster, overview and first air date; version 4 picks a Backdrop without text first; version 5
 /// adds a titled Backdrop; version 6 a title's Score and original language; version 7 every
 /// Season's Episode air dates; version 8 a title's Trailers; version 9 its Roles; version 10 its
-/// Similar titles; version 11 a Movie's Box Set.
-pub(crate) const METADATA_VERSION: i64 = 11;
+/// Similar titles; version 11 a Movie's Box Set; version 12 its genres' ids.
+pub(crate) const METADATA_VERSION: i64 = 12;

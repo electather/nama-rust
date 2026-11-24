@@ -316,6 +316,7 @@ impl Caller {
                 episode_number: (listed.episode).and_then(|number| u32::try_from(number).ok()),
                 added_at_ms: listed.added_at.saturating_mul(1000),
                 genres: listed.genres,
+                genre_ids: listed.genre_ids.iter().map(title_id).collect(),
                 content_rating: listed.content_rating,
                 show_id: listed.show_id.as_ref().map(title_id).into(),
                 ids: listed.ids.iter().map(|id| title_id(&id)).collect(),

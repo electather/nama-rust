@@ -111,6 +111,30 @@ fn a_score_outside_0_to_10_is_dropped_not_stored() {
     );
 }
 
+#[test]
+fn genre_ids_are_kept_only_when_each_genre_has_a_valid_one() {
+    let genre_ids = |ids: Vec<wire::TitleId>| {
+        let movie = movie(wire::Movie {
+            genres: vec!["Komödie".to_owned(), "Drama".to_owned()],
+            genre_ids: ids,
+            ..Default::default()
+        });
+        movie.unwrap().genre_ids
+    };
+
+    assert_eq!(
+        genre_ids(vec![id("tmdb", "35"), id("tmdb", "18")]),
+        [ExternalId::tmdb(35), ExternalId::tmdb(18)]
+    );
+    assert_eq!(
+        [
+            genre_ids(vec![id("tmdb", "35")]),
+            genre_ids(vec![id("tmdb", "35"), id("TMDB", "18")]),
+        ],
+        [Vec::new(), Vec::new()]
+    );
+}
+
 fn wire_role(person: &str, headshot: &str) -> wire::Role {
     wire::Role {
         person: id("tmdb", person).into(),

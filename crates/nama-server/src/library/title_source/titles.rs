@@ -74,6 +74,8 @@ pub(crate) struct Movie {
     pub(crate) backdrop: Option<String>,
     /// Its genres' names, in the source's language.
     pub(crate) genres: Vec<String>,
+    /// Each of `genres`' id in the source, in the same order; empty unless it gave one for each.
+    pub(crate) genre_ids: Vec<ExternalId>,
     /// Its Content Rating in the source's country, such as `R`.
     pub(crate) content_rating: Option<String>,
     /// Its Score, from 0 to 10, as the source averages it.
@@ -140,6 +142,8 @@ pub(crate) struct Show {
     pub(crate) seasons: Vec<u32>,
     /// As [`Movie::genres`].
     pub(crate) genres: Vec<String>,
+    /// As [`Movie::genre_ids`].
+    pub(crate) genre_ids: Vec<ExternalId>,
     /// As [`Movie::content_rating`], such as `TV-MA`.
     pub(crate) content_rating: Option<String>,
     /// As [`Movie::score`].
@@ -361,6 +365,7 @@ pub(super) fn movie(movie: wire::Movie) -> Result<Movie, MetadataError> {
         runtime_minutes: movie.runtime_minutes,
         poster: movie.poster,
         backdrop: movie.backdrop,
+        genre_ids: genre_ids(&movie.genres, &movie.genre_ids),
         genres: movie.genres,
         content_rating: movie.content_rating,
         score: valid_score(movie.score),
@@ -397,6 +402,7 @@ pub(super) fn show(show: wire::Show) -> Result<Show, MetadataError> {
         poster: show.poster,
         backdrop: show.backdrop,
         seasons: show.seasons,
+        genre_ids: genre_ids(&show.genres, &show.genre_ids),
         genres: show.genres,
         content_rating: show.content_rating,
         score: valid_score(show.score),
@@ -404,6 +410,17 @@ pub(super) fn show(show: wire::Show) -> Result<Show, MetadataError> {
         trailers: trailers(show.trailers),
         roles: roles(show.cast, show.crew),
     })
+}
+
+/// `ids` as the Kernel keeps them: none unless each is valid and there is one for each of
+/// `genres`, since a list out of step with them would name the wrong genres.
+fn genre_ids(genres: &[String], ids: &[wire::TitleId]) -> Vec<ExternalId> {
+    let ids: Vec<_> = ids.iter().map_while(|id| external_id(id).ok()).collect();
+    if ids.len() == genres.len() {
+        ids
+    } else {
+        Vec::new()
+    }
 }
 
 /// `score`, unless it's outside 0 to 10, where the Kernel stores none rather than failing the

@@ -9,5 +9,5 @@ Plugin had no TVDB API key. When re-recording one, trim it the same way.
 |---|---|
 | `login.json` | `POST /v4/login` |
 | `search.json` | `GET /v4/search?query=severance&type=series`, with a second Show TVDB has only a Korean name and an English translation for |
-| `series-extended.json` | `GET /v4/series/371980/extended?meta=translations`, trimmed to three artworks and the Seasons of two orders |
+| `series-extended.json` | `GET /v4/series/371980/extended?meta=translations`, trimmed to three artworks, two genres and the Seasons of two orders |
 | `episodes-season-1.json` | `GET /v4/series/371980/episodes/default?season=1`, trimmed to two Episodes |

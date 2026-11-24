@@ -172,6 +172,9 @@ message Title {
   repeated TitleId ids = 10;
   // Every id of the Episode's Show, `show_id` among them. Empty for a Movie.
   repeated TitleId show_ids = 11;
+  // Each of `genres`' id in the title source that named it, in the same order, such as `tmdb`
+  // `35`. Empty if that source gave none, or for a Match stored before the Kernel kept them.
+  repeated TitleId genre_ids = 12;
 }
 
 // Which Movie or Episode, in which Library.

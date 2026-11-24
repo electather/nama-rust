@@ -3300,6 +3300,17 @@ pub struct Movie {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
     )]
     pub box_set: ::buffa::MessageField<BoxSet, ::buffa::Inline<BoxSet>>,
+    /// Each of `genres`' id in this source, in the same order, such as `tmdb` `35`; empty if the
+    /// source has none. The Kernel keeps none of them unless there is one for every genre.
+    ///
+    /// Field 18: `genre_ids`
+    #[serde(
+        rename = "genreIds",
+        alias = "genre_ids",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub genre_ids: ::buffa::alloc::vec::Vec<TitleId>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3323,6 +3334,7 @@ impl ::core::fmt::Debug for Movie {
             .field("cast", &self.cast)
             .field("crew", &self.crew)
             .field("box_set", &self.box_set)
+            .field("genre_ids", &self.genre_ids)
             .finish()
     }
 }
@@ -3512,6 +3524,14 @@ impl ::buffa::Message for Movie {
                 += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.genre_ids {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3594,6 +3614,14 @@ impl ::buffa::Message for Movie {
                 buf,
             );
             self.box_set.write_to(__cache, buf);
+        }
+        for v in &self.genre_ids {
+            ::buffa::types::put_len_delimited_header(
+                18u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -3785,6 +3813,18 @@ impl ::buffa::Message for Movie {
                     ctx,
                 )?;
             }
+            18u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.genre_ids.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3809,6 +3849,7 @@ impl ::buffa::Message for Movie {
         self.cast.clear();
         self.crew.clear();
         self.box_set = ::buffa::MessageField::none();
+        self.genre_ids.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -4293,6 +4334,16 @@ pub struct Show {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub crew: ::buffa::alloc::vec::Vec<Role>,
+    /// As `Movie.genre_ids`.
+    ///
+    /// Field 17: `genre_ids`
+    #[serde(
+        rename = "genreIds",
+        alias = "genre_ids",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub genre_ids: ::buffa::alloc::vec::Vec<TitleId>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -4315,6 +4366,7 @@ impl ::core::fmt::Debug for Show {
             .field("trailers", &self.trailers)
             .field("cast", &self.cast)
             .field("crew", &self.crew)
+            .field("genre_ids", &self.genre_ids)
             .finish()
     }
 }
@@ -4494,6 +4546,14 @@ impl ::buffa::Message for Show {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.genre_ids {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 2u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4572,6 +4632,14 @@ impl ::buffa::Message for Show {
         for v in &self.crew {
             ::buffa::types::put_len_delimited_header(
                 15u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.genre_ids {
+            ::buffa::types::put_len_delimited_header(
+                17u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -4787,6 +4855,18 @@ impl ::buffa::Message for Show {
                 ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
                 self.crew.push(elem);
             }
+            17u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let mut elem = ::core::default::Default::default();
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&elem),
+                )?;
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, ctx)?;
+                self.genre_ids.push(elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4810,6 +4890,7 @@ impl ::buffa::Message for Show {
         self.trailers.clear();
         self.cast.clear();
         self.crew.clear();
+        self.genre_ids.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

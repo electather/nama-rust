@@ -242,6 +242,9 @@ message Movie {
   repeated Role crew = 15;
   // The Box Set it belongs to, unset if none. A Movie belongs to at most one per source.
   BoxSet box_set = 17;
+  // Each of `genres`' id in this source, in the same order, such as `tmdb` `35`; empty if the
+  // source has none. The Kernel keeps none of them unless there is one for every genre.
+  repeated TitleId genre_ids = 18;
 }
 
 // A group of Movies the source says belong together, such as the Alien films. It is a grouping,
@@ -297,6 +300,8 @@ message Show {
   repeated Role cast = 14;
   // As `Movie.crew`, over the Show's whole run. Its creators have the job `Creator`.
   repeated Role crew = 15;
+  // As `Movie.genre_ids`.
+  repeated TitleId genre_ids = 17;
 }
 
 // A video advertising a Movie or Show, which the Kernel only ever links to where it is hosted.

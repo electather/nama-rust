@@ -2862,6 +2862,14 @@ pub struct TitleView<'a> {
         'a,
         super::super::__buffa::view::TitleIdView<'a>,
     >,
+    /// Each of `genres`' id in the title source that named it, in the same order, such as `tmdb`
+    /// `35`. Empty if that source gave none, or for a Match stored before the Kernel kept them.
+    ///
+    /// Field 12: `genre_ids`
+    pub genre_ids: ::buffa::RepeatedView<
+        'a,
+        super::super::__buffa::view::TitleIdView<'a>,
+    >,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for TitleView<'a> {
@@ -3025,6 +3033,24 @@ impl<'a> ::buffa::MessageView<'a> for TitleView<'a> {
                         )?,
                     );
             }
+            12u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                ctx.register_element_memory(
+                    ::core::mem::size_of::<super::super::__buffa::view::TitleIdView>(),
+                )?;
+                view.genre_ids
+                    .push(
+                        <super::super::__buffa::view::TitleIdView as ::buffa::MessageView>::decode_view_ctx(
+                            sub,
+                            __sub_ctx,
+                        )?,
+                    );
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -3079,6 +3105,11 @@ impl<'a> ::buffa::MessageView<'a> for TitleView<'a> {
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
             show_ids: self
                 .show_ids
+                .iter()
+                .map(|v| v.to_owned_from_source(__buffa_src))
+                .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
+            genre_ids: self
+                .genre_ids
                 .iter()
                 .map(|v| v.to_owned_from_source(__buffa_src))
                 .collect::<::core::result::Result<_, ::buffa::DecodeError>>()?,
@@ -3146,6 +3177,14 @@ impl<'a> ::buffa::ViewEncode<'a> for TitleView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        for v in &self.genre_ids {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3205,6 +3244,14 @@ impl<'a> ::buffa::ViewEncode<'a> for TitleView<'a> {
         for v in &self.show_ids {
             ::buffa::types::put_len_delimited_header(
                 11u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            v.write_to(__cache, buf);
+        }
+        for v in &self.genre_ids {
+            ::buffa::types::put_len_delimited_header(
+                12u32,
                 u64::from(__cache.consume_next()),
                 buf,
             );
@@ -3279,6 +3326,9 @@ impl<'__a> ::serde::Serialize for TitleView<'__a> {
         }
         if !self.show_ids.is_empty() {
             __map.serialize_entry("showIds", &*self.show_ids)?;
+        }
+        if !self.genre_ids.is_empty() {
+            __map.serialize_entry("genreIds", &*self.genre_ids)?;
         }
         __map.end()
     }
@@ -3452,6 +3502,16 @@ impl TitleOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleIdView<'_>> {
         &self.0.reborrow().show_ids
+    }
+    /// Each of `genres`' id in the title source that named it, in the same order, such as `tmdb`
+    /// `35`. Empty if that source gave none, or for a Match stored before the Kernel kept them.
+    ///
+    /// Field 12: `genre_ids`
+    #[must_use]
+    pub fn genre_ids(
+        &self,
+    ) -> &::buffa::RepeatedView<'_, super::super::__buffa::view::TitleIdView<'_>> {
+        &self.0.reborrow().genre_ids
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<TitleView<'static>>> for TitleOwnedView {

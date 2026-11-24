@@ -745,9 +745,31 @@ fn tmdb_id(value: &str) -> TitleId {
     }
 }
 
+/// The id the title source gives each genre the tests name: TMDB's, but for Anime, which TMDB has
+/// no genre for and TVDB does.
+fn genre_id(name: &str) -> TitleId {
+    match name {
+        "Comedy" => tmdb_id("35"),
+        "Drama" => tmdb_id("18"),
+        "Horror" => tmdb_id("27"),
+        "Sci-Fi & Fantasy" => tmdb_id("10765"),
+        "Anime" => tvdb_id("anime"),
+        _ => panic!("no id for the genre {name}"),
+    }
+}
+
+/// `title` in `genres`, each named as its title source names it, with the id it gives it.
+fn with_genres(title: Title, genres: &[(&str, TitleId)]) -> Title {
+    Title {
+        genres: genres.iter().map(|(name, _)| (*name).to_owned()).collect(),
+        genre_ids: genres.iter().map(|(_, id)| id.clone()).collect(),
+        ..title
+    }
+}
+
 /// A Movie in Library 1, by its TMDB id, named `Movie <id>`.
 fn movie(value: &str, genres: &[&str]) -> Title {
-    Title {
+    let title = Title {
         title: format!("Movie {value}"),
         title_ref: TitleRef {
             library_id: 1,
@@ -756,9 +778,10 @@ fn movie(value: &str, genres: &[&str]) -> Title {
             ..TitleRef::default()
         }
         .into(),
-        genres: genres.iter().map(|&genre| genre.to_owned()).collect(),
         ..Title::default()
-    }
+    };
+    let genres: Vec<_> = genres.iter().map(|&name| (name, genre_id(name))).collect();
+    with_genres(title, &genres)
 }
 
 /// An Episode in Library 1 of the Show with the TMDB id `show`, named `Show <show>`.
@@ -1270,6 +1293,48 @@ fn more_genre_of_a_genre_tmdb_has_only_for_shows_holds_shows() {
         [(
             "more-genre-1",
             "More Sci-Fi & Fantasy",
+            6 * 60 * 60,
+            vec![(show, "107651"), (show, "107652")]
+        )]
+    );
+}
+
+#[test]
+fn more_genre_finds_a_genre_by_its_tmdb_id_in_whatever_language_it_is_named() {
+    let titles = [with_genres(movie("1", &[]), &[("Komödie", tmdb_id("35"))])];
+    let kernel = user_kernel(&["more-genre"], &titles);
+    let mut kernel = watching(kernel, &titles[0], ADA, PLAYED, days_ago(1));
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    let movie = Some(TitleKind::TITLE_KIND_MOVIE);
+    let show = Some(TitleKind::TITLE_KIND_SHOW);
+    assert_eq!(
+        summary(&rows),
+        [(
+            "more-genre-1",
+            "More Komödie",
+            6 * 60 * 60,
+            vec![(movie, "351"), (show, "351"), (movie, "352"), (show, "352")]
+        )]
+    );
+}
+
+#[test]
+fn more_genre_finds_a_tvdb_genre_by_the_tmdb_genre_like_it() {
+    let science_fiction = [("Science Fiction", tvdb_id("science-fiction"))];
+    let titles = [with_genres(episode("10", "100", &[]), &science_fiction)];
+    let kernel = user_kernel(&["more-genre"], &titles);
+    let mut kernel = watching(kernel, &titles[0], ADA, PLAYED, days_ago(1));
+
+    let rows = user_rows(&mut kernel, ADA).unwrap();
+
+    let show = Some(TitleKind::TITLE_KIND_SHOW);
+    assert_eq!(
+        summary(&rows),
+        [(
+            "more-genre-1",
+            "More Science Fiction",
             6 * 60 * 60,
             vec![(show, "107651"), (show, "107652")]
         )]

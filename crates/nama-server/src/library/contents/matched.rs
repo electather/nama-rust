@@ -723,6 +723,19 @@ pub(super) fn genres(json: Option<&str>) -> Result<Vec<String>, sqlx::Error> {
     })
 }
 
+/// The ids in the `genre_ids` column's JSON, `json`: none where it's NULL, as for a Match stored
+/// before Matches had them, or where one doesn't parse, as they'd fall out of step with `genres`.
+pub(super) fn genre_ids(json: Option<&str>) -> Vec<ExternalId> {
+    let texts: Vec<String> = json
+        .and_then(|json| serde_json::from_str(json).ok())
+        .unwrap_or_default();
+    texts
+        .iter()
+        .map(|text| text.parse())
+        .collect::<Result<_, _>>()
+        .unwrap_or_default()
+}
+
 /// The Version of a file that [`Contents::movies`] and [`Contents::shows`] read, its columns
 /// in the order both select them.
 #[expect(

@@ -4,7 +4,9 @@
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use super::{
-    Contents, ItemKind, ids_from_json, ids_sql, matched::genres, matched_items, parse_hint,
+    Contents, ItemKind, ids_from_json, ids_sql,
+    matched::{genre_ids, genres},
+    matched_items, parse_hint,
 };
 
 /// A Movie or Episode of `matched_items` on a page [`Contents::titles_page`] reads, with what the
@@ -24,6 +26,9 @@ pub(crate) struct Listed {
     pub(crate) added_at: i64,
     /// A Movie's genres, or an Episode's Show's.
     pub(crate) genres: Vec<String>,
+    /// Each of `genres`' id in the title source that named it, in the same order; empty if it
+    /// gave none.
+    pub(crate) genre_ids: Vec<ExternalId>,
     /// A Movie's Content Rating, or an Episode's Show's.
     pub(crate) content_rating: Option<String>,
     /// An Episode's Show's preferred id, its `listed_id` in `matched_items`; `None` for a Movie.
@@ -60,6 +65,7 @@ impl Contents {
                                   matched_items.path, matched_items.season, matched_items.episode,
                                   matched_items.added_at, item_matches.title,
                                   item_matches.show_title, item_matches.genres,
+                                  item_matches.genre_ids,
                                   item_matches.content_rating, "#
                         + $ids
                         + r#"'title') AS ids, "#
@@ -80,7 +86,8 @@ impl Contents {
                        SELECT namespace AS "namespace!: String", value AS "value!: String",
                               title AS "title!", show_title, season, episode,
                               newest_added_at AS "newest_added_at!: i64",
-                              genres, content_rating, listed_id AS "listed_id!: String",
+                              genres, genre_ids, content_rating,
+                              listed_id AS "listed_id!: String",
                               ids AS "ids?: String", show_ids AS "show_ids?: String"
                        FROM listed
                        WHERE version = 1
@@ -113,6 +120,7 @@ impl Contents {
                 episode: row.episode.filter(|_| episode),
                 added_at: row.newest_added_at,
                 genres: genres(row.genres.as_deref())?,
+                genre_ids: genre_ids(row.genre_ids.as_deref()),
                 content_rating: row.content_rating,
                 // A Movie is listed under its own id, which isn't a Show's.
                 show_id: parse_hint(&row.listed_id).filter(|_| episode),

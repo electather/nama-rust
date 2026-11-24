@@ -213,6 +213,8 @@ pub(crate) struct Metadata {
     /// For an Episode, its Still, from the Match's [`plugin`](Self::plugin).
     pub(crate) still: Option<String>,
     pub(crate) genres: Vec<String>,
+    /// As [`Movie::genre_ids`](crate::library::title_source::Movie::genre_ids).
+    pub(crate) genre_ids: Vec<ExternalId>,
     pub(crate) content_rating: Option<String>,
     /// For an Episode, its Show's own Poster, as `poster` holds its Season's.
     pub(crate) show_poster: Option<ImageRef>,
@@ -547,11 +549,11 @@ pub(super) async fn insert_decisions(
                  item_id, state, plugin, title, original_title, show_title,
                  overview, release_date, runtime_minutes, poster, poster_plugin, backdrop,
                  backdrop_plugin, titled_backdrop, titled_backdrop_plugin, logo, logo_plugin,
-                 still, genres, content_rating, original_language, show_poster, show_poster_plugin,
-                 show_overview, show_first_air_date, unmatched_reason, tied_titles,
-                 metadata_version, decided_at, sort_title)
+                 still, genres, genre_ids, content_rating, original_language, show_poster,
+                 show_poster_plugin, show_overview, show_first_air_date, unmatched_reason,
+                 tied_titles, metadata_version, decided_at, sort_title)
              SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?
+                    ?, ?, ?, ?
              WHERE EXISTS (SELECT 1 FROM library_items WHERE id = ?)",
             item,
             row.state,
@@ -572,6 +574,7 @@ pub(super) async fn insert_decisions(
             row.metadata.logo.map(|image| image.plugin),
             row.metadata.still,
             row.metadata.genres,
+            row.metadata.genre_ids,
             row.metadata.content_rating,
             row.metadata.original_language,
             row.metadata.show_poster.map(|image| image.path),
@@ -641,6 +644,8 @@ struct MetadataColumns<'a> {
     still: Option<&'a str>,
     /// A JSON array of their names, which `genres` in the parent module reads.
     genres: Option<String>,
+    /// A JSON array of their ids' text forms, which `genre_ids` in the parent module reads.
+    genre_ids: Option<String>,
     content_rating: Option<&'a str>,
     original_language: Option<&'a str>,
     show_poster: Option<ImageColumns<'a>>,
@@ -704,6 +709,12 @@ impl<'a> From<&'a Decided> for MatchRow<'a> {
                     logo: metadata.logo.as_ref().map(ImageColumns::from),
                     still: metadata.still.as_deref(),
                     genres: Some(serde_json::Value::from(metadata.genres.clone()).to_string()),
+                    genre_ids: Some(
+                        serde_json::Value::from_iter(
+                            metadata.genre_ids.iter().map(ToString::to_string),
+                        )
+                        .to_string(),
+                    ),
                     content_rating: metadata.content_rating.as_deref(),
                     original_language: metadata.original_language.as_deref(),
                     show_poster: metadata.show_poster.as_ref().map(ImageColumns::from),

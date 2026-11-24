@@ -597,6 +597,7 @@ impl Metadata {
             logo: None,
             still: None,
             genres: movie.genres,
+            genre_ids: movie.genre_ids,
             content_rating: movie.content_rating,
             show_poster: None,
             show_overview: None,
