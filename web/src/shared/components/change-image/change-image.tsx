@@ -1,3 +1,6 @@
+import { cn } from "cn";
+import { ghostHang } from "nama-ui/components/button";
+
 import { ArtworkChoices } from "@/shared/components/artwork-choices/artwork-choices";
 import { RemoveImage } from "@/shared/components/change-image/remove-image";
 import { UploadButton } from "@/shared/components/change-image/upload-button";
@@ -28,7 +31,7 @@ export function ChangeImage({
   const { upload, pick, change, pending, error } = useChangeImage(image.path, rules);
   return (
     <>
-      <div className="-ms-3 mt-2 flex flex-wrap">
+      <div className={cn(ghostHang, "mt-2 flex flex-wrap")}>
         <UploadButton name={image.name} accept={rules.accept} pending={pending} onPicked={upload} />
         {image.custom && (
           <RemoveImage
