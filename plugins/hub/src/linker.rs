@@ -28,7 +28,6 @@ use nama_plugin_api::{
     BoxFuture, PluginError,
     automation::{Kernel, functions::StoreGet},
     contract::StoreKey,
-    diagnostics_sharer::{DiagnosticsSharer, Signal},
     job::{JobRunner, RunJob},
     points::{TrackPreference, WatchStateChange},
     server_link::{AccountSignIn, Link, ServerLinker, WatchlistEntry},
@@ -144,12 +143,6 @@ impl Linker {
         self.link.token_subject(token).await
     }
 
-    /// Sends `batch` to the Hub as the Linked Server, or drops it while not Linked.
-    async fn share_batch(&self, signal: Signal, batch: Vec<u8>) -> Result<(), PluginError> {
-        self.call(|hub| hub.share(signal, batch)).await?;
-        Ok(())
-    }
-
     async fn kept(&self) -> Result<Option<Kept>, PluginError> {
         let kept = (self.link.credential().await?).map(|credential| Kept { credential });
         let id = kept.as_ref().map(Kept::id);
@@ -229,12 +222,6 @@ impl ServerLinker for Linker {
         watchlist: Vec<WatchlistEntry>,
     ) -> BoxFuture<'_, Result<Vec<WatchlistEntry>, PluginError>> {
         Box::pin(self.merge_watchlist(user_id, watchlist))
-    }
-}
-
-impl DiagnosticsSharer for Linker {
-    fn share(&self, signal: Signal, batch: Vec<u8>) -> BoxFuture<'_, Result<(), PluginError>> {
-        Box::pin(self.share_batch(signal, batch))
     }
 }
 

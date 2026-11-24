@@ -11,6 +11,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use bytes::Bytes;
 use nama_plugin_api::{
     BoxFuture, PluginError,
     server_link::{Link, Reachability, ServerAddresses},
@@ -22,7 +23,10 @@ use super::{
     hub::{Failure, Hub, LinkDropped, LinkedHub, Polling},
     token::{self, Claims, Rejected},
 };
-use crate::db::{self, Database};
+use crate::{
+    db::{self, Database},
+    diagnostics::Signal,
+};
 
 /// How long the Hub's check of the Server's public port stands: the same Server Addresses go to
 /// the Hub again after this, so it checks again, such as after the router's public IP changed.
@@ -266,6 +270,13 @@ impl ServerLink {
     pub(super) async fn relay_token(&self) -> Result<String, Failure> {
         let token = self.call(LinkedHub::relay_token);
         Ok(token.await?.ok_or(NOT_LINKED)?)
+    }
+
+    /// Sends `batch`, an OTLP/HTTP protobuf export request of `signal`, to the Hub for Nama's
+    /// developers, or drops it while the Server isn't Linked.
+    pub(super) async fn share(&self, signal: Signal, batch: Bytes) -> Result<(), Failure> {
+        self.call(|hub| hub.share(signal, batch)).await?;
+        Ok(())
     }
 
     /// Forgets the Link holding `credential`, as Unlinking does, so the Server can Link again. A

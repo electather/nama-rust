@@ -16,6 +16,7 @@ use connectrpc::{
     ConnectError, ErrorCode,
     client::{CallOptions, ClientConfig, HttpClient, ServerStream},
 };
+use futures_util::FutureExt as _;
 use hyper::HeaderMap;
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_tmdb::Tmdb;
@@ -102,9 +103,8 @@ async fn start_with(setup_code: Option<SetupCode>, config: &Config) -> TestServe
         plugins,
         setup_code.clone(),
         Ffmpeg::default(),
-        async {
-            let _: Result<(), oneshot::error::RecvError> = stopped.await;
-        },
+        nama_server::ShareWithHub::default(),
+        stopped.map(drop),
     ));
     TestServer {
         addr,

@@ -210,6 +210,29 @@ pub fn use_ring_for_tls() {
     let _: Result<(), _> = rustls::crypto::ring::default_provider().install_default();
 }
 
+/// The only encoding shared Diagnostics take, as the Hub forwards what it is handed as it.
+pub(crate) const OTLP_PROTOBUF: &str = "application/x-protobuf";
+
+/// Which OTLP signal a shared batch holds, as its OTLP/HTTP path names it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Signal {
+    /// Spans.
+    Traces,
+    /// Log records: the allow-listed log lines and Usage Analytics.
+    Logs,
+}
+
+impl Signal {
+    /// Its path under an OTLP/HTTP endpoint.
+    #[must_use]
+    pub const fn path(self) -> &'static str {
+        match self {
+            Self::Traces => "v1/traces",
+            Self::Logs => "v1/logs",
+        }
+    }
+}
+
 /// What an admin shares with Nama's developers (ADR 0054): neither, by default.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Sharing {

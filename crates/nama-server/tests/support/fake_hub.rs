@@ -1,8 +1,9 @@
 //! An in-process stand-in for the Hub a Server's config names, answering the calls the Kernel
 //! makes as the Server's Link (ADR 0105): its device flow, Unlinking, the Server Addresses, whose
-//! public port it reaches only at [`OPEN_PORT`], the Relay token, and the key set it signs tokens
-//! with. It speaks the Connect protocol's unary calls with protobuf bodies, as the Kernel's client
-//! does, so it needs none of the Hub API's other calls.
+//! public port it reaches only at [`OPEN_PORT`], the Relay token, the key set it signs tokens
+//! with, and the OTLP/HTTP paths taking shared Diagnostics. It speaks the Connect protocol's unary
+//! calls with protobuf bodies, as the Kernel's client does, so it needs none of the Hub API's other
+//! calls.
 
 use std::{
     future,
@@ -14,7 +15,8 @@ use std::{
 use axum::{
     Router,
     body::Bytes,
-    http::{HeaderMap, header::CONTENT_TYPE},
+    extract::Path,
+    http::{HeaderMap, StatusCode, header::CONTENT_TYPE},
     response::{IntoResponse as _, Response},
     routing::{MethodRouter, get, post},
 };
@@ -71,6 +73,8 @@ struct State {
     credentials: usize,
     /// Each set of Server Addresses the Server reported, in order.
     told: Vec<SetServerAddressesRequest>,
+    /// Each batch of shared Diagnostics, with the signal its path named, in order.
+    shared: Vec<(String, Bytes)>,
     /// Whether every call waits forever, as a Hub slow to time out.
     hanging: bool,
 }
@@ -120,7 +124,8 @@ impl FakeHub {
             .route(
                 &format!("{linked}/GetRelayToken"),
                 unary(&state, &key, relay_token),
-            );
+            )
+            .route("/otlp/v1/{signal}", otlp(&state));
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let serving = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
@@ -166,6 +171,11 @@ impl FakeHub {
     /// The Server Addresses the Server reported last.
     pub(crate) fn last_told(&self) -> Option<SetServerAddressesRequest> {
         lock(&self.state).told.last().cloned()
+    }
+
+    /// Each batch of shared Diagnostics the fake took, with the signal its path named.
+    pub(crate) fn shared(&self) -> Vec<(String, Bytes)> {
+        lock(&self.state).shared.clone()
     }
 
     /// Has every call from now on wait forever.
@@ -242,6 +252,26 @@ where
                 .into_response(),
         }
     })
+}
+
+/// Takes a batch of shared Diagnostics from the Linked Server, as the Hub forwards it, and refuses
+/// anyone else.
+fn otlp(state: &Arc<Mutex<State>>) -> MethodRouter {
+    let state = Arc::clone(state);
+    post(
+        async move |Path(signal): Path<String>, headers: HeaderMap, batch: Bytes| {
+            let hanging = lock(&state).hanging;
+            if hanging {
+                future::pending::<()>().await;
+            }
+            let mut state = lock(&state);
+            if caller(&state, &headers).is_err() {
+                return StatusCode::UNAUTHORIZED;
+            }
+            state.shared.push((signal, batch));
+            StatusCode::OK
+        },
+    )
 }
 
 #[expect(

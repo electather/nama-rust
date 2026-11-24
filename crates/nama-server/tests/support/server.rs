@@ -33,7 +33,7 @@ use nama_proto::nama::v1::{
     SubscribeRequest, SubscribeResponse, UpdateImageSettingsRequest, UserServiceClient, event,
     subscribe_response,
 };
-use nama_server::{db::Database, plugins::Registry, users::SetupCode};
+use nama_server::{ShareWithHub, db::Database, plugins::Registry, users::SetupCode};
 use tempfile::TempDir;
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard, oneshot};
 
@@ -52,6 +52,8 @@ pub(crate) struct TestServer {
     pub(crate) addr: SocketAddr,
     /// The session token of the Admin's Device.
     pub(crate) admin_token: String,
+    /// What the Server's exporter of its own traces posts through.
+    pub(crate) sharing: ShareWithHub,
     db: Arc<Database>,
     /// The Registry the Server was started with.
     plugins: Registry,

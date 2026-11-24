@@ -5,14 +5,7 @@ pub(crate) mod limits;
 
 use std::{error::Error, fmt, net::Ipv4Addr, sync::Arc, time::Duration};
 
-use bytes::Bytes;
-use connectrpc::client::{
-    ClientBody, ClientConfig, ClientTransport as _, ServiceTransport, full_body,
-};
-use http::{
-    Request,
-    header::{AUTHORIZATION, CONTENT_TYPE},
-};
+use connectrpc::client::{ClientBody, ClientConfig, ServiceTransport};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use hyper_util::{
     client::legacy::{Client, connect::HttpConnector},
@@ -28,7 +21,7 @@ use nama_hub_proto::nama::hub::v1::{
     StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
     TrackPreferenceChange, UnlinkUserRequest, UserViewingEvent, WatchStateChange, WatchlistEntry,
 };
-use nama_plugin_api::{PluginError, diagnostics_sharer::Signal};
+use nama_plugin_api::PluginError;
 
 const TIMEOUT: Duration = Duration::from_secs(20);
 
@@ -298,22 +291,6 @@ impl LinkedHub {
             Err(err) if err.code == connectrpc::ErrorCode::NotFound => Ok(None),
             Err(err) => Err(link_dropped(err)),
         }
-    }
-
-    /// Posts `batch`, an OTLP/HTTP protobuf export request of `signal`, to the Hub as the Server,
-    /// for it to forward to Nama's developers (ADR 0054).
-    pub(crate) async fn share(self, signal: Signal, batch: Vec<u8>) -> Result<(), PluginError> {
-        let request = Request::post(format!("{}/otlp/{}", self.hub.url, signal.path()))
-            .header(CONTENT_TYPE, "application/x-protobuf")
-            .header(AUTHORIZATION, format!("Bearer {}", self.credential))
-            .body(full_body(Bytes::from(batch)))?;
-        let status = tokio::time::timeout(TIMEOUT, self.hub.transport.send(request))
-            .await??
-            .status();
-        if !status.is_success() {
-            return Err(format!("the Hub answered {status} for shared Diagnostics").into());
-        }
-        Ok(())
     }
 
     /// The titles like the one `request` names.

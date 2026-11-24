@@ -5,7 +5,7 @@
 //! Watch State it pushes, which its Linked Users pull back, their Watchlists, its Viewing Events,
 //! the titles like The Matrix, what's trending and most watchlisted, two titles recommended to
 //! each Linked User, and a key set of one Ed25519 key it signs with, as the Hub's API
-//! (`proto/nama/hub/v1/`) says the Hub does, and takes shared Diagnostics.
+//! (`proto/nama/hub/v1/`) says the Hub does.
 
 use std::{
     collections::HashMap,
@@ -15,11 +15,6 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use axum::{
-    body::Bytes,
-    extract::Path,
-    http::{HeaderMap, StatusCode},
-};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use connectrpc::{
     ConnectError, ErrorCode, RequestContext, Response, ServiceRequest, ServiceResult,
@@ -71,8 +66,6 @@ struct State {
     /// How many credentials the fake handed out. Each Link gets a new one, as on the Hub, and only
     /// the last works.
     credentials: usize,
-    /// Each batch of shared Diagnostics, with the signal its path named.
-    shared: Vec<(String, Vec<u8>)>,
     /// The name each User waiting on a code started with, by id.
     user_codes: HashMap<i64, String>,
     /// The email of the Account each Linked User is Linked to, by id.
@@ -127,17 +120,7 @@ impl FakeHub {
         let rpcs = connectrpc::Router::new()
             .add_service(Arc::new(Linked(shared)))
             .into_axum_service();
-        let app = axum::Router::new()
-            .route(
-                "/otlp/v1/{signal}",
-                axum::routing::post({
-                    let state = Arc::clone(&state);
-                    async move |Path(signal): Path<String>, headers: HeaderMap, batch: Bytes| {
-                        take_shared(&state, signal, &headers, &batch)
-                    }
-                }),
-            )
-            .fallback_service(rpcs);
+        let app = axum::Router::new().fallback_service(rpcs);
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let serving = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
@@ -289,11 +272,6 @@ impl FakeHub {
     /// down, or work again with `None`.
     pub(super) fn fail_recording(&self, failure: Option<ErrorCode>) {
         lock(&self.state).recording_failure = failure;
-    }
-
-    /// Each batch of shared Diagnostics the Hub took, with the signal its path named.
-    pub(super) fn shared(&self) -> Vec<(String, Vec<u8>)> {
-        lock(&self.state).shared.clone()
     }
 
     /// Goes down, as if unreachable.
@@ -715,23 +693,6 @@ fn recommended(kind: TitleKind, tmdb: &str, weight: f32) -> RecommendedTitle {
         weight,
         ..Default::default()
     }
-}
-
-/// Keeps a batch of shared Diagnostics from the Server holding the credential, as the Hub forwards
-/// it, and refuses anyone else.
-fn take_shared(
-    state: &Mutex<State>,
-    signal: String,
-    headers: &HeaderMap,
-    batch: &Bytes,
-) -> StatusCode {
-    let mut state = lock(state);
-    let bearer = format!("Bearer {}", credential(state.credentials));
-    if !state.linked || headers["authorization"] != bearer.as_str() {
-        return StatusCode::UNAUTHORIZED;
-    }
-    state.shared.push((signal, batch.to_vec()));
-    StatusCode::OK
 }
 
 /// The `nth` credential the fake hands out.

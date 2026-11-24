@@ -57,6 +57,7 @@ use nama_proto::nama::v1::{
     event, request::MovieOrSeason, setting_value,
 };
 use nama_server::{
+    ShareWithHub,
     config::{Config, PluginConfig},
     ffmpeg::Ffmpeg,
     plugin_settings::{self, PluginSettings},
@@ -204,6 +205,7 @@ impl Fixture {
             plugins,
             None,
             Ffmpeg::default(),
+            ShareWithHub::default(),
             future::pending(),
         );
         tokio::spawn(async move {

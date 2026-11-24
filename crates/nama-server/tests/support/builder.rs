@@ -5,7 +5,7 @@ use std::sync::Arc;
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_tmdb::Tmdb;
 use nama_server::{
-    config::Config, db::Database, ffmpeg::Ffmpeg, plugin_settings::PluginSettings,
+    ShareWithHub, config::Config, db::Database, ffmpeg::Ffmpeg, plugin_settings::PluginSettings,
     plugins::Registry, users::SetupCode,
 };
 use tempfile::TempDir;
@@ -159,6 +159,7 @@ impl Builder {
         let addr = listener.local_addr().unwrap();
         let setup_code = (admin_token.is_none()).then(|| SetupCode::generate().unwrap());
         let (stop, stopped) = oneshot::channel::<()>();
+        let sharing = ShareWithHub::default();
         tokio::spawn(nama_server::serve(
             listener,
             &config,
@@ -166,6 +167,7 @@ impl Builder {
             plugins,
             setup_code.clone(),
             ffmpeg,
+            sharing.clone(),
             async {
                 let _: Result<(), oneshot::error::RecvError> = stopped.await;
             },
@@ -177,6 +179,7 @@ impl Builder {
         TestServer {
             addr,
             admin_token,
+            sharing,
             db,
             plugins: registry,
             tmdb,
