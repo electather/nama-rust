@@ -37,6 +37,7 @@ mod similar_source;
 mod subtitle_source;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod testing;
+mod watch_sync;
 
 pub use automation::{
     Library, LibraryKind, Permission, SharingTitle, Title, TitleRef, TitleRefKind, TitleRequesters,
@@ -60,6 +61,9 @@ pub use segment_source::{
 pub use similar_source::{SimilarAsked, SimilarSource, SimilarTitle, SimilarTitles};
 pub use subtitle_source::{
     SubtitleDownload, SubtitleFile, SubtitleResult, SubtitleResults, SubtitleSearch, SubtitleSource,
+};
+pub use watch_sync::{
+    ImportAsked, Imported, ScrobbleAsked, Scrobbled, SyncedWatchState, WatchSync,
 };
 
 #[doc(hidden)]

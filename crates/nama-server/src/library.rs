@@ -17,6 +17,7 @@ mod title_source;
 mod titles;
 mod versions;
 mod watch_states;
+mod watch_sync;
 
 pub use artwork::{Artwork, Error as ArtworkError};
 pub(crate) use artwork::{Picked, router as artwork_router};
@@ -59,4 +60,8 @@ pub(crate) use versions::{METADATA_VERSION, PARSER_VERSION};
 pub(crate) use watch_states::{
     Kind as WatchStateKind, MovieOrEpisode, Progress, WatchState, WatchStates,
     Watched as WatchedTitle,
+};
+pub(crate) use watch_sync::{
+    delete_plugins_import_cursors, import_cursor, imported as imported_watch_state,
+    keep_import_cursor,
 };

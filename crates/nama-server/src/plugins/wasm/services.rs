@@ -19,6 +19,7 @@ use nama_plugin_api::{
     segment_source::SegmentSource,
     similar_source::SimilarSource,
     subtitle_source::SubtitleSource,
+    watch_sync::WatchSync,
 };
 use nama_plugin_proto::services;
 
@@ -177,6 +178,8 @@ pub(super) const SEARCH_TITLES: Method =
     required(services::SEARCH_SOURCE, "Search", "search_titles");
 pub(super) const SIMILAR_TITLES: Method =
     required(services::SIMILAR_SOURCE, "Similar", "similar_titles");
+pub(super) const SCROBBLE: Method = required(services::WATCH_SYNC, "Scrobble", "scrobble");
+pub(super) const IMPORT: Method = required(services::WATCH_SYNC, "Import", "import");
 
 /// The Extension Points an Installed Plugin can serve, one per service of the Plugin contract.
 pub(super) const POINTS: &[Point] = &[
@@ -316,6 +319,15 @@ pub(super) const POINTS: &[Point] = &[
         key: PointKey::provide::<dyn SearchSource>,
         register: |registrar, running| {
             registrar.provide::<dyn SearchSource>(Priority::DEFAULT, Arc::new(running));
+        },
+    },
+    Point {
+        service: services::WATCH_SYNC,
+        crash_group: services::WATCH_SYNC,
+        methods: &[SCROBBLE, IMPORT],
+        key: PointKey::provide::<dyn WatchSync>,
+        register: |registrar, running| {
+            registrar.provide::<dyn WatchSync>(Priority::DEFAULT, Arc::new(running));
         },
     },
 ];

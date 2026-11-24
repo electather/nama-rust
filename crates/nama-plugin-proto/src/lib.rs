@@ -73,6 +73,9 @@ pub mod services {
     /// A Search source, which adds titles to a User's search, such as by what they are about
     /// (ADR 0083).
     pub const SEARCH_SOURCE: &str = "nama.plugin.v1.SearchSourceService";
+    /// Watch sync, which follows each User's Watch State to an outside tracker and brings the
+    /// changes made there back.
+    pub const WATCH_SYNC: &str = "nama.plugin.v1.WatchSyncService";
 }
 
 /// Each service in [`services`] with its version, which a Manifest's `Point.version` requirement
@@ -92,6 +95,7 @@ pub const SERVICES: &[(&str, &str)] = &[
     (services::SIMILAR_SOURCE, "1.1.0"),
     (services::JOB, "1.0.0"),
     (services::SEARCH_SOURCE, "1.0.0"),
+    (services::WATCH_SYNC, "1.0.0"),
 ];
 
 /// One of the Kernel's functions, which any Plugin calls by its name in the Wasm import namespace
