@@ -75,10 +75,13 @@ function showEpisodesMarked(
     cardinality: undefined,
     input: episodesAsked(libraryId, target),
   });
-  const one = target.case === "episodeId" ? target.value : undefined;
+  const only = {
+    id: target.case === "episodeId" ? target.value : undefined,
+    seasonNumber: target.case === "season" ? (target.value.seasonNumber ?? 0) : undefined,
+  };
   queryClient.setQueriesData<ListEpisodesResponse>(
     { queryKey: key },
-    (data) => data && markEpisodes(data, played, one),
+    (data) => data && markEpisodes(data, played, only),
   );
 }
 
@@ -100,8 +103,8 @@ function showMovieMarked(
 }
 
 /**
- * The Episodes lists a mark of `target` covers, as their queries ask for them: an Episode's is one
- * of its Library's lists, a Season's or Show's the whole of theirs.
+ * The Episodes lists a mark of `target` covers, as their queries ask for them: an Episode's is any
+ * of its Library's lists, a Season's or Show's any of its Show's, one Season's or every Season's.
  */
 function episodesAsked(
   libraryId: bigint,
@@ -109,8 +112,8 @@ function episodesAsked(
 ): MessageInitShape<typeof ListEpisodesRequestSchema> {
   if (target.case === "season") {
     // Without its Show the Server refuses it, and `{}` would match every Show's list.
-    const { showId = { namespace: "-" }, seasonNumber = 0 } = target.value;
-    return { libraryId, showId, seasonNumber };
+    const { showId = { namespace: "-" } } = target.value;
+    return { libraryId, showId };
   }
   return target.case === "showId" ? { libraryId, showId: target.value } : { libraryId };
 }

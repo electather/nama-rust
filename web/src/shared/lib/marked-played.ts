@@ -29,16 +29,21 @@ export function markMovie(data: GetMovieResponse, id: Id, played: boolean): GetM
   return { ...data, movie: { ...movie, watchState: marked(movie.watchState, played) } };
 }
 
-/** `data` with its Episodes marked `played`: only the one `id` names, or every one without it. */
+/**
+ * `data` with its Episodes marked `played`: only the one `only.id` names, or those of Season
+ * `only.seasonNumber`, or every one without either.
+ */
 export function markEpisodes(
   data: ListEpisodesResponse,
   played: boolean,
-  id?: Id,
+  only: { id?: Id | undefined; seasonNumber?: number | undefined } = {},
 ): ListEpisodesResponse {
+  const { id, seasonNumber } = only;
   return {
     ...data,
     episodes: data.episodes.map((episode) =>
-      id === undefined || same(episode.id, id)
+      (id === undefined || same(episode.id, id)) &&
+      (seasonNumber === undefined || seasonNumber === episode.seasonNumber)
         ? { ...episode, watchState: marked(episode.watchState, played) }
         : episode,
     ),
