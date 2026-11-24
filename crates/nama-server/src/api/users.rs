@@ -58,7 +58,7 @@ use super::{
 
 /// `nama.v1.UserService`: managing the Server's Users, their Devices and Plugin Connections. Needs
 /// `PERMISSION_MANAGE_USERS`, which [`require_access`](super::require_access) enforces, but for
-/// the self-service RPCs [`ACCESS`](super::access::ACCESS) opens to any session, which check for
+/// the self-service RPCs `ACCESS` opens to any session, which check for
 /// themselves with [`devices_owner`] or act only on the caller.
 pub(super) struct UserServiceHandler {
     pub(super) users: Users,

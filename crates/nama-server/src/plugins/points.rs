@@ -534,8 +534,8 @@ impl ExtensionPoints {
     }
 
     /// Logs that the handler `entry` panicked at `point` with `message`, disables the enablement
-    /// of its Plugin that registered it, and tells [`Registry::crashed`] if it is Installed. A
-    /// Plugin enabled again since is left alone.
+    /// of its Plugin that registered it, and tells [`Registry::crashed`](super::Registry::crashed)
+    /// if it is Installed. A Plugin enabled again since is left alone.
     fn disable_after_panic(&self, entry: &Entry, point: &str, message: &str) {
         error!(plugin = %entry.plugin, point, message, "plugin crashed; disabling it");
         // A stale generation is no error: that enablement is already gone.
