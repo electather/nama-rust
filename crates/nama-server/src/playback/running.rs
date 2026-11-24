@@ -585,9 +585,9 @@ impl RunningPlans {
                 && plan.playback.version_id == version
                 && plan.playback.device_id == device
         });
-        direct_plays.fold(false, |kept_to_remote_cap, plan| {
+        direct_plays.fold(false, |any_kept, plan| {
             *lock(&plan.last_used) = Instant::now();
-            kept_to_remote_cap || plan.kept_to_remote_cap
+            any_kept || plan.kept_to_remote_cap
         })
     }
 
