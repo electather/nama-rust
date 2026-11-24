@@ -1,5 +1,7 @@
 # The Hub web app shares only nama-ui, and the web app stays at `web/`'s root
 
+_Superseded by [ADR 0105](0105-the-hub-serves-the-web-app-for-all-of-an-accounts-servers.md)._
+
 The Hub's web pages (ADR 0010) are a second app, and they should look like the Server's web app. So `web/` is a pnpm workspace, and the two apps share one package, nama-ui (`web/ui/`): the shadcn components with their tokens and fonts (ADR 0016), and nothing else. The web app's shared components, hooks, `src/shared/lib/` and generated client stay in it. They're built on the Server's API (`nama.v1`), its Refusals and its pages, while the Hub speaks its own API and has pages of its own. Sharing them would put the Server's client in the Hub's bundle, and any change to one would change two apps. A design-system component the Hub comes to need moves into nama-ui once it does. A component that calls an RPC never does.
 
 nama-ui ships its sources, with no build step. Each app's Vite and Tailwind compile them, so there's nothing to rebuild before a change shows, and `vp check` and Fallow check it from the web app's config, with none of its own.

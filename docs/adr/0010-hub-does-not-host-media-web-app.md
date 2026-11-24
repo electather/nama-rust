@@ -1,3 +1,5 @@
 # The Hub does not host the media web app
 
+_Superseded by [ADR 0105](0105-the-hub-serves-the-web-app-for-all-of-an-accounts-servers.md)._
+
 The web app is always served by the Server itself. The Hub's web pages cover only sign-in, Linking and the list of Servers, with links that open each Server's own URL. A page served from the Hub over HTTPS can't call a plain-HTTP LAN Server: mixed-content rules and Chrome's Private Network Access block it. Plex works around that by running DNS and issuing a TLS certificate to every server (`*.plex.direct`), which would put a DNS server and certificate issuing inside the Hub. Native clients aren't affected and use the Hub's Server Addresses directly. Remote access from a browser relies on the user's own reverse proxy or VPN until per-Server certificates arrive with the Hub (ADR 0057).
