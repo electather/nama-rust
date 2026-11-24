@@ -673,7 +673,9 @@ export const RefusalReason = {
 
   /**
    * `invalid_argument`: a Library's title sources name a namespace that isn't lowercase ASCII
-   * letters and digits, or name one twice. `field` is `title_sources`. Params: `namespace`.
+   * letters and digits, name one twice, newly name one no Plugin keeps or looks titles up by, or
+   * name none kept by a source with `TitleSource.searches` (ADR 0045). `field` is
+   * `title_sources`. Params: `namespace`, absent when no named source searches.
    *
    * @generated from enum value: REFUSAL_REASON_TITLE_SOURCES_INVALID = 73;
    */
