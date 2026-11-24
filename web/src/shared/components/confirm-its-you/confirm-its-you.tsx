@@ -12,7 +12,6 @@ export function ConfirmItsYou({ children }: { children: ReactNode }) {
   const [openings, setOpenings] = useState(0);
   const answer = useRef<Promise<boolean>>(undefined);
   const give = useRef<(confirmed: boolean) => void>(undefined);
-  const confirmed = useRef(false);
   const [confirming, setConfirming] = useState<string>();
 
   const ask = useCallback(async (what: string | undefined) => {
@@ -21,7 +20,6 @@ export function ConfirmItsYou({ children }: { children: ReactNode }) {
       answer.current = new Promise<boolean>((resolve) => {
         give.current = resolve;
       });
-      confirmed.current = false;
       setConfirming(what);
       setOpenings((each) => each + 1);
       dialog.current?.showModal();
@@ -30,6 +28,11 @@ export function ConfirmItsYou({ children }: { children: ReactNode }) {
     return isConfirmed;
   }, []);
 
+  function answerWith(confirmed: boolean) {
+    give.current?.(confirmed);
+    answer.current = undefined;
+  }
+
   return (
     <AskContext value={ask}>
       {children}
@@ -37,12 +40,16 @@ export function ConfirmItsYou({ children }: { children: ReactNode }) {
         dialog={dialog}
         openings={openings}
         confirming={confirming}
+        // Answered here, not as it closes: Chromium fires `close` only when it next draws the page,
+        // which a hidden window may not do for a long time.
         onReauthenticated={() => {
-          confirmed.current = true;
+          answerWith(true);
         }}
         onClose={() => {
-          give.current?.(confirmed.current);
-          answer.current = undefined;
+          // A late `close` may arrive after the next "Confirm it’s you" opened, which it isn't for.
+          if (dialog.current?.open !== true) {
+            answerWith(false);
+          }
         }}
       />
     </AskContext>
