@@ -49,6 +49,9 @@ impl UrlSigner {
 
     /// `url` signed, for a few minutes, if it is under `/media/`; any other URL, such as an empty
     /// one, as it is, since only media is fetched without a session.
+    ///
+    /// The signature covers the path alone: a client may change the query, which image routes read
+    /// only for a width. Sign no route whose query picks what it serves.
     pub(crate) fn sign(&self, url: &str) -> String {
         let Some(rest) = url.strip_prefix(MEDIA) else {
             return url.to_owned();

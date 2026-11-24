@@ -408,7 +408,7 @@ impl TestServer {
         self.client_config_as(&self.admin_token)
     }
 
-    /// Client settings that point at this Server and present `token` in the session cookie.
+    /// Client settings presenting `token` in the session cookie, so image URLs come unsigned.
     pub(crate) fn client_config_as(&self, token: &str) -> ClientConfig {
         self.anonymous_client_config()
             .with_default_header("cookie", format!("nama_session={token}"))
