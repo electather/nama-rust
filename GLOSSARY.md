@@ -47,7 +47,7 @@ A person's identity on one Server.
 _Avoid_: profile, member, local user
 
 **Device**:
-A client installation signed in to a Server as one or more Users, acting as one of them at a time and switching between them with a User picker (ADR 0106). Signing a User out of it leaves the others; revoking the Device signs them all out.
+A client installation signed in to a Server as one or more Users, acting as one of them at a time (ADR 0106). Signing a User out of it leaves the others signed in.
 _Avoid_: client, session, token (for the Device itself)
 
 **Sign-in Method**:
@@ -290,7 +290,7 @@ The age guidance a country's ratings board gives a Movie or Show, such as PG-13 
 _Avoid_: certification, age rating, parental rating, maturity rating
 
 **Maximum Age**:
-The highest age a title's Content Rating may call for and still reach a User, set for them by an Admin. A User with one also doesn't see titles with no Content Rating unless the Admin allows them; a User without one sees every title.
+The highest age a title's Content Rating may call for and still reach a User, set for them by an Admin. A User without one sees every title.
 _Avoid_: age cap, age limit, parental controls, rating cap
 
 **Score**:
