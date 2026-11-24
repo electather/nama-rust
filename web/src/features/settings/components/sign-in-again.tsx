@@ -24,7 +24,7 @@ export function SignInAgain({ error, toDo }: { error: unknown; toDo: string }) {
       >
         Sign in again
       </Button>{" "}
-      {toDo}.
+      {toDo}.{signOut.error && " The Hub couldn’t sign you out just now. Try again."}
     </>
   );
 }

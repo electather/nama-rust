@@ -85,6 +85,19 @@ test("past 10 minutes since signing in, Sign in again comes back to the same Sec
   await expect(signedInAgain.findByLabelText("New password")).resolves.toBeDefined();
 });
 
+test("sign in again that can't sign out first says so", async () => {
+  const { transport } = accountHub({ stale: true, signOutFails: true });
+  openApp("/?settings=account-signin", transport);
+
+  const dialog = await settings();
+  await dialog.findByRole("button", { name: "Change password" });
+  fill("New password", "correct horse battery");
+  fireEvent.click(screen.getByRole("button", { name: "Change password" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Sign in again" }));
+
+  await expect(screen.findByText(/The Hub couldn’t sign you out just now/u)).resolves.toBeDefined();
+});
+
 test("signing out another browser takes it off the list", async () => {
   const { hub, transport } = accountHub();
   openApp("/?settings=account-sessions", transport);

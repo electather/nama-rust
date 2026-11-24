@@ -33,6 +33,10 @@ export interface AccountHub {
   sessions: Session[];
   /** Whether a change is refused for want of Recent Authentication. */
   stale: boolean;
+  /** Seconds the Hub makes a new passkey wait after too many tries, or 0 to start one. */
+  passkeyWait: number;
+  /** Whether signing out fails, as when the Hub can't be reached. */
+  signOutFails: boolean;
   deleted: boolean;
 }
 
@@ -52,6 +56,8 @@ export function accountHub(state: Partial<AccountHub> = {}) {
       create(SessionSchema, { id: "s2", name: "Safari on iPhone", lastUsedAt: 1n }),
     ],
     stale: false,
+    passkeyWait: 0,
+    signOutFails: false,
     deleted: false,
     ...state,
   };
@@ -82,6 +88,9 @@ export function accountHub(state: Partial<AccountHub> = {}) {
         return { account: ada };
       },
       signOut: () => {
+        if (hub.signOutFails) {
+          throw new ConnectError("unreachable", Code.Unavailable);
+        }
         hub.signedIn = false;
         return {};
       },
@@ -102,6 +111,11 @@ export function accountHub(state: Partial<AccountHub> = {}) {
       },
       startAddingPasskey: () => {
         recentOnly();
+        if (hub.passkeyWait > 0) {
+          throw hubRefused(Code.ResourceExhausted, RefusalReason.TOO_MANY_ATTEMPTS, {
+            retryAfterSeconds: String(hub.passkeyWait),
+          });
+        }
         return { challenge: new Uint8Array(32), rpId: "hub.example", userId: new Uint8Array(16) };
       },
       addPasskey: ({ name }) => {

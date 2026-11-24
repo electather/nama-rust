@@ -80,6 +80,19 @@ describe("an Account's passkeys in Settings", () => {
     expect(said).toStrictEqual([]);
   });
 
+  test("too many tries at adding a passkey says how long to wait", async () => {
+    const credentials = browserCreates(vi.fn<() => Promise<unknown>>().mockResolvedValue(created));
+    const dialog = await openPasskeys(accountHub({ passkeyWait: 90 }));
+
+    fill("New passkey’s name", "Phone");
+    fireEvent.click(dialog.getByRole("button", { name: "Add passkey" }));
+
+    await expect(
+      dialog.findByText("There have been too many tries. Try again in 2 minutes."),
+    ).resolves.toBeDefined();
+    expect(credentials.create).not.toHaveBeenCalled();
+  });
+
   test("a Hub that offers no passkeys has no form to add one, but lists those there are", async () => {
     const dialog = await openPasskeys(accountHub({ offersPasskeys: false }));
 

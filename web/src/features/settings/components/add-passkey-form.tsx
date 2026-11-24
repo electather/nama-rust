@@ -54,7 +54,7 @@ export function AddPasskeyForm() {
         )}
       </SettingRow>
       <div className="flex justify-end pt-2.5">
-        <Button type="submit" variant="outline" disabled={add.isPending}>
+        <Button type="submit" variant="secondary" disabled={add.isPending}>
           {add.isPending ? "Adding passkey…" : "Add passkey"}
         </Button>
       </div>

@@ -1,4 +1,9 @@
-import { type HubWording, hubRefusalReason, sayHubRefusal } from "@/features/auth/lib/hub-errors";
+import {
+  type HubWording,
+  hubRefusalReason,
+  sayHubRefusal,
+  tooManyTries,
+} from "@/features/auth/lib/hub-errors";
 import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 
 /** Whether the Hub refused for want of Recent Authentication, which signing in again gives. */
@@ -40,6 +45,9 @@ const browserWording: Partial<Record<string, string>> = {
 const passkeyWording: HubWording = {
   [RefusalReason.PASSKEYS_OFF]: () => ({ form: "This Hub isn’t set up for passkeys." }),
   [RefusalReason.PASSKEY_NOT_ACCEPTED]: () => ({ form: "The Hub didn’t accept that passkey." }),
+  [RefusalReason.TOO_MANY_ATTEMPTS]: (param) => ({
+    form: tooManyTries(param("retryAfterSeconds")),
+  }),
   [RefusalReason.PASSKEY_NAME_LENGTH]: (param) => ({
     form: `Give it a name of up to ${param("maxLength")} characters.`,
   }),

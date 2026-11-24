@@ -42,7 +42,7 @@ export function SessionItems() {
       {sessions.some((session) => !session.isCurrent) && (
         <div className="flex justify-end pt-2.5">
           <Button
-            variant="outline"
+            variant="secondary"
             disabled={signingOut}
             onClick={() => {
               signOut.reset();
