@@ -61,11 +61,14 @@ export function SettingsModal({ section, user }: { section: Section; user: User 
     // Strict Mode runs this twice, and a dialog that's open throws on a second `showModal()`.
     if (opened?.open === false) {
       opened.showModal();
-      // `showModal()` focuses the first control, Search, which on a phone opens the keyboard over
-      // Settings.
-      if (phoneWidth()) {
-        opened.focus();
-      }
+      // Chosen here, after `showModal()` focused the first control: React's `autoFocus` would fire
+      // while the dialog is still closed. Wider, Settings starts on Search, so typing finds a setting
+      // at once; it's found by its name, as a Section's pane holds comboboxes too. On a phone, Search
+      // would open the keyboard over Settings.
+      const start = phoneWidth()
+        ? opened
+        : opened.querySelector<HTMLElement>('[aria-label="Search settings"]');
+      start?.focus();
     }
     return () => opened?.close();
   }, []);
