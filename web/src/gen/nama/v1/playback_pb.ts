@@ -2040,9 +2040,9 @@ export const PlaybackReasonKind = {
   REMOTE_CAP: 39,
 
   /**
-   * The User's cap for remote playback chose the limit, as for `REMOTE_CAP`, but the picture's
-   * size isn't known, so the cap can't be applied and the plan may send it larger. Params:
-   * `playbackLimit`.
+   * The Device is outside the local network, where its User has a cap for remote playback, but
+   * the picture's size isn't known, so the cap can't be applied and the plan may send it
+   * larger. Params: `playbackLimit`, the cap.
    *
    * @generated from enum value: PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN = 40;
    */

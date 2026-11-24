@@ -49,26 +49,25 @@ pub(super) fn network(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
         PickedLimit::Picked(limit) => limit,
         PickedLimit::Unpicked => default,
     };
-    if let Some(cap) = cap
-        && lower(wanted, Some(cap)) != wanted
-    {
+    if let Some(cap) = cap {
         let text = format!(
             "This Device is outside the local network, where its User's cap for remote playback is {}",
             cap.name
         );
-        if scales_down(facts, cap) {
-            return vec![limit_reason(
-                Kind::PLAYBACK_REASON_KIND_REMOTE_CAP,
-                cap,
-                text,
-            )];
-        }
-        // A cap is a bandwidth courtesy: a Version that can't be probed still plays (ADR 0026).
+        // A cap is a bandwidth courtesy: a Version of unknown size still plays, as an unprobed
+        // one does (ADR 0026), so the cap is best-effort there.
         if picture(facts).is_none() {
             return vec![limit_reason(
                 Kind::PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN,
                 cap,
                 format!("{text}, but its picture size isn't known, so the cap can't be applied"),
+            )];
+        }
+        if lower(wanted, Some(cap)) != wanted && scales_down(facts, cap) {
+            return vec![limit_reason(
+                Kind::PLAYBACK_REASON_KIND_REMOTE_CAP,
+                cap,
+                text,
             )];
         }
     }
