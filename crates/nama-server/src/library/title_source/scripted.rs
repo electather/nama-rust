@@ -84,7 +84,7 @@ pub(crate) struct ScriptedSource {
     /// Each Season with the id of its Show.
     seasons: Vec<(String, Season)>,
     artwork: Vec<Artwork>,
-    /// Each image's bytes with its path.
+    /// Each image's path with its bytes.
     images: Vec<(String, Vec<u8>)>,
     /// What it answers as a Similar source; it is one only if this holds a title.
     similar: Vec<SimilarTitle>,

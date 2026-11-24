@@ -169,16 +169,24 @@ async fn an_svg_from_a_title_source_is_stored_without_its_script() {
 }
 
 #[tokio::test]
-async fn an_svg_over_the_size_cap_is_not_stored() {
-    let data = tempfile::tempdir().unwrap();
-    let padding = " ".repeat(MAX_SVG_BYTES);
-    let svg = format!(r#"<svg xmlns="http://www.w3.org/2000/svg">{padding}</svg>"#);
-    let artwork = artwork_answering(&data, "/big.svg", svg.as_bytes()).await;
+async fn an_svg_over_the_size_cap_is_not_stored_but_one_at_it_is() {
+    let svg = |len: usize| {
+        let (open, close) = (r#"<svg xmlns="http://www.w3.org/2000/svg">"#, "</svg>");
+        let padding = " ".repeat(len - open.len() - close.len());
+        format!("{open}{padding}{close}")
+    };
+    let (at, over) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let at_cap = artwork_answering(&at, "/logo.svg", svg(MAX_SVG_BYTES).as_bytes()).await;
+    let over_cap = artwork_answering(&over, "/logo.svg", svg(MAX_SVG_BYTES + 1).as_bytes()).await;
 
-    let served = served(&artwork, "/big.svg").await;
+    let served_over = served(&over_cap, "/logo.svg").await;
 
-    assert!(matches!(served, Err(Error::NotFound)), "{served:?}");
-    assert_eq!(artwork.store.list(KEPT_DIR).await.unwrap().len(), 0);
+    served(&at_cap, "/logo.svg").await.unwrap();
+    assert!(
+        matches!(served_over, Err(Error::NotFound)),
+        "{served_over:?}"
+    );
+    assert_eq!(over_cap.store.list(KEPT_DIR).await.unwrap().len(), 0);
 }
 
 #[tokio::test]
