@@ -1,3 +1,4 @@
+import { ghostHang } from "nama-ui/components/button";
 import { ButtonGroup } from "nama-ui/components/button-group";
 
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
@@ -27,8 +28,7 @@ export function RequestSplitButton({
   onRequest: (quality?: bigint) => void;
 }) {
   const mayChoose = useMay(Permission.CHOOSE_QUALITY);
-  // A ghost button's icon lines up with the caption above it, its padding hanging outside.
-  const [variant, hanging] = primary ? (["default"] as const) : (["ghost", "-ms-2.5"] as const);
+  const [variant, hanging] = primary ? (["default"] as const) : (["ghost", ghostHang] as const);
   const bothParts = { what, variant, disabled: busy };
   return (
     <span className={hanging}>
