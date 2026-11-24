@@ -19,7 +19,7 @@ import { blockedCounts } from "./priority.ts";
 import { slotPool } from "./slots.ts";
 import { recorder, type Outcome, type Stage, type Waiting } from "./status.ts";
 import { sweepLeftovers } from "./sweep.ts";
-import { githubServerError } from "./transient.ts";
+import { failStreak, githubServerError, LISTING_TRIES } from "./transient.ts";
 
 const MAX_ISSUES = Number(process.env.MAX_ISSUES ?? 60); // issues started per run; MAX_ISSUES=1 → one issue, then stop
 const MAX_PARALLEL = Number(process.env.MAX_PARALLEL ?? 2); // issues built at once
@@ -1027,9 +1027,23 @@ async function overUsage(): Promise<boolean> {
   return paused();
 }
 
+// A loop's listing failed on something other than a rate limit (git or gh failing: network, auth, an Xcode licence
+// prompt). Returns whether the loop gives up, which crashes the run: in-flight work finishes and releases its
+// claims, nothing new starts. Until then the next pass tries again (see LISTING_TRIES).
+function listingFailed(streak: ReturnType<typeof failStreak>, what: string, e: unknown): boolean {
+  const n = streak.fail();
+  const why = `${what} failed: ${oneLine(e)}`;
+  appendFileSync(`${LOGS}/crash-pick.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
+  const giveUp = n >= LISTING_TRIES;
+  log(`✗ ${why} (${n}/${LISTING_TRIES}${giveUp ? "" : ", next pass tries again"}; details: ${LOGS}/crash-pick.log)`);
+  if (giveUp) crashed ||= why;
+  return giveUp;
+}
+
 // The implement loop: starts an issue whenever a slot is free (see slotPool). Started issues finish in the background.
 async function dispatch() {
   const running = new Set<Promise<void>>();
+  const streak = failStreak();
   for (;;) {
     await ghWait();
     await slots.acquire();
@@ -1042,16 +1056,10 @@ async function dispatch() {
     if (!(await overUsage()) && !(agentsBusy() > slowCap())) {
       try {
         issue = pickNext();
+        streak.ok();
       } catch (e) {
         if (rateLimited(e)) noteRateLimit(); // a wait (issue stays "wait")
-        else {
-          // e.g. git or gh failing for everyone (network, auth, an Xcode licence prompt): a crash, not the end of
-          // the run. In-flight issues finish and release their claims; nothing new starts.
-          const why = `picking the next issue failed: ${oneLine(e)}`;
-          appendFileSync(`${LOGS}/crash-pick.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
-          log(`✗ ${why} (details: ${LOGS}/crash-pick.log)`);
-          crashed ||= why;
-        }
+        else listingFailed(streak, "picking the next issue", e); // a wait too, until it gives up
       }
     }
     if (crashed || issue === "done") {
@@ -1081,6 +1089,7 @@ let implementDone = false;
 let mainDone = false; // the main loop may still open a PR until then
 async function babysitLoop() {
   const running = new Set<Promise<void>>();
+  const streak = failStreak();
   for (;;) {
     if (stopping()) break; // its PRs in flight finish here; the rest are the newer run's
     await ghWait();
@@ -1089,16 +1098,15 @@ async function babysitLoop() {
     try {
       prs = openPrs();
       jobs = babysittable(prs);
+      streak.ok();
     } catch (e) {
       if (rateLimited(e)) {
         noteRateLimit();
         continue;
       }
-      const why = `listing PRs to babysit failed: ${oneLine(e)}`;
-      appendFileSync(`${LOGS}/crash-pick.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
-      log(`✗ ${why} (details: ${LOGS}/crash-pick.log)`);
-      crashed ||= why;
-      break;
+      if (listingFailed(streak, "listing PRs to babysit", e)) break;
+      await sleep(60_000);
+      continue;
     }
     let started = 0;
     for (const job of jobs) {
@@ -1134,6 +1142,7 @@ async function babysitLoop() {
 async function triageLoop() {
   if (!TRIAGING) return;
   const running = new Set<Promise<void>>();
+  const streak = failStreak();
   for (;;) {
     await ghWait();
     await triageSlots.acquire(); // released by track
@@ -1146,18 +1155,18 @@ async function triageLoop() {
     if (!(await overUsage()) && !(agentsBusy() > slowCap())) {
       try {
         issue = triageable().find((i) => !triaged.has(i.number));
+        streak.ok();
       } catch (e) {
         if (rateLimited(e)) {
           noteRateLimit();
           triageSlots.release();
           continue;
         }
-        const why = `listing issues to triage failed: ${oneLine(e)}`;
-        appendFileSync(`${LOGS}/crash-pick.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
-        log(`✗ ${why} (details: ${LOGS}/crash-pick.log)`);
-        crashed ||= why;
-        triageSlots.release();
-        break;
+        if (listingFailed(streak, "listing issues to triage", e)) {
+          triageSlots.release();
+          break;
+        }
+        // Otherwise issue stays undefined: the pass waits, as when nothing is left to triage.
       }
     }
     if (!issue) {

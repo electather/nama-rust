@@ -12,6 +12,20 @@ export function githubServerError(e: unknown): boolean {
     /Internal Server Error|Bad Gateway|Service Unavailable|Gateway Time-?out|HTTP 50[0234]|returned error: 50[0234]/i.test(text);
 }
 
+// A loop's listing (open PRs, issues to pick or triage) runs every pass, so one failed gh call ended a whole run:
+// a lone `HTTP 401: Bad credentials` while `gh auth status` was fine stopped babysitting and started nothing new,
+// then the supervisor waited an hour. A failed pass is retried on the next; only LISTING_TRIES in a row, a
+// failure that persists (auth really gone, network down), ends the run.
+
+/** Consecutive failed listings after which a loop gives up and the run crashes. */
+export const LISTING_TRIES = 5;
+
+/** Counts a loop's consecutive failed listings: `fail` returns how many so far, `ok` starts the count again. */
+export function failStreak() {
+  let n = 0;
+  return { fail: () => ++n, ok: () => { n = 0; } };
+}
+
 if (import.meta.main) {
   const { default: assert } = await import("node:assert/strict");
   const failed = (cmd: string, stderr: string) =>
@@ -29,4 +43,9 @@ if (import.meta.main) {
   assert.ok(!githubServerError(new Error('API Error: 500 {"type":"api_error","message":"Internal server error"}')),
     "a Claude API error is infra");
   assert.ok(!githubServerError(failed("gh pr create", "HTTP 401: Bad credentials\n")));
+  const streak = failStreak();
+  assert.equal(streak.fail(), 1);
+  assert.equal(streak.fail(), 2);
+  streak.ok();
+  assert.equal(streak.fail(), 1, "a good listing starts the count again");
 }
