@@ -1,6 +1,7 @@
 //! HTTPS and plain HTTP on the one port the Server listens on (ADR 0057): a connection that opens
 //! with a TLS handshake gets the certificate for the Server's names (`certificate.rs`), and any
-//! other is plain HTTP, which the LAN keeps using whether or not the Server has one.
+//! other is plain HTTP, which the LAN keeps using whether or not the Server has one. Connections
+//! a Relay carries (`relay.rs`) are served the same way.
 
 use std::{convert::Infallible, future::Future, io, net::SocketAddr, sync::Arc, time::Duration};
 
@@ -32,20 +33,22 @@ const OPENED_WAITING: usize = 64;
 
 type Connection = Either<TcpStream, TlsStream<TcpStream>>;
 
-/// Serves `app` on `listener`, over TLS with `certificate`'s certificate to a client that starts a
-/// handshake and plain HTTP to any other, until `shutdown` resolves, then lets requests in flight
-/// finish. Each request carries its peer's [`ConnectInfo`], and [`ServedOverTls`] over TLS.
+/// Serves `app` on `listener`, and on each connection `relayed` hands over with its peer, over TLS
+/// with `certificate`'s certificate to a client that starts a handshake and plain HTTP to any
+/// other, until `shutdown` resolves, then lets requests in flight finish. Each request carries its
+/// peer's [`ConnectInfo`], and [`ServedOverTls`] over TLS.
 ///
 /// # Errors
 ///
 /// When TLS can't be set up, or `listener`'s address can't be read.
 pub(crate) async fn serve(
     listener: TcpListener,
+    relayed: mpsc::Receiver<(TcpStream, SocketAddr)>,
     app: Router,
     certificate: Arc<dyn ResolvesServerCert>,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> io::Result<()> {
-    let opened = open(listener, certificate)?;
+    let opened = open(listener, relayed, certificate)?;
     let per_connection = tower::service_fn(move |incoming: IncomingStream<'_, Opened>| {
         let peer = ConnectInfo(*incoming.remote_addr());
         let over_tls = matches!(incoming.io(), Either::Right(_));
@@ -86,9 +89,13 @@ impl Listener for Opened {
     }
 }
 
-/// Accepts connections on `listener` until the returned [`Opened`] is dropped, opening each in a
-/// task of its own, so one that stalls holds up no other.
-fn open(listener: TcpListener, certificate: Arc<dyn ResolvesServerCert>) -> io::Result<Opened> {
+/// Accepts connections on `listener`, and takes those `relayed` hands over, until the returned
+/// [`Opened`] is dropped, opening each in a task of its own, so one that stalls holds up no other.
+fn open(
+    listener: TcpListener,
+    mut relayed: mpsc::Receiver<(TcpStream, SocketAddr)>,
+    certificate: Arc<dyn ResolvesServerCert>,
+) -> io::Result<Opened> {
     let local = listener.local_addr()?;
     let acceptor = TlsAcceptor::from(Arc::new(tls_config(certificate)?));
     let (opened, connections) = mpsc::channel(OPENED_WAITING);
@@ -96,6 +103,8 @@ fn open(listener: TcpListener, certificate: Arc<dyn ResolvesServerCert>) -> io::
         loop {
             let accepted = tokio::select! {
                 accepted = listener.accept() => accepted,
+                // None once the Server has no Relay: the arm sits out.
+                Some(carried) = relayed.recv() => Ok(carried),
                 () = opened.closed() => return,
             };
             let (stream, peer) = match accepted {
@@ -158,7 +167,7 @@ async fn open_one(stream: TcpStream, acceptor: &TlsAcceptor) -> Option<Connectio
 /// Waits after accepting failed with `err`, as axum's own listener does: not after a connection
 /// that failed alone, but a second after another error, such as running out of file descriptors,
 /// which retrying at once would only spin on.
-async fn pause_after(err: &io::Error) {
+pub(crate) async fn pause_after(err: &io::Error) {
     let connection_failed = matches!(
         err.kind(),
         io::ErrorKind::ConnectionRefused

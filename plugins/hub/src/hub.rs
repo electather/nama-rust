@@ -20,7 +20,7 @@ use hyper_util::{
     rt::TokioExecutor,
 };
 use nama_hub_proto::nama::hub::v1::{
-    GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient,
+    GetRelayTokenRequest, GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient,
     ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
     ListRecommendedTitlesRequest, ListSimilarTitlesRequest, ListSimilarTitlesResponse,
     ListTrendingTitlesRequest, ListTrendingTitlesResponse, PollServerLinkRequest,
@@ -329,6 +329,9 @@ impl LinkedHub {
                 url: addresses.url.clone(),
                 lan_addresses: addresses.lan.clone(),
                 public_port: addresses.public_port.map_or(0, u32::from),
+                relay: addresses
+                    .relay
+                    .map_or_else(String::new, |relay| relay.to_string()),
                 ..Default::default()
             })
             .await
@@ -355,6 +358,15 @@ impl LinkedHub {
             .await
             .map_err(link_dropped)?;
         Ok(())
+    }
+
+    /// A token proving to a Relay that the Server holds its own name.
+    pub(crate) async fn relay_token(self) -> Result<String, PluginError> {
+        let got = (self.client()?)
+            .get_relay_token(GetRelayTokenRequest::default())
+            .await
+            .map_err(link_dropped)?;
+        Ok(got.into_owned().token)
     }
 
     /// Records `events`, the Server's Viewing Events.

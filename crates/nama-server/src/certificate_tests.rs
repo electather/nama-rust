@@ -74,30 +74,69 @@ fn the_servers_public_name_on_its_public_port_is_its_default_url_while_the_hub_r
     let now = EXPIRES_AT - DAY_SECS;
 
     assert_eq!(
-        public_url(&reached("http://203.0.113.7:7980", true), &certificate, now).as_deref(),
+        public_url(
+            &reached("http://203.0.113.7:7980", true),
+            &certificate,
+            now,
+            None
+        )
+        .as_deref(),
         Some("https://abc.namadirect.test:7980")
     );
     assert_eq!(
-        public_url(&reached("http://203.0.113.7", true), &certificate, now).as_deref(),
+        public_url(
+            &reached("http://203.0.113.7", true),
+            &certificate,
+            now,
+            None
+        )
+        .as_deref(),
         Some("https://abc.namadirect.test:80")
     );
     assert_eq!(
         public_url(
             &reached("http://203.0.113.7:7980", false),
             &certificate,
-            now
+            now,
+            None
         ),
         None
     );
-    assert_eq!(public_url(&reached("", false), &certificate, now), None);
+    assert_eq!(
+        public_url(&reached("", false), &certificate, now, None),
+        None
+    );
+}
+
+#[test]
+fn a_server_the_hub_cant_reach_has_its_relays_name_as_its_default_url_once_the_hub_names_it() {
+    let certificate = held();
+    let now = EXPIRES_AT - DAY_SECS;
+    let relay = Some("198.51.100.4:443".parse().unwrap());
+    let mut relayed = reached("http://203.0.113.7:7980", false);
+    relayed.names.push(format!("relay.{OWN}"));
+
+    assert_eq!(
+        public_url(&relayed, &certificate, now, relay).as_deref(),
+        Some("https://relay.abc.namadirect.test:443")
+    );
+    assert_eq!(
+        public_url(&relayed, &Certificate::default(), now, relay),
+        None
+    );
+    let not_named = reached("http://203.0.113.7:7980", false);
+    assert_eq!(public_url(&not_named, &certificate, now, relay), None);
 }
 
 #[test]
 fn without_a_certificate_for_its_name_the_server_has_no_default_url() {
     let reachable = reached("http://203.0.113.7:7980", true);
 
-    assert_eq!(public_url(&reachable, &Certificate::default(), 0), None);
-    assert_eq!(public_url(&reachable, &held(), EXPIRES_AT), None);
+    assert_eq!(
+        public_url(&reachable, &Certificate::default(), 0, None),
+        None
+    );
+    assert_eq!(public_url(&reachable, &held(), EXPIRES_AT, None), None);
 }
 
 #[tokio::test]

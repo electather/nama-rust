@@ -23,8 +23,9 @@ use connectrpc::{
     ConnectError, ErrorCode, RequestContext, Response, ServiceRequest, ServiceResult,
 };
 use nama_hub_proto::nama::hub::v1::{
-    ExternalId, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest, InviteUserResponse,
-    LinkedServerService, ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
+    ExternalId, GetRelayTokenRequest, GetRelayTokenResponse, GetUserLinkRequest,
+    GetUserLinkResponse, InviteUserRequest, InviteUserResponse, LinkedServerService,
+    ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
     ListRecommendedTitlesRequest, ListRecommendedTitlesResponse, ListSimilarTitlesRequest,
     ListSimilarTitlesResponse, ListTrendingTitlesRequest, ListTrendingTitlesResponse,
     PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
@@ -660,6 +661,19 @@ impl LinkedServerService for Linked {
         Response::ok(SetCertificateChallengeResponse::default())
     }
 
+    async fn get_relay_token(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, GetRelayTokenRequest>,
+    ) -> ServiceResult<GetRelayTokenResponse> {
+        // Only a Linked Server gets one.
+        drop(self.caller(&ctx)?);
+        Response::ok(GetRelayTokenResponse {
+            token: sign(&self.0.key, &relay_claims()),
+            ..Default::default()
+        })
+    }
+
     async fn set_server_addresses(
         &self,
         ctx: RequestContext,
@@ -887,6 +901,11 @@ fn key_set(key: &Ed25519KeyPair) -> Value {
         "alg": "EdDSA",
         "use": "sig",
     }]})
+}
+
+/// What the token the fake Hub hands a Server for its Relay says.
+pub(super) fn relay_claims() -> Value {
+    json!({ "sub": SERVER_NAME, "aud": "relay" })
 }
 
 fn sign(key: &Ed25519KeyPair, claims: &Value) -> String {

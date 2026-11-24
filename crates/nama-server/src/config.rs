@@ -68,6 +68,10 @@ pub struct Config {
     /// clients outside the LAN of a Server Linked to the Hub. Unset, the default, has the Server
     /// open one itself with UPnP or NAT-PMP while the Plugin that links it is enabled.
     pub forwarded_port: Option<NonZeroU16>,
+    /// The Relay the Admin runs, as `<ip>:<port>`, which a Server Linked to the Hub dials out to
+    /// for clients that can't reach it directly, and which the Hub offers them after its direct
+    /// addresses (ADR 0057). Unset, the default, uses none.
+    pub relay: Option<SocketAddr>,
     /// The ACME directory a Server Linked to the Hub gets the certificate for its names from
     /// (ADR 0057). Let's Encrypt's by default; its staging one,
     /// `https://acme-staging-v02.api.letsencrypt.org/directory`, for trying things out.
@@ -186,6 +190,7 @@ impl Default for Config {
             ffprobe: None,
             watch_folders: true,
             forwarded_port: None,
+            relay: None,
             acme_directory: instant_acme::LetsEncrypt::Production.url().to_owned(),
             otlp_endpoint: None,
             file: PathBuf::from(DEFAULT_FILE),

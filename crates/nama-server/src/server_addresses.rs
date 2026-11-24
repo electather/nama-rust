@@ -26,17 +26,22 @@ const OPEN_PORT_EVERY: u64 = port_mapping::LEASE.as_secs() / 2 / EVERY.as_secs()
 
 /// Tells the enabled Plugin that links the Server its Server Addresses now, every minute, and as
 /// soon as `url_saves` wakes, since the service refuses a sign-in returning anywhere else: the
-/// Server URL `url` holds, the LAN address of `listening`, and the public port: `forwarded`,
-/// the one the Admin forwarded, or else one the Server opens on the router, only while such a
-/// Plugin has it Linked. Runs until the task is aborted; `linking` asks in the Plugin's scope, so
-/// disabling it or shutting down cancels and joins the call. A Plugin that fails shows it on its
-/// page.
+/// Server URL `url` holds, the LAN address of `listening`, the public port: `forwarded`, the one
+/// the Admin forwarded, or else one the Server opens on the router, only while such a Plugin has
+/// it Linked, and the `relay` the Admin runs, if any. Runs until the task is aborted; `linking`
+/// asks in the Plugin's scope, so disabling it or shutting down cancels and joins the call. A
+/// Plugin that fails shows it on its page.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each is a separate input the Server Addresses are made of, or when to tell them"
+)]
 pub(crate) fn keep_telling(
     linking: Linking,
     url: ServerUrl,
     mut url_saves: watch::Receiver<()>,
     listening: SocketAddr,
     forwarded: Option<NonZeroU16>,
+    relay: Option<SocketAddr>,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         let mut ticks = tokio::time::interval(EVERY);
@@ -62,7 +67,8 @@ pub(crate) fn keep_telling(
                     None
                 }
             };
-            (linking.tell_addresses(&plugin, addresses(&url, lan, public_port))).await;
+            let addresses = addresses(&url, lan, public_port, relay);
+            linking.tell_addresses(&plugin, addresses).await;
         }
     })
 }
@@ -74,23 +80,25 @@ pub(crate) fn is_reported(address: &str, url: &ServerUrl, listening: SocketAddr)
     let Ok(address) = Url::parse(address) else {
         return false;
     };
-    let ServerAddresses { url, lan, .. } = addresses(url, lan_address(listening), None);
+    let ServerAddresses { url, lan, .. } = addresses(url, lan_address(listening), None, None);
     std::iter::once(url).chain(lan).any(|reported| {
         Url::parse(&reported).is_ok_and(|reported| reported.origin() == address.origin())
     })
 }
 
-/// The Server Addresses the Plugin is told: the Server URL `url` holds, the LAN address `lan`, and
-/// the public port.
+/// The Server Addresses the Plugin is told: the Server URL `url` holds, the LAN address `lan`, the
+/// public port and the Relay.
 fn addresses(
     url: &ServerUrl,
     lan: Option<SocketAddr>,
     public_port: Option<u16>,
+    relay: Option<SocketAddr>,
 ) -> ServerAddresses {
     ServerAddresses {
         url: as_sent(&url.url()),
         lan: lan.map(|lan| format!("http://{lan}")).into_iter().collect(),
         public_port,
+        relay,
     }
 }
 

@@ -34,7 +34,7 @@ fn each_private_ipv4_lan_address_gets_a_name_carrying_it_once() {
     .map(str::to_owned);
 
     assert_eq!(
-        records("own.zone", None, &lan),
+        records("own.zone", None, &lan, None),
         [
             record("10-0-0-5.own.zone", "10.0.0.5"),
             record("192-168-1-10.own.zone", "192.168.1.10"),
@@ -50,11 +50,30 @@ fn the_own_name_points_at_the_public_address_the_hub_reached() {
         records(
             "own.zone",
             Some(public),
-            &["http://10.0.0.5:7980".to_owned()]
+            &["http://10.0.0.5:7980".to_owned()],
+            None,
         ),
         [
             record("own.zone", "2001:db8::7"),
             record("10-0-0-5.own.zone", "10.0.0.5"),
+        ]
+    );
+}
+
+#[test]
+fn the_relay_name_under_the_own_name_points_at_the_relay() {
+    let relay: IpAddr = "198.51.100.4".parse().unwrap();
+
+    assert_eq!(
+        records(
+            "own.zone",
+            None,
+            &["http://10.0.0.5:7980".to_owned()],
+            Some(relay)
+        ),
+        [
+            record("10-0-0-5.own.zone", "10.0.0.5"),
+            record("relay.own.zone", "198.51.100.4"),
         ]
     );
 }

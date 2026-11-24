@@ -653,6 +653,7 @@ async fn the_plugin_is_told_the_server_url_and_port_the_admin_set() {
         url: "https://nama.example.com/".to_owned(),
         lan: vec![],
         public_port: Some(7443),
+        relay: None,
     };
     until_told(&linker, &told).await;
 }

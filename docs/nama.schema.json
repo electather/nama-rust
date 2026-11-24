@@ -63,6 +63,14 @@
       "description": "The `[plugins.<id>]` tables in the file, imported into the database on the first start and\nignored after.",
       "type": "object"
     },
+    "relay": {
+      "default": null,
+      "description": "The Relay the Admin runs, as `<ip>:<port>`, which a Server Linked to the Hub dials out to\nfor clients that can't reach it directly, and which the Hub offers them after its direct\naddresses (ADR 0057). Unset, the default, uses none.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "trusted_proxies": {
       "default": [],
       "description": "Reverse proxies whose `X-Forwarded-For` and `X-Forwarded-Proto` headers the Server believes.\nEmpty by default, so the headers are ignored.",
