@@ -10,7 +10,7 @@ use nama_proto::nama::v1::{Event, PageResponse, SortDirection, UnmatchedItemSort
 use sqlx::SqliteConnection;
 
 use super::{
-    Contents, Item, ItemKind, ItemRow, Pin, air_dates, details, ids_from_json, ids_sql,
+    Contents, Item, ItemKind, ItemRow, Pin, air_dates, details, ids_from_json, ids_json, ids_sql,
     insert_match_ids, primary_id_in,
     reasons::{ReasonColumn, tied_json},
     roles, searched_ids, searched_ids_changed,
@@ -709,12 +709,7 @@ impl<'a> From<&'a Decided> for MatchRow<'a> {
                     logo: metadata.logo.as_ref().map(ImageColumns::from),
                     still: metadata.still.as_deref(),
                     genres: Some(serde_json::Value::from(metadata.genres.clone()).to_string()),
-                    genre_ids: Some(
-                        serde_json::Value::from_iter(
-                            metadata.genre_ids.iter().map(ToString::to_string),
-                        )
-                        .to_string(),
-                    ),
+                    genre_ids: Some(ids_json(&metadata.genre_ids)),
                     content_rating: metadata.content_rating.as_deref(),
                     original_language: metadata.original_language.as_deref(),
                     show_poster: metadata.show_poster.as_ref().map(ImageColumns::from),

@@ -52,7 +52,8 @@ pub(crate) use decisions::{
 pub(crate) use files::{Change, Stored};
 pub(crate) use ids::{DEFAULT_ORDER, matched_ids, parse_hint, primary_id};
 use ids::{
-    ids_from_json, ids_sql, insert_match_ids, primary_id_in, searched_ids, searched_ids_changed,
+    ids_from_json, ids_json, ids_sql, insert_match_ids, primary_id_in, searched_ids,
+    searched_ids_changed,
 };
 use items::ItemRow;
 pub(crate) use items::{Item, ItemKind, Name};

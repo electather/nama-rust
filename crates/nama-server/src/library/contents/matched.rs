@@ -6,7 +6,7 @@ use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 
 use super::{
     Contents, ImageRef, ItemKind, Stored, any_library::library_with_movie, details, ids_from_json,
-    ids_sql, library_titles, parse_hint, primary_id_in,
+    ids_json, ids_sql, library_titles, parse_hint, primary_id_in,
 };
 use crate::library::title_source::Trailer;
 
@@ -712,7 +712,7 @@ impl Contents {
 /// `ids` as a JSON array of their text forms, as [`Contents::movies`] and [`Contents::shows`]
 /// take them.
 fn listed_ids(ids: Option<&[ExternalId]>) -> Option<String> {
-    ids.map(|ids| serde_json::Value::from_iter(ids.iter().map(ToString::to_string)).to_string())
+    ids.map(ids_json)
 }
 
 /// The genres in the `genres` column's JSON, `json`: none where it's NULL, as for a Match stored
