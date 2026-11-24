@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
 import { AccountSchema, AccountService, PasskeySchema } from "@hub/gen/nama/hub/v1/account_pb";
+import { HubService } from "@hub/gen/nama/hub/v1/hub_pb";
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
@@ -46,9 +47,10 @@ function refused(code: Code, reason: RefusalReason) {
 
 /**
  * Opens `path` on a fake Hub where Ada has a passkey named "Laptop", signed in from the start
- * when `signedIn` says so. Returns the Hub's state, which a test may change.
+ * when `signedIn` says so, which offers passkeys unless `passkeys` says not. Returns the Hub's
+ * state, which a test may change.
  */
-function openHub(path: string, signedIn = false) {
+function openHub(path: string, signedIn = false, passkeys = true) {
   let session = signedIn;
   const hub = {
     passkeys: [create(PasskeySchema, { id: "0193-laptop", name: "Laptop" })],
@@ -61,6 +63,7 @@ function openHub(path: string, signedIn = false) {
     }
   };
   const transport = createRouterTransport(({ service }) => {
+    service(HubService, { getHubInfo: () => ({ version: "0.1.0", passkeys }) });
     service(AccountService, {
       getAccount: () => {
         if (!session) {
@@ -128,6 +131,14 @@ describe("an Account's passkeys", () => {
     });
   });
 
+  test("a Hub that offers no passkeys has no passkey sign-in", async () => {
+    browserCredentials({ get: vi.fn<() => Promise<unknown>>() });
+    openHub("/sign-in", false, false);
+
+    await expect(screen.findByRole("heading", { name: "Sign in" })).resolves.toBeDefined();
+    expect(screen.queryByRole("button", { name: "Sign in with a passkey" })).toBeNull();
+  });
+
   test("cancelling the browser's prompt says nothing", async () => {
     browserCredentials({
       get: vi
@@ -158,6 +169,13 @@ describe("an Account's passkeys", () => {
 
     await expect(screen.findByText("Phone")).resolves.toBeDefined();
     expect(screen.getByText("Laptop")).toBeDefined();
+  });
+
+  test("a Hub that offers no passkeys has no form to add one, but lists those there are", async () => {
+    openHub("/", true, false);
+
+    await expect(screen.findByText("Laptop")).resolves.toBeDefined();
+    expect(screen.queryByLabelText("New passkey’s name")).toBeNull();
   });
 
   test("a blank name is refused before the browser creates a passkey", async () => {

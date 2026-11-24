@@ -236,6 +236,10 @@ pub struct GetHubInfoResponseView<'a> {
     ///
     /// Field 2: `sign_in_links`
     pub sign_in_links: bool,
+    /// Whether the Hub offers passkeys, which it does once it has a public URL.
+    ///
+    /// Field 3: `passkeys`
+    pub passkeys: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetHubInfoResponseView<'a> {
@@ -282,6 +286,13 @@ impl<'a> ::buffa::MessageView<'a> for GetHubInfoResponseView<'a> {
                 )?;
                 view.sign_in_links = ::buffa::types::decode_bool(&mut cur)?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.passkeys = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -306,6 +317,7 @@ impl<'a> ::buffa::MessageView<'a> for GetHubInfoResponseView<'a> {
         ::core::result::Result::Ok(super::super::GetHubInfoResponse {
             version: self.version.to_string(),
             sign_in_links: self.sign_in_links,
+            passkeys: self.passkeys,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -321,6 +333,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetHubInfoResponseView<'a> {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.version) as u64;
         }
         if self.sign_in_links {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if self.passkeys {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
@@ -339,6 +354,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetHubInfoResponseView<'a> {
         }
         if self.sign_in_links {
             ::buffa::types::put_bool_field(2u32, self.sign_in_links, buf);
+        }
+        if self.passkeys {
+            ::buffa::types::put_bool_field(3u32, self.passkeys, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -366,6 +384,9 @@ impl<'__a> ::serde::Serialize for GetHubInfoResponseView<'__a> {
         }
         if self.sign_in_links {
             __map.serialize_entry("signInLinks", &self.sign_in_links)?;
+        }
+        if self.passkeys {
+            __map.serialize_entry("passkeys", &self.passkeys)?;
         }
         __map.end()
     }
@@ -475,6 +496,13 @@ impl GetHubInfoResponseOwnedView {
     #[must_use]
     pub fn sign_in_links(&self) -> bool {
         self.0.reborrow().sign_in_links
+    }
+    /// Whether the Hub offers passkeys, which it does once it has a public URL.
+    ///
+    /// Field 3: `passkeys`
+    #[must_use]
+    pub fn passkeys(&self) -> bool {
+        self.0.reborrow().passkeys
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<GetHubInfoResponseView<'static>>>

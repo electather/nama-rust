@@ -5,14 +5,28 @@ import {
   useTransport,
 } from "@connectrpc/connect-query";
 import { useGoAfterSession } from "@hub/features/account/data/sessions";
-import { createPasskey, signWithPasskey } from "@hub/features/account/lib/webauthn";
+import {
+  browserHasPasskeys,
+  createPasskey,
+  signWithPasskey,
+} from "@hub/features/account/lib/webauthn";
 import { AccountService } from "@hub/gen/nama/hub/v1/account_pb";
+import { HubService } from "@hub/gen/nama/hub/v1/hub_pb";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 const passkeysKey = createConnectQueryKey({
   schema: AccountService.method.listPasskeys,
   cardinality: "finite",
 });
+
+/**
+ * Whether passkeys work here: the Hub offers them, which it does once it has a public URL, and the
+ * browser has them. Unknown is no, since the Hub refuses passkeys without that URL.
+ */
+export function usePasskeysWork() {
+  const { data } = useQuery(HubService.method.getHubInfo, {});
+  return data?.passkeys === true && browserHasPasskeys();
+}
 
 /**
  * The signed-in Account's passkeys, oldest first. It doesn't suspend, as `useLinkedServers` doesn't:

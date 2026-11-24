@@ -90,6 +90,15 @@ impl TestHub {
     /// [`PUBLIC_URL`], sending mail through `mail`, if any, and trusting this machine as its
     /// reverse proxy, so a test can say in `X-Forwarded-For` which client a request is from.
     pub(crate) async fn start(db: PgPool, mail: Option<Mail>) -> Self {
+        Self::start_at(db, mail, Some(PUBLIC_URL)).await
+    }
+
+    /// As [`TestHub::start`], but with no public address, as without `NAMA_HUB_PUBLIC_URL`.
+    pub(crate) async fn start_without_public_url(db: PgPool) -> Self {
+        Self::start_at(db, None, None).await
+    }
+
+    async fn start_at(db: PgPool, mail: Option<Mail>, public_url: Option<&str>) -> Self {
         db::migrate(&db).await.unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -102,7 +111,7 @@ impl TestHub {
             zone: ZONE.to_owned(),
             records: Arc::<FakeZone>::clone(&zone),
         };
-        let public_url = PUBLIC_URL.parse().unwrap();
+        let public_url = public_url.map(|url| url.parse().unwrap());
         tokio::spawn(nama_hub::serve(
             listener,
             db.clone(),
@@ -111,7 +120,7 @@ impl TestHub {
             mail,
             Some(names),
             Some(backend),
-            Some(&public_url),
+            public_url.as_ref(),
             async {
                 let _: Result<(), oneshot::error::RecvError> = stopped.await;
             },
