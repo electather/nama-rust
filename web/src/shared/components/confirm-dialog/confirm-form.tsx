@@ -10,7 +10,7 @@ import { onSubmitted } from "@/shared/lib/forms";
 export function ConfirmForm({
   id,
   close,
-  cancel,
+  onCancel,
   destructive,
   action,
   dismiss = "Cancel",
@@ -21,14 +21,18 @@ export function ConfirmForm({
   refusal,
 }: Confirmation & {
   id: string;
-  /** Closes it once confirmed. */
   close: () => void;
-  /** Closes it unconfirmed, for Cancel and ✕. */
-  cancel: () => void;
+  /** Called as soon as Cancel or ✕ is pressed, before it closes. */
+  onCancel?: (() => void) | undefined;
   destructive: boolean;
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+
+  function cancel() {
+    onCancel?.();
+    close();
+  }
 
   async function confirm(typed: FormData) {
     setPending(true);

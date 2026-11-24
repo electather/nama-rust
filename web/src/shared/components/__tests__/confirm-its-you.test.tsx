@@ -275,7 +275,8 @@ test("a Permission is saved once you confirm it’s you, before the browser draw
   });
 });
 
-test("cancelling “Confirm it’s you” unticks the Permission it was for", async () => {
+test("cancelling “Confirm it’s you” unticks the Permission it was for, before the browser draws the page again", async () => {
+  closeWithoutCloseEvent();
   const { promoted } = openUsersNeedingRecentAuthentication();
 
   const promote = await tickAdminForAlex();
@@ -296,19 +297,6 @@ test("a Permission refused again after you confirm it’s you is unticked, and s
 
   await expect(screen.findByText("Sign in again to do this.")).resolves.toBeDefined();
   expect(promote).toHaveProperty("checked", false);
-});
-
-test("cancelling “Confirm it’s you” unticks the Permission before the browser draws the page again", async () => {
-  closeWithoutCloseEvent();
-  openUsersNeedingRecentAuthentication();
-
-  const promote = await tickAdminForAlex();
-  const dialog = await screen.findByRole("alertdialog", { name: "Confirm it’s you" });
-  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
-
-  await waitFor(() => {
-    expect(promote).toHaveProperty("checked", false);
-  });
 });
 
 test("a late close event from a cancelled “Confirm it’s you” leaves the next one waiting", async () => {

@@ -47,10 +47,7 @@ export function ConfirmModal({
         key={openings}
         id={id}
         close={() => ref.current?.close()}
-        cancel={() => {
-          onCancel?.();
-          ref.current?.close();
-        }}
+        onCancel={onCancel}
         destructive={destructive}
         {...confirmation}
       />
