@@ -1,6 +1,11 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
-import { AccountSchema, AccountService, SessionSchema } from "@hub/gen/nama/hub/v1/account_pb";
+import {
+  AccountSchema,
+  AccountService,
+  type Session,
+  SessionSchema,
+} from "@hub/gen/nama/hub/v1/account_pb";
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
@@ -23,7 +28,11 @@ function refused(code: Code, reason: RefusalReason) {
  * phone and a laptop. Returns the Hub's state, which a test may change.
  */
 function openAccount() {
-  const hub = {
+  const hub: {
+    sessions: Session[];
+    /** What signing sessions out is refused with, if it is. */
+    refusal?: ConnectError;
+  } = {
     sessions: [
       create(SessionSchema, { id: "this", name: "Firefox on Linux", isCurrent: true }),
       create(SessionSchema, { id: "phone", name: "Safari on iPhone", lastUsedAt: 1_700_000_000n }),
@@ -33,12 +42,10 @@ function openAccount() {
         lastUsedAt: 1_690_000_000n,
       }),
     ],
-    /** Whether signing sessions out is refused for want of a recent sign-in. */
-    stale: false,
   };
-  const recentOnly = () => {
-    if (hub.stale) {
-      throw refused(Code.FailedPrecondition, RefusalReason.RECENT_AUTHENTICATION_REQUIRED);
+  const throwIfRefused = () => {
+    if (hub.refusal) {
+      throw hub.refusal;
     }
   };
   const transport = createRouterTransport(({ service }) => {
@@ -46,12 +53,12 @@ function openAccount() {
       getAccount: () => ({ account: ada, hasPassword: true }),
       listSessions: () => ({ sessions: hub.sessions }),
       signOutSession: ({ sessionId }) => {
-        recentOnly();
+        throwIfRefused();
         hub.sessions = hub.sessions.filter((session) => session.id !== sessionId);
         return {};
       },
       signOutOtherSessions: () => {
-        recentOnly();
+        throwIfRefused();
         hub.sessions = hub.sessions.filter((session) => session.isCurrent);
         return {};
       },
@@ -75,6 +82,8 @@ async function listed() {
 }
 
 describe("where an Account is signed in", () => {
+  const signOutButtons = ["Sign out Safari on iPhone", "Sign out everywhere else"];
+
   beforeAll(() => {
     configure({ asyncUtilTimeout: 5000 });
   });
@@ -133,16 +142,43 @@ describe("where an Account is signed in", () => {
     });
   });
 
-  test.each(["Sign out Safari on iPhone", "Sign out everywhere else"])(
+  test.each(signOutButtons)(
     "past 10 minutes since signing in, “%s” offers to sign in again",
     async (button) => {
       const hub = openAccount();
-      hub.stale = true;
+      hub.refusal = refused(Code.FailedPrecondition, RefusalReason.RECENT_AUTHENTICATION_REQUIRED);
 
       fireEvent.click(await screen.findByRole("button", { name: button }));
       fireEvent.click(await screen.findByRole("link", { name: "Sign in again" }));
 
       await expect(screen.findByRole("heading", { name: "Sign in" })).resolves.toBeDefined();
+      expect(hub.sessions).toHaveLength(3);
+    },
+  );
+
+  test.each(signOutButtons)(
+    "once this session ended elsewhere, “%s” opens the sign-in page",
+    async (button) => {
+      const hub = openAccount();
+      hub.refusal = refused(Code.Unauthenticated, RefusalReason.SIGN_IN_REQUIRED);
+
+      fireEvent.click(await screen.findByRole("button", { name: button }));
+
+      await expect(screen.findByRole("heading", { name: "Sign in" })).resolves.toBeDefined();
+      expect(screen.queryByText(/Try again/u)).toBeNull();
+      expect(hub.sessions).toHaveLength(3);
+    },
+  );
+
+  test.each(signOutButtons)(
+    "when the Hub refuses “%s” for another reason, it says to try again",
+    async (button) => {
+      const hub = openAccount();
+      hub.refusal = refused(Code.Unavailable, RefusalReason.UNSPECIFIED);
+
+      fireEvent.click(await screen.findByRole("button", { name: button }));
+
+      await expect(screen.findByText(/Try again/u)).resolves.toBeDefined();
       expect(hub.sessions).toHaveLength(3);
     },
   );
