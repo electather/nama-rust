@@ -112,13 +112,14 @@ impl RunningPlans {
     }
 
     /// Keeps `progress`, which the Device `device` reported through the Version `version`, beside
-    /// each of its plans of it, for [`Self::plays`].
+    /// the Device's newest plan of that Version, for [`Self::plays`]. An older one is a play left
+    /// without a stop, such as a reloaded tab's, so it keeps what it last had.
     pub(crate) fn report_progress(&self, version: i64, device: i64, progress: ReportedProgress) {
         let plans = lock(&self.inner.plans);
-        let reported = plans.values().filter(|plan| {
-            plan.playback.version_id == version && plan.playback.device_id == device
-        });
-        for plan in reported {
+        let newest = (plans.values())
+            .filter(|plan| (plan.playback.version_id, plan.playback.device_id) == (version, device))
+            .max_by_key(|plan| plan.playback.plan_id);
+        if let Some(plan) = newest {
             *lock(&plan.progress) = Some(progress);
         }
     }
