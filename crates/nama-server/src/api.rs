@@ -43,6 +43,7 @@ mod access;
 mod browse;
 mod browser_spans;
 mod events;
+mod hub_cors;
 mod inbox;
 mod jobs;
 mod libraries;
@@ -237,6 +238,7 @@ pub(crate) fn router(
         }))
         .into_axum_service()
         .with_interceptor(RecordFailures);
+    let linking = users.linking().clone();
     axum::Router::new()
         .fallback_service(rpcs)
         .merge(artwork_router)
@@ -254,6 +256,10 @@ pub(crate) fn router(
         .layer(middleware::from_fn_with_state(
             Arc::from(config.trusted_proxies.as_slice()),
             identify_source,
+        ))
+        .layer(middleware::from_fn_with_state(
+            linking,
+            hub_cors::allow_linked_hub,
         ))
         .layer(middleware::from_fn(diagnostics::trace_call))
 }
