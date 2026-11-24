@@ -4,6 +4,7 @@
 use super::*;
 
 const REMOTE: &str = "203.0.113.7";
+const LOCAL: &str = "192.168.1.20";
 
 /// Alien's Version on a Server behind a trusted proxy, and Bishop, capped at 720p remotely.
 #[expect(
@@ -55,7 +56,7 @@ async fn a_capped_user_off_the_local_network_is_sent_a_version_their_plan_direct
 async fn a_capped_user_on_the_local_network_is_sent_a_version_with_no_plan() {
     let (fx, version, bishop) = capped_bishop().await;
 
-    let status = status_for(&fx, version, &bishop.token, "192.168.1.20").await;
+    let status = status_for(&fx, version, &bishop.token, LOCAL).await;
 
     assert_eq!(status, 200);
 }

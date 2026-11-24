@@ -30,11 +30,11 @@ pub(super) fn direct_play_url(version: i64) -> String {
 }
 
 /// Serves `GET /media/versions/<id>` with the file of the Version `id` in `db`, and 404 if
-/// there is none, or 403 to a caller off the local network whose User has a cap for remote
-/// playback unless their Device has a plan that Direct Plays it, marking the caller's Direct Plays
-/// of it in `running` asked for as the request arrives and with each part of the file sent, and
-/// the subtitles plans offer, found in `db`, read with `ffmpeg`, a Version's text ones in a
-/// background pass on `reads`, and cached in `cache`.
+/// there is none, marking the caller's Direct Plays of it in `running` asked for as the request
+/// arrives and with each part of the file sent, and the subtitles plans offer, found in `db`, read
+/// with `ffmpeg`, a Version's text ones in a background pass on `reads`, and cached in `cache`.
+/// A caller off the local network whose User has a cap for remote playback gets 403 unless their
+/// Device has a plan that Direct Plays the Version.
 /// Whether the caller has a session is up to the layers the router is put behind.
 pub(crate) fn router(
     running: RunningPlans,
@@ -59,7 +59,7 @@ async fn serve(
     let user = caller.map(|caller| caller.user.id);
     let device = caller.map(|caller| caller.device.id);
     let client = (request.extensions().get::<RequestSource>()).map(|source| source.client_ip);
-    let direct_played = device.is_some_and(|device| running.ask_direct_plays(id, device));
+    let has_direct_play = device.is_some_and(|device| running.ask_direct_plays(id, device));
     let path = match contents.version_file(id).await {
         Ok(Some((path, _))) => path,
         Ok(None) => return StatusCode::NOT_FOUND.into_response(),
@@ -69,7 +69,7 @@ async fn serve(
         }
     };
     // A plan only Direct Plays a Version within the cap, so one running lets the file through.
-    if !direct_played {
+    if !has_direct_play {
         match capped_remotely(&db, user, client).await {
             Ok(false) => {}
             Ok(true) => return StatusCode::FORBIDDEN.into_response(),
