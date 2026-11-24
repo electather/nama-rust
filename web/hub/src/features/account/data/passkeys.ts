@@ -19,13 +19,18 @@ const passkeysKey = createConnectQueryKey({
   cardinality: "finite",
 });
 
-/**
- * Whether passkeys work here: the Hub offers them, which it does once it has a public address, and
- * the browser has them. Unknown is no, since the Hub refuses passkeys without that address.
- */
-export function usePasskeysWork() {
+/** Whether the Hub offers passkeys; `undefined` until it has said so, or if it failed to. */
+export function useOffersPasskeys(): boolean | undefined {
   const { data } = useQuery(HubService.method.getHubInfo, {});
-  return data?.passkeys === true && browserHasPasskeys();
+  return data?.passkeys;
+}
+
+/**
+ * Whether signing in with a passkey works here: the Hub offers passkeys and the browser has them.
+ * Unknown is no, since the Hub refuses passkeys without a public address.
+ */
+export function useCanSignInWithPasskey() {
+  return useOffersPasskeys() === true && browserHasPasskeys();
 }
 
 /**
