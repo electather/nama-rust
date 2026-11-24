@@ -2,8 +2,10 @@ use std::{io, path::Path, sync::Weak};
 
 use tokio_util::sync::CancellationToken;
 
-use super::{Inner, PLAN_FOLDER, RunningPlans, STOP_UNUSED_AFTER, TIDY_EVERY};
-use crate::server_settings::PlaybackSettings;
+use super::{
+    Arc, Duration, Inner, PLAN_FOLDER, Plan, RunningPlans, STOP_UNUSED_AFTER, TIDY_EVERY, lock,
+};
+use crate::{db, server_settings::PlaybackSettings};
 
 /// Every [`TIDY_EVERY`], stops the plans unused for [`STOP_UNUSED_AFTER`] and deletes the running
 /// ones' files from well behind or far ahead of playback, until `inner` is dropped or `cancel` is
@@ -24,6 +26,19 @@ pub(super) async fn tidy_plans(inner: Weak<Inner>, cancel: CancellationToken) {
         let plans = RunningPlans { inner };
         plans.stop_unused(STOP_UNUSED_AFTER).await;
         plans.delete_unkept_files().await;
+    }
+}
+
+impl RunningPlans {
+    /// Stops every plan not asked for in the last `unused_for`, and deletes its files.
+    pub(super) async fn stop_unused(&self, unused_for: Duration) {
+        let now = db::instant_now();
+        let unused: Vec<(u64, Arc<Plan>)> = lock(&self.inner.plans)
+            .extract_if(|_, plan| now.duration_since(*lock(&plan.last_used)) >= unused_for)
+            .collect();
+        for (_, plan) in unused {
+            self.stop(&plan).await;
+        }
     }
 }
 

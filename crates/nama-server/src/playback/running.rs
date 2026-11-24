@@ -674,17 +674,6 @@ impl RunningPlans {
         stopped.entry((version, device)).or_default().child_token()
     }
 
-    /// Stops every plan not asked for in the last `unused_for`, and deletes its files.
-    async fn stop_unused(&self, unused_for: Duration) {
-        let now = db::instant_now();
-        let unused: Vec<(u64, Arc<Plan>)> = lock(&self.inner.plans)
-            .extract_if(|_, plan| now.duration_since(*lock(&plan.last_used)) >= unused_for)
-            .collect();
-        for (_, plan) in unused {
-            self.stop(&plan).await;
-        }
-    }
-
     /// Deletes each running plan's files from well behind or far ahead of playback, as
     /// [`Running::delete_unkept`] says.
     async fn delete_unkept_files(&self) {

@@ -592,7 +592,7 @@ pub(crate) fn now_ms() -> i64 {
 }
 
 /// Now, for timing how long ago something happened: monotonic, unlike [`now_ms`], so a change to
-/// the system's time can't stretch or shrink it, but moved by [`advance_clock`] too.
+/// the system's time can't stretch or shrink it, but moved by `advance_clock` too.
 pub(crate) fn instant_now() -> Instant {
     Instant::now() + Duration::from_millis(u64::try_from(offset_ms()).unwrap_or_default())
 }
