@@ -2,7 +2,7 @@ import { useMutation } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 
-import { hubRefusalReason } from "@/features/auth/lib/account-errors";
+import { hubRefusalReason } from "@/features/auth/lib/hub-errors";
 import { AccountService } from "@/gen/nama/hub/v1/account_pb";
 import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 

@@ -26,7 +26,8 @@ function signInRequired() {
 
 /**
  * A fake Hub with Ada's Account, whose password is "correct horse", signed in from the start when
- * `signedIn` says so. It emails Sign-in Links, and its one link, "link-token", signs Ada in once.
+ * `signedIn` says so. It emails Sign-in Links, and its one link, "link-token", signs Ada in once;
+ * it fails to look up "broken-token".
  */
 function fakeHub({ signedIn = false } = {}) {
   let session = signedIn ? ada : undefined;
@@ -60,6 +61,9 @@ function fakeHub({ signedIn = false } = {}) {
         return {};
       },
       getSignInLink: ({ token }) => {
+        if (token === "broken-token") {
+          throw new ConnectError("database is locked", Code.Internal);
+        }
         if (token !== "link-token" || linkUsed) {
           throw refused(Code.NotFound, RefusalReason.SIGN_IN_LINK_EXPIRED);
         }
@@ -193,4 +197,11 @@ test("a Sign-in Link used elsewhere while its page was open says it expired", as
   await expect(
     screen.findByRole("heading", { name: "This Sign-in Link has expired" }),
   ).resolves.toBeDefined();
+});
+
+test("a Sign-in Link the Hub can't look up says so, and offers to try again", async () => {
+  openApp("/sign-in-link#broken-token", fakeHub().transport);
+
+  await screen.findByText("The Hub couldn’t open this Sign-in Link just now.");
+  expect(screen.getByRole("button", { name: "Try again" })).toBeDefined();
 });

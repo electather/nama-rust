@@ -46,9 +46,12 @@ export async function whoIsSignedIn({ queryClient, transport }: RouterContext) {
   return signedIn;
 }
 
-/** Who is signed in where the app runs: the Account at the Hub, else the Server's User, or `null`. */
-export async function whoIsSignedInHere(context: RouterContext) {
-  return (await isAtHub(context)) ? signedInAccount(context) : whoIsSignedIn(context);
+/** Whether anyone is signed in where the app runs: an Account at the Hub, else a Server's User. */
+export async function isSignedInHere(context: RouterContext) {
+  const signedIn = (await isAtHub(context))
+    ? await signedInAccount(context)
+    : await whoIsSignedIn(context);
+  return signedIn !== null;
 }
 
 /** The query behind `whoIsSignedIn`: being signed out isn't an error. */

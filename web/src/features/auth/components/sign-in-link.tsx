@@ -2,7 +2,7 @@ import type { ComponentProps } from "react";
 
 import { SignInLinkAccount } from "@/features/auth/components/sign-in-link-account";
 import { useSignInWithLink } from "@/features/auth/data/use-sign-in-with-link";
-import { accountErrors } from "@/features/auth/lib/account-errors";
+import { hubErrors } from "@/features/auth/lib/hub-errors";
 import { SignInLayout } from "@/shared/components/sign-in-layout/sign-in-layout";
 
 /**
@@ -19,7 +19,7 @@ export function SignInLink({
       heading="Sign in"
       action={signIn.isPending ? "Signing in…" : "Sign in"}
       pending={signIn.isPending}
-      errors={signIn.error ? accountErrors(signIn.error) : {}}
+      errors={signIn.error ? hubErrors(signIn.error) : {}}
       onSubmit={() => {
         signIn.mutate({ token });
       }}

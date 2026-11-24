@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { EmailField } from "@/features/auth/components/email-field";
 import { useCreateAccount } from "@/features/auth/data/use-create-account";
 import { useFinishSignIn } from "@/features/auth/data/use-finish-sign-in";
-import { accountErrors } from "@/features/auth/lib/account-errors";
+import { hubErrors } from "@/features/auth/lib/hub-errors";
 import { PasswordField } from "@/shared/components/form-field/password-field";
 import { SignInLayout } from "@/shared/components/sign-in-layout/sign-in-layout";
 import { formText } from "@/shared/lib/forms";
@@ -12,7 +12,7 @@ import { textLink } from "@/shared/lib/text-link-classes";
 /** Creating an Account at the Hub with an email and a password, which signs it in. */
 export function CreateAccount() {
   const create = useCreateAccount(useFinishSignIn("/"));
-  const errors = create.error ? accountErrors(create.error) : {};
+  const errors = create.error ? hubErrors(create.error) : {};
   return (
     <SignInLayout
       heading="Create an Account"

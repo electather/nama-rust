@@ -1,7 +1,7 @@
 import type { Transport } from "@connectrpc/connect";
 import { callUnaryMethod } from "@connectrpc/connect-query";
 
-import { hubRefusalReason } from "@/features/auth/lib/account-errors";
+import { hubRefusalReason } from "@/features/auth/lib/hub-errors";
 import { AccountService } from "@/gen/nama/hub/v1/account_pb";
 import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 

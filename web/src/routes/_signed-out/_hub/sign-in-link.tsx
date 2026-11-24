@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { ExpiredSignInLink } from "@/features/auth/components/expired-sign-in-link";
 import { SignInLink } from "@/features/auth/components/sign-in-link";
+import { SignInLinkFailed } from "@/features/auth/components/sign-in-link-failed";
 import { lookUpSignInLink } from "@/features/auth/data/look-up-sign-in-link";
 import { signedInAccount } from "@/shared/hooks/access";
 
@@ -17,6 +18,8 @@ export const Route = createFileRoute("/_signed-out/_hub/sign-in-link")({
     return { token: location.hash, link, signedIn };
   },
   component: SignInLinkRoute,
+  // Not the app's own error page, which blames the Server.
+  errorComponent: SignInLinkFailed,
 });
 
 function SignInLinkRoute() {

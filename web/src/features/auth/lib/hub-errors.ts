@@ -12,7 +12,7 @@ export function hubRefusalReason(error: unknown) {
  * Why the Hub refused to sign an Account in, create one or email a Sign-in Link: under the field
  * it's about, or for the whole form.
  */
-export function accountErrors(error: unknown): FormErrors {
+export function hubErrors(error: unknown): FormErrors {
   const refusal = hubRefusalOf(error);
   const say = refusal && wording[refusal.reason];
   return say
