@@ -66,6 +66,12 @@ pub(crate) fn send_job() -> Job {
     }
 }
 
+/// A play not ended yet, and when it started.
+struct Open {
+    playback: Playback,
+    started: Started,
+}
+
 /// When a play started, by the Server's clock.
 #[derive(Clone, Copy)]
 struct Started {
@@ -90,8 +96,8 @@ impl Started {
 #[derive(Clone)]
 pub(crate) struct ViewingEvents {
     linker: Arc<Linker>,
-    /// When each plan playing now started, by its id.
-    started: Arc<Mutex<HashMap<u64, Started>>>,
+    /// Each plan playing now, by its id.
+    open: Arc<Mutex<HashMap<u64, Open>>>,
     unsent: Arc<Queue<UserViewingEvent>>,
 }
 
@@ -100,16 +106,16 @@ impl ViewingEvents {
         Self {
             unsent: Arc::new(Queue::new(Arc::clone(&linker.kernel))),
             linker,
-            started: Arc::default(),
+            open: Arc::default(),
         }
     }
 
-    /// Keeps a Viewing Event for each title the play `playback`, which just ended, reached, if its
-    /// User is Linked, and tries sending them.
+    /// Keeps a Viewing Event for each title the play `playback` reached, if its User is Linked, and
+    /// tries sending them. Called when it ends, or when a later play ends it (`end_left_open`).
     async fn ended(&self, playback: &Playback) -> Result<(), PluginError> {
-        let started = self.started_lock().remove(&playback.plan_id);
-        // One that started before the Plugin was enabled has no start to record.
-        let Some(started) = started else {
+        let open = self.open_lock().remove(&playback.plan_id);
+        // None for one that started before the Plugin was enabled, or that a later play ended.
+        let Some(Open { started, .. }) = open else {
             return Ok(());
         };
         if !self.linker.user_linked(playback.user_id).await? {
@@ -177,19 +183,62 @@ impl ViewingEvents {
         self.unsent.send(push).await
     }
 
-    /// Notes when a play started, and records it once it ends.
+    /// Notes when a play started, ending the plays its User left open on its title, and records
+    /// it once it ends.
     async fn happened(&self, happened: &Happened) -> Result<(), PluginError> {
         if let Happened::PlaybackStarted(started) = happened {
-            let plan = started.playback.plan_id;
-            self.started_lock().insert(plan, Started::now());
+            let open = Open {
+                playback: Playback::clone(&started.playback),
+                started: Started::now(),
+            };
+            self.open_lock().insert(started.playback.plan_id, open);
+            self.end_left_open(&started.playback).await?;
         } else if let Happened::PlaybackEnded(ended) = happened {
             self.ended(&ended.playback).await?;
         }
         Ok(())
     }
 
-    fn started_lock(&self) -> std::sync::MutexGuard<'_, HashMap<u64, Started>> {
-        self.started.lock().unwrap_or_else(PoisonError::into_inner)
+    /// Ends now each earlier play `later`'s User left open on a title it plays. One left without
+    /// stopping, as when its tab closed, ends only once its player goes 60 seconds without asking
+    /// for it, by when `later`'s reports have replaced the Watch State it last reported (#2051).
+    async fn end_left_open(&self, later: &Playback) -> Result<(), PluginError> {
+        let earlier = Vec::from_iter(
+            (self.open_lock().values())
+                .map(|open| &open.playback)
+                // Plan ids only grow, and two batches may reach an Observer in either order.
+                .filter(|earlier| earlier.user_id == later.user_id)
+                .filter(|earlier| earlier.plan_id < later.plan_id)
+                .cloned(),
+        );
+        if earlier.is_empty() {
+            return Ok(());
+        }
+        let later_titles = self.titles_of(later.version_id).await?;
+        for playback in earlier {
+            let titles = self.titles_of(playback.version_id).await?;
+            if titles.iter().any(|title| later_titles.contains(title)) {
+                self.ended(&playback).await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// The titles the Version `version_id` holds, in whichever Library, as Watch State keys them.
+    async fn titles_of(&self, version_id: i64) -> Result<Vec<TitleRef>, PluginError> {
+        let listed = (self.linker.kernel).ask::<ListVersionTitles>(VersionTitlesAsked {
+            version_id,
+            ..Default::default()
+        });
+        let titles = listed.await?.titles.into_iter().map(|title| TitleRef {
+            library_id: 0,
+            ..title
+        });
+        Ok(titles.collect())
+    }
+
+    fn open_lock(&self) -> std::sync::MutexGuard<'_, HashMap<u64, Open>> {
+        self.open.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
