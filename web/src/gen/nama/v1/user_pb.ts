@@ -1517,11 +1517,11 @@ export const UserService: GenService<{
     output: typeof SetLibraryAccessResponseSchema;
   },
   /**
-   * Deletes a User with their Devices and credentials, so they can't sign in, their sessions stop
-   * working at once and their open `EventService.Subscribe` streams end. The caller may delete
-   * themselves, which signs out the calling Device too. Fails with `not_found` if no User has the
-   * ID, so a retry after a delete that went through gets `not_found`, and `failed_precondition` if
-   * it would leave no User with `PERMISSION_ADMIN`.
+   * Deletes a User with their credentials and signs them out of every Device, so they can't sign
+   * in, their sessions stop working at once and their open `EventService.Subscribe` streams end. A
+   * Device is signed out only once its last User goes. The caller may delete themselves. Fails
+   * with `not_found` if no User has the ID, so a retry after a delete that went through gets
+   * `not_found`, and `failed_precondition` if it would leave no User with `PERMISSION_ADMIN`.
    *
    * @generated from rpc nama.v1.UserService.DeleteUser
    */
@@ -1531,7 +1531,8 @@ export const UserService: GenService<{
     output: typeof DeleteUserResponseSchema;
   },
   /**
-   * Lists a User's Devices that haven't expired, oldest first. Any signed-in User may list their
+   * Lists the Devices a User is signed in to that haven't expired, oldest first, whichever User
+   * each acts as. Any signed-in User may list their
    * own; another User's needs `PERMISSION_MANAGE_USERS`. Fails with `not_found` if the User doesn't
    * exist, or isn't the caller and the caller lacks that Permission, so they can't learn which IDs
    * exist.
@@ -1544,10 +1545,12 @@ export const UserService: GenService<{
     output: typeof ListDevicesResponseSchema;
   },
   /**
-   * Revokes one of a User's Devices, so its session stops working at once and its open
-   * `EventService.Subscribe` streams end. Revoking the calling Device signs it out, as `SignOut`
-   * does. Who may revoke whose Devices is as for `ListDevices`, and fails the same way; it also
-   * fails with `not_found` if the Device isn't that User's.
+   * Signs a User out of one of their Devices, so it no longer acts as them and their open
+   * `EventService.Subscribe` streams on it end. Its other Users stay signed in, and it acts as none
+   * of them if it acted as this one; revoking its last User signs it out, as `SignOut` does, which
+   * for the calling Device clears a cookie session's cookie. Who may revoke whose Devices is as for
+   * `ListDevices`, and fails the same way; it also fails with `not_found` if the User isn't signed
+   * in to the Device.
    *
    * @generated from rpc nama.v1.UserService.RevokeDevice
    */

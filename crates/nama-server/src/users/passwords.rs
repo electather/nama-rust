@@ -44,9 +44,9 @@ pub(super) struct StoredPassword {
 }
 
 impl Users {
-    /// Changes the password of `caller`'s User to `new`, and signs every other Device of theirs
-    /// out. `caller`'s own Device stays signed in. Recent Authentication stands in for the current
-    /// password: the access layer checked it.
+    /// Changes the password of `caller`'s User to `new`, and signs them out of every other Device
+    /// they are signed in to. `caller`'s own Device keeps them. Recent Authentication stands in for
+    /// the current password: the access layer checked it.
     pub(crate) async fn change_password(&self, caller: &Caller, new: &str) -> Result<(), Error> {
         let credential = self.hash_password("new_password", new).await?;
         let (user, kept) = (caller.user.id, caller.device.id);
@@ -79,16 +79,16 @@ impl Users {
         }
     }
 
-    /// Gives the Device `device` Recent Authentication, failing with [`Error::SignedOut`] if it
-    /// was signed out meanwhile.
-    pub(crate) async fn record_authentication(&self, device: i64) -> Result<(), Error> {
+    /// Gives the User `user` Recent Authentication on the Device `device`, failing with
+    /// [`Error::SignedOut`] if they were signed out of it meanwhile.
+    pub(crate) async fn record_authentication(&self, device: i64, user: i64) -> Result<(), Error> {
         self.db
-            .write(move |tx| Box::pin(async move { record_authentication(tx, device).await }))
+            .write(move |tx| Box::pin(async move { record_authentication(tx, device, user).await }))
             .await
     }
 
     /// Sets the password of the User `user` to `new`, as `by` asks, without their current one,
-    /// adding it if they have none, and signs every Device of theirs out, unless
+    /// adding it if they have none, and signs them out of every Device, unless
     /// [`ensure_may_change`] refuses.
     pub(crate) async fn reset_password(
         &self,
@@ -305,15 +305,19 @@ impl ProviderError<Hashing> for PasswordError {
     }
 }
 
-/// Records that the Device `device` proved who it is just now, failing if it was signed out
-/// meanwhile.
-async fn record_authentication(conn: &mut SqliteConnection, device: i64) -> Result<(), Error> {
+/// Records that the User `user` proved who they are on the Device `device` just now, failing if
+/// they were signed out of it meanwhile.
+async fn record_authentication(
+    conn: &mut SqliteConnection,
+    device: i64,
+    user: i64,
+) -> Result<(), Error> {
     let now = now();
     let updated = sqlx::query!(
-        "UPDATE devices SET authenticated_at = ?, updated_at = ? WHERE id = ?",
+        "UPDATE device_users SET authenticated_at = ? WHERE device_id = ? AND user_id = ?",
         now,
-        now,
-        device
+        device,
+        user
     )
     .execute(conn)
     .await?;
@@ -323,11 +327,12 @@ async fn record_authentication(conn: &mut SqliteConnection, device: i64) -> Resu
     Ok(())
 }
 
-/// Makes `credential` the User `user`'s password, as [`set_password`] does, and signs out every
-/// Device of theirs but `kept`, returning the ids of those signed out.
+/// Makes `credential` the User `user`'s password, as [`set_password`] does, and signs them out of
+/// every Device but `kept`, returning the ids of those they were signed out of.
 ///
-/// Fails if `kept` was signed out meanwhile, such as by another password change, so a change never
-/// succeeds for a Device that is no longer signed in, nor overwrites the one that signed it out.
+/// Fails if they were signed out of `kept` meanwhile, such as by another password change, so a
+/// change never succeeds for a Device they are no longer signed in to, nor overwrites the one that
+/// signed them out.
 async fn set_password_signing_others_out(
     conn: &mut SqliteConnection,
     user: i64,
@@ -335,8 +340,10 @@ async fn set_password_signing_others_out(
     kept: i64,
 ) -> Result<Vec<i64>, Error> {
     let still_signed_in = sqlx::query_scalar!(
-        r#"SELECT EXISTS (SELECT 1 FROM devices WHERE id = ?) AS "exists!: bool""#,
-        kept
+        r#"SELECT EXISTS (SELECT 1 FROM device_users WHERE device_id = ? AND user_id = ?)
+               AS "exists!: bool""#,
+        kept,
+        user
     )
     .fetch_one(&mut *conn)
     .await?;
@@ -345,7 +352,8 @@ async fn set_password_signing_others_out(
     }
     set_password(conn, user, credential).await?;
     let signed_out = sqlx::query_scalar!(
-        r#"DELETE FROM devices WHERE user_id = ? AND id != ? RETURNING id AS "id!""#,
+        r#"DELETE FROM device_users WHERE user_id = ? AND device_id != ?
+           RETURNING device_id AS "device_id!""#,
         user,
         kept
     )
@@ -354,8 +362,8 @@ async fn set_password_signing_others_out(
     Ok(signed_out)
 }
 
-/// Makes `credential` the User `user`'s password, as [`set_password`] does, and signs out every
-/// Device of theirs, returning their ids. Fails if there is no such User.
+/// Makes `credential` the User `user`'s password, as [`set_password`] does, and signs them out of
+/// every Device, returning those Devices' ids. Fails if there is no such User.
 async fn set_password_signing_all_out(
     conn: &mut SqliteConnection,
     user: i64,
@@ -366,7 +374,7 @@ async fn set_password_signing_all_out(
     }
     set_password(conn, user, credential).await?;
     let signed_out = sqlx::query_scalar!(
-        r#"DELETE FROM devices WHERE user_id = ? RETURNING id AS "id!""#,
+        r#"DELETE FROM device_users WHERE user_id = ? RETURNING device_id AS "device_id!""#,
         user
     )
     .fetch_all(conn)

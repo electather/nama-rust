@@ -1,62 +1,62 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT m.name AS \"method?\", d.ip_address, d.user_agent, d.authenticated_at\n               FROM devices d LEFT JOIN sign_in_methods m ON m.id = d.sign_in_method_id\n               WHERE d.id = ?",
+  "query": "UPDATE devices SET user_id = ?, updated_at = ?\n           WHERE token_hash = ? AND expires_at > ?\n           RETURNING id AS \"id!\", name, created_at, last_seen_at",
   "describe": {
     "columns": [
       {
-        "name": "method?",
+        "name": "id!",
         "ordinal": 0,
-        "type_info": "Text",
+        "type_info": "Integer",
         "origin": {
           "Table": {
-            "table": "sign_in_methods",
-            "name": "name"
+            "table": "devices",
+            "name": "id"
           }
         }
       },
       {
-        "name": "ip_address",
+        "name": "name",
         "ordinal": 1,
         "type_info": "Text",
         "origin": {
           "Table": {
             "table": "devices",
-            "name": "ip_address"
+            "name": "name"
           }
         }
       },
       {
-        "name": "user_agent",
+        "name": "created_at",
         "ordinal": 2,
-        "type_info": "Text",
+        "type_info": "Integer",
         "origin": {
           "Table": {
             "table": "devices",
-            "name": "user_agent"
+            "name": "created_at"
           }
         }
       },
       {
-        "name": "authenticated_at",
+        "name": "last_seen_at",
         "ordinal": 3,
         "type_info": "Integer",
         "origin": {
           "Table": {
             "table": "devices",
-            "name": "authenticated_at"
+            "name": "last_seen_at"
           }
         }
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 4
     },
     "nullable": [
-      true,
       false,
-      true,
+      false,
+      false,
       false
     ]
   },
-  "hash": "7efc10dfa82f2b38ce9be4745f9755f6744fbca6b99ba8062f5a35f912aa67ee"
+  "hash": "98f11c5af941353199477da860b300d3a3f90722cd8279dd3fb595ea7fac0f57"
 }

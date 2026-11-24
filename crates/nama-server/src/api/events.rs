@@ -45,7 +45,7 @@ impl EventService for EventServiceHandler {
                 types,
                 libraries: request.library_ids,
             };
-            let signed_out = users.signed_out(caller.device.id);
+            let signed_out = users.signed_out(caller.device.id, caller.user.id);
             let permissions_changed =
                 users.permissions_changed(caller.user.id, caller.user.permissions);
             let watched = users.library_access_watched(caller.user.id).await;

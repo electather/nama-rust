@@ -1,5 +1,8 @@
 import { type ComponentType, useRef } from "react";
 
+import { AccountPane } from "@/features/settings/components/account-pane";
+import { AccountSessionsPane } from "@/features/settings/components/account-sessions-pane";
+import { AccountSigninPane } from "@/features/settings/components/account-signin-pane";
 import { BackupsPane } from "@/features/settings/components/backups-pane";
 import { ConnectionsPane } from "@/features/settings/components/connections-pane";
 import { DefaultHomePane } from "@/features/settings/components/default-home-pane";
@@ -38,6 +41,9 @@ const panes: Record<Section, ComponentType<{ user: User | undefined }>> = {
   "server-playback": ServerPlaybackPane,
   backups: BackupsPane,
   plugins: PluginsPane,
+  account: AccountPane,
+  "account-signin": AccountSigninPane,
+  "account-sessions": AccountSessionsPane,
 };
 
 /**

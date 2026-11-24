@@ -105,9 +105,9 @@ impl Users {
             .await
     }
 
-    /// Resolves once the User `user`'s Permissions are set, so whatever they opened while holding
-    /// `permissions` can end, to be opened again under the new ones. It resolves at once if they
-    /// no longer hold exactly `permissions`, are gone, or that can't be found out.
+    /// Resolves once the User `user` no longer holds exactly `permissions`, so whatever they opened
+    /// while holding them can end, to be opened again under the new ones. It resolves at once if
+    /// they already don't, are gone, or that can't be found out.
     pub(crate) fn permissions_changed(
         &self,
         user: i64,
@@ -137,9 +137,10 @@ impl Users {
         held == Some(permissions)
     }
 
-    /// Deletes the User `user` with their Sign-in Methods and Devices, as `by` asks, unless that
-    /// leaves no local Admin ([`ensure_a_local_admin_left`]) or [`ensure_may_change`] refuses.
-    /// Their Devices are signed out as [`Users::sign_out`] does.
+    /// Deletes the User `user` with their Sign-in Methods, signing them out of every Device, as
+    /// `by` asks, unless that leaves no local Admin ([`ensure_a_local_admin_left`]) or
+    /// [`ensure_may_change`] refuses. A Device left with no User is signed out as
+    /// [`Users::sign_out`] does.
     pub(crate) async fn delete(&self, by: &User, user: i64) -> Result<(), Error> {
         let by = by.clone();
         self.write_signing_out(move |tx| {
@@ -212,10 +213,13 @@ async fn update_permissions(
 /// no local Admin, as [`update_permissions`] does. Returns the IDs of the Devices
 /// it signed out.
 async fn delete_user(conn: &mut SqliteConnection, user: i64) -> Result<Vec<i64>, Error> {
-    let devices = sqlx::query_scalar!(r#"SELECT id AS "id!" FROM devices WHERE user_id = ?"#, user)
-        .fetch_all(&mut *conn)
-        .await?;
-    // Their `sign_in_methods` and `devices` rows are deleted by `ON DELETE CASCADE`.
+    let devices = sqlx::query_scalar!(
+        r#"SELECT device_id AS "device_id!" FROM device_users WHERE user_id = ?"#,
+        user
+    )
+    .fetch_all(&mut *conn)
+    .await?;
+    // Their `sign_in_methods` and `device_users` rows are deleted by `ON DELETE CASCADE`.
     let deleted = sqlx::query!("DELETE FROM users WHERE id = ?", user)
         .execute(&mut *conn)
         .await?;
