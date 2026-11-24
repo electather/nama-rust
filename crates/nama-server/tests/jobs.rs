@@ -16,7 +16,7 @@ mod test_plugin;
 use std::time::Duration;
 
 use connectrpc::{ErrorCode, client::HttpClient};
-use jiff::{ToSpan as _, Zoned};
+use jiff::{ToSpan as _, ZonedDateTime};
 use log::Log;
 use nama_proto::nama::v1::{
     ConfigureJobRequest, DisablePluginRequest, EnablePluginRequest, GetPluginRequest, Job,
@@ -40,7 +40,7 @@ const SETTLE: Duration = Duration::from_millis(500);
     reason = "a test helper fails its test by panicking"
 )]
 fn until_four() -> Duration {
-    let now = Zoned::now();
+    let now = ZonedDateTime::now();
     let today = now.with().hour(4).minute(0).second(0).subsec_nanosecond(0);
     let mut four = today.build().unwrap();
     if four <= now {
