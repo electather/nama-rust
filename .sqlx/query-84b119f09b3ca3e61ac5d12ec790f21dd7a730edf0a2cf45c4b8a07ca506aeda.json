@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT linked_servers.name AS server_name,\n             (SELECT user_name FROM user_links WHERE account_id = $2\n             AND linked_server_id = server_sign_ins.linked_server_id) AS user_name\n             FROM server_sign_ins JOIN linked_servers\n             ON linked_servers.id = server_sign_ins.linked_server_id\n             WHERE server_sign_ins.id = $1 AND server_sign_ins.expires_at > now()\n             AND server_sign_ins.user_link_id IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "server_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "linked_servers",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "user_name",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "84b119f09b3ca3e61ac5d12ec790f21dd7a730edf0a2cf45c4b8a07ca506aeda"
+}

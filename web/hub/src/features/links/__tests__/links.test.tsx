@@ -186,6 +186,18 @@ describe("linking a Server", () => {
     ).resolves.toBeDefined();
   });
 
+  test("an Account with a User on the Server already is told to Unlink them first", async () => {
+    openAccount(RefusalReason.ACCOUNT_HAS_USER_ON_SERVER);
+
+    await enterCode("CDFG-HJKL", "Link a User");
+
+    await expect(
+      screen.findByText(
+        "Your Account has a User on this Server already, and it can have only one there. Unlink that User under Your Users first.",
+      ),
+    ).resolves.toBeDefined();
+  });
+
   test("an Account whose email isn't proven is offered a Sign-in Link to prove it", async () => {
     openAccount(RefusalReason.EMAIL_NOT_PROVEN);
     await enterCode("BDFH-JKLM");
