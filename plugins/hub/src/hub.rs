@@ -1,5 +1,5 @@
-//! Talking to the Hub: its API (`proto/nama/hub/v1/`) and its published key set. What its API
-//! accepts is in `limits.rs`.
+//! Talking to the Hub's API (`proto/nama/hub/v1/`) as the Linked Server, but for the Server's own
+//! Link, which the Kernel keeps (ADR 0105). What its API accepts is in `limits.rs`.
 
 pub(crate) mod limits;
 
@@ -10,38 +10,27 @@ use connectrpc::client::{
     ClientBody, ClientConfig, ClientTransport as _, ServiceTransport, full_body,
 };
 use http::{
-    Request, StatusCode,
+    Request,
     header::{AUTHORIZATION, CONTENT_TYPE},
 };
-use http_body_util::{BodyExt as _, Limited};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use hyper_util::{
     client::legacy::{Client, connect::HttpConnector},
     rt::TokioExecutor,
 };
 use nama_hub_proto::nama::hub::v1::{
-    GetRelayTokenRequest, GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient,
+    GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient,
     ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
     ListRecommendedTitlesRequest, ListSimilarTitlesRequest, ListSimilarTitlesResponse,
-    ListTrendingTitlesRequest, ListTrendingTitlesResponse, PollServerLinkRequest,
-    PollServerLinkResponse, PollServerSignInRequest, PullTrackPreferencesRequest,
-    PullWatchStatesRequest, PushTrackPreferencesRequest, PushWatchStatesRequest, RecommendedTitle,
-    RecordViewingEventsRequest, ServerLinkServiceClient, SetCertificateChallengeRequest,
-    SetServerAddressesRequest, StartServerLinkRequest, StartServerLinkResponse,
-    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
-    StartUserLinkResponse, SyncWatchlistRequest, TrackPreferenceChange, UnlinkServerRequest,
-    UnlinkUserRequest, UserViewingEvent, WatchStateChange, WatchlistEntry,
+    ListTrendingTitlesRequest, ListTrendingTitlesResponse, PollServerSignInRequest,
+    PullTrackPreferencesRequest, PullWatchStatesRequest, PushTrackPreferencesRequest,
+    PushWatchStatesRequest, RecommendedTitle, RecordViewingEventsRequest, StartServerSignInRequest,
+    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
+    TrackPreferenceChange, UnlinkUserRequest, UserViewingEvent, WatchStateChange, WatchlistEntry,
 };
-use nama_plugin_api::{
-    PluginError,
-    diagnostics_sharer::Signal,
-    server_link::{Reachability, ServerAddresses},
-};
+use nama_plugin_api::{PluginError, diagnostics_sharer::Signal};
 
 const TIMEOUT: Duration = Duration::from_secs(20);
-
-/// The most of the key set read, so a misbehaving Hub can't exhaust memory.
-const MAX_KEY_SET_BYTES: usize = 64 * 1024;
 
 type Transport = ServiceTransport<Client<HttpsConnector<HttpConnector>, ClientBody>>;
 
@@ -98,58 +87,6 @@ impl Hub {
     fn config(&self) -> Result<ClientConfig, PluginError> {
         Ok(ClientConfig::new(self.url.parse()?).with_default_timeout(TIMEOUT))
     }
-
-    /// Starts registering this Server as `name`.
-    pub(crate) async fn start(&self, name: &str) -> Result<StartServerLinkResponse, PluginError> {
-        let client = ServerLinkServiceClient::new(self.transport.clone(), self.config()?);
-        let started = client
-            .start_server_link(StartServerLinkRequest {
-                name: name.to_owned(),
-                ..Default::default()
-            })
-            .await?;
-        Ok(started.into_owned())
-    }
-
-    /// Whether the code the Server shows was entered. A device code that expired or was used is
-    /// `REFUSAL_REASON_LINK_EXPIRED`, the call's one `not_found`.
-    pub(crate) async fn poll(&self, device_code: &str) -> Result<PollServerLinkResponse, Polling> {
-        let client = ServerLinkServiceClient::new(
-            self.transport.clone(),
-            self.config().map_err(|_unreachable| Polling::Failed)?,
-        );
-        let polled = client
-            .poll_server_link(PollServerLinkRequest {
-                device_code: device_code.to_owned(),
-                ..Default::default()
-            })
-            .await;
-        match polled {
-            Ok(polled) => Ok(polled.into_owned()),
-            Err(err) if err.code == connectrpc::ErrorCode::NotFound => Err(Polling::Expired),
-            Err(_failed) => Err(Polling::Failed),
-        }
-    }
-
-    /// The Hub's published key set, as JSON.
-    pub(crate) async fn key_set(&self) -> Result<Bytes, PluginError> {
-        let request = Request::get(format!("{}/.well-known/jwks.json", self.url))
-            .body(full_body(Bytes::new()))?;
-        let fetched = async {
-            let response = self.transport.send(request).await?;
-            let status = response.status();
-            let body = Limited::new(response.into_body(), MAX_KEY_SET_BYTES)
-                .collect()
-                .await?
-                .to_bytes();
-            Ok::<_, PluginError>((status, body))
-        };
-        let (status, body) = tokio::time::timeout(TIMEOUT, fetched).await??;
-        if status != StatusCode::OK {
-            return Err(format!("the Hub answered {status} for its key set").into());
-        }
-        Ok(body)
-    }
 }
 
 /// The Hub's API for one Linked Server, bound to its credential. Every RPC answers
@@ -163,15 +100,6 @@ pub(crate) struct LinkedHub {
 }
 
 impl LinkedHub {
-    /// Unlinks the Server.
-    pub(crate) async fn unlink(self) -> Result<(), PluginError> {
-        (self.client()?)
-            .unlink_server(UnlinkServerRequest::default())
-            .await
-            .map_err(link_dropped)?;
-        Ok(())
-    }
-
     /// Starts Linking the User `user_id`, named `name`: `None` if they are Linked already, the
     /// Hub's one `already_exists`.
     pub(crate) async fn start_user(
@@ -316,57 +244,6 @@ impl LinkedHub {
             .await
             .map_err(link_dropped)?;
         Ok(())
-    }
-
-    /// Tells the Hub `addresses` are where clients reach the Server, and answers whether the Hub
-    /// reached its public port, if it has one, and the names it gave the Server, if any.
-    pub(crate) async fn set_addresses(
-        self,
-        addresses: &ServerAddresses,
-    ) -> Result<Option<Reachability>, PluginError> {
-        let checked = (self.client()?)
-            .set_server_addresses(SetServerAddressesRequest {
-                url: addresses.url.clone(),
-                lan_addresses: addresses.lan.clone(),
-                public_port: addresses.public_port.map_or(0, u32::from),
-                relay: addresses
-                    .relay
-                    .map_or_else(String::new, |relay| relay.to_string()),
-                ..Default::default()
-            })
-            .await
-            .map_err(link_dropped)?
-            .into_owned();
-        let found = !checked.public_address.is_empty() || !checked.names.is_empty();
-        Ok(found.then_some(Reachability {
-            address: checked.public_address,
-            reachable: checked.reachable,
-            names: checked.names,
-        }))
-    }
-
-    /// Has the Hub publish `values` as the Server's certificate challenge, or remove it when empty.
-    pub(crate) async fn set_certificate_challenge(
-        self,
-        values: Vec<String>,
-    ) -> Result<(), PluginError> {
-        (self.client()?)
-            .set_certificate_challenge(SetCertificateChallengeRequest {
-                values,
-                ..Default::default()
-            })
-            .await
-            .map_err(link_dropped)?;
-        Ok(())
-    }
-
-    /// A token proving to a Relay that the Server holds its own name.
-    pub(crate) async fn relay_token(self) -> Result<String, PluginError> {
-        let got = (self.client()?)
-            .get_relay_token(GetRelayTokenRequest::default())
-            .await
-            .map_err(link_dropped)?;
-        Ok(got.into_owned().token)
     }
 
     /// Records `events`, the Server's Viewing Events.
@@ -514,13 +391,4 @@ fn link_dropped(err: connectrpc::ConnectError) -> PluginError {
     } else {
         err.into()
     }
-}
-
-/// Why a poll didn't say whether the code was entered.
-#[derive(Debug)]
-pub(crate) enum Polling {
-    /// The codes expired or were used: start again.
-    Expired,
-    /// The Hub couldn't be reached or failed: ask again at the next poll.
-    Failed,
 }

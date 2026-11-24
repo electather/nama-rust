@@ -1,13 +1,17 @@
+import type { Transport } from "@connectrpc/connect";
 import { createConnectQueryKey, useSuspenseQuery } from "@connectrpc/connect-query";
 
 import { WAITING_POLL_MS } from "@/features/settings/lib/server-link";
 import { UserService } from "@/gen/nama/v1/user_pb";
 
 /** The query key of where the signed-in User's Link stands, to refetch after starting or Unlinking. */
-export const userLinkKey = createConnectQueryKey({
-  schema: UserService.method.getUserLink,
-  cardinality: "finite",
-});
+export function userLinkKey(transport: Transport) {
+  return createConnectQueryKey({
+    schema: UserService.method.getUserLink,
+    cardinality: "finite",
+    transport,
+  });
+}
 
 /**
  * Where Linking the signed-in User to an Account stands, or `undefined` while the Server can't

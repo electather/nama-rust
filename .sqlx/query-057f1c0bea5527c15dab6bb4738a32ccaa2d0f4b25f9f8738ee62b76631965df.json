@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT key_set FROM hub_key_set",
+  "describe": {
+    "columns": [
+      {
+        "name": "key_set",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "hub_key_set",
+            "name": "key_set"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "057f1c0bea5527c15dab6bb4738a32ccaa2d0f4b25f9f8738ee62b76631965df"
+}

@@ -9,6 +9,7 @@ use super::{refuse, sign_in_required};
 use crate::{
     db::now,
     diagnostics,
+    signed_urls::SignedUrl,
     users::{Caller, Device},
 };
 
@@ -49,6 +50,13 @@ const DELETE_MEDIA: Access = Access::Needs(Permission::DeleteMedia);
 
 /// Searching the subtitle sources and downloading their subtitles.
 const DOWNLOAD_SUBTITLES: Access = Access::Needs(Permission::DownloadSubtitles);
+
+/// Downloading a Version's file, or one re-encoded as for a Transcode, for offline playback.
+#[expect(
+    dead_code,
+    reason = "no download endpoint (#2195, #2198) checks it yet"
+)]
+const DOWNLOAD: Access = Access::Needs(Permission::Download);
 
 /// Who may call each RPC, by path; one missing here is refused to everyone (see AGENTS.md, "New
 /// RPCs start closed"). Media and uploads have their own entries, in [`PREFIXES`].
@@ -293,9 +301,13 @@ fn check_recent_authentication(path: &str, caller: Option<&Caller>) -> Result<()
 }
 
 /// Refuses `request`, before any handler sees it, unless the caller
-/// [`identify_caller`](crate::users::identify_caller) found may.
+/// [`identify_caller`](crate::users::identify_caller) found may, or its URL was signed.
 pub(super) async fn require_access(request: Request, next: Next) -> axum::response::Response {
     let device = request.extensions().get::<Device>();
+    // Its signature, which `admit` checked, names this one path, so it needs no session.
+    if request.extensions().get::<SignedUrl>().is_some() {
+        return next.run(request).await;
+    }
     let caller = request.extensions().get::<Caller>();
     let path = request.uri().path();
     let allowed = Access::of(path)

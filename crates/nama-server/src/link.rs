@@ -1,21 +1,27 @@
-//! Every call the Server makes to the enabled Plugin that links it, such as the Hub Plugin (ADR
-//! 0011, ADR 0094), answered in the Kernel's terms: a [`Link`], or an [`Error`] that tells "no
-//! Plugin links the Server" from "it couldn't tell". It speaks only the Plugin contract. Each call's
-//! bound is named once:
+//! Every Link call the Server makes, answered in the Kernel's terms: a [`Link`], or an [`Error`]
+//! that tells "nothing to ask" from "it couldn't tell". The Server's own Link is the Kernel's,
+//! with the Hub its config names ([`ServerLink`], ADR 0105); its Users' Links, signing in with an
+//! Account and syncing go to the enabled Plugin that links the Server, such as the Hub Plugin (ADR
+//! 0011, ADR 0094), speaking only the Plugin contract. Each call's bound is named once:
 //!
 //! | Calls                                                              | Bound         |
 //! |--------------------------------------------------------------------|---------------|
 //! | Reads a page needs: the Server's Link, a User's Link               | [`PAGE_READ`] |
 //! | Changes at the service: starting or ending a Link, inviting a User, starting or finishing an Account sign-in, Unlinking a deleted User, publishing a certificate challenge | none |
-//! | Bulk transfers, the Server Addresses tick, and a Relay token       | [`BULK`]      |
+//! | Bulk transfers                                                     | [`BULK`]      |
+//! | The Server Addresses tick, and a Relay token                       | the Hub client's own (`hub::TIMEOUT`) |
 //!
 //! A change isn't cut: cut mid-way, it could leave the service changed without the Server knowing,
-//! such as an invite sent for a User the Server then deletes. The Plugin's own limit on each call
-//! to its service bounds it.
+//! such as an invite sent for a User the Server then deletes. The limit on each call to the service
+//! bounds it.
 //!
 //! It remembers whose Link the last look found Linked, the Server's and each User's, and tells its
 //! followers ([`Linking::follow`]) when a look finds one Linked that the last didn't; the first
 //! look since the Server started counts.
+
+mod hub;
+mod server;
+mod token;
 
 use std::{
     collections::HashSet,
@@ -26,35 +32,49 @@ use std::{
 
 pub(crate) use nama_plugin_api::server_link::Link;
 use nama_plugin_api::{
-    PluginError, PluginId,
+    PluginError,
     points::{TrackPreference, WatchStateChange},
     server_link::{AccountSignIn, ServerAddresses, ServerLinker, WatchlistEntry},
 };
-use tokio::sync::{broadcast, oneshot};
+use tokio::sync::{broadcast, watch};
 use tracing::Instrument as _;
 
-use crate::{diagnostics, plugins::ExtensionPoints};
+pub(crate) use self::server::ServerLink;
+use crate::{config::Config, db::Database, diagnostics, plugins::ExtensionPoints};
 
-/// How long a page waits on the Plugin for the Server's Link or a User's, so Server info and the
-/// Users list answer even when it doesn't.
+/// How long a page waits for the Server's Link or a User's, so Server info and the Users list
+/// answer even when the Hub or the Plugin doesn't.
 const PAGE_READ: Duration = Duration::from_secs(10);
 
-/// How long a bulk transfer, or a call of the Server Addresses tick, may take, so a Plugin that
-/// never answers can't hold up every later scan's pulls or minute's tick.
+/// How long a bulk transfer may take, so a Plugin that never answers can't hold up every later
+/// scan's pulls.
 const BULK: Duration = Duration::from_mins(1);
 
 /// How many new Links may be told before a follower has heard them.
 const NEW_LINKS_BUFFERED: usize = 64;
 
-/// Why the Plugin that links the Server gave no answer.
+/// The Server's own Link with the Hub `config` names, kept in `db`: `None` without one, or, logged,
+/// once the Server can't call it.
+pub(crate) fn server_link(config: &Config, db: &Arc<Database>) -> Option<Arc<ServerLink>> {
+    let url = config.hub_url.as_deref().filter(|url| !url.is_empty())?;
+    ServerLink::new(url, Arc::clone(db))
+        .inspect_err(|err| tracing::error!("the Server can't call the Hub at {url}: {err}"))
+        .ok()
+        .map(Arc::new)
+}
+
+/// Why no answer came of a Link.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub(crate) enum Error {
+    /// The Server's config names no Hub, so it has no Link of its own (ADR 0002).
+    #[error("the Server's config names no Hub")]
+    NoHub,
     /// No enabled Plugin links the Server.
     #[error("no enabled Plugin links the Server")]
     NoLinkingPlugin,
     /// It couldn't tell: it failed, as with its service unreachable, or a page stopped waiting on
-    /// it. Its page says why.
-    #[error("the Plugin that links the Server failed; its page says why")]
+    /// it. The Server's log or the Plugin's page says why.
+    #[error("Linking failed; the Server's log or the Plugin's page says why")]
     Failed,
 }
 
@@ -65,20 +85,24 @@ pub(crate) enum Whose {
     User(i64),
 }
 
-/// Asks the enabled Plugin that links the Server. Cloning it gives another handle to the same.
+/// Asks the Kernel's Server Link and the enabled Plugin that links the Server. Cloning it gives
+/// another handle to the same.
 #[derive(Debug, Clone)]
 pub(crate) struct Linking {
     points: ExtensionPoints,
+    /// The Server's own Link, `None` when its config names no Hub.
+    server: Option<Arc<ServerLink>>,
     /// Whose Link the last look found Linked.
     linked: Arc<Mutex<HashSet<Whose>>>,
     new_links: broadcast::Sender<Whose>,
 }
 
 impl Linking {
-    /// Asks the Plugins of `points`, having seen no Link yet.
-    pub(crate) fn new(points: ExtensionPoints) -> Self {
+    /// Asks `server`, the Server's own Link, and the Plugins of `points`, having seen no Link yet.
+    pub(crate) fn new(points: ExtensionPoints, server: Option<Arc<ServerLink>>) -> Self {
         Self {
             points,
+            server,
             linked: Arc::default(),
             new_links: broadcast::channel(NEW_LINKS_BUFFERED).0,
         }
@@ -94,13 +118,24 @@ impl Linking {
         !self.points.providers::<dyn ServerLinker>().is_empty()
     }
 
+    /// Wakes each time the Hub answers a report of the Server Addresses with what it found of
+    /// them; never without a Hub.
+    pub(crate) fn follow_found(&self) -> watch::Receiver<()> {
+        (self.server.as_ref()).map_or_else(|| watch::channel(()).1, |server| server.follow_found())
+    }
+
+    /// Whether the Server's config names a Hub, so the Server can Link with it.
+    pub(crate) const fn has_hub(&self) -> bool {
+        self.server.is_some()
+    }
+
     /// The Server's Link.
     pub(crate) async fn server_link(&self) -> Result<Link, Error> {
         Ok(self.look(Whose::Server).await?.unwrap_or(Link::NotLinked))
     }
 
-    /// Whether the Server is Linked, so its Users can sign in with their Accounts. Not, when the
-    /// Plugin couldn't tell.
+    /// Whether the Server is Linked, so its Users can sign in with their Accounts. Not, when no
+    /// answer came.
     pub(crate) async fn is_server_linked(&self) -> bool {
         matches!(self.server_link().await, Ok(Link::Linked { .. }))
     }
@@ -117,7 +152,9 @@ impl Linking {
         let linking = self.clone();
         let looking = async move {
             let link = match whose {
-                Whose::Server => (linking.ask(async |linker| linker.link().await).await).map(Some),
+                Whose::Server => {
+                    (linking.ask_hub(async |server| server.link().await).await).map(Some)
+                }
                 Whose::User(user_id) => {
                     (linking.ask(async |linker| linker.user_link(user_id).await)).await
                 }
@@ -127,8 +164,8 @@ impl Linking {
             }
             link
         };
-        // In a task of its own, so a look the page stopped waiting on still finishes: the Hub
-        // Plugin keeps the Link a waiting code's poll finds, which cut mid-way it would lose.
+        // In a task of its own, so a look the page stopped waiting on still finishes: a waiting
+        // code's poll keeps the Link it finds, which cut mid-way it would lose.
         let looked = tokio::spawn(looking.in_current_span());
         match tokio::time::timeout(PAGE_READ, looked).await {
             Ok(Ok(link)) => link,
@@ -137,7 +174,7 @@ impl Linking {
                 Err(Error::Failed)
             }
             Err(_elapsed) => {
-                tracing::warn!("the Plugin that links the Server didn't say where a Link stands");
+                tracing::warn!("no answer came of where a Link stands");
                 Err(Error::Failed)
             }
         }
@@ -159,16 +196,16 @@ impl Linking {
         }
     }
 
-    /// Starts Linking the Server, which the service lists as `server_name`, and answers the code.
+    /// Starts Linking the Server, which the Hub lists as `server_name`, and answers the code.
     pub(crate) async fn start_server_link(&self, server_name: &str) -> Result<Link, Error> {
-        let link = (self.ask(async |linker| linker.start_link(server_name).await)).await?;
+        let link = (self.ask_hub(async |server| server.start(server_name).await)).await?;
         self.saw(Whose::Server, Some(&link));
         Ok(link)
     }
 
     /// Unlinks the Server, or forgets its waiting code.
     pub(crate) async fn unlink_server(&self) -> Result<(), Error> {
-        self.ask(async |linker| linker.unlink().await).await?;
+        self.ask_hub(async |server| server.unlink().await).await?;
         self.saw(Whose::Server, None);
         Ok(())
     }
@@ -227,18 +264,39 @@ impl Linking {
             .await
     }
 
-    /// Has the service publish `values` as the DNS-01 challenge for a certificate for the
-    /// Server's names, or remove it when empty (ADR 0057).
+    /// Has the Hub publish `values` as the DNS-01 challenge for a certificate for the Server's
+    /// names, or remove it when empty (ADR 0057).
     pub(crate) async fn set_certificate_challenge(&self, values: Vec<String>) -> Result<(), Error> {
-        self.ask(async |linker| linker.set_certificate_challenge(values.clone()).await)
+        self.ask_hub(async |server| server.set_certificate_challenge(values).await)
             .await
     }
 
-    /// A token the service signed that proves to a Relay the Server holds its own name, so the
-    /// Relay routes TLS for it to the Server (ADR 0057).
+    /// A token the Hub signed that proves to a Relay the Server holds its own name, so the Relay
+    /// routes TLS for it to the Server (ADR 0057).
     pub(crate) async fn relay_token(&self) -> Result<String, Error> {
-        self.ask(async |linker| within_bulk(linker.relay_token()).await)
+        self.ask_hub(async |server| server.relay_token().await)
             .await
+    }
+
+    /// Tells the Hub the Server's `addresses`, which it hands clients, and checks their public
+    /// port (ADR 0057). A failure is logged: the next minute's tick tells it again.
+    pub(crate) async fn tell_addresses(&self, addresses: ServerAddresses) {
+        let _: Result<(), Error> = self
+            .ask_hub(async |server| server.report(addresses).await)
+            .await;
+    }
+
+    /// What `call` gets from the Server's own Link. Its failure, such as the Hub being
+    /// unreachable, is logged.
+    async fn ask_hub<'a, R, F>(&'a self, call: impl FnOnce(&'a ServerLink) -> F) -> Result<R, Error>
+    where
+        F: Future<Output = Result<R, hub::Failure>>,
+    {
+        let server = self.server.as_deref().ok_or(Error::NoHub)?;
+        call(server).await.map_err(|failure| {
+            tracing::warn!("Linking the Server failed: {failure}");
+            Error::Failed
+        })
     }
 
     /// Unlinks the User `user_id`, just deleted, so the service forgets their Link or waiting code
@@ -341,60 +399,6 @@ impl Linking {
                 tracing::warn!(%plugin, user = user_id, "could not {what}");
             })
             .ok()
-    }
-
-    /// The Plugin the Server Addresses tick asks: the first enabled one that links the Server.
-    pub(crate) fn linking_plugin(&self) -> Option<PluginId> {
-        (self.points.ranked::<dyn ServerLinker>().into_iter()).next()
-    }
-
-    /// Tells `plugin` the Server's `addresses`, in its scope.
-    pub(crate) async fn tell_addresses(&self, plugin: &PluginId, addresses: ServerAddresses) {
-        self.ask_in_scope(plugin, move |linker| {
-            let addresses = addresses.clone();
-            async move { linker.set_addresses(addresses).await }
-        })
-        .await;
-    }
-
-    /// Whether `plugin` has the Server Linked, asked in its scope for the Server Addresses tick.
-    /// Not, if it fails to say.
-    pub(crate) async fn is_server_linked_by(&self, plugin: &PluginId) -> bool {
-        let link = self.ask_in_scope(plugin, |linker| async move { linker.link().await });
-        let Some(link) = link.await else {
-            return false;
-        };
-        self.saw(Whose::Server, Some(&link));
-        matches!(link, Link::Linked { .. })
-    }
-
-    /// What `call` gets from `plugin`, asked in its scope, so disabling it or shutting down cancels
-    /// and joins the call. `None` once it failed, didn't answer within [`BULK`], or its scope was
-    /// cancelled.
-    async fn ask_in_scope<R, F>(
-        &self,
-        plugin: &PluginId,
-        call: impl Fn(Arc<dyn ServerLinker>) -> F + Send + Sync + 'static,
-    ) -> Option<R>
-    where
-        R: Send + 'static,
-        F: Future<Output = Result<R, PluginError>> + Send,
-    {
-        let (asking, asked) = (self.points.clone(), plugin.clone());
-        let (told, answered) = oneshot::channel();
-        let spawned = self.points.spawn_in(plugin, async move {
-            let answer = asking
-                .ask(&asked, |linker: Arc<dyn ServerLinker>| {
-                    within_bulk(call(linker))
-                })
-                .await;
-            let _: Result<(), _> = told.send(answer.and_then(|answer| answer.result.ok()));
-        });
-        if !spawned {
-            return None;
-        }
-        // A cancelled scope drops the sender, which ends the wait as well.
-        answered.await.ok().flatten()
     }
 }
 

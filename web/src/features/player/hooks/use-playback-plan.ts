@@ -18,7 +18,8 @@ import type { WatchState } from "@/gen/nama/v1/watch_state_pb";
  * shows a subtitle the Device shows itself, which `shownSubtitle` then holds, starting as the first
  * plan's `startingSubtitle`, or asks for a new plan from there with a subtitle Track burned in. The
  * plan says which of these it honoured, which may drop `justChose` (ADR 0031). `offsetOf` and
- * `shiftSubtitle` read and set a subtitle's Subtitle Offset, which no plan is asked for.
+ * `shiftSubtitle` read and set a subtitle's Subtitle Offset, which no plan is asked for. `sheets` are
+ * the plan's Preview frames.
  */
 export function usePlaybackPlan({
   versionId,
@@ -32,7 +33,7 @@ export function usePlaybackPlan({
   // again.
   const [asking, setAsking] = useState<Asking>(() => firstAsking(watchState));
   const { startPositionMs } = asking;
-  const { plan, playableVersions } = usePlan(versionId, asking);
+  const { plan, playableVersions, sheets } = usePlan(versionId, asking);
   const askFromHere = asker(setAsking, plan, startPositionMs);
   const subtitles = useSubtitleChoice(askFromHere, plan);
   const failing = useCantPlay(plan, asking, setAsking);
@@ -41,6 +42,7 @@ export function usePlaybackPlan({
     versionId,
     plan,
     playableVersions,
+    sheets,
     startPositionMs,
     justChose,
     asks,

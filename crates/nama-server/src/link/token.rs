@@ -9,19 +9,19 @@ const LEEWAY_SECS: u64 = 60;
 
 /// What a token the Hub signed for a Linked Server says.
 #[derive(Debug, Deserialize)]
-pub(crate) struct Claims {
+pub(super) struct Claims {
     /// Whom it names: the Linked Server, or for a sign-in the User's id on the Server.
     #[serde(default)]
-    pub(crate) sub: String,
+    pub(super) sub: String,
     /// Its Account's email, in the token a newly Linked Server gets.
     #[serde(default)]
-    pub(crate) email: String,
+    pub(super) email: String,
     exp: u64,
 }
 
 /// Why a token didn't pass.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Rejected {
+pub(super) enum Rejected {
     /// The key set has no key by the id the token names: fetch it again.
     UnknownKey,
     /// Malformed, badly signed or expired, with why.
@@ -48,7 +48,7 @@ struct Key {
 
 /// `token`'s claims, if one of `key_set`'s keys signed it and it is unexpired at `now`, in seconds
 /// since the Unix epoch.
-pub(crate) fn verify(key_set: &[u8], token: &str, now: u64) -> Result<Claims, Rejected> {
+pub(super) fn verify(key_set: &[u8], token: &str, now: u64) -> Result<Claims, Rejected> {
     let mut parts = token.split('.');
     let (Some(header), Some(claims), Some(signature), None) =
         (parts.next(), parts.next(), parts.next(), parts.next())

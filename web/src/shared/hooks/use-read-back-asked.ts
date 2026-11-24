@@ -1,3 +1,4 @@
+import { useTransport } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
@@ -11,11 +12,12 @@ import { refusalOf } from "@/shared/lib/forms";
  */
 export function useReadBackAsked() {
   const queryClient = useQueryClient();
+  const transport = useTransport();
   // Waits for the Requests to be read back, so the button stays busy until the change shows.
   const readBack = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: requestsKey }),
-      queryClient.invalidateQueries({ queryKey: searchKey }),
+      queryClient.invalidateQueries({ queryKey: requestsKey(transport) }),
+      queryClient.invalidateQueries({ queryKey: searchKey(transport) }),
     ]);
   };
   return {

@@ -18,7 +18,6 @@ const titleImages: ImageRules = {
     404: "That image isn’t offered any more. Close Edit images and open it again.",
     503: "The title source couldn’t be reached. Try again later.",
   },
-  queryKey: [],
 };
 
 /** One image, with a way to change it, and `choices` to pick from if a title source lists any. */

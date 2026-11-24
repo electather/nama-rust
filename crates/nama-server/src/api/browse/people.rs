@@ -1,13 +1,14 @@
 //! A Person's page as clients see it: `GetPerson`.
 
-use connectrpc::{Response, ServiceResult};
+use connectrpc::{RequestContext, Response, ServiceResult};
 use nama_proto::nama::v1::{self as proto, GetPersonRequest, GetPersonResponse, person_role};
 
 use super::{BrowseServiceHandler, Fields, refused};
 use crate::{
     api::{
-        database_failed, required_id,
+        required_id,
         search::{movie_hit, show_hit},
+        shown_images,
     },
     browse::{PersonPage, PersonTitle},
     library::{Downloaded, OnServer, ShownImages},
@@ -15,6 +16,7 @@ use crate::{
 
 pub(super) async fn get_person(
     handler: &BrowseServiceHandler,
+    ctx: &RequestContext,
     request: GetPersonRequest,
 ) -> ServiceResult<GetPersonResponse> {
     let id = required_id(request.person_id.into_option(), "person_id", "Person")?;
@@ -23,7 +25,7 @@ pub(super) async fn get_person(
         title: "person_id",
         ..Fields::NONE
     }))?;
-    let images = handler.images.shown().await.map_err(database_failed)?;
+    let images = shown_images(&handler.images, ctx).await?;
     let titles = |titles: Vec<PersonTitle>| {
         (titles.into_iter())
             .map(|title| person_role(title, &images))

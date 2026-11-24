@@ -1,7 +1,8 @@
-//! Linking the Server, and its Users, through the enabled Plugin that links it, such as the Hub
-//! Plugin (ADR 0011, ADR 0094), which `Linking` asks: `ServerService`'s `GetServerLink`,
-//! `StartServerLink` and `UnlinkServer`, `UserService`'s `GetUserLink` and `StartUserLink`, and
-//! `SignInService`'s `StartAccountSignIn` (ADR 0092), with the Refusals of `Linking`'s errors.
+//! Linking the Server with the Hub its config names (ADR 0105), and its Users through the enabled
+//! Plugin that links them, such as the Hub Plugin (ADR 0011, ADR 0094), which `Linking` asks:
+//! `ServerService`'s `GetServerLink`, `StartServerLink` and `UnlinkServer`, `UserService`'s
+//! `GetUserLink` and `StartUserLink`, and `SignInService`'s `StartAccountSignIn` (ADR 0092), with
+//! the Refusals of `Linking`'s errors.
 
 use std::net::SocketAddr;
 
@@ -20,9 +21,9 @@ use crate::{
     users::User,
 };
 
-/// What `unavailable` says when the Plugin that links the Server fails.
+/// What `unavailable` says when Linking fails, such as with the Hub unreachable.
 pub(super) const LINKING_FAILED: &str =
-    "the Plugin that links the Server failed; its page says why";
+    "Linking failed; the Server's log or the Hub Plugin's page says why";
 
 /// What `unavailable` says when a sign-in with an Account fails, such as while the Hub is down. A
 /// Device already signed in never needs the Hub (ADR 0092).
@@ -30,16 +31,16 @@ pub(super) const LINKING_FAILED: &str =
 const ACCOUNT_SIGN_IN_FAILED: &str =
     "Signing in with an Account needs the Hub, which can't be reached right now. Try again later.";
 
-/// Where Linking stands, unset without an enabled Plugin that links the Server.
+/// Where Linking the Server stands, unset when its config names no Hub (ADR 0002).
 pub(super) async fn get(linking: &Linking) -> ServiceResult<GetServerLinkResponse> {
-    let link = unless_no_linking_plugin(linking.server_link().await)?;
+    let link = unless_nothing_to_ask(linking.server_link().await)?;
     Response::ok(GetServerLinkResponse {
         link: link.map(link_to_proto).into(),
         ..Default::default()
     })
 }
 
-/// Starts Linking the Server, which the service lists as `name`.
+/// Starts Linking the Server, which the Hub lists as `name`.
 pub(super) async fn start(linking: &Linking, name: &str) -> ServiceResult<StartServerLinkResponse> {
     let link = linking.start_server_link(name).await?;
     Response::ok(StartServerLinkResponse {
@@ -57,7 +58,7 @@ pub(super) async fn unlink(linking: &Linking) -> ServiceResult<UnlinkServerRespo
 /// Where Linking `user` stands, unset while they can't Link: without an enabled Plugin that links
 /// the Server, or before the Server is Linked.
 pub(super) async fn get_user(linking: &Linking, user: &User) -> ServiceResult<GetUserLinkResponse> {
-    let link = unless_no_linking_plugin(linking.user_link(user.id).await)?;
+    let link = unless_nothing_to_ask(linking.user_link(user.id).await)?;
     Response::ok(GetUserLinkResponse {
         link: link.flatten().map(user_link_to_proto).into(),
         ..Default::default()
@@ -112,10 +113,10 @@ pub(super) async fn start_account_sign_in(
     })
 }
 
-/// `answer`, `None` when no Plugin links the Server.
-fn unless_no_linking_plugin<T>(answer: Result<T, link::Error>) -> Result<Option<T>, ConnectError> {
+/// `answer`, `None` when the Server's config names no Hub or no Plugin links its Users.
+fn unless_nothing_to_ask<T>(answer: Result<T, link::Error>) -> Result<Option<T>, ConnectError> {
     match answer {
-        Err(link::Error::NoLinkingPlugin) => Ok(None),
+        Err(link::Error::NoLinkingPlugin | link::Error::NoHub) => Ok(None),
         answer => Ok(Some(answer?)),
     }
 }
@@ -132,10 +133,15 @@ pub(super) fn account_sign_in_failed(err: link::Error) -> ConnectError {
     linking_failed(err, ACCOUNT_SIGN_IN_FAILED)
 }
 
-/// [`link::Error`]'s Connect error, saying `unavailable` when the Plugin couldn't tell.
+/// [`link::Error`]'s Connect error, saying `unavailable` when no answer came.
 fn linking_failed(err: link::Error, unavailable: &'static str) -> ConnectError {
     match err {
         link::Error::NoLinkingPlugin => no_linking_plugin(),
+        link::Error::NoHub => refuse(
+            RefusalReason::REFUSAL_REASON_NO_SERVER_LINKER,
+            "the Server's config names no Hub",
+        )
+        .into(),
         link::Error::Failed => ConnectError::unavailable(unavailable),
     }
 }

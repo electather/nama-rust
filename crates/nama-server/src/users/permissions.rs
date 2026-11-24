@@ -39,7 +39,8 @@ impl Permissions {
             | Permission::ViewRequests
             | Permission::ChooseQuality
             | Permission::DeleteMedia
-            | Permission::DownloadSubtitles => needed,
+            | Permission::DownloadSubtitles
+            | Permission::Download => needed,
         };
         self.0 & (bit(Permission::Admin) | bit(needed) | bit(covering)) != 0
     }

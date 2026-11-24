@@ -39,7 +39,7 @@ SQLX_OFFLINE=true cargo run -p nama-hub
 
 `SQLX_OFFLINE=true` has sqlx's macros check queries against `.sqlx/`: otherwise `sqlx.toml` has them check against `NAMA_HUB_DATABASE_URL`'s database, which the Hub migrates only once it is built.
 
-A Server Links to it through its Hub Plugin, which calls the Hub that `NAMA_HUB_URL` names on the Server, such as `NAMA_HUB_URL=http://localhost:7981 cargo run -p nama-server`. Linking needs an Account whose email a Sign-in Link proved (ADR 0100). Without Resend, start the Hub with `NAMA_HUB_LOG_MAIL=true` and `NAMA_HUB_PUBLIC_URL` set to where its pages are, `http://localhost:7981` with the `web` feature or `vp -C hub dev`'s address without it: the sign-in page then offers Sign-in Links, and asking for one writes the link to the Hub's log, to open from there.
+A Server Links to it itself once its `hub_url` config, or `NAMA_HUB_URL`, names it, such as `NAMA_HUB_URL=http://localhost:7981 cargo run -p nama-server`. Linking needs an Account whose email a Sign-in Link proved (ADR 0100). Without Resend, start the Hub with `NAMA_HUB_LOG_MAIL=true` and `NAMA_HUB_PUBLIC_URL` set to where its pages are, `http://localhost:7981` with the `web` feature or `vp -C hub dev`'s address without it: the sign-in page then offers Sign-in Links, and asking for one writes the link to the Hub's log, to open from there.
 
 ## Importing Wikidata
 

@@ -15,11 +15,12 @@ use crate::{
     },
     matching::{ManualError, Matcher},
     page::Page,
+    signed_urls::{UrlSigner, signed_by},
 };
 
 use super::{
     browse::{Fields, not_found, unmatched_summary},
-    database_failed, external_id_to_proto, refuse, required_id, title_kind_from_proto,
+    database_failed, external_id_to_proto, refuse, required_id, title_kind_from_proto, url_signer,
 };
 
 /// `nama.v1.MatchService`: fixing Matches by hand. Needs `PERMISSION_MANAGE_LIBRARIES`, which
@@ -41,7 +42,7 @@ pub(super) struct MatchServiceHandler {
 impl MatchService for MatchServiceHandler {
     async fn search_titles(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, SearchTitlesRequest>,
     ) -> ServiceResult<SearchTitlesResponse> {
         let request = request.to_owned_message();
@@ -65,7 +66,9 @@ impl MatchService for MatchServiceHandler {
         };
         let candidates = match sources.search_in_turn(&query).await {
             Ok((source, candidates)) => (candidates.into_iter())
-                .map(|candidate| self.candidate_to_proto(&source.plugin, candidate))
+                .map(|candidate| {
+                    self.candidate_to_proto(&source.plugin, candidate, url_signer(&ctx))
+                })
                 .collect(),
             Err(Unanswered::NotFound) => Vec::new(),
             Err(Unanswered::Unavailable) => {
@@ -181,9 +184,16 @@ impl MatchServiceHandler {
         Ok((self.metadata).in_order(self.libraries.get(library).await?.title_sources))
     }
 
-    /// `candidate`, which the Plugin `plugin`'s title source found, with its Poster offered.
-    fn candidate_to_proto(&self, plugin: &PluginId, candidate: Candidate) -> proto::TitleCandidate {
-        let poster_url = (candidate.poster.as_deref()).map(|path| self.artwork.offer(plugin, path));
+    /// `candidate`, which the Plugin `plugin`'s title source found, with its Poster offered and
+    /// signed by `signer` if there is one.
+    fn candidate_to_proto(
+        &self,
+        plugin: &PluginId,
+        candidate: Candidate,
+        signer: Option<&UrlSigner>,
+    ) -> proto::TitleCandidate {
+        let poster_url = (candidate.poster.as_deref())
+            .map(|path| signed_by(signer, self.artwork.offer(plugin, path)));
         proto::TitleCandidate {
             poster_url,
             ..title_to_proto(candidate.into())

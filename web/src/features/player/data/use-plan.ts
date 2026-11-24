@@ -6,6 +6,7 @@ import { planKey, usePlanLifetime } from "@/features/player/data/use-plan-lifeti
 import type { Asking } from "@/features/player/lib/asking";
 import { cantPlayBecause } from "@/features/player/lib/cant-play-plan";
 import { findDeviceDecoding } from "@/features/player/lib/device-decoding";
+import { frameSheets } from "@/features/player/lib/preview-frame";
 import {
   PlanPlaybackResponseSchema,
   PlaybackPlanSchema,
@@ -18,7 +19,8 @@ import { adminStopQuery } from "@/shared/hooks/admin-stop-query";
  * the Server is told the plan it replaces stopped, so that one's Transcode leaves room for it. Its
  * player forgets it on closing (`usePlanLifetime`). A Server too busy to Transcode it, or that
  * fails to plan it, gives a plan that can't play, saying so. With it come the title's other
- * Versions that play on this Device, by id, best first, when the plan can't play.
+ * Versions that play on this Device, by id, best first, when the plan can't play, and its Preview
+ * frames' sheets.
  */
 export function usePlan(versionId: bigint, asking: Asking) {
   const transport = useTransport();
@@ -28,7 +30,7 @@ export function usePlan(versionId: bigint, asking: Asking) {
   const { replacing } = asking;
   const { plan, playableVersions } = useSuspenseQuery({
     queryKey: [
-      ...planKey,
+      ...planKey(transport),
       String(versionId),
       failedRecipes,
       String(startPositionMs),
@@ -61,7 +63,7 @@ export function usePlan(versionId: bigint, asking: Asking) {
         );
         const planned = create(PlaybackPlanSchema, response.plan);
         // Plan ids start again when the Server restarts, so a stop kept under this one was another's.
-        client.removeQueries(adminStopQuery(planned.id));
+        client.removeQueries(adminStopQuery(transport, planned.id));
         return create(PlanPlaybackResponseSchema, {
           plan: planned,
           playableVersions: response.playableVersions,
@@ -75,5 +77,7 @@ export function usePlan(versionId: bigint, asking: Asking) {
     gcTime: 0,
   }).data;
   // Always set above: a message field is optional only in its type.
-  return { plan: plan ?? create(PlaybackPlanSchema), playableVersions };
+  const planned = plan ?? create(PlaybackPlanSchema);
+  const sheets = frameSheets(planned.previewFrames, versionId, transport);
+  return { plan: planned, playableVersions, sheets };
 }

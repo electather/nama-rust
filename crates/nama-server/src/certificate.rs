@@ -140,12 +140,13 @@ fn unusable(err: impl Display) -> Error {
     Error::Unusable(err.to_string())
 }
 
-/// Every [`EVERY`], looks at the Server's names through `linking`. While the service has the
-/// Server Linked and named and `certificate` won't last another [`RENEW_BEFORE_SECS`] for its own
-/// name, it gets one from the ACME CA at `acme_directory`, waiting [`RETRY_AFTER_SECS`] after a
-/// failure. Meanwhile it keeps `server_url`'s default at the Server's public name, or the name of
-/// `relay`, the Relay it dials out to. A certificate it gets is served with `certificate` and kept
-/// in `data_dir`. Runs until the task is aborted.
+/// Every [`EVERY`], and each time the Hub answers a report of the Server Addresses, looks at the
+/// Server's names through `linking`. While the Hub has the Server Linked and named and
+/// `certificate` won't last another [`RENEW_BEFORE_SECS`] for its own name, it gets one from the
+/// ACME CA at `acme_directory`, waiting [`RETRY_AFTER_SECS`] after a failure. Meanwhile it keeps
+/// `server_url`'s default at the Server's public name, or the name of `relay`, the Relay it dials
+/// out to. A certificate it gets is served with `certificate` and kept in `data_dir`. Runs until
+/// the task is aborted.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is a separate input to renewing or to the default Server URL"
@@ -163,8 +164,13 @@ pub(crate) fn keep_renewed(
         // A renewal can outlast a tick, and the ticks it missed needn't follow at once.
         ticks.set_missed_tick_behavior(MissedTickBehavior::Delay);
         let mut next_try = i64::MIN;
+        let mut reports = linking.follow_found();
         loop {
-            ticks.tick().await;
+            tokio::select! {
+                _ = ticks.tick() => {}
+                // Err without a Hub: the arm sits out and the minute still ticks.
+                Ok(()) = reports.changed() => {}
+            }
             let now = db::now();
             let named = named(&linking).await;
             let public =
