@@ -311,7 +311,7 @@ test("cancelling “Confirm it’s you” unticks the Permission before the brow
   });
 });
 
-test("a cancelled “Confirm it’s you”’s late close event leaves the next one waiting", async () => {
+test("a late close event from a cancelled “Confirm it’s you” leaves the next one waiting", async () => {
   closeWithoutCloseEvent();
   const { promoted } = openUsersNeedingRecentAuthentication();
 

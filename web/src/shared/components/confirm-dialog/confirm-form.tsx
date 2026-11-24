@@ -21,6 +21,7 @@ export function ConfirmForm({
   refusal,
 }: Confirmation & {
   id: string;
+  /** Closes it once confirmed. */
   close: () => void;
   /** Closes it unconfirmed, for Cancel and ✕. */
   cancel: () => void;
