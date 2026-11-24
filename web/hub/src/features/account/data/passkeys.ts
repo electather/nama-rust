@@ -4,7 +4,7 @@ import {
   useQuery,
   useTransport,
 } from "@connectrpc/connect-query";
-import { useGoAfterSession } from "@hub/features/account/data/sessions";
+import { useGoAfterSession, useSignInIfSessionEnded } from "@hub/features/account/data/sessions";
 import { createPasskey, signWithPasskey } from "@hub/features/account/lib/webauthn";
 import { AccountService } from "@hub/gen/nama/hub/v1/account_pb";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -39,6 +39,7 @@ export function useAddPasskey() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: passkeysKey });
     },
+    onError: useSignInIfSessionEnded(),
   });
 }
 
@@ -50,6 +51,7 @@ export function useRemovePasskey() {
     mutationFn: async (passkeyId: string) => {
       await callUnaryMethod(transport, AccountService.method.removePasskey, { passkeyId });
     },
+    onError: useSignInIfSessionEnded(),
     // A passkey another tab removed is gone all the same.
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: passkeysKey });

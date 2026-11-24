@@ -17,16 +17,23 @@ export function useSignIn(continueTo: string) {
 
 /** Signs this browser out, then opens the sign-in page. */
 export function useSignOut() {
-  const goToSignIn = useGoAfterSession("/sign-in");
   return useMutation(AccountService.method.signOut, {
-    onSuccess: goToSignIn,
-    onError: async (error) => {
-      // A session that ended while the page was open is signed out all the same.
-      if (refusalReason(error) === RefusalReason.SIGN_IN_REQUIRED) {
-        await goToSignIn();
-      }
-    },
+    onSuccess: useGoAfterSession("/sign-in"),
+    onError: useSignInIfSessionEnded(),
   });
+}
+
+/**
+ * An `onError` that opens the sign-in page when the call was refused because this browser's
+ * session already ended, elsewhere or by expiring: trying again could never succeed.
+ */
+export function useSignInIfSessionEnded() {
+  const goToSignIn = useGoAfterSession("/sign-in");
+  return async (error: Error) => {
+    if (refusalReason(error) === RefusalReason.SIGN_IN_REQUIRED) {
+      await goToSignIn();
+    }
+  };
 }
 
 /** Deletes the signed-in Account, which signs this browser out, then opens the sign-in page. */
