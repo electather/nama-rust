@@ -20,6 +20,9 @@ const sections = [
   "default-home",
   "server-playback",
   "plugins",
+  "account",
+  "account-signin",
+  "account-sessions",
 ] as const;
 
 /** A section of Settings. */
@@ -81,6 +84,9 @@ export const sectionTitles: Record<Section, string> = {
   "default-home": "Default Home",
   "server-playback": "Server Playback",
   plugins: "Plugins",
+  account: "Account",
+  "account-signin": "Sign-in",
+  "account-sessions": "Sessions",
 };
 
 /** What a pane that didn't load says it couldn't load. */
@@ -101,6 +107,9 @@ export const loadNouns: Record<Section, string> = {
   "default-home": "the default Home layout",
   "server-playback": "the Server’s Playback settings",
   plugins: "the Plugins",
+  account: "your Account",
+  "account-signin": "your sign-in details",
+  "account-sessions": "where you’re signed in",
 };
 
 /** What else search finds a section by, past its name, for the sections that have such words. */
@@ -111,6 +120,9 @@ export const sectionWords: Partial<Record<Section, string>> = {
   "now-playing": "now playing watching streams sessions stop transcode",
   jobs: "jobs schedule run tasks upkeep",
   requests: "requests quality withdraw approve decline pending followed shows",
+  account: "email delete",
+  "account-signin": "password passkeys",
+  "account-sessions": "sign out browsers",
 };
 
 /** The sidebar's sections under a heading. */
@@ -144,8 +156,16 @@ const groups: SectionGroup[] = [
   },
 ];
 
-/** The sections `user` may open, grouped as the sidebar lists them. */
-export function groupsFor(user: User | undefined): SectionGroup[] {
+// The Account's own Sections, only at the Hub (ADR 0105), where no Server's are.
+const hubGroups: SectionGroup[] = [
+  { label: "Your Account", items: ["account", "account-signin", "account-sessions"] },
+];
+
+/** The sections `user` may open, grouped as the sidebar lists them; at the Hub, the Account's. */
+export function groupsFor(user: User | undefined, atHub: boolean): SectionGroup[] {
+  if (atHub) {
+    return hubGroups;
+  }
   return shownGroups((section) => {
     const permission = needs[section];
     return permission === undefined || may(user, permission);
@@ -159,7 +179,11 @@ function shownGroups(keep: (section: Section) => boolean): SectionGroup[] {
     .filter((group) => group.items.length > 0);
 }
 
-/** `asked` if `from` lists it, else the first section: a section `user` may not open isn't shown. */
+/**
+ * `asked` if `from` lists it, else the first section, or at the Hub, which lists no Playback, the
+ * first `from` lists: a section `user` may not open isn't shown.
+ */
 export function openSection(from: SectionGroup[], asked: Section): Section {
-  return from.some((group) => group.items.includes(asked)) ? asked : firstSection;
+  const listed = from.flatMap((group) => group.items);
+  return [asked, firstSection].find((section) => listed.includes(section)) ?? listed[0] ?? asked;
 }

@@ -37,7 +37,7 @@ use crate::{
     signed_urls::{UrlSigner, admit},
     sync::Syncing,
     users::{
-        Caller, SetupCode, SignIn, Users, cleared_session_cookie, identify_caller,
+        Caller, Device, SetupCode, SignIn, Users, cleared_session_cookie, identify_caller,
         in_session_cookie,
     },
 };
@@ -150,6 +150,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(sign_in::SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
+            users: users.clone(),
             linking: users.linking().clone(),
             syncing: syncing.clone(),
             server_url: settings.server_url(),
@@ -276,6 +277,13 @@ pub(crate) fn router(
 fn caller(ctx: &RequestContext) -> Result<&Caller, ConnectError> {
     ctx.extensions()
         .get::<Caller>()
+        .ok_or_else(sign_in_required)
+}
+
+/// The signed-in Device making the call, whether or not it acts as one of its Users.
+fn calling_device(ctx: &RequestContext) -> Result<&Device, ConnectError> {
+    ctx.extensions()
+        .get::<Device>()
         .ok_or_else(sign_in_required)
 }
 
