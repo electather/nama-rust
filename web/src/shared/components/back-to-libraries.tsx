@@ -5,7 +5,7 @@ import { buttonVariants } from "nama-ui/components/button";
 export function BackToLibraries() {
   return (
     // Pulled back by the button's own padding, so its words line up with the text above.
-    <div className="-ms-4 mt-6">
+    <div className="-ms-2.5 mt-6">
       <Link to="/" className={buttonVariants({ variant: "ghost" })}>
         Back to your Libraries
       </Link>

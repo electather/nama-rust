@@ -33,7 +33,7 @@ export function ServerLinkCode({
       <p className="text-xs text-muted-foreground">
         Waiting for it to be entered. It works for 10 minutes.
       </p>
-      <div className="-ms-4">
+      <div className="-ms-2.5">
         <Button variant="ghost" disabled={pending} onClick={onCancel}>
           Cancel
         </Button>
