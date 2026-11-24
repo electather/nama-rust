@@ -27,8 +27,8 @@ import { traceCalls } from "@/shared/lib/diagnostics";
 import { getRouter } from "./router";
 
 // A file's first `findBy…` waits while the app's route chunks load for the first time, which took
-// over the default 1 s on a busy CI runner.
-configure({ asyncUtilTimeout: 5000 });
+// over 5 s under a full parallel run (#2100); `vite.config.ts`'s `testTimeout` stays above it.
+configure({ asyncUtilTimeout: 10_000 });
 
 /** What a new User gets: the Permissions to make Requests, which manage nothing. */
 export const newUser = [Permission.REQUEST, Permission.VIEW_REQUESTS];
