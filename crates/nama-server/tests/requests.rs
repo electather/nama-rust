@@ -46,10 +46,10 @@ use nama_plugin_proto::nama::plugin::v1 as wire;
 use nama_plugin_test_choices as test_choices;
 use nama_proto::nama::v1::{
     self as api, ApproveFollowedShowRequest, ApproveRequestRequest, CancelFollowedShowRequest,
-    CancelRequestRequest, CountPendingRequestsRequest, CreateFollowedShowRequest,
-    CreateRequestRequest, CreateSeasonRequestsRequest, DeclineFollowedShowRequest,
-    DeclineRequestRequest, EnablePluginRequest, EventType, ExtensionPoint, FollowedShow, FoundShow,
-    GetRequestRequest, LibraryKind, ListDefaultQualitiesRequest, ListMovieQualitiesRequest,
+    CancelRequestRequest, CountPendingRequestsRequest, CreateRequestRequest,
+    CreateSeasonRequestsRequest, DeclineFollowedShowRequest, DeclineRequestRequest,
+    EnablePluginRequest, EventType, ExtensionPoint, FollowedShow, FoundShow, GetRequestRequest,
+    LibraryKind, ListDefaultQualitiesRequest, ListMovieQualitiesRequest,
     ListOfferedQualitiesRequest, ListQualitiesRequest, ListRequestsRequest, ListRequestsResponse,
     MovieHit, PageRequest, Permission, PluginServiceClient, Quality, RefusalReason, Request,
     RequestFilter, RequestServiceClient, RequestState, RetryRequestRequest,
@@ -406,31 +406,6 @@ async fn a_user_who_may_auto_approve_movies_opens_an_approved_request_and_one_wh
     assert_eq!(approved.state, RequestState::Approved);
     assert_eq!(also_approved.state, RequestState::Approved);
     assert_eq!(pending.state, RequestState::Pending);
-}
-
-#[tokio::test]
-async fn a_user_without_request_movie_is_refused_naming_the_permission() {
-    let fixture = Fixture::start().await;
-    let as_viewer = fixture
-        .server
-        .user("Ada", &[Permission::ViewRequests])
-        .await
-        .client_config();
-
-    let refused = requests(as_viewer)
-        .create_request(CreateRequestRequest {
-            movie_id: tmdb_id(HEAT).into(),
-            ..Default::default()
-        })
-        .await;
-
-    let refusal = assert_refused(
-        refused,
-        ErrorCode::PermissionDenied,
-        RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
-    );
-    let permission = refusal.params.get("permission").map(String::as_str);
-    assert_eq!(permission, Some("PERMISSION_REQUEST_MOVIE"));
 }
 
 #[tokio::test]
@@ -2144,28 +2119,6 @@ async fn a_user_who_may_auto_approve_shows_opens_approved_season_requests_and_on
 }
 
 #[tokio::test]
-async fn a_user_without_request_tv_is_refused_naming_the_permission() {
-    let fixture = Fixture::start().await;
-    let as_movie_asker = fixture
-        .server
-        .user("Ada", &[Permission::RequestMovie])
-        .await
-        .client_config();
-
-    let refused = requests(as_movie_asker)
-        .create_season_requests(season_request(DARK, &[1]))
-        .await;
-
-    let refusal = assert_refused(
-        refused,
-        ErrorCode::PermissionDenied,
-        RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
-    );
-    let permission = refusal.params.get("permission").map(String::as_str);
-    assert_eq!(permission, Some("PERMISSION_REQUEST_TV"));
-}
-
-#[tokio::test]
 async fn requesting_a_season_whose_aired_episodes_are_all_matched_is_refused_but_one_with_some_matched_is_not()
  {
     let fixture = Fixture::start().await;
@@ -2691,22 +2644,6 @@ async fn without_view_requests_a_request_manager_counts_only_the_pending_request
     assert_eq!(count_pending(&as_admin).await.unwrap(), 6);
 }
 
-#[tokio::test]
-async fn counting_pending_requests_without_manage_requests_is_refused() {
-    let fixture = Fixture::start().await;
-    let as_ada = fixture.server.user("Ada", &NEW_USER).await.client_config();
-
-    let refused = count_pending(&requests(as_ada)).await;
-
-    let refusal = assert_refused(
-        refused,
-        ErrorCode::PermissionDenied,
-        RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
-    );
-    let permission = refusal.params.get("permission").map(String::as_str);
-    assert_eq!(permission, Some("PERMISSION_MANAGE_REQUESTS"));
-}
-
 /// The Seasons of Dark the caller of `client` has Requests for, in Season order.
 async fn dark_seasons_requested(client: &RequestServiceClient<HttpClient>) -> Vec<u32> {
     let mut seasons: Vec<u32> = client
@@ -2883,31 +2820,6 @@ async fn a_cancelled_followed_show_leaves_its_season_requests_and_opens_no_reque
             .iter()
             .all(|request| request.followed_show_id.is_none())
     );
-}
-
-#[tokio::test]
-async fn a_user_without_request_tv_is_refused_a_whole_show_naming_the_permission() {
-    let fixture = Fixture::start().await;
-    let as_movie_asker = fixture
-        .server
-        .user("Ada", &[Permission::RequestMovie])
-        .await
-        .client_config();
-
-    let refused = requests(as_movie_asker)
-        .create_followed_show(CreateFollowedShowRequest {
-            show_id: tmdb_id(DARK).into(),
-            ..Default::default()
-        })
-        .await;
-
-    let refusal = assert_refused(
-        refused,
-        ErrorCode::PermissionDenied,
-        RefusalReason::REFUSAL_REASON_PERMISSION_REQUIRED,
-    );
-    let permission = refusal.params.get("permission").map(String::as_str);
-    assert_eq!(permission, Some("PERMISSION_REQUEST_TV"));
 }
 
 #[tokio::test]

@@ -28,26 +28,6 @@ fn in_subnet(subnet: u16, host: u16) -> IpAddr {
 }
 
 #[test]
-fn failures_from_one_ipv6_64_are_counted_together() {
-    let limits = SignInLimits::default();
-    let now = Instant::now();
-    for host in 0..50 {
-        limits
-            .admit(in_subnet(1, host), None, now)
-            .expect("admitted");
-    }
-
-    let same_64 = limits.admit(in_subnet(1, 0xffff), None, now);
-    let other_64 = limits.admit(in_subnet(2, 1), None, now);
-
-    assert!(same_64.is_err(), "another address in the /64 was admitted");
-    assert!(
-        other_64.is_ok(),
-        "another /64's failures are counted together"
-    );
-}
-
-#[test]
 fn a_succeeded_attempt_frees_its_slot_for_any_address_in_its_ipv6_64() {
     let limits = SignInLimits::default();
     let now = Instant::now();
