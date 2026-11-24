@@ -15,12 +15,13 @@ use nama_plugin_api::{
 use nama_plugin_tmdb::{Endpoints, Tmdb, testing::API_KEY};
 use tempfile::TempDir;
 
-use super::{Artwork, Picked, pick};
+use super::{Artwork, Error, KEPT_DIR, Picked, pick};
 use crate::{
     db::Database,
-    images::ImageStore,
+    images::{ImageStore, MAX_SVG_BYTES},
     library::{
         contents::{Contents, ImageRef},
+        scripted::{ScriptedSource, SourcesAsked},
         title_source::{self, ArtworkKind, Source},
     },
     plugins::Registry,
@@ -130,6 +131,74 @@ async fn an_svg_is_served_as_an_image_whose_script_cannot_run() {
             "nosniff",
         ]
     );
+}
+
+/// Artwork in `data` whose one title source, the Plugin `aa`, answers `path` with `bytes`.
+async fn artwork_answering(data: &TempDir, path: &str, bytes: &[u8]) -> Artwork {
+    let source = ScriptedSource::new("aa", &SourcesAsked::default()).with_image(path, bytes);
+    let plugins = Registry::new();
+    plugins.enable(Arc::new(source)).unwrap();
+    let db = Database::open(data.path()).await.unwrap();
+    Artwork::new(
+        ImageStore::new(data.path(), Arc::new(db)),
+        plugins.extension_points(),
+    )
+}
+
+/// The body `artwork` serves for the kept image at `path` from the Plugin `aa`.
+async fn served(artwork: &Artwork, path: &str) -> Result<Vec<u8>, Error> {
+    let request = Request::get("/").body(Body::empty()).unwrap();
+    let response = (artwork.serve_image((KEPT_DIR, "aa", path), None, request)).await?;
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX);
+    Ok(body.await.unwrap().to_vec())
+}
+
+#[tokio::test]
+async fn an_svg_from_a_title_source_is_stored_without_its_script() {
+    let data = tempfile::tempdir().unwrap();
+    let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script><rect width="1" height="1"/></svg>"#;
+    let artwork = artwork_answering(&data, "/logo.svg", svg).await;
+
+    let body = String::from_utf8(served(&artwork, "/logo.svg").await.unwrap()).unwrap();
+
+    assert!(body.contains("<rect"), "{body}");
+    assert!(
+        !body.contains("script") && !body.contains("onload"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn an_svg_over_the_size_cap_is_not_stored() {
+    let data = tempfile::tempdir().unwrap();
+    let padding = " ".repeat(MAX_SVG_BYTES);
+    let svg = format!(r#"<svg xmlns="http://www.w3.org/2000/svg">{padding}</svg>"#);
+    let artwork = artwork_answering(&data, "/big.svg", svg.as_bytes()).await;
+
+    let served = served(&artwork, "/big.svg").await;
+
+    assert!(matches!(served, Err(Error::NotFound)), "{served:?}");
+    assert_eq!(artwork.store.list(KEPT_DIR).await.unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn a_body_at_an_svg_path_that_is_not_svg_is_not_stored() {
+    let data = tempfile::tempdir().unwrap();
+    let artwork = artwork_answering(&data, "/logo.svg", b"<html><svg").await;
+
+    let served = served(&artwork, "/logo.svg").await;
+
+    assert!(matches!(served, Err(Error::NotFound)), "{served:?}");
+    assert_eq!(artwork.store.list(KEPT_DIR).await.unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn a_png_is_stored_as_the_title_source_gave_it() {
+    let data = tempfile::tempdir().unwrap();
+    let png = b"\x89PNG\r\n\x1a\n<svg><script/></svg>";
+    let artwork = artwork_answering(&data, "/poster.png", png).await;
+
+    assert_eq!(served(&artwork, "/poster.png").await.unwrap(), png);
 }
 
 /// The source of the Plugin `plugin`.

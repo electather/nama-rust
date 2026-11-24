@@ -323,8 +323,8 @@ fn guard(response: &mut Response, content_type: &'static str) {
     );
     if content_type == SVG {
         // `sandbox` keeps a script from running when someone opens the SVG in its own tab, and
-        // `attachment` from it showing there at all: for a title source's SVG artwork, which
-        // isn't cleaned, they're the only guard (`AGENTS.md`).
+        // `attachment` from it showing there at all, should `clean_svg` ever miss one
+        // (`AGENTS.md`).
         headers.insert(
             header::CONTENT_SECURITY_POLICY,
             HeaderValue::from_static("default-src 'none'; style-src 'unsafe-inline'; sandbox"),
