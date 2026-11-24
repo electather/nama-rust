@@ -279,10 +279,11 @@ pub fn serve(
             forwarded_port,
             relay,
         );
+        let closing = events.clone();
         let served = tls::serve(listener, relayed, app, Arc::new(certificate), async move {
             shutdown.await;
             // A subscription never ends by itself, and the shutdown waits for every response.
-            events.close();
+            closing.close();
         })
         .await;
         // First, so their ffmpeg doesn't start on a Version as the plans stop.
@@ -317,6 +318,9 @@ pub fn serve(
         plugins.shutdown().await;
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
         drop(automation);
+        // Once nothing publishes, so the inboxes miss no notification, and before the database
+        // closes.
+        events.shutdown().await;
         served
     }
 }

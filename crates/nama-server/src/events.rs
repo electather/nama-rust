@@ -9,7 +9,7 @@
 
 use std::{
     collections::{BTreeMap, HashMap},
-    sync::{Arc, OnceLock},
+    sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
 use futures_util::{Stream, StreamExt, future, stream};
@@ -22,9 +22,12 @@ use nama_proto::nama::v1::{
     Event, EventType, FollowedShow, Lagged, NotificationKind, Permission, Request, RequestState,
     SubscribeResponse, event, subscribe_response,
 };
-use tokio::sync::{
-    broadcast::{self, error::RecvError},
-    mpsc,
+use tokio::{
+    sync::{
+        broadcast::{self, error::RecvError},
+        mpsc,
+    },
+    task::JoinHandle,
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
@@ -61,9 +64,20 @@ pub(crate) struct EventBus {
     server_url: ServerUrl,
     /// Cancelled when the Server shuts down, which ends every subscription.
     closed: CancellationToken,
-    /// Feeds the one task that stores personal notifications in inboxes, started by the first, so
-    /// they are stored in the order they were published.
-    inboxes: Arc<OnceLock<mpsc::UnboundedSender<Event>>>,
+    /// The one task that stores personal notifications in inboxes, so they are stored in the
+    /// order they were published.
+    inboxes: Arc<Mutex<Inboxes>>,
+}
+
+/// The task that stores personal notifications in inboxes, as [`EventBus::publish`] feeds it.
+#[derive(Debug, Default)]
+enum Inboxes {
+    /// Started by the first personal notification, so building an [`EventBus`] needs no runtime.
+    #[default]
+    NotStarted,
+    Storing(mpsc::UnboundedSender<Event>, JoinHandle<()>),
+    /// [`EventBus::shutdown`] stopped it: the database is about to close.
+    Stopped,
 }
 
 /// What a subscriber asked to narrow their events to. It only narrows what their [`Viewer`] sees.
@@ -130,7 +144,7 @@ impl EventBus {
             return;
         }
         let batch = plugins::observed(&events);
-        self.keep_in_inboxes(&events);
+        self.queue_for_inboxes(&events);
         for event in events {
             // Fails only when nobody is subscribed, which is fine.
             let _: Result<usize, _> = self.sender.send(event.clone());
@@ -165,21 +179,44 @@ impl EventBus {
             });
     }
 
-    /// Stores each of `events` that makes a personal notification in the inbox of each User
+    /// Queues each of `events` that makes a personal notification for the inbox of each User
     /// [`users_to_tell`] picks, whether or not a Notifier reaches them.
-    fn keep_in_inboxes(&self, events: &[Event]) {
-        for event in events
-            .iter()
+    fn queue_for_inboxes(&self, events: &[Event]) {
+        let mut personal = (events.iter())
             .filter(|event| notification_kind(event).is_some())
+            .peekable();
+        if personal.peek().is_none() {
+            return;
+        }
+        // Held while sending, so two `publish`es at once queue their events in one order.
+        let mut inboxes = lock(&self.inboxes);
+        if matches!(*inboxes, Inboxes::NotStarted) {
+            // Unbounded, as `publish` can't wait; it carries one event per Request change.
+            let (sender, receiver) = mpsc::unbounded_channel();
+            let storing = tokio::spawn(store_each_in_inboxes(Arc::clone(&self.db), receiver));
+            *inboxes = Inboxes::Storing(sender, storing);
+        }
+        let Inboxes::Storing(sender, _) = &*inboxes else {
+            return;
+        };
+        for event in personal {
+            // Fails only if the task panicked, which `shutdown` logs.
+            let _: Result<(), _> = sender.send(event.clone());
+        }
+    }
+
+    /// Stores the personal notifications published so far and stops storing any more: once
+    /// nothing publishes, and before the database closes, as the task holds it.
+    pub(crate) async fn shutdown(&self) {
+        let stopped = std::mem::replace(&mut *lock(&self.inboxes), Inboxes::Stopped);
+        let Inboxes::Storing(sender, storing) = stopped else {
+            return;
+        };
+        drop(sender);
+        if let Err(err) = storing.await
+            && err.is_panic()
         {
-            let inboxes = self.inboxes.get_or_init(|| {
-                // Unbounded, as `publish` can't wait; it carries one event per Request change.
-                let (sender, receiver) = mpsc::unbounded_channel();
-                tokio::spawn(keep_each_in_inboxes(Arc::clone(&self.db), receiver));
-                sender
-            });
-            // Fails only once the task ended, which it does only when every sender is gone.
-            let _: Result<(), _> = inboxes.send(event.clone());
+            error!("storing notifications in inboxes panicked: {err}");
         }
     }
 
@@ -354,10 +391,10 @@ async fn deliver(
     }
 }
 
-/// [`keep_in_inbox`] for each event `published` sends, in order, logging each that fails.
-async fn keep_each_in_inboxes(db: Arc<Database>, mut published: mpsc::UnboundedReceiver<Event>) {
+/// [`store_in_inboxes`] for each event `published` sends, in order, logging each that fails.
+async fn store_each_in_inboxes(db: Arc<Database>, mut published: mpsc::UnboundedReceiver<Event>) {
     while let Some(event) = published.recv().await {
-        if let Err(err) = keep_in_inbox(&db, &event).await {
+        if let Err(err) = store_in_inboxes(&db, &event).await {
             error!("could not store a Request notification in the inbox: {err}");
         }
     }
@@ -365,12 +402,19 @@ async fn keep_each_in_inboxes(db: Arc<Database>, mut published: mpsc::UnboundedR
 
 /// Stores `event`, if it makes a personal notification, in the inbox of each User
 /// [`users_to_tell`] picks.
-async fn keep_in_inbox(db: &Database, event: &Event) -> Result<(), sqlx::Error> {
+async fn store_in_inboxes(db: &Database, event: &Event) -> Result<(), sqlx::Error> {
     let Some((kind, request)) = notification_kind(event) else {
         return Ok(());
     };
     let users = every_user(db).await?;
-    let turned_off = every_notification_turned_off(db).await?;
+    let turned_off = match every_notification_turned_off(db).await {
+        Ok(turned_off) => turned_off,
+        // As `deliver` does: keeping a kind someone turned off beats missing one they want.
+        Err(err) => {
+            error!("could not read who turned notifications off, so stored for all: {err}");
+            Vec::new()
+        }
+    };
     let told = users_to_tell(event, &users, &turned_off);
     store_in_inbox(db, told, kind, request).await
 }
@@ -661,6 +705,11 @@ pub(crate) fn event(happened: impl Into<event::Event>) -> Event {
         event: Some(happened.into()),
         ..Default::default()
     }
+}
+
+// No code that could panic runs while one is held, so a poisoned lock's value is still whole.
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 #[cfg(test)]
