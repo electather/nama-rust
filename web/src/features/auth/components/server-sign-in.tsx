@@ -1,5 +1,5 @@
 import { useApproveServerSignIn } from "@/features/auth/data/use-approve-server-sign-in";
-import { hubErrors } from "@/features/auth/lib/hub-errors";
+import { serverSignInErrors } from "@/features/auth/lib/hub-errors";
 import { SignInLayout } from "@/shared/components/sign-in-layout/sign-in-layout";
 
 /**
@@ -23,7 +23,7 @@ export function ServerSignIn({
       heading={`Sign in to ${serverName}`}
       action={going ? `Going back to ${serverName}…` : `Sign in as ${userName}`}
       pending={going}
-      errors={approve.error ? hubErrors(approve.error) : {}}
+      errors={approve.error ? serverSignInErrors(approve.error) : {}}
       onSubmit={() => {
         approve.mutate({ id });
       }}

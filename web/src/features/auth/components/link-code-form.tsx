@@ -39,7 +39,7 @@ export function LinkCodeForm({
         onCode(formText(typed, "code"), form);
       })}
     >
-      <h2 id={id} className="text-lg/6 font-medium">
+      <h2 id={id} className="text-lg font-semibold">
         {heading}
       </h2>
       <FormField

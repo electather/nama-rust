@@ -20,6 +20,11 @@ export function hubErrors(error: unknown): FormErrors {
   return sayHubRefusal(error, wording, "The Hub couldn’t do that just now. Try again.");
 }
 
+/** Why the Hub refused to look up or approve a sign-in to a Server. */
+export function serverSignInErrors(error: unknown): FormErrors {
+  return sayHubRefusal(error, wording, "The Hub couldn’t sign you in just now. Try again.");
+}
+
 /** What a form says for each reason it words, given the Refusal's params by key. */
 export type HubWording = Partial<
   Record<RefusalReason, (param: (key: string) => string) => FormErrors>
