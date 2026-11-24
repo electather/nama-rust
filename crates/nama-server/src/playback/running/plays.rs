@@ -112,13 +112,14 @@ impl RunningPlans {
     }
 
     /// Keeps `progress`, which the Device `device` reported through the Version `version`, beside
-    /// each of its plans of it, for [`Self::plays`].
+    /// the Device's newest plan of that Version, for [`Self::plays`]. An older one is most likely a
+    /// play left without a stop, such as a reloaded tab's, so it keeps what it last had.
     pub(crate) fn report_progress(&self, version: i64, device: i64, progress: ReportedProgress) {
         let plans = lock(&self.inner.plans);
-        let reported = plans.values().filter(|plan| {
-            plan.playback.version_id == version && plan.playback.device_id == device
-        });
-        for plan in reported {
+        let newest = (plans.values())
+            .filter(|plan| version_on_device(plan) == (version, device))
+            .max_by_key(|plan| plan.playback.plan_id);
+        if let Some(plan) = newest {
             *lock(&plan.progress) = Some(progress);
         }
     }
@@ -126,7 +127,12 @@ impl RunningPlans {
 
 /// Whether `a` and `b` play the same Version on the same Device.
 fn plays_alike(a: &Plan, b: &Plan) -> bool {
-    (a.playback.version_id, a.playback.device_id) == (b.playback.version_id, b.playback.device_id)
+    version_on_device(a) == version_on_device(b)
+}
+
+/// The Version `plan` plays and the Device it plays on.
+fn version_on_device(plan: &Plan) -> (i64, i64) {
+    (plan.playback.version_id, plan.playback.device_id)
 }
 
 #[cfg(test)]
