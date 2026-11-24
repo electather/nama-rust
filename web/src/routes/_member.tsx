@@ -2,6 +2,7 @@ import { create } from "@bufbuild/protobuf";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
 import { MemberLayout } from "@/app/member-layout";
+import { SettingsLoader } from "@/app/settings-loader";
 import { type Section, idParam, sectionParam, userParam } from "@/features/settings/lib/sections";
 import { WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
 import { SignedOutLayout } from "@/shared/components/sign-in-layout/signed-out-layout";
@@ -70,6 +71,7 @@ function Member() {
     return (
       <SignedOutLayout>
         <Outlet />
+        <SettingsLoader user={undefined} atHub />
       </SignedOutLayout>
     );
   }

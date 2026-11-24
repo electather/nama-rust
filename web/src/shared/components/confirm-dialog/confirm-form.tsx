@@ -1,5 +1,5 @@
 import { Button } from "nama-ui/components/button";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { CloseButton } from "@/shared/components/confirm-dialog/close-button";
 import type { Confirmation } from "@/shared/components/confirm-dialog/confirm-modal";
@@ -27,7 +27,7 @@ export function ConfirmForm({
   destructive: boolean;
 }) {
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<ReactNode>();
 
   function cancel() {
     onCancel?.();
