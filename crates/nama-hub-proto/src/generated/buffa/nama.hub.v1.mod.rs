@@ -144,6 +144,8 @@ pub mod __buffa {
         reg.register_json_any(super::__POLL_SERVER_SIGN_IN_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_SERVER_ADDRESSES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_SERVER_ADDRESSES_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_CERTIFICATE_CHALLENGE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_CERTIFICATE_CHALLENGE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_TRENDING_TITLES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_TRENDING_TITLES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__TRENDING_TITLE_JSON_ANY);
@@ -609,6 +611,14 @@ pub use self::__buffa::view::SetServerAddressesRequestOwnedView;
 pub use self::__buffa::view::SetServerAddressesResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetServerAddressesResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetCertificateChallengeRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetCertificateChallengeRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetCertificateChallengeResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetCertificateChallengeResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ListTrendingTitlesRequestView;
 #[doc(inline)]

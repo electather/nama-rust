@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (SELECT FROM linked_servers WHERE id = $1) AS \"linked!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "linked!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "7316079f6ef59d24769a4561cea7bbb73c7fb7cf383affeda8392e34c479c455"
+}

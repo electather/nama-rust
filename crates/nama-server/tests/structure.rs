@@ -112,7 +112,14 @@ const ROWS: &[&[&str]] = &[
     &["sync", "browse", "scanner", "plugin_settings"],
     &["home_rows", "requests", "playback", "matching", "watchlist"],
     &["library"],
-    &["events", "connections", "users", "server_addresses", "link"],
+    &[
+        "events",
+        "connections",
+        "users",
+        "server_addresses",
+        "certificate",
+        "link",
+    ],
     &["plugins"],
     &["backup"],
     &[
@@ -121,6 +128,7 @@ const ROWS: &[&[&str]] = &[
         "ffmpeg",
         "web",
         "port_mapping",
+        "tls",
         "diagnostics",
         "db",
         "page",

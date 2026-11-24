@@ -104,4 +104,7 @@ enum RefusalReason {
   // `already_exists`: the signed-in Account has a User Linked on that Server already, and an
   // Account Links one User on each Server. Unlink that User first.
   REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER = 29;
+  // `invalid_argument`: a Server sent more than `maxValues` certificate challenge values, or one
+  // that isn't a DNS-01 challenge's value. Params: `maxValues`.
+  REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID = 30;
 }

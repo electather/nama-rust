@@ -193,6 +193,22 @@ pub trait ServerLinker: Send + Sync + 'static {
     /// When the service couldn't be told: the Kernel tells the Plugin again a minute later.
     fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>>;
 
+    /// Has the service publish `values` as the DNS-01 challenge an ACME CA set the Server for a
+    /// certificate for its [`Reachability::names`], replacing any published before, or remove them
+    /// when it is empty (ADR 0057). Only the challenge leaves the Server, never the certificate's
+    /// key.
+    ///
+    /// # Errors
+    ///
+    /// When the Server isn't Linked, the service names no Server or couldn't be told, and from a
+    /// service that publishes none.
+    fn set_certificate_challenge(
+        &self,
+        _values: Vec<String>,
+    ) -> BoxFuture<'_, Result<(), PluginError>> {
+        Box::pin(async { Err("the service publishes no certificate challenge".into()) })
+    }
+
     /// The Watch State the service keeps of the User `user_id` from every Server they use, such as
     /// their Account's on the Hub (ADR 0008), each title's by any of its ids, with when it last
     /// changed; empty while they aren't Linked. The Kernel takes what is newer than its own.

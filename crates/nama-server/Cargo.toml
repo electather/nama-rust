@@ -15,7 +15,7 @@ repository.workspace = true
 testing = ["dep:nama-plugin-test-choices"]
 # Embeds the built web app (`web/dist`, from `vp build`) and serves it. Off by default so builds
 # and tests need no Node; release builds turn it on (`dist-workspace.toml`).
-web = ["dep:tower"]
+web = []
 
 [dependencies]
 axum = { version = "0.8", default-features = false, features = ["http1", "http2", "query", "tokio"] }
@@ -37,6 +37,9 @@ glob = "0.3"
 icu_normalizer = { version = "2.4.0", default-features = false, features = ["compiled_data"] }
 icu_properties = "2.4.0"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
+# Gets the certificate for the Server's names on the Hub (ADR 0057). `rcgen` makes its key and
+# CSR here, and `ring` is the crypto the Server's rustls already builds.
+instant-acme = { version = "0.8.5", default-features = false, features = ["hyper-rustls", "rcgen", "ring"] }
 isolang = { version = "2.4", default-features = false }
 # Reads a Job's schedule in the Server's time zone, from the system's time zone database, which
 # `docker/Dockerfile` installs, or on Windows, which has none, from the one jiff bundles there.
@@ -82,8 +85,10 @@ tempfile = "3"
 thiserror = "2"
 thumbhash = "0.1"
 tokio = { version = "1", features = ["fs", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
+# Serves HTTPS on the Server's own port (`tls.rs`), with the rustls above.
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
 tokio-util = { version = "0.7", features = ["io", "rt"] }
-tower = { version = "0.5", default-features = false, features = ["util"], optional = true }
+tower = { version = "0.5", default-features = false, features = ["util"] }
 tower-http = { version = "0.7.1", default-features = false, features = [
     "compression-br",
     "compression-gzip",
@@ -96,6 +101,8 @@ url = "2"
 walkdir = "2"
 # Only to tell a trap from other failed calls; its version must be the one extism uses.
 wasmtime = { version = "49.0.7", default-features = false }
+# Reads when the certificate for the Server's names expires, and which names it is for.
+x509-parser = { version = "0.18", default-features = false }
 
 [target.'cfg(unix)'.dependencies]
 # Only `access`, which sees a read-only mount as well as a folder's mode, `statvfs`, for the
@@ -113,6 +120,8 @@ http-body-util = "0.1"
 hyper = { version = "1", features = ["client", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 jxl = "0.8"
+# Makes the certificates the HTTPS tests trust.
+rcgen = { version = "0.14", default-features = false, features = ["pem", "ring"] }
 nama-server = { path = ".", features = ["testing"] }
 nama-plugin-tmdb = { version = "0.1.0", path = "../../plugins/tmdb", features = ["testing"] }
 nama-structure = { path = "../nama-structure" }

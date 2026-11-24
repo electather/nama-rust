@@ -10,14 +10,18 @@ mod linking;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/mail.rs"]
 mod mail;
+#[path = "support/refused.rs"]
+mod refused;
 
-use connectrpc::ConnectError;
+use connectrpc::{ConnectError, ErrorCode};
 use hub::{TestHub, ZONE};
 use linking::*;
 use nama_hub::dns::Record;
 use nama_hub_proto::nama::hub::v1::{
-    ListLinkedServersRequest, SetServerAddressesRequest, UnlinkServerRequest,
+    ListLinkedServersRequest, RefusalReason, SetCertificateChallengeRequest,
+    SetServerAddressesRequest, UnlinkServerRequest,
 };
+use refused::assert_refused;
 use sqlx::PgPool;
 
 /// Reports `lan_addresses` and `public_port` as the Server Addresses of the Server presenting
@@ -44,6 +48,27 @@ async fn names_after_reporting(
 async fn unlink(hub: &TestHub, credential: &str) -> Result<(), ConnectError> {
     linked_server(hub, credential)
         .unlink_server(UnlinkServerRequest::default())
+        .await?;
+    Ok(())
+}
+
+/// Two DNS-01 challenge values, as Let's Encrypt sets for a name and the wildcard under it.
+const CHALLENGES: [&str; 2] = [
+    "LoqXcYV8q5ONbJQxbmR7SCTNo3tiAXDfowyjxAjEuX0",
+    "9jg46WB3rR_AHD-EBXdN7cBkH1WOu0tA3M9fm21mqTI",
+];
+
+/// Has the Server presenting `credential` publish `values` as its certificate challenge.
+async fn set_challenge(
+    hub: &TestHub,
+    credential: &str,
+    values: &[&str],
+) -> Result<(), ConnectError> {
+    linked_server(hub, credential)
+        .set_certificate_challenge(SetCertificateChallengeRequest {
+            values: values.iter().map(|&value| value.to_owned()).collect(),
+            ..Default::default()
+        })
         .await?;
     Ok(())
 }
@@ -187,4 +212,69 @@ async fn a_report_the_dns_provider_fails_still_lists_the_public_address_reached(
         listed.servers[0].addresses,
         [format!("http://127.0.0.1:{port}")]
     );
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_server_publishes_its_certificate_challenge_under_its_own_name_until_it_clears_it(
+    db: PgPool,
+) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    let names = names_after_reporting(&hub, &living_room, &[], 0)
+        .await
+        .unwrap();
+
+    set_challenge(&hub, &living_room, &CHALLENGES)
+        .await
+        .unwrap();
+
+    let published = hub.texts();
+    assert_eq!(
+        published.keys().collect::<Vec<_>>(),
+        [&format!("_acme-challenge.{}", names[0])]
+    );
+    assert_eq!(published.values().next().unwrap(), &CHALLENGES);
+    set_challenge(&hub, &living_room, &[]).await.unwrap();
+    assert!(hub.texts().is_empty());
+}
+
+#[sqlx::test(migrations = false)]
+async fn unlinking_a_server_removes_its_certificate_challenge_and_no_others(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    let cabin = linked(&hub, &ada, "Cabin").await;
+    let cabins = names_after_reporting(&hub, &cabin, &[], 0).await.unwrap();
+    set_challenge(&hub, &living_room, &CHALLENGES)
+        .await
+        .unwrap();
+    set_challenge(&hub, &cabin, &CHALLENGES[..1]).await.unwrap();
+
+    unlink(&hub, &living_room).await.unwrap();
+
+    let published = hub.texts();
+    assert_eq!(
+        published.keys().collect::<Vec<_>>(),
+        [&format!("_acme-challenge.{}", cabins[0])]
+    );
+}
+
+#[sqlx::test(migrations = false)]
+async fn a_certificate_challenge_that_isnt_one_is_refused(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    let breaking_out = "\"; v=spf1 include:evil.example ~all \"aaaaaaaaaa";
+    let three = [CHALLENGES[0], CHALLENGES[1], CHALLENGES[0]];
+
+    for values in [&[breaking_out][..], &three] {
+        let refusal = assert_refused(
+            set_challenge(&hub, &living_room, values).await,
+            ErrorCode::InvalidArgument,
+            RefusalReason::REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID,
+        );
+        assert_eq!(refusal.params["maxValues"], "2");
+    }
+    assert!(hub.texts().is_empty());
 }
