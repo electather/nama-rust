@@ -87,7 +87,6 @@ async fn a_preflight_from_the_hub_for_a_bearer_request_is_allowed() {
     assert_eq!(reply.header("access-control-allow-origin"), hub.url());
     let allowed = reply.header("access-control-allow-headers");
     assert!(allowed.contains("authorization"), "{allowed}");
-    assert_eq!(reply.header("access-control-allow-credentials"), "");
 }
 
 #[tokio::test]
@@ -110,16 +109,11 @@ async fn a_request_from_the_hub_carrying_the_cookie_may_not_read_its_answer() {
 }
 
 #[tokio::test]
-async fn a_preflight_from_another_origin_or_carrying_the_cookie_is_refused() {
-    let (server, hub) = linked().await;
-    let hub_origin = hub.url();
+async fn a_preflight_from_another_origin_is_refused() {
+    let (server, _hub) = linked().await;
 
-    for (origin, cookie_token) in [
-        ("https://elsewhere.example", None),
-        ("null", None),
-        (hub_origin.as_str(), Some(server.admin_token.as_str())),
-    ] {
-        let reply = preflight(&server, origin, cookie_token).await;
+    for origin in ["https://elsewhere.example", "null"] {
+        let reply = preflight(&server, origin, None).await;
 
         assert!(
             !(200..300).contains(&reply.status),
@@ -132,6 +126,20 @@ async fn a_preflight_from_another_origin_or_carrying_the_cookie_is_refused() {
             reply.headers
         );
     }
+}
+
+#[tokio::test]
+async fn a_preflight_asking_for_credentials_is_refused() {
+    let (server, hub) = linked().await;
+
+    // A browser sends a preflight without credentials and refuses a credentialed request unless the
+    // answer allows them.
+    let bearer = preflight(&server, &hub.url(), None).await;
+    assert_eq!(bearer.header("access-control-allow-credentials"), "");
+
+    let cookie = preflight(&server, &hub.url(), Some(server.admin_token.as_str())).await;
+    assert!(!(200..300).contains(&cookie.status), "{}", cookie.status);
+    assert!(approvals(&cookie).is_empty(), "{:?}", cookie.headers);
 }
 
 #[tokio::test]

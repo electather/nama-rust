@@ -8,7 +8,7 @@
 //! |--------------------------------------------------------------------|---------------|
 //! | Reads a page needs: the Server's Link, a User's Link               | [`PAGE_READ`] |
 //! | Changes at the service: starting or ending a Link, inviting a User, starting or finishing an Account sign-in, Unlinking a deleted User, publishing a certificate challenge | none |
-//! | Whether a request comes from the Linked Hub's web app: only the Server's own table | none |
+//! | Whether a request comes from the web app at the Hub the Server is Linked with: only the Server's own table | none |
 //! | Bulk transfers                                                     | [`BULK`]      |
 //! | The Server Addresses tick, and a Relay token                       | the Hub client's own (`hub::TIMEOUT`) |
 //!

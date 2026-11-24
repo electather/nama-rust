@@ -23,7 +23,7 @@
 - **One owner for who sees an Event.** Only `src/events.rs` decides which subscriber gets an Event and what of it; handlers pass the caller.
 - **Spans carry ids, not words.** A span's fields hold only ids (Item, Library, User, Device, Plugin), counts, sizes, durations, codecs and outcomes, never a title, file path, name, IP address or search text, since the Hub forwards them as they are when an admin shares Diagnostics (ADR 0054).
 - **Shared lines and Usage Analytics are named lists.** A log line reaches the Hub only once its call site's `name:` is in `SHARED_LINES`, and a Usage Analytics event only as a `Usage` variant, both in `src/diagnostics.rs` and reviewed to hold what a span may (ADR 0054).
-- **CORS for the Linked Hub only.** Only `src/api/hub_cors.rs` approves a call from another origin: the Hub's its config names, while the Server is Linked, never with credentials nor for a request carrying a cookie (ADR 0015, ADR 0105).
+- **CORS for the Hub only.** Only `src/api/hub_cors.rs` approves a call from another origin: the origin of the Hub its config names, while the Server is Linked, never with credentials nor for a request carrying a cookie (ADR 0015, ADR 0105).
 - **Forwarded headers from trusted proxies only.** Read where a request came from (client IP, HTTPS) from the `RequestSource` that `nama-forwarded`, shared with the Hub, sets. It believes `X-Forwarded-*` only from a peer in `Config::trusted_proxies` (ADR 0018), since any client can set them.
 
 ### Tests
