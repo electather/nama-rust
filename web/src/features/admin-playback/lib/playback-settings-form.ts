@@ -4,11 +4,11 @@ import {
   savedHardware,
   typedHardware,
 } from "@/features/admin-playback/lib/hardware";
-import { limitPicked } from "@/features/admin-playback/lib/remote-limits";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import type { PlaybackSettings } from "@/gen/nama/v1/server_pb";
 import { type FormErrors, refusalOf, serverMessage } from "@/shared/lib/forms";
 import type { Hardware } from "@/shared/lib/playback-names";
+import { limitPicked } from "@/shared/lib/remote-limits";
 
 /** The Playback settings, as their fields hold them. */
 export interface PlaybackValues {

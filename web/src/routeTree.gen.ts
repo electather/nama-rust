@@ -21,7 +21,9 @@ import { Route as MemberBoxSetsBoxSetIdRouteImport } from './routes/_member/box-
 import { Route as MemberCodeIndexRouteImport } from './routes/_member/code.index'
 import { Route as MemberCodeApproveRouteImport } from './routes/_member/code.approve'
 import { Route as MemberCodeDoneRouteImport } from './routes/_member/code.done'
+import { Route as MemberLibrariesIndexRouteImport } from './routes/_member/libraries/index'
 import { Route as MemberMoviesMovieIdRouteImport } from './routes/_member/movies/$movieId'
+import { Route as MemberPeoplePersonIdRouteImport } from './routes/_member/people/$personId'
 import { Route as MemberReauthenticateAccountRouteImport } from './routes/_member/reauthenticate.account'
 import { Route as MemberShowsShowIdRouteImport } from './routes/_member/shows/$showId'
 import { Route as SignedOutInviteTokenRouteImport } from './routes/_signed-out/invite.$token'
@@ -94,9 +96,19 @@ const MemberCodeDoneRoute = MemberCodeDoneRouteImport.update({
   path: '/done',
   getParentRoute: () => MemberCodeRoute,
 } as any)
+const MemberLibrariesIndexRoute = MemberLibrariesIndexRouteImport.update({
+  id: '/libraries/',
+  path: '/libraries/',
+  getParentRoute: () => MemberRoute,
+} as any)
 const MemberMoviesMovieIdRoute = MemberMoviesMovieIdRouteImport.update({
   id: '/movies/$movieId',
   path: '/movies/$movieId',
+  getParentRoute: () => MemberRoute,
+} as any)
+const MemberPeoplePersonIdRoute = MemberPeoplePersonIdRouteImport.update({
+  id: '/people/$personId',
+  path: '/people/$personId',
   getParentRoute: () => MemberRoute,
 } as any)
 const MemberReauthenticateAccountRoute =
@@ -187,11 +199,13 @@ export interface FileRoutesByFullPath {
   '/code/approve': typeof MemberCodeApproveRoute
   '/code/done': typeof MemberCodeDoneRoute
   '/movies/$movieId': typeof MemberMoviesMovieIdRoute
+  '/people/$personId': typeof MemberPeoplePersonIdRoute
   '/reauthenticate/account': typeof MemberReauthenticateAccountRoute
   '/shows/$showId': typeof MemberShowsShowIdRoute
   '/invite/$token': typeof SignedOutInviteTokenRoute
   '/sign-in/account': typeof SignedOutSignInAccountRoute
   '/code/': typeof MemberCodeIndexRoute
+  '/libraries/': typeof MemberLibrariesIndexRoute
   '/sign-in/': typeof SignedOutSignInIndexRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
@@ -211,11 +225,13 @@ export interface FileRoutesByTo {
   '/code/approve': typeof MemberCodeApproveRoute
   '/code/done': typeof MemberCodeDoneRoute
   '/movies/$movieId': typeof MemberMoviesMovieIdRoute
+  '/people/$personId': typeof MemberPeoplePersonIdRoute
   '/reauthenticate/account': typeof MemberReauthenticateAccountRoute
   '/shows/$showId': typeof MemberShowsShowIdRoute
   '/invite/$token': typeof SignedOutInviteTokenRoute
   '/sign-in/account': typeof SignedOutSignInAccountRoute
   '/code': typeof MemberCodeIndexRoute
+  '/libraries': typeof MemberLibrariesIndexRoute
   '/sign-in': typeof SignedOutSignInIndexRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/libraries/$libraryId': typeof MemberLibrariesLibraryIdIndexRoute
@@ -240,11 +256,13 @@ export interface FileRoutesById {
   '/_member/code/approve': typeof MemberCodeApproveRoute
   '/_member/code/done': typeof MemberCodeDoneRoute
   '/_member/movies/$movieId': typeof MemberMoviesMovieIdRoute
+  '/_member/people/$personId': typeof MemberPeoplePersonIdRoute
   '/_member/reauthenticate/account': typeof MemberReauthenticateAccountRoute
   '/_member/shows/$showId': typeof MemberShowsShowIdRoute
   '/_signed-out/invite/$token': typeof SignedOutInviteTokenRoute
   '/_signed-out/sign-in/account': typeof SignedOutSignInAccountRoute
   '/_member/code/': typeof MemberCodeIndexRoute
+  '/_member/libraries/': typeof MemberLibrariesIndexRoute
   '/_signed-out/sign-in/': typeof SignedOutSignInIndexRoute
   '/_signed-out/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/_member/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
@@ -268,11 +286,13 @@ export interface FileRouteTypes {
     | '/code/approve'
     | '/code/done'
     | '/movies/$movieId'
+    | '/people/$personId'
     | '/reauthenticate/account'
     | '/shows/$showId'
     | '/invite/$token'
     | '/sign-in/account'
     | '/code/'
+    | '/libraries/'
     | '/sign-in/'
     | '/sign-in/code/waiting'
     | '/libraries/$libraryId/'
@@ -292,11 +312,13 @@ export interface FileRouteTypes {
     | '/code/approve'
     | '/code/done'
     | '/movies/$movieId'
+    | '/people/$personId'
     | '/reauthenticate/account'
     | '/shows/$showId'
     | '/invite/$token'
     | '/sign-in/account'
     | '/code'
+    | '/libraries'
     | '/sign-in'
     | '/sign-in/code/waiting'
     | '/libraries/$libraryId'
@@ -320,11 +342,13 @@ export interface FileRouteTypes {
     | '/_member/code/approve'
     | '/_member/code/done'
     | '/_member/movies/$movieId'
+    | '/_member/people/$personId'
     | '/_member/reauthenticate/account'
     | '/_member/shows/$showId'
     | '/_signed-out/invite/$token'
     | '/_signed-out/sign-in/account'
     | '/_member/code/'
+    | '/_member/libraries/'
     | '/_signed-out/sign-in/'
     | '/_signed-out/sign-in/code/waiting'
     | '/_member/libraries/$libraryId/'
@@ -427,11 +451,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberCodeDoneRouteImport
       parentRoute: typeof MemberCodeRoute
     }
+    '/_member/libraries/': {
+      id: '/_member/libraries/'
+      path: '/libraries'
+      fullPath: '/libraries/'
+      preLoaderRoute: typeof MemberLibrariesIndexRouteImport
+      parentRoute: typeof MemberRoute
+    }
     '/_member/movies/$movieId': {
       id: '/_member/movies/$movieId'
       path: '/movies/$movieId'
       fullPath: '/movies/$movieId'
       preLoaderRoute: typeof MemberMoviesMovieIdRouteImport
+      parentRoute: typeof MemberRoute
+    }
+    '/_member/people/$personId': {
+      id: '/_member/people/$personId'
+      path: '/people/$personId'
+      fullPath: '/people/$personId'
+      preLoaderRoute: typeof MemberPeoplePersonIdRouteImport
       parentRoute: typeof MemberRoute
     }
     '/_member/reauthenticate/account': {
@@ -551,8 +589,10 @@ interface MemberRouteChildren {
   MemberIndexRoute: typeof MemberIndexRoute
   MemberBoxSetsBoxSetIdRoute: typeof MemberBoxSetsBoxSetIdRoute
   MemberMoviesMovieIdRoute: typeof MemberMoviesMovieIdRoute
+  MemberPeoplePersonIdRoute: typeof MemberPeoplePersonIdRoute
   MemberReauthenticateAccountRoute: typeof MemberReauthenticateAccountRoute
   MemberShowsShowIdRoute: typeof MemberShowsShowIdRoute
+  MemberLibrariesIndexRoute: typeof MemberLibrariesIndexRoute
   MemberLibrariesLibraryIdIndexRoute: typeof MemberLibrariesLibraryIdIndexRoute
   MemberLibrariesLibraryIdMoviesMovieIdPlayRoute: typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
   MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute: typeof MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute
@@ -568,8 +608,10 @@ const MemberRouteChildren: MemberRouteChildren = {
   MemberIndexRoute: MemberIndexRoute,
   MemberBoxSetsBoxSetIdRoute: MemberBoxSetsBoxSetIdRoute,
   MemberMoviesMovieIdRoute: MemberMoviesMovieIdRoute,
+  MemberPeoplePersonIdRoute: MemberPeoplePersonIdRoute,
   MemberReauthenticateAccountRoute: MemberReauthenticateAccountRoute,
   MemberShowsShowIdRoute: MemberShowsShowIdRoute,
+  MemberLibrariesIndexRoute: MemberLibrariesIndexRoute,
   MemberLibrariesLibraryIdIndexRoute: MemberLibrariesLibraryIdIndexRoute,
   MemberLibrariesLibraryIdMoviesMovieIdPlayRoute:
     MemberLibrariesLibraryIdMoviesMovieIdPlayRoute,

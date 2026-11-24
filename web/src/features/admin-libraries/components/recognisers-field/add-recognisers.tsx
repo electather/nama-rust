@@ -1,4 +1,5 @@
-import { Button } from "nama-ui/components/button";
+import { cn } from "cn";
+import { Button, ghostHang } from "nama-ui/components/button";
 
 import { NotEnabled } from "@/features/admin-libraries/components/recognisers-field/not-enabled";
 import { labelOf } from "@/features/admin-libraries/lib/recognisers";
@@ -13,7 +14,7 @@ export function AddRecognisers({
   add: (pluginId: string) => void;
 }) {
   return (
-    <div className="-ms-2.5 flex flex-wrap gap-1">
+    <div className={cn(ghostHang, "flex flex-wrap gap-1")}>
       {recognisers.map((plugin) => (
         <Button
           key={plugin.id}

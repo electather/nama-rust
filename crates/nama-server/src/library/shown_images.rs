@@ -33,12 +33,19 @@ pub(crate) struct ImageSources {
 /// What one response shows of images, read once for it: ask it which image each title shows.
 #[derive(Debug)]
 pub(crate) struct ShownImages {
-    custom: CustomImageUrls,
-    local: LocalImageUrls,
+    in_place: InPlaceOfDownloaded,
     /// The thumbhash of each image resized so far, by URL.
     thumbhashes: HashMap<String, Vec<u8>>,
     /// Offers a downloaded image no Match stores, once it is the one shown.
     artwork: Artwork,
+}
+
+/// The Custom Images and images beside the media that titles show in place of their downloaded
+/// images, read once.
+#[derive(Debug)]
+pub(super) struct InPlaceOfDownloaded {
+    custom: CustomImageUrls,
+    local: LocalImageUrls,
 }
 
 /// The image a title or Library shows in one role.
@@ -53,7 +60,7 @@ pub(crate) struct ShownImage {
 }
 
 /// Which image of a title is asked for.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TitleImage {
     Movie(Role),
     Show(Role),
@@ -98,8 +105,7 @@ impl ImageSources {
     ///
     /// If the database can't be read.
     pub(crate) async fn shown(&self) -> sqlx::Result<ShownImages> {
-        let custom = self.custom_images.urls().await?;
-        let local = self.local_images.urls().await?;
+        let in_place = InPlaceOfDownloaded::read(&self.custom_images, &self.local_images).await?;
         let mut thumbhashes = HashMap::new();
         if self.settings.resizing().is_some() {
             thumbhashes.extend(self.artwork.thumbhashes().await?);
@@ -107,8 +113,7 @@ impl ImageSources {
             thumbhashes.extend(self.local_images.thumbhashes().await?);
         }
         Ok(ShownImages {
-            custom,
-            local,
+            in_place,
             thumbhashes,
             artwork: self.artwork.clone(),
         })
@@ -125,11 +130,8 @@ impl ShownImages {
         image: TitleImage,
         downloaded: Option<Downloaded<'_>>,
     ) -> ShownImage {
-        if let Some(url) = self.custom.of_title(id, ids, |id| image.slot(id)) {
-            return self.with_thumbhash(url, true);
-        }
-        match self.beside_media(id, ids, image) {
-            Some(url) => self.with_thumbhash(url, false),
+        match self.in_place.of_title(id, ids, image) {
+            Some((url, custom)) => self.with_thumbhash(url, custom),
             None => self.downloaded(downloaded),
         }
     }
@@ -141,7 +143,7 @@ impl ShownImages {
         library: &Library,
         newest: Option<&NewestBackdrop>,
     ) -> ShownImage {
-        if let Some(url) = self.custom.of(&Slot::library(library.id)) {
+        if let Some(url) = self.in_place.custom.of(&Slot::library(library.id)) {
             return self.with_thumbhash(url, true);
         }
         let Some(newest) = newest else {
@@ -175,19 +177,6 @@ impl ShownImages {
         }
     }
 
-    fn beside_media(
-        &self,
-        id: &ExternalId,
-        ids: &ExternalIds,
-        image: TitleImage,
-    ) -> Option<String> {
-        match image {
-            TitleImage::Movie(role) => self.local.of_movie(id, ids, role),
-            TitleImage::Show(role) => self.local.of_show(id, ids, role),
-            TitleImage::SeasonPoster(number) => self.local.of_season(id, ids, number),
-        }
-    }
-
     fn with_thumbhash(&self, url: String, custom: bool) -> ShownImage {
         ShownImage {
             thumbhash: self.thumbhash(Some(&url)),
@@ -198,6 +187,68 @@ impl ShownImages {
 
     fn thumbhash(&self, url: Option<&str>) -> Option<Vec<u8>> {
         self.thumbhashes.get(url?).cloned()
+    }
+}
+
+impl InPlaceOfDownloaded {
+    /// What titles show in place of their downloaded images now.
+    ///
+    /// # Errors
+    ///
+    /// If the database can't be read.
+    pub(super) async fn read(
+        custom_images: &CustomImages,
+        local_images: &LocalImages,
+    ) -> sqlx::Result<Self> {
+        Ok(Self::new(
+            custom_images.urls().await?,
+            local_images.urls().await?,
+        ))
+    }
+
+    /// What titles show in place of their downloaded images, of the URLs `custom` and `local`.
+    pub(super) const fn new(custom: CustomImageUrls, local: LocalImageUrls) -> Self {
+        Self { custom, local }
+    }
+
+    /// Whether the title with every id `ids` shows its downloaded `image`, having no Custom Image or
+    /// image beside its media in its place.
+    pub(super) fn shows_downloaded(&self, ids: &ExternalIds, image: TitleImage) -> bool {
+        // Any one id identifies a title (ADR 0042), so whichever goes first finds the same images.
+        (ids.iter().next()).is_none_or(|id| self.of_title(&id, ids, image).is_none())
+    }
+
+    /// Whether the title with every id `ids` shows the image beside its media at `url` as its
+    /// `image`, having no Custom Image in its place.
+    pub(super) fn shows_beside_media(
+        &self,
+        ids: &ExternalIds,
+        image: TitleImage,
+        url: &str,
+    ) -> bool {
+        (ids.iter().next())
+            .and_then(|id| self.of_title(&id, ids, image))
+            .is_some_and(|(shown, custom)| !custom && shown == url)
+    }
+
+    /// The URL of the image the title `id`, with every id `ids`, shows as its `image` in place of
+    /// the downloaded one, and whether it is the Custom Image: its Custom Image kept under any of
+    /// the ids, else the image beside its media.
+    fn of_title(
+        &self,
+        id: &ExternalId,
+        ids: &ExternalIds,
+        image: TitleImage,
+    ) -> Option<(String, bool)> {
+        if let Some(url) = self.custom.of_title(id, ids, |id| image.slot(id)) {
+            return Some((url, true));
+        }
+        let beside_media = match image {
+            TitleImage::Movie(role) => self.local.of_movie(id, ids, role),
+            TitleImage::Show(role) => self.local.of_show(id, ids, role),
+            TitleImage::SeasonPoster(number) => self.local.of_season(id, ids, number),
+        };
+        beside_media.map(|url| (url, false))
     }
 }
 

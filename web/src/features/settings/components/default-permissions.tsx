@@ -1,16 +1,23 @@
 import { PermissionsFieldset } from "@/features/settings/components/permissions-fieldset";
+import { RemoteCapField } from "@/features/settings/components/remote-cap-field";
+import type { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
 import type { Permission, User } from "@/gen/nama/v1/sign_in_pb";
 import { labelsOf, mayChangeDefaultPermissions } from "@/shared/lib/permissions";
 
-/** The Permissions new Users get, as checkboxes when `you` may change them, else named. */
+/**
+ * The Permissions new Users get, as checkboxes, and their cap for remote playback, when `you` may
+ * change them, else the Permissions named.
+ */
 export function DefaultPermissions({
   you,
   held,
+  cap,
   onChange,
 }: {
   you: User | undefined;
   held: Permission[];
-  onChange: (changes: { permissions: Permission[] }) => void;
+  cap: PlaybackLimit;
+  onChange: (changes: { permissions: Permission[] } | { cap: PlaybackLimit }) => void;
 }) {
   const about = (
     <p className="mt-1 text-sm text-pretty text-muted-foreground">
@@ -26,8 +33,11 @@ export function DefaultPermissions({
     );
   }
   return (
-    <PermissionsFieldset legend="Default Permissions" you={you} held={held} onChange={onChange}>
-      {about}
-    </PermissionsFieldset>
+    <>
+      <PermissionsFieldset legend="Default Permissions" you={you} held={held} onChange={onChange}>
+        {about}
+      </PermissionsFieldset>
+      <RemoteCapField cap={cap} onChange={onChange} />
+    </>
   );
 }

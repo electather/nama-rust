@@ -83,9 +83,8 @@ test("a Movie's page shows who stars in it, its Cast & Crew, and who directed it
     ],
   });
 
-  await expect(
-    screen.findByText("Starring Song Kang-ho, Lee Sun-kyun, Cho Yeo-jeong"),
-  ).resolves.toBeDefined();
+  const starring = await screen.findByText(/^Starring/u);
+  expect(starring.textContent).toBe("Starring Song Kang-ho, Lee Sun-kyun, Cho Yeo-jeong");
   const row = within(screen.getByRole("list", { name: "Cast & Crew" }));
   expect(row.getAllByRole("listitem").map((role) => role.textContent)).toStrictEqual([
     "Song Kang-hoKim Ki-taek",
@@ -163,6 +162,17 @@ test("a title without a Title Logo shows its title as text", async () => {
 
   const heading = await screen.findByRole("heading", { level: 1, name: "Parasite" });
   expect(within(heading).queryByRole("img")).toBeNull();
+});
+
+test("a Title Logo that fails to load gives way to its title as text", async () => {
+  openMovie({ titleLogoUrl: "/media/artwork/tmdb/%2Fparasite-logo.svg" });
+
+  const heading = await screen.findByRole("heading", { level: 1, name: "Parasite" });
+  fireEvent.error(within(heading).getByRole("img"));
+  expect([within(heading).queryByRole("img"), heading.textContent]).toStrictEqual([
+    null,
+    "Parasite",
+  ]);
 });
 
 test("a Movie shows 4K and HDR from one Version, and SDH from another's subtitles", async () => {
@@ -310,7 +320,8 @@ test("a Show's page shows its own overview, first air year, Score, Original audi
 test("a Show's page shows who stars in it, its Cast & Crew, and who created it", async () => {
   openDark();
 
-  await expect(screen.findByText("Starring Louis Hofmann")).resolves.toBeDefined();
+  const starring = await screen.findByText(/^Starring/u);
+  expect(starring.textContent).toBe("Starring Louis Hofmann");
   const row = within(screen.getByRole("list", { name: "Cast & Crew" }));
   expect(row.getAllByRole("listitem")).toHaveLength(3);
   expect(detail("Created by")).toBe("Baran bo Odar, Jantje Friese");
@@ -328,9 +339,7 @@ test("a Show's Details count its Episodes here, Specials aside, of those aired",
       seasons: [{ number: 0 }, { number: 1 }],
       airedEpisodeCount: 10,
     }),
-    listEpisodes: ({ seasonNumber }) => ({
-      episodes: episodes.filter((episode) => episode.seasonNumber === seasonNumber),
-    }),
+    listEpisodes: () => ({ episodes }),
   });
   openApp("/libraries/2/shows/tmdb-70523", transport);
 

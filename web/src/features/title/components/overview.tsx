@@ -1,5 +1,7 @@
-import { Button } from "nama-ui/components/button";
+import { Button, ghostHang } from "nama-ui/components/button";
 import { useCallback, useState } from "react";
+
+import { afterFontsLoad } from "@/shared/lib/after-fonts-load";
 
 /** A title's overview in two lines, with "More" to show the rest, when it doesn't fit. */
 export function Overview({ text }: { text: string }) {
@@ -20,15 +22,9 @@ export function Overview({ text }: { text: string }) {
       if (paragraph) {
         observer.observe(paragraph);
       }
-      // happy-dom, which the tests run on, has no `document.fonts`.
-      if ("fonts" in document) {
-        const updateOnceLoaded = async () => {
-          await document.fonts.ready;
-          update();
-        };
-        void updateOnceLoaded();
-      }
+      const stopWaiting = afterFontsLoad(update);
       return () => {
+        stopWaiting();
         observer.disconnect();
       };
     },
@@ -44,9 +40,8 @@ export function Overview({ text }: { text: string }) {
         {text}
       </p>
       {clamped && (
-        // Pulled out by the button's own padding, so its text lines up with the overview's. It
-        // stays once open, so keyboard focus isn't dropped.
-        <div className="-ms-2.5">
+        // The button stays once open, so keyboard focus isn't dropped.
+        <div className={ghostHang}>
           <Button
             variant="ghost"
             aria-expanded={open}

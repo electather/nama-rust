@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/hub/v1/hub.proto.
  */
 export const file_nama_hub_v1_hub: GenFile = /*@__PURE__*/
-  fileDesc("ChVuYW1hL2h1Yi92MS9odWIucHJvdG8SC25hbWEuaHViLnYxIhMKEUdldEh1YkluZm9SZXF1ZXN0IjwKEkdldEh1YkluZm9SZXNwb25zZRIPCgd2ZXJzaW9uGAEgASgJEhUKDXNpZ25faW5fbGlua3MYAiABKAgyYAoKSHViU2VydmljZRJSCgpHZXRIdWJJbmZvEh4ubmFtYS5odWIudjEuR2V0SHViSW5mb1JlcXVlc3QaHy5uYW1hLmh1Yi52MS5HZXRIdWJJbmZvUmVzcG9uc2UiA5ACAWIGcHJvdG8z");
+  fileDesc("ChVuYW1hL2h1Yi92MS9odWIucHJvdG8SC25hbWEuaHViLnYxIhMKEUdldEh1YkluZm9SZXF1ZXN0Ik4KEkdldEh1YkluZm9SZXNwb25zZRIPCgd2ZXJzaW9uGAEgASgJEhUKDXNpZ25faW5fbGlua3MYAiABKAgSEAoIcGFzc2tleXMYAyABKAgyYAoKSHViU2VydmljZRJSCgpHZXRIdWJJbmZvEh4ubmFtYS5odWIudjEuR2V0SHViSW5mb1JlcXVlc3QaHy5uYW1hLmh1Yi52MS5HZXRIdWJJbmZvUmVzcG9uc2UiA5ACAWIGcHJvdG8z");
 
 /**
  * @generated from message nama.hub.v1.GetHubInfoRequest
@@ -42,6 +42,13 @@ export type GetHubInfoResponse = Message<"nama.hub.v1.GetHubInfoResponse"> & {
    * @generated from field: bool sign_in_links = 2;
    */
   signInLinks: boolean;
+
+  /**
+   * Whether the Hub offers passkeys, which it does once it has a public address.
+   *
+   * @generated from field: bool passkeys = 3;
+   */
+  passkeys: boolean;
 };
 
 /**

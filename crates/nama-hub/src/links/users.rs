@@ -1,7 +1,7 @@
 //! Linking a Linked Server's Users to Accounts (ADR 0008): the code a User's Server shows, entering
 //! it on the Hub, and Unlinking from either side.
 
-use std::{fmt, str::FromStr};
+use std::{collections::HashMap, fmt, str::FromStr};
 
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
@@ -102,7 +102,8 @@ impl Links {
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(Error::CodeNotFound)?;
-        // Nothing conflicts but a Link made between starting this code and entering it.
+        // A refusal rolls back the code's delete above, so it works again once the clashing User
+        // is Unlinked.
         let user = insert_link(
             &mut tx,
             session.account.id,
@@ -141,6 +142,33 @@ impl Links {
         .fetch_optional(&self.db)
         .await?;
         Ok(account.map(AccountId))
+    }
+
+    /// Each item of `batch` whose User, as `user_id` names them on `server`, is Linked, paired
+    /// with their Account, in `batch`'s order, in one query (`links/AGENTS.md`). Call it before
+    /// opening a transaction: inside one, it would hold a connection while asking the pool for
+    /// another.
+    pub(crate) async fn linked_accounts<T>(
+        &self,
+        server: &LinkedServer,
+        batch: Vec<T>,
+        user_id: impl Fn(&T) -> i64,
+    ) -> Result<Vec<(AccountId, T)>, sqlx::Error> {
+        let user_ids: Vec<i64> = batch.iter().map(&user_id).collect();
+        let linked: HashMap<i64, AccountId> = sqlx::query!(
+            "SELECT server_user_id, account_id FROM user_links
+             WHERE linked_server_id = $1 AND server_user_id = ANY($2)",
+            server.id.0,
+            &user_ids,
+        )
+        .fetch_all(&self.db)
+        .await?
+        .into_iter()
+        .map(|link| (link.server_user_id, AccountId(link.account_id)))
+        .collect();
+        Ok((batch.into_iter())
+            .filter_map(|item| Some((*linked.get(&user_id(&item))?, item)))
+            .collect())
     }
 
     /// Unlinks `server`'s User `user_id`, and forgets the code they wait on and any Account asked
@@ -207,7 +235,8 @@ impl Links {
 }
 
 /// Links `server`'s User `user_id`, named `name`, to `account`, failing with [`Error::UserLinked`]
-/// if they are Linked already.
+/// if they are Linked already, and with [`Error::AccountHasUserOnServer`] if `account` has another
+/// User there.
 pub(super) async fn insert_link(
     tx: &mut Transaction<'_, Postgres>,
     account: AccountId,
@@ -217,7 +246,7 @@ pub(super) async fn insert_link(
 ) -> Result<ListedUser, Error> {
     let linked = sqlx::query!(
         r#"INSERT INTO user_links (account_id, linked_server_id, server_user_id, user_name)
-             VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING
+             VALUES ($1, $2, $3, $4) ON CONFLICT (linked_server_id, server_user_id) DO NOTHING
              RETURNING id, extract(epoch FROM created_at)::bigint AS "linked_at!",
              (SELECT name FROM linked_servers WHERE id = $2) AS "server_name!""#,
         account.0,
@@ -226,7 +255,16 @@ pub(super) async fn insert_link(
         name,
     )
     .fetch_optional(&mut **tx)
-    .await?
+    .await
+    .map_err(|err| {
+        let constraint = err.as_database_error().and_then(|err| err.constraint());
+        // Named by the migration `one_user_per_account_and_server`.
+        if constraint == Some("user_links_one_per_account_and_server") {
+            Error::AccountHasUserOnServer
+        } else {
+            err.into()
+        }
+    })?
     .ok_or(Error::UserLinked)?;
     Ok(ListedUser {
         id: LinkId(linked.id),

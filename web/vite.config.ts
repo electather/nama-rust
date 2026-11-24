@@ -88,11 +88,14 @@ export default defineConfig({
     // Tests live in `__tests__` folders, the Hub web app's too.
     include: ["src/**/__tests__/**/*.test.{ts,tsx}", "hub/src/**/__tests__/**/*.test.{ts,tsx}"],
     environment: "happy-dom",
+    // Runs before every test file, the web app's too: its page tests set the same wait again in
+    // `src/test-app.tsx`, and the few that don't import it (`use-paged.test.tsx`) wait 10 s, not 1 s.
+    setupFiles: ["hub/src/test-setup.ts"],
     retry: ci ? 2 : 0,
-    // Under a full run's load the app can take over the default 1 s to send its first RPC (`src/test-app.tsx` raises Testing Library's wait to match).
-    expect: { poll: { timeout: 5000 } },
-    // Over the 5 s waits, so one that runs out names what it missed; a cold run's first imports take seconds.
-    testTimeout: 15_000,
+    // Under a full run's load the app can take over the default 1 s to send its first RPC (`src/test-app.tsx` and `hub/src/test-setup.ts` raise Testing Library's wait to match).
+    expect: { poll: { timeout: 10_000 } },
+    // Over the 10 s waits, so one that runs out names what it missed; a cold run's first imports take seconds.
+    testTimeout: 30_000,
     // JSON, not JUnit: vitest's JUnit report doesn't show which tests passed only on a retry.
     reporters: ci ? ["default", "json"] : ["default"],
     outputFile: { json: "test-results/vitest.json" },

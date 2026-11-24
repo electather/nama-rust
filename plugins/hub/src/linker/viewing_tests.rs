@@ -84,7 +84,7 @@ fn a_movies_play_names_no_show() {
 
 #[test]
 fn a_play_under_an_external_id_the_hub_would_refuse_is_left_out() {
-    let title = stopped("tmdb", &"1".repeat(MAX_EXTERNAL_ID_CHARS));
+    let title = stopped("tmdb", &"1".repeat(100));
 
     let viewed = viewed(
         &title,
@@ -130,7 +130,7 @@ fn an_episode_whose_show_has_no_id_is_left_out() {
 #[test]
 fn an_episode_whose_show_id_the_hub_would_refuse_is_left_out() {
     let title = stopped_episode("tmdb", "63056");
-    let show = title_id("tmdb", &"1".repeat(MAX_EXTERNAL_ID_CHARS));
+    let show = title_id("tmdb", &"1".repeat(100));
 
     let viewed = viewed(
         &title,
@@ -140,4 +140,21 @@ fn an_episode_whose_show_id_the_hub_would_refuse_is_left_out() {
     );
 
     assert_eq!(viewed, None);
+}
+
+#[test]
+fn what_an_older_plugin_kept_unsent_is_read_as_the_request_that_sent_it() {
+    let event = |key: &str| UserViewingEvent {
+        user_id: 7,
+        key: key.to_owned(),
+        ..Default::default()
+    };
+    let old = RecordViewingEventsRequest {
+        events: vec![event("a"), event("b")],
+        ..Default::default()
+    };
+
+    let taken = UserViewingEvent::from_old(&old.encode_to_vec()).unwrap();
+
+    assert_eq!(taken, [event("a"), event("b")]);
 }

@@ -1,7 +1,20 @@
 //! The images Matches store, with the headshots of the Roles of the titles they Match, which
 //! artwork serves and keeps while some Match stores them.
 
-use super::Contents;
+use nama_plugin_api::metadata::ExternalIds;
+
+use super::{Contents, ids_from_json, ids_sql};
+use crate::library::{Role, TitleImage};
+
+/// A Poster a Match stores, as its Plugin and path, and whose it is: see [`Contents::posters`].
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct TitlePoster {
+    pub(crate) plugin: String,
+    pub(crate) path: String,
+    /// Every id the Match gives the Movie, or the Episode's Show.
+    pub(crate) ids: ExternalIds,
+    pub(crate) image: TitleImage,
+}
 
 impl Contents {
     pub(crate) async fn stores_image(
@@ -85,5 +98,47 @@ impl Contents {
         .fetch_all(self.db.reader())
         .await?;
         Ok(rows.into_iter().map(|row| (row.plugin, row.path)).collect())
+    }
+
+    /// Each Poster, a title's, its Season's or its Show's, a Match in the Library `library`
+    /// stores, with whose it is.
+    pub(crate) async fn posters(&self, library: i64) -> Result<Vec<TitlePoster>, sqlx::Error> {
+        macro_rules! select {
+            ($ids:literal) => {
+                sqlx::query!(
+                    r#"WITH matched AS (
+                           SELECT item_matches.poster, item_matches.poster_plugin,
+                                  item_matches.show_poster, item_matches.show_poster_plugin,
+                                  library_items.season, "#
+                        + $ids
+                        + r#"IIF(library_items.kind = 'movie', 'title', 'show')) AS ids
+                           FROM item_matches
+                           JOIN library_items ON library_items.id = item_matches.item_id
+                           JOIN library_files ON library_files.id = library_items.file_id
+                           WHERE item_matches.state = 'matched' AND library_files.library_id = ?)
+                       SELECT poster_plugin AS "plugin!", poster AS "path!",
+                              FALSE AS "of_show!: bool", season, ids AS "ids?: String"
+                       FROM matched WHERE poster IS NOT NULL
+                       UNION
+                       SELECT show_poster_plugin, show_poster, TRUE, NULL, ids FROM matched
+                       WHERE show_poster IS NOT NULL"#,
+                    library
+                )
+            };
+        }
+        let rows = ids_sql!(select).fetch_all(self.db.reader()).await?;
+        Ok((rows.into_iter())
+            .map(|row| TitlePoster {
+                // Only an Episode's Item has a Season (`library_items`' CHECK).
+                image: match (row.of_show, row.season) {
+                    (true, _) => TitleImage::Show(Role::Poster),
+                    (false, Some(number)) => TitleImage::SeasonPoster(number),
+                    (false, None) => TitleImage::Movie(Role::Poster),
+                },
+                plugin: row.plugin,
+                path: row.path,
+                ids: ids_from_json(row.ids.as_deref()),
+            })
+            .collect())
     }
 }

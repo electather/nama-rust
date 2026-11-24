@@ -553,6 +553,13 @@ pub struct ServerLinkView<'a> {
     ///
     /// Field 5: `reachable`
     pub reachable: bool,
+    /// The Server's names on the Hub (ADR 0104). Its own name comes first, such as
+    /// `0193b6f2c4d87a1e9f3c5b2a1d0e4f67.namadirect.net`, and then one for each of its private IPv4
+    /// LAN addresses, such as `192-168-1-10.<own name>`. Empty until the Hub named the Server, and on
+    /// a Hub that names no Server.
+    ///
+    /// Field 6: `names`
+    pub names: ::buffa::RepeatedView<'a, &'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ServerLinkView<'a> {
@@ -620,6 +627,17 @@ impl<'a> ::buffa::MessageView<'a> for ServerLinkView<'a> {
                 )?;
                 view.reachable = ::buffa::types::decode_bool(&mut cur)?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.names.push(__elem);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -647,6 +665,7 @@ impl<'a> ::buffa::MessageView<'a> for ServerLinkView<'a> {
             account: self.account.to_string(),
             public_address: self.public_address.to_string(),
             reachable: self.reachable,
+            names: self.names.iter().map(|s| s.to_string()).collect(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -675,6 +694,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ServerLinkView<'a> {
         if self.reachable {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        for v in &self.names {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -700,6 +722,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ServerLinkView<'a> {
         }
         if self.reachable {
             ::buffa::types::put_bool_field(5u32, self.reachable, buf);
+        }
+        for v in &self.names {
+            ::buffa::types::put_string_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -736,6 +761,9 @@ impl<'__a> ::serde::Serialize for ServerLinkView<'__a> {
         }
         if self.reachable {
             __map.serialize_entry("reachable", &self.reachable)?;
+        }
+        if !self.names.is_empty() {
+            __map.serialize_entry("names", &*self.names)?;
         }
         __map.end()
     }
@@ -865,6 +893,16 @@ impl ServerLinkOwnedView {
     #[must_use]
     pub fn reachable(&self) -> bool {
         self.0.reborrow().reachable
+    }
+    /// The Server's names on the Hub (ADR 0104). Its own name comes first, such as
+    /// `0193b6f2c4d87a1e9f3c5b2a1d0e4f67.namadirect.net`, and then one for each of its private IPv4
+    /// LAN addresses, such as `192-168-1-10.<own name>`. Empty until the Hub named the Server, and on
+    /// a Hub that names no Server.
+    ///
+    /// Field 6: `names`
+    #[must_use]
+    pub fn names(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().names
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ServerLinkView<'static>>>
@@ -6627,6 +6665,11 @@ pub struct FoundHardwareView<'a> {
     ///
     /// Field 4: `automatic`
     pub automatic: bool,
+    /// Whether it also passed decoding and encoding 10-bit HEVC, which a Transcode of a 4K or HDR
+    /// Version makes on it.
+    ///
+    /// Field 6: `hevc`
+    pub hevc: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for FoundHardwareView<'a> {
@@ -6712,6 +6755,13 @@ impl<'a> ::buffa::MessageView<'a> for FoundHardwareView<'a> {
                 )?;
                 view.automatic = ::buffa::types::decode_bool(&mut cur)?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.hevc = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -6747,6 +6797,7 @@ impl<'a> ::buffa::MessageView<'a> for FoundHardwareView<'a> {
             tone_maps: self.tone_maps,
             tone_mapping: self.tone_mapping,
             automatic: self.automatic,
+            hevc: self.hevc,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -6783,6 +6834,9 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundHardwareView<'a> {
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
+        }
+        if self.hevc {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -6821,6 +6875,9 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundHardwareView<'a> {
             );
             self.gpu.write_to(__cache, buf);
         }
+        if self.hevc {
+            ::buffa::types::put_bool_field(6u32, self.hevc, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -6858,6 +6915,9 @@ impl<'__a> ::serde::Serialize for FoundHardwareView<'__a> {
         }
         if self.automatic {
             __map.serialize_entry("automatic", &self.automatic)?;
+        }
+        if self.hevc {
+            __map.serialize_entry("hevc", &self.hevc)?;
         }
         __map.end()
     }
@@ -6988,6 +7048,14 @@ impl FoundHardwareOwnedView {
     #[must_use]
     pub fn automatic(&self) -> bool {
         self.0.reborrow().automatic
+    }
+    /// Whether it also passed decoding and encoding 10-bit HEVC, which a Transcode of a 4K or HDR
+    /// Version makes on it.
+    ///
+    /// Field 6: `hevc`
+    #[must_use]
+    pub fn hevc(&self) -> bool {
+        self.0.reborrow().hevc
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<FoundHardwareView<'static>>>
@@ -14963,6 +15031,37 @@ impl<'a> ::buffa::MessageView<'a> for HomeLayoutRowView<'a> {
                     ),
                 );
             }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __sub_ctx = ctx.descend()?;
+                let sub = ::buffa::types::borrow_bytes(&mut cur)?;
+                if let Some(
+                    super::super::__buffa::view::oneof::home_layout_row::Row::RecentlyAdded(
+                        ref mut existing,
+                    ),
+                ) = view.row
+                {
+                    ::buffa::MessageView::merge_into_view(
+                        &mut **existing,
+                        sub,
+                        __sub_ctx,
+                    )?;
+                } else {
+                    view.row = Some(
+                        super::super::__buffa::view::oneof::home_layout_row::Row::RecentlyAdded(
+                            ::buffa::alloc::boxed::Box::new(
+                                <super::super::__buffa::view::RecentlyAddedHomeRowView as ::buffa::MessageView>::decode_view_ctx(
+                                    sub,
+                                    __sub_ctx,
+                                )?,
+                            ),
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -15013,6 +15112,15 @@ impl<'a> ::buffa::MessageView<'a> for HomeLayoutRowView<'a> {
                                     v.to_string(),
                                 )
                             }
+                            super::super::__buffa::view::oneof::home_layout_row::Row::RecentlyAdded(
+                                v,
+                            ) => {
+                                super::super::__buffa::oneof::home_layout_row::Row::RecentlyAdded(
+                                    ::buffa::alloc::boxed::Box::new(
+                                        v.to_owned_from_source(__buffa_src)?,
+                                    ),
+                                )
+                            }
                         },
                     )
                 }
@@ -15047,6 +15155,16 @@ impl<'a> ::buffa::ViewEncode<'a> for HomeLayoutRowView<'a> {
                 ) => {
                     size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
                 }
+                super::super::__buffa::view::oneof::home_layout_row::Row::RecentlyAdded(
+                    x,
+                ) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         if self.hidden {
@@ -15080,6 +15198,16 @@ impl<'a> ::buffa::ViewEncode<'a> for HomeLayoutRowView<'a> {
                     x,
                 ) => {
                     ::buffa::types::put_string_field(3u32, x, buf);
+                }
+                super::super::__buffa::view::oneof::home_layout_row::Row::RecentlyAdded(
+                    x,
+                ) => {
+                    ::buffa::types::put_len_delimited_header(
+                        5u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
                 }
             }
         }
@@ -15122,6 +15250,11 @@ impl<'__a> ::serde::Serialize for HomeLayoutRowView<'__a> {
                     v,
                 ) => {
                     __map.serialize_entry("pluginUsersRows", v)?;
+                }
+                super::super::__buffa::view::oneof::home_layout_row::Row::RecentlyAdded(
+                    v,
+                ) => {
+                    __map.serialize_entry("recentlyAdded", v)?;
                 }
             }
         }

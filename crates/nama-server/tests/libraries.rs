@@ -69,7 +69,7 @@ impl Fixture {
             })
             .await?
             .into_owned();
-        Ok(response.library.into_option().unwrap())
+        Ok(unscanned(response.library.into_option().unwrap()))
     }
 
     async fn get(&self, id: i64) -> Result<Library, ConnectError> {
@@ -81,7 +81,7 @@ impl Fixture {
             })
             .await?
             .into_owned();
-        Ok(response.library.into_option().unwrap())
+        Ok(unscanned(response.library.into_option().unwrap()))
     }
 
     async fn update(&self, id: i64, name: &str, folders: &[&str]) -> Result<Library, ConnectError> {
@@ -95,7 +95,7 @@ impl Fixture {
             })
             .await?
             .into_owned();
-        Ok(response.library.into_option().unwrap())
+        Ok(unscanned(response.library.into_option().unwrap()))
     }
 
     async fn delete(&self, id: i64) -> Result<(), ConnectError> {
@@ -125,6 +125,17 @@ impl Fixture {
             .unwrap()
             .into_owned()
             .libraries
+            .into_iter()
+            .map(unscanned)
+            .collect()
+    }
+}
+
+/// `library` without its last Scan, which the scan creating it records whenever it finishes.
+fn unscanned(library: Library) -> Library {
+    Library {
+        last_scan: None.into(),
+        ..library
     }
 }
 
@@ -673,7 +684,7 @@ impl Fixture {
             })
             .await?
             .into_owned();
-        Ok(response.library.into_option().unwrap())
+        Ok(unscanned(response.library.into_option().unwrap()))
     }
 
     async fn update_searching(
@@ -692,7 +703,7 @@ impl Fixture {
             })
             .await?
             .into_owned();
-        Ok(response.library.into_option().unwrap())
+        Ok(unscanned(response.library.into_option().unwrap()))
     }
 }
 

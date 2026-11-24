@@ -9,11 +9,11 @@ use nama_forwarded::RequestSource;
 use nama_hub_proto::nama::hub::v1::{
     self as proto, AcceptUserInviteRequest, AcceptUserInviteResponse, ApproveServerLinkRequest,
     ApproveServerLinkResponse, ApproveServerSignInRequest, ApproveServerSignInResponse,
-    ApproveUserLinkRequest, ApproveUserLinkResponse, GetServerSignInRequest,
-    GetServerSignInResponse, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest,
-    InviteUserResponse, LinkService, LinkedServerService, ListLinkedServersRequest,
-    ListLinkedServersResponse, ListLinkedUsersRequest, ListLinkedUsersResponse,
-    ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
+    ApproveUserLinkRequest, ApproveUserLinkResponse, GetRelayTokenRequest, GetRelayTokenResponse,
+    GetServerSignInRequest, GetServerSignInResponse, GetUserLinkRequest, GetUserLinkResponse,
+    InviteUserRequest, InviteUserResponse, LinkService, LinkedServerService,
+    ListLinkedServersRequest, ListLinkedServersResponse, ListLinkedUsersRequest,
+    ListLinkedUsersResponse, ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
     ListRecommendedTitlesRequest, ListRecommendedTitlesResponse, ListSimilarTitlesRequest,
     ListSimilarTitlesResponse, ListTrendingTitlesRequest, ListTrendingTitlesResponse,
     ListUserInvitesRequest, ListUserInvitesResponse, PollServerLinkRequest, PollServerLinkResponse,
@@ -21,7 +21,8 @@ use nama_hub_proto::nama::hub::v1::{
     PullTrackPreferencesResponse, PullWatchStatesRequest, PullWatchStatesResponse,
     PushTrackPreferencesRequest, PushTrackPreferencesResponse, PushWatchStatesRequest,
     PushWatchStatesResponse, RecordViewingEventsRequest, RecordViewingEventsResponse,
-    RefusalReason, ServerLinkService, SetServerAddressesRequest, SetServerAddressesResponse,
+    RefusalReason, ServerLinkService, SetCertificateChallengeRequest,
+    SetCertificateChallengeResponse, SetServerAddressesRequest, SetServerAddressesResponse,
     StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
     StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
     SyncWatchlistResponse, UnlinkLinkedUserRequest, UnlinkLinkedUserResponse, UnlinkServerRequest,
@@ -30,13 +31,14 @@ use nama_hub_proto::nama::hub::v1::{
 use sqlx::PgPool;
 
 use super::{
-    accounts::signed_in, hub_failed, refuse, track_preferences, viewing, watch_states, watchlists,
+    accounts::session, hub_failed, recent_authentication_required, refuse, track_preferences,
+    viewing, watch_states, watchlists,
 };
 use crate::{
     links::{
         self, ADDRESS_LENGTH, CODE_LIFETIME_MINS, InviteId, LinkId, LinkedServer, Links,
-        ListedInvite, ListedServer, ListedUser, MAX_LAN_ADDRESSES, POLL_INTERVAL_SECS, Polled,
-        SignInId,
+        ListedInvite, ListedServer, ListedUser, MAX_CHALLENGE_VALUES, MAX_LAN_ADDRESSES,
+        POLL_INTERVAL_SECS, Polled, ReportedAddresses, SignInId,
     },
     recommendations::Recommendations,
     sync::{TrackPreferences, WatchStates, Watchlists},
@@ -110,7 +112,7 @@ impl LinkService for LinkServiceHandler {
     ) -> ServiceResult<ApproveServerLinkResponse> {
         let server = self
             .links
-            .approve(signed_in(&ctx)?, request.code)
+            .approve(session(&ctx)?, request.code)
             .await
             .map_err(refused)?;
         Response::ok(ApproveServerLinkResponse {
@@ -124,7 +126,7 @@ impl LinkService for LinkServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListLinkedServersRequest>,
     ) -> ServiceResult<ListLinkedServersResponse> {
-        let account = signed_in(&ctx)?.account.id;
+        let account = session(&ctx)?.account.id;
         let servers = self
             .links
             .list(account)
@@ -143,7 +145,7 @@ impl LinkService for LinkServiceHandler {
     ) -> ServiceResult<ApproveUserLinkResponse> {
         let user = self
             .links
-            .approve_user(signed_in(&ctx)?, request.code)
+            .approve_user(session(&ctx)?, request.code)
             .await
             .map_err(refused)?;
         Response::ok(ApproveUserLinkResponse {
@@ -157,7 +159,7 @@ impl LinkService for LinkServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListLinkedUsersRequest>,
     ) -> ServiceResult<ListLinkedUsersResponse> {
-        let account = signed_in(&ctx)?.account.id;
+        let account = session(&ctx)?.account.id;
         let users = self
             .links
             .list_users(account)
@@ -174,7 +176,7 @@ impl LinkService for LinkServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, UnlinkLinkedUserRequest>,
     ) -> ServiceResult<UnlinkLinkedUserResponse> {
-        let account = signed_in(&ctx)?.account.id;
+        let account = session(&ctx)?.account.id;
         // An id that isn't a UUID names no Link, so Unlinking it does nothing.
         if let Ok(link) = request.id.parse::<LinkId>() {
             self.links
@@ -190,7 +192,7 @@ impl LinkService for LinkServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, ListUserInvitesRequest>,
     ) -> ServiceResult<ListUserInvitesResponse> {
-        let account = signed_in(&ctx)?.account.id;
+        let account = session(&ctx)?.account.id;
         let invites = self
             .links
             .list_invites(account)
@@ -207,7 +209,7 @@ impl LinkService for LinkServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, AcceptUserInviteRequest>,
     ) -> ServiceResult<AcceptUserInviteResponse> {
-        let session = signed_in(&ctx)?;
+        let session = session(&ctx)?;
         let user = self
             .links
             .accept_invite(session, invite_id(request.id)?)
@@ -224,7 +226,7 @@ impl LinkService for LinkServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, GetServerSignInRequest>,
     ) -> ServiceResult<GetServerSignInResponse> {
-        let account = signed_in(&ctx)?.account.id;
+        let account = session(&ctx)?.account.id;
         let waiting = self
             .links
             .sign_in(account, sign_in_id(request.id)?)
@@ -242,7 +244,7 @@ impl LinkService for LinkServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, ApproveServerSignInRequest>,
     ) -> ServiceResult<ApproveServerSignInResponse> {
-        let account = signed_in(&ctx)?.account.id;
+        let account = session(&ctx)?.account.id;
         let return_url = self
             .links
             .approve_sign_in(account, sign_in_id(request.id)?)
@@ -280,16 +282,15 @@ impl LinkedServerService for LinkedServerServiceHandler {
         self.links
             .unlink(linked_server(&ctx)?)
             .await
-            .map_err(|err| hub_failed(&err))?;
+            .map_err(refused)?;
         Response::ok(UnlinkServerResponse::default())
     }
 
     async fn list_similar_titles(
         &self,
-        ctx: RequestContext,
+        _ctx: RequestContext,
         request: ServiceRequest<'_, ListSimilarTitlesRequest>,
     ) -> ServiceResult<ListSimilarTitlesResponse> {
-        linked_server(&ctx)?;
         let kind = match request.kind.as_known() {
             Some(proto::TitleKind::TITLE_KIND_MOVIE) => TitleKind::Movie,
             Some(proto::TitleKind::TITLE_KIND_SHOW) => TitleKind::Show,
@@ -323,7 +324,12 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .map(|&namespace| namespace.to_owned())
             .collect();
         let recommended = (self.recommendations)
-            .for_user(linked_server(&ctx)?, request.user_id, &namespaces)
+            .for_user(
+                &self.links,
+                linked_server(&ctx)?,
+                request.user_id,
+                &namespaces,
+            )
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(ListRecommendedTitlesResponse {
@@ -385,7 +391,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         let server = linked_server(&ctx)?;
         let changes = watch_states::changes_from_proto(request.to_owned_message().changes)?;
         self.watch_states
-            .push(server, changes)
+            .push(&self.links, server, changes)
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(PushWatchStatesResponse::default())
@@ -398,7 +404,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
     ) -> ServiceResult<PullWatchStatesResponse> {
         let pulled = self
             .watch_states
-            .pull(linked_server(&ctx)?, request.user_id)
+            .pull(&self.links, linked_server(&ctx)?, request.user_id)
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(PullWatchStatesResponse {
@@ -418,7 +424,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         let server = linked_server(&ctx)?;
         let changes = track_preferences::changes_from_proto(request.to_owned_message().changes)?;
         self.track_preferences
-            .push(server, changes)
+            .push(&self.links, server, changes)
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(PushTrackPreferencesResponse::default())
@@ -431,7 +437,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
     ) -> ServiceResult<PullTrackPreferencesResponse> {
         let pulled = self
             .track_preferences
-            .pull(linked_server(&ctx)?, request.user_id)
+            .pull(&self.links, linked_server(&ctx)?, request.user_id)
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(PullTrackPreferencesResponse {
@@ -454,7 +460,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
         let entries = watchlists::watchlist_from_proto(entries)?;
         let merged = self
             .watchlists
-            .sync(server, user_id, entries)
+            .sync(&self.links, server, user_id, entries)
             .await
             .map_err(|err| hub_failed(&err))?;
         Response::ok(SyncWatchlistResponse {
@@ -527,21 +533,52 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .iter()
             .map(|&address| address.to_owned())
             .collect();
-        let public = public_address(&ctx, request.public_port)?;
+        let reported = ReportedAddresses {
+            url: request.url,
+            lan_addresses: &lan_addresses,
+            public: public_address(&ctx, request.public_port)?,
+            relay: parse_relay(request.relay)?,
+        };
         let checked = self
             .links
-            .set_addresses(linked_server(&ctx)?, request.url, &lan_addresses, public)
+            .set_addresses(linked_server(&ctx)?, reported)
             .await
             .map_err(refused)?;
-        Response::ok(
-            checked.map_or_else(SetServerAddressesResponse::default, |checked| {
-                SetServerAddressesResponse {
-                    public_address: checked.address,
-                    reachable: checked.reachable,
-                    ..Default::default()
-                }
-            }),
-        )
+        let probed = checked.public.unwrap_or_default();
+        Response::ok(SetServerAddressesResponse {
+            public_address: probed.address,
+            reachable: probed.reachable,
+            names: checked.names,
+            ..Default::default()
+        })
+    }
+
+    async fn set_certificate_challenge(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetCertificateChallengeRequest>,
+    ) -> ServiceResult<SetCertificateChallengeResponse> {
+        let values = request.to_owned_message().values;
+        (self.links.set_challenge(linked_server(&ctx)?, values))
+            .await
+            .map_err(refused)?;
+        Response::ok(SetCertificateChallengeResponse::default())
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "the token is signed in memory, but the generated trait's methods are async"
+    )]
+    async fn get_relay_token(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, GetRelayTokenRequest>,
+    ) -> ServiceResult<GetRelayTokenResponse> {
+        let token = (self.links.relay_token(linked_server(&ctx)?)).map_err(refused)?;
+        Response::ok(GetRelayTokenResponse {
+            token,
+            ..Default::default()
+        })
     }
 
     async fn record_viewing_events(
@@ -551,7 +588,7 @@ impl LinkedServerService for LinkedServerServiceHandler {
     ) -> ServiceResult<RecordViewingEventsResponse> {
         let server = linked_server(&ctx)?;
         let events = viewing::recorded_from_proto(request.to_owned_message().events)?;
-        (self.viewing.record(server, events))
+        (self.viewing.record(&self.links, server, events))
             .await
             .map_err(|err| viewing::refused(&err))?;
         Response::ok(RecordViewingEventsResponse::default())
@@ -559,10 +596,9 @@ impl LinkedServerService for LinkedServerServiceHandler {
 
     async fn list_trending_titles(
         &self,
-        ctx: RequestContext,
+        _ctx: RequestContext,
         _request: ServiceRequest<'_, ListTrendingTitlesRequest>,
     ) -> ServiceResult<ListTrendingTitlesResponse> {
-        linked_server(&ctx)?;
         let trending = (self.viewing.trending())
             .await
             .map_err(|err| hub_failed(&err))?;
@@ -574,10 +610,9 @@ impl LinkedServerService for LinkedServerServiceHandler {
 
     async fn list_most_watchlisted_titles(
         &self,
-        ctx: RequestContext,
+        _ctx: RequestContext,
         _request: ServiceRequest<'_, ListMostWatchlistedTitlesRequest>,
     ) -> ServiceResult<ListMostWatchlistedTitlesResponse> {
-        linked_server(&ctx)?;
         let watchlisted = (self.watchlists.most_watchlisted())
             .await
             .map_err(|err| hub_failed(&err))?;
@@ -605,6 +640,22 @@ fn public_address(ctx: &RequestContext, port: u32) -> Result<Option<SocketAddr>,
     Ok(Some(SocketAddr::new(source.client_ip.to_canonical(), port)))
 }
 
+/// The Relay `relay` names, as `<ip>:<port>`, or `None` for empty. One no client could connect
+/// to, such as on port 0 or a loopback address, is refused, since the Hub names it and offers it.
+fn parse_relay(relay: &str) -> Result<Option<SocketAddr>, ConnectError> {
+    if relay.is_empty() {
+        return Ok(None);
+    }
+    let relay: SocketAddr = relay
+        .parse()
+        .map_err(|_not_an_address| refused(links::Error::AddressInvalid))?;
+    let ip = relay.ip().to_canonical();
+    if relay.port() == 0 || ip.is_unspecified() || ip.is_loopback() || ip.is_multicast() {
+        return Err(refused(links::Error::AddressInvalid));
+    }
+    Ok(Some(relay))
+}
+
 /// The invite `id` names. One that isn't a UUID names none.
 fn invite_id(id: &str) -> Result<InviteId, ConnectError> {
     id.parse()
@@ -617,15 +668,12 @@ fn sign_in_id(id: &str) -> Result<SignInId, ConnectError> {
         .map_err(|_not_a_uuid| refused(links::Error::SignInNotFound))
 }
 
-/// The Linked Server whose credential the request carried, which the auth layer found.
+/// The Linked Server that sent the request `ctx` is for. The auth layer refuses every
+/// `LinkedServerService` call without one, so its absence is a Hub bug and never a Refusal.
 fn linked_server(ctx: &RequestContext) -> Result<&LinkedServer, ConnectError> {
-    ctx.extensions().get::<LinkedServer>().ok_or_else(|| {
-        refuse(
-            RefusalReason::REFUSAL_REASON_SERVER_NOT_LINKED,
-            "send a Linked Server's credential",
-        )
-        .into()
-    })
+    ctx.extensions()
+        .get::<LinkedServer>()
+        .ok_or_else(|| hub_failed(&"a LinkedServerService call came without its Linked Server"))
 }
 
 fn similar_to_proto(similar: SimilarTitle) -> proto::SimilarTitle {
@@ -714,13 +762,12 @@ fn refused(err: links::Error) -> ConnectError {
     use links::Error as E;
     let message = err.to_string();
     let refused = match err {
-        E::RecentAuthenticationRequired => {
-            refuse(R::REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED, message)
-        }
+        E::RecentAuthenticationRequired(ref err) => recent_authentication_required(err),
         E::EmailNotProven => refuse(R::REFUSAL_REASON_EMAIL_NOT_PROVEN, message),
         E::CodeNotFound => refuse(R::REFUSAL_REASON_LINK_CODE_NOT_FOUND, message).field("code"),
         E::Expired => refuse(R::REFUSAL_REASON_LINK_EXPIRED, message).field("device_code"),
         E::UserLinked => refuse(R::REFUSAL_REASON_USER_LINKED, message),
+        E::AccountHasUserOnServer => refuse(R::REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER, message),
         E::InviteNotFound => refuse(R::REFUSAL_REASON_USER_INVITE_NOT_FOUND, message).field("id"),
         E::SignInNotFound => {
             refuse(R::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND, message).field("id")
@@ -731,7 +778,11 @@ fn refused(err: links::Error) -> ConnectError {
             .param("maxLength", &ADDRESS_LENGTH)
             .param("maxLanAddresses", &MAX_LAN_ADDRESSES)
             .param("maxPort", &u16::MAX),
-        E::Random(_) | E::Database(_) => return hub_failed(&err),
+        E::ChallengeInvalid => refuse(R::REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID, message)
+            .field("values")
+            .param("maxValues", &MAX_CHALLENGE_VALUES),
+        // ADR 0019: no Refusal, as it is the Hub's own setup.
+        E::Random(_) | E::Database(_) | E::Names(_) | E::NamesOff => return hub_failed(&err),
     };
     refused.into()
 }

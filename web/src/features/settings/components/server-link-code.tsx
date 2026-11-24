@@ -1,4 +1,4 @@
-import { Button } from "nama-ui/components/button";
+import { Button, ghostHang } from "nama-ui/components/button";
 
 import type { ShownLink } from "@/features/settings/lib/server-link";
 
@@ -33,7 +33,7 @@ export function ServerLinkCode({
       <p className="text-xs text-muted-foreground">
         Waiting for it to be entered. It works for 10 minutes.
       </p>
-      <div className="-ms-4">
+      <div className={ghostHang}>
         <Button variant="ghost" disabled={pending} onClick={onCancel}>
           Cancel
         </Button>

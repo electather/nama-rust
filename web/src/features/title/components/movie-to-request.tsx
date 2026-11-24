@@ -1,14 +1,15 @@
 import { notFound } from "@tanstack/react-router";
 
 import { CastAndCrew } from "@/features/title/components/cast-and-crew";
+import { PeopleLinks } from "@/features/title/components/people-links";
 import { SimilarTitles } from "@/features/title/components/similar-titles";
 import { TitleDetails } from "@/features/title/components/title-details";
 import { TitlePage } from "@/features/title/components/title-page";
 import { TitleTop } from "@/features/title/components/title-top";
 import { TitleTrailers } from "@/features/title/components/title-trailers";
 import { useFoundMovie } from "@/features/title/data/use-found-movie";
-import { crewWithJob } from "@/features/title/lib/crew-with-job";
 import { originalAudio } from "@/features/title/lib/original-audio";
+import { crewWithJob } from "@/features/title/lib/people";
 import { similarMovies } from "@/features/title/lib/similar-titles";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { FoundMovieState } from "@/shared/components/found-movie-state/found-movie-state";
@@ -23,8 +24,10 @@ export function MovieToRequest({ movieId, you }: { movieId: ExternalId; you: big
   if (!movie) {
     throw notFound();
   }
+  const directors = crewWithJob(movie.crew, "Director");
   return (
     <TitlePage
+      name={movie.title}
       hero={
         <TitleTop
           title={movie}
@@ -47,7 +50,7 @@ export function MovieToRequest({ movieId, you }: { movieId: ExternalId; you: big
             heading: "Information",
             facts: [
               ["Released", movie.year?.toString()],
-              ["Directed by", crewWithJob(movie.crew, "Director")],
+              ["Directed by", directors && <PeopleLinks key="crew" people={directors} />],
             ],
           },
           { heading: "Languages", facts: [originalAudio(movie.originalLanguage)] },

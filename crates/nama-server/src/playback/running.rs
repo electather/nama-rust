@@ -81,6 +81,7 @@ use super::{
     tracks::track_to_proto,
 };
 use crate::{
+    db,
     events::{EventBus, event},
     ffmpeg::{
         BurnIn, Ffmpeg, FromCut, Hardware, Keyframe, Remux, TextSubtitle, Transcode,
@@ -219,6 +220,8 @@ struct Plan {
     /// Its HLS files and the ffmpeg writing them; `None` for a Direct Play, which runs nothing.
     hls: Option<Arc<Running>>,
     on_hardware: Option<OnHardware>,
+    /// Whether a Direct Play was planned off the local network, under the User's remote cap.
+    kept_to_remote_cap: bool,
     /// When the plan was last asked for anything, which keeps it another [`STOP_UNUSED_AFTER`].
     last_used: Mutex<Instant>,
     progress: Mutex<Option<ReportedProgress>>,
@@ -303,7 +306,8 @@ impl RunningPlans {
         let playback = playback(caller, &plan);
         let started = match playing {
             Playing::DirectPlay => {
-                Some((self.direct_play(playback), direct_play_url(plan.version)))
+                let id = self.direct_play(playback, plan.offers.cap.is_some());
+                Some((id, direct_play_url(plan.version)))
             }
             Playing::Remux { remux, duration_ms } => {
                 self.remux(playback, remux, duration_ms, start_ms).await?
@@ -433,10 +437,10 @@ impl RunningPlans {
     }
 
     /// Keeps a plan playing `playback` that runs nothing, a Direct Play, and returns its id.
-    fn direct_play(&self, mut playback: Playback) -> u64 {
+    fn direct_play(&self, mut playback: Playback, kept_to_remote_cap: bool) -> u64 {
         let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
         playback.plan_id = id;
-        self.insert(id, playback, None, None);
+        self.insert(playback, None, None, kept_to_remote_cap);
         id
     }
 
@@ -499,7 +503,7 @@ impl RunningPlans {
             running.stop().await;
             return Err(StartError::FailedOnServer(running.method()));
         }
-        self.insert(id, playback, Some(running), on_hardware);
+        self.insert(playback, Some(running), on_hardware, false);
         Ok(id)
     }
 
@@ -523,21 +527,22 @@ impl RunningPlans {
         })
     }
 
-    /// Adds the plan `id` playing `playback`, with `hls` if it runs ffmpeg and `on_hardware` if
-    /// it Transcodes on hardware, and publishes its `PlaybackStarted`, as it plays now.
+    /// Adds the plan playing `playback`, by its `plan_id`, with `hls` if it runs ffmpeg,
+    /// `on_hardware` and `kept_to_remote_cap` as [`Plan`] says, and publishes its `PlaybackStarted`.
     fn insert(
         &self,
-        id: u64,
         playback: Playback,
         hls: Option<Arc<Running>>,
         on_hardware: Option<OnHardware>,
+        kept_to_remote_cap: bool,
     ) {
         let to_device = (playback.version_id, playback.device_id);
         let plan = Plan {
             playback,
             hls,
             on_hardware,
-            last_used: Mutex::new(Instant::now()),
+            kept_to_remote_cap,
+            last_used: Mutex::new(db::instant_now()),
             progress: Mutex::default(),
         };
         // `plans` before `stopped`, as in `stop_by_admin`, so a stop can't land between lifting it
@@ -556,7 +561,7 @@ impl RunningPlans {
             playback: plan.playback_now().into(),
             ..Default::default()
         };
-        plans.insert(id, Arc::new(plan));
+        plans.insert(plan.playback.plan_id, Arc::new(plan));
         self.inner.events.publish(vec![event(started)]);
         drop((stopped, plans));
     }
@@ -568,22 +573,23 @@ impl RunningPlans {
         // stopped while it's served.
         let plans = lock(&self.inner.plans);
         let plan = (plans.get(&id)).filter(|plan| plan.playback.device_id == device)?;
-        *lock(&plan.last_used) = Instant::now();
+        *lock(&plan.last_used) = db::instant_now();
         Some(Arc::clone(plan))
     }
 
     /// Marks the Device `device`'s Direct Plays of the Version `version` asked for now, which
-    /// keeps them another [`STOP_UNUSED_AFTER`].
-    pub(crate) fn ask_direct_plays(&self, version: i64, device: i64) {
+    /// keeps them another [`STOP_UNUSED_AFTER`], and says whether any was kept to a remote cap.
+    pub(crate) fn ask_direct_plays(&self, version: i64, device: i64) -> bool {
         let plans = lock(&self.inner.plans);
         let direct_plays = plans.values().filter(|plan| {
             plan.hls.is_none()
                 && plan.playback.version_id == version
                 && plan.playback.device_id == device
         });
-        for plan in direct_plays {
-            *lock(&plan.last_used) = Instant::now();
-        }
+        direct_plays.fold(false, |any_kept, plan| {
+            *lock(&plan.last_used) = db::instant_now();
+            any_kept || plan.kept_to_remote_cap
+        })
     }
 
     /// `file`, the parts of the Version `version`'s file being sent to the Device `device`, which
@@ -666,16 +672,6 @@ impl RunningPlans {
         };
         let mut stopped = lock(&self.inner.stopped);
         stopped.entry((version, device)).or_default().child_token()
-    }
-
-    /// Stops every plan not asked for in the last `unused_for`, and deletes its files.
-    async fn stop_unused(&self, unused_for: Duration) {
-        let unused: Vec<(u64, Arc<Plan>)> = lock(&self.inner.plans)
-            .extract_if(|_, plan| lock(&plan.last_used).elapsed() >= unused_for)
-            .collect();
-        for (_, plan) in unused {
-            self.stop(&plan).await;
-        }
     }
 
     /// Deletes each running plan's files from well behind or far ahead of playback, as

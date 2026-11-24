@@ -2167,6 +2167,17 @@ pub struct SetPermissionsRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
     pub permissions: ::buffa::alloc::vec::Vec<::buffa::EnumValue<Permission>>,
+    /// Their cap, as `User.remote_playback_limit` says, replacing the one they had: unset or
+    /// `PLAYBACK_LIMIT_ORIGINAL` for none. A value this Server doesn't know is refused.
+    ///
+    /// Field 3: `remote_playback_limit`
+    #[serde(
+        rename = "remotePlaybackLimit",
+        alias = "remote_playback_limit",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub remote_playback_limit: ::buffa::EnumValue<PlaybackLimit>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2176,6 +2187,7 @@ impl ::core::fmt::Debug for SetPermissionsRequest {
         f.debug_struct("SetPermissionsRequest")
             .field("user_id", &self.user_id)
             .field("permissions", &self.permissions)
+            .field("remote_playback_limit", &self.remote_playback_limit)
             .finish()
     }
 }
@@ -2217,6 +2229,12 @@ impl ::buffa::Message for SetPermissionsRequest {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2239,6 +2257,12 @@ impl ::buffa::Message for SetPermissionsRequest {
             ::buffa::types::put_len_delimited_header(2u32, payload, buf);
             for v in &self.permissions {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
             }
         }
         self.__buffa_unknown_fields.write_to(buf);
@@ -2299,6 +2323,15 @@ impl ::buffa::Message for SetPermissionsRequest {
                     );
                 }
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.remote_playback_limit = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2309,6 +2342,7 @@ impl ::buffa::Message for SetPermissionsRequest {
     fn clear(&mut self) {
         self.user_id = 0i64;
         self.permissions.clear();
+        self.remote_playback_limit = ::buffa::EnumValue::from(0);
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3824,6 +3858,16 @@ pub struct GetDefaultPermissionsResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
     pub permissions: ::buffa::alloc::vec::Vec<::buffa::EnumValue<Permission>>,
+    /// The cap new Users get, as `User.remote_playback_limit` says.
+    ///
+    /// Field 2: `remote_playback_limit`
+    #[serde(
+        rename = "remotePlaybackLimit",
+        alias = "remote_playback_limit",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub remote_playback_limit: ::buffa::EnumValue<PlaybackLimit>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3832,6 +3876,7 @@ impl ::core::fmt::Debug for GetDefaultPermissionsResponse {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("GetDefaultPermissionsResponse")
             .field("permissions", &self.permissions)
+            .field("remote_playback_limit", &self.remote_playback_limit)
             .finish()
     }
 }
@@ -3870,6 +3915,12 @@ impl ::buffa::Message for GetDefaultPermissionsResponse {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3889,6 +3940,12 @@ impl ::buffa::Message for GetDefaultPermissionsResponse {
             ::buffa::types::put_len_delimited_header(1u32, payload, buf);
             for v in &self.permissions {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(2u32, val, buf);
             }
         }
         self.__buffa_unknown_fields.write_to(buf);
@@ -3942,6 +3999,15 @@ impl ::buffa::Message for GetDefaultPermissionsResponse {
                     );
                 }
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.remote_playback_limit = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -3951,6 +4017,7 @@ impl ::buffa::Message for GetDefaultPermissionsResponse {
     }
     fn clear(&mut self) {
         self.permissions.clear();
+        self.remote_playback_limit = ::buffa::EnumValue::from(0);
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3996,6 +4063,16 @@ pub struct SetDefaultPermissionsRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
     pub permissions: ::buffa::alloc::vec::Vec<::buffa::EnumValue<Permission>>,
+    /// The cap new Users are to get, as `SetPermissionsRequest.remote_playback_limit` says.
+    ///
+    /// Field 2: `remote_playback_limit`
+    #[serde(
+        rename = "remotePlaybackLimit",
+        alias = "remote_playback_limit",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub remote_playback_limit: ::buffa::EnumValue<PlaybackLimit>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -4004,6 +4081,7 @@ impl ::core::fmt::Debug for SetDefaultPermissionsRequest {
     fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
         f.debug_struct("SetDefaultPermissionsRequest")
             .field("permissions", &self.permissions)
+            .field("remote_playback_limit", &self.remote_playback_limit)
             .finish()
     }
 }
@@ -4042,6 +4120,12 @@ impl ::buffa::Message for SetDefaultPermissionsRequest {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -4061,6 +4145,12 @@ impl ::buffa::Message for SetDefaultPermissionsRequest {
             ::buffa::types::put_len_delimited_header(1u32, payload, buf);
             for v in &self.permissions {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(2u32, val, buf);
             }
         }
         self.__buffa_unknown_fields.write_to(buf);
@@ -4114,6 +4204,15 @@ impl ::buffa::Message for SetDefaultPermissionsRequest {
                     );
                 }
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.remote_playback_limit = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4123,6 +4222,7 @@ impl ::buffa::Message for SetDefaultPermissionsRequest {
     }
     fn clear(&mut self) {
         self.permissions.clear();
+        self.remote_playback_limit = ::buffa::EnumValue::from(0);
         self.__buffa_unknown_fields.clear();
     }
 }

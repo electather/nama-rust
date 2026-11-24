@@ -2,7 +2,7 @@ import { DeletedWhilePlaying } from "@/features/player/components/deleted-while-
 import { Player } from "@/features/player/components/player";
 import { useEpisodeAfter } from "@/features/player/data/use-episode-after";
 import { useEpisodeBefore } from "@/features/player/data/use-episode-before";
-import { useEpisodesToPlay } from "@/features/player/data/use-episodes-to-play";
+import { useEpisodeToPlay } from "@/features/player/data/use-episode-to-play";
 import { useAutoplayedEpisode } from "@/features/player/hooks/use-autoplayed-episode";
 import { useEpisodeHeading } from "@/features/player/hooks/use-episode-heading";
 import { useShowForLockScreen } from "@/features/player/hooks/use-show-for-lock-screen";
@@ -29,8 +29,7 @@ export function EpisodePlayer({
   streak: number | undefined;
   params: { libraryId: string; showId: string };
 }) {
-  const { data, error } = useEpisodesToPlay(input);
-  const episode = data.episodes.find((each) => each.episodeNumber === episodeNumber);
+  const { episode, error } = useEpisodeToPlay(input, episodeNumber);
   const { libraryId, showId } = params;
   const next = useAutoplayedEpisode({ ...input, episodeNumber });
   const after = useEpisodeAfter({ ...input, episodeNumber });

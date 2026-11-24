@@ -10,6 +10,7 @@ use crate::{
         Contents, Listing, TitleSort, Watched,
         fixture::{MatchedMovie, tmdb_movie},
     },
+    plugins::ExtensionPoints,
 };
 
 #[tokio::test]
@@ -22,7 +23,7 @@ async fn a_page_token_is_refused_under_another_sort_or_filter_or_library() {
     MatchedMovie::store(&contents, alien.library, "/media/Heat.mkv", heat).await;
     let other = tempfile::tempdir().unwrap();
     let elsewhere = MatchedMovie::new(&db, other.path(), tmdb_movie(1, "Up")).await;
-    let browse = Browse::new(db);
+    let browse = Browse::new(db, ExtensionPoints::default());
     let by_title = BY_TITLE;
     let first = PageRequest {
         size: 1,

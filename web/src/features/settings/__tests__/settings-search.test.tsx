@@ -156,7 +156,7 @@ test("an address naming no setting opens the Section at its top", async () => {
   openApp("/code?settings=playback&setting=nonsense", fakeServer({ signedIn: newUser }));
 
   await expect(screen.findByRole("heading", { name: "Playback" })).resolves.toBeDefined();
-  expect(document.activeElement?.getAttribute("role")).toBe("combobox");
+  expect(document.activeElement).toBe(screen.getByRole("combobox", { name: "Search settings" }));
 });
 
 test("a Home row is found by its heading, and lands on its row in the Home layout", async () => {

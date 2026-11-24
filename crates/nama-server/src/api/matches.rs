@@ -1,6 +1,7 @@
 //! Fixing Matches by hand: `nama.v1.MatchService`.
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
+use nama_plugin_api::{PluginId, metadata::ExternalId};
 use nama_proto::nama::v1::{
     self as proto, ClearMatchRequest, ClearMatchResponse, ListUnmatchedItemsRequest,
     ListUnmatchedItemsResponse, MatchService, RefusalReason, SearchTitlesRequest,
@@ -9,16 +10,16 @@ use nama_proto::nama::v1::{
 
 use crate::{
     library::{
-        Contents, Libraries, SearchQuery, TiedTitle, TitleSources, Unanswered, Unmatched,
-        UnmatchedReason,
+        Artwork, Candidate, Contents, Libraries, SearchQuery, TiedTitle, TitleSources, Unanswered,
+        Unmatched, UnmatchedReason,
     },
     matching::{ManualError, Matcher},
     page::Page,
 };
 
 use super::{
-    browse::unmatched_summary, database_failed, external_id_to_proto, refuse, required_id,
-    title_kind_from_proto,
+    browse::{Fields, not_found, unmatched_summary},
+    database_failed, external_id_to_proto, refuse, required_id, title_kind_from_proto,
 };
 
 /// `nama.v1.MatchService`: fixing Matches by hand. Needs `PERMISSION_MANAGE_LIBRARIES`, which
@@ -28,6 +29,8 @@ pub(super) struct MatchServiceHandler {
     pub(super) metadata: TitleSources,
     pub(super) contents: Contents,
     pub(super) libraries: Libraries,
+    /// Offers the Posters of the titles a search finds.
+    pub(super) artwork: Artwork,
 }
 
 #[expect(
@@ -55,19 +58,22 @@ impl MatchService for MatchServiceHandler {
             title: request.title,
             year: request.year,
         };
-        // A Match search belongs to no Library, so it asks in Admin precedence.
-        let candidates = match self.metadata.search_in_turn(&query).await {
-            Ok((_, candidates)) => candidates,
+        // A Match search naming no Library asks in Admin precedence.
+        let sources = match request.library_id {
+            Some(library) => self.title_sources_of(library).await?,
+            None => self.metadata.clone(),
+        };
+        let candidates = match sources.search_in_turn(&query).await {
+            Ok((source, candidates)) => (candidates.into_iter())
+                .map(|candidate| self.candidate_to_proto(&source.plugin, candidate))
+                .collect(),
             Err(Unanswered::NotFound) => Vec::new(),
             Err(Unanswered::Unavailable) => {
                 return Err(ManualError::Unavailable.into());
             }
         };
         Response::ok(SearchTitlesResponse {
-            candidates: candidates
-                .into_iter()
-                .map(|candidate| title_to_proto(candidate.into()))
-                .collect(),
+            candidates,
             ..Default::default()
         })
     }
@@ -79,7 +85,15 @@ impl MatchService for MatchServiceHandler {
     ) -> ServiceResult<SetMatchResponse> {
         let request = request.to_owned_message();
         let title = required_id(request.title_id.into_option(), "title_id", "title")?;
-        let summary = self.matcher.set_match(request.item_id, &title).await?;
+        let summary = match request.matched_title.into_option() {
+            Some(matched) => {
+                let (library, matched) = matched_title_from_proto(matched)?;
+                self.matcher
+                    .set_title_match(library, &matched, &title)
+                    .await?
+            }
+            None => self.matcher.set_match(request.item_id, &title).await?,
+        };
         Response::ok(SetMatchResponse {
             matched: summary.matched,
             unmatched: summary.unmatched,
@@ -92,7 +106,14 @@ impl MatchService for MatchServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, ClearMatchRequest>,
     ) -> ServiceResult<ClearMatchResponse> {
-        let summary = self.matcher.clear_match(request.item_id).await?;
+        let request = request.to_owned_message();
+        let summary = match request.matched_title.into_option() {
+            Some(matched) => {
+                let (library, matched) = matched_title_from_proto(matched)?;
+                self.matcher.clear_title_match(library, &matched).await?
+            }
+            None => self.matcher.clear_match(request.item_id).await?,
+        };
         Response::ok(ClearMatchResponse {
             unmatched: summary.unmatched,
             ..Default::default()
@@ -106,11 +127,7 @@ impl MatchService for MatchServiceHandler {
     ) -> ServiceResult<ListUnmatchedItemsResponse> {
         let request = request.to_owned_message();
         let library = request.filter.library_id;
-        let searching = self
-            .metadata
-            .in_order(self.libraries.get(library).await?.title_sources)
-            .can_search()
-            .await;
+        let searching = self.title_sources_of(library).await?.can_search().await;
         let order = unmatched_order(&request);
         let list = format!("ListUnmatchedItems {library} {order:?}");
         let page = Page::read(&request.page, list.as_bytes()).map_err(|invalid| {
@@ -156,6 +173,34 @@ fn unmatched_order(request: &ListUnmatchedItemsRequest) -> (UnmatchedItemSort, S
         _ => D::SORT_DIRECTION_ASCENDING,
     };
     (sort, direction)
+}
+
+impl MatchServiceHandler {
+    /// The title sources of the Library `library`, in its order.
+    async fn title_sources_of(&self, library: i64) -> Result<TitleSources, ConnectError> {
+        Ok((self.metadata).in_order(self.libraries.get(library).await?.title_sources))
+    }
+
+    /// `candidate`, which the Plugin `plugin`'s title source found, with its Poster offered.
+    fn candidate_to_proto(&self, plugin: &PluginId, candidate: Candidate) -> proto::TitleCandidate {
+        let poster_url = (candidate.poster.as_deref()).map(|path| self.artwork.offer(plugin, path));
+        proto::TitleCandidate {
+            poster_url,
+            ..title_to_proto(candidate.into())
+        }
+    }
+}
+
+/// The Library and the id of the Movie or Show `matched` names.
+fn matched_title_from_proto(
+    matched: proto::MatchedTitle,
+) -> Result<(i64, ExternalId), ConnectError> {
+    let id = required_id(
+        matched.id.into_option(),
+        "matched_title.id",
+        "Movie or Show",
+    )?;
+    Ok((matched.library_id, id))
 }
 
 fn title_to_proto(title: TiedTitle) -> proto::TitleCandidate {
@@ -226,6 +271,13 @@ fn unmatched_to_proto(mut unmatched: Unmatched, searching: bool) -> proto::Unmat
     }
 }
 
+/// The fields of a request's `matched_title`.
+const MATCHED_TITLE: Fields = Fields {
+    library: "matched_title.library_id",
+    title: "matched_title.id",
+    ..Fields::NONE
+};
+
 /// The Connect error a client gets for fixing a Match that failed. Database failures are logged,
 /// not sent: they say nothing the client can act on.
 impl From<ManualError> for ConnectError {
@@ -241,6 +293,7 @@ impl From<ManualError> for ConnectError {
                 .field("title_id")
                 .param("titleId", &id),
             ManualError::Unavailable => refuse(R::REFUSAL_REASON_NO_TITLE_SOURCE, message),
+            ManualError::NotFound(err) => not_found(MATCHED_TITLE, &err),
             ManualError::Database(err) => return database_failed(err),
         };
         refused.into()

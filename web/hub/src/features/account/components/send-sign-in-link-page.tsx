@@ -1,3 +1,4 @@
+import { PageHeading } from "@hub/app/page-heading";
 import { SignInLinkSent } from "@hub/features/account/components/sign-in-link-sent";
 import { TextField } from "@hub/features/account/components/text-field";
 import { useSendSignInLink } from "@hub/features/account/data/sign-in-links";
@@ -21,9 +22,7 @@ export function SendSignInLinkPage({ continueTo }: { continueTo: string }) {
         send.mutate({ email: typeof email === "string" ? email : "", continueTo });
       }}
     >
-      <h1 className="text-center text-3xl font-medium tracking-tight text-balance">
-        Email a Sign-in Link
-      </h1>
+      <PageHeading>Email a Sign-in Link</PageHeading>
       <TextField
         label="Email"
         name="email"

@@ -48,6 +48,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         "const SHELL: &[u8] = include_bytes!({:?});\n\n",
         utf8(&shell)?
     );
+    // The real bundle always trips both: 200+ files and the 1 MB+ jassub wasm.
+    code.push_str(
+        "#[expect(clippy::too_many_lines, clippy::large_include_file, reason = \"generated from the bundle\")]\n",
+    );
     code.push_str("fn asset(path: &str) -> Option<&'static [u8]> {\n    match path {\n");
     for file in &files {
         let url_path = format!("/{}", utf8(file.strip_prefix(&client)?)?.replace('\\', "/"));

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE users SET permissions = ?, remote_playback_limit = ?, updated_at = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "26afe6b72471f7724805b392b6e6f63606f285c81b3363dfdccd5ab8c62431fd"
+}

@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { PageTitle } from "@/shared/components/page-title";
+
 /**
  * The card a signed-out page, or signing in another Device, holds its one task in, under its
  * `heading` when it has one throughout.
@@ -17,7 +19,12 @@ export function SignInCard({
   return (
     <main className="flex w-full max-w-110 flex-col gap-5 rounded-xl border bg-card p-7.5">
       {heading !== undefined && (
-        <h1 className="text-center text-3xl font-medium tracking-tight text-balance">{heading}</h1>
+        <>
+          <PageTitle name={heading} />
+          <h1 className="text-center text-3xl font-medium tracking-tight text-balance">
+            {heading}
+          </h1>
+        </>
       )}
       {intro !== undefined && (
         <p className="-mt-2 text-center text-sm text-pretty text-muted-foreground">{intro}</p>

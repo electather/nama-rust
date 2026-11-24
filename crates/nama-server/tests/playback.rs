@@ -8,6 +8,12 @@ mod browsing;
 mod burn_in;
 #[path = "playback/chapters.rs"]
 mod chapters;
+#[path = "playback/compression.rs"]
+mod compression;
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
+#[path = "playback/direct_play.rs"]
+mod direct_play;
 #[path = "playback/failing_ffmpeg.rs"]
 mod failing_ffmpeg;
 #[path = "support/http.rs"]
@@ -24,6 +30,8 @@ mod now_playing;
 mod other_versions;
 #[path = "support/refused.rs"]
 mod refused;
+#[path = "playback/remote_caps.rs"]
+mod remote_caps;
 #[path = "playback/resumed_ranges.rs"]
 mod resumed_ranges;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
@@ -1972,7 +1980,7 @@ impl Fixture {
             .list_episodes(ListEpisodesRequest {
                 library_id: self.library,
                 show_id: tmdb_id(DARK).into(),
-                season_number: season,
+                season_number: Some(season),
                 ..Default::default()
             })
             .await

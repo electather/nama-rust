@@ -124,11 +124,11 @@ pub(crate) fn job_run_span(run: i64) -> Span {
     tracing::error_span!(target: PLUGIN_TARGET, JOB_RUN_SPAN, job_run = run)
 }
 
-/// Adds `line` to `plugin`'s last lines, dropping its oldest past [`KEPT_PLUGIN_LINES`], if its
-/// lines are kept: a line from a Plugin that isn't enabled, such as one checking its settings, is
-/// dropped. A line carries no enablement, so one from a call still running after a disable lands
-/// in the next enabling's lines.
-fn push_plugin_line(plugin: &PluginId, line: PluginLine) {
+/// Adds the line `line_at` builds from [`db::now_ms`] to `plugin`'s last lines, dropping its
+/// oldest past [`KEPT_PLUGIN_LINES`], if its lines are kept: a line from a Plugin that isn't
+/// enabled, such as one checking its settings, is dropped. A line carries no enablement, so one
+/// from a call still running after a disable lands in the next enabling's lines.
+fn push_plugin_line(plugin: &PluginId, line_at: impl FnOnce(i64) -> PluginLine) {
     let mut kept = PLUGIN_LINES.lock().unwrap_or_else(PoisonError::into_inner);
     let Some(lines) = kept.get_mut(plugin) else {
         return;
@@ -136,7 +136,8 @@ fn push_plugin_line(plugin: &PluginId, line: PluginLine) {
     if lines.len() == KEPT_PLUGIN_LINES {
         lines.pop_front();
     }
-    lines.push_back(line);
+    // The time is read under the lock, so the order it keeps lines in is their `at_ms` order.
+    lines.push_back(line_at(db::now_ms()));
 }
 
 /// Cuts `line` at [`MAX_PLUGIN_LINE_BYTES`] and marks it as cut.
@@ -616,13 +617,14 @@ where
             }
             (plugin, text)
         };
-        let line = PluginLine {
-            at_ms: db::now_ms(),
-            level: *metadata.level(),
+        let level = *metadata.level();
+        let run = innermost(event, &ctx, |&SpanRun(run)| run);
+        push_plugin_line(&plugin, |at_ms| PluginLine {
+            at_ms,
+            level,
             text,
-            run: innermost(event, &ctx, |&SpanRun(run)| run),
-        };
-        push_plugin_line(&plugin, line);
+            run,
+        });
     }
 }
 

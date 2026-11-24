@@ -20,6 +20,7 @@ use nama_plugin_api::{
 };
 use sqlx::{Sqlite, SqliteConnection, Transaction};
 use thiserror::Error;
+use tokio::sync::watch;
 use tracing::warn;
 use url::Url;
 
@@ -48,6 +49,10 @@ pub(crate) struct Settings {
     /// Where segment files go while no folder is set.
     default_folder: PathBuf,
     values: Arc<RwLock<Values>>,
+    url_saved: watch::Sender<()>,
+    /// The Server URL in use while the Admin sets none, or empty for none: its public name on the
+    /// Hub. Kept only in memory, since it changes with the Link.
+    default_url: Arc<RwLock<String>>,
 }
 
 /// One value of every Server setting.
@@ -170,6 +175,8 @@ impl Settings {
             db,
             default_folder,
             values: Arc::default(),
+            url_saved: watch::Sender::new(()),
+            default_url: Arc::default(),
         }
     }
 
@@ -235,7 +242,16 @@ impl Settings {
 
     /// The Server URL, for building links.
     pub(crate) fn server_url(&self) -> ServerUrl {
-        ServerUrl(Arc::clone(&self.values))
+        ServerUrl {
+            values: Arc::clone(&self.values),
+            default_url: Arc::clone(&self.default_url),
+        }
+    }
+
+    /// Wakes once the Server URL was saved since it last woke, so the Plugin that links the Server
+    /// hears of it at once.
+    pub(crate) fn url_saves(&self) -> watch::Receiver<()> {
+        self.url_saved.subscribe()
     }
 
     /// The Playback settings, for planning and running plans.
@@ -294,6 +310,7 @@ impl Settings {
             },
         )
         .await?;
+        self.url_saved.send_replace(());
         Ok(url)
     }
 
@@ -690,25 +707,40 @@ pub(super) fn read(values: &RwLock<Values>) -> std::sync::RwLockReadGuard<'_, Va
     values.read().unwrap_or_else(PoisonError::into_inner)
 }
 
-/// The Server URL in use, for the event bus and Invites. Clones share it.
+/// The Server URL in use, for the event bus and Invites: the one the Admin set, else the default
+/// [`ServerUrl::set_default`] last gave (ADR 0057). Clones share it.
 #[derive(Debug, Clone, Default)]
-pub(crate) struct ServerUrl(Arc<RwLock<Values>>);
+pub(crate) struct ServerUrl {
+    values: Arc<RwLock<Values>>,
+    default_url: Arc<RwLock<String>>,
+}
 
 impl ServerUrl {
-    /// The Server URL, or empty with none set.
+    /// The Server URL, or empty with none.
     pub(crate) fn url(&self) -> String {
-        read(&self.0).url.clone()
+        let set = read(&self.values).url.clone();
+        if !set.is_empty() {
+            return set;
+        }
+        (self.default_url.read())
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
-    /// Where the web app lists the Requests, in Settings, or `None` with no URL set.
+    /// Makes `url` the Server URL while the Admin sets none, or none with `None`.
+    pub(crate) fn set_default(&self, url: Option<String>) {
+        *(self.default_url.write()).unwrap_or_else(PoisonError::into_inner) =
+            url.unwrap_or_default();
+    }
+
+    /// Where the web app lists the Requests, in Settings, or `None` with no URL.
     pub(crate) fn requests_link(&self) -> Option<String> {
         self.link("?settings=requests")
     }
 
-    /// Where `path` is in the web app, or `None` with no URL set.
+    /// Where `path` is in the web app, or `None` with no URL.
     pub(crate) fn link(&self, path: &str) -> Option<String> {
-        let values = read(&self.0);
-        let url = &values.url;
+        let url = self.url();
         // The URL may name a path the web app is served under, which a link keeps.
         (!url.is_empty()).then(|| format!("{}/{path}", url.trim_end_matches('/')))
     }

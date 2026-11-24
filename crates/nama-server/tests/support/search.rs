@@ -36,7 +36,7 @@ pub(crate) async fn movies(who: &ClientConfig, query: &str) -> Vec<MovieHit> {
     (titles(who, query, TitleKind::TITLE_KIND_MOVIE).await)
         .filter_map(|title| match title {
             hit::Title::Movie(movie) => Some(*movie),
-            hit::Title::Show(_) | hit::Title::Episode(_) => None,
+            hit::Title::Show(_) | hit::Title::Episode(_) | hit::Title::Person(_) => None,
         })
         .collect()
 }
@@ -46,7 +46,7 @@ pub(crate) async fn shows(who: &ClientConfig, query: &str) -> Vec<ShowHit> {
     (titles(who, query, TitleKind::TITLE_KIND_SHOW).await)
         .filter_map(|title| match title {
             hit::Title::Show(show) => Some(*show),
-            hit::Title::Movie(_) | hit::Title::Episode(_) => None,
+            hit::Title::Movie(_) | hit::Title::Episode(_) | hit::Title::Person(_) => None,
         })
         .collect()
 }

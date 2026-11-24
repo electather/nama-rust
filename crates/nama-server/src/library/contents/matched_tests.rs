@@ -8,11 +8,12 @@ use super::{
         Change, Decided, ImageRef, Item, ItemKind,
         any_library::matched_episodes,
         fixture::{MatchedMovie, tmdb_movie},
+        match_images::TitlePoster,
         testing::{ALIEN, Fixture, movie},
     },
     TitlesIn, show_poster,
 };
-use crate::library::versions::METADATA_VERSION;
+use crate::library::{Role, TitleImage, versions::METADATA_VERSION};
 
 #[test]
 fn an_unrefreshed_shows_poster_is_its_first_seasons_after_the_specials_that_has_one() {
@@ -377,6 +378,57 @@ async fn a_seasons_poster_keeps_the_plugin_it_was_stored_under() {
     let shows = fx.contents.shows(fx.library, None).await.unwrap();
     assert_eq!(shows[0].seasons[&1].episodes[0].plugin, "tmdb");
     assert_eq!(shows[0].seasons[&1].poster, Some(poster));
+}
+
+#[tokio::test]
+async fn an_episodes_posters_are_its_seasons_and_its_shows_by_the_shows_ids_and_not_its_backdrop() {
+    let fx = Fixture::shows().await;
+    let path = "/media/Firefly/Season 01/Firefly - S01E02.mkv";
+    let episode = Item::Episode {
+        show: "Firefly".to_owned(),
+        year: None,
+        hint: None,
+        season: 1,
+        episode: 2,
+    };
+    fx.store(path, 10, episode).await;
+    let item = fx.item(path).await;
+    let image = |image_path: &str| {
+        Some(ImageRef {
+            plugin: PluginId::from_static("tmdb"),
+            path: image_path.to_owned(),
+        })
+    };
+    let metadata = super::super::Metadata {
+        ids: ExternalIds::from_iter([ExternalId::tmdb(1001)]),
+        show_ids: ExternalIds::from_iter([ExternalId::tmdb(1437)]),
+        poster: image("/season-1.jpg"),
+        show_poster: image("/firefly.jpg"),
+        backdrop: image("/backdrop.jpg"),
+        ..tmdb_movie(0, "The Train Job")
+    };
+    fx.contents
+        .record(vec![(item, Decided::Matched(Box::new(metadata)))])
+        .await
+        .unwrap();
+
+    let mut posters = fx.contents.posters(fx.library).await.unwrap();
+    posters.sort_by(|a, b| a.path.cmp(&b.path));
+
+    let show_ids = ExternalIds::from_iter([ExternalId::tmdb(1437)]);
+    let tmdb = |image_path: &str, of| TitlePoster {
+        plugin: "tmdb".to_owned(),
+        path: image_path.to_owned(),
+        ids: show_ids.clone(),
+        image: of,
+    };
+    assert_eq!(
+        posters,
+        [
+            tmdb("/firefly.jpg", TitleImage::Show(Role::Poster)),
+            tmdb("/season-1.jpg", TitleImage::SeasonPoster(1)),
+        ]
+    );
 }
 
 #[tokio::test]

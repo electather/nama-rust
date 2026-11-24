@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO users (username, display_username, permissions, created_at, updated_at,\n                               remote_playback_limit)\n           VALUES (?, ?, ?, ?, ?, (SELECT remote_playback_limit FROM default_permissions))\n           RETURNING id AS \"id!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a5f8c3bcc7ae642629e9a7e055c6a02df58c5ba4b53358faf84eaeb1fe89b040"
+}

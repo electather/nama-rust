@@ -1,10 +1,11 @@
 //! Viewing Events (ADR 0093): each play of a Matched title by a Linked User, sent to the Hub under
-//! the External ID its Watch State is kept by. The Server records none of its own: it keeps only
+//! the External ID its Watch State is kept by. The Server records none of its own: it queues only
 //! those the Hub hasn't had yet, in the Plugin's Store, and [`SEND_JOB`] sends them once the Hub
 //! is back.
 
 use std::{
     collections::HashMap,
+    hash::Hash,
     sync::{Arc, Mutex, PoisonError},
 };
 
@@ -15,35 +16,44 @@ use nama_hub_proto::nama::hub::v1::{
 };
 use nama_plugin_api::{
     BoxFuture, Observer, PluginError,
-    automation::functions::{
-        ListDevices, ListVersionTitles, ListWatchStates, StoreDelete, StorePut,
-    },
+    automation::functions::{ListDevices, ListVersionTitles, ListWatchStates},
     contract::{
-        DeviceKind, DevicesAsked, Playback, StoreEntry, TitleId, TitleRef, TitleRefKind,
-        TitleWatchStates, VersionTitles, VersionTitlesAsked, WatchStatesAsked,
-        event::Event as Happened,
+        DeviceKind, DevicesAsked, Playback, TitleId, TitleRef, TitleRefKind, TitleWatchStates,
+        VersionTitles, VersionTitlesAsked, WatchStatesAsked, event::Event as Happened,
     },
     job::Job,
     points::{Events, ObservedEvents},
 };
 use ring::rand::{SecureRandom as _, SystemRandom};
 
-use super::{Linker, store_key};
+use super::{
+    Linker,
+    queue::{Queue, Queued},
+};
+use crate::hub::limits;
 
 /// The id of the Job that sends the Viewing Events the Hub hasn't had yet.
 pub(super) const SEND_JOB: &str = "send-viewing-events";
 
-/// The Store key of the Viewing Events the Hub hasn't had yet, as the request that sends them.
-const UNSENT_KEY: &str = "viewing-events";
+impl Queued for UserViewingEvent {
+    const STORE_KEY: &'static str = "viewing-event-queue";
+    const PER_CALL: usize = limits::VIEWING_EVENTS;
+    const OLD_STORE_KEY: Option<&'static str> = Some("viewing-events");
 
-/// The most Viewing Events kept unsent, as many as the Hub takes in one call.
-const MAX_UNSENT: usize = 1000;
+    /// Its random key, so no Viewing Event ever replaces another.
+    fn key(&self) -> impl Eq + Hash + '_ {
+        &self.key
+    }
 
-/// The most bytes the Store keeps under one key.
-const MAX_STORED_BYTES: usize = 64 * 1024;
+    fn changed_at_ms(&self) -> i64 {
+        (self.event.as_option()).map_or(0, |event| event.started_at.saturating_mul(1000))
+    }
 
-/// The most characters the Hub takes in an External ID (`ViewingEvent.external_id`).
-const MAX_EXTERNAL_ID_CHARS: usize = 100;
+    /// An older Hub Plugin kept them as the request that sends them.
+    fn from_old(old: &[u8]) -> Result<Vec<Self>, PluginError> {
+        Ok(RecordViewingEventsRequest::decode_from_slice(old)?.events)
+    }
+}
 
 /// The Job that sends the Viewing Events the Hub hasn't had yet, which the Kernel runs every 5
 /// minutes.
@@ -54,6 +64,12 @@ pub(crate) fn send_job() -> Job {
         description: "Sends the Hub the Viewing Events of plays it was unreachable for.".to_owned(),
         schedule: Some("*/5 * * * *".to_owned()),
     }
+}
+
+/// A play not ended yet, and when it started.
+struct Open {
+    playback: Playback,
+    started: Started,
 }
 
 /// When a play started, by the Server's clock.
@@ -80,42 +96,36 @@ impl Started {
 #[derive(Clone)]
 pub(crate) struct ViewingEvents {
     linker: Arc<Linker>,
-    /// When each plan playing now started, by its id.
-    started: Arc<Mutex<HashMap<u64, Started>>>,
-    /// Held while the unsent Viewing Events are read and written, so one added while they are
-    /// sent isn't deleted with them.
-    unsent: Arc<tokio::sync::Mutex<()>>,
+    /// Each plan playing now, by its id.
+    open: Arc<Mutex<HashMap<u64, Open>>>,
+    unsent: Arc<Queue<UserViewingEvent>>,
 }
 
 impl ViewingEvents {
     pub(crate) fn new(linker: Arc<Linker>) -> Self {
         Self {
+            unsent: Arc::new(Queue::new(Arc::clone(&linker.kernel))),
             linker,
-            started: Arc::default(),
-            unsent: Arc::default(),
+            open: Arc::default(),
         }
     }
 
-    /// Keeps a Viewing Event for each title the play `playback`, which just ended, reached, if its
-    /// User is Linked, and tries sending them.
+    /// Keeps a Viewing Event for each title the play `playback` reached, if its User is Linked, and
+    /// tries sending them. Called when it ends, or when a later play ends it (`end_left_open`).
     async fn ended(&self, playback: &Playback) -> Result<(), PluginError> {
-        let started = self.started_lock().remove(&playback.plan_id);
-        // One that started before the Plugin was enabled has no start to record.
-        let Some(started) = started else {
+        let open = self.open_lock().remove(&playback.plan_id);
+        // None for one that started before the Plugin was enabled, or that a later play ended.
+        let Some(Open { started, .. }) = open else {
             return Ok(());
         };
-        let Some(kept) = self.linker.kept().await? else {
-            return Ok(());
-        };
-        let user = playback.user_id;
-        if self.linker.kept_account(user, &kept).await?.is_none() {
+        if !self.linker.user_linked(playback.user_id).await? {
             return Ok(());
         }
         let events = self.viewing_events(playback, started).await?;
         if events.is_empty() {
             return Ok(());
         }
-        self.keep(events).await?;
+        self.unsent.add(events).await?;
         // Unsent, they wait for the Job.
         let _unsent = self.send().await;
         Ok(())
@@ -165,68 +175,70 @@ impl ViewingEvents {
             .collect()
     }
 
-    /// Adds `events` to those the Hub hasn't had yet, dropping the oldest past what the Store
-    /// holds.
-    async fn keep(&self, events: Vec<UserViewingEvent>) -> Result<(), PluginError> {
-        let _held = self.unsent.lock().await;
-        let mut unsent = self.unsent_events().await?;
-        unsent.events.extend(events);
-        // ponytail: about 600 plays fit; past that, while the Hub stays down, the oldest go.
-        // Keep them under a key each once Store keys can be listed.
-        while unsent.events.len() > MAX_UNSENT
-            || usize::try_from(unsent.encoded_len()).unwrap_or(usize::MAX) > MAX_STORED_BYTES
-        {
-            unsent.events.remove(0);
-        }
-        (self.linker.kernel)
-            .ask::<StorePut>(StoreEntry {
-                key: UNSENT_KEY.to_owned(),
-                value: unsent.encode_to_vec(),
-                ..Default::default()
-            })
-            .await?;
-        Ok(())
-    }
-
-    /// Sends the Hub the Viewing Events it hasn't had yet, and forgets them once it has, or once
-    /// the Server isn't Linked, when nothing can take them.
+    /// Sends the Hub the Viewing Events it hasn't had yet.
     pub(super) async fn send(&self) -> Result<(), PluginError> {
-        let _held = self.unsent.lock().await;
-        let unsent = self.unsent_events().await?;
-        if unsent.events.is_empty() {
-            return Ok(());
-        }
-        if let Some(kept) = self.linker.kept().await? {
-            (self.linker.hub)
-                .record_viewing_events(&kept.credential, unsent)
-                .await?;
-        }
-        (self.linker.kernel)
-            .ask::<StoreDelete>(store_key(UNSENT_KEY))
-            .await?;
-        Ok(())
+        let push = |page| -> BoxFuture<'_, _> {
+            Box::pin(self.linker.call(|hub| hub.record_viewing_events(page)))
+        };
+        self.unsent.send(push).await
     }
 
-    async fn unsent_events(&self) -> Result<RecordViewingEventsRequest, PluginError> {
-        Ok(match self.linker.stored(UNSENT_KEY).await? {
-            Some(stored) => RecordViewingEventsRequest::decode_from_slice(&stored)?,
-            None => RecordViewingEventsRequest::default(),
-        })
-    }
-
-    /// Notes when a play started, and records it once it ends.
+    /// Notes when a play started, ending the plays its User left open on its title, and records
+    /// it once it ends.
     async fn happened(&self, happened: &Happened) -> Result<(), PluginError> {
         if let Happened::PlaybackStarted(started) = happened {
-            let plan = started.playback.plan_id;
-            self.started_lock().insert(plan, Started::now());
+            let open = Open {
+                playback: Playback::clone(&started.playback),
+                started: Started::now(),
+            };
+            self.open_lock().insert(started.playback.plan_id, open);
+            self.end_left_open(&started.playback).await?;
         } else if let Happened::PlaybackEnded(ended) = happened {
             self.ended(&ended.playback).await?;
         }
         Ok(())
     }
 
-    fn started_lock(&self) -> std::sync::MutexGuard<'_, HashMap<u64, Started>> {
-        self.started.lock().unwrap_or_else(PoisonError::into_inner)
+    /// Ends now each earlier play `later`'s User left open on a title it plays. One left without
+    /// stopping, as when its tab closed, ends only once its player goes 60 seconds without asking
+    /// for it, by when `later`'s reports have replaced the Watch State it last reported (#2051).
+    async fn end_left_open(&self, later: &Playback) -> Result<(), PluginError> {
+        let earlier = Vec::from_iter(
+            (self.open_lock().values())
+                .map(|open| &open.playback)
+                // Plan ids only grow, and two batches may reach an Observer in either order.
+                .filter(|earlier| earlier.user_id == later.user_id)
+                .filter(|earlier| earlier.plan_id < later.plan_id)
+                .cloned(),
+        );
+        if earlier.is_empty() {
+            return Ok(());
+        }
+        let later_titles = self.titles_of(later.version_id).await?;
+        for playback in earlier {
+            let titles = self.titles_of(playback.version_id).await?;
+            if titles.iter().any(|title| later_titles.contains(title)) {
+                self.ended(&playback).await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// The titles the Version `version_id` holds, in whichever Library, as Watch State keys them.
+    async fn titles_of(&self, version_id: i64) -> Result<Vec<TitleRef>, PluginError> {
+        let listed = (self.linker.kernel).ask::<ListVersionTitles>(VersionTitlesAsked {
+            version_id,
+            ..Default::default()
+        });
+        let titles = listed.await?.titles.into_iter().map(|title| TitleRef {
+            library_id: 0,
+            ..title
+        });
+        Ok(titles.collect())
+    }
+
+    fn open_lock(&self) -> std::sync::MutexGuard<'_, HashMap<u64, Open>> {
+        self.open.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
@@ -285,11 +297,10 @@ fn viewed(
     })
 }
 
-/// `id` as the Hub takes an External ID, such as `tmdb-603`, unless it is longer than that.
+/// `id` as the Hub takes an External ID, such as `tmdb-603`, unless it wouldn't take it.
 fn hub_external_id(id: &TitleId) -> Option<String> {
     let external_id = format!("{}-{}", id.namespace, id.value);
-    // The Hub refuses every event sent with a longer one, and `send` then forgets them all.
-    (external_id.chars().count() <= MAX_EXTERNAL_ID_CHARS).then_some(external_id)
+    limits::takes_external_id(&external_id).then_some(external_id)
 }
 
 /// The id of the Show of the Episode `title_ref`, as `listed` pairs them, unless it has none.

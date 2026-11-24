@@ -724,8 +724,8 @@ fn check_title_sources(order: &[String]) -> Result<(), Error> {
 /// namespaces some source in `known` (every Plugin's, enabled or not) keeps or looks titles up by,
 /// and names one a source that searches keeps. A namespace only looked up by, such as `imdb`, may
 /// be named to prefer its ids (ADR 0042). What `stored` already names isn't judged, and a stored
-/// namespace no source in `known` keeps may be the one that searches, so a Library whose Plugin
-/// went away stays editable.
+/// namespace no source in `known` keeps or looks titles up by may be the one that searches, so a
+/// Library whose Plugin went away stays editable.
 pub(crate) fn check_known(
     order: &[String],
     stored: &[String],
@@ -744,7 +744,7 @@ pub(crate) fn check_known(
         let mut keeping = (known.iter()).filter(|source| source.namespace == *namespace);
         match keeping.next() {
             Some(first) => first.searches || keeping.any(|source| source.searches),
-            None => stored.contains(namespace),
+            None => stored.contains(namespace) && !is_known(namespace),
         }
     };
     let mut added = order.iter().filter(|namespace| !stored.contains(namespace));

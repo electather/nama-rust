@@ -60,7 +60,7 @@ pub use sharing::ShareThroughPlugins;
 pub(crate) use sharing::share_diagnostics;
 #[cfg(test)]
 pub(crate) use wasm::installed_points;
-pub(crate) use wasm::read as read_installed;
+pub(crate) use wasm::{Loaded as LoadedInstalled, read as read_installed};
 
 /// How long a Plugin's settings check may take before it counts as failed.
 pub const SETTINGS_CHECK_TIMEOUT: Duration = Duration::from_secs(10);

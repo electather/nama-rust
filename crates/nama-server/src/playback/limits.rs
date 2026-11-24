@@ -37,16 +37,33 @@ pub(crate) fn limit_to_proto(limit: Option<PlaybackLimit>) -> proto::PlaybackLim
         )
 }
 
-/// The step for where the Device is: it rules nothing out, and says when the default Playback
-/// Limit for remote playback chose a limit the next step scales the picture down to or drops.
+/// The step for where the Device is: it rules nothing out, and says when the User's cap for
+/// remote playback, or else the default Playback Limit for remote playback, chose a limit the next
+/// step scales the picture down to or drops.
 pub(super) fn network(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
-    let scales = |limit| {
-        picture(facts)
-            .and_then(|picture| fitted(picture, limit))
-            .is_some()
+    let Network::Remote { default, cap } = facts.network else {
+        return vec![];
     };
-    match (facts.network, facts.picked_limit) {
-        (Network::Remote(Some(limit)), PickedLimit::Unpicked) if scales(limit) => {
+    let wanted = match facts.picked_limit {
+        PickedLimit::Picked(limit) => limit,
+        PickedLimit::Unpicked => default,
+    };
+    if let Some(cap) = cap
+        && lower(wanted, Some(cap)) != wanted
+        && scales_down(facts, cap)
+    {
+        let text = format!(
+            "This Device is outside the local network, where its User's cap for remote playback is {}",
+            cap.name
+        );
+        return vec![limit_reason(
+            Kind::PLAYBACK_REASON_KIND_REMOTE_CAP,
+            cap,
+            text,
+        )];
+    }
+    match lower(default, cap) {
+        Some(limit) if facts.picked_limit == PickedLimit::Unpicked && scales_down(facts, limit) => {
             vec![limit_reason(
                 Kind::PLAYBACK_REASON_KIND_REMOTE_DEFAULT_LIMIT,
                 limit,
@@ -59,6 +76,34 @@ pub(super) fn network(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
         }
         _ => vec![],
     }
+}
+
+/// The User's cap for remote playback, when the Device is outside the local network.
+pub(super) const fn remote_cap_of(facts: &Facts) -> Option<PlaybackLimit> {
+    match facts.network {
+        Network::Remote { cap, .. } => cap,
+        Network::Local => None,
+    }
+}
+
+/// Whether dropping the Playback Limit would send more than the User's cap for remote playback,
+/// which is when the cap scales the picture down.
+pub(super) fn cap_binds(facts: &Facts) -> bool {
+    remote_cap_of(facts).is_some_and(|cap| scales_down(facts, cap))
+}
+
+/// Whether `limit` scales the Version's picture down, which a picture of unknown size never is.
+fn scales_down(facts: &Facts, limit: PlaybackLimit) -> bool {
+    picture(facts)
+        .and_then(|picture| fitted(picture, limit))
+        .is_some()
+}
+
+/// The lower of two Playback Limits, `None` being Original.
+fn lower(one: Option<PlaybackLimit>, other: Option<PlaybackLimit>) -> Option<PlaybackLimit> {
+    one.into_iter()
+        .chain(other)
+        .min_by_key(|limit| limit.height)
 }
 
 /// A reason of `kind` about the Playback Limit `limit`.
@@ -80,12 +125,20 @@ pub(super) fn limit_in_effect(facts: &Facts) -> Option<PlaybackLimit> {
     limit_asked(facts).filter(|_| !facts.dropped.contains(&Choice::Limit))
 }
 
-/// The Playback Limit the User picked, or else, outside the local network, the remote default.
-/// `None` is Original.
+/// The Playback Limit the User picked, or else, outside the local network, the remote default,
+/// either kept to their cap there. `None` is Original.
 fn limit_asked(facts: &Facts) -> Option<PlaybackLimit> {
     match (facts.picked_limit, facts.network) {
-        (PickedLimit::Picked(limit), _) | (PickedLimit::Unpicked, Network::Remote(limit)) => limit,
+        (PickedLimit::Picked(limit), Network::Local) => limit,
         (PickedLimit::Unpicked, Network::Local) => None,
+        (PickedLimit::Picked(limit), Network::Remote { cap, .. })
+        | (
+            PickedLimit::Unpicked,
+            Network::Remote {
+                default: limit,
+                cap,
+            },
+        ) => lower(limit, cap),
     }
 }
 

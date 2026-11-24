@@ -8,3 +8,4 @@
 - **A Plugin tests its own settings** (keys, kinds, defaults) against its Manifest in its own crate, so the Server's tests need no edit for a new one.
 - A Plugin's package is `nama-plugin-<folder>`, and a shared library's is not, such as `nama-servarr`. The Server's tests tell them apart by it.
 - **Every Plugin ships a logo** (a shared library doesn't): a `logo.svg` next to its `Cargo.toml`, embedded with `include_str!` as its Manifest's `logo_svg`. It must read on a light and a dark tile alike, since an image can't follow the colour scheme.
+- **The Hub Plugin reads what the Hub accepts only from `plugins/hub/src/hub/limits.rs`**, in every conversion to what the Hub takes and in the Watchlist sync. No module defines or borrows a limit of its own, so a change to the Hub API's limits is one edit there.

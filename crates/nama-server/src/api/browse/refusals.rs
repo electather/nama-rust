@@ -14,7 +14,7 @@ use crate::{
 #[derive(Clone, Copy)]
 pub(in crate::api) struct Fields {
     pub(in crate::api) library: &'static str,
-    /// The Movie's, Show's, Episode's or Box Set's id; a Season's Show's.
+    /// The Movie's, Show's, Episode's, Box Set's or Person's id; a Season's Show's.
     pub(in crate::api) title: &'static str,
     pub(in crate::api) season: &'static str,
     /// An Episode's number within its Season.
@@ -75,6 +75,9 @@ pub(in crate::api) fn not_found(fields: Fields, err: &NotFound) -> Refused {
         }
         NotFound::NoSuchBoxSet => {
             refuse(R::REFUSAL_REASON_BOX_SET_NOT_FOUND, message).field(fields.title)
+        }
+        NotFound::NoSuchPerson => {
+            refuse(R::REFUSAL_REASON_PERSON_NOT_FOUND, message).field(fields.title)
         }
         NotFound::WrongKind { wanted } => {
             let kind = match wanted {

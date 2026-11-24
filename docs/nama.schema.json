@@ -3,6 +3,11 @@
   "additionalProperties": false,
   "description": "Everything a Server needs to know before it starts.",
   "properties": {
+    "acme_directory": {
+      "default": "https://acme-v02.api.letsencrypt.org/directory",
+      "description": "The ACME directory a Server Linked to the Hub gets the certificate for its names from\n(ADR 0057). Let's Encrypt's by default; its staging one,\n`https://acme-staging-v02.api.letsencrypt.org/directory`, for trying things out.",
+      "type": "string"
+    },
     "data_dir": {
       "default": "data",
       "description": "Directory where the Server keeps its database and other state. A relative path counts from\nthe folder the Server starts in.",
@@ -57,6 +62,14 @@
       "default": {},
       "description": "The `[plugins.<id>]` tables in the file, imported into the database on the first start and\nignored after.",
       "type": "object"
+    },
+    "relay": {
+      "default": null,
+      "description": "The Relay the Admin runs, as `<ip>:<port>`, which a Server Linked to the Hub dials out to\nfor clients that can't reach it directly, and which the Hub offers them after its direct\naddresses (ADR 0057). Unset, the default, uses none.",
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "trusted_proxies": {
       "default": [],

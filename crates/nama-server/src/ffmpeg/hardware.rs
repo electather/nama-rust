@@ -406,9 +406,10 @@ const TEST_CLIP: &str = "testsrc2=size=1280x720:rate=24:duration=1";
 const TEST_HDR_CLIP: &str = "testsrc2=size=1280x720:rate=24:duration=1,format=yuv420p10le,\
                              setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc";
 
-/// Six frames of 256×256 HEVC Main 10 (`general_profile_idc` 2), which a test of HEVC on hardware
+/// Six frames of 640×360 HEVC Main 10 (`general_profile_idc` 2), which a test of HEVC on hardware
 /// decodes and encodes again. As Silo found, NVIDIA's Pascal decoder refuses anything under
-/// 144×144, and a Main 4:4:4 (Rext, profile 4) clip fails every Intel GPU.
+/// 144×144, AMD's RDNA4 VAAPI encoder anything under 384 wide (#2044), and a Main 4:4:4 (Rext,
+/// profile 4) clip fails every Intel GPU.
 pub(super) const TEST_HEVC_CLIP: &[u8] = include_bytes!("test_main10.hevc");
 
 impl Ffmpeg {

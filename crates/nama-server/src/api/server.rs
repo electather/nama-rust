@@ -32,9 +32,9 @@ use crate::{
     ffmpeg::{self, Abilities, Accel, Ffmpeg, ToneMapper},
     home_rows::HomeRows,
     images::{self, Blobs, ImageStore, Persist, SwitchRefused, Switching},
+    link::Linking,
     playback::{
-        MessageTooLong, PlayNow, RunningPlans, STOP_MESSAGE_LENGTH, TrackPreferences,
-        accel_to_proto, limit_to_proto,
+        MessageTooLong, PlayNow, RunningPlans, STOP_MESSAGE_LENGTH, accel_to_proto, limit_to_proto,
     },
     plugins::{ExtensionPoints, PluginBlobs},
     server_settings::{
@@ -45,18 +45,18 @@ use crate::{
 };
 
 use super::{
-    BrowserSpans, database_failed, playback::limit_from_proto, refuse, server_link,
-    unknown_enum_value,
+    BrowserSpans, browse::recently_added_rows, database_failed, playback::limit_from_proto, refuse,
+    server_link, unknown_enum_value,
 };
 
 /// `nama.v1.ServerService`: facts about this Server, its settings, and the ffmpeg it found.
 pub(super) struct ServerServiceHandler {
     pub(super) name: String,
     pub(super) users: Users,
-    /// Reads each User's Watch State to push once the Server is Linked.
+    /// Asked about the Server's Link.
+    pub(super) linking: Linking,
+    /// Lists each Library's Recently Added row for the default Home layout.
     pub(super) browse: Browse,
-    /// Reads each User's Track Preferences to push once the Server is Linked.
-    pub(super) preferences: TrackPreferences,
     pub(super) settings: server_settings::Settings,
     pub(super) abilities: Abilities,
     pub(super) ffmpeg: Arc<Ffmpeg>,
@@ -83,7 +83,7 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, GetServerLinkRequest>,
     ) -> ServiceResult<GetServerLinkResponse> {
-        server_link::get(&self.points, &self.browse, &self.preferences, &self.users).await
+        server_link::get(&self.linking).await
     }
 
     async fn start_server_link(
@@ -91,7 +91,7 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, StartServerLinkRequest>,
     ) -> ServiceResult<StartServerLinkResponse> {
-        server_link::start(&self.points, &self.name).await
+        server_link::start(&self.linking, &self.name).await
     }
 
     async fn unlink_server(
@@ -99,7 +99,7 @@ impl ServerService for ServerServiceHandler {
         _ctx: RequestContext,
         _request: ServiceRequest<'_, UnlinkServerRequest>,
     ) -> ServiceResult<UnlinkServerResponse> {
-        server_link::unlink(&self.points).await
+        server_link::unlink(&self.linking).await
     }
 
     async fn get_server_info(
@@ -108,7 +108,7 @@ impl ServerService for ServerServiceHandler {
         _request: ServiceRequest<'_, GetServerInfoRequest>,
     ) -> ServiceResult<GetServerInfoResponse> {
         let setup_required = !self.users.any().await.map_err(database_failed)?;
-        let account_sign_in = server_link::account_sign_in(&self.points).await;
+        let account_sign_in = self.linking.is_server_linked().await;
         Response::ok(GetServerInfoResponse {
             name: self.name.clone(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
@@ -177,6 +177,7 @@ impl ServerService for ServerServiceHandler {
                 tone_maps: hardware.tone_maps,
                 tone_mapping: tone_mapping_to_proto(can_do.tone_mapper(Some(hardware))).into(),
                 automatic: automatic == Some(hardware),
+                hevc: hardware.hevc,
                 ..Default::default()
             })
             .collect();
@@ -444,15 +445,23 @@ impl ServerServiceHandler {
     /// The default Home layout with every Home row Home could show now, as the API has it.
     async fn default_home_layout(&self) -> Result<proto::HomeLayout, ConnectError> {
         let placeable = self.home_rows.placeable().await.map_err(database_failed)?;
-        let rows = std::iter::once((HomeRowId::ContinueWatching, String::new()))
-            .chain(placeable)
+        let recently_added = recently_added_rows(&self.browse).await?;
+        let with_proto =
+            |(id, heading): (HomeRowId, String)| (id.clone(), layout_row_to_proto(id, heading));
+        let rows = std::iter::once(with_proto((HomeRowId::ContinueWatching, String::new())))
+            .chain((recently_added.into_iter()).map(|(id, row)| (id, row.into())))
+            .chain(placeable.into_iter().map(with_proto))
             .collect();
         let layout = self.settings.now().default_home_layout;
         let rows = layout.arrange(rows);
         Ok(proto::HomeLayout {
             featured_hidden: Some(!layout.featured_shown),
             rows: (rows.into_iter())
-                .map(|((id, heading), shown)| layout_row_to_proto(id, heading, shown))
+                .map(|((_, row), shown)| HomeLayoutRow {
+                    row: Some(row),
+                    hidden: !shown,
+                    ..Default::default()
+                })
                 .collect(),
             ..Default::default()
         })
@@ -470,9 +479,10 @@ impl ServerServiceHandler {
     }
 }
 
-/// A row of a Home layout, headed `heading` if a Plugin gives it, as the API has it.
-fn layout_row_to_proto(id: HomeRowId, heading: String, shown: bool) -> HomeLayoutRow {
-    let row = match id {
+/// The row `id` of a Home layout, headed `heading` if a Plugin gives it, as the API has it. A
+/// Recently Added row gets only its Library's id: `recently_added_rows` names the Library.
+fn layout_row_to_proto(id: HomeRowId, heading: String) -> LayoutRow {
+    match id {
         HomeRowId::ContinueWatching => {
             LayoutRow::Kernel(proto::KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING.into())
         }
@@ -485,11 +495,11 @@ fn layout_row_to_proto(id: HomeRowId, heading: String, shown: bool) -> HomeLayou
             }))
         }
         HomeRowId::UsersOwn { plugin } => LayoutRow::PluginUsersRows(plugin.to_string()),
-    };
-    HomeLayoutRow {
-        row: Some(row),
-        hidden: !shown,
-        ..Default::default()
+        HomeRowId::RecentlyAdded { library } => proto::RecentlyAddedHomeRow {
+            library_id: library,
+            ..Default::default()
+        }
+        .into(),
     }
 }
 
@@ -541,6 +551,9 @@ pub(super) fn home_row_from_proto(
         },
         Some(LayoutRow::PluginUsersRows(plugin)) => HomeRowId::UsersOwn {
             plugin: PluginId::from(plugin.clone()),
+        },
+        Some(LayoutRow::RecentlyAdded(row)) => HomeRowId::RecentlyAdded {
+            library: row.library_id,
         },
         None => {
             return Err(refuse(

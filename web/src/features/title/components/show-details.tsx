@@ -1,10 +1,12 @@
 import { LibraryLink } from "@/features/title/components/library-link";
+import { PeopleLinks } from "@/features/title/components/people-links";
 import { TitleDetails } from "@/features/title/components/title-details";
-import { crewWithJob } from "@/features/title/lib/crew-with-job";
 import { episodesHere } from "@/features/title/lib/episodes-here";
 import { filesDetails } from "@/features/title/lib/files-details";
 import { listed } from "@/features/title/lib/listed";
+import { crewWithJob } from "@/features/title/lib/people";
 import type { Episode, Show } from "@/gen/nama/v1/browse_pb";
+import { useLoadedLibraries } from "@/shared/hooks/use-loaded-libraries";
 import { yearOf } from "@/shared/lib/title-facts";
 
 /**
@@ -24,6 +26,9 @@ export function ShowDetails({
   aired: number;
 }) {
   const versions = episodes.flatMap((episode) => episode.versions);
+  const creators = crewWithJob(show.crew, "Creator");
+  // Not suspending, as in `MovieDetails`.
+  const library = useLoadedLibraries().find(({ id }) => id === libraryId);
   // Specials aside, as the Server counts the aired ones and the Seasons.
   const here = episodes.filter(({ seasonNumber }) => seasonNumber > 0).length;
   return (
@@ -35,12 +40,12 @@ export function ShowDetails({
             ["Released", yearOf(show.firstAirDate)],
             ["Rated", show.contentRating],
             ["Genres", listed(show.genres)],
-            ["Created by", crewWithJob(show.crew, "Creator")],
+            ["Created by", creators && <PeopleLinks key="crew" people={creators} />],
           ],
         },
         ...filesDetails(
           { versions, originalLanguage: show.originalLanguage },
-          <LibraryLink key="library" libraryId={libraryId} />,
+          library && <LibraryLink key="library" library={library} />,
           [["Episodes", episodesHere(here, aired, show.seasonCount)]],
         ),
       ]}

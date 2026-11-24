@@ -21,7 +21,7 @@ async fn a_pin_still_applies_after_its_items_are_replaced() {
         .unwrap();
     let pin = Pin::Title(ExternalId::tmdb(949));
     fx.contents
-        .pin(named.library, named.name, pin.clone(), vec![])
+        .pin(named.library, vec![named.name], pin.clone(), vec![])
         .await
         .unwrap();
 
@@ -64,7 +64,7 @@ async fn a_pin_still_applies_after_a_reparse_gives_its_items_a_new_name() {
         let named = fx.contents.named_like(item).await.unwrap().unwrap();
         let decided = vec![(item, Decided::Unmatched(None))];
         fx.contents
-            .pin(named.library, named.name, pin, decided)
+            .pin(named.library, vec![named.name], pin, decided)
             .await
             .unwrap();
     }
@@ -149,7 +149,7 @@ async fn pin_refuses_and_stores_no_decisions_when_the_library_is_gone() {
         .contents
         .pin(
             named.library,
-            named.name,
+            vec![named.name],
             Pin::Unmatched,
             vec![
                 (item, Decided::Unmatched(None)),
@@ -182,7 +182,7 @@ async fn a_pin_to_a_made_up_id_is_read_back_as_that_id() {
         .unwrap();
     let pin = Pin::Title(ExternalId::new("anidb", "m-1").unwrap());
     fx.contents
-        .pin(named.library, named.name, pin.clone(), vec![])
+        .pin(named.library, vec![named.name], pin.clone(), vec![])
         .await
         .unwrap();
 

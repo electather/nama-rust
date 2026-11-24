@@ -18,8 +18,8 @@ use crate::{
     },
     playback::{
         Description, DeviceDecoding, PickedLimit, Plan, Planned, Preferred, PreviewFrames,
-        ProbePasses, Probing, RunningPlans, StartedPlan, SubtitlePreference, WholeFileReads,
-        subtitles,
+        ProbePasses, Probing, RunningPlans, StartedPlan, SubtitlePreference, TrackPreferences,
+        WholeFileReads, subtitles,
     },
     plugins::{ExtensionPoints, Registry},
     server_settings::{ServerUrl, Settings},
@@ -94,6 +94,7 @@ impl Alien {
             running,
             settings.playback(),
             preview_frames,
+            TrackPreferences::new(Arc::clone(&db), ExtensionPoints::default()),
             Arc::clone(&db),
         );
         let ripley = ripley_on_the_nostromo(&db).await;
@@ -133,10 +134,7 @@ impl Alien {
     }
 
     async fn keep(&self, pick: Pick) -> Result<(), PickError> {
-        self.plans
-            .keep_pick(self.user(), self.version, pick)
-            .await
-            .map(drop)
+        self.plans.keep_pick(self.user(), self.version, pick).await
     }
 
     /// The Subtitle Preference a plan of the Movie starts with for Ripley.

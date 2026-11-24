@@ -656,6 +656,18 @@ pub struct ServerLink {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub reachable: bool,
+    /// The Server's names on the Hub (ADR 0104). Its own name comes first, such as
+    /// `0193b6f2c4d87a1e9f3c5b2a1d0e4f67.namadirect.net`, and then one for each of its private IPv4
+    /// LAN addresses, such as `192-168-1-10.<own name>`. Empty until the Hub named the Server, and on
+    /// a Hub that names no Server.
+    ///
+    /// Field 6: `names`
+    #[serde(
+        rename = "names",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub names: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -668,6 +680,7 @@ impl ::core::fmt::Debug for ServerLink {
             .field("account", &self.account)
             .field("public_address", &self.public_address)
             .field("reachable", &self.reachable)
+            .field("names", &self.names)
             .finish()
     }
 }
@@ -715,6 +728,9 @@ impl ::buffa::Message for ServerLink {
         if self.reachable {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        for v in &self.names {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -739,6 +755,9 @@ impl ::buffa::Message for ServerLink {
         }
         if self.reachable {
             ::buffa::types::put_bool_field(5u32, self.reachable, buf);
+        }
+        for v in &self.names {
+            ::buffa::types::put_string_field(6u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -788,6 +807,17 @@ impl ::buffa::Message for ServerLink {
                 )?;
                 self.reachable = ::buffa::types::decode_bool(buf)?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.names.push(__elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -801,6 +831,7 @@ impl ::buffa::Message for ServerLink {
         self.account.clear();
         self.public_address.clear();
         self.reachable = false;
+        self.names.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -3852,6 +3883,16 @@ pub struct FoundHardware {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub automatic: bool,
+    /// Whether it also passed decoding and encoding 10-bit HEVC, which a Transcode of a 4K or HDR
+    /// Version makes on it.
+    ///
+    /// Field 6: `hevc`
+    #[serde(
+        rename = "hevc",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub hevc: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3864,6 +3905,7 @@ impl ::core::fmt::Debug for FoundHardware {
             .field("tone_maps", &self.tone_maps)
             .field("tone_mapping", &self.tone_mapping)
             .field("automatic", &self.automatic)
+            .field("hevc", &self.hevc)
             .finish()
     }
 }
@@ -3920,6 +3962,9 @@ impl ::buffa::Message for FoundHardware {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.hevc {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3955,6 +4000,9 @@ impl ::buffa::Message for FoundHardware {
                 buf,
             );
             self.gpu.write_to(__cache, buf);
+        }
+        if self.hevc {
+            ::buffa::types::put_bool_field(6u32, self.hevc, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4010,6 +4058,13 @@ impl ::buffa::Message for FoundHardware {
                     ctx,
                 )?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.hevc = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4023,6 +4078,7 @@ impl ::buffa::Message for FoundHardware {
         self.tone_mapping = ::buffa::EnumValue::from(0);
         self.automatic = false;
         self.gpu = ::buffa::MessageField::none();
+        self.hevc = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -8164,6 +8220,14 @@ impl ::buffa::Message for HomeLayoutRow {
                 __buffa::oneof::home_layout_row::Row::PluginUsersRows(x) => {
                     size += 1u64 + ::buffa::types::string_encoded_len(x) as u64;
                 }
+                __buffa::oneof::home_layout_row::Row::RecentlyAdded(x) => {
+                    let __slot = __cache.reserve();
+                    let inner = x.compute_size(__cache);
+                    __cache.set(__slot, inner);
+                    size
+                        += 1u64 + ::buffa::encoding::varint_len(inner as u64) as u64
+                            + inner as u64;
+                }
             }
         }
         if self.hidden {
@@ -8194,6 +8258,14 @@ impl ::buffa::Message for HomeLayoutRow {
                 }
                 __buffa::oneof::home_layout_row::Row::PluginUsersRows(x) => {
                     ::buffa::types::put_string_field(3u32, x, buf);
+                }
+                __buffa::oneof::home_layout_row::Row::RecentlyAdded(x) => {
+                    ::buffa::types::put_len_delimited_header(
+                        5u32,
+                        u64::from(__cache.consume_next()),
+                        buf,
+                    );
+                    x.write_to(__cache, buf);
                 }
             }
         }
@@ -8254,6 +8326,26 @@ impl ::buffa::Message for HomeLayoutRow {
                         ::buffa::types::decode_string(buf)?,
                     ),
                 );
+            }
+            5u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                if let ::core::option::Option::Some(
+                    __buffa::oneof::home_layout_row::Row::RecentlyAdded(ref mut existing),
+                ) = self.row
+                {
+                    ::buffa::Message::merge_length_delimited(&mut **existing, buf, ctx)?;
+                } else {
+                    let mut val = ::core::default::Default::default();
+                    ::buffa::Message::merge_length_delimited(&mut val, buf, ctx)?;
+                    self.row = ::core::option::Option::Some(
+                        __buffa::oneof::home_layout_row::Row::RecentlyAdded(
+                            ::buffa::alloc::boxed::Box::new(val),
+                        ),
+                    );
+                }
             }
             4u32 => {
                 ::buffa::encoding::check_wire_type(
@@ -8392,6 +8484,30 @@ impl<'de> ::serde::Deserialize<'de> for HomeLayoutRow {
                                 }
                                 __oneof_row = Some(
                                     __buffa::oneof::home_layout_row::Row::PluginUsersRows(v),
+                                );
+                            }
+                        }
+                        "recentlyAdded" | "recently_added" => {
+                            let v: ::core::option::Option<RecentlyAddedHomeRow> = map
+                                .next_value_seed(
+                                    ::buffa::json_helpers::NullableDeserializeSeed(
+                                        ::buffa::json_helpers::DefaultDeserializeSeed::<
+                                            RecentlyAddedHomeRow,
+                                        >::new(),
+                                    ),
+                                )?;
+                            if let Some(v) = v {
+                                if __oneof_row.is_some() {
+                                    return Err(
+                                        ::serde::de::Error::custom(
+                                            "multiple oneof fields set for 'row'",
+                                        ),
+                                    );
+                                }
+                                __oneof_row = Some(
+                                    __buffa::oneof::home_layout_row::Row::RecentlyAdded(
+                                        ::buffa::alloc::boxed::Box::new(v),
+                                    ),
                                 );
                             }
                         }

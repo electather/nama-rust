@@ -23,8 +23,9 @@ use connectrpc::{
     ConnectError, ErrorCode, RequestContext, Response, ServiceRequest, ServiceResult,
 };
 use nama_hub_proto::nama::hub::v1::{
-    ExternalId, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest, InviteUserResponse,
-    LinkedServerService, ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
+    ExternalId, GetRelayTokenRequest, GetRelayTokenResponse, GetUserLinkRequest,
+    GetUserLinkResponse, InviteUserRequest, InviteUserResponse, LinkedServerService,
+    ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
     ListRecommendedTitlesRequest, ListRecommendedTitlesResponse, ListSimilarTitlesRequest,
     ListSimilarTitlesResponse, ListTrendingTitlesRequest, ListTrendingTitlesResponse,
     PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
@@ -32,10 +33,11 @@ use nama_hub_proto::nama::hub::v1::{
     PullWatchStatesRequest, PullWatchStatesResponse, PushTrackPreferencesRequest,
     PushTrackPreferencesResponse, PushWatchStatesRequest, PushWatchStatesResponse,
     RecommendedTitle, RecordViewingEventsRequest, RecordViewingEventsResponse, ServerLinkService,
-    SetServerAddressesRequest, SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest,
-    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
-    StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest, SyncWatchlistResponse,
-    TitleKind, TrackPreferenceChange, TrendingTitle, UnlinkServerRequest, UnlinkServerResponse,
+    SetCertificateChallengeRequest, SetCertificateChallengeResponse, SetServerAddressesRequest,
+    SetServerAddressesResponse, SimilarTitle, StartServerLinkRequest, StartServerLinkResponse,
+    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
+    StartUserLinkResponse, SyncWatchlistRequest, SyncWatchlistResponse, TitleKind,
+    TrackPreferenceChange, TrendingTitle, UnlinkServerRequest, UnlinkServerResponse,
     UnlinkUserRequest, UnlinkUserResponse, UserViewingEvent, WatchStateChange, WatchlistEntry,
     WatchlistedTitle,
 };
@@ -70,6 +72,9 @@ pub(super) const PUBLIC_IP: &str = "203.0.113.7";
 /// The one public port the fake reaches the Server at.
 pub(super) const OPEN_PORT: u16 = 7980;
 
+/// The name the fake gives every Server that reports its addresses.
+pub(super) const SERVER_NAME: &str = "abc.namadirect.test";
+
 /// What the fake Hub knows.
 #[derive(Default)]
 struct State {
@@ -92,6 +97,8 @@ struct State {
     user_accounts: HashMap<i64, String>,
     /// How often a User's Link was asked about.
     user_link_asks: usize,
+    /// How many calls came with a Server's credential, known or not.
+    server_calls: usize,
     /// Why asking about a User's Link fails, as if the Hub were down, while it does.
     user_link_failure: Option<&'static str>,
     /// Each Viewing Event recorded, in order.
@@ -100,6 +107,9 @@ struct State {
     recording_failure: Option<ErrorCode>,
     /// Each push's changes, in the order they came.
     pushes: Vec<Vec<WatchStateChange>>,
+    /// Why every call with the Linked Server's credential fails, as if the Hub were failing, while
+    /// it does.
+    server_failure: Option<&'static str>,
     /// Why pushes fail, as if the Hub were down, while they do.
     push_failure: Option<&'static str>,
     /// Each push's Track Preference changes, in the order they came.
@@ -117,6 +127,8 @@ struct State {
     reported_addresses: Vec<(String, Vec<String>)>,
     /// How many of the next reports of Server Addresses fail.
     addresses_failures: usize,
+    /// The certificate challenge the Server published last.
+    challenge: Vec<String>,
 }
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
@@ -226,6 +238,11 @@ impl FakeHub {
         lock(&self.state).user_link_asks
     }
 
+    /// How many calls the Server made with its credential, whether the fake knew it or not.
+    pub(super) fn server_calls(&self) -> usize {
+        lock(&self.state).server_calls
+    }
+
     /// Has asking about a User's Link fail, though counted, as if the Hub were down.
     pub(super) fn fail_user_links(&self) {
         lock(&self.state).user_link_failure = Some("the Hub is down");
@@ -249,6 +266,11 @@ impl FakeHub {
     /// Has pushes fail while `down`, as if the Hub were unreachable, and work again after.
     pub(super) fn set_down(&self, down: bool) {
         lock(&self.state).push_failure = down.then_some("the Hub is down");
+    }
+
+    /// Has every call with the Linked Server's credential fail, as a Hub that answers but fails.
+    pub(super) fn fail_server_calls(&self) {
+        lock(&self.state).server_failure = Some("the Hub is failing");
     }
 
     /// The name and email the User `user_id` was invited with.
@@ -276,6 +298,11 @@ impl FakeHub {
     /// Each Server URL and LAN addresses the Server reported, in order.
     pub(super) fn reported_addresses(&self) -> Vec<(String, Vec<String>)> {
         lock(&self.state).reported_addresses.clone()
+    }
+
+    /// The certificate challenge the Server published last.
+    pub(super) fn challenge(&self) -> Vec<String> {
+        lock(&self.state).challenge.clone()
     }
 
     /// Has the next report of Server Addresses fail, as if the Hub blinked.
@@ -625,6 +652,28 @@ impl LinkedServerService for Linked {
         })
     }
 
+    async fn set_certificate_challenge(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetCertificateChallengeRequest>,
+    ) -> ServiceResult<SetCertificateChallengeResponse> {
+        self.caller(&ctx)?.challenge = request.to_owned_message().values;
+        Response::ok(SetCertificateChallengeResponse::default())
+    }
+
+    async fn get_relay_token(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, GetRelayTokenRequest>,
+    ) -> ServiceResult<GetRelayTokenResponse> {
+        // Only a Linked Server gets one.
+        drop(self.caller(&ctx)?);
+        Response::ok(GetRelayTokenResponse {
+            token: sign(&self.0.key, &relay_claims()),
+            ..Default::default()
+        })
+    }
+
     async fn set_server_addresses(
         &self,
         ctx: RequestContext,
@@ -642,12 +691,17 @@ impl LinkedServerService for Linked {
         state
             .reported_addresses
             .push((request.url.to_owned(), lan.collect()));
+        let names = vec![SERVER_NAME.to_owned()];
         if request.public_port == 0 {
-            return Response::ok(SetServerAddressesResponse::default());
+            return Response::ok(SetServerAddressesResponse {
+                names,
+                ..Default::default()
+            });
         }
         Response::ok(SetServerAddressesResponse {
             public_address: format!("http://{PUBLIC_IP}:{}", request.public_port),
             reachable: request.public_port == u32::from(OPEN_PORT),
+            names,
             ..Default::default()
         })
     }
@@ -766,7 +820,8 @@ impl LinkedServerService for Linked {
 impl Linked {
     /// What the fake knows, if the call carries the credential of the Server it has Linked.
     fn caller(&self, ctx: &RequestContext) -> Result<MutexGuard<'_, State>, ConnectError> {
-        let state = lock(&self.0.state);
+        let mut state = lock(&self.0.state);
+        state.server_calls += 1;
         let bearer = format!("Bearer {}", credential(state.credentials));
         if !state.linked
             || ctx
@@ -774,6 +829,9 @@ impl Linked {
                 .is_none_or(|sent| sent != bearer.as_str())
         {
             return Err(ConnectError::unauthenticated("no Linked Server has it"));
+        }
+        if let Some(failure) = state.server_failure {
+            return Err(ConnectError::internal(failure));
         }
         Ok(state)
     }
@@ -843,6 +901,11 @@ fn key_set(key: &Ed25519KeyPair) -> Value {
         "alg": "EdDSA",
         "use": "sig",
     }]})
+}
+
+/// What the token the fake Hub hands a Server for its Relay says.
+pub(super) fn relay_claims() -> Value {
+    json!({ "sub": SERVER_NAME, "aud": "relay" })
 }
 
 fn sign(key: &Ed25519KeyPair, claims: &Value) -> String {

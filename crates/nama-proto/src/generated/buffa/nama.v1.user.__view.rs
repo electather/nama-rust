@@ -3460,6 +3460,11 @@ pub struct SetPermissionsRequestView<'a> {
         'a,
         ::buffa::EnumValue<super::super::Permission>,
     >,
+    /// Their cap, as `User.remote_playback_limit` says, replacing the one they had: unset or
+    /// `PLAYBACK_LIMIT_ORIGINAL` for none. A value this Server doesn't know is refused.
+    ///
+    /// Field 3: `remote_playback_limit`
+    pub remote_playback_limit: ::buffa::EnumValue<super::super::PlaybackLimit>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for SetPermissionsRequestView<'a> {
@@ -3498,6 +3503,15 @@ impl<'a> ::buffa::MessageView<'a> for SetPermissionsRequestView<'a> {
                     ::buffa::encoding::WireType::Varint,
                 )?;
                 view.user_id = ::buffa::types::decode_int64(&mut cur)?;
+            }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.remote_playback_limit = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
             }
             2u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
@@ -3558,6 +3572,7 @@ impl<'a> ::buffa::MessageView<'a> for SetPermissionsRequestView<'a> {
         ::core::result::Result::Ok(super::super::SetPermissionsRequest {
             user_id: self.user_id,
             permissions: self.permissions.to_vec(),
+            remote_playback_limit: self.remote_playback_limit,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -3579,6 +3594,12 @@ impl<'a> ::buffa::ViewEncode<'a> for SetPermissionsRequestView<'a> {
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -3603,6 +3624,12 @@ impl<'a> ::buffa::ViewEncode<'a> for SetPermissionsRequestView<'a> {
             ::buffa::types::put_len_delimited_header(2u32, payload, buf);
             for v in &self.permissions {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(3u32, val, buf);
             }
         }
         self.__buffa_unknown_fields.write_to(buf);
@@ -3639,6 +3666,11 @@ impl<'__a> ::serde::Serialize for SetPermissionsRequestView<'__a> {
                     "permissions",
                     &::buffa::json_helpers::EnumSeqJson(&self.permissions),
                 )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(
+            &self.remote_playback_limit,
+        ) {
+            __map.serialize_entry("remotePlaybackLimit", &self.remote_playback_limit)?;
         }
         __map.end()
     }
@@ -3750,6 +3782,16 @@ impl SetPermissionsRequestOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::Permission>> {
         &self.0.reborrow().permissions
+    }
+    /// Their cap, as `User.remote_playback_limit` says, replacing the one they had: unset or
+    /// `PLAYBACK_LIMIT_ORIGINAL` for none. A value this Server doesn't know is refused.
+    ///
+    /// Field 3: `remote_playback_limit`
+    #[must_use]
+    pub fn remote_playback_limit(
+        &self,
+    ) -> ::buffa::EnumValue<super::super::PlaybackLimit> {
+        self.0.reborrow().remote_playback_limit
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<SetPermissionsRequestView<'static>>>
@@ -6807,6 +6849,10 @@ pub struct GetDefaultPermissionsResponseView<'a> {
         'a,
         ::buffa::EnumValue<super::super::Permission>,
     >,
+    /// The cap new Users get, as `User.remote_playback_limit` says.
+    ///
+    /// Field 2: `remote_playback_limit`
+    pub remote_playback_limit: ::buffa::EnumValue<super::super::PlaybackLimit>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetDefaultPermissionsResponseView<'a> {
@@ -6839,6 +6885,15 @@ impl<'a> ::buffa::MessageView<'a> for GetDefaultPermissionsResponseView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.remote_playback_limit = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
             1u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
                     let payload = ::buffa::types::borrow_bytes(&mut cur)?;
@@ -6897,6 +6952,7 @@ impl<'a> ::buffa::MessageView<'a> for GetDefaultPermissionsResponseView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::GetDefaultPermissionsResponse {
             permissions: self.permissions.to_vec(),
+            remote_playback_limit: self.remote_playback_limit,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -6915,6 +6971,12 @@ impl<'a> ::buffa::ViewEncode<'a> for GetDefaultPermissionsResponseView<'a> {
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -6936,6 +6998,12 @@ impl<'a> ::buffa::ViewEncode<'a> for GetDefaultPermissionsResponseView<'a> {
             ::buffa::types::put_len_delimited_header(1u32, payload, buf);
             for v in &self.permissions {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(2u32, val, buf);
             }
         }
         self.__buffa_unknown_fields.write_to(buf);
@@ -6965,6 +7033,11 @@ impl<'__a> ::serde::Serialize for GetDefaultPermissionsResponseView<'__a> {
                     "permissions",
                     &::buffa::json_helpers::EnumSeqJson(&self.permissions),
                 )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(
+            &self.remote_playback_limit,
+        ) {
+            __map.serialize_entry("remotePlaybackLimit", &self.remote_playback_limit)?;
         }
         __map.end()
     }
@@ -7070,6 +7143,15 @@ impl GetDefaultPermissionsResponseOwnedView {
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::Permission>> {
         &self.0.reborrow().permissions
     }
+    /// The cap new Users get, as `User.remote_playback_limit` says.
+    ///
+    /// Field 2: `remote_playback_limit`
+    #[must_use]
+    pub fn remote_playback_limit(
+        &self,
+    ) -> ::buffa::EnumValue<super::super::PlaybackLimit> {
+        self.0.reborrow().remote_playback_limit
+    }
 }
 impl ::core::convert::From<
     ::buffa::OwnedView<GetDefaultPermissionsResponseView<'static>>,
@@ -7114,6 +7196,10 @@ pub struct SetDefaultPermissionsRequestView<'a> {
         'a,
         ::buffa::EnumValue<super::super::Permission>,
     >,
+    /// The cap new Users are to get, as `SetPermissionsRequest.remote_playback_limit` says.
+    ///
+    /// Field 2: `remote_playback_limit`
+    pub remote_playback_limit: ::buffa::EnumValue<super::super::PlaybackLimit>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for SetDefaultPermissionsRequestView<'a> {
@@ -7146,6 +7232,15 @@ impl<'a> ::buffa::MessageView<'a> for SetDefaultPermissionsRequestView<'a> {
         let view = self;
         let mut cur = cur;
         match tag.field_number() {
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.remote_playback_limit = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(&mut cur)?,
+                );
+            }
             1u32 => {
                 if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
                     let payload = ::buffa::types::borrow_bytes(&mut cur)?;
@@ -7204,6 +7299,7 @@ impl<'a> ::buffa::MessageView<'a> for SetDefaultPermissionsRequestView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::SetDefaultPermissionsRequest {
             permissions: self.permissions.to_vec(),
+            remote_playback_limit: self.remote_playback_limit,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -7222,6 +7318,12 @@ impl<'a> ::buffa::ViewEncode<'a> for SetDefaultPermissionsRequestView<'a> {
                 .map(|v| ::buffa::types::int32_encoded_len(v.to_i32()) as u64)
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -7243,6 +7345,12 @@ impl<'a> ::buffa::ViewEncode<'a> for SetDefaultPermissionsRequestView<'a> {
             ::buffa::types::put_len_delimited_header(1u32, payload, buf);
             for v in &self.permissions {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(2u32, val, buf);
             }
         }
         self.__buffa_unknown_fields.write_to(buf);
@@ -7272,6 +7380,11 @@ impl<'__a> ::serde::Serialize for SetDefaultPermissionsRequestView<'__a> {
                     "permissions",
                     &::buffa::json_helpers::EnumSeqJson(&self.permissions),
                 )?;
+        }
+        if !::buffa::json_helpers::skip_if::is_default_enum_value(
+            &self.remote_playback_limit,
+        ) {
+            __map.serialize_entry("remotePlaybackLimit", &self.remote_playback_limit)?;
         }
         __map.end()
     }
@@ -7376,6 +7489,15 @@ impl SetDefaultPermissionsRequestOwnedView {
         &self,
     ) -> &::buffa::RepeatedView<'_, ::buffa::EnumValue<super::super::Permission>> {
         &self.0.reborrow().permissions
+    }
+    /// The cap new Users are to get, as `SetPermissionsRequest.remote_playback_limit` says.
+    ///
+    /// Field 2: `remote_playback_limit`
+    #[must_use]
+    pub fn remote_playback_limit(
+        &self,
+    ) -> ::buffa::EnumValue<super::super::PlaybackLimit> {
+        self.0.reborrow().remote_playback_limit
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<SetDefaultPermissionsRequestView<'static>>>

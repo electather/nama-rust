@@ -2,9 +2,18 @@ syntax = "proto3";
 
 package nama.hub.v1;
 
-// Creating an Account, and signing it in and out, for the Hub's web pages. A session is an
-// HttpOnly `SameSite=Strict` cookie (ADR 0015), never in a response body. Failures a client can
-// cause carry a `nama.hub.v1.Refusal`.
+// Creating an Account, signing it in and out, and its passkeys, for the Hub's web pages. A session
+// is an HttpOnly `SameSite=Strict` cookie (ADR 0015), never in a response body. Failures a client
+// can cause carry a `nama.hub.v1.Refusal`.
+//
+// Passkeys are WebAuthn credentials for the Hub's public address, `NAMA_HUB_PUBLIC_URL`. Without
+// one, the passkey calls fail with `REFUSAL_REASON_PASSKEYS_OFF`. A challenge a `Start…` call
+// returns works once, for 5 minutes.
+//
+// Adding or removing a passkey, and signing out other sessions, need Recent Authentication: the
+// session signed in within the last 10 minutes. Without it, those calls fail with
+// `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` before anything in the request is checked, and
+// signing in again gives it.
 service AccountService {
   // Creates an Account with an email and a password, and signs it in. Fails with
   // `REFUSAL_REASON_EMAIL_TAKEN` when another Account has the email, with
@@ -49,6 +58,39 @@ service AccountService {
   rpc GetAccount(GetAccountRequest) returns (GetAccountResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
+
+  // Starts signing in with a passkey, for `navigator.credentials.get()`, with no email: the
+  // browser offers the passkeys it has for the Hub.
+  rpc StartPasskeySignIn(StartPasskeySignInRequest) returns (StartPasskeySignInResponse);
+  // Signs in the Account whose passkey signed the challenge. Fails with
+  // `REFUSAL_REASON_PASSKEY_NOT_ACCEPTED` when no Account has the passkey or its answer doesn't
+  // check out, such as one for a used or expired challenge.
+  rpc SignInWithPasskey(SignInWithPasskeyRequest) returns (SignInWithPasskeyResponse);
+  // Starts adding a passkey to the signed-in Account, for `navigator.credentials.create()`.
+  rpc StartAddingPasskey(StartAddingPasskeyRequest) returns (StartAddingPasskeyResponse);
+  // Adds the passkey the browser just created to the signed-in Account. Fails with
+  // `REFUSAL_REASON_PASSKEY_NAME_LENGTH` for a bad name, and `REFUSAL_REASON_PASSKEY_NOT_ACCEPTED`
+  // when the browser's answer doesn't check out or an Account has the passkey already.
+  rpc AddPasskey(AddPasskeyRequest) returns (AddPasskeyResponse);
+  // Lists the signed-in Account's passkeys, oldest first.
+  rpc ListPasskeys(ListPasskeysRequest) returns (ListPasskeysResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Removes one of the signed-in Account's passkeys. Fails with `REFUSAL_REASON_PASSKEY_NOT_FOUND`
+  // when it has none with the id, and `REFUSAL_REASON_LAST_SIGN_IN_METHOD` when the Account would
+  // have no other way to sign in.
+  rpc RemovePasskey(RemovePasskeyRequest) returns (RemovePasskeyResponse);
+
+  // Lists the signed-in Account's live sessions: the calling one first, then the most recently
+  // used.
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Ends one of the signed-in Account's other sessions, so its next request is signed out. An id
+  // naming no other live session of the Account, such as the calling one's, changes nothing.
+  rpc SignOutSession(SignOutSessionRequest) returns (SignOutSessionResponse);
+  // Ends every session of the signed-in Account but the calling one.
+  rpc SignOutOtherSessions(SignOutOtherSessionsRequest) returns (SignOutOtherSessionsResponse);
 }
 
 // A person's identity on the Hub.
@@ -135,3 +177,117 @@ message GetAccountResponse {
   // Whether the Account has a password. One a Sign-in Link took over has none (ADR 0100).
   bool has_password = 2;
 }
+
+// One of an Account's passkeys.
+message Passkey {
+  // The passkey's id on the Hub, a UUID. Not its WebAuthn credential id.
+  string id = 1;
+  // What the Account named it, such as "Phone".
+  string name = 2;
+}
+
+message StartPasskeySignInRequest {}
+
+message StartPasskeySignInResponse {
+  // `PublicKeyCredentialRequestOptions.challenge`.
+  bytes challenge = 1;
+  // `PublicKeyCredentialRequestOptions.rpId`: the host of the Hub's public address.
+  string rp_id = 2;
+}
+
+// What `navigator.credentials.get()` gave, from its `PublicKeyCredential`.
+message SignInWithPasskeyRequest {
+  // `rawId`.
+  bytes credential_id = 1;
+  // `response.clientDataJSON`.
+  bytes client_data_json = 2;
+  // `response.authenticatorData`.
+  bytes authenticator_data = 3;
+  // `response.signature`.
+  bytes signature = 4;
+  // `response.userHandle`, or empty when it is null.
+  bytes user_handle = 5;
+}
+
+message SignInWithPasskeyResponse {
+  // The Account just signed in.
+  Account account = 1;
+}
+
+message StartAddingPasskeyRequest {}
+
+// The parts of `PublicKeyCredentialCreationOptions` only the Hub knows. The page asks for
+// algorithms ES256 (-7) and RS256 (-257), the only ones the Hub checks, a resident key, and user
+// verification `preferred`.
+message StartAddingPasskeyResponse {
+  // `challenge`.
+  bytes challenge = 1;
+  // `rp.id`: the host of the Hub's public address.
+  string rp_id = 2;
+  // `user.id`: the same for every passkey of the Account.
+  bytes user_id = 3;
+  // `excludeCredentials`' ids: the Account's passkeys, so a browser doesn't add one twice.
+  repeated bytes exclude_credential_ids = 4;
+}
+
+// What `navigator.credentials.create()` gave, from its `PublicKeyCredential`, and the name.
+message AddPasskeyRequest {
+  // 1 to 64 characters, once spaces at either end are trimmed.
+  string name = 1;
+  // `rawId`.
+  bytes credential_id = 2;
+  // `response.clientDataJSON`.
+  bytes client_data_json = 3;
+  // `response.getPublicKey()`: a DER SubjectPublicKeyInfo.
+  bytes public_key = 4;
+  // `response.getPublicKeyAlgorithm()`: -7 or -257.
+  sint32 public_key_algorithm = 5;
+}
+
+message AddPasskeyResponse {
+  // The passkey just added.
+  Passkey passkey = 1;
+}
+
+message ListPasskeysRequest {}
+
+message ListPasskeysResponse {
+  repeated Passkey passkeys = 1;
+}
+
+message RemovePasskeyRequest {
+  // The `Passkey.id`.
+  string passkey_id = 1;
+}
+
+message RemovePasskeyResponse {}
+
+// One place the Account is signed in: a browser's session.
+message Session {
+  // The session's id, a UUID. Never its token.
+  string id = 1;
+  // The browser and OS it was last used from, read from its `User-Agent`, such as "Firefox on
+  // Windows", or "Unknown browser".
+  string name = 2;
+  // When it was last used, in seconds since the Unix epoch, to within 5 minutes.
+  int64 last_used_at = 3;
+  // Whether it's the calling session.
+  bool is_current = 4;
+}
+
+message ListSessionsRequest {}
+
+message ListSessionsResponse {
+  repeated Session sessions = 1;
+}
+
+message SignOutSessionRequest {
+  // The `Session.id`.
+  string session_id = 1;
+}
+
+message SignOutSessionResponse {}
+
+message SignOutOtherSessionsRequest {}
+
+message SignOutOtherSessionsResponse {}

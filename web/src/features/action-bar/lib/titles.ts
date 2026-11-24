@@ -36,11 +36,20 @@ export interface FoundTitle {
   still?: StillArt | undefined;
 }
 
+/** A Person a search found, as the action bar lists them and opens their page. */
+export interface FoundPerson {
+  /** Their id as a URL writes it. */
+  personId: string;
+  name: string;
+  headshot: string | undefined;
+}
+
 /** What a search found, by kind, each in the order to list it. */
 export interface Found {
   movies: FoundTitle[];
   shows: FoundTitle[];
   episodes: FoundTitle[];
+  people: FoundPerson[];
   /** What is missing from the results, as `searchNote` says it, or "". */
   note: string;
 }
@@ -107,6 +116,17 @@ export function foundIn(responses: readonly SearchResponse[]): Found {
     ),
     episodes: titles.flatMap(({ title }) =>
       title.case === "episode" ? [episodeFound(title.value)] : [],
+    ),
+    people: titles.flatMap(({ title }) =>
+      title.case === "person"
+        ? [
+            {
+              personId: titleParam(title.value.id),
+              name: title.value.name,
+              headshot: title.value.headshotUrl,
+            },
+          ]
+        : [],
     ),
     note: searchNote(responses),
   };

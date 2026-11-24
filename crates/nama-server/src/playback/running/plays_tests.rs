@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use futures_util::StreamExt;
 use nama_proto::nama::v1::{AdminStop, Playback, PlaybackEnded};
 
@@ -48,6 +50,47 @@ async fn plays_are_listed_oldest_first_with_the_progress_their_device_last_repor
         .map(|play| (play.playback.plan_id, play.progress))
         .collect();
     assert_eq!(progress, [(first, Some(at(2_000))), (second, None)]);
+}
+
+#[tokio::test]
+async fn a_plan_its_device_reports_progress_through_is_kept_past_going_unused() {
+    let data = tempfile::tempdir().unwrap();
+    let plans = running_plans(data.path()).await;
+    let (version, device, another) = (0, 7, 8);
+    let reported = start_remux(&plans, device).await;
+    let unreported = start_remux(&plans, another).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let paused_at = ReportedProgress {
+        position_ms: 1_000,
+        duration_ms: 60_000,
+    };
+
+    plans.report_progress(version, device, paused_at);
+    plans.stop_unused(Duration::from_millis(50)).await;
+
+    assert!(plans.ask(reported, device).is_some());
+    assert!(plans.ask(unreported, another).is_none());
+}
+
+#[tokio::test]
+async fn progress_goes_only_to_the_newest_plan_of_its_version_on_its_device() {
+    let data = tempfile::tempdir().unwrap();
+    let plans = running_plans(data.path()).await;
+    let (version, device) = (0, 7);
+    let left_open = start_remux(&plans, device).await;
+    let played_again = start_remux(&plans, device).await;
+    let at = ReportedProgress {
+        position_ms: 1_000,
+        duration_ms: 60_000,
+    };
+
+    plans.report_progress(version, device, at);
+
+    let listed = plans.plays().await.unwrap();
+    let progress: Vec<_> = (listed.iter())
+        .map(|play| (play.playback.plan_id, play.progress))
+        .collect();
+    assert_eq!(progress, [(left_open, None), (played_again, Some(at))]);
 }
 
 #[tokio::test]

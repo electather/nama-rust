@@ -22,6 +22,14 @@ export function FilterField({
         onChange={(event) => {
           onType(event.target.value);
         }}
+        // Escape clears the field before it closes Settings, as Settings' search does. Settings
+        // prevents Escape in a field holding text, which stops the browser clearing it itself.
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && typed !== "") {
+            event.preventDefault();
+            onType("");
+          }
+        }}
         // 16px on a phone, where iOS zooms into a field with smaller text.
         className="min-w-0 flex-1 bg-transparent text-base text-foreground outline-none placeholder:text-muted-foreground md:text-sm"
       />

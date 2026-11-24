@@ -5,6 +5,7 @@ mod automation;
 pub mod backup;
 pub use library::{Artwork, ArtworkError};
 mod browse;
+mod certificate;
 pub mod config;
 mod connections;
 pub mod db;
@@ -14,6 +15,7 @@ pub mod ffmpeg;
 mod home_rows;
 pub mod images;
 mod library;
+mod link;
 #[cfg(test)]
 mod log_capture;
 mod matching;
@@ -22,19 +24,21 @@ mod playback;
 pub mod plugin_settings;
 pub mod plugins;
 mod port_mapping;
+pub mod relay;
 mod requests;
 mod scanner;
 mod server_addresses;
 mod server_settings;
+mod sync;
+mod tls;
 pub mod users;
 mod watchlist;
 #[cfg(feature = "web")]
 mod web;
 
-use std::{future::Future, io, net::SocketAddr, sync::Arc, time::Duration};
+use std::{future::Future, io, sync::Arc, time::Duration};
 
-use nama_plugin_api::PluginId;
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, sync::mpsc};
 
 use crate::{
     automation::Automation,
@@ -55,7 +59,7 @@ use crate::{
     requests::Requests,
     scanner::Scanner,
     server_settings::Settings,
-    users::{SetupCode, UserHomeLayout, Users},
+    users::{SetupCode, Users},
 };
 
 /// Serves the Server's API on `listener`, backed by `db` and the Plugins `plugins` started,
@@ -77,16 +81,23 @@ use crate::{
 /// Admins see the `ffmpeg` found at startup with `GetPlaybackStatus`. Plans running when
 /// `shutdown` resolves are stopped and their segment files deleted.
 ///
-/// The enabled Plugin that links the Server, if any, is told its Server Addresses every minute,
-/// and while there is one the Server keeps its port open on the router with UPnP or NAT-PMP,
-/// unless [`Config::forwarded_port`] names the one the Admin forwarded. It is asked for each User's
-/// Watch State on their other Servers after each scan.
+/// The enabled Plugin that links the Server, if any, is told its Server Addresses every minute
+/// and as soon as the Server URL is saved, and while there is one the Server keeps its port open
+/// on the router with UPnP or NAT-PMP, unless [`Config::forwarded_port`] names the one the Admin
+/// forwarded. It is asked for each User's Watch State on their other Servers after each scan.
 ///
-/// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, unless the
-/// peer is in [`Config::trusted_proxies`], whose `X-Forwarded-For` names the client.
+/// While that Plugin has the Server Linked and its service names it, the Server gets a certificate
+/// for its names from [`Config::acme_directory`] and keeps it renewed, and its public name is its
+/// Server URL while the Admin sets none (ADR 0057). With [`Config::relay`], it keeps connections
+/// waiting at that Relay with a token the Plugin gets, and serves the clients they carry.
 ///
-/// Clients speak the Connect protocol over HTTP/1.1 or cleartext HTTP/2, with JSON or binary
-/// protobuf bodies. With the `web` feature, any other `GET` gets the web app.
+/// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, or through
+/// the Relay the one the Relay names, unless the peer is in [`Config::trusted_proxies`], whose
+/// `X-Forwarded-For` names the client.
+///
+/// Clients speak the Connect protocol over HTTP/1.1 or HTTP/2, with JSON or binary protobuf
+/// bodies, in cleartext, or over TLS on the same port once the Server has a certificate. With the
+/// `web` feature, any other `GET` gets the web app.
 ///
 /// # Errors
 ///
@@ -159,15 +170,20 @@ pub fn serve(
         settings.clone(),
         points.clone(),
     );
-    let artwork = Artwork::new(images.clone(), points);
-    let plugin_logos = PluginLogos::new(images.clone());
     let custom_images = CustomImages::new(Arc::clone(&db), images.clone());
+    let local_images = LocalImages::new(Arc::clone(&db), images.clone());
+    let artwork = Artwork::new(images.clone(), points).resizing_posters_ahead(
+        settings.images(),
+        custom_images.clone(),
+        local_images.clone(),
+    );
+    let plugin_logos = PluginLogos::new(images.clone());
     let scanner = Scanner::new(
         Arc::clone(&db),
         plugins.clone(),
         artwork.clone(),
         custom_images.clone(),
-        LocalImages::new(Arc::clone(&db), images.clone()),
+        local_images,
         events.clone(),
         Some(probing.clone()),
         leftovers,
@@ -183,20 +199,15 @@ pub fn serve(
     );
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
     let server_url = settings.server_url();
+    let url_saves = settings.url_saves();
     // `listen` differs from the bound address only when it asks for port 0.
     let listening = listener.local_addr().unwrap_or(config.listen);
-    let (sync_browse, sync_db, sync_users) = (
-        browse::Browse::new(Arc::clone(&db)),
-        Arc::clone(&db),
-        users.clone(),
-    );
-    let forwarded_port = config.forwarded_port;
-    let load_settings = load_settings(
-        settings.clone(),
-        images.clone(),
-        plugins.clone(),
-        Arc::clone(&db),
-    );
+    let syncing = sync::Syncing::new(Arc::clone(&db), plugins.extension_points(), users.clone());
+    let linking = users.linking().clone();
+    let (forwarded_port, relay) = (config.forwarded_port, config.relay);
+    let certificate = certificate::Certificate::default();
+    let (data_dir, acme_directory) = (config.data_dir.clone(), config.acme_directory.clone());
+    let load_settings = load_settings(settings.clone(), images.clone(), plugins.clone());
     let app = api::router(
         config,
         listening,
@@ -219,6 +230,7 @@ pub fn serve(
         abilities.clone(),
         preview_frames.clone(),
         browser_spans.clone(),
+        syncing.clone(),
         setup_code,
         ffmpeg,
     );
@@ -231,13 +243,9 @@ pub fn serve(
         load_settings.await;
         fill_sort_titles(&contents).await;
         // Before the scans start, so it sees their Matching finish.
-        let syncing = api::sync_after_scans(
-            &events,
-            plugins.extension_points(),
-            sync_browse,
-            sync_db,
-            sync_users,
-        );
+        let scan_follower = syncing.follow_scans(&events);
+        // Before serving, so it hears the first look at each Link.
+        let link_follower = syncing.follow_links();
         scanner.start_all().await;
         preview_frames.start();
         text_passes.start();
@@ -251,18 +259,27 @@ pub fn serve(
         // Every minute, as Seerr asks how its Requests are progressing (ADR 0012).
         let came_up = home_rows.refresh_as_plugins_come_up(plugins.take_came_up());
         requests.start(came_up, Duration::from_mins(1));
-        let telling_addresses = server_addresses::tell_every_minute(
-            plugins.extension_points(),
+        // Before serving, so the first client over TLS gets it, whether or not the Hub answers.
+        certificate.load(&data_dir).await;
+        let renewing = certificate::keep_renewed(
+            certificate.clone(),
+            linking.clone(),
+            server_url.clone(),
+            relay,
+            data_dir,
+            acme_directory,
+        );
+        let (relaying, relayed) = mpsc::channel(1);
+        let dialing = relay.map(|relay| relay::keep_dialing(relay, linking.clone(), relaying));
+        let telling_addresses = server_addresses::keep_telling(
+            linking,
             server_url,
+            url_saves,
             listening,
             forwarded_port,
+            relay,
         );
-        let served = axum::serve(
-            listener,
-            // The peer's address decides whose rate limit counts and which proxies are trusted.
-            app.into_make_service_with_connect_info::<SocketAddr>(),
-        )
-        .with_graceful_shutdown(async move {
+        let served = tls::serve(listener, relayed, app, Arc::new(certificate), async move {
             shutdown.await;
             // A subscription never ends by itself, and the shutdown waits for every response.
             events.close();
@@ -289,8 +306,14 @@ pub fn serve(
         // Its calls run in the Plugin's scope, which shutting the Plugins down joins; telling it
         // again at the next start loses nothing.
         telling_addresses.abort();
-        // The next start's scans pull and sync again.
-        syncing.abort();
+        renewing.abort();
+        // The Relay drops the connections waiting there once they close.
+        if let Some(dialing) = dialing {
+            dialing.abort();
+        }
+        // The next start's scans pull and sync again, and its first looks push each Link again.
+        scan_follower.abort();
+        link_follower.abort();
         plugins.shutdown().await;
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
         drop(automation);
@@ -306,29 +329,18 @@ async fn fill_sort_titles(contents: &Contents) {
     }
 }
 
-/// Reads the Server settings, logging a failure and going on with the defaults, drops the rows of
-/// Plugins uninstalled since from the default Home layout and each User's in `db`, has `images`
-/// keep its originals in the store they name, then sweeps the segment files and uploads an earlier
-/// run left, and the Plugins' logos uploaded before #1750.
-async fn load_settings(
-    settings: Settings,
-    images: ImageStore,
-    plugins: PluginSettings,
-    db: Arc<Database>,
-) {
+/// Reads the Server settings, logging a failure and going on with the defaults, deletes what goes
+/// as Plugins are found uninstalled, has `images` keep its originals in the store they name, then
+/// sweeps the segment files and uploads an earlier run left, and the Plugins' logos uploaded
+/// before #1750.
+async fn load_settings(settings: Settings, images: ImageStore, plugins: PluginSettings) {
     if let Err(err) = settings.load().await {
         tracing::error!(
             "reading the Server settings failed, so each is its default and notifications have \
              no links: {err}"
         );
     }
-    let installed = |plugin: &PluginId| plugins.has(plugin);
-    if let Err(err) = settings.forget_uninstalled(installed).await {
-        tracing::error!("could not drop uninstalled Plugins' rows from the Home layout: {err}");
-    }
-    if let Err(err) = UserHomeLayout::forget_uninstalled(&db, installed).await {
-        tracing::error!("could not drop uninstalled Plugins' rows from Users' Home layouts: {err}");
-    }
+    plugins.forget_uninstalled(&settings).await;
     if let Some(plugin) = settings.now().image_store {
         let blobs = PluginBlobs::new(plugins.extension_points(), plugin.clone());
         // Kept anyway (ADR 0052): the images come back once the Plugin is enabled again.

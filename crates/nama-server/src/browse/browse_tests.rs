@@ -13,7 +13,7 @@ use crate::{
         fixture::{MatchedMovie, decide, tmdb_movie},
     },
     playback::{Probe, StoredTracks, Track, TrackKind, Tracks},
-    plugins::Registry,
+    plugins::{ExtensionPoints, Registry},
     users::{Permissions, User, Users},
 };
 
@@ -149,7 +149,12 @@ async fn knight_states(browse: &Browse, user: i64, library: i64) -> Vec<Vec<Opti
     let mut states = Vec::new();
     for number in [1, 2] {
         let episodes = browse
-            .episodes(user, library, &ExternalId::tmdb(KNIGHT_TMDB_ID), number)
+            .episodes(
+                user,
+                library,
+                &ExternalId::tmdb(KNIGHT_TMDB_ID),
+                Some(number),
+            )
             .await
             .unwrap();
         let season = episodes
@@ -226,7 +231,7 @@ async fn an_episode_has_the_same_tracks_however_it_is_reached() {
         .await
         .unwrap();
     let user = ada(&db).await;
-    let browse = Browse::new(db);
+    let browse = Browse::new(db, ExtensionPoints::default());
     let halfway = Progress::new(1_000, 2_000).unwrap();
     browse.report(user, version, halfway).await.unwrap();
     let (show, pilot) = (
@@ -235,7 +240,7 @@ async fn an_episode_has_the_same_tracks_however_it_is_reached() {
     );
 
     let (listed, _) = browse
-        .episodes(0, library, &show, 1)
+        .episodes(0, library, &show, Some(1))
         .await
         .unwrap()
         .remove(0);
@@ -300,10 +305,10 @@ async fn a_seasons_episodes_have_their_own_tracks_beside_another_shows() {
             .await
             .unwrap();
     }
-    let browse = Browse::new(db);
+    let browse = Browse::new(db, ExtensionPoints::default());
 
     let episodes = browse
-        .episodes(0, library, &ExternalId::tmdb(KNIGHT_TMDB_ID), 1)
+        .episodes(0, library, &ExternalId::tmdb(KNIGHT_TMDB_ID), Some(1))
         .await
         .unwrap();
 
@@ -325,7 +330,7 @@ async fn a_movie_matched_in_two_libraries_is_listed_in_continue_watching_under_t
     let older = library_with_alien(&db, &older_folder).await;
     library_with_alien(&db, &newer_folder).await;
     let user = ada(&db).await;
-    let browse = Browse::new(db);
+    let browse = Browse::new(db, ExtensionPoints::default());
     let halfway = Progress::new(1_000, 2_000).unwrap();
     browse.report(user, older.version, halfway).await.unwrap();
 
@@ -354,7 +359,7 @@ async fn continue_watching_reads_no_library_for_a_user_who_started_nothing() {
         libraries: Libraries::new(Arc::clone(&unreadable)),
         contents: Contents::new(Arc::clone(&unreadable)),
         tracks: StoredTracks::new(unreadable),
-        watch_states: WatchStates::new(db),
+        watch_states: WatchStates::new(db, ExtensionPoints::default()),
     };
 
     let (started, _) = browse
@@ -381,7 +386,7 @@ async fn a_version_has_no_tracks_read_from_its_file_before_it_changed() {
         .await
         .unwrap();
 
-    let (movie, _, _) = Browse::new(db)
+    let (movie, _, _) = Browse::new(db, ExtensionPoints::default())
         .movie(0, library, &ExternalId::tmdb(ALIEN_TMDB_ID))
         .await
         .unwrap();
@@ -399,7 +404,7 @@ async fn progress_on_a_movies_version_is_progress_through_the_movie() {
         ..
     } = library_with_alien(&db, &folder).await;
     let user = ada(&db).await;
-    let browse = Browse::new(db);
+    let browse = Browse::new(db, ExtensionPoints::default());
 
     let halfway = Progress::new(1_000, 2_000).unwrap();
     browse.report(user, alien, halfway).await.unwrap();
@@ -418,7 +423,7 @@ async fn progress_on_a_file_holding_two_episodes_is_split_across_them() {
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let (library, two_episodes) = library_with_knight(&db, &folder).await;
     let user = ada(&db).await;
-    let browse = Browse::new(db);
+    let browse = Browse::new(db, ExtensionPoints::default());
 
     let three_quarters = Progress::new(1_500, 2_000).unwrap();
     browse
@@ -447,13 +452,16 @@ async fn progress_on_an_unmatched_item_stores_nothing() {
     let user = ada(&db).await;
 
     let halfway = Progress::new(1_000, 2_000).unwrap();
-    Browse::new(Arc::clone(&db))
+    Browse::new(Arc::clone(&db), ExtensionPoints::default())
         .report(user, file, halfway)
         .await
         .unwrap();
 
     // Watch States' own list holds every one of the User's, in a Library or not.
-    let states = WatchStates::new(db).of_user(user).await.unwrap();
+    let states = WatchStates::new(db, ExtensionPoints::default())
+        .of_user(user)
+        .await
+        .unwrap();
     assert!(states.is_empty(), "{states:?}");
 }
 
@@ -464,7 +472,9 @@ async fn progress_on_a_version_that_doesnt_exist_is_refused() {
     let user = ada(&db).await;
 
     let halfway = Progress::new(1_000, 2_000).unwrap();
-    let reported = Browse::new(db).report(user, 1, halfway).await;
+    let reported = Browse::new(db, ExtensionPoints::default())
+        .report(user, 1, halfway)
+        .await;
 
     assert!(
         matches!(reported, Err(Error::NotFound(NotFound::NoSuchVersion))),
@@ -478,7 +488,7 @@ async fn a_movie_marked_played_stays_played_until_marked_unplayed() {
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let library = library_with_alien(&db, &folder).await.library;
     let user = ada(&db).await;
-    let browse = Browse::new(db);
+    let browse = Browse::new(db, ExtensionPoints::default());
     let alien = ExternalId::tmdb(ALIEN_TMDB_ID);
     let played = async || {
         let (_, state, _) = browse.movie(user, library, &alien).await.unwrap();
@@ -499,7 +509,7 @@ async fn marking_an_episode_a_season_or_a_show_marks_each_of_its_episodes() {
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let (library, _) = library_with_knight(&db, &folder).await;
     let user = ada(&db).await;
-    let browse = Browse::new(db);
+    let browse = Browse::new(db, ExtensionPoints::default());
     let show = ExternalId::tmdb(KNIGHT_TMDB_ID);
     let played = Some((0, true));
 
@@ -548,7 +558,7 @@ async fn marking_a_title_the_library_doesnt_have_is_refused_as_browsing_to_it_is
     let db = Arc::new(Database::open(data.path()).await.unwrap());
     let (library, _) = library_with_knight(&db, &folder).await;
     let user = ada(&db).await;
-    let browse = Browse::new(db);
+    let browse = Browse::new(db, ExtensionPoints::default());
     let (show, elsewhere) = (ExternalId::tmdb(KNIGHT_TMDB_ID), ExternalId::tmdb(1));
 
     let marks = [
@@ -561,7 +571,7 @@ async fn marking_a_title_the_library_doesnt_have_is_refused_as_browsing_to_it_is
     for target in marks {
         match browse.mark(user, library, target, true).await {
             Err(err) => refused.push(err.to_string()),
-            Ok(_) => panic!("marked a title the Library doesn't have"),
+            Ok(()) => panic!("marked a title the Library doesn't have"),
         }
     }
 
@@ -600,9 +610,13 @@ async fn library_with_alien_by_two_ids(db: &Arc<Database>, folder: &TempDir) -> 
 /// Records that the User `user` has got as far as `progress` through `title`, under the id it
 /// names, as Browse would under a Library's preferred id before its title source order changed.
 async fn report_under(db: &Arc<Database>, user: i64, title: MovieOrEpisode, progress: Progress) {
-    (WatchStates::new(Arc::clone(db)).report(user, vec![Some(title)], progress))
-        .await
-        .unwrap();
+    (WatchStates::new(Arc::clone(db), ExtensionPoints::default()).report(
+        user,
+        vec![Some(title)],
+        progress,
+    ))
+    .await
+    .unwrap();
 }
 
 fn position(state: Option<WatchState>) -> Option<(i64, bool)> {
@@ -629,7 +643,7 @@ async fn a_movies_watch_state_under_an_id_its_library_doesnt_prefer_is_shown() {
     let user = ada(&db).await;
     let halfway = Progress::new(1_000, 2_000).unwrap();
     report_under(&db, user, MovieOrEpisode::movie(&alien_imdb()), halfway).await;
-    let browse = Browse::new(db);
+    let browse = Browse::new(db, ExtensionPoints::default());
 
     let (movie, state, _) = (browse.movie(user, library, &ExternalId::tmdb(ALIEN_TMDB_ID)))
         .await
@@ -664,9 +678,9 @@ async fn an_episodes_watch_state_under_an_id_its_library_doesnt_prefer_is_shown(
     let user = ada(&db).await;
     let halfway = Progress::new(1_000, 2_000).unwrap();
     report_under(&db, user, MovieOrEpisode::episode(&tvdb), halfway).await;
-    let browse = Browse::new(db);
+    let browse = Browse::new(db, ExtensionPoints::default());
 
-    let episodes = (browse.episodes(user, library, &ExternalId::tmdb(KNIGHT_TMDB_ID), 1))
+    let episodes = (browse.episodes(user, library, &ExternalId::tmdb(KNIGHT_TMDB_ID), Some(1)))
         .await
         .unwrap();
 
@@ -705,7 +719,7 @@ async fn a_movie_started_under_two_ids_is_in_continue_watching_once_at_the_newer
     // `imdb` sorts first, so only being more recent keeps `tmdb`'s state.
     db::advance_clock(Duration::from_secs(2));
     report_under(&db, user, tmdb, Progress::new(1_000, 2_000).unwrap()).await;
-    let browse = Browse::new(db);
+    let browse = Browse::new(db, ExtensionPoints::default());
 
     let continuing = continuing_movies(&browse, user).await;
     let (_, state, _) = (browse.movie(user, library, &ExternalId::tmdb(ALIEN_TMDB_ID)))
@@ -728,7 +742,7 @@ async fn a_movie_played_under_one_id_after_it_was_started_under_another_is_not_c
     // `imdb` sorts first, so only being more recent keeps `tmdb`'s state.
     db::advance_clock(Duration::from_secs(2));
     report_under(&db, user, tmdb, Progress::new(1_950, 2_000).unwrap()).await;
-    let browse = Browse::new(db);
+    let browse = Browse::new(db, ExtensionPoints::default());
 
     let continuing = continuing_movies(&browse, user).await;
     let (_, state, _) = (browse.movie(user, library, &ExternalId::tmdb(ALIEN_TMDB_ID)))
@@ -747,7 +761,7 @@ async fn a_movie_played_under_an_id_its_library_doesnt_prefer_is_marked_unplayed
     let user = ada(&db).await;
     let imdb = MovieOrEpisode::movie(&alien_imdb());
     report_under(&db, user, imdb, Progress::new(1_950, 2_000).unwrap()).await;
-    let browse = Browse::new(db);
+    let browse = Browse::new(db, ExtensionPoints::default());
     let alien = ExternalId::tmdb(ALIEN_TMDB_ID);
 
     (browse.mark(user, library, Target::Movie(alien.clone()), false))
@@ -766,7 +780,7 @@ async fn progress_on_a_movie_played_under_an_id_its_library_doesnt_prefer_keeps_
     let user = ada(&db).await;
     let imdb = MovieOrEpisode::movie(&alien_imdb());
     report_under(&db, user, imdb, Progress::new(1_950, 2_000).unwrap()).await;
-    let browse = Browse::new(db);
+    let browse = Browse::new(db, ExtensionPoints::default());
     let alien = ExternalId::tmdb(ALIEN_TMDB_ID);
     let (movie, _, _) = browse.movie(user, library, &alien).await.unwrap();
     // `imdb` sorts first, so only being more recent shows the new report's position.

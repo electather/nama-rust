@@ -33,8 +33,10 @@ service LinkService {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Links the User showing `code` on their Server to the signed-in Account. An Account may have
-  // Users on many Servers. Fails like `ApproveServerLink`, with `REFUSAL_REASON_LINK_CODE_NOT_FOUND`
-  // for a code no User is waiting on.
+  // Users on many Servers, but one on each. Fails like `ApproveServerLink`, with
+  // `REFUSAL_REASON_LINK_CODE_NOT_FOUND` for a code no User is waiting on, and with
+  // `REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER` if the Account has another User on that Server,
+  // leaving the code to work once that User is Unlinked.
   rpc ApproveUserLink(ApproveUserLinkRequest) returns (ApproveUserLinkResponse);
   // Returns the signed-in Account's Linked Users, oldest first.
   rpc ListLinkedUsers(ListLinkedUsersRequest) returns (ListLinkedUsersResponse) {
@@ -51,7 +53,8 @@ service LinkService {
   }
   // Accepts a User created from the signed-in Account, which Links them to it, so they can sign in
   // with it. Fails like `ApproveServerLink`, with `REFUSAL_REASON_USER_INVITE_NOT_FOUND` for an id
-  // none of its invites has, and with `REFUSAL_REASON_USER_LINKED` if the User Linked meanwhile.
+  // none of its invites has, with `REFUSAL_REASON_USER_LINKED` if the User Linked meanwhile, and
+  // with `REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER` like `ApproveUserLink`.
   rpc AcceptUserInvite(AcceptUserInviteRequest) returns (AcceptUserInviteResponse);
   // Names the Server a sign-in with the Account was started on, and the signed-in Account's User
   // there, so the person can check them before approving. Fails with
@@ -70,8 +73,9 @@ service LinkService {
 // `Authorization: Bearer <credential>` header, and every call fails with
 // `REFUSAL_REASON_SERVER_NOT_LINKED` without one the Hub knows.
 service LinkedServerService {
-  // Unlinks the calling Server: its credential stops working at once, and it leaves its Account's
-  // Servers.
+  // Unlinks the calling Server: its credential stops working at once, it leaves its Account's
+  // Servers, and its names and certificate challenge are removed (ADR 0104). Fails, leaving the
+  // Server Linked, while the Hub can't remove them.
   rpc UnlinkServer(UnlinkServerRequest) returns (UnlinkServerResponse);
   // The titles most like one title, of its kind, by the vectors the Hub builds from Wikidata's
   // facts (ADR 0095): at most 100, most alike first. Empty when Wikidata lacks the title or the
@@ -150,10 +154,28 @@ service LinkedServerService {
   rpc PollServerSignIn(PollServerSignInRequest) returns (PollServerSignInResponse);
   // Replaces the Server Addresses the calling Server reported before. The Server reports them
   // whenever they change, and every half hour, since only then does the Hub check from outside
-  // whether its `public_port` can be reached. Fails with `REFUSAL_REASON_SERVER_ADDRESS_INVALID`
-  // for one that isn't an `http` or `https` URL, for too many, or for a port over 65535.
+  // whether its `public_port` can be reached. Also names the Server after them (ADR 0104). Fails
+  // with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an `http` or `https` URL, for
+  // too many, for a port over 65535, or for a `relay` that isn't an `<ip>:<port>`, and fails while
+  // the Hub can't write the Server's names.
   rpc SetServerAddresses(SetServerAddressesRequest) returns (SetServerAddressesResponse) {
     option idempotency_level = IDEMPOTENT;
+  }
+  // Makes `values` the only TXT records at `_acme-challenge.<own name>`, under the calling Server's
+  // own name, so an ACME CA such as Let's Encrypt finds the DNS-01 challenge it set the Server for
+  // a certificate for its names (ADR 0057). The Server makes the certificate's key itself and sends
+  // only the challenge, so the Hub never holds the key. Empty `values` remove them. Fails with
+  // `REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID` for too many values or one that isn't one, and
+  // on a Hub that names no Server or while the Hub can't write them.
+  rpc SetCertificateChallenge(SetCertificateChallengeRequest) returns (SetCertificateChallengeResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // A token that proves to a Relay the calling Server holds its own name, so the Relay routes TLS
+  // whose SNI is that name, or one under it, to the Server (ADR 0057): a JWT signed as
+  // `PollServerLinkResponse`'s is, whose `sub` is the Server's own name and `aud` is `relay`, and
+  // which expires 5 minutes after it was made. Fails on a Hub that names no Server.
+  rpc GetRelayToken(GetRelayTokenRequest) returns (GetRelayTokenResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
   }
   // Records a Viewing Event for each play by one of the Server's Users, under the Account they are
   // Linked to (ADR 0093); one for a User who isn't Linked is left out. Sending one again by its
@@ -585,6 +607,11 @@ message SetServerAddressesRequest {
   // NAT-PMP, or one its Admin forwarded. 0 for none. The Hub connects to it at the IP address the
   // request came from, the only one it checks, so a Server can't have the Hub call anyone else.
   uint32 public_port = 3;
+  // The Relay its Admin runs, which the Server dials out to for clients that can't reach it
+  // directly (ADR 0057), as `<ip>:<port>`, such as `198.51.100.4:443`, or empty for none.
+  // `relay.<own name>` points at its IP address, and `https://relay.<own name>:<port>` is a
+  // Server Address after the direct ones.
+  string relay = 4;
 }
 
 message SetServerAddressesResponse {
@@ -593,6 +620,26 @@ message SetServerAddressesResponse {
   string public_address = 1;
   // Whether the Hub reached it there. Only then is it one of the Server's Server Addresses.
   bool reachable = 2;
+  // The Server's names (ADR 0104). Its own name comes first, such as
+  // `0193b6f2c4d87a1e9f3c5b2a1d0e4f67.namadirect.net`, which never changes and points at
+  // `public_address` while the Hub reaches it there. Then comes a name for each private IPv4
+  // address among `lan_addresses`, such as `192-168-1-10.<own name>`, which points at that address,
+  // and `relay.<own name>` with a `relay`. Empty on a Hub that names no Server.
+  repeated string names = 3;
+}
+
+message SetCertificateChallengeRequest {
+  // Each a DNS-01 challenge's value: a SHA-256 digest in unpadded base64url, 43 characters (RFC
+  // 8555, section 8.4). At most 2, one for the Server's own name and one for the wildcard under it.
+  repeated string values = 1;
+}
+
+message SetCertificateChallengeResponse {}
+
+message GetRelayTokenRequest {}
+
+message GetRelayTokenResponse {
+  string token = 1;
 }
 
 message ListTrendingTitlesRequest {}

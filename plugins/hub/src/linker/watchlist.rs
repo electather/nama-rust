@@ -6,17 +6,10 @@
 use std::cmp::Reverse;
 
 use nama_hub_proto::nama::hub::v1::{TitleKind, WatchlistEntry as Entry};
-use nama_plugin_api::{
-    PluginError,
-    server_link::{Link, WatchlistEntry},
-};
+use nama_plugin_api::{PluginError, server_link::WatchlistEntry};
 
-use super::{Linker, watch_states::MAX_ID_LENGTH};
-
-/// The most entries a sync sends, as the Hub takes them: past it, or an id past `MAX_ID_LENGTH`,
-/// the Hub would refuse every sync of that User.
-// ponytail: past `MAX_ENTRIES` the oldest are left out; page the sync if Watchlists grow that long.
-const MAX_ENTRIES: usize = 5000;
+use super::Linker;
+use crate::hub::limits;
 
 impl Linker {
     /// Merges `watchlist`, the User `user_id`'s, into the Account they are Linked to, and answers
@@ -27,24 +20,27 @@ impl Linker {
         user_id: i64,
         mut watchlist: Vec<WatchlistEntry>,
     ) -> Result<Vec<WatchlistEntry>, PluginError> {
-        let Some(kept) = self.kept().await? else {
+        if !self.user_linked(user_id).await? {
             return Ok(Vec::new());
-        };
-        // Asked as Settings would, as with Watch State: a User who only signs in with their
-        // Account has no kept Link.
-        let Some(Link::Linked { .. }) = self.current_user_link(user_id).await? else {
-            return Ok(Vec::new());
-        };
+        }
         watchlist.sort_by_key(|entry| Reverse(entry.changed_at_ms));
+        // Past what the Hub takes it would refuse every sync of that User.
+        // ponytail: past the most entries the oldest are left out; page the sync if Watchlists
+        // grow that long.
         let entries = (watchlist.iter())
-            .filter(|entry| entry.id.chars().count() <= MAX_ID_LENGTH)
-            .take(MAX_ENTRIES)
+            .filter(|entry| {
+                limits::takes_external_id(&entry.id)
+                    && limits::takes_changed_at(entry.changed_at_ms)
+            })
+            .take(limits::WATCHLIST_ENTRIES)
             .map(entry_to_proto)
             .collect();
-        let synced = (self.hub)
-            .sync_watchlist(&kept.credential, user_id, entries)
+        let synced = self
+            .call(|hub| hub.sync_watchlist(user_id, entries))
             .await?;
-        Ok(synced.into_iter().filter_map(entry_from_proto).collect())
+        Ok((synced.unwrap_or_default().into_iter())
+            .filter_map(entry_from_proto)
+            .collect())
     }
 }
 

@@ -5,8 +5,8 @@ import { LinkService } from "@hub/gen/nama/hub/v1/link_pb";
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
-import { cleanup, configure, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vite-plus/test";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
 const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
 
@@ -81,11 +81,6 @@ function fillIn(email: string, password: string) {
 }
 
 describe("an Account", () => {
-  beforeAll(() => {
-    // A file's first `findBy…` waits while the route chunks load for the first time.
-    configure({ asyncUtilTimeout: 5000 });
-  });
-
   afterEach(() => {
     cleanup();
   });
@@ -94,6 +89,37 @@ describe("an Account", () => {
     openHub("/");
 
     await expect(screen.findByRole("heading", { name: "Sign in" })).resolves.toBeDefined();
+  });
+
+  test.each([
+    ["/sign-in", false, "Sign in – Nama Hub"],
+    ["/create-account", false, "Create an Account – Nama Hub"],
+    ["/", true, "Your Account – Nama Hub"],
+    ["/nothing-here", false, "Page not found – Nama Hub"],
+  ])("%s names the browser tab", async (path, signedIn, title) => {
+    openHub(path, { signedIn });
+
+    await waitFor(() => {
+      expect(document.title).toBe(title);
+    });
+  });
+
+  test.each([
+    { signedIn: true, way: "Your Account", href: "/" },
+    { signedIn: false, way: "Sign in", href: "/sign-in" },
+  ])("an unknown address offers $way", async ({ signedIn, way, href }) => {
+    openHub("/nothing-here", { signedIn });
+    await screen.findByRole("heading", { name: "Page not found" });
+
+    const link = await screen.findByRole("link", { name: way });
+    expect(link.getAttribute("href")).toBe(href);
+  });
+
+  test("“Nama Hub” over a page links to the Account page", async () => {
+    openHub("/sign-in");
+
+    const home = await screen.findByRole("link", { name: "Nama Hub" });
+    expect(home.getAttribute("href")).toBe("/");
   });
 
   test("signing in opens the Account page, with the email and a sign-out button", async () => {
@@ -179,6 +205,14 @@ describe("an Account", () => {
       // TanStack Router's own error page, which this replaces.
       expect(screen.queryByText("Something went wrong!")).toBeNull();
       expect(document.body.textContent).not.toMatch(/unavailable|Hub down/iu);
+    });
+
+    test("an unknown address still says so, and offers Sign in", async () => {
+      openHub("/nothing-here", { down: true });
+
+      const signIn = await screen.findByRole("link", { name: "Sign in" });
+      expect(signIn.getAttribute("href")).toBe("/sign-in");
+      expect(screen.getByRole("heading", { name: "Page not found" })).toBeDefined();
     });
 
     test("“Try again” opens the Account page once the Hub is back up", async () => {

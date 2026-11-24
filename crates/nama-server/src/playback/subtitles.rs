@@ -73,8 +73,8 @@ pub(super) fn font_url(version: i64, font: usize) -> String {
     format!("/media/versions/{version}/fonts/{font}")
 }
 
-/// The format `track` is served in at its plain [`url`], if it's served: WebVTT for a text one, or
-/// a PGS one's own, or a VobSub one's own if its file carries its header.
+/// The format `track` is served in at its plain [`url()`], if it's served: WebVTT for a text one,
+/// or a PGS one's own, or a VobSub one's own if its file carries its header.
 pub(super) fn served_as(track: &Track) -> Option<proto::SubtitleFormat> {
     if track.is_text_subtitle() {
         Some(WEBVTT)
@@ -92,7 +92,7 @@ pub(super) fn served_as(track: &Track) -> Option<proto::SubtitleFormat> {
     }
 }
 
-/// ASS, if `track` is an ASS or SSA one, which its [`url`] in ASS serves with its styling.
+/// ASS, if `track` is an ASS or SSA one, which its [`url()`] in ASS serves with its styling.
 fn served_with_styling(track: &Track) -> Option<proto::SubtitleFormat> {
     track.is_ass_subtitle().then_some(ASS)
 }
@@ -127,7 +127,7 @@ impl Subtitles {
     }
 }
 
-/// Serves `GET` [`url`]s, 404 unless the Track is a subtitle of a Version served in that format,
+/// Serves `GET` [`url()`]s, 404 unless the Track is a subtitle of a Version served in that format,
 /// and [`font_url`]s, 404 unless probing recorded the attachment as a font. Whether the caller has
 /// a session is up to the layers the router is put behind.
 pub(super) fn router(subtitles: Subtitles) -> Router {

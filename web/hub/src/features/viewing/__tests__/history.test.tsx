@@ -11,13 +11,12 @@ import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
 import {
   cleanup,
-  configure,
   fireEvent,
   render,
   screen,
   waitForElementToBeRemoved,
 } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, test, vi } from "vite-plus/test";
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
 const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
 
@@ -85,22 +84,18 @@ function exportedBlob(file: Blob | MediaSource | undefined) {
 }
 
 describe("viewing history", () => {
-  beforeAll(() => {
-    // A file's first `findBy…` waits while the route chunks load for the first time.
-    configure({ asyncUtilTimeout: 5000 });
-  });
-
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
   });
 
-  test("the Account page leads to the history", async () => {
+  test("the Account page leads to the history, which names the browser tab", async () => {
     open("/");
 
     fireEvent.click(await screen.findByRole("link", { name: "See, delete or export it" }));
 
     await expect(screen.findByRole("heading", { name: "Viewing history" })).resolves.toBeDefined();
+    expect(document.title).toBe("Viewing history – Nama Hub");
   });
 
   test("each play says what, how far and on what kind of Device", async () => {

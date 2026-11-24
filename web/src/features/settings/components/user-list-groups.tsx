@@ -5,6 +5,7 @@ import { DefaultPermissions } from "@/features/settings/components/default-permi
 import { SettingGroup } from "@/features/settings/components/setting-group";
 import { UserGroup } from "@/features/settings/components/user-group";
 import { userLabels } from "@/features/settings/lib/pane-labels";
+import type { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
 import type { Permission, User } from "@/gen/nama/v1/sign_in_pb";
 import { useAccountSignIn } from "@/shared/hooks/use-account-sign-in";
 
@@ -20,8 +21,8 @@ export function UserListGroups({
 }: {
   users: User[];
   you: User | undefined;
-  defaults: Permission[];
-  onChange: (changes: { permissions: Permission[] }) => void;
+  defaults: { permissions: Permission[]; cap: PlaybackLimit };
+  onChange: (changes: { permissions: Permission[] } | { cap: PlaybackLimit }) => void;
 }) {
   const linked = useAccountSignIn() === true;
   return (
@@ -36,7 +37,12 @@ export function UserListGroups({
         </SettingGroup>
       )}
       <SettingGroup setting="defaults" title={userLabels.defaults.label}>
-        <DefaultPermissions you={you} held={defaults} onChange={onChange} />
+        <DefaultPermissions
+          you={you}
+          held={defaults.permissions}
+          cap={defaults.cap}
+          onChange={onChange}
+        />
       </SettingGroup>
       <SettingGroup setting="invites" title={userLabels.invites.label}>
         <Invites you={you} />

@@ -50,8 +50,11 @@ use progress::Progress;
 pub(crate) use qualities::{
     ASKED as QUALITY_ASKED_FIELD, CHANGED as QUALITY_CHANGED_FIELD, Invalid as QualitiesInvalid,
     PROFILE as QUALITY_PROFILE_FIELD, QUALITY_PROFILE, Refused as QualityRefused,
-    check as check_qualities, list as list_qualities, replace as replace_qualities,
+    check as check_qualities, delete_plugin as delete_plugins_qualities, list as list_qualities,
+    replace as replace_qualities,
 };
+#[cfg(test)]
+pub(crate) use qualities::{leave_qualities, qualities_left};
 pub(crate) use search_sources::{SourceAnswer, Sourced, Unavailable};
 
 /// Why a Request couldn't be made, found or changed.

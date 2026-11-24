@@ -207,7 +207,7 @@ fn an_enabled_plugin_keeps_its_last_100_lines_newest_first_until_disabled() {
     let plugin = PluginId::from_static("keeps-100");
     keep_plugin_lines(&plugin);
     for at_ms in 0..101 {
-        push_plugin_line(&plugin, line(at_ms));
+        push_plugin_line(&plugin, |_| line(at_ms));
     }
 
     let kept: Vec<i64> = plugin_lines(&plugin)
@@ -217,7 +217,7 @@ fn an_enabled_plugin_keeps_its_last_100_lines_newest_first_until_disabled() {
     assert_eq!(kept, (1..101).rev().collect::<Vec<_>>());
 
     forget_plugin_lines(&plugin);
-    push_plugin_line(&plugin, line(101));
+    push_plugin_line(&plugin, |_| line(101));
     assert_eq!(plugin_lines(&plugin), []);
 }
 
@@ -225,7 +225,7 @@ fn an_enabled_plugin_keeps_its_last_100_lines_newest_first_until_disabled() {
 fn a_plugin_enabled_again_after_a_disable_starts_with_no_lines() {
     let plugin = PluginId::from_static("enabled-again");
     keep_plugin_lines(&plugin);
-    push_plugin_line(&plugin, line(0));
+    push_plugin_line(&plugin, |_| line(0));
 
     // A racing enabling keeps what the other kept.
     keep_plugin_lines(&plugin);
@@ -249,6 +249,30 @@ fn kept_lines(plugin: &PluginId, log: impl FnOnce()) -> Vec<PluginLine> {
 fn kept_texts(plugin: &PluginId, log: impl FnOnce()) -> Vec<String> {
     let lines = kept_lines(plugin, log).into_iter();
     lines.map(|line| line.text).collect()
+}
+
+/// Logs 1000 of the Plugin `plugin`'s lines, checking after each that the lines kept are newest
+/// first, since only the last 100 are kept to check once they're all logged.
+fn log_checking_order(plugin: &PluginId) {
+    let subscriber = tracing_subscriber::registry().with(plugin_lines_layer());
+    tracing::subscriber::with_default(subscriber, || {
+        for _ in 0..1000 {
+            tracing::info!(target: PLUGIN_TARGET, plugin = %plugin, "logged");
+            let kept: Vec<i64> = plugin_lines(plugin).iter().map(|line| line.at_ms).collect();
+            assert!(kept.is_sorted_by(|newer, older| newer >= older), "{kept:?}");
+        }
+    });
+}
+
+#[test]
+fn lines_logged_from_several_threads_are_kept_in_at_ms_order() {
+    let plugin = PluginId::from_static("several-threads");
+    keep_plugin_lines(&plugin);
+    std::thread::scope(|threads| {
+        for _ in 0..8 {
+            threads.spawn(|| log_checking_order(&plugin));
+        }
+    });
 }
 
 #[test]

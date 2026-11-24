@@ -29,7 +29,10 @@ export function MoviePage({
     throw notFound();
   }
   return (
-    <TitlePage hero={<MovieHero {...{ libraryId, movieId, movie, readOnlyFolder, params }} />}>
+    <TitlePage
+      name={movie.title}
+      hero={<MovieHero {...{ libraryId, movieId, movie, readOnlyFolder, params }} />}
+    >
       <TitleTrailers
         trailers={movie.trailers}
         art={{ url: movie.backdropUrl, thumbhash: movie.backdropThumbhash }}

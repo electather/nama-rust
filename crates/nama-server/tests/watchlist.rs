@@ -277,7 +277,7 @@ async fn continue_watching_says_its_movie_and_show_are_on_the_watchlist() {
     let dark_s01 = ListEpisodesRequest {
         library_id: fx.shows,
         show_id: tmdb_id(DARK).into(),
-        season_number: 1,
+        season_number: Some(1),
         ..Default::default()
     };
     let episodes = browse.list_episodes(dark_s01).await.unwrap().into_owned();

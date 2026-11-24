@@ -1,0 +1,45 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO user_links (account_id, linked_server_id, server_user_id, user_name)\n             VALUES ($1, $2, $3, $4) ON CONFLICT (linked_server_id, server_user_id) DO NOTHING\n             RETURNING id, extract(epoch FROM created_at)::bigint AS \"linked_at!\",\n             (SELECT name FROM linked_servers WHERE id = $2) AS \"server_name!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "user_links",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "linked_at!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 2,
+        "name": "server_name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "d39f91fb7085b5835c68539905b946f32e3445302030022347f3e7742308807f"
+}

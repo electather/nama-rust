@@ -2,7 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { MemberLayout } from "@/app/member-layout";
 import { type Section, idParam, sectionParam, userParam } from "@/features/settings/lib/sections";
-import { isSetupRequired, serverInfo, whoIsSignedIn } from "@/shared/hooks/access";
+import { serverInfo, whoIsSignedIn } from "@/shared/hooks/access";
 import { recordDiagnosticsIfExported } from "@/shared/lib/diagnostics";
 import { wordsParam } from "@/shared/lib/words-param";
 
@@ -31,15 +31,21 @@ export const Route = createFileRoute("/_member")({
     setting: idParam(search["setting"]),
   }),
   beforeLoad: async ({ context, location }) => {
-    if (await isSetupRequired(context)) {
+    // Asked together, so the page's own calls wait on one round trip, not two. Who is signed in is
+    // awaited only after the setup check, so a fresh Server still sends you to /setup if it fails.
+    const whoAmI = whoIsSignedIn(context);
+    // Handled now, so a failure while the Server's info loads isn't unhandled; awaited below.
+    void whoAmI.catch(() => null);
+    const info = await serverInfo(context);
+    if (info.setupRequired) {
       throw redirect({ to: "/setup" });
     }
-    const signedIn = await whoIsSignedIn(context);
+    const signedIn = await whoAmI;
     if (!signedIn) {
       throw redirect({ to: "/sign-in", search: { redirect: location.href } });
     }
     // Awaited, so the page's own calls are traced too.
-    await recordDiagnosticsIfExported((await serverInfo(context)).exportsDiagnostics);
+    await recordDiagnosticsIfExported(info.exportsDiagnostics);
     return { signedIn };
   },
   component: Member,

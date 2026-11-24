@@ -172,6 +172,9 @@ pub mod home_row {
     pub enum KernelOrPlugin {
         Kernel(::buffa::EnumValue<super::super::super::KernelHomeRow>),
         Plugin(::buffa::alloc::boxed::Box<super::super::super::PluginHomeRow>),
+        RecentlyAdded(
+            ::buffa::alloc::boxed::Box<super::super::super::RecentlyAddedHomeRow>,
+        ),
     }
     impl ::buffa::Oneof for KernelOrPlugin {}
     impl From<super::super::super::PluginHomeRow> for KernelOrPlugin {
@@ -182,6 +185,17 @@ pub mod home_row {
     impl From<super::super::super::PluginHomeRow>
     for ::core::option::Option<KernelOrPlugin> {
         fn from(v: super::super::super::PluginHomeRow) -> Self {
+            Self::Some(KernelOrPlugin::from(v))
+        }
+    }
+    impl From<super::super::super::RecentlyAddedHomeRow> for KernelOrPlugin {
+        fn from(v: super::super::super::RecentlyAddedHomeRow) -> Self {
+            Self::RecentlyAdded(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::RecentlyAddedHomeRow>
+    for ::core::option::Option<KernelOrPlugin> {
+        fn from(v: super::super::super::RecentlyAddedHomeRow) -> Self {
             Self::Some(KernelOrPlugin::from(v))
         }
     }
@@ -198,6 +212,9 @@ pub mod home_row {
                 }
                 Self::Plugin(v) => {
                     map.serialize_entry("plugin", &**v)?;
+                }
+                Self::RecentlyAdded(v) => {
+                    map.serialize_entry("recentlyAdded", &**v)?;
                 }
             }
             map.end()
@@ -276,6 +293,54 @@ pub mod home_row_title {
                 }
                 Self::MissingShow(v) => {
                     map.serialize_entry("missingShow", &**v)?;
+                }
+            }
+            map.end()
+        }
+    }
+}
+pub mod person_role {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, PartialEq, Debug)]
+    pub enum Title {
+        Movie(::buffa::alloc::boxed::Box<super::super::super::MovieHit>),
+        Show(::buffa::alloc::boxed::Box<super::super::super::ShowHit>),
+    }
+    impl ::buffa::Oneof for Title {}
+    impl From<super::super::super::MovieHit> for Title {
+        fn from(v: super::super::super::MovieHit) -> Self {
+            Self::Movie(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::MovieHit> for ::core::option::Option<Title> {
+        fn from(v: super::super::super::MovieHit) -> Self {
+            Self::Some(Title::from(v))
+        }
+    }
+    impl From<super::super::super::ShowHit> for Title {
+        fn from(v: super::super::super::ShowHit) -> Self {
+            Self::Show(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::ShowHit> for ::core::option::Option<Title> {
+        fn from(v: super::super::super::ShowHit) -> Self {
+            Self::Some(Title::from(v))
+        }
+    }
+    impl ::serde::Serialize for Title {
+        fn serialize<S: ::serde::Serializer>(
+            &self,
+            s: S,
+        ) -> ::core::result::Result<S::Ok, S::Error> {
+            use ::serde::ser::SerializeMap;
+            let mut map = s.serialize_map(Some(1))?;
+            match self {
+                Self::Movie(v) => {
+                    map.serialize_entry("movie", &**v)?;
+                }
+                Self::Show(v) => {
+                    map.serialize_entry("show", &**v)?;
                 }
             }
             map.end()

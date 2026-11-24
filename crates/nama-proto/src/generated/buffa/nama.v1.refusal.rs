@@ -235,7 +235,10 @@ pub enum RefusalReason {
     /// (comma-separated).
     REFUSAL_REASON_TITLE_ID_MISSING = 72i32,
     /// `invalid_argument`: a Library's title sources name a namespace that isn't lowercase ASCII
-    /// letters and digits, or name one twice. `field` is `title_sources`. Params: `namespace`.
+    /// letters and digits, name one twice, newly name one no title source keeps or looks titles up
+    /// by, or name none kept by a title source with `TitleSource.searches` (ADR 0045). One the
+    /// Library already names that no title source keeps any more counts as searching. `field` is
+    /// `title_sources`. Params: `namespace`, absent when none searches.
     REFUSAL_REASON_TITLE_SOURCES_INVALID = 73i32,
     /// `invalid_argument`: a Library's Recognisers name an id of no Plugin with
     /// `EXTENSION_POINT_RECOGNISER`, or name one twice. `field` is `recogniser_ids` or
@@ -302,6 +305,9 @@ pub enum RefusalReason {
     /// from one, so Unlinking them from it would leave them no way to sign in. An Admin can give them
     /// a password with `ResetPassword`.
     REFUSAL_REASON_LAST_SIGN_IN_METHOD = 101i32,
+    /// `not_found`: no title in a Library has a Role of the Person with the ID. `field` is
+    /// `person_id`.
+    REFUSAL_REASON_PERSON_NOT_FOUND = 102i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -601,6 +607,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const LastSignInMethod: Self = Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_PERSON_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const PersonNotFound: Self = Self::REFUSAL_REASON_PERSON_NOT_FOUND;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -915,6 +924,7 @@ impl ::buffa::Enumeration for RefusalReason {
             101i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD)
             }
+            102i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PERSON_NOT_FOUND),
             _ => ::core::option::Option::None,
         }
     }
@@ -1114,6 +1124,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD => {
                 "REFUSAL_REASON_LAST_SIGN_IN_METHOD"
             }
+            Self::REFUSAL_REASON_PERSON_NOT_FOUND => "REFUSAL_REASON_PERSON_NOT_FOUND",
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -1443,6 +1454,9 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_LAST_SIGN_IN_METHOD" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD)
             }
+            "REFUSAL_REASON_PERSON_NOT_FOUND" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_PERSON_NOT_FOUND)
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1547,6 +1561,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_NOT_A_SERVER_ADDRESS,
             Self::REFUSAL_REASON_WRONG_ACCOUNT,
             Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD,
+            Self::REFUSAL_REASON_PERSON_NOT_FOUND,
         ]
     }
 }

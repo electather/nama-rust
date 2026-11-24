@@ -77,22 +77,25 @@ test("an unknown Movie shows the not-found page, under the app chrome", async ()
   expect(screen.getByRole("link", { name: "Home" })).toBeDefined();
 });
 
-/** A fake Server with a Show of `seasons`, each holding one Episode titled after its Season. */
+/** Season `seasonNumber`'s one Episode, titled after it. */
+function opener(seasonNumber: number) {
+  return {
+    seasonNumber,
+    episodeNumber: 1,
+    title: `Opener of Season ${seasonNumber}`,
+    versions: [{ id: 1n }],
+  };
+}
+
+/** A fake Server with a Show of `seasons`, in the Server's order, each holding its `opener`. */
 function serverWithSeasons(...seasons: number[]) {
   return serverToBrowse({
     getShow: () => ({
       show: { title: "Severance" },
       seasons: seasons.map((number) => ({ number })),
     }),
-    listEpisodes: ({ seasonNumber }) => ({
-      episodes: [
-        {
-          seasonNumber,
-          episodeNumber: 1,
-          title: `Opener of Season ${seasonNumber}`,
-          versions: [{ id: 1n }],
-        },
-      ],
+    listEpisodes: () => ({
+      episodes: seasons.map((number) => opener(number)),
     }),
   });
 }
@@ -136,6 +139,35 @@ test("the row opens on the Season asked for, or the first for one the Show doesn
   openApp("/libraries/2/shows/tmdb-95396?season=9", serverWithSeasons(0, 1, 2));
   await screen.findByText("Opener of Season 2");
   expect(screen.getByRole("button", { name: "Season 1" })).toBeDefined();
+});
+
+test("a Show's page asks for every Season's Episodes once, alongside the Show, however many Seasons", async () => {
+  for (const count of [1, 20]) {
+    const seasons = Array.from({ length: count }, (_, index) => index + 1);
+    let askForEpisodes: (() => void) | undefined;
+    const episodesAsked = new Promise<void>((resolve) => {
+      askForEpisodes = resolve;
+    });
+    const asked: (number | undefined)[] = [];
+    const transport = serverToBrowse({
+      // It answers once the Episodes are asked for, so a page waiting for it never opens.
+      getShow: async () => {
+        await episodesAsked;
+        return { show: { title: "Severance" }, seasons: seasons.map((number) => ({ number })) };
+      },
+      listEpisodes: ({ seasonNumber }) => {
+        asked.push(seasonNumber);
+        askForEpisodes?.();
+        return { episodes: seasons.map((number) => opener(number)) };
+      },
+    });
+    openApp("/libraries/2/shows/tmdb-95396", transport);
+
+    // oxlint-disable-next-line no-await-in-loop -- each Show's page opens in turn
+    await screen.findByText("Opener of Season 1");
+    expect(asked).toStrictEqual([undefined]);
+    cleanup();
+  }
 });
 
 test("a Show with one Season names it over its Episodes, with no menu to pick another", async () => {
@@ -219,7 +251,7 @@ test("a Movie's menu chooses its Version, each by its Edition, picture, sound an
   ).toStrictEqual([
     ["Director's Cut · 4K · HDR · 5.1 · 60 GB", "true"],
     ["Director's Cut · 720p · Stereo · 2 GB", "false"],
-    ["0.7 GB", "false"],
+    ["700 MB", "false"],
   ]);
 });
 

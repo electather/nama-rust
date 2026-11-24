@@ -7,15 +7,19 @@ use super::{
     Facts, LASTING_STEPS, Method, Offers, Probe, Probing, Track, candidates,
     choices::burns_in,
     codecs::{file_audio, is_audio},
-    limits::{fitted, picture},
+    limits::{fitted, picture, remote_cap_of},
     narrowed,
 };
 use crate::server_settings::PlaybackLimit;
 
 /// What a plan for `facts` can ever honour, with only the methods in `lasting` allowed.
 pub(super) fn offers(facts: &Facts, lasting: &BTreeSet<Method>) -> Offers {
+    let cap = remote_cap_of(facts);
     let Some(probe) = &facts.probe else {
-        return Offers::default();
+        return Offers {
+            cap,
+            ..Offers::default()
+        };
     };
     let transcodes = lasting.contains(&Method::Transcode);
     let places = |keep: &dyn Fn(&Track) -> bool| {
@@ -33,6 +37,7 @@ pub(super) fn offers(facts: &Facts, lasting: &BTreeSet<Method>) -> Offers {
     if !transcodes {
         return Offers {
             audio,
+            cap,
             ..Offers::default()
         };
     }
@@ -43,6 +48,7 @@ pub(super) fn offers(facts: &Facts, lasting: &BTreeSet<Method>) -> Offers {
         limits: (PlaybackLimit::ALL.into_iter())
             .filter(|&limit| picture.and_then(|picture| fitted(picture, limit)).is_some())
             .collect(),
+        cap,
     }
 }
 

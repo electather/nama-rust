@@ -66,9 +66,8 @@ impl Plugin for Upkeep {
                     days_field(
                         GONE_PLUGINS_DAYS,
                         "Days to keep a removed Plugin's data",
-                        "How many days after the Server stops having a Plugin its settings, \
-                         Plugin Store entries, Personal settings and Plugin Connections are \
-                         deleted. Reinstalling it sooner keeps them.",
+                        "How many days to keep what a removed Plugin left behind before \
+                         deleting it. Reinstalling the Plugin sooner keeps it.",
                         DEFAULT_GONE_PLUGINS_DAYS,
                     ),
                 ],
@@ -135,9 +134,8 @@ fn jobs() -> Vec<Job> {
         Job {
             id: FORGET_GONE_PLUGINS.to_owned(),
             name: "Forget removed Plugins".to_owned(),
-            description: "Deletes the settings, Plugin Store entries, Personal settings \
-                          and Plugin Connections of each Plugin the Server hasn't had for \
-                          the days set. A disabled Plugin is kept."
+            description: "For each Plugin the Server hasn't had for the days set, deletes \
+                          what it left behind. A disabled Plugin is kept."
                 .to_owned(),
             // After the daily Jobs, so they don't all run at once.
             schedule: Some("20 4 * * 0".to_owned()),

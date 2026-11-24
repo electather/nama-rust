@@ -211,6 +211,7 @@ async fn the_server_shows_the_code_its_plugin_starts_and_then_whose_it_is() {
         reachability: Some(Reachability {
             address: "http://203.0.113.7:7980".to_owned(),
             reachable: true,
+            names: vec!["abc.namadirect.net".to_owned()],
         }),
     });
     let shown = link(&server).await.unwrap();
@@ -218,6 +219,7 @@ async fn the_server_shows_the_code_its_plugin_starts_and_then_whose_it_is() {
     assert_eq!(shown.code, "");
     assert_eq!(shown.public_address, "http://203.0.113.7:7980");
     assert!(shown.reachable);
+    assert_eq!(shown.names, ["abc.namadirect.net"]);
 
     settings(&server)
         .unlink_server(UnlinkServerRequest::default())
@@ -521,6 +523,72 @@ async fn a_user_who_signs_in_only_with_their_account_cant_unlink_from_it_but_can
     assert_eq!(linker.script().unlinked_users, [grace]);
 }
 
+/// Longer than the bound on a look at a Link, shorter than forever.
+const PAST_THE_BOUND: Duration = Duration::from_secs(20);
+
+#[tokio::test]
+async fn server_info_offers_passwords_alone_while_the_plugin_never_answers() {
+    let linker = Scripted::default();
+    let server = linked_server(&linker).await;
+    linker.script().links_hang = true;
+
+    let offered = tokio::time::timeout(PAST_THE_BOUND, offers_account_sign_in(&server)).await;
+
+    assert_eq!(offered.ok(), Some(false));
+}
+
+#[tokio::test]
+async fn the_users_list_answers_while_the_plugin_never_answers_and_lists_no_one_unable_to_sign_in()
+{
+    let linker = Scripted::default();
+    let server = linked_server(&linker).await;
+    create_from_account(&server, "Grace").await.unwrap();
+    linker.script().links_hang = true;
+
+    let listed = tokio::time::timeout(PAST_THE_BOUND, cannot_sign_in(&server)).await;
+
+    assert_eq!(listed.ok(), Some(Vec::new()));
+}
+
+#[tokio::test]
+async fn reauthenticating_with_an_account_past_the_limit_is_refused_without_asking_the_hub() {
+    let linker = Scripted::default();
+    let server = linked_server(&linker).await;
+    let grace = create_from_account(&server, "Grace").await.unwrap();
+    let started = start_account_sign_in(&server, ON_SERVER).await.unwrap();
+    linker.script().approved = Some(grace);
+    let signed_in = sign_in_with_account(&server, &started.handle, "code")
+        .await
+        .unwrap();
+    let device = server.client_config_as(&signed_in.token);
+    let hedy = create_from_account(&server, "Hedy").await.unwrap();
+    // Each counts toward the limit on Grace's name: never approved, or approved by Hedy's Account.
+    for _ in 0..5 {
+        assert_refused(
+            reauthenticate_with_account(device.clone(), &started.handle, "code").await,
+            ErrorCode::NotFound,
+            RefusalReason::REFUSAL_REASON_ACCOUNT_SIGN_IN_NOT_FOUND,
+        );
+        linker.script().approved = Some(hedy);
+        assert_refused(
+            reauthenticate_with_account(device.clone(), &started.handle, "code").await,
+            ErrorCode::Unauthenticated,
+            RefusalReason::REFUSAL_REASON_WRONG_ACCOUNT,
+        );
+    }
+    let asked = linker.script().finishes;
+    linker.script().approved = Some(grace);
+
+    let blocked = reauthenticate_with_account(device, &started.handle, "code").await;
+
+    assert_refused(
+        blocked,
+        ErrorCode::ResourceExhausted,
+        RefusalReason::REFUSAL_REASON_TOO_MANY_ATTEMPTS,
+    );
+    assert_eq!(linker.script().finishes, asked);
+}
+
 #[tokio::test]
 async fn the_last_admin_who_signs_in_with_a_password_cant_be_demoted_or_deleted() {
     let linker = Scripted::default();
@@ -585,9 +653,29 @@ async fn the_plugin_is_told_the_server_url_and_port_the_admin_set() {
         url: "https://nama.example.com/".to_owned(),
         lan: vec![],
         public_port: Some(7443),
+        relay: None,
     };
+    until_told(&linker, &told).await;
+}
+
+#[tokio::test]
+async fn the_plugin_is_told_a_new_server_url_as_soon_as_it_is_saved() {
+    let linker = Scripted::default();
+    let server = with_linker(&linker).await;
+    let mut told = ServerAddresses::default();
+    // The first telling, at startup, so the next one isn't due for a minute.
+    until_told(&linker, &told).await;
+
+    set_server_url(&server, "https://nama.example.com").await;
+
+    told.url = "https://nama.example.com/".to_owned();
+    until_told(&linker, &told).await;
+}
+
+/// Waits until `linker` was last told `told`, well within the minute between tellings.
+async fn until_told(linker: &Scripted, told: &ServerAddresses) {
     let waited = tokio::time::timeout(server::WAIT, async {
-        while linker.script().addresses.as_ref() != Some(&told) {
+        while linker.script().addresses.as_ref() != Some(told) {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })

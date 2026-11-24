@@ -70,6 +70,11 @@ pub mod home_row {
                 super::super::super::super::__buffa::view::PluginHomeRowView<'a>,
             >,
         ),
+        RecentlyAdded(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::RecentlyAddedHomeRowView<'a>,
+            >,
+        ),
     }
 }
 pub mod home_row_title {
@@ -93,6 +98,23 @@ pub mod home_row_title {
             >,
         ),
         MissingShow(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::ShowHitView<'a>,
+            >,
+        ),
+    }
+}
+pub mod person_role {
+    #[allow(unused_imports)]
+    use super::*;
+    #[derive(Clone, Debug)]
+    pub enum Title<'a> {
+        Movie(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::MovieHitView<'a>,
+            >,
+        ),
+        Show(
             ::buffa::alloc::boxed::Box<
                 super::super::super::super::__buffa::view::ShowHitView<'a>,
             >,

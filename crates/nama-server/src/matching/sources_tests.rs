@@ -250,7 +250,7 @@ async fn match_with_pin(pin: ExternalId, aa_looks_up: &'static [&'static str]) -
     let pin_id = pin.to_string();
     let pin = Pin::Title(pin);
     contents
-        .pin(library, named.name, pin, vec![])
+        .pin(library, vec![named.name], pin, vec![])
         .await
         .unwrap();
     let (plugins, _) = looking_up(HAS, HAS, aa_looks_up, |aa| aa.with_movie(&[&pin_id], "Aaa"));

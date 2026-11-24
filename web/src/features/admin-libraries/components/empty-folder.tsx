@@ -1,5 +1,6 @@
+import { cn } from "cn";
 import { TriangleAlert } from "lucide-react";
-import { Button } from "nama-ui/components/button";
+import { Button, ghostHang, ghostInset } from "nama-ui/components/button";
 
 import { EmptyFolderNote } from "@/features/admin-libraries/components/empty-folder-note";
 import { useScanLibrary } from "@/features/admin-libraries/data/use-scan-library";
@@ -13,7 +14,7 @@ export function EmptyFolder({ libraryId, folder }: { libraryId: bigint; folder: 
         <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <EmptyFolderNote folder={folder} />
       </p>
-      <div className="-ms-2.5 sm:ms-0">
+      <div className={cn(ghostHang, "sm:ms-0")}>
         <Button
           variant="ghost"
           disabled={scan.isPending}
@@ -24,7 +25,7 @@ export function EmptyFolder({ libraryId, folder }: { libraryId: bigint; folder: 
           Remove missing items
         </Button>
         {scan.isError && (
-          <p role="alert" className="ms-2.5 text-destructive">
+          <p role="alert" className={cn(ghostInset, "text-destructive")}>
             Couldn’t remove them. Try again in a moment.
           </p>
         )}

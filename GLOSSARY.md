@@ -9,11 +9,11 @@ The self-hosted program that owns Libraries, streams media to clients, and handl
 _Avoid_: backend, instance, media server, command server
 
 **Hub**:
-The central service, run by the project, where Accounts live and where clients find the Servers they can reach. It keeps each Account's Watch State, Watchlist and Viewing Events across Servers, learns recommendations from them, and takes in the Diagnostics and Usage Analytics that Servers share with Nama's developers. A Server never needs it.
+The central service, run by the project, where Accounts live and where clients find the Servers they can reach. It keeps each Account's Watch State, Watchlist and Viewing Events across Servers, learns recommendations from them, and takes in the Diagnostics and Usage Analytics that Servers share with Nama's developers. It serves the same web app a Server does, which at the Hub shows the content of every Server the Account is Linked on in one place and lets an Admin manage each Server they own. A Server never needs it.
 _Avoid_: command server, cloud, plex.tv
 
 **Linked Server**:
-A Server registered with the Hub and owned by the Account whose holder entered the code it showed. Only a Linked Server enables the Hub Plugin, so only its Users can Link.
+A Server registered with the Hub and owned by the Account that approved it. Only a Linked Server's Users can Link.
 _Avoid_: registered server, connected server, claimed server
 
 **Relay**:
@@ -79,7 +79,7 @@ A single-use link that lets one person create a User on a Server, with the Permi
 _Avoid_: invitation code, share, referral
 
 **Account**:
-A person's identity on the Hub, which can be linked to Users on many Servers. It is also a Sign-in Method: an Admin can create a User from an Account, and that User signs in through the Hub.
+A person's identity on the Hub, which can be linked to Users on many Servers, one on each. It is also a Sign-in Method: an Admin can create a User from an Account, and that User signs in through the Hub.
 _Avoid_: Hub user, login, profile
 
 **Sign-in Link**:
@@ -120,9 +120,9 @@ _Avoid_: addon, extension, module, agent
 A Plugin that ships compiled into the Server.
 _Avoid_: core plugin, native plugin
 
-**Hub Plugin**:
-The Built-in Plugin through which a Linked Server does everything Hub-facing: Linking, syncing, Viewing Events, Account sign-in and the Hub's suggestions (ADR 0094).
-_Avoid_: Hub client, Hub integration
+**Hub Suggestions**:
+The Built-in Plugin that turns the Hub's suggestions into Featured suggestions, Home rows and Similar titles. Everything else Hub-facing, such as Linking, syncing and Account sign-in, is part of the Kernel (ADR 0105).
+_Avoid_: Hub Plugin, Hub client, Hub integration
 
 **Installed Plugin**:
 A Plugin loaded into a running Server from a package, whether bundled with a release or added by an admin.
@@ -290,7 +290,7 @@ How well a Movie's or Show's audience liked it, from 0 to 10, as the title sourc
 _Avoid_: rating (that's Content Rating), stars, user score
 
 **Person**:
-Someone who worked on Movies or Shows, known by an External ID, with at most one headshot, shared by all their Roles. A Person has no page.
+Someone who worked on Movies or Shows, known by an External ID, with at most one headshot, shared by all their Roles. A Person's page lists the titles on the Server they have a Role in.
 _Avoid_: actor, talent, cast member
 
 **Role**:
@@ -378,7 +378,7 @@ A User's Movies and Episodes whose Watch State says they've started and not play
 _Avoid_: on deck, in progress, resume list, Next Up
 
 **Home row**:
-A headed row of titles on a User's home page. The Kernel builds some, such as Continue Watching; a Plugin may provide others, shared by every User or each User's own, which can hold titles not on the Server for the User to Request.
+A headed row of titles on a User's home page. The Kernel builds some, such as Continue Watching and each Library's Recently Added row of its newest titles; a Plugin may provide others, shared by every User or each User's own, which can hold titles not on the Server for the User to Request.
 _Avoid_: shelf, section, rail, carousel
 
 **Featured**:
@@ -448,7 +448,7 @@ One fact that shaped a Playback Plan, such as a codec the Device can't decode or
 _Avoid_: explanation, note
 
 **Playback Limit**:
-The most a User asks playback to send, such as "Original", "1080p" or "720p". A limit below the Version's own makes it Transcode; when the Server can't Transcode it, it plays as it is and the Playback Plan says why. Until the User picks one, a Device outside the local network gets the default an Admin sets for remote playback.
+The most a User asks playback to send, such as "Original", "1080p" or "720p". A limit below the Version's own makes it Transcode; when the Server can't Transcode it, it plays as it is and the Playback Plan says why. Until the User picks one, a Device outside the local network gets the default an Admin sets for remote playback. An Admin may also cap a User's remote playback: outside the local network their Devices are never sent more than that cap, whatever they pick, and a plan that can't keep to it doesn't play.
 _Avoid_: quality, bitrate, resolution
 
 **Subtitle Preference**:

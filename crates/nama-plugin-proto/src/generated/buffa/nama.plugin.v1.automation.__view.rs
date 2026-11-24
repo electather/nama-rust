@@ -11022,9 +11022,10 @@ impl ::serde::Serialize for ForgetGonePluginsAskedOwnedView {
         ::serde::Serialize::serialize(&self.0, __s)
     }
 }
-/// What `forget_gone_plugins` answers once it deleted each such Plugin's Store entries, settings,
-/// Personal settings, Plugin Connections, and the Scores, Trailers, Similar titles, Roles and air
-/// dates its title source gave. A Plugin the Server still has, enabled or not, is never one of them.
+/// What `forget_gone_plugins` answers once it deleted what each such Plugin left behind, as the
+/// Server's list of what a Plugin leaves behind says
+/// (`crates/nama-server/src/plugin_settings/leftovers.rs`). A Plugin the Server still has, enabled
+/// or not, is never one of them.
 #[derive(Clone, Debug, Default)]
 pub struct GonePluginsForgottenView<'a> {
     /// The id of each Plugin whose rows it deleted.

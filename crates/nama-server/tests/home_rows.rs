@@ -23,7 +23,10 @@ mod server;
 #[path = "support/test_plugin.rs"]
 mod test_plugin;
 
-use std::time::{Duration, Instant};
+use std::{
+    path::Path,
+    time::{Duration, Instant},
+};
 
 use connectrpc::{
     ErrorCode,
@@ -36,8 +39,8 @@ use nama_proto::nama::v1::{
     BrowseServiceClient, ExtensionPoint, ExtensionPointFailure, GetPluginRequest, HomeRow,
     HomeRowTitle, KernelHomeRow, LibraryKind, ListHomeRowTitlesRequest, ListHomeRowTitlesResponse,
     ListHomeRowsRequest, PageRequest, Permission, PluginHomeRow, PluginServiceClient,
-    RefusalReason, RequestState, UpdatePluginSettingsRequest, home_row::KernelOrPlugin,
-    home_row_title::MovieOrShow,
+    RecentlyAddedHomeRow, RefusalReason, RequestState, UpdatePluginSettingsRequest,
+    home_row::KernelOrPlugin, home_row_title::MovieOrShow,
 };
 use refused::assert_refused;
 use server::{
@@ -287,15 +290,58 @@ async fn enabling_a_home_row_source_shows_its_rows_with_the_titles_on_the_server
     );
 }
 
+fn continue_watching() -> HomeRow {
+    HomeRow {
+        kernel_or_plugin: Some(KernelOrPlugin::Kernel(
+            KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING.into(),
+        )),
+        ..Default::default()
+    }
+}
+
+/// The Recently Added row of the Library `id` of `kind`, named after its folder `folder`, as
+/// [`TestServer::create_library`] names it.
+fn recently_added(id: i64, kind: LibraryKind, folder: &Path) -> HomeRow {
+    HomeRow {
+        kernel_or_plugin: Some(
+            RecentlyAddedHomeRow {
+                library_id: id,
+                library_name: folder.display().to_string(),
+                library_kind: kind.into(),
+                ..Default::default()
+            }
+            .into(),
+        ),
+        ..Default::default()
+    }
+}
+
 #[tokio::test]
-async fn home_lists_continue_watching_as_a_kernel_row_before_the_plugin_rows() {
+async fn home_lists_a_recently_added_row_for_each_library_after_continue_watching() {
+    let server = TestServer::builder().start().await;
+    let movies = (server)
+        .create_library(LibraryKind::LIBRARY_KIND_MOVIES, &[])
+        .await;
+    let shows = (server)
+        .create_library(LibraryKind::LIBRARY_KIND_SHOWS, &[])
+        .await;
+    let ada = server.user_with_default_permissions("ada").await;
+
+    assert_eq!(
+        all_rows_from(&browse_as(&server, &ada)).await,
+        [
+            continue_watching(),
+            recently_added(movies.id, LibraryKind::LIBRARY_KIND_MOVIES, movies.folder()),
+            recently_added(shows.id, LibraryKind::LIBRARY_KIND_SHOWS, shows.folder()),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn home_lists_the_kernel_rows_before_the_plugin_rows() {
     let server = enabled("").await;
     wait_for_rows(&server, &["picks", "again", "missing"]).await;
 
-    let kernel = |row: KernelHomeRow| HomeRow {
-        kernel_or_plugin: Some(KernelOrPlugin::Kernel(row.into())),
-        ..Default::default()
-    };
     let plugin = |key: &str, heading: &str| HomeRow {
         kernel_or_plugin: Some(
             PluginHomeRow {
@@ -308,10 +354,18 @@ async fn home_lists_continue_watching_as_a_kernel_row_before_the_plugin_rows() {
         ),
         ..Default::default()
     };
+    let rows = all_rows_from(&browse(&server)).await;
+    assert_eq!(rows[0], continue_watching());
+    assert!(
+        matches!(
+            rows[1].kernel_or_plugin,
+            Some(KernelOrPlugin::RecentlyAdded(_))
+        ),
+        "{rows:?}"
+    );
     assert_eq!(
-        all_rows_from(&browse(&server)).await,
+        rows[2..],
         [
-            kernel(KernelHomeRow::KERNEL_HOME_ROW_CONTINUE_WATCHING),
             plugin("picks", "Picks"),
             plugin("again", "Alien again"),
             plugin("missing", "Not on the Server"),

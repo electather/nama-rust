@@ -4,10 +4,7 @@ use std::sync::Arc;
 
 use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
-use nama_plugin_api::{
-    contract::SubtitleResult,
-    points::{TrackPreference, TrackPreferenceChange, TrackPreferenceChanged},
-};
+use nama_plugin_api::contract::SubtitleResult;
 use nama_proto::nama::v1::{
     self as proto, DownloadSubtitleRequest, DownloadSubtitleResponse, FoundSubtitle,
     GetAutoplayRequest, GetAutoplayResponse, GetSubtitleAppearanceRequest,
@@ -32,7 +29,6 @@ use crate::{
         set_autoplay, set_subtitle_background, set_subtitle_size, subtitle_appearance_of,
         track_to_proto,
     },
-    plugins::ExtensionPoints,
     server_settings::PlaybackLimit,
 };
 
@@ -42,20 +38,8 @@ use super::{caller, database_failed, refuse, sign_in::client_ip, unknown_enum_va
 pub(super) struct PlaybackServiceHandler {
     pub(super) plans: Plans,
     pub(super) preferences: TrackPreferences,
-    pub(super) points: ExtensionPoints,
     pub(super) downloads: SubtitleDownloads,
     pub(super) db: Arc<Database>,
-}
-
-impl PlaybackServiceHandler {
-    /// Tells the Plugins that observe Track Preferences, such as the Hub's, that the User
-    /// `user_id` changed `preference` (ADR 0092).
-    fn tell(&self, user_id: i64, preference: TrackPreference) {
-        (self.points).notify::<TrackPreferenceChanged>(TrackPreferenceChange {
-            user_id,
-            preference,
-        });
-    }
 }
 
 #[expect(
@@ -154,12 +138,9 @@ impl PlaybackService for PlaybackServiceHandler {
                 ));
             }
         };
-        let kept = (self.plans.keep_pick(user, request.version_id, pick))
+        (self.plans.keep_pick(user, request.version_id, pick))
             .await
             .map_err(pick_failed)?;
-        if let Some(preference) = kept {
-            self.tell(user, preference);
-        }
         Response::ok(ReportTrackPickResponse::default())
     }
 
@@ -194,11 +175,10 @@ impl PlaybackService for PlaybackServiceHandler {
             .into_option()
             .unwrap_or_default();
         let (preference, foreign_audio_only) = users_subtitle_from_proto(wanted)?;
-        let kept = (self.preferences)
+        (self.preferences)
             .keep_users_subtitle(user, preference, foreign_audio_only)
             .await
             .map_err(database_failed)?;
-        self.tell(user, kept);
         Response::ok(SetSubtitlePreferenceResponse::default())
     }
 
@@ -212,11 +192,10 @@ impl PlaybackService for PlaybackServiceHandler {
         let language = (wanted.and_then(|audio| audio.language))
             .map(|language| checked_language(&language, "audio.language"))
             .transpose()?;
-        let kept = (self.preferences)
+        (self.preferences)
             .keep_users_audio(user, language)
             .await
             .map_err(database_failed)?;
-        self.tell(user, kept);
         Response::ok(SetAudioPreferenceResponse::default())
     }
 
@@ -549,6 +528,20 @@ pub(super) fn limit_from_proto(limit: EnumValue<proto::PlaybackLimit>) -> Option
         .map(|(ours, _)| ours)
 }
 
+/// The cap for remote playback `limit` names, `None` for none, refusing a value this Server doesn't
+/// know, which `limit_from_proto` would take as none.
+pub(super) fn cap_from_proto(
+    limit: EnumValue<proto::PlaybackLimit>,
+) -> Result<Option<PlaybackLimit>, ConnectError> {
+    if let EnumValue::Unknown(_) = limit {
+        return Err(unknown_enum_value(
+            "remote_playback_limit",
+            "the cap for remote playback must be Original, 1080p, 720p or 480p",
+        ));
+    }
+    Ok(limit_from_proto(limit))
+}
+
 /// The Playback Limit the User picked, as [`limit_from_proto`] has it.
 fn picked_limit(limit: EnumValue<proto::PlaybackLimit>) -> PickedLimit {
     if limit == EnumValue::Known(proto::PlaybackLimit::PLAYBACK_LIMIT_UNSPECIFIED) {
@@ -606,6 +599,8 @@ fn planned_to_proto(planned: Planned, can_search_subtitles: bool) -> PlanPlaybac
         playback_limits: (plan.offers.limits.into_iter())
             .map(|limit| limit_to_proto(Some(limit)).into())
             .collect(),
+        remote_playback_limit: (plan.offers.cap)
+            .map_or_else(EnumValue::default, |cap| limit_to_proto(Some(cap)).into()),
         subtitles: (plan.subtitles.iter())
             .map(|subtitle| proto::PlaybackSubtitle {
                 track: track_to_proto(&subtitle.track).into(),

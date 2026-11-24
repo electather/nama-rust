@@ -109,10 +109,18 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
 // Plugin changes", stays in the crate's AGENTS.md.
 const ROWS: &[&[&str]] = &[
     &["api", "automation"],
-    &["browse", "scanner", "plugin_settings"],
+    &["sync", "browse", "scanner", "plugin_settings"],
     &["home_rows", "requests", "playback", "matching", "watchlist"],
     &["library"],
-    &["events", "connections", "users", "server_addresses"],
+    &[
+        "events",
+        "connections",
+        "users",
+        "server_addresses",
+        "certificate",
+        "relay",
+        "link",
+    ],
     &["plugins"],
     &["backup"],
     &[
@@ -121,6 +129,7 @@ const ROWS: &[&[&str]] = &[
         "ffmpeg",
         "web",
         "port_mapping",
+        "tls",
         "diagnostics",
         "db",
         "page",
@@ -156,6 +165,12 @@ const ALLOWED_UPWARD: &[Allowed] = &[
         "ADR 0075: a Match whose ids change makes its Version due inside its write",
     ),
     (
+        Importers::File("src/plugin_settings/leftovers.rs"),
+        &["automation", "delete_plugins_store_entries"],
+        "the Plugin leftovers owner deletes a removed Plugin's Store entries through the Store's \
+         owner, in Upkeep's one write",
+    ),
+    (
         Importers::File("src/playback/tracks/segments_tests.rs"),
         &["plugin_settings", "PluginSettings"],
         "the Segments tests enable a Plugin as an Admin does, to check it makes Versions due",
@@ -187,6 +202,33 @@ fn production_code_builds_users_only_at_startup() {
                         file.path
                     )
                 })
+        })
+        .collect();
+    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+}
+
+/// The files besides `src/link.rs` that may name the Plugin that links the Server, each with why.
+const MAY_NAME_THE_SERVER_LINKER: &[(&str, &str)] = &[(
+    "src/api/plugins/points.rs",
+    "the Plugins page lists every Extension Point a Plugin may serve",
+)];
+
+#[test]
+fn only_the_link_module_calls_the_plugin_that_links_the_server() {
+    let problems: Vec<String> = rust_files(Path::new(env!("CARGO_MANIFEST_DIR")))
+        .iter()
+        .filter(|file| file.path.starts_with("src/") && file.path != "src/link.rs")
+        .filter(|file| {
+            !MAY_NAME_THE_SERVER_LINKER
+                .iter()
+                .any(|(path, _)| file.path == *path)
+        })
+        .filter(|file| file.text.contains("ServerLinker"))
+        .map(|file| {
+            format!(
+                "{}: names the ServerLinker: ask through `Linking` in src/link.rs (AGENTS.md)",
+                file.path
+            )
         })
         .collect();
     assert!(problems.is_empty(), "\n{}", problems.join("\n"));

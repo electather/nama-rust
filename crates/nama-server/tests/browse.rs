@@ -8,6 +8,8 @@ mod browsing;
 mod http;
 #[path = "browse/next_episode.rs"]
 mod next_episode;
+#[path = "browse/people.rs"]
+mod people;
 #[path = "support/refused.rs"]
 mod refused;
 #[path = "browse/roles.rs"]
@@ -39,7 +41,7 @@ use nama_server::{
 };
 use refused::assert_refused;
 use server::{
-    SignedIn,
+    SignedIn, TestServer,
     search::search,
     tmdb::{ALIEN, DARK, HEAT, THE_OFFICE as THE_OFFICE_US},
 };
@@ -157,20 +159,20 @@ impl Fixture {
             .into_owned())
     }
 
-    /// The Episodes of Season `season` of the Show with the TMDB id `tmdb`, as `ListEpisodes`
-    /// lists them.
+    /// The Episodes of Season `season`, or of every Season if it's `None`, of the Show with the
+    /// TMDB id `tmdb`, as `ListEpisodes` lists them.
     async fn list_episodes(
         &self,
         library: i64,
         tmdb: i64,
-        season: u32,
+        season: impl Into<Option<u32>>,
     ) -> Result<Vec<Episode>, ConnectError> {
         Ok(self
             .browse
             .list_episodes(ListEpisodesRequest {
                 library_id: library,
                 show_id: tmdb_id(tmdb).into(),
-                season_number: season,
+                season_number: season.into(),
                 ..Default::default()
             })
             .await?
@@ -306,7 +308,7 @@ impl Viewer {
             .list_episodes(ListEpisodesRequest {
                 library_id: library,
                 show_id: tmdb_id(DARK).into(),
-                season_number: season,
+                season_number: Some(season),
                 ..Default::default()
             })
             .await
@@ -736,11 +738,12 @@ async fn a_show_counts_its_aired_episodes_without_its_specials_or_those_yet_to_a
 }
 
 #[tokio::test]
-async fn list_episodes_lists_one_seasons_episodes_in_episode_order() {
+async fn list_episodes_lists_one_seasons_episodes_or_every_seasons_in_order() {
     let fx = Fixture::shows().await;
 
     let first = fx.list_episodes(fx.library, DARK, 1).await.unwrap();
     let second = fx.list_episodes(fx.library, DARK, 2).await.unwrap();
+    let every = fx.list_episodes(fx.library, DARK, None).await.unwrap();
 
     assert_eq!(
         ids_and_numbers(&first),
@@ -750,6 +753,7 @@ async fn list_episodes_lists_one_seasons_episodes_in_episode_order() {
         ids_and_numbers(&second),
         [(Some(tmdb_id(BEGINNINGS_AND_ENDINGS)), 2, 1)]
     );
+    assert_eq!(every, [first.as_slice(), &second].concat());
     let secrets = first.first().unwrap();
     assert_eq!(secrets.title, "Secrets");
     assert!(secrets.overview.as_deref().unwrap().starts_with("In 2019"));
@@ -962,15 +966,16 @@ async fn a_poster_the_browser_has_is_not_modified() {
 /// Images downloaded before an upgrade are already stored, so none is downloaded again.
 #[tokio::test]
 async fn a_poster_already_under_artwork_is_served_without_the_provider() {
-    let fx = Fixture::start(LibraryKind::LIBRARY_KIND_MOVIES).await;
-    let kept = fx
-        .server
+    let server = TestServer::builder().tmdb().start().await;
+    // Before the Library, as each scan drops the images no Match stores.
+    let kept = server
         .data_dir()
         .join("artwork/tmdb/%2FvfrQk5IPloGg1v9Rzbh2Eg3VGyM.jpg");
     fs::create_dir_all(kept.parent().unwrap()).unwrap();
     fs::write(&kept, b"\xff\xd8kept").unwrap();
-    fx.write(ALIEN_1080P, b"video");
-    fx.scan_and_match().await;
+    let media =
+        (server.library_holding(LibraryKind::LIBRARY_KIND_MOVIES, &[ALIEN_1080P], &[])).await;
+    let fx = Fixture::over(server, media);
     let poster = fx
         .get_movie(fx.library, ALIEN)
         .await

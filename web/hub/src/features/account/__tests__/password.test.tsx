@@ -1,12 +1,19 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
+import { createConnectQueryKey } from "@connectrpc/connect-query";
 import { AccountSchema, AccountService } from "@hub/gen/nama/hub/v1/account_pb";
 import { HubService } from "@hub/gen/nama/hub/v1/hub_pb";
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
-import { cleanup, configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, test } from "vite-plus/test";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, test } from "vite-plus/test";
+
+// Partial: the page's own key also holds the input and transport.
+const hubInfoKey = createConnectQueryKey({
+  schema: HubService.method.getHubInfo,
+  cardinality: "finite",
+});
 
 const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
 
@@ -19,21 +26,22 @@ function refused(code: Code, reason: RefusalReason, params: Record<string, strin
 /**
  * Opens the Account page on a fake Hub that emails Sign-in Links when `signInLinks` says so, where
  * Ada is signed in, with a password if `hasPassword` says so, and a sign-in in the last 10 minutes
- * if `recent` does. Returns the passwords set and whether the Hub has said if it emails links.
+ * if `recent` does. Returns the passwords set, how far the page's `GetHubInfo` call has got, and
+ * how often the Account was asked for.
  */
 function openAccountPage(hasPassword: boolean, recent = true, signInLinks = true) {
   let password = hasPassword;
   const set: string[] = [];
-  let toldSignInLinks = false;
+  let accountLookUps = 0;
   const transport = createRouterTransport(({ service }) => {
     service(HubService, {
-      getHubInfo: () => {
-        toldSignInLinks = true;
-        return { version: "0.1.0", signInLinks };
-      },
+      getHubInfo: () => ({ version: "0.1.0", signInLinks }),
     });
     service(AccountService, {
-      getAccount: () => ({ account: ada, hasPassword: password }),
+      getAccount: () => {
+        accountLookUps += 1;
+        return { account: ada, hasPassword: password };
+      },
       setPassword: (request) => {
         if (!recent) {
           throw refused(Code.FailedPrecondition, RefusalReason.RECENT_AUTHENTICATION_REQUIRED, {
@@ -47,8 +55,14 @@ function openAccountPage(hasPassword: boolean, recent = true, signInLinks = true
     });
   });
   globalThis.history.replaceState(null, "", "/");
-  render(<RouterProvider router={getRouter(transport)} />);
-  return { set, toldSignInLinks: () => toldSignInLinks };
+  const router = getRouter(transport);
+  render(<RouterProvider router={router} />);
+  const queryCache = router.options.context.queryClient.getQueryCache();
+  return {
+    set,
+    hubInfoStatus: () => queryCache.find({ queryKey: hubInfoKey, exact: false })?.state.status,
+    accountLookUps: () => accountLookUps,
+  };
 }
 
 async function submit(label: string, button: string) {
@@ -59,12 +73,15 @@ async function submit(label: string, button: string) {
 }
 
 describe("an Account's password", () => {
-  beforeAll(() => {
-    configure({ asyncUtilTimeout: 5000 });
-  });
-
   afterEach(() => {
     cleanup();
+  });
+
+  test("the Account page asks for the Account once", async () => {
+    const hub = openAccountPage(true);
+
+    await expect(screen.findByRole("button", { name: "Change password" })).resolves.toBeDefined();
+    expect(hub.accountLookUps()).toBe(1);
   });
 
   test("an Account without one sets one, after which it can change it", async () => {
@@ -100,7 +117,7 @@ describe("an Account's password", () => {
     const hub = openAccountPage(false, true, false);
     await expect(screen.findByText("8 to 1024 characters.")).resolves.toBeDefined();
     await waitFor(() => {
-      expect(hub.toldSignInLinks()).toBe(true);
+      expect(hub.hubInfoStatus()).toBe("success");
     });
     expect(screen.queryByText(/Sign-in Links/u)).toBeNull();
   });

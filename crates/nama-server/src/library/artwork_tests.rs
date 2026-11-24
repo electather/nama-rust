@@ -1,5 +1,6 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
+    io::Cursor,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -8,6 +9,7 @@ use std::{
 };
 
 use axum::{Router, body::Body, extract::Request, http::header};
+use image::{ImageFormat, RgbImage};
 use nama_plugin_api::{
     PluginId,
     settings::{SettingValue, Settings},
@@ -15,15 +17,19 @@ use nama_plugin_api::{
 use nama_plugin_tmdb::{Endpoints, Tmdb, testing::API_KEY};
 use tempfile::TempDir;
 
-use super::{Artwork, Picked, pick};
+use super::{Artwork, Error, KEPT_DIR, Picked, pick};
 use crate::{
     db::Database,
-    images::ImageStore,
+    images::{ImageStore, MAX_SVG_BYTES},
     library::{
-        contents::{Contents, ImageRef},
+        CustomImages, FoundImages, LocalImages, Metadata, Role,
+        contents::{Contents, ImageRef, LocalImageFile, LocalRole},
+        fixture::{MatchedMovie, tmdb_movie},
+        scripted::{ScriptedSource, SourcesAsked},
         title_source::{self, ArtworkKind, Source},
     },
     plugins::Registry,
+    server_settings::Settings as ServerSettings,
 };
 
 /// How many image requests are running, and the most that ever were.
@@ -68,7 +74,9 @@ async fn no_more_than_two_images_download_at_once() {
     let artwork = artwork_on(&data, slow_images).await;
     let images = (0..5).map(|n| ("tmdb".to_owned(), format!("/{n}.jpg")));
 
-    artwork.download(images.collect()).await;
+    artwork
+        .download(images.collect(), &HashSet::new(), None)
+        .await;
     let _all_finished = artwork.downloads.acquire_many(2).await.unwrap();
 
     assert_eq!(running.most.load(Ordering::SeqCst), 2);
@@ -89,7 +97,11 @@ async fn deleting_unused_images_does_not_wait_for_a_download() {
     let artwork = artwork_on(&data, never_answers).await;
     let contents = Contents::new(Arc::new(Database::open(data.path()).await.unwrap()));
     artwork
-        .download(vec![("tmdb".to_owned(), "/slow.jpg".to_owned())])
+        .download(
+            vec![("tmdb".to_owned(), "/slow.jpg".to_owned())],
+            &HashSet::new(),
+            None,
+        )
         .await;
     while asked.load(Ordering::SeqCst) == 0 {
         tokio::time::sleep(Duration::from_millis(5)).await;
@@ -101,7 +113,7 @@ async fn deleting_unused_images_does_not_wait_for_a_download() {
 }
 
 #[tokio::test]
-async fn an_svg_is_never_served_as_an_image() {
+async fn an_svg_is_served_as_an_image_whose_script_cannot_run() {
     let data = tempfile::tempdir().unwrap();
     let key = ["artwork", "tmdb", "/logo.svg"];
     let db = Database::open(data.path()).await.unwrap();
@@ -116,8 +128,96 @@ async fn an_svg_is_never_served_as_an_image() {
         .unwrap();
 
     let headers = response.headers();
-    assert_eq!(headers[header::CONTENT_TYPE], "application/octet-stream");
-    assert_eq!(headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
+    assert_eq!(
+        [
+            &headers[header::CONTENT_TYPE],
+            &headers[header::CONTENT_SECURITY_POLICY],
+            &headers[header::CONTENT_DISPOSITION],
+            &headers[header::X_CONTENT_TYPE_OPTIONS],
+        ],
+        [
+            "image/svg+xml",
+            "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+            "attachment",
+            "nosniff",
+        ]
+    );
+}
+
+/// Artwork in `data` whose one title source, the Plugin `aa`, answers `path` with `bytes`.
+async fn artwork_answering(data: &TempDir, path: &str, bytes: &[u8]) -> Artwork {
+    let source = ScriptedSource::new("aa", &SourcesAsked::default()).with_image(path, bytes);
+    let plugins = Registry::new();
+    plugins.enable(Arc::new(source)).unwrap();
+    let db = Database::open(data.path()).await.unwrap();
+    Artwork::new(
+        ImageStore::new(data.path(), Arc::new(db)),
+        plugins.extension_points(),
+    )
+}
+
+/// The body `artwork` serves for the kept image at `path` from the Plugin `aa`.
+async fn served(artwork: &Artwork, path: &str) -> Result<Vec<u8>, Error> {
+    let request = Request::get("/").body(Body::empty()).unwrap();
+    let response = (artwork.serve_image((KEPT_DIR, "aa", path), None, request)).await?;
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX);
+    Ok(body.await.unwrap().to_vec())
+}
+
+#[tokio::test]
+async fn an_svg_from_a_title_source_is_stored_without_its_script() {
+    let data = tempfile::tempdir().unwrap();
+    let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script><rect width="1" height="1"/></svg>"#;
+    let artwork = artwork_answering(&data, "/logo.svg", svg).await;
+
+    let body = String::from_utf8(served(&artwork, "/logo.svg").await.unwrap()).unwrap();
+
+    assert!(body.contains("<rect"), "{body}");
+    assert!(
+        !body.contains("script") && !body.contains("onload"),
+        "{body}"
+    );
+}
+
+#[tokio::test]
+async fn an_svg_over_the_size_cap_is_not_stored_but_one_at_it_is() {
+    let svg = |len: usize| {
+        let (open, close) = (r#"<svg xmlns="http://www.w3.org/2000/svg">"#, "</svg>");
+        let padding = " ".repeat(len - open.len() - close.len());
+        format!("{open}{padding}{close}")
+    };
+    let (at, over) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let at_cap = artwork_answering(&at, "/logo.svg", svg(MAX_SVG_BYTES).as_bytes()).await;
+    let over_cap = artwork_answering(&over, "/logo.svg", svg(MAX_SVG_BYTES + 1).as_bytes()).await;
+
+    let served_over = served(&over_cap, "/logo.svg").await;
+
+    served(&at_cap, "/logo.svg").await.unwrap();
+    assert!(
+        matches!(served_over, Err(Error::NotFound)),
+        "{served_over:?}"
+    );
+    assert_eq!(over_cap.store.list(KEPT_DIR).await.unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn a_body_at_an_svg_path_that_is_not_svg_is_not_stored() {
+    let data = tempfile::tempdir().unwrap();
+    let artwork = artwork_answering(&data, "/logo.svg", b"<html><svg").await;
+
+    let served = served(&artwork, "/logo.svg").await;
+
+    assert!(matches!(served, Err(Error::NotFound)), "{served:?}");
+    assert_eq!(artwork.store.list(KEPT_DIR).await.unwrap().len(), 0);
+}
+
+#[tokio::test]
+async fn a_png_is_stored_as_the_title_source_gave_it() {
+    let data = tempfile::tempdir().unwrap();
+    let png = b"\x89PNG\r\n\x1a\n<svg><script/></svg>";
+    let artwork = artwork_answering(&data, "/poster.png", png).await;
+
+    assert_eq!(served(&artwork, "/poster.png").await.unwrap(), png);
 }
 
 /// The source of the Plugin `plugin`.
@@ -398,5 +498,58 @@ fn titled_backdrops_rank_by_source_then_rating_then_votes() {
     assert_eq!(
         picked_titled_backdrop(&by_votes).as_deref(),
         Some("/many.jpg")
+    );
+}
+
+#[tokio::test]
+async fn a_poster_whose_title_shows_the_one_beside_its_media_in_its_place_gets_no_copy() {
+    let data = tempfile::tempdir().unwrap();
+    let media = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let store = ImageStore::new(data.path(), Arc::clone(&db));
+    let contents = Contents::new(Arc::clone(&db));
+    let poster = |path: &str| ImageRef {
+        plugin: PluginId::from_static("tmdb"),
+        path: path.to_owned(),
+    };
+    let with_poster = |tmdb, title, path| Metadata {
+        poster: Some(poster(path)),
+        ..tmdb_movie(tmdb, title)
+    };
+    let alien = MatchedMovie::new(&db, media.path(), with_poster(1, "Alien", "/hidden.jpg")).await;
+    let dune_path = media.path().canonicalize().unwrap().join("Dune.mkv");
+    let dune = with_poster(2, "Dune", "/shown.jpg");
+    MatchedMovie::store(&contents, alien.library, dune_path.to_str().unwrap(), dune).await;
+    let beside = media.path().join("poster.png");
+    let mut png = Cursor::new(Vec::new());
+    (RgbImage::new(2, 3).write_to(&mut png, ImageFormat::Png)).unwrap();
+    std::fs::write(&beside, png.into_inner()).unwrap();
+    let file = LocalImageFile {
+        path: beside.to_str().unwrap().to_owned(),
+        size: 1,
+        modified_ns: 0,
+    };
+    let found = FoundImages::from([((alien.version, LocalRole::Title(Role::Poster)), file)]);
+    let local_images = LocalImages::new(Arc::clone(&db), store.clone());
+    (local_images
+        .keep(alien.library, &[alien.version], &found)
+        .await)
+        .unwrap();
+    let images = ServerSettings::new(Arc::clone(&db), data.path().to_owned()).images();
+    let custom_images = CustomImages::new(Arc::clone(&db), store.clone());
+    let artwork = Artwork::new(store, Registry::new().extension_points()).resizing_posters_ahead(
+        images,
+        custom_images,
+        local_images,
+    );
+
+    let shown = artwork
+        .shown_posters(&contents, alien.library)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        shown,
+        HashSet::from([("tmdb".to_owned(), "/shown.jpg".to_owned())])
     );
 }

@@ -667,6 +667,17 @@ pub struct User {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec"
     )]
     pub permissions: ::buffa::alloc::vec::Vec<::buffa::EnumValue<Permission>>,
+    /// The most a Device of theirs outside the local network is sent, whatever Playback Limit it
+    /// picks: `PLAYBACK_LIMIT_ORIGINAL` for no cap. Only `UserService.ListUsers` sets it.
+    ///
+    /// Field 6: `remote_playback_limit`
+    #[serde(
+        rename = "remotePlaybackLimit",
+        alias = "remote_playback_limit",
+        with = "::buffa::json_helpers::proto_enum",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_default_enum_value"
+    )]
+    pub remote_playback_limit: ::buffa::EnumValue<PlaybackLimit>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -678,6 +689,7 @@ impl ::core::fmt::Debug for User {
             .field("name", &self.name)
             .field("created_at", &self.created_at)
             .field("permissions", &self.permissions)
+            .field("remote_playback_limit", &self.remote_playback_limit)
             .finish()
     }
 }
@@ -725,6 +737,12 @@ impl ::buffa::Message for User {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                size += 1u64 + ::buffa::types::int32_encoded_len(val) as u64;
+            }
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -753,6 +771,12 @@ impl ::buffa::Message for User {
             ::buffa::types::put_len_delimited_header(5u32, payload, buf);
             for v in &self.permissions {
                 ::buffa::types::encode_int32(v.to_i32(), buf);
+            }
+        }
+        {
+            let val = self.remote_playback_limit.to_i32();
+            if val != 0 {
+                ::buffa::types::put_int32_field(6u32, val, buf);
             }
         }
         self.__buffa_unknown_fields.write_to(buf);
@@ -827,6 +851,15 @@ impl ::buffa::Message for User {
                     );
                 }
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.remote_playback_limit = ::buffa::EnumValue::from(
+                    ::buffa::types::decode_int32(buf)?,
+                );
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -839,6 +872,7 @@ impl ::buffa::Message for User {
         self.name.clear();
         self.created_at = 0i64;
         self.permissions.clear();
+        self.remote_playback_limit = ::buffa::EnumValue::from(0);
         self.__buffa_unknown_fields.clear();
     }
 }

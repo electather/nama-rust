@@ -61,6 +61,7 @@ pub(crate) use matched::{Episode, MatchedTo, Movie, Season, Show, TitlesIn, Vers
 pub(crate) use nfo::{NfoFile, NfoHints, NfoItem};
 pub(crate) use pages::{Listing, TitleSort, Watched};
 pub(crate) use pins::{Named, Pin};
+pub(crate) use roles::PersonRole;
 pub(crate) use search::{Found, FoundEpisode, FoundMovie, FoundShow, match_bands};
 use titles_sql::{library_titles, listed_id_sql, matched_items};
 

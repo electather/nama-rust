@@ -10,8 +10,9 @@ export interface RowControl {
   "aria-describedby": string;
 }
 
-// A hairline between rows only: none over the first one, under a heading.
-const ROW = "flex items-center gap-x-5 gap-y-2.5 py-3.5 not-first:border-t";
+// A hairline between rows only: none over the first one, under a heading. The last row gives back
+// its bottom padding, as the item lists' `-mb-1.5` does, so the next group sits 16px below its box.
+const ROW = "flex items-center gap-x-5 gap-y-2.5 py-3.5 not-first:border-t last:-mb-3.5";
 
 // Each `ControlSize`'s width.
 const SIZES: Record<ControlSize, string> = {

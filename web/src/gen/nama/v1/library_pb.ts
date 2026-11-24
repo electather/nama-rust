@@ -222,7 +222,8 @@ export type CreateLibraryRequest = Message<"nama.v1.CreateLibraryRequest"> & {
 
   /**
    * The Library's `title_sources`, each a namespace of lowercase ASCII letters and digits, named
-   * once. Empty leaves `tmdb` alone.
+   * once, that some title source keeps or looks titles up by; at least one must be kept by a title
+   * source with `TitleSource.searches` (ADR 0045). Empty leaves `tmdb` alone.
    *
    * @generated from field: repeated string title_sources = 4;
    */
@@ -369,8 +370,9 @@ export type UpdateLibraryRequest = Message<"nama.v1.UpdateLibraryRequest"> & {
   folders: string[];
 
   /**
-   * The new `title_sources`, under the same rules as `CreateLibraryRequest.title_sources`. Empty
-   * keeps the Library's.
+   * The new `title_sources`, under the same rules as `CreateLibraryRequest.title_sources`, except
+   * that one the Library already names passes, and counts as searching, even if no title source
+   * keeps it any more. Empty keeps the Library's.
    *
    * @generated from field: repeated string title_sources = 4;
    */
@@ -1170,9 +1172,18 @@ export const LibraryKindSchema: GenEnum<LibraryKind> = /*@__PURE__*/
  */
 export const LibraryService: GenService<{
   /**
-   * Creates a Library. Fails with `invalid_argument` if the name is blank, the kind is
-   * unspecified, or a folder isn't an absolute path to a readable directory, and with
-   * `already_exists` if a folder already belongs to another Library.
+   * Creates a Library, then starts scanning it as `ScanLibrary` does, which Matches the Items the
+   * scan finds, and returns without waiting for the scan to finish. Fails with `invalid_argument`
+   * if the name is blank, the kind is unspecified, or a folder isn't an absolute path to a readable
+   * directory; with `invalid_argument` and `REFUSAL_REASON_TITLE_SOURCES_INVALID` if a title
+   * source is malformed, repeated or known to no Plugin, or none of them searches; with
+   * `invalid_argument` and `REFUSAL_REASON_RECOGNISERS_INVALID` or
+   * `REFUSAL_REASON_SEGMENT_SOURCES_INVALID` if a Recogniser or Segment source id is repeated or
+   * names no Plugin with that Extension Point; with `already_exists` and
+   * `REFUSAL_REASON_LIBRARY_NAME_TAKEN` if another Library has the name (ignoring case), or
+   * `REFUSAL_REASON_FOLDER_TAKEN` if a folder already belongs to another Library; and with
+   * `failed_precondition` and `REFUSAL_REASON_FOLDER_OVERLAPS` if a folder is inside, or holds, a
+   * folder of another Library.
    *
    * @generated from rpc nama.v1.LibraryService.CreateLibrary
    */
@@ -1204,7 +1215,9 @@ export const LibraryService: GenService<{
   },
   /**
    * Replaces a Library's name and folders. Its kind can't change. Fails like `CreateLibrary`,
-   * or with `not_found` if there is no such Library.
+   * except that a namespace the Library already names passes, and counts as searching, even if no
+   * title source keeps it any more, so a Library whose Plugin went away stays editable. Also fails
+   * with `not_found` if there is no such Library.
    *
    * @generated from rpc nama.v1.LibraryService.UpdateLibrary
    */

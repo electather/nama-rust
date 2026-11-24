@@ -21,6 +21,7 @@ interface Shown {
   account?: string;
   publicAddress?: string;
   reachable?: boolean;
+  names?: string[];
 }
 
 const waiting = { code: "BDFH-JKLM", url: "https://hub.example" };
@@ -97,6 +98,15 @@ test("a Linked Server says whether the Hub reached it from outside the LAN", asy
       "The Hub couldn’t reach the Server at http://203.0.113.7:7980 from outside the LAN. Check that your router forwards that port to the Server.",
     ),
   ).resolves.toBeDefined();
+});
+
+test("a Linked Server lists the names the Hub gave it, its own first", async () => {
+  const names = ["abc.namadirect.net", "192-168-1-10.abc.namadirect.net"];
+  openServer({ getServerLink: () => ({ link: { account: "ada@example.com", names } }) });
+
+  const list = await screen.findByRole("list", { name: "The Hub’s names for the Server:" });
+
+  expect(Array.from(list.children, (item) => item.textContent)).toStrictEqual(names);
 });
 
 test("a Hub the Server can't reach is said, and the Server stays as it was", async () => {

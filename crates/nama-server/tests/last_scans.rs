@@ -12,16 +12,32 @@ use std::{
 
 use connectrpc::client::HttpClient;
 use nama_proto::nama::v1::{
-    GetLibraryRequest, LastScan, LibraryKind, LibraryServiceClient, ListLibrariesRequest,
+    EventType, GetLibraryRequest, LastScan, LibraryKind, LibraryServiceClient,
+    ListLibrariesRequest, event,
 };
-use server::TestServer;
+use server::{TestServer, subscribe};
 
 #[tokio::test]
-async fn a_library_never_scanned_has_no_last_scan() {
+async fn a_new_library_is_scanned_then_matched_without_asking() {
     let server = TestServer::builder().start().await;
-    let library = (server.create_library(LibraryKind::LIBRARY_KIND_MOVIES, &["Alien.mkv"])).await;
-    let admin = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let finishes = [
+        EventType::EVENT_TYPE_SCAN_FINISHED,
+        EventType::EVENT_TYPE_MATCHING_FINISHED,
+    ];
+    let mut events = subscribe(&server.client_config(), &finishes).await;
 
+    let library =
+        (server.library_holding(LibraryKind::LIBRARY_KIND_MOVIES, &["Alien.mkv"], &[])).await;
+
+    let event::Event::ScanFinished(scanned) = events.next().await else {
+        panic!("Matching came before the scan");
+    };
+    assert_eq!((scanned.library_id, scanned.added), (library.id, 1));
+    let event::Event::MatchingFinished(matched) = events.next().await else {
+        panic!("the scan wasn't followed by Matching");
+    };
+    assert_eq!(matched.library_id, library.id);
+    let admin = LibraryServiceClient::new(HttpClient::plaintext(), server.client_config());
     let got = admin
         .get_library(GetLibraryRequest {
             id: library.id,
@@ -30,8 +46,8 @@ async fn a_library_never_scanned_has_no_last_scan() {
         .await
         .unwrap()
         .into_owned();
-
-    assert!(got.library.into_option().unwrap().last_scan.is_unset());
+    let last = got.library.into_option().unwrap().last_scan.into_option();
+    assert_eq!(counts(&last.unwrap()), (1, 0, 0, 0));
 }
 
 #[tokio::test]

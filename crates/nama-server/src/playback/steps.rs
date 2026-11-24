@@ -129,13 +129,15 @@ fn needs_reshaping(facts: &Facts) -> bool {
 }
 
 /// What `transcode` goes on with in software if it runs on hardware making H.264: the same
-/// conversion, tone-mapping in software if it did on the GPU and ffmpeg can, with the plan's
-/// `reasons` but those that no longer hold, and why it fell back (ADR 0034). HEVC has none, as its
-/// playlist can't change codec partway: failing ends the plan, and its Recipe with it.
+/// conversion, tone-mapping in software if it did on the GPU and ffmpeg can, and its reasons from
+/// then on (ADR 0034): the reasons the narrowing steps gave, `narrowing`, what the software
+/// Transcode converts, and why it fell back. HEVC has none, as its playlist can't change codec
+/// partway: failing ends the plan, and its Recipe with it.
 pub(super) fn fallback(
     facts: &Facts,
+    candidates: Option<&Candidates>,
     transcode: &Transcode,
-    reasons: &[Reason],
+    narrowing: &[Reason],
 ) -> Option<Fallback> {
     let video = &transcode.video;
     let accel = video.hardware.as_ref().filter(|_| !video.hevc)?.accel;
@@ -143,15 +145,13 @@ pub(super) fn fallback(
         Some(ToneMapper::Hardware) => facts.can_do.tone_mapper(None),
         in_software => in_software,
     };
-    let stops_tone_mapping = tone_map.is_none() && video.tone_map.is_some();
-    let still_holds = |reason: &&Reason| {
-        reason.kind != Kind::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE
-            && !(stops_tone_mapping
-                && matches!(
-                    reason.kind,
-                    Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED
-                        | Kind::PLAYBACK_REASON_KIND_HDR_TONE_MAPPED_FOR_ENCODER
-                ))
+    let software = Transcode {
+        video: VideoConversion {
+            hardware: None,
+            tone_map,
+            ..video.clone()
+        },
+        ..*transcode
     };
     let failed = accel_reason(
         Kind::PLAYBACK_REASON_KIND_HARDWARE_FAILED_PARTWAY,
@@ -161,23 +161,13 @@ pub(super) fn fallback(
             accel.name()
         ),
     );
-    let reasons = (reasons.iter().filter(still_holds).cloned())
+    // A GPU passed its test, so converting gives the software Transcode no reason it runs there.
+    let reasons = (narrowing.iter().cloned())
+        .chain(transcoding(facts, candidates, &software))
         .chain([failed])
-        .chain(
-            played_hdr(facts)
-                .filter(|_| stops_tone_mapping)
-                .map(not_tone_mapped),
-        )
         .collect();
     Some(Fallback {
-        transcode: Transcode {
-            video: VideoConversion {
-                hardware: None,
-                tone_map,
-                ..video.clone()
-            },
-            ..*transcode
-        },
+        transcode: software,
         reasons,
     })
 }
@@ -238,37 +228,51 @@ pub(super) fn converting(
     candidates: Option<&Candidates>,
     playing: Option<&Playing>,
 ) -> Vec<Reason> {
-    let (method, conversion) = match playing {
-        Some(Playing::Remux { remux, .. }) => (
-            Method::Remux,
-            remux.audio.and_then(|audio| audio.conversion),
-        ),
-        Some(Playing::Transcode { transcode, .. }) => (
-            Method::Transcode,
-            transcode.audio.map(|audio| audio.conversion),
-        ),
-        None | Some(Playing::DirectPlay) => return vec![],
-    };
-    let mut reasons: Vec<Reason> = (passed_over_recipes(candidates, method).into_iter())
+    match playing {
+        Some(Playing::Remux { remux, .. }) => {
+            let conversion = remux.audio.and_then(|audio| audio.conversion);
+            audio_converting(facts, candidates, Method::Remux, conversion)
+        }
+        Some(Playing::Transcode { transcode, .. }) => transcoding(facts, candidates, transcode),
+        None | Some(Playing::DirectPlay) => vec![],
+    }
+}
+
+/// The converting step for a Transcode converting as `transcode`.
+fn transcoding(
+    facts: &Facts,
+    candidates: Option<&Candidates>,
+    transcode: &Transcode,
+) -> Vec<Reason> {
+    let conversion = transcode.audio.map(|audio| audio.conversion);
+    let mut reasons = audio_converting(facts, candidates, Method::Transcode, conversion);
+    reasons.extend(tone_mapping(facts, &transcode.video));
+    reasons.extend(match &transcode.video.hardware {
+        Some(hardware) => {
+            let gpu = (hardware.gpu.as_ref()).map_or_else(|| "GPU".to_owned(), Gpu::name);
+            Some(accel_reason(
+                Kind::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE,
+                hardware.accel,
+                format!("It Transcodes on the {gpu} with {}", hardware.accel.name()),
+            ))
+        }
+        None => transcodes_on(facts).err(),
+    });
+    reasons
+}
+
+/// The converting step's reasons for the audio `method` sends, converted as `conversion` says.
+fn audio_converting(
+    facts: &Facts,
+    candidates: Option<&Candidates>,
+    method: Method,
+    conversion: Option<AudioConversion>,
+) -> Vec<Reason> {
+    (passed_over_recipes(candidates, method).into_iter())
         .chain(
             conversion.and_then(|conversion| fewer_channels(facts, candidates, conversion, method)),
         )
-        .collect();
-    if let Some(Playing::Transcode { transcode, .. }) = playing {
-        reasons.extend(tone_mapping(facts, &transcode.video));
-        reasons.extend(match &transcode.video.hardware {
-            Some(hardware) => {
-                let gpu = (hardware.gpu.as_ref()).map_or_else(|| "GPU".to_owned(), Gpu::name);
-                Some(accel_reason(
-                    Kind::PLAYBACK_REASON_KIND_TRANSCODES_ON_HARDWARE,
-                    hardware.accel,
-                    format!("It Transcodes on the {gpu} with {}", hardware.accel.name()),
-                ))
-            }
-            None => transcodes_on(facts).err(),
-        });
-    }
-    reasons
+        .collect()
 }
 
 /// Why `method` converts the played audio as `conversion` says, if to fewer channels than it has.

@@ -13,6 +13,7 @@ import { inspect, parseEnv, promisify } from "node:util";
 import * as sandcastle from "@ai-hero/sandcastle";
 import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 import { podman } from "@ai-hero/sandcastle/sandboxes/podman";
+import { blockedReason } from "./blocked.ts";
 import { failedJobs, mainAction, mainVerdict, mergeStep, prVerdict } from "./merge.ts";
 import { blockedCounts } from "./priority.ts";
 import { slotPool } from "./slots.ts";
@@ -238,9 +239,7 @@ async function agent(box: Box, issue: Issue, step: string, extra: Record<string,
     signal: aborts.get(issue.number)?.signal, // aborting kills the agent and rejects with the reason (a Cancelled)
     idleTimeoutSeconds: 1800, // cold cargo builds are silent for a long time
   });
-  const reason = [...result.stdout.matchAll(/<blocked>(.*?)<\/blocked>/g)]
-    .map((m) => m[1])
-    .find((r) => r !== "one-line reason"); // ignore the prompt's own example
+  const reason = blockedReason(result.stdout);
   if (reason) throw new Blocked(`${step}: ${reason}`);
   return result;
 }

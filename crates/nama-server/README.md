@@ -18,7 +18,7 @@ Every write goes through `Database::write` or `Database::write_then`, which hand
 
 [docs/remote-access.md](../../docs/remote-access.md) is the Admin's recipe for Caddy and Tailscale.
 
-A Server believes `X-Forwarded-For` and `X-Forwarded-Proto` only from the peers listed in `trusted_proxies` in `nama.toml` (ADR 0018). Each entry is an IP address or a CIDR range. The list is empty by default, so the headers are ignored: sign-in limits count each socket peer, and the session cookie is never `Secure`.
+A Server believes `X-Forwarded-For` and `X-Forwarded-Proto` only from the peers listed in `trusted_proxies` in `nama.toml` (ADR 0018). Each entry is an IP address or a CIDR range. The list is empty by default, so the headers are ignored: sign-in limits count each socket peer, and the session cookie is `Secure` only over the HTTPS the Server serves itself on its names from the Hub.
 
 ```toml
 trusted_proxies = ["127.0.0.1", "10.0.0.0/8"]

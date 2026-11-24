@@ -59,6 +59,13 @@ export function DeviceCode({
         // The field is what Sign in a Device opened, so typing goes straight in.
         // oxlint-disable-next-line jsx-a11y/no-autofocus -- it replaces the button that was pressed
         autoFocus
+        // Escape backs out of this form alone, as Cancel does, rather than all of Settings.
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            onCancel();
+          }
+        }}
       />
       <FormNotices errors={errors} />
       {buttons}

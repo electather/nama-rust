@@ -47,7 +47,7 @@ impl Fixture {
     }
 
     /// The clients for browsing `media` on `server`.
-    fn over(server: TestServer, media: Library) -> Self {
+    pub(crate) fn over(server: TestServer, media: Library) -> Self {
         let config = server.client_config();
         Self {
             library: media.id,

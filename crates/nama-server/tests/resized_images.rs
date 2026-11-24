@@ -5,6 +5,9 @@
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
 mod browsing;
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
+#[path = "support/custom_images.rs"]
+mod custom_images;
 #[path = "support/http.rs"]
 mod http;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
@@ -14,11 +17,11 @@ mod server;
 use std::{
     fs::{self, File, FileTimes},
     io::Cursor,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
 
-use browsing::{Fixture, tmdb_id};
+use browsing::{ALIEN_1080P, Fixture, tmdb_id};
 use connectrpc::client::HttpClient;
 use http::{Reply, fetch, fetch_with};
 use image::{DynamicImage, ImageFormat, RgbImage, RgbaImage};
@@ -47,8 +50,13 @@ const STILL: &str = "artwork/tmdb/%2FgNnJBvHy3VBkGrsl9ffpkf6ucP3.jpg";
     reason = "a test helper fails its test by panicking"
 )]
 async fn alien_with_poster(poster: &[u8]) -> (Fixture, String) {
-    let fx = Fixture::alien().await;
+    let mut fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_MOVIES, TestServer::builder()).await;
+    // Off while the scan downloads, so no copy is made ahead of a request, from either Poster.
+    fx.server.set_image_settings(false, None).await;
+    fx.write(ALIEN_1080P, b"video");
+    fx.items = fx.scan_and_match().await;
     replace_once_downloaded(&fx, POSTER, poster).await;
+    fx.server.set_image_settings(true, None).await;
     let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
     (fx, movie.poster_url.unwrap())
 }
@@ -61,14 +69,19 @@ async fn alien_with_poster(poster: &[u8]) -> (Fixture, String) {
 )]
 async fn replace_once_downloaded(fx: &Fixture, key: &str, image: &[u8]) {
     let stored = fx.server.data_dir().join(key);
-    let downloaded = tokio::time::timeout(Duration::from_secs(10), async {
-        while !stored.exists() {
+    until_exists(&stored).await;
+    fs::write(&stored, image).unwrap();
+}
+
+/// Waits until a file is at `path`, failing the test after 10 seconds.
+async fn until_exists(path: &Path) {
+    let made = tokio::time::timeout(Duration::from_secs(10), async {
+        while !path.exists() {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })
     .await;
-    assert!(downloaded.is_ok(), "{key} was never downloaded");
-    fs::write(&stored, image).unwrap();
+    assert!(made.is_ok(), "{} was never made", path.display());
 }
 
 /// `image` encoded as `format`.
@@ -294,6 +307,116 @@ async fn the_cache_keeps_each_format_of_a_width_apart_within_the_one_limit() {
     assert_eq!(again.body, b"kept");
 }
 
+/// Where the copies of the image served at `url`, under `/media/`, are kept, for an image whose
+/// key is its URL's path.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn copies_of(fx: &Fixture, url: &str) -> PathBuf {
+    let key = url.strip_prefix("/media/").unwrap();
+    fx.server.data_dir().join("resized").join(key)
+}
+
+/// Checks that the 1000 by 1500 Poster at `url`, whose copies are kept in `copies`, is sent at the
+/// Poster grid's width in both formats from copies made ahead, once they are, and at another width
+/// resized on request.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn assert_sent_from_copies_made_ahead(fx: &Fixture, url: &str, copies: &Path) {
+    until_exists(&copies.join("320.jpg")).await;
+    until_exists(&copies.join("320.jxl")).await;
+    // Resizing on request would replace these.
+    fs::write(copies.join("320.jpg"), b"\xff\xd8ahead").unwrap();
+    fs::write(copies.join("320.jxl"), b"ahead").unwrap();
+    let jpeg = fetch_at(fx, url, 320).await;
+    let jxl = fetch_accepting(fx, url, 320, ACCEPTS_JXL).await;
+    let other_width = fetch_at(fx, url, 480).await;
+
+    assert_eq!(jpeg.body, b"\xff\xd8ahead");
+    assert_eq!(jxl.body, b"ahead");
+    assert_eq!(dimensions(&other_width), (480, 720));
+}
+
+#[tokio::test]
+async fn once_a_scan_has_finished_the_poster_grids_width_is_sent_without_resizing_on_request() {
+    let (fx, poster) = alien_with_poster(&jpeg(1000, 1500)).await;
+
+    fx.scan_and_match().await;
+
+    let copies = fx.server.data_dir().join("resized").join(POSTER);
+    assert_sent_from_copies_made_ahead(&fx, &poster, &copies).await;
+}
+
+#[tokio::test]
+async fn a_poster_beside_the_media_is_sent_at_the_poster_grids_width_without_resizing_on_request() {
+    let fx = Fixture::alien().await;
+    fx.write("Alien (1979)/poster.jpg", &jpeg(1000, 1500));
+
+    fx.scan_and_match().await;
+
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    let poster = movie.poster_url.unwrap();
+    assert!(poster.starts_with("/media/local-images/"), "{poster}");
+    assert_sent_from_copies_made_ahead(&fx, &poster, &copies_of(&fx, &poster)).await;
+}
+
+#[tokio::test]
+async fn a_poster_beside_the_media_recorded_without_copies_gets_them_on_a_rescan() {
+    let fx = Fixture::alien().await;
+    fx.write("Alien (1979)/poster.jpg", &jpeg(1000, 1500));
+    fx.scan_and_match().await;
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    let poster = movie.poster_url.unwrap();
+    let copies = copies_of(&fx, &poster);
+    // As a Library scanned before Posters beside the media were resized ahead (#2152) has them.
+    until_exists(&copies.join("320.jxl")).await;
+    fs::remove_dir_all(&copies).unwrap();
+
+    fx.scan_and_match().await;
+
+    assert_sent_from_copies_made_ahead(&fx, &poster, &copies).await;
+}
+
+#[tokio::test]
+async fn a_poster_beside_the_media_a_custom_poster_hides_gets_no_copy_made_ahead() {
+    let fx = Fixture::dark().await;
+    let slot = format!("/custom-images/show/tmdb-{DARK}/poster");
+    let uploaded = fx.upload(&slot, &jpeg(1000, 1500)).await;
+    // Other bytes than the Season's, which would be stored once for both.
+    fx.write("Dark (2017)/poster.jpg", &jpeg(800, 1200));
+    fx.scan_and_match().await;
+    fx.write("Dark (2017)/Season 01/poster.jpg", &jpeg(1000, 1500));
+
+    fx.scan_and_match().await;
+
+    assert_eq!(uploaded.status, 204);
+    let seasons = fx.get_dark().await.seasons;
+    let season = seasons.iter().find(|season| season.number == 1).unwrap();
+    let season_copies = copies_of(&fx, season.poster_url.as_deref().unwrap());
+    // Each scan's pass waits its turn on one lock, first come first served, so once the Season's
+    // Poster has its copies the pass before, which saw only the Show's, has finished.
+    until_exists(&season_copies.join("320.jxl")).await;
+    let library_copies = fs::read_dir(season_copies.parent().unwrap()).unwrap();
+    let copied: Vec<_> = library_copies.map(|copy| copy.unwrap().path()).collect();
+    assert_eq!(copied, [season_copies]);
+}
+
+#[tokio::test]
+async fn an_uploaded_custom_poster_is_sent_at_the_poster_grids_width_without_resizing_on_request() {
+    let fx = Fixture::alien().await;
+
+    let slot = format!("/custom-images/movie/tmdb-{ALIEN}/poster");
+    let uploaded = fx.upload(&slot, &jpeg(1000, 1500)).await;
+
+    assert_eq!(uploaded.status, 204);
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    let poster = movie.poster_url.unwrap();
+    assert_sent_from_copies_made_ahead(&fx, &poster, &copies_of(&fx, &poster)).await;
+}
+
 #[tokio::test]
 async fn a_width_not_on_the_list_is_refused() {
     let (fx, poster) = alien_with_poster(&jpeg(1000, 1500)).await;
@@ -475,7 +598,7 @@ async fn dark_season_1(fx: &Fixture) -> Vec<Episode> {
         .list_episodes(ListEpisodesRequest {
             library_id: fx.library,
             show_id: tmdb_id(DARK).into(),
-            season_number: 1,
+            season_number: Some(1),
             ..Default::default()
         })
         .await

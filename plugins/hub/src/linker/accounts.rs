@@ -5,7 +5,10 @@
 
 use nama_plugin_api::{PluginError, server_link::AccountSignIn};
 
-use super::{Kept, Linker};
+use super::Linker;
+
+/// Why a sign-in or an invite can't go on.
+pub(super) const NOT_LINKED: &str = "the Server isn't Linked to the Hub";
 
 impl Linker {
     /// Asks the Account with `email`, if any, to accept `user_id`, named `name`.
@@ -15,10 +18,8 @@ impl Linker {
         name: &str,
         email: &str,
     ) -> Result<(), PluginError> {
-        let kept = self.linked().await?;
-        self.hub
-            .invite_user(&kept.credential, user_id, name, email)
-            .await
+        let invited = self.call(|hub| hub.invite_user(user_id, name, email));
+        Ok(invited.await?.ok_or(NOT_LINKED)?)
     }
 
     /// Starts a sign-in with an Account, which the Hub's page sends back to `return_url`.
@@ -26,8 +27,8 @@ impl Linker {
         &self,
         return_url: &str,
     ) -> Result<AccountSignIn, PluginError> {
-        let kept = self.linked().await?;
-        let started = self.hub.start_sign_in(&kept.credential, return_url).await?;
+        let started = self.call(|hub| hub.start_sign_in(return_url)).await?;
+        let started = started.ok_or(NOT_LINKED)?;
         Ok(AccountSignIn {
             url: format!("{}/server-sign-in/{}", self.hub.url(), started.id),
             handle: started.device_code,
@@ -43,25 +44,13 @@ impl Linker {
         handle: &str,
         code: &str,
     ) -> Result<Option<i64>, PluginError> {
-        let kept = self.linked().await?;
-        let Some(token) = self
-            .hub
-            .poll_sign_in(&kept.credential, handle, code)
-            .await?
-        else {
+        let polled = self.call(|hub| hub.poll_sign_in(handle, code)).await?;
+        let Some(token) = polled.ok_or(NOT_LINKED)? else {
             return Ok(None);
         };
         let user = self.verify(&token).await?.sub;
         Ok(Some(user.parse().map_err(|_not_a_number| {
             format!("the Hub's token names no User: {user:?}")
         })?))
-    }
-
-    /// The Server's Link, or why there is none.
-    async fn linked(&self) -> Result<Kept, PluginError> {
-        Ok(self
-            .kept()
-            .await?
-            .ok_or("the Server isn't Linked to the Hub")?)
     }
 }

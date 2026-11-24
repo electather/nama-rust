@@ -27,16 +27,16 @@ use tracing::{Instrument as _, error, info, warn};
 use crate::{
     config::{Config, InvalidPluginTable, PluginConfig},
     db::Database,
-    library::Contents,
     plugins::{
-        CheckError, EnableError, ExtensionPoints, LastProvider, Listed, ListedJob, Registry,
-        forget_undeclared_jobs, list_jobs, log_not_enabled, read_installed,
+        CheckError, EnableError, ExtensionPoints, LastProvider, Listed, ListedJob, LoadedInstalled,
+        Registry, list_jobs, log_not_enabled, read_installed,
     },
 };
 
 mod check;
 mod crashed;
 mod had;
+mod leftovers;
 mod library_ids;
 mod personal;
 mod put_back;
@@ -67,6 +67,8 @@ pub struct PluginSettings {
     registry: Registry,
     /// Where the Installed Plugins are, in `plugins/`.
     data_dir: PathBuf,
+    /// The Installed Plugins read so far, so a listing compiles only the files changed since.
+    loaded: Arc<std::sync::Mutex<LoadedInstalled>>,
     /// Held while a Plugin's settings change or it is enabled or disabled, and that is saved, so two
     /// changes at once can't leave it running otherwise than the database says.
     // ponytail: one lock for every Plugin; one per Plugin if Admins ever wait on each other.
@@ -250,13 +252,15 @@ impl PluginSettings {
         let starting = plugins.clone();
         // Blocking: reading an Installed Plugin compiles it, and so does enabling it.
         let settings = task::spawn_blocking(move || {
-            starting.registry.load_installed(&starting.data_dir);
+            (starting.registry).load_installed(
+                &starting.data_dir,
+                &mut lock_ignoring_poison(&starting.loaded),
+            );
             starting.enable_stored(&settings, &grants);
             settings
         })
         .await
         .map_err(StartError::Panicked)?;
-        forget_undeclared_jobs(&plugins.db, &plugins.registry.plugins()).await;
         if plugins.registry.providers::<dyn Authenticator>().is_empty() {
             return Err(StartError::NoAuthenticator);
         }
@@ -293,6 +297,7 @@ impl PluginSettings {
             db,
             registry,
             data_dir,
+            loaded: Arc::default(),
             changing: Arc::default(),
             running: Arc::default(),
             saving_crashed: Arc::default(),
@@ -383,15 +388,19 @@ impl PluginSettings {
     }
 
     /// Every Plugin the Server has, enabled or not, sorted by id, each with what is stored for it.
-    /// Reads the Installed Plugins again first, so one an admin dropped in is listed.
+    /// Reads the Installed Plugins again first, so one an admin dropped in or replaced is listed,
+    /// compiling only the files changed since the last read.
     ///
     /// # Errors
     ///
     /// If the Installed Plugins or the stored settings can't be read.
     pub async fn list(&self) -> Result<Vec<StoredPlugin>, ListError> {
-        let data_dir = self.data_dir.clone();
+        let (data_dir, loaded) = (self.data_dir.clone(), Arc::clone(&self.loaded));
         // Compiled before taking `changing`, so a slow Plugin doesn't hold up Plugin changes.
-        let found = task::spawn_blocking(move || read_installed(&data_dir)).await?;
+        let found = task::spawn_blocking(move || {
+            read_installed(&data_dir, &mut lock_ignoring_poison(&loaded))
+        })
+        .await?;
         // Before as well as after, so a Plugin this listing drops was had until now.
         self.note_had().await;
         // Under `changing`, so a Plugin being enabled can't lose its listing halfway.
@@ -400,10 +409,7 @@ impl PluginSettings {
         drop(changing);
         self.note_had().await;
         let mut stored = self.stored().await?;
-        let plugins = self.registry.plugins();
-        forget_undeclared_jobs(&self.db, &plugins).await;
-        Ok(plugins
-            .into_iter()
+        Ok((self.registry.plugins().into_iter())
             .map(|plugin| with_stored(plugin, &mut stored))
             .collect())
     }
@@ -600,20 +606,10 @@ impl PluginSettings {
             // running, as a crash can anyway; the next start then refuses until an admin enables
             // one.
             this.registry.disable(&id).await;
-            this.forget_similar(&id).await;
+            this.forget_disabled(&id).await;
             Ok(())
         })
         .await
-    }
-
-    /// Deletes the Similar titles the Plugin `id` answered, as disabling it does (ADR 0084), so
-    /// enabling it again shows them only as its titles refresh. Pages already leave out a disabled
-    /// Plugin's, so a failure is only logged.
-    async fn forget_similar(&self, id: &PluginId) {
-        let contents = Contents::new(Arc::clone(&self.db));
-        if let Err(err) = contents.forget_similar_from(id).await {
-            error!(plugin = %id, %err, "couldn't delete a disabled Plugin's Similar titles");
-        }
     }
 
     /// Enables the Plugin `id` again with `settings` and the Plugin Permissions `granted`, even if
@@ -666,7 +662,8 @@ async fn detached<T: Send + 'static>(
         })
 }
 
-// No code that could panic runs while it is held, so a poisoned lock's handle is still whole.
+// A poisoned lock's value is still whole: nothing that could panic runs while the others are
+// held, and `loaded` drops a file's entry before compiling it again.
 fn lock_ignoring_poison<T>(mutex: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex
         .lock()

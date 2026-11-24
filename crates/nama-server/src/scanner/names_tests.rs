@@ -194,12 +194,57 @@ fn movies_with_id_hints_or_too_little_to_go_on() {
             "Alien (1979) {tmdb-348}/alien (1979) - 1080p.mkv",
             movie("alien", Some(1979), tmdb(348)),
         ),
-        // Too little to go on: no year and no ID hint, or only a year.
-        ("Blade Runner/Blade Runner.mkv", None),
+        // Too little to go on: no year, no ID hint and no folder of the same title, or only a year.
         ("movie.mkv", None),
         ("(1982)/movie.mkv", None),
         // Four digits that can't be a year.
         ("Movie (0042)/movie.mkv", None),
+    ];
+    for (path, expected) in cases {
+        assert_eq!(parse(Movies, Path::new(path)), expected, "{path}");
+    }
+}
+
+#[test]
+fn movies_named_by_title_alone_only_where_file_and_folder_agree() {
+    let cases = [
+        (
+            "Blade Runner/Blade Runner.mkv",
+            movie("Blade Runner", None, None),
+        ),
+        // The folder's spelling wins.
+        (
+            "Movies/Solaris/solaris [1080p].mkv",
+            movie("Solaris", None, None),
+        ),
+        // A Version's ` - suffix` is left out.
+        ("Dune/Dune - 1080p.mkv", movie("Dune", None, None)),
+        ("Dune/Dunes.mkv", None),
+        ("Blade Runner/movie.mkv", None),
+        ("Movies/clip.mkv", None),
+    ];
+    for (path, expected) in cases {
+        assert_eq!(parse(Movies, Path::new(path)), expected, "{path}");
+    }
+}
+
+#[test]
+fn a_movies_own_folder_names_it_before_a_grouping_folder_does() {
+    let cases = [
+        (
+            "Alien Anthology {tmdb-8091}/Alien/Alien.mkv",
+            movie("Alien", None, None),
+        ),
+        ("Best Of (2020)/Dune/Dune.mkv", movie("Dune", None, None)),
+        ("Dune (2021)/Dune.mkv", movie("Dune", Some(2021), None)),
+        (
+            "Best Of (2020)/clip.mkv",
+            movie("Best Of", Some(2020), None),
+        ),
+        (
+            "Best Of (2020)/Extras/clip.mkv",
+            movie("Best Of", Some(2020), None),
+        ),
     ];
     for (path, expected) in cases {
         assert_eq!(parse(Movies, Path::new(path)), expected, "{path}");

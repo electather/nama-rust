@@ -115,7 +115,7 @@ function scrollable() {
   };
 }
 
-test("home shows each Plugin's row in order, each poster opening its title", async () => {
+test("home shows its Libraries, then each Plugin's row in order, each poster opening its title", async () => {
   scrollable().scrolled();
   openHome();
 
@@ -123,7 +123,7 @@ test("home shows each Plugin's row in order, each poster opening its title", asy
   await screen.findByRole("link", { name: "Dark" });
   await waitFor(() => {
     const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-    expect(headings).toStrictEqual(["Picks", "Trending Shows"]);
+    expect(headings).toStrictEqual(["Libraries", "Picks", "Trending Shows"]);
   });
   const shows = screen.getByRole("region", { name: "Trending Shows" });
   const picks = screen.getByRole("region", { name: "Picks" });
@@ -142,7 +142,7 @@ test("home draws Continue Watching where the Server lists it among the Plugins' 
   await screen.findByRole("link", { name: "Dark" });
   await screen.findByRole("link", { name: /Alien/u });
   const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
-  expect(headings).toStrictEqual(["Picks", "Continue Watching", "Trending Shows"]);
+  expect(headings).toStrictEqual(["Libraries", "Picks", "Continue Watching", "Trending Shows"]);
 });
 
 test("only the first Plugin row loads at once when Continue Watching sits below it", async () => {
@@ -182,18 +182,20 @@ test("a missing title opens its page to Request it, badged with where it stands"
   await screen.findByRole("link", { name: "Dune" });
   const picks = screen.getByRole("region", { name: "Picks" });
 
-  const dunePoster = within(picks).getByRole("link", { name: "Dune" });
+  const dunePoster = within(picks).getByRole("link", { name: "Dune", description: "Pending" });
   expect(dunePoster.getAttribute("href")).toBe("/movies/tmdb-438631");
   expect(dunePoster.querySelector("img:not([src^='data:'])")?.getAttribute("src")).toBe(
     dune.posterUrl,
   );
-  expect(within(dunePoster).getByText("Pending")).toBeDefined();
   // A declined Request leaves the title as missing as one nobody asked for.
-  const arrivalPoster = within(picks).getByRole("link", { name: "Arrival" });
-  expect(within(arrivalPoster).getByText("Not on this Server")).toBeDefined();
-  const severancePoster = within(picks).getByRole("link", { name: "Severance" });
+  expect(
+    within(picks).getByRole("link", { name: "Arrival", description: "Not on this Server" }),
+  ).toBeDefined();
+  const severancePoster = within(picks).getByRole("link", {
+    name: "Severance",
+    description: "Not on this Server",
+  });
   expect(severancePoster.getAttribute("href")).toBe("/shows/tmdb-95396");
-  expect(within(severancePoster).getByText("Not on this Server")).toBeDefined();
   // A title you can watch carries no badge.
   expect(within(picks).getByRole("link", { name: "Heat" }).textContent).toBe("");
 });

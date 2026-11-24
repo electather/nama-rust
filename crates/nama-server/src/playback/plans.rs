@@ -3,8 +3,6 @@
 
 use std::{collections::BTreeSet, net::IpAddr, sync::Arc};
 
-use nama_plugin_api::points::TrackPreference;
-
 use super::{
     AskedAudio, Description, DeviceDecoding, Facts, Method, Network, PickedLimit, Plan, Planned,
     PreviewFrames, Probing, RunningPlans, StartError, StartedPlan, SubtitlePreference, Track,
@@ -20,7 +18,7 @@ use crate::{
     diagnostics::{self, Usage},
     ffmpeg::{Abilities, RunError},
     server_settings::PlaybackSettings,
-    users::Caller,
+    users::{Caller, remote_cap},
 };
 
 /// Plans a Version for a Device, starting it if it plays, and keeps the Tracks a User picks.
@@ -122,6 +120,7 @@ impl Plans {
         running: RunningPlans,
         settings: PlaybackSettings,
         preview_frames: PreviewFrames,
+        preferences: TrackPreferences,
         db: Arc<Database>,
     ) -> Self {
         Self {
@@ -129,7 +128,7 @@ impl Plans {
             abilities,
             running,
             settings,
-            preferences: TrackPreferences::new(Arc::clone(&db)),
+            preferences,
             preview_frames,
             db,
         }
@@ -176,35 +175,35 @@ impl Plans {
     }
 
     /// Keeps `pick`, made by the User `user` in the Version `version`, as their Preference for the
-    /// Show or Movie it is of, probing the Version first if its Tracks aren't current, and returns
-    /// the Preference kept; `None` for a Version of an Unmatched Item.
+    /// Show or Movie it is of, probing the Version first if its Tracks aren't current. A Version of
+    /// an Unmatched Item keeps none.
     pub(crate) async fn keep_pick(
         &self,
         user: i64,
         version: i64,
         pick: Pick,
-    ) -> Result<Option<TrackPreference>, PickError> {
+    ) -> Result<(), PickError> {
         // An Unmatched Item keeps nothing, as it keeps no Watch State (ADR 0013): its Tracks aren't
         // read, so the pick never fails, whatever it names.
         let Some(kept_for) = self.preferences.kept_for(version).await? else {
-            return Ok(None);
+            return Ok(());
         };
         let preferences = &self.preferences;
-        let kept = match pick {
+        match pick {
             Pick::Subtitle(None) => {
-                (preferences.keep_subtitle(user, kept_for, SubtitlePreference::Off)).await?
+                (preferences.keep_subtitle(user, kept_for, SubtitlePreference::Off)).await?;
             }
             Pick::Subtitle(Some(place)) => {
                 let picked = Description::of(&self.track_at(version, place, is_subtitle).await?);
                 let like = SubtitlePreference::Like(picked);
-                preferences.keep_subtitle(user, kept_for, like).await?
+                preferences.keep_subtitle(user, kept_for, like).await?;
             }
             Pick::Audio(place) => {
                 let picked = Description::of(&self.track_at(version, place, is_audio).await?);
-                preferences.keep_audio(user, kept_for, picked).await?
+                preferences.keep_audio(user, kept_for, picked).await?;
             }
-        };
-        Ok(Some(kept))
+        }
+        Ok(())
     }
 
     /// Sets the User `user`'s Subtitle Offset of the subtitle Track at `place` in the Version
@@ -259,6 +258,14 @@ impl Plans {
             Err(probing::Error::Database(err)) => return Err(err.into()),
         };
         let settings = self.settings.now();
+        let network = if on_local_network(client) {
+            Network::Local
+        } else {
+            Network::Remote {
+                default: settings.remote_limit,
+                cap: remote_cap(&self.db, user).await?,
+            }
+        };
         Ok(Some(Facts {
             version,
             audio: audio_asked(audio, probe.as_ref(), &decoding),
@@ -272,11 +279,7 @@ impl Plans {
             running_transcodes: self.running.running_transcodes(),
             max_transcodes: settings.max_transcodes,
             picked_limit: limit,
-            network: if on_local_network(client) {
-                Network::Local
-            } else {
-                Network::Remote(settings.remote_limit)
-            },
+            network,
             subtitle,
             shown_subtitle: None,
             subtitle_preference,

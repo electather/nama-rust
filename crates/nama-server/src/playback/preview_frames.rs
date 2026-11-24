@@ -5,10 +5,10 @@
 //! nothing plays, for the Libraries that make them. Which Versions need them is worked out from
 //! what's stored ([`PreviewFrames::needed`]), and [`PreviewFrames::make`] makes one Version's, so a
 //! jobs system can take either over. A Version's sheets are kept in the blob store under
-//! [`PREVIEW_FRAMES_DIR`], keyed by the file they were made of, and its row in `preview_frames`
-//! records what was made, or that making them failed, of the file at its size and modified time:
-//! a failure isn't tried again until the file changes. [`super::Leftovers`] deletes a gone
-//! Version's sheets, and its row goes with it.
+//! [`PREVIEW_FRAMES_DIR`](crate::images::PREVIEW_FRAMES_DIR), keyed by the file they were made
+//! of, and its row in `preview_frames` records what was made, or that making them failed, of the
+//! file at its size and modified time: a failure isn't tried again until the file changes.
+//! [`super::Leftovers`] deletes a gone Version's sheets, and its row goes with it.
 //!
 //! Clients fetch sheet `n` at `/media/versions/<id>/preview-frames/<n>.jpg` (ADR 0007: media bytes
 //! are not RPC), which, like the Version itself, is served to anyone with a session.

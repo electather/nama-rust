@@ -1,4 +1,5 @@
-import { Button } from "nama-ui/components/button";
+import { cn } from "cn";
+import { Button, ghostHang } from "nama-ui/components/button";
 import type { ReactNode } from "react";
 
 /** The end of a form on a page: what submitting it did, why the Server refused, and its button. */
@@ -28,8 +29,7 @@ export function FormEnd({
       <p role="alert" className="text-sm text-destructive empty:hidden">
         {refusal}
       </p>
-      {/* A ghost button is pulled back by its own padding, so its words line up with the fields. */}
-      <div className={variant === "ghost" ? "-ms-4 flex gap-2" : "flex gap-2"}>
+      <div className={cn("flex gap-2", variant === "ghost" && ghostHang)}>
         <Button type="submit" variant={variant} disabled={pending}>
           {action}
         </Button>
