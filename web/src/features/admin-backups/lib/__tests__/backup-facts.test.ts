@@ -23,6 +23,10 @@ describe("a Backup's size", () => {
     vi.restoreAllMocks();
   });
 
+  test("the browser here writes numbers in German", () => {
+    expect(new Intl.NumberFormat().format(1.5)).toBe("1,5");
+  });
+
   test.each([
     [40_000, "40 kB"],
     [15_200_000, "15.2 MB"],
