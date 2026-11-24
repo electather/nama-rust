@@ -15,7 +15,7 @@ crate-type = ["cdylib"]
 # time `rusty-s3` signs at, which comes from `nama_pdk::now`. RustCrypto, not aws-lc-rs, since
 # it builds for wasm32.
 instant-xml = "0.7.7"
-jiff = { version = "0.2", default-features = false, features = ["std"] }
+jiff = { version = "1.0", default-features = false, features = ["std"] }
 nama-pdk = { version = "0.3.0", path = "../../crates/nama-pdk" }
 rusty-s3 = { version = "0.11.0", default-features = false, features = ["rustcrypto", "xml"] }
 url = "2.5"

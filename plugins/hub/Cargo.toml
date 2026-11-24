@@ -21,7 +21,7 @@ http-body-util = "0.1"
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "tls12", "ring", "native-tokio"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "http1", "tokio"] }
 # The Server's time zone, which a Viewing Event's time of day is in, as the Server reads it.
-jiff = { version = "0.2", default-features = false, features = ["std", "tz-system", "tzdb-bundle-platform", "tzdb-zoneinfo"] }
+jiff = { version = "1.0", default-features = false, features = ["std", "tz-system", "tzdb-bundle-platform", "tzdb-zoneinfo"] }
 nama-hub-proto = { version = "0.1.0", path = "../../crates/nama-hub-proto" }
 nama-plugin-api = { version = "0.2.0", path = "../../crates/nama-plugin-api" }
 ring = "0.17"
