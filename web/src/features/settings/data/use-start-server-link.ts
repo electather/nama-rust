@@ -1,3 +1,4 @@
+import { useTransport } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { serverLinkKey } from "@/features/settings/data/use-server-link";
@@ -7,10 +8,11 @@ import { useSensitiveMutation } from "@/shared/hooks/use-sensitive-mutation";
 /** Starts Linking the Server, once the User confirms it's them, then shows the code. */
 export function useStartServerLink() {
   const queryClient = useQueryClient();
+  const transport = useTransport();
   return useSensitiveMutation(ServerService.method.startServerLink, {
     confirming: "Link the Server to the Hub",
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: serverLinkKey });
+      await queryClient.invalidateQueries({ queryKey: serverLinkKey(transport) });
     },
   });
 }

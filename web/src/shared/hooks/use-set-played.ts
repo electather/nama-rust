@@ -1,6 +1,7 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
-import { createConnectQueryKey, useMutation } from "@connectrpc/connect-query";
-import { type QueryClient, useQueryClient } from "@tanstack/react-query";
+import type { Transport } from "@connectrpc/connect";
+import { createConnectQueryKey, useMutation, useTransport } from "@connectrpc/connect-query";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
   BrowseService,
@@ -10,11 +11,19 @@ import {
 } from "@/gen/nama/v1/browse_pb";
 import type { ExternalIdSchema } from "@/gen/nama/v1/match_pb";
 import { type SetPlayedRequestSchema, WatchStateService } from "@/gen/nama/v1/watch_state_pb";
+import type { RouterContext } from "@/shared/hooks/access";
 import { browseKey } from "@/shared/hooks/browse";
+import { serverKey } from "@/shared/hooks/server-key";
 import { markEpisodes, markMovie } from "@/shared/lib/marked-played";
 
-/** Each `useSetPlayed` mutation's, for a screen to show what's being marked before it's done. */
-export const setPlayedKey = [WatchStateService.method.setPlayed.name];
+/**
+ * Each `useSetPlayed` mutation's key on the Server `transport` talks to, for a screen to show
+ * what's being marked before it's done.
+ */
+export const setPlayedKey = (transport: Transport) => [
+  WatchStateService.method.setPlayed.name,
+  serverKey(transport),
+];
 
 type Asked = MessageInitShape<typeof SetPlayedRequestSchema>;
 type Target = Extract<Asked["target"], { case: string }>;
@@ -26,15 +35,16 @@ type Target = Extract<Asked["target"], { case: string }>;
  */
 export function useSetPlayed() {
   const queryClient = useQueryClient();
+  const transport = useTransport();
   const { mutate } = useMutation(WatchStateService.method.setPlayed, {
-    mutationKey: setPlayedKey,
+    mutationKey: setPlayedKey(transport),
     onMutate: async (asked) => {
       // A refetch already on its way would answer with the state from before.
-      await queryClient.cancelQueries({ queryKey: browseKey });
-      showMarked(queryClient, asked);
+      await queryClient.cancelQueries({ queryKey: browseKey(transport) });
+      showMarked({ queryClient, transport }, asked);
     },
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: browseKey });
+      await queryClient.invalidateQueries({ queryKey: browseKey(transport) });
     },
   });
   return mutate;
@@ -48,22 +58,22 @@ function marking({ libraryId, target, played }: Asked) {
 }
 
 /** Marks what `asked` names in the cached Movie or Episodes, before the Server has answered. */
-function showMarked(queryClient: QueryClient, asked: Asked) {
+function showMarked(context: RouterContext, asked: Asked) {
   const mark = marking(asked);
   if (!mark) {
     return;
   }
   const { libraryId, target, played } = mark;
   if (target.case === "movieId") {
-    showMovieMarked(queryClient, { libraryId, movieId: target.value }, played);
+    showMovieMarked(context, { libraryId, movieId: target.value }, played);
     return;
   }
-  showEpisodesMarked(queryClient, { libraryId, target, played });
+  showEpisodesMarked(context, { libraryId, target, played });
 }
 
 /** Marks the cached Episodes `mark` covers: one Episode, or a Season's or Show's. */
 function showEpisodesMarked(
-  queryClient: QueryClient,
+  { queryClient, transport }: RouterContext,
   {
     libraryId,
     target,
@@ -72,6 +82,7 @@ function showEpisodesMarked(
 ) {
   const key = createConnectQueryKey({
     schema: BrowseService.method.listEpisodes,
+    transport,
     cardinality: undefined,
     input: episodesAsked(libraryId, target),
   });
@@ -87,12 +98,13 @@ function showEpisodesMarked(
 
 /** Marks the cached Movie `asked` names. */
 function showMovieMarked(
-  queryClient: QueryClient,
+  { queryClient, transport }: RouterContext,
   asked: { libraryId: bigint; movieId: MessageInitShape<typeof ExternalIdSchema> },
   played: boolean,
 ) {
   const key = createConnectQueryKey({
     schema: BrowseService.method.getMovie,
+    transport,
     cardinality: undefined,
     input: asked,
   });

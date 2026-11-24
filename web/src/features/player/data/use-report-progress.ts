@@ -1,4 +1,5 @@
-import { useMutation } from "@connectrpc/connect-query";
+import type { Transport } from "@connectrpc/connect";
+import { useMutation, useTransport } from "@connectrpc/connect-query";
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 
@@ -20,13 +21,14 @@ const finalReports = new WeakSet();
  */
 export function useReportProgress() {
   const queryClient = useQueryClient();
+  const transport = useTransport();
   const { mutate } = useMutation(WatchStateService.method.reportProgress, {
     retry: retryIfUnreachable,
     // One at a time, in order, so a retried report never lands after a newer one.
     scope: { id: "report-progress" },
     onSuccess: async (_response, report) => {
       if (finalReports.has(report)) {
-        await refreshWatchState(queryClient);
+        await refreshWatchState(queryClient, transport);
       }
     },
   });
@@ -37,11 +39,11 @@ export function useReportProgress() {
         // The page opened on leaving may share the player's queries, long stale by now, and the
         // refresh this report causes covers it: unmarked, it would also fetch the old position on
         // mounting.
-        queryClient.setQueriesData({ queryKey: browseKey }, (data) => data);
+        queryClient.setQueriesData({ queryKey: browseKey(transport) }, (data) => data);
       }
       mutate(report);
     },
-    [mutate, queryClient],
+    [mutate, queryClient, transport],
   );
 }
 
@@ -52,7 +54,7 @@ export function useReportProgress() {
  * opened, refetches. ponytail: that drops every page you browsed, so going further back fetches it
  * again; keep only the played title's queries fresh if that cost shows.
  */
-async function refreshWatchState(queryClient: QueryClient) {
-  queryClient.removeQueries({ queryKey: browseKey, type: "inactive" });
-  await queryClient.invalidateQueries({ queryKey: browseKey });
+async function refreshWatchState(queryClient: QueryClient, transport: Transport) {
+  queryClient.removeQueries({ queryKey: browseKey(transport), type: "inactive" });
+  await queryClient.invalidateQueries({ queryKey: browseKey(transport) });
 }

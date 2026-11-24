@@ -7,9 +7,10 @@ import { AccountService } from "@/gen/nama/hub/v1/account_pb";
 import { HubService } from "@/gen/nama/hub/v1/hub_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 import { SignInService } from "@/gen/nama/v1/sign_in_pb";
+import { serverKey } from "@/shared/hooks/server-key";
 import { isCode } from "@/shared/lib/connect-errors";
 
-/** What every route's `beforeLoad` gets from the router. */
+/** What every route's `beforeLoad` gets from the router: the cache, and the Server it talks to. */
 export interface RouterContext {
   queryClient: QueryClient;
   transport: Transport;
@@ -57,7 +58,7 @@ export async function isSignedInHere(context: RouterContext) {
 /** The query behind `whoIsSignedIn`: being signed out isn't an error. */
 export function signedInQuery(transport: Transport) {
   return queryOptions({
-    queryKey: ["signed-in"],
+    queryKey: ["signed-in", serverKey(transport)],
     queryFn: async () => {
       const answer = await nullWhen(
         Code.Unauthenticated,

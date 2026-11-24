@@ -1,6 +1,5 @@
 import { Code, type Transport } from "@connectrpc/connect";
 import { TransportProvider } from "@connectrpc/connect-query";
-import { createConnectTransport } from "@connectrpc/connect-web";
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 import type { ReactNode } from "react";
@@ -9,12 +8,13 @@ import { RouteError } from "@/app/route-error/route-error";
 import { isAtHub, signedInQuery, whoIsSignedIn } from "@/shared/hooks/access";
 import { isCode, retryIfUnreachable } from "@/shared/lib/connect-errors";
 import { traceCalls, traceRouteChanges } from "@/shared/lib/diagnostics";
+import { serverTransport } from "@/shared/lib/server";
 
 // oxlint-disable-next-line import/max-dependencies -- the router puts together the transport, the query cache, the routes and their Diagnostics
 import { routeTree } from "./routeTree.gen";
 
 // The Server serves the app, so RPCs go to the page's own origin (ADR 0015).
-const sameOrigin = createConnectTransport({ baseUrl: "/", interceptors: [traceCalls] });
+const sameOrigin = serverTransport("", [traceCalls]);
 
 /** The app's router. Tests pass a fake `transport`. */
 export function getRouter(transport: Transport = sameOrigin) {

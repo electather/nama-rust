@@ -9,9 +9,12 @@ import {
   type PlaybackPlan,
   PlaybackService,
 } from "@/gen/nama/v1/playback_pb";
+import { serverKey } from "@/shared/hooks/server-key";
 
-/** What every plan's query key starts with. */
-export const planKey = ["planPlayback"] as const;
+/** What every plan's query key from the Server `transport` talks to starts with. */
+export function planKey(transport: Transport) {
+  return ["planPlayback", serverKey(transport)] as const;
+}
 
 /**
  * How often an open plan asks for its URL. The Server stops a plan a minute after it was last
@@ -69,7 +72,7 @@ export function usePlanLifetime() {
     return {
       stopReplaced: async (planId: bigint) => {
         // Now, before the plan that replaces it is cached: a restarted Server may give it this id.
-        forget(queryClient, planId);
+        forget(plans, planId);
         await stopEarly(plans, planId);
       },
       keepPlaying: (plan: Playing) => keepPlaying(plans, plan),
@@ -125,7 +128,7 @@ function stopLater(plans: Plans, planId: bigint) {
   }
   const stop = setTimeout(() => {
     plans.letGo.delete(planId);
-    forget(plans.queryClient, planId);
+    forget(plans, planId);
     void tellStopped(plans.transport, planId);
   }, 0);
   plans.letGo.set(planId, stop);
@@ -156,9 +159,9 @@ async function ask(url: string) {
  * Drops the plan `planId` from the cache once nothing shows it, so the Version's next player asks
  * for a new one, though Suspense keeps an unseen query for a second.
  */
-function forget(queryClient: QueryClient, planId: bigint) {
+function forget({ queryClient, transport }: Plans, planId: bigint) {
   const queries = queryClient.getQueryCache().findAll({
-    queryKey: planKey,
+    queryKey: planKey(transport),
     predicate: ({ state: { data } }) =>
       isMessage(data, PlanPlaybackResponseSchema) && data.plan?.id === planId,
   });
