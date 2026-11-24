@@ -201,6 +201,7 @@ pub fn serve(
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
     let status = status::Sources {
         db: Arc::clone(&db),
+        contents: contents.clone(),
         ffmpeg: Arc::clone(&ffmpeg),
         abilities: abilities.clone(),
         running: running.clone(),

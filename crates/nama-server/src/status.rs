@@ -3,39 +3,26 @@
 //! (ADR 0054). Counts are rounded down to a power of ten, so they say how big a Server is without
 //! telling one household from another.
 
-use std::{
-    path::PathBuf,
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
-    time::Duration,
-};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use tokio::task::JoinHandle;
 use tracing::{Instrument as _, field::Empty};
 
 use crate::{
     db::Database,
+    diagnostics,
     ffmpeg::{Abilities, Ffmpeg},
+    library::Contents,
     playback::RunningPlans,
 };
 
 /// How often the status is recorded.
 const EVERY: Duration = Duration::from_mins(15);
 
-/// Batches the Plugin sharing Diagnostics failed to send since the last status, such as those the
-/// Hub refused for being over a Server's limit: otherwise the backend reads them as a quiet spell.
-static SHARES_REFUSED: AtomicU64 = AtomicU64::new(0);
-
-/// Counts a batch the Plugin sharing Diagnostics failed to send.
-pub(crate) fn share_refused() {
-    SHARES_REFUSED.fetch_add(1, Ordering::Relaxed);
-}
-
 /// What the status reads from.
 pub(crate) struct Sources {
     pub(crate) db: Arc<Database>,
+    pub(crate) contents: Contents,
     pub(crate) ffmpeg: Arc<Ffmpeg>,
     pub(crate) abilities: Abilities,
     pub(crate) running: RunningPlans,
@@ -74,16 +61,16 @@ async fn record(sources: &Sources) {
     if span.is_disabled() {
         return;
     }
-    let (counts, can_do) = async {
+    let (counts, items, can_do) = async {
         tokio::join!(
             sqlx::query!(
                 r#"SELECT
                        (SELECT COUNT(*) FROM libraries) AS "libraries!: i64",
-                       (SELECT COUNT(*) FROM library_items) AS "library_items!: i64",
                        (SELECT COUNT(*) FROM users) AS "users!: i64",
                        sqlite_version() AS "sqlite_version!: String""#
             )
             .fetch_one(sources.db.reader()),
+            sources.contents.item_count(),
             sources.abilities.can_do(),
         )
     }
@@ -98,11 +85,11 @@ async fn record(sources: &Sources) {
             .automatic()
             .map_or("none", |hardware| hardware.accel.name()),
     );
-    match counts {
-        Ok(counts) => {
+    match counts.and_then(|counts| Ok((counts, items?))) {
+        Ok((counts, items)) => {
             span.record("sqlite.version", counts.sqlite_version.as_str());
             span.record("libraries", rounded(counts.libraries));
-            span.record("library_items", rounded(counts.library_items));
+            span.record("library_items", rounded(items));
             span.record("users", rounded(counts.users));
         }
         Err(err) => tracing::warn!("could not count for the Server's status: {err}"),
@@ -115,7 +102,7 @@ async fn record(sources: &Sources) {
     if let Some(free) = disk_free(&sources.data_dir) {
         span.record("disk.free", free);
     }
-    span.record("shares.refused", SHARES_REFUSED.swap(0, Ordering::Relaxed));
+    span.record("shares.refused", diagnostics::take_shares_refused());
 }
 
 /// `n` rounded down to a power of ten, such as 1000 for 1234, or 0.

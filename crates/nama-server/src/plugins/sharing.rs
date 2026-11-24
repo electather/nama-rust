@@ -93,7 +93,7 @@ pub(crate) async fn share_diagnostics(points: &ExtensionPoints, signal: Signal, 
             })
             .await;
         if answer.is_some_and(|answer| answer.result.is_err()) {
-            crate::status::share_refused();
+            crate::diagnostics::share_refused();
         }
     };
     // Traced, sharing would record spans of its own that the next batch would share, and so on

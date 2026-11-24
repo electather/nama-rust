@@ -9,7 +9,7 @@ use std::{
     fmt::{self, Write as _},
     sync::{
         Mutex, OnceLock, PoisonError,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, SystemTime},
 };
@@ -256,6 +256,21 @@ impl SharingSwitches {
 
 /// The target Usage Analytics are recorded under, which stdout leaves out.
 pub const USAGE_TARGET: &str = "nama::usage";
+
+/// Batches the Plugin sharing Diagnostics failed to send since they were last taken, such as those
+/// the Hub refused for being over a Server's limit: otherwise the backend reads them as a quiet
+/// spell.
+static SHARES_REFUSED: AtomicU64 = AtomicU64::new(0);
+
+/// Counts a batch the Plugin sharing Diagnostics failed to send.
+pub(crate) fn share_refused() {
+    SHARES_REFUSED.fetch_add(1, Ordering::Relaxed);
+}
+
+/// The batches counted by [`share_refused`] since this was last called.
+pub(crate) fn take_shares_refused() -> u64 {
+    SHARES_REFUSED.swap(0, Ordering::Relaxed)
+}
 
 /// Shares where the Server panics from now on, after reporting the panic as before. Only where:
 /// what a panic says may quote a path or a title.
