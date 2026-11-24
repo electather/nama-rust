@@ -79,7 +79,7 @@ A single-use link that lets one person create a User on a Server, with the Permi
 _Avoid_: invitation code, share, referral
 
 **Account**:
-A person's identity on the Hub, which can be linked to Users on many Servers. It is also a Sign-in Method: an Admin can create a User from an Account, and that User signs in through the Hub.
+A person's identity on the Hub, which can be linked to Users on many Servers, one on each. It is also a Sign-in Method: an Admin can create a User from an Account, and that User signs in through the Hub.
 _Avoid_: Hub user, login, profile
 
 **Sign-in Link**:

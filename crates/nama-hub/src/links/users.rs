@@ -102,8 +102,8 @@ impl Links {
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(Error::CodeNotFound)?;
-        // Fails on a Link made between starting this code and entering it, or on the User the
-        // Account has on this Server already.
+        // A refusal rolls back the code's delete above, so it works again once the clashing User
+        // is Unlinked.
         let user = insert_link(
             &mut tx,
             session.account.id,
