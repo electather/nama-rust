@@ -5,6 +5,9 @@
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
 mod browsing;
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
+#[path = "support/custom_images.rs"]
+mod custom_images;
 #[path = "support/http.rs"]
 mod http;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
@@ -304,24 +307,73 @@ async fn the_cache_keeps_each_format_of_a_width_apart_within_the_one_limit() {
     assert_eq!(again.body, b"kept");
 }
 
-#[tokio::test]
-async fn once_a_scan_has_finished_the_poster_grids_width_is_sent_without_resizing_on_request() {
-    let (fx, poster) = alien_with_poster(&jpeg(1000, 1500)).await;
-    let copies = fx.server.data_dir().join("resized").join(POSTER);
+/// Where the copies of the image served at `url`, under `/media/`, are kept, for an image whose
+/// key is its URL's path.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn copies_of(fx: &Fixture, url: &str) -> PathBuf {
+    let key = url.strip_prefix("/media/").unwrap();
+    fx.server.data_dir().join("resized").join(key)
+}
 
-    fx.scan_and_match().await;
+/// Checks that the 1000 by 1500 Poster at `url`, whose copies are kept in `copies`, is sent at the
+/// Poster grid's width in both formats from copies made ahead, once they are, and at another width
+/// resized on request.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn assert_sent_from_copies_made_ahead(fx: &Fixture, url: &str, copies: &Path) {
     until_exists(&copies.join("320.jpg")).await;
     until_exists(&copies.join("320.jxl")).await;
     // Resizing on request would replace these.
     fs::write(copies.join("320.jpg"), b"\xff\xd8ahead").unwrap();
     fs::write(copies.join("320.jxl"), b"ahead").unwrap();
-    let jpeg = fetch_at(&fx, &poster, 320).await;
-    let jxl = fetch_accepting(&fx, &poster, 320, ACCEPTS_JXL).await;
-    let other_width = fetch_at(&fx, &poster, 480).await;
+    let jpeg = fetch_at(fx, url, 320).await;
+    let jxl = fetch_accepting(fx, url, 320, ACCEPTS_JXL).await;
+    let other_width = fetch_at(fx, url, 480).await;
 
     assert_eq!(jpeg.body, b"\xff\xd8ahead");
     assert_eq!(jxl.body, b"ahead");
     assert_eq!(dimensions(&other_width), (480, 720));
+}
+
+#[tokio::test]
+async fn once_a_scan_has_finished_the_poster_grids_width_is_sent_without_resizing_on_request() {
+    let (fx, poster) = alien_with_poster(&jpeg(1000, 1500)).await;
+
+    fx.scan_and_match().await;
+
+    let copies = fx.server.data_dir().join("resized").join(POSTER);
+    assert_sent_from_copies_made_ahead(&fx, &poster, &copies).await;
+}
+
+#[tokio::test]
+async fn a_poster_beside_the_media_is_sent_at_the_poster_grids_width_without_resizing_on_request() {
+    let fx = Fixture::alien().await;
+    fx.write("Alien (1979)/poster.jpg", &jpeg(1000, 1500));
+
+    fx.scan_and_match().await;
+
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    let poster = movie.poster_url.unwrap();
+    assert!(poster.starts_with("/media/local-images/"), "{poster}");
+    assert_sent_from_copies_made_ahead(&fx, &poster, &copies_of(&fx, &poster)).await;
+}
+
+#[tokio::test]
+async fn an_uploaded_custom_poster_is_sent_at_the_poster_grids_width_without_resizing_on_request() {
+    let fx = Fixture::alien().await;
+
+    let slot = format!("/custom-images/movie/tmdb-{ALIEN}/poster");
+    let uploaded = fx.upload(&slot, &jpeg(1000, 1500)).await;
+
+    assert_eq!(uploaded.status, 204);
+    let movie = fx.get_movie(fx.library, ALIEN).await.unwrap();
+    let poster = movie.poster_url.unwrap();
+    assert_sent_from_copies_made_ahead(&fx, &poster, &copies_of(&fx, &poster)).await;
 }
 
 #[tokio::test]

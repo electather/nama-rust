@@ -160,15 +160,21 @@ pub fn serve(
         settings.clone(),
         points.clone(),
     );
-    let artwork = Artwork::new(images.clone(), points).resizing_posters_ahead(settings.images());
-    let plugin_logos = PluginLogos::new(images.clone());
     let custom_images = CustomImages::new(Arc::clone(&db), images.clone());
+    let local_images =
+        LocalImages::new(Arc::clone(&db), images.clone()).resizing_posters_ahead(settings.images());
+    let artwork = Artwork::new(images.clone(), points).resizing_posters_ahead(
+        settings.images(),
+        custom_images.clone(),
+        local_images.clone(),
+    );
+    let plugin_logos = PluginLogos::new(images.clone());
     let scanner = Scanner::new(
         Arc::clone(&db),
         plugins.clone(),
         artwork.clone(),
         custom_images.clone(),
-        LocalImages::new(Arc::clone(&db), images.clone()),
+        local_images,
         events.clone(),
         Some(probing.clone()),
         leftovers,
