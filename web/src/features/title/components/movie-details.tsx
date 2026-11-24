@@ -11,8 +11,9 @@ import { yearOf } from "@/shared/lib/title-facts";
 /** A Movie's Details: when it came out and its rating, its languages, and its files here. */
 export function MovieDetails({ libraryId, movie }: { libraryId: bigint; movie: Movie }) {
   const directors = crewWithJob(movie.crew, "Director");
-  // Not suspending, so the page shows without waiting on the Libraries, and without its Library
-  // until they load or if they fail.
+  // Not suspending, so the page shows without waiting on the Libraries. Until they load, or if they
+  // fail, `library && …` below stays `undefined`, which `TitleDetails` drops: a `LibraryLink`
+  // rendering `null` would leave an empty "Library" fact.
   const library = useLoadedLibraries().find(({ id }) => id === libraryId);
   return (
     <TitleDetails
