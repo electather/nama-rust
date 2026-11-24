@@ -175,7 +175,7 @@ async fn a_show_opened_by_its_tvdb_id_is_the_library_show() {
         .list_episodes(ListEpisodesRequest {
             library_id: fx.library,
             show_id: tvdb.into(),
-            season_number: 1,
+            season_number: Some(1),
             ..Default::default()
         })
         .await

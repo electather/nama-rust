@@ -47,6 +47,9 @@ const wording: RefusalWording<LinkErrors> = {
   [RefusalReason.USER_LINKED]: () => ({
     form: "This User is Linked to an Account already. Unlink them in their Server’s Settings first.",
   }),
+  [RefusalReason.ACCOUNT_HAS_USER_ON_SERVER]: () => ({
+    form: "Your Account has a User on this Server already, and it can have only one there. Unlink that User under Your Users first.",
+  }),
   [RefusalReason.EMAIL_NOT_PROVEN]: () => ({
     form: "Linking needs your email proven first. Sign in with a Sign-in Link sent to it, then try again.",
     proveEmail: true,

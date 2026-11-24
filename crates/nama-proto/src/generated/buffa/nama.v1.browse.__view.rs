@@ -10603,10 +10603,10 @@ pub struct ListEpisodesRequestView<'a> {
     pub show_id: ::buffa::MessageFieldView<
         super::super::__buffa::view::ExternalIdView<'a>,
     >,
-    /// The Season's number, as `GetShow` gave it.
+    /// The Season's number, as `GetShow` gave it. Unset, every Season's, so a Show's page asks once.
     ///
     /// Field 3: `season_number`
-    pub season_number: u32,
+    pub season_number: ::core::option::Option<u32>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ListEpisodesRequestView<'a> {
@@ -10672,7 +10672,7 @@ impl<'a> ::buffa::MessageView<'a> for ListEpisodesRequestView<'a> {
                     tag,
                     ::buffa::encoding::WireType::Varint,
                 )?;
-                view.season_number = ::buffa::types::decode_uint32(&mut cur)?;
+                view.season_number = Some(::buffa::types::decode_uint32(&mut cur)?);
             }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
@@ -10735,8 +10735,8 @@ impl<'a> ::buffa::ViewEncode<'a> for ListEpisodesRequestView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
-        if self.season_number != 0u32 {
-            size += 1u64 + ::buffa::types::uint32_encoded_len(self.season_number) as u64;
+        if let Some(v) = self.season_number {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(v) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -10760,8 +10760,8 @@ impl<'a> ::buffa::ViewEncode<'a> for ListEpisodesRequestView<'a> {
             );
             self.show_id.write_to(__cache, buf);
         }
-        if self.season_number != 0u32 {
-            ::buffa::types::put_uint32_field(3u32, self.season_number, buf);
+        if let Some(v) = self.season_number {
+            ::buffa::types::put_uint32_field(3u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -10796,11 +10796,11 @@ impl<'__a> ::serde::Serialize for ListEpisodesRequestView<'__a> {
                 __map.serialize_entry("showId", __v)?;
             }
         }
-        if !::buffa::json_helpers::skip_if::is_zero_u32(&self.season_number) {
+        if let ::core::option::Option::Some(__v) = self.season_number {
             __map
                 .serialize_entry(
                     "seasonNumber",
-                    &::buffa::json_helpers::ProtoJson(&self.season_number),
+                    &::buffa::json_helpers::ProtoJson(&__v),
                 )?;
         }
         __map.end()
@@ -10914,11 +10914,11 @@ impl ListEpisodesRequestOwnedView {
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::ExternalIdView<'_>> {
         &self.0.reborrow().show_id
     }
-    /// The Season's number, as `GetShow` gave it.
+    /// The Season's number, as `GetShow` gave it. Unset, every Season's, so a Show's page asks once.
     ///
     /// Field 3: `season_number`
     #[must_use]
-    pub fn season_number(&self) -> u32 {
+    pub fn season_number(&self) -> ::core::option::Option<u32> {
         self.0.reborrow().season_number
     }
 }

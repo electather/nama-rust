@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT remote_playback_limit FROM users WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "remote_playback_limit",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "remote_playback_limit"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "06984e55b03b67cbbe7a4f0b416a54bc2dee5df68d0b417fbc91205dc90b4d86"
+}

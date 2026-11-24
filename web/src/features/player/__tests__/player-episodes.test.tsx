@@ -53,7 +53,7 @@ function server(on = true) {
         show: { id: { namespace: "tmdb", value: "70523" }, title: "Dark" },
         seasons: [{ number: 1 }, { number: 2 }],
       }),
-      listEpisodes: ({ seasonNumber }) => ({
+      listEpisodes: ({ seasonNumber = 0 }) => ({
         episodes: (seasonNumber === 1 ? [1, 2, 3] : [1]).map((number) =>
           episode(seasonNumber, number),
         ),

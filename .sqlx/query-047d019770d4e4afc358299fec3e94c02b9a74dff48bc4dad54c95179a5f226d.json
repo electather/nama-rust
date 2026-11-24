@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT permissions AS \"permissions: Permissions\", remote_playback_limit\n               FROM default_permissions",
+  "describe": {
+    "columns": [
+      {
+        "name": "permissions: Permissions",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "default_permissions",
+            "name": "permissions"
+          }
+        }
+      },
+      {
+        "name": "remote_playback_limit",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "default_permissions",
+            "name": "remote_playback_limit"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "047d019770d4e4afc358299fec3e94c02b9a74dff48bc4dad54c95179a5f226d"
+}

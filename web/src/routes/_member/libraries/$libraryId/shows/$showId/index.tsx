@@ -22,16 +22,11 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showI
       libraryId: libraryIdFromParam(params.libraryId),
       showId: externalIdFromParam(params.showId),
     };
-    const { seasons } = await queryOrNotFound(context, BrowseService.method.getShow, show);
     const { queryClient, transport } = context;
     await Promise.all([
-      // Every Season's, as the page shows them all in one row.
-      ...seasons.map(({ number }) =>
-        queryOrNotFound(context, BrowseService.method.listEpisodes, {
-          ...show,
-          seasonNumber: number,
-        }),
-      ),
+      queryOrNotFound(context, BrowseService.method.getShow, show),
+      // Every Season's in one request, as the page shows them all in one row.
+      queryOrNotFound(context, BrowseService.method.listEpisodes, show),
       // Only for Resume, so a failure leaves the page without it rather than failing it.
       queryClient
         .query({

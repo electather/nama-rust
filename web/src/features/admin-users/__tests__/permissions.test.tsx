@@ -2,10 +2,12 @@ import { Code } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
+import { PlaybackLimit } from "@/gen/nama/v1/playback_pb";
 import { RefusalReason } from "@/gen/nama/v1/refusal_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
 import { admin, fakeServer, newUser, openApp, type ServerState } from "@/test-app";
 import { refused } from "@/test-refusal";
+import { offered, pick } from "@/test-settings";
 
 afterEach(cleanup);
 
@@ -56,6 +58,47 @@ test("a User's Permissions are saved as they're changed, and are there after rel
   );
   expect(screen.getByRole("checkbox", { name: "View Requests" })).toHaveProperty("checked", false);
   expect(screen.queryByRole("button", { name: /Save/u })).toBeNull();
+});
+
+test("a User's cap for remote playback starts at No cap and is saved with their Permissions as it's picked", async () => {
+  const saves: unknown[] = [];
+  openApp(
+    usersSection,
+    fakeServer(
+      { signedIn: admin },
+      {},
+      {
+        listUsers: () => ({
+          users: [
+            {
+              id: 2n,
+              name: "Alex",
+              permissions: newUser,
+              remotePlaybackLimit: PlaybackLimit.PLAYBACK_LIMIT_ORIGINAL,
+            },
+          ],
+        }),
+        setPermissions: ({ permissions, remotePlaybackLimit }) => {
+          saves.push({ permissions, remotePlaybackLimit });
+          return {};
+        },
+      },
+    ),
+  );
+  const cap = "Most for remote playback";
+
+  await openUser("Alex");
+  const select = await screen.findByRole("combobox", { name: cap });
+  const caps = await offered(cap);
+  expect(select.textContent).toBe("No cap");
+  pick(cap, "720p");
+
+  await expect
+    .poll(() => saves)
+    .toStrictEqual([
+      { permissions: newUser, remotePlaybackLimit: PlaybackLimit.PLAYBACK_LIMIT_720P },
+    ]);
+  expect(caps).toStrictEqual(["No cap", "1080p", "720p", "480p"]);
 });
 
 test("a checked parent Permission shows its children as covered", async () => {
@@ -250,6 +293,36 @@ test("default Permissions are saved as they're changed, and are there after relo
   );
   expect(screen.getByRole("checkbox", { name: "Request" })).toHaveProperty("checked", false);
   expect(screen.queryByRole("button", { name: /Save/u })).toBeNull();
+});
+
+test("the default cap for remote playback is saved with the default Permissions as it's picked", async () => {
+  const saves: unknown[] = [];
+  openApp(
+    usersSection,
+    fakeServer(
+      { signedIn: admin },
+      {},
+      {
+        listUsers: () => ({ users: [] }),
+        getDefaultPermissions: () => ({ permissions: newUser }),
+        setDefaultPermissions: ({ permissions, remotePlaybackLimit }) => {
+          saves.push({ permissions, remotePlaybackLimit });
+          return {};
+        },
+      },
+    ),
+  );
+  const cap = "Most for remote playback";
+
+  const select = await screen.findByRole("combobox", { name: cap });
+  expect(select.textContent).toBe("No cap");
+  pick(cap, "480p");
+
+  await expect
+    .poll(() => saves)
+    .toStrictEqual([
+      { permissions: newUser, remotePlaybackLimit: PlaybackLimit.PLAYBACK_LIMIT_480P },
+    ]);
 });
 
 test("a refused change to the default Permissions is undone, and says why", async () => {

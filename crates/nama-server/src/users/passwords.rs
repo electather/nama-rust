@@ -1,12 +1,13 @@
 //! Setting and checking Users' passwords through the enabled Authenticator.
 
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use nama_plugin_api::{
     PluginError, PluginId,
     auth::{Authenticator, PasswordError},
 };
 use sqlx::SqliteConnection;
+use tokio::sync::Semaphore;
 use tracing::Span;
 
 use super::{
@@ -20,6 +21,14 @@ use crate::{
 
 /// What a User is shown for their password among their Sign-in Methods.
 const PASSWORD_METHOD_NAME: &str = "Password";
+
+/// How many Authenticator calls on a password may run at once. An argon2id hash holds 19 MiB, and
+/// sign-ins with unknown names cost one too, so without a cap a burst of them grows memory without
+/// bound on the 1 GiB machines #725 targets. 4 is about 78 MiB at peak. Calls past it wait their
+/// turn.
+const CONCURRENT_HASHES: usize = 4;
+
+static HASHING: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(CONCURRENT_HASHES));
 
 /// A credential string the Kernel keeps for a User, and the Plugin whose Authenticator made it,
 /// which is the only one that can check it.
@@ -248,16 +257,23 @@ async fn verify_where_blocking_is_fine(
 }
 
 /// Runs `work`, an Authenticator's on a password, which is meant to be slow, where blocking is
-/// fine.
+/// fine, once [`HASHING`] has a permit for it.
 // A panic in it fails the call and leaves the Plugin enabled: see "Plugin code runs contained" in
-// `crates/nama-server/AGENTS.md`.
+// `crates/nama-server/src/plugins/AGENTS.md`.
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> T + Send + 'static,
 ) -> Result<T, PluginError> {
     // `spawn_blocking` doesn't carry the span over, and the one naming a Built-in must reach its
     // lines (ADR 0061).
     let span = Span::current();
-    Ok(tokio::task::spawn_blocking(move || span.in_scope(work)).await?)
+    let permit = HASHING.acquire().await?;
+    // The thread holds the permit, not this future: a client hanging up drops the future, but the
+    // hash runs on.
+    Ok(tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        span.in_scope(work)
+    })
+    .await?)
 }
 
 /// What an Authenticator's failure to hash a password means for the User.

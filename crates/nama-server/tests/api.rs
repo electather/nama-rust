@@ -289,22 +289,24 @@ async fn the_playback_status_says_an_ffmpeg_listing_libx264_and_zscale_has_them(
 
 #[cfg(unix)]
 #[tokio::test]
-async fn the_playback_status_says_what_tone_maps_on_each_hardware_and_which_automatic_picks() {
+async fn the_playback_status_says_each_hardwares_tone_mapping_hevc_and_which_automatic_picks() {
     let found = |api: HardwareAcceleration, tone_mapping: ToneMapping, automatic| FoundHardware {
         api: api.into(),
         tone_maps: tone_mapping == ToneMapping::TONE_MAPPING_GPU,
         tone_mapping: tone_mapping.into(),
         automatic,
+        // ffmpeg lists only QSV's HEVC encoder.
+        hevc: api == HardwareAcceleration::HARDWARE_ACCELERATION_QSV,
         ..Default::default()
     };
     let cases = [
         (
-            ["libx264", "h264_videotoolbox", "h264_qsv"],
+            ["libx264", "h264_videotoolbox", "h264_qsv", "hevc_qsv"],
             "zscale",
             ToneMapping::TONE_MAPPING_SOFTWARE,
         ),
         (
-            ["libopenh264", "h264_videotoolbox", "h264_qsv"],
+            ["libopenh264", "h264_videotoolbox", "h264_qsv", "hevc_qsv"],
             "scale",
             ToneMapping::TONE_MAPPING_NONE,
         ),

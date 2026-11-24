@@ -1,7 +1,6 @@
 import { Search } from "lucide-react";
 
 import type { SearchState } from "@/features/settings/hooks/use-settings-search";
-import { phoneWidth } from "@/features/settings/lib/phone-width";
 
 /**
  * The field that finds settings, a combobox over the results `listId` lists in place of the
@@ -21,9 +20,6 @@ export function SettingsSearch({ search, listId }: { search: SearchState; listId
         aria-autocomplete="list"
         aria-activedescendant={picked && `${listId}-${results.indexOf(picked)}`}
         placeholder="Search settings"
-        // Opening Settings starts here, so typing finds a setting at once, but not on a phone.
-        // oxlint-disable-next-line jsx-a11y/no-autofocus -- a modal dialog puts focus on the control its design names, which this is
-        autoFocus={!phoneWidth()}
         value={typed}
         onChange={(event) => {
           search.type(event.target.value);

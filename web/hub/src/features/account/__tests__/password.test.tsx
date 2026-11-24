@@ -19,12 +19,14 @@ function refused(code: Code, reason: RefusalReason, params: Record<string, strin
 /**
  * Opens the Account page on a fake Hub that emails Sign-in Links when `signInLinks` says so, where
  * Ada is signed in, with a password if `hasPassword` says so, and a sign-in in the last 10 minutes
- * if `recent` does. Returns the passwords set and whether the Hub has said if it emails links.
+ * if `recent` does. Returns the passwords set, whether the Hub has said if it emails links, and how
+ * often the Account was asked for.
  */
 function openAccountPage(hasPassword: boolean, recent = true, signInLinks = true) {
   let password = hasPassword;
   const set: string[] = [];
   let toldSignInLinks = false;
+  let accountLookUps = 0;
   const transport = createRouterTransport(({ service }) => {
     service(HubService, {
       getHubInfo: () => {
@@ -33,7 +35,10 @@ function openAccountPage(hasPassword: boolean, recent = true, signInLinks = true
       },
     });
     service(AccountService, {
-      getAccount: () => ({ account: ada, hasPassword: password }),
+      getAccount: () => {
+        accountLookUps += 1;
+        return { account: ada, hasPassword: password };
+      },
       setPassword: (request) => {
         if (!recent) {
           throw refused(Code.FailedPrecondition, RefusalReason.RECENT_AUTHENTICATION_REQUIRED, {
@@ -48,7 +53,7 @@ function openAccountPage(hasPassword: boolean, recent = true, signInLinks = true
   });
   globalThis.history.replaceState(null, "", "/");
   render(<RouterProvider router={getRouter(transport)} />);
-  return { set, toldSignInLinks: () => toldSignInLinks };
+  return { set, toldSignInLinks: () => toldSignInLinks, accountLookUps: () => accountLookUps };
 }
 
 async function submit(label: string, button: string) {
@@ -65,6 +70,13 @@ describe("an Account's password", () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+  test("the Account page asks for the Account once", async () => {
+    const hub = openAccountPage(true);
+
+    await expect(screen.findByRole("button", { name: "Change password" })).resolves.toBeDefined();
+    expect(hub.accountLookUps()).toBe(1);
   });
 
   test("an Account without one sets one, after which it can change it", async () => {

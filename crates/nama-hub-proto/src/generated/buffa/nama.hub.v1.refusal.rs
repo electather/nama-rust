@@ -89,6 +89,9 @@ pub enum RefusalReason {
     /// `failed_precondition`: removing it would leave the Account no way to sign in: no password, no
     /// other passkey, and no Sign-in Link, which the Hub offers only while it has mail set up.
     REFUSAL_REASON_LAST_SIGN_IN_METHOD = 28i32,
+    /// `already_exists`: the signed-in Account has a User Linked on that Server already, and an
+    /// Account Links one User on each Server. Unlink that User first.
+    REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER = 29i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -178,6 +181,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const LastSignInMethod: Self = Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const AccountHasUserOnServer: Self = Self::REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -336,6 +342,11 @@ impl ::buffa::Enumeration for RefusalReason {
             28i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD)
             }
+            29i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -398,6 +409,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_PASSKEY_NOT_FOUND => "REFUSAL_REASON_PASSKEY_NOT_FOUND",
             Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD => {
                 "REFUSAL_REASON_LAST_SIGN_IN_METHOD"
+            }
+            Self::REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER => {
+                "REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER"
             }
         }
     }
@@ -498,6 +512,11 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_LAST_SIGN_IN_METHOD" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD)
             }
+            "REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -532,6 +551,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_PASSKEY_NAME_LENGTH,
             Self::REFUSAL_REASON_PASSKEY_NOT_FOUND,
             Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD,
+            Self::REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER,
         ]
     }
 }

@@ -97,7 +97,7 @@ async fn dark_version(fx: &Fixture, season: u32, number: u32) -> i64 {
     let asked = ListEpisodesRequest {
         library_id: fx.library,
         show_id: browsing::tmdb_id(DARK).into(),
-        season_number: season,
+        season_number: Some(season),
         ..Default::default()
     };
     let episodes = fx.browse.list_episodes(asked).await.unwrap().into_owned();

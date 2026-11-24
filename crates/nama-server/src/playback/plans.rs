@@ -18,7 +18,7 @@ use crate::{
     diagnostics::{self, Usage},
     ffmpeg::{Abilities, RunError},
     server_settings::PlaybackSettings,
-    users::Caller,
+    users::{Caller, remote_cap},
 };
 
 /// Plans a Version for a Device, starting it if it plays, and keeps the Tracks a User picks.
@@ -258,6 +258,14 @@ impl Plans {
             Err(probing::Error::Database(err)) => return Err(err.into()),
         };
         let settings = self.settings.now();
+        let network = if on_local_network(client) {
+            Network::Local
+        } else {
+            Network::Remote {
+                default: settings.remote_limit,
+                cap: remote_cap(&self.db, user).await?,
+            }
+        };
         Ok(Some(Facts {
             version,
             audio: audio_asked(audio, probe.as_ref(), &decoding),
@@ -271,11 +279,7 @@ impl Plans {
             running_transcodes: self.running.running_transcodes(),
             max_transcodes: settings.max_transcodes,
             picked_limit: limit,
-            network: if on_local_network(client) {
-                Network::Local
-            } else {
-                Network::Remote(settings.remote_limit)
-            },
+            network,
             subtitle,
             shown_subtitle: None,
             subtitle_preference,

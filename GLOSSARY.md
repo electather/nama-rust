@@ -79,7 +79,7 @@ A single-use link that lets one person create a User on a Server, with the Permi
 _Avoid_: invitation code, share, referral
 
 **Account**:
-A person's identity on the Hub, which can be linked to Users on many Servers. It is also a Sign-in Method: an Admin can create a User from an Account, and that User signs in through the Hub.
+A person's identity on the Hub, which can be linked to Users on many Servers, one on each. It is also a Sign-in Method: an Admin can create a User from an Account, and that User signs in through the Hub.
 _Avoid_: Hub user, login, profile
 
 **Sign-in Link**:
@@ -448,7 +448,7 @@ One fact that shaped a Playback Plan, such as a codec the Device can't decode or
 _Avoid_: explanation, note
 
 **Playback Limit**:
-The most a User asks playback to send, such as "Original", "1080p" or "720p". A limit below the Version's own makes it Transcode; when the Server can't Transcode it, it plays as it is and the Playback Plan says why. Until the User picks one, a Device outside the local network gets the default an Admin sets for remote playback.
+The most a User asks playback to send, such as "Original", "1080p" or "720p". A limit below the Version's own makes it Transcode; when the Server can't Transcode it, it plays as it is and the Playback Plan says why. Until the User picks one, a Device outside the local network gets the default an Admin sets for remote playback. An Admin may also cap a User's remote playback: outside the local network their Devices are never sent more than that cap, whatever they pick, and a plan that can't keep to it doesn't play.
 _Avoid_: quality, bitrate, resolution
 
 **Subtitle Preference**:

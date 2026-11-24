@@ -1,6 +1,7 @@
 import { PasswordFormNote } from "@hub/features/account/components/password-form-note";
 import { TextField } from "@hub/features/account/components/text-field";
-import { usePasswordStatus, useSetPassword } from "@hub/features/account/data/password";
+import { usePasswordStatus } from "@hub/features/account/data/account";
+import { useSetPassword } from "@hub/features/account/data/password";
 import { useSendsSignInLinks } from "@hub/features/account/data/sign-in-links";
 import { credentialErrors } from "@hub/features/account/lib/refusals";
 import { Button } from "nama-ui/components/button";

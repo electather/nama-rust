@@ -37,8 +37,8 @@ use tokio::sync::{OwnedSemaphorePermit, RwLock, RwLockReadGuard, Semaphore};
 
 use crate::{
     images::{
-        Asked, ImageStore, KEPT_ARTWORK_DIR, OFFERED_ARTWORK_DIR, Resize, SVG, file_name,
-        percent_decode,
+        Asked, ImageStore, KEPT_ARTWORK_DIR, MAX_SVG_BYTES, OFFERED_ARTWORK_DIR, Resize, SVG,
+        clean_svg, file_name, percent_decode,
     },
     library::contents::{Contents, ImageRef},
     library::title_source::{self, ArtworkKind, Source, TitleKind, TitleSources},
@@ -56,6 +56,10 @@ const OFFERED_DIR: &str = OFFERED_ARTWORK_DIR;
 /// How many images are downloaded in the background at once. Each crosses from the title source as
 /// one whole value, so this also bounds the memory downloads take on a 1 GiB machine.
 const DOWNLOADS: usize = 2;
+
+/// The width the web app's Poster grid asks for at one device pixel per CSS pixel
+/// (`web/src/shared/components/poster/poster.tsx`), which Posters are resized to ahead of it.
+const POSTER_GRID_WIDTH: u32 = 320;
 
 /// How many offered images are remembered before [`Artwork::offer`] forgets them all.
 const MAX_OFFERED: usize = 10_000;
@@ -99,6 +103,10 @@ pub struct Artwork {
     /// Written while unused images are deleted, and read while one is looked for, written or
     /// served, so a Match stored meanwhile never finds its image there and then has it deleted.
     sweeping: Arc<RwLock<()>>,
+    /// The settings Posters are resized by once kept, so a first visit finds them made.
+    /// `None` until startup hands them over (`Artwork::resizing_posters_ahead`), so tests that build
+    /// their own `Artwork` make copies on request only.
+    image_settings: Option<ImageSettings>,
 }
 
 /// Why an image couldn't be had.
@@ -126,6 +134,17 @@ impl Artwork {
             offered: Arc::default(),
             downloads: Arc::new(Semaphore::new(DOWNLOADS)),
             sweeping: Arc::default(),
+            image_settings: None,
+        }
+    }
+
+    /// This, resizing each Poster of a Library it downloads images for to the Poster grid's width
+    /// as `images` says, so a first visit to the Library finds them made.
+    #[must_use]
+    pub(crate) fn resizing_posters_ahead(self, images: ImageSettings) -> Self {
+        Self {
+            image_settings: Some(images),
+            ..self
         }
     }
 
@@ -238,12 +257,22 @@ impl Artwork {
     }
 
     /// Downloads, in the background, each image a Match in the Library `library` stores that
-    /// isn't kept yet, logging those that fail, which the Library's next scan tries again.
+    /// isn't kept yet, logging those that fail, which the Library's next scan tries again. Then
+    /// resizes each of its Posters, kept before or just now, to the Poster grid's width, where
+    /// resizing is on now and that copy isn't there.
     pub(crate) fn download_missing(&self, contents: Contents, library: i64) {
         let artwork = self.clone();
+        // Read before any download lands, so a change of settings after the scan has no part in it.
+        let poster_copy =
+            (self.image_settings.as_ref()).and_then(|images| Resize::to(POSTER_GRID_WIDTH, images));
         tokio::spawn(async move {
-            match contents.images(Some(library)).await {
-                Ok(images) => artwork.download(images).await,
+            let listed =
+                tokio::try_join!(contents.images(Some(library)), contents.posters(library));
+            match listed {
+                Ok((images, posters)) => {
+                    let posters = posters.into_iter().collect();
+                    artwork.download(images, &posters, poster_copy).await;
+                }
                 Err(err) => {
                     tracing::error!(library, "could not list the images to download: {err}");
                 }
@@ -251,22 +280,48 @@ impl Artwork {
         });
     }
 
-    /// Downloads each of `images`, a Plugin and a path, unless it is kept already, at most
-    /// [`DOWNLOADS`] at a time across the Server. Returns once the last has started.
-    async fn download(&self, images: Vec<(String, String)>) {
-        for (plugin, path) in images {
+    /// Downloads each of `images`, a Plugin and a path, unless it is kept already, and makes
+    /// `poster_copy` of each of `posters` among them, kept already or not, at most [`DOWNLOADS`]
+    /// at a time across the Server. Returns once the last has started.
+    async fn download(
+        &self,
+        images: Vec<(String, String)>,
+        posters: &HashSet<(String, String)>,
+        poster_copy: Option<Resize>,
+    ) {
+        for image in images {
             // The semaphore is never closed.
             let Ok(permit) = Arc::clone(&self.downloads).acquire_owned().await else {
                 return;
             };
-            tokio::spawn(self.clone().download_one(plugin, path, permit));
+            let copy = poster_copy.filter(|_| posters.contains(&image));
+            tokio::spawn(self.clone().download_one(image, copy, permit));
         }
     }
 
-    /// Keeps one image for [`Self::download`], logging a failure, then lets the next start.
-    async fn download_one(self, plugin: String, path: String, _permit: OwnedSemaphorePermit) {
-        if let Err(err) = self.keep(&PluginId::from(plugin), &path).await {
-            tracing::warn!(path, "could not download an image: {err}");
+    /// Keeps one image for [`Self::download`], logging a failure, and makes `copy` of it, then
+    /// lets the next start. The copy is made under the download's permit, so at most
+    /// [`DOWNLOADS`] of them wait on the resize thread ahead of a request's.
+    async fn download_one(
+        self,
+        (plugin, path): (String, String),
+        copy: Option<Resize>,
+        _permit: OwnedSemaphorePermit,
+    ) {
+        match self
+            .store_in(KEPT_DIR, &PluginId::from(plugin.clone()), &path)
+            .await
+        {
+            Err(err) => tracing::warn!(path, "could not download an image: {err}"),
+            // Held through the copy, as a request's resize holds it, so a sweep deleting the
+            // image meanwhile can't leave its copy and thumbhash behind.
+            Ok(_sweeping) => {
+                if let Some(copy) = copy {
+                    self.store
+                        .copy_ahead(&key(KEPT_DIR, &plugin, &path), copy)
+                        .await;
+                }
+            }
         }
     }
 
@@ -318,9 +373,12 @@ impl Artwork {
                 return Ok(sweeping);
             }
         }
-        let image = self.fetch(plugin, path).await?;
+        let mut bytes = self.fetch(plugin, path).await?.bytes;
+        if content_type(path) == SVG {
+            bytes = cleaned_svg(plugin, &bytes)?;
+        }
         let sweeping = self.sweeping.read().await;
-        self.store.write(&key, &image.bytes).await?;
+        self.store.write(&key, &bytes).await?;
         Ok(sweeping)
     }
 
@@ -488,6 +546,22 @@ async fn serve(
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
+}
+
+/// `svg` as [`clean_svg`] leaves it, if it is at most [`MAX_SVG_BYTES`] and an SVG document: a
+/// second guard beside the headers `ImageStore::serve` sends an SVG with. Logs why it refuses one,
+/// which then answers as an image the title source doesn't have.
+fn cleaned_svg(plugin: &PluginId, svg: &[u8]) -> Result<Vec<u8>, Error> {
+    let why = if svg.len() > MAX_SVG_BYTES {
+        format!("it is over {MAX_SVG_BYTES} bytes")
+    } else {
+        match clean_svg(svg) {
+            Ok(cleaned) => return Ok(cleaned),
+            Err(err) => format!("it isn't SVG: {err}"),
+        }
+    };
+    tracing::warn!(plugin = %plugin, "dropped an SVG image: {why}");
+    Err(Error::NotFound)
 }
 
 fn content_type(path: &str) -> &'static str {

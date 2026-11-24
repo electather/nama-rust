@@ -44,11 +44,13 @@ export function PersonalForm({ plugin, headingId }: { plugin: Personal; headingI
     <div key={forgotten} className="flex flex-col">
       {plugin.settings.map((setting) => (
         // Each row is drawn by the input its kind takes, so `?setting=` finds this box around it,
-        // which draws the hairline between rows in its place.
+        // which draws the hairline between rows in its place. The row is last in its box, so the
+        // box puts its bottom padding back, keeping a found row's highlight even, and gives it
+        // back in the row's place when it's the last box.
         <div
           key={setting.key}
           data-setting={personalSetting(plugin.pluginId, setting.key)}
-          className="not-first:border-t"
+          className="pb-3.5 not-first:border-t last:-mb-3.5"
         >
           {/* No choices: the Kernel refuses a CHOICE Personal setting (ADR 0046). */}
           <SettingInput setting={setting} error={errors[setting.key]} checksRequired />
@@ -68,7 +70,8 @@ export function PersonalForm({ plugin, headingId }: { plugin: Personal; headingI
     >
       {head}
       {rows}
-      <p role="alert" className="text-sm text-destructive empty:hidden">
+      {/* The last row gives back its bottom padding, so the message puts it back. */}
+      <p role="alert" className="pt-3.5 text-sm text-destructive empty:hidden">
         {errors["form"]}
       </p>
     </form>

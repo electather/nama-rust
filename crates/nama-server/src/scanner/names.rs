@@ -1,8 +1,8 @@
 //! Reading Movies and Episodes out of file paths, following the naming conventions Plex and
 //! Jellyfin share:
 //!
-//! - Movies: `Movie Name (Year)/Movie Name (Year).mkv`, or a bare `Movie Name (Year).mkv`,
-//!   optionally inside grouping folders.
+//! - Movies: `Movie Name (Year)/Movie Name (Year).mkv`, a bare `Movie Name (Year).mkv`, or
+//!   `Movie Name/Movie Name.mkv` with no year, optionally inside grouping folders.
 //! - Shows: `Show Name (Year)/Season 01/Show Name (Year) - S01E01.mkv`, optionally inside
 //!   grouping folders, with multi-episode files (`S01E01-E02`, `S01E01E02`, `S01E01-02`) and
 //!   specials in Season 0 (`S00E01`).
@@ -168,7 +168,7 @@ pub(super) fn edition(relative: &Path) -> Option<String> {
 }
 
 /// A Movie, named by the file if its name gives a year or an ID Hint, or else by the nearest
-/// folder that does.
+/// folder that does, or else by a title its file and folder both give.
 ///
 /// A file that names its Movie takes the ID Hints of the folder it's in only if the folder names
 /// the same Movie, so a hint on a grouping folder isn't pinned on everything in it. Of each kind
@@ -192,13 +192,24 @@ fn parse_movie(folders: &[String], stem: &str) -> Option<Item> {
         None => folders
             .iter()
             .rev()
-            .find_map(|folder| title_and_year(folder))?,
+            .find_map(|folder| title_and_year(folder))
+            .or_else(|| titled_alike(folders, stem))?,
     };
     Some(Item::Movie {
         hint: named.hint(),
         title: named.title,
         year: named.year,
     })
+}
+
+/// A Movie named by its folder's title alone, as in `Dune/Dune.mkv` or `Dune/Dune - 1080p.mkv`,
+/// only when the file's name agrees: a bare name such as `Movies/clip.mkv` could be anything.
+fn titled_alike(folders: &[String], stem: &str) -> Option<Named> {
+    let title = plain_title(folders.last()?)?;
+    let file = plain_title(stem)?.to_lowercase();
+    let folder = title.to_lowercase();
+    let agrees = file == folder || file.starts_with(&format!("{folder} - "));
+    agrees.then(|| Named::titled(title))
 }
 
 /// `folder`'s ID Hints, each replaced by `file`'s of the same namespace.
@@ -219,14 +230,8 @@ fn parse_episodes(relative: &Path, stem: &str) -> Option<Vec<Item>> {
     if SEASON_FOLDER.is_match(&show_folder) {
         return None;
     }
-    let show = title_and_year(&show_folder).or_else(|| {
-        let title = clean_title(&TAG.replace_all(&show_folder, ""));
-        (!title.is_empty()).then_some(Named {
-            title,
-            year: None,
-            hints: ExternalIds::default(),
-        })
-    })?;
+    let show =
+        title_and_year(&show_folder).or_else(|| plain_title(&show_folder).map(Named::titled))?;
     let hint = show.hint();
     let (season, episodes) = episode_numbers(stem)?;
     Some(
@@ -279,6 +284,14 @@ struct Named {
 }
 
 impl Named {
+    fn titled(title: String) -> Self {
+        Self {
+            title,
+            year: None,
+            hints: ExternalIds::default(),
+        }
+    }
+
     /// The ID Hint Matching goes by: TMDB's, the Built-in title source's, or else TVDB's, which
     /// Sonarr writes, or else IMDb's, or else the first of any other namespace.
     fn hint(&self) -> Option<ExternalId> {
@@ -361,6 +374,12 @@ pub(super) fn id_hint(namespace: &str, value: &str) -> Option<ExternalId> {
         _ if namespace == "edition" => None,
         _ => ExternalId::new(namespace, value).ok(),
     }
+}
+
+/// The title in `name` with its tags left out, or `None` if nothing else is left.
+fn plain_title(name: &str) -> Option<String> {
+    let title = clean_title(&TAG.replace_all(name, ""));
+    (!title.is_empty()).then_some(title)
 }
 
 fn clean_title(title: &str) -> String {

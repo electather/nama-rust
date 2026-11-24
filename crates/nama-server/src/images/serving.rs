@@ -141,6 +141,15 @@ impl ImageStore {
             .map_err(io::Error::other)
     }
 
+    /// Makes the copy `resize` asks for of the image at `key` in each format a client may ask
+    /// for, where it isn't there, so the first request for it is sent from the cache. Each waits
+    /// its turn on the one resize thread, as a request's does (ADR 0039).
+    pub(crate) async fn copy_ahead(&self, key: &[&str], resize: Resize) {
+        for format in [Format::Jpeg, Format::Jxl] {
+            self.ensure_copy(key, resize, format).await;
+        }
+    }
+
     /// The format of the copy of the image at `key` to send for `resize`, made now if it wasn't
     /// there: `asked`, or JPEG where `make_copy` puts one in its place. `None` to send the image
     /// as stored, which an image that can't be resized or isn't stored also is, after a warning
@@ -323,8 +332,8 @@ fn guard(response: &mut Response, content_type: &'static str) {
     );
     if content_type == SVG {
         // `sandbox` keeps a script from running when someone opens the SVG in its own tab, and
-        // `attachment` from it showing there at all: for a title source's SVG artwork, which
-        // isn't cleaned, they're the only guard (`AGENTS.md`).
+        // `attachment` from it showing there at all, should `clean_svg` ever miss one
+        // (`AGENTS.md`).
         headers.insert(
             header::CONTENT_SECURITY_POLICY,
             HeaderValue::from_static("default-src 'none'; style-src 'unsafe-inline'; sandbox"),

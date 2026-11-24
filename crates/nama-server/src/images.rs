@@ -102,7 +102,7 @@ pub const MAX_UPLOAD_BYTES: u64 = 20 * 1024 * 1024;
 /// The most pixels an uploaded image may have: 12 megapixels (ADR 0039).
 pub const MAX_PIXELS: u64 = 12_000_000;
 
-/// The most bytes a Plugin's logo, an SVG, may have: 64 KiB.
+/// The most bytes a Plugin's logo or a title source's SVG artwork may have: 64 KiB.
 pub const MAX_SVG_BYTES: usize = 64 * 1024;
 
 /// The content type of an SVG, which [`ImageStore::serve`] sends with headers that keep its
@@ -171,6 +171,16 @@ pub struct ImageStore {
 pub struct Resize {
     width: u32,
     cache_limit: u64,
+}
+
+impl Resize {
+    /// A copy `width` pixels wide, one of [`WIDTHS`], or `None` while `images` has resizing off.
+    pub(crate) fn to(width: u32, images: &ImageSettings) -> Option<Self> {
+        debug_assert!(WIDTHS.contains(&width), "{width} isn't on the width list");
+        images
+            .resizing()
+            .map(|cache_limit| Self { width, cache_limit })
+    }
 }
 
 /// What an image's URL asks for after the `?`.

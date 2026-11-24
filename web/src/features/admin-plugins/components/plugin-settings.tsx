@@ -70,8 +70,9 @@ export function PluginSettings({ plugin }: { plugin: PluginDetails }) {
     >
       {head}
       {rows}
-      <output className="text-sm empty:hidden">{testPassed(test.isSuccess)}</output>
-      <p role="alert" className="text-sm text-destructive empty:hidden">
+      {/* The last row gives back its bottom padding, so each message puts it back. */}
+      <output className="pt-3.5 text-sm empty:hidden">{testPassed(test.isSuccess)}</output>
+      <p role="alert" className="pt-3.5 text-sm text-destructive empty:hidden">
         {errors["form"]}
       </p>
     </form>

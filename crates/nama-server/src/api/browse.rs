@@ -261,11 +261,11 @@ impl BrowseService for BrowseServiceHandler {
     ) -> ServiceResult<ListEpisodesResponse> {
         let user = caller(&ctx)?.user.id;
         let request = request.to_owned_message();
-        let number = i64::from(request.season_number);
+        let season = request.season_number.map(i64::from);
         let show = required_id(request.show_id.into_option(), "show_id", "Show")?;
         let episodes = self
             .browse
-            .episodes(user, request.library_id, &show, number)
+            .episodes(user, request.library_id, &show, season)
             .await
             .map_err(refused(Fields {
                 title: "show_id",
