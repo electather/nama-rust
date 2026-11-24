@@ -222,8 +222,8 @@ export type CreateLibraryRequest = Message<"nama.v1.CreateLibraryRequest"> & {
 
   /**
    * The Library's `title_sources`, each a namespace of lowercase ASCII letters and digits, named
-   * once, that some Plugin keeps or looks titles up by; at least one must be kept by a source with
-   * `TitleSource.searches` (ADR 0045). Empty leaves `tmdb` alone.
+   * once, that some title source keeps or looks titles up by; at least one must be kept by a title
+   * source with `TitleSource.searches` (ADR 0045). Empty leaves `tmdb` alone.
    *
    * @generated from field: repeated string title_sources = 4;
    */
@@ -371,8 +371,8 @@ export type UpdateLibraryRequest = Message<"nama.v1.UpdateLibraryRequest"> & {
 
   /**
    * The new `title_sources`, under the same rules as `CreateLibraryRequest.title_sources`, except
-   * that one the Library already names passes even if no Plugin keeps it any more. Empty keeps the
-   * Library's.
+   * that one the Library already names passes, and counts as searching, even if no title source
+   * keeps it any more. Empty keeps the Library's.
    *
    * @generated from field: repeated string title_sources = 4;
    */

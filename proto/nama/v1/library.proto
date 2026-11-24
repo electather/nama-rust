@@ -172,8 +172,8 @@ message CreateLibraryRequest {
   // At least one absolute path to a directory the Server can read, each named once.
   repeated string folders = 3;
   // The Library's `title_sources`, each a namespace of lowercase ASCII letters and digits, named
-  // once, that some Plugin keeps or looks titles up by; at least one must be kept by a source with
-  // `TitleSource.searches` (ADR 0045). Empty leaves `tmdb` alone.
+  // once, that some title source keeps or looks titles up by; at least one must be kept by a title
+  // source with `TitleSource.searches` (ADR 0045). Empty leaves `tmdb` alone.
   repeated string title_sources = 4;
   // The Library's `recogniser_ids`, each the id of a Plugin with `EXTENSION_POINT_RECOGNISER`,
   // named once. Empty names none.
@@ -213,8 +213,8 @@ message UpdateLibraryRequest {
   // `CreateLibraryRequest.folders`.
   repeated string folders = 3;
   // The new `title_sources`, under the same rules as `CreateLibraryRequest.title_sources`, except
-  // that one the Library already names passes even if no Plugin keeps it any more. Empty keeps the
-  // Library's.
+  // that one the Library already names passes, and counts as searching, even if no title source
+  // keeps it any more. Empty keeps the Library's.
   repeated string title_sources = 4;
   // The new `recogniser_ids`, under the same rules as `CreateLibraryRequest.recogniser_ids`.
   // Unset keeps the Library's; set with no ids clears them.

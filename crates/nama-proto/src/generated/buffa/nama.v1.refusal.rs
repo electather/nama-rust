@@ -235,9 +235,10 @@ pub enum RefusalReason {
     /// (comma-separated).
     REFUSAL_REASON_TITLE_ID_MISSING = 72i32,
     /// `invalid_argument`: a Library's title sources name a namespace that isn't lowercase ASCII
-    /// letters and digits, name one twice, newly name one no Plugin keeps or looks titles up by, or
-    /// name none kept by a source with `TitleSource.searches` (ADR 0045). `field` is
-    /// `title_sources`. Params: `namespace`, absent when no named source searches.
+    /// letters and digits, name one twice, newly name one no title source keeps or looks titles up
+    /// by, or name none kept by a title source with `TitleSource.searches` (ADR 0045). One the
+    /// Library already names that no title source keeps any more counts as searching. `field` is
+    /// `title_sources`. Params: `namespace`, absent when none searches.
     REFUSAL_REASON_TITLE_SOURCES_INVALID = 73i32,
     /// `invalid_argument`: a Library's Recognisers name an id of no Plugin with
     /// `EXTENSION_POINT_RECOGNISER`, or name one twice. `field` is `recogniser_ids` or
