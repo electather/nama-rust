@@ -81,6 +81,7 @@ use super::{
     tracks::track_to_proto,
 };
 use crate::{
+    db,
     events::{EventBus, event},
     ffmpeg::{
         BurnIn, Ffmpeg, FromCut, Hardware, Keyframe, Remux, TextSubtitle, Transcode,
@@ -541,7 +542,7 @@ impl RunningPlans {
             hls,
             on_hardware,
             kept_to_remote_cap,
-            last_used: Mutex::new(Instant::now()),
+            last_used: Mutex::new(db::instant_now()),
             progress: Mutex::default(),
         };
         // `plans` before `stopped`, as in `stop_by_admin`, so a stop can't land between lifting it
@@ -572,7 +573,7 @@ impl RunningPlans {
         // stopped while it's served.
         let plans = lock(&self.inner.plans);
         let plan = (plans.get(&id)).filter(|plan| plan.playback.device_id == device)?;
-        *lock(&plan.last_used) = Instant::now();
+        *lock(&plan.last_used) = db::instant_now();
         Some(Arc::clone(plan))
     }
 
@@ -586,7 +587,7 @@ impl RunningPlans {
                 && plan.playback.device_id == device
         });
         direct_plays.fold(false, |any_kept, plan| {
-            *lock(&plan.last_used) = Instant::now();
+            *lock(&plan.last_used) = db::instant_now();
             any_kept || plan.kept_to_remote_cap
         })
     }
@@ -671,16 +672,6 @@ impl RunningPlans {
         };
         let mut stopped = lock(&self.inner.stopped);
         stopped.entry((version, device)).or_default().child_token()
-    }
-
-    /// Stops every plan not asked for in the last `unused_for`, and deletes its files.
-    async fn stop_unused(&self, unused_for: Duration) {
-        let unused: Vec<(u64, Arc<Plan>)> = lock(&self.inner.plans)
-            .extract_if(|_, plan| lock(&plan.last_used).elapsed() >= unused_for)
-            .collect();
-        for (_, plan) in unused {
-            self.stop(&plan).await;
-        }
     }
 
     /// Deletes each running plan's files from well behind or far ahead of playback, as

@@ -540,8 +540,11 @@ pub trait LibraryService: Send + Sync + 'static {
     /// source is malformed, repeated or known to no Plugin, or none of them searches; with
     /// `invalid_argument` and `REFUSAL_REASON_RECOGNISERS_INVALID` or
     /// `REFUSAL_REASON_SEGMENT_SOURCES_INVALID` if a Recogniser or Segment source id is repeated or
-    /// names no Plugin with that Extension Point; and with `already_exists` if a folder already
-    /// belongs to another Library.
+    /// names no Plugin with that Extension Point; with `already_exists` and
+    /// `REFUSAL_REASON_LIBRARY_NAME_TAKEN` if another Library has the name (ignoring case), or
+    /// `REFUSAL_REASON_FOLDER_TAKEN` if a folder already belongs to another Library; and with
+    /// `failed_precondition` and `REFUSAL_REASON_FOLDER_OVERLAPS` if a folder is inside, or holds, a
+    /// folder of another Library.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -612,7 +615,9 @@ pub trait LibraryService: Send + Sync + 'static {
         >,
     > + Send;
     /// Replaces a Library's name and folders. Its kind can't change. Fails like `CreateLibrary`,
-    /// or with `not_found` if there is no such Library.
+    /// except that a namespace the Library already names passes, and counts as searching, even if no
+    /// title source keeps it any more, so a Library whose Plugin went away stays editable. Also fails
+    /// with `not_found` if there is no such Library.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

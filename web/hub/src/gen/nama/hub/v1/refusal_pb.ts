@@ -173,8 +173,9 @@ export const RefusalReason = {
 
   /**
    * `invalid_argument`: a Server Address isn't an `http` or `https` URL of at most `maxLength`
-   * characters, the Server reported more than `maxLanAddresses` LAN addresses, or a public port
-   * over `maxPort`. Params: `maxLength`, `maxLanAddresses` and `maxPort`.
+   * characters, the Server reported more than `maxLanAddresses` LAN addresses, a public port over
+   * `maxPort`, or a Relay that isn't an `<ip>:<port>`. Params: `maxLength`, `maxLanAddresses` and
+   * `maxPort`.
    *
    * @generated from enum value: REFUSAL_REASON_SERVER_ADDRESS_INVALID = 15;
    */

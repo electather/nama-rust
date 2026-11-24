@@ -4,6 +4,7 @@ use std::{
     env,
     future::Future,
     io::{self, IsTerminal},
+    net::SocketAddr,
     path::{Path, PathBuf},
     process::ExitCode,
     sync::Arc,
@@ -22,6 +23,7 @@ use nama_server::{
     ffmpeg::Ffmpeg,
     plugin_settings::PluginSettings,
     plugins::{Registry, ShareThroughPlugins},
+    relay,
     users::{SetupCode, Users},
 };
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
@@ -56,6 +58,23 @@ struct Args {
 /// What to do instead of serving.
 #[derive(Debug, Subcommand)]
 enum Command {
+    #[command(flatten)]
+    Backups(BackupCommand),
+    /// Runs a Relay for Servers Linked to the Hub, which their clients reach them through when
+    /// they can't directly. It passes their TLS through without decrypting it.
+    Relay {
+        /// Where clients and Servers connect.
+        #[arg(long, env = "NAMA_RELAY_LISTEN", default_value = "0.0.0.0:443")]
+        listen: SocketAddr,
+        /// The Hub whose signed tokens Servers show, such as `https://hub.example`.
+        #[arg(long, env = "NAMA_HUB_URL")]
+        hub: String,
+    },
+}
+
+/// Writing or restoring a backup.
+#[derive(Debug, Subcommand)]
+enum BackupCommand {
     /// Writes a backup of the Server to a `.tar` file. Safe while it serves.
     Backup {
         /// Where to write the backup, replacing any file there.
@@ -78,7 +97,8 @@ async fn main() -> ExitCode {
     let to_admin = exporting.as_ref().is_some_and(Exporting::to_admin);
     let exit = match args.command {
         None => run(args.config.as_deref(), to_admin, &sharing).await,
-        Some(command) => back_up_or_restore(args.config, command).await,
+        Some(Command::Backups(command)) => back_up_or_restore(args.config, command).await,
+        Some(Command::Relay { listen, hub }) => run_relay(listen, &hub).await,
     };
     if let Some(exporting) = exporting {
         exporting.shutdown();
@@ -182,18 +202,48 @@ async fn run(
     ExitCode::SUCCESS
 }
 
+/// Runs a Relay on `listen`, for Servers showing tokens the Hub at `hub` signed, until it is told
+/// to stop.
+async fn run_relay(listen: SocketAddr, hub: &str) -> ExitCode {
+    let shutdown = match shutdown_signal() {
+        Ok(shutdown) => shutdown,
+        Err(err) => {
+            error!("could not listen for shutdown signals: {err}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let listener = match TcpListener::bind(listen).await {
+        Ok(listener) => listener,
+        Err(err) => {
+            error!("could not listen on {listen}: {err}");
+            return ExitCode::FAILURE;
+        }
+    };
+    info!(%listen, "relaying");
+    tokio::select! {
+        served = relay::serve(listener, hub) => {
+            if let Err(err) = served {
+                error!("the Relay failed: {err}");
+                return ExitCode::FAILURE;
+            }
+        }
+        () = shutdown => info!("shutting down"),
+    }
+    ExitCode::SUCCESS
+}
+
 /// Writes or restores a backup, as `command` says, of the Server `config_file` configures.
-async fn back_up_or_restore(config_file: Option<PathBuf>, command: Command) -> ExitCode {
+async fn back_up_or_restore(config_file: Option<PathBuf>, command: BackupCommand) -> ExitCode {
     let Some(config) = load_config(config_file.as_deref()) else {
         return ExitCode::FAILURE;
     };
     let (done, path, outcome) = match command {
-        Command::Backup { path } => (
+        BackupCommand::Backup { path } => (
             backup::write(&config.data_dir, &config.file, &path).await,
             path,
             "wrote the backup",
         ),
-        Command::Restore { path } => {
+        BackupCommand::Restore { path } => {
             let restored = backup::restore(&config.data_dir, &config.file, &path).await;
             if restored.is_ok() {
                 warn_if_data_dir_moved(&config.data_dir, &config.file);

@@ -8974,6 +8974,18 @@ pub struct SetServerAddressesRequest {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
     )]
     pub public_port: u32,
+    /// The Relay its Admin runs, which the Server dials out to for clients that can't reach it
+    /// directly (ADR 0057), as `<ip>:<port>`, such as `198.51.100.4:443`, or empty for none.
+    /// `relay.<own name>` points at its IP address, and `https://relay.<own name>:<port>` is a
+    /// Server Address after the direct ones.
+    ///
+    /// Field 4: `relay`
+    #[serde(
+        rename = "relay",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub relay: ::buffa::alloc::string::String,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -8984,6 +8996,7 @@ impl ::core::fmt::Debug for SetServerAddressesRequest {
             .field("url", &self.url)
             .field("lan_addresses", &self.lan_addresses)
             .field("public_port", &self.public_port)
+            .field("relay", &self.relay)
             .finish()
     }
 }
@@ -9023,6 +9036,9 @@ impl ::buffa::Message for SetServerAddressesRequest {
         if self.public_port != 0u32 {
             size += 1u64 + ::buffa::types::uint32_encoded_len(self.public_port) as u64;
         }
+        if !self.relay.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.relay) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -9041,6 +9057,9 @@ impl ::buffa::Message for SetServerAddressesRequest {
         }
         if self.public_port != 0u32 {
             ::buffa::types::put_uint32_field(3u32, self.public_port, buf);
+        }
+        if !self.relay.is_empty() {
+            ::buffa::types::put_string_field(4u32, &self.relay, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -9080,6 +9099,13 @@ impl ::buffa::Message for SetServerAddressesRequest {
                 )?;
                 self.public_port = ::buffa::types::decode_uint32(buf)?;
             }
+            4u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.relay, buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -9091,6 +9117,7 @@ impl ::buffa::Message for SetServerAddressesRequest {
         self.url.clear();
         self.lan_addresses.clear();
         self.public_port = 0u32;
+        self.relay.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -9150,8 +9177,8 @@ pub struct SetServerAddressesResponse {
     /// The Server's names (ADR 0104). Its own name comes first, such as
     /// `0193b6f2c4d87a1e9f3c5b2a1d0e4f67.namadirect.net`, which never changes and points at
     /// `public_address` while the Hub reaches it there. Then comes a name for each private IPv4
-    /// address among `lan_addresses`, such as `192-168-1-10.<own name>`, which points at that address.
-    /// Empty on a Hub that names no Server.
+    /// address among `lan_addresses`, such as `192-168-1-10.<own name>`, which points at that address,
+    /// and `relay.<own name>` with a `relay`. Empty on a Hub that names no Server.
     ///
     /// Field 3: `names`
     #[serde(
@@ -9545,6 +9572,233 @@ pub const __SET_CERTIFICATE_CHALLENGE_RESPONSE_JSON_ANY: ::buffa::type_registry:
     type_url: "type.googleapis.com/nama.hub.v1.SetCertificateChallengeResponse",
     to_json: ::buffa::type_registry::any_to_json::<SetCertificateChallengeResponse>,
     from_json: ::buffa::type_registry::any_from_json::<SetCertificateChallengeResponse>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct GetRelayTokenRequest {
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for GetRelayTokenRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("GetRelayTokenRequest").finish()
+    }
+}
+impl GetRelayTokenRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.GetRelayTokenRequest";
+}
+::buffa::impl_default_instance!(GetRelayTokenRequest);
+impl ::buffa::MessageName for GetRelayTokenRequest {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "GetRelayTokenRequest";
+    const FULL_NAME: &'static str = "nama.hub.v1.GetRelayTokenRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.GetRelayTokenRequest";
+}
+impl ::buffa::Message for GetRelayTokenRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for GetRelayTokenRequest {
+    const PROTO_FQN: &'static str = "nama.hub.v1.GetRelayTokenRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for GetRelayTokenRequest {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __GET_RELAY_TOKEN_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.hub.v1.GetRelayTokenRequest",
+    to_json: ::buffa::type_registry::any_to_json::<GetRelayTokenRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<GetRelayTokenRequest>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct GetRelayTokenResponse {
+    /// Field 1: `token`
+    #[serde(
+        rename = "token",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub token: ::buffa::alloc::string::String,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for GetRelayTokenResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("GetRelayTokenResponse").field("token", &self.token).finish()
+    }
+}
+impl GetRelayTokenResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.GetRelayTokenResponse";
+}
+::buffa::impl_default_instance!(GetRelayTokenResponse);
+impl ::buffa::MessageName for GetRelayTokenResponse {
+    const PACKAGE: &'static str = "nama.hub.v1";
+    const NAME: &'static str = "GetRelayTokenResponse";
+    const FULL_NAME: &'static str = "nama.hub.v1.GetRelayTokenResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.hub.v1.GetRelayTokenResponse";
+}
+impl ::buffa::Message for GetRelayTokenResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if !self.token.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.token) as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.token.is_empty() {
+            ::buffa::types::put_string_field(1u32, &self.token, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::types::merge_string(&mut self.token, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.token.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for GetRelayTokenResponse {
+    const PROTO_FQN: &'static str = "nama.hub.v1.GetRelayTokenResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for GetRelayTokenResponse {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __GET_RELAY_TOKEN_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.hub.v1.GetRelayTokenResponse",
+    to_json: ::buffa::type_registry::any_to_json::<GetRelayTokenResponse>,
+    from_json: ::buffa::type_registry::any_from_json::<GetRelayTokenResponse>,
     is_wkt: false,
 };
 #[derive(Clone, PartialEq, Default)]

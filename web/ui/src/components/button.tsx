@@ -30,6 +30,7 @@ const buttonVariants = cva(
       },
       size: {
         // An icon beside the words is 16px, as DESIGN.md's buttons have it, unless it sets its own size.
+        // `ghostHang` pulls back its `px-2.5`, and `ghostInset` indents by it.
         default: "h-8 px-2.5 [&_svg:not([class*='size-'])]:size-4",
         // The full-width actions of a sign-in card.
         lg: "h-9 px-2.5 [&_svg]:size-4",
@@ -74,4 +75,16 @@ function Button({
   );
 }
 
-export { Button, buttonVariants };
+/**
+ * Pulls a default-size ghost button back by its own padding, so its words line up with the text
+ * above. Must equal the `default` size's `px-2.5`.
+ */
+const ghostHang = "-ms-2.5";
+
+/**
+ * Indents text under a default-size ghost button by its padding, so the text lines up with
+ * the button's words. Must equal the `default` size's `px-2.5`.
+ */
+const ghostInset = "ms-2.5";
+
+export { Button, buttonVariants, ghostHang, ghostInset };

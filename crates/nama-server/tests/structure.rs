@@ -118,6 +118,7 @@ const ROWS: &[&[&str]] = &[
         "users",
         "server_addresses",
         "certificate",
+        "relay",
         "link",
     ],
     &["plugins"],

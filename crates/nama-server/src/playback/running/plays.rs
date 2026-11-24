@@ -5,7 +5,7 @@ use std::{sync::Arc, time::Duration};
 use nama_proto::nama::v1::{AdminStop, Playback};
 
 use super::{Plan, RunningPlans, lock};
-use crate::ffmpeg::Hardware;
+use crate::{db, ffmpeg::Hardware};
 
 /// How often [`RunningPlans::until_playing`] checks again.
 const PLAYING_CHECK: Duration = Duration::from_secs(1);
@@ -112,8 +112,10 @@ impl RunningPlans {
     }
 
     /// Keeps `progress`, which the Device `device` reported through the Version `version`, beside
-    /// the Device's newest plan of that Version, for [`Self::plays`]. An older one is most likely a
-    /// play left without a stop, such as a reloaded tab's, so it keeps what it last had.
+    /// the Device's newest plan of that Version, for [`Self::plays`], and marks it asked for now, which
+    /// keeps a paused player's plan another [`STOP_UNUSED_AFTER`](super::STOP_UNUSED_AFTER). An older
+    /// one is most likely a play left without a stop, such as a reloaded tab's, so it keeps what it
+    /// last had.
     pub(crate) fn report_progress(&self, version: i64, device: i64, progress: ReportedProgress) {
         let plans = lock(&self.inner.plans);
         let newest = (plans.values())
@@ -121,6 +123,7 @@ impl RunningPlans {
             .max_by_key(|plan| plan.playback.plan_id);
         if let Some(plan) = newest {
             *lock(&plan.progress) = Some(progress);
+            *lock(&plan.last_used) = db::instant_now();
         }
     }
 }

@@ -10,6 +10,7 @@ use std::{
     fmt::Display,
     future::Future,
     io::{self, Write as _},
+    net::SocketAddr,
     path::{Path, PathBuf},
     sync::{Arc, PoisonError, RwLock},
     time::Duration,
@@ -142,12 +143,18 @@ fn unusable(err: impl Display) -> Error {
 /// Every [`EVERY`], looks at the Server's names through `linking`. While the service has the
 /// Server Linked and named and `certificate` won't last another [`RENEW_BEFORE_SECS`] for its own
 /// name, it gets one from the ACME CA at `acme_directory`, waiting [`RETRY_AFTER_SECS`] after a
-/// failure. Meanwhile it keeps `server_url`'s default at the Server's public name. A certificate it
-/// gets is served with `certificate` and kept in `data_dir`. Runs until the task is aborted.
+/// failure. Meanwhile it keeps `server_url`'s default at the Server's public name, or the name of
+/// `relay`, the Relay it dials out to. A certificate it gets is served with `certificate` and kept
+/// in `data_dir`. Runs until the task is aborted.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "each is a separate input to renewing or to the default Server URL"
+)]
 pub(crate) fn keep_renewed(
     certificate: Certificate,
     linking: Linking,
     server_url: ServerUrl,
+    relay: Option<SocketAddr>,
     data_dir: PathBuf,
     acme_directory: String,
 ) -> JoinHandle<()> {
@@ -160,7 +167,8 @@ pub(crate) fn keep_renewed(
             ticks.tick().await;
             let now = db::now();
             let named = named(&linking).await;
-            let public = (named.as_ref()).and_then(|found| public_url(found, &certificate, now));
+            let public =
+                (named.as_ref()).and_then(|found| public_url(found, &certificate, now, relay));
             server_url.set_default(public);
             let Some(own) = named.as_ref().and_then(|found| found.names.first()) else {
                 continue;
@@ -188,13 +196,28 @@ async fn named(linking: &Linking) -> Option<Reachability> {
     }
 }
 
-/// The Server URL while the Admin sets none: `https://<own name>:<public port>`, while
-/// `certificate` is for its own name and the service reached its public port, which the name
-/// points at only then (ADR 0104).
-fn public_url(found: &Reachability, certificate: &Certificate, now: i64) -> Option<String> {
+/// The Server URL while the Admin sets none, while `certificate` is for its own name and the
+/// wildcard under it: `https://<own name>:<public port>` while the service reached its public
+/// port, which the name points at only then (ADR 0104), or else `https://relay.<own name>:<port>`
+/// on `relay`, the Relay it dials out to, once the service named it, so a Server behind CGNAT
+/// still has one (ADR 0057).
+fn public_url(
+    found: &Reachability,
+    certificate: &Certificate,
+    now: i64,
+    relay: Option<SocketAddr>,
+) -> Option<String> {
     let own = found.names.first()?;
-    let port = Url::parse(&found.address).ok()?.port_or_known_default()?;
-    (found.reachable && certificate.lasts(own, now, 0)).then(|| format!("https://{own}:{port}"))
+    if !certificate.lasts(own, now, 0) {
+        return None;
+    }
+    if found.reachable {
+        let port = Url::parse(&found.address).ok()?.port_or_known_default()?;
+        return Some(format!("https://{own}:{port}"));
+    }
+    let relay_name = format!("relay.{own}");
+    let relay = relay.filter(|_| found.names.contains(&relay_name))?;
+    Some(format!("https://{relay_name}:{}", relay.port()))
 }
 
 /// Gets a certificate for `own` and the wildcard under it from the ACME CA at `acme_directory`,

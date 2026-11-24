@@ -2838,6 +2838,7 @@ dependencies = [
  "rcgen",
  "regex",
  "reqwest",
+ "ring",
  "roxmltree",
  "rustix",
  "rustls",

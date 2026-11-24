@@ -7,7 +7,7 @@
 //! |--------------------------------------------------------------------|---------------|
 //! | Reads a page needs: the Server's Link, a User's Link               | [`PAGE_READ`] |
 //! | Changes at the service: starting or ending a Link, inviting a User, starting or finishing an Account sign-in, Unlinking a deleted User, publishing a certificate challenge | none |
-//! | Bulk transfers, and the Server Addresses tick                      | [`BULK`]      |
+//! | Bulk transfers, the Server Addresses tick, and a Relay token       | [`BULK`]      |
 //!
 //! A change isn't cut: cut mid-way, it could leave the service changed without the Server knowing,
 //! such as an invite sent for a User the Server then deletes. The Plugin's own limit on each call
@@ -231,6 +231,13 @@ impl Linking {
     /// Server's names, or remove it when empty (ADR 0057).
     pub(crate) async fn set_certificate_challenge(&self, values: Vec<String>) -> Result<(), Error> {
         self.ask(async |linker| linker.set_certificate_challenge(values.clone()).await)
+            .await
+    }
+
+    /// A token the service signed that proves to a Relay the Server holds its own name, so the
+    /// Relay routes TLS for it to the Server (ADR 0057).
+    pub(crate) async fn relay_token(&self) -> Result<String, Error> {
+        self.ask(async |linker| within_bulk(linker.relay_token()).await)
             .await
     }
 

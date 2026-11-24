@@ -51,6 +51,8 @@ pub(crate) struct Script {
     pub(crate) finishes: usize,
     /// The Server Addresses it was last told.
     pub(crate) addresses: Option<ServerAddresses>,
+    /// What it answers `relay_token`; `None` fails, as with the Server not Linked.
+    pub(crate) relay_token: Option<String>,
     /// The Users it was asked to Unlink, by id, in order.
     pub(crate) unlinked_users: Vec<i64>,
     /// Whether Unlinking a User fails, as with the service unreachable.
@@ -192,6 +194,11 @@ impl ServerLinker for Scripted {
     fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
         self.script().addresses = Some(addresses);
         Box::pin(future::ready(Ok(())))
+    }
+
+    fn relay_token(&self) -> BoxFuture<'_, Result<String, PluginError>> {
+        let token = (self.script().relay_token.clone()).ok_or_else(|| "not Linked".into());
+        Box::pin(future::ready(token))
     }
 
     /// Pulling is `tests/sync.rs`'s.

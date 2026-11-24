@@ -1,3 +1,4 @@
+import { ghostHang } from "nama-ui/components/button";
 import { useId } from "react";
 
 import { DeleteLibrary } from "@/features/admin-libraries/components/delete-library";
@@ -24,8 +25,7 @@ export function LibraryDetail({ listed }: { listed: Library }) {
       <LibraryScan library={library} foldersSaved={foldersSaved} />
       <LibraryBackdrop library={library} />
       <LibraryFields values={values} onEdit={edit} />
-      {/* Pulled back by the button's own padding, so its word lines up with the fields'. */}
-      <div className="-ms-2.5">
+      <div className={ghostHang}>
         <DeleteLibrary library={library} />
       </div>
     </div>

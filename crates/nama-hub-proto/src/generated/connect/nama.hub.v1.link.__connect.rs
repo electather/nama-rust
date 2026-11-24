@@ -236,6 +236,14 @@ pub type OwnedSetCertificateChallengeResponseView = ::buffa::view::OwnedView<
         'static,
     >,
 >;
+///Shorthand for `OwnedView<GetRelayTokenRequestView<'static>>`.
+pub type OwnedGetRelayTokenRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::GetRelayTokenRequestView<'static>,
+>;
+///Shorthand for `OwnedView<GetRelayTokenResponseView<'static>>`.
+pub type OwnedGetRelayTokenResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::GetRelayTokenResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<RecordViewingEventsRequestView<'static>>`.
 pub type OwnedRecordViewingEventsRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::RecordViewingEventsRequestView<
@@ -1198,6 +1206,40 @@ for ::buffa::view::OwnedView<
     crate::messages::nama::hub::v1::__buffa::view::SetCertificateChallengeResponseView<
         'static,
     >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::GetRelayTokenResponse>
+for crate::messages::nama::hub::v1::__buffa::view::GetRelayTokenResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::hub::v1::GetRelayTokenResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::hub::v1::__buffa::view::GetRelayTokenResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -3464,6 +3506,12 @@ pub const LINKED_SERVER_SERVICE_SET_CERTIFICATE_CHALLENGE_SPEC: ::connectrpc::Sp
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `GetRelayToken` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const LINKED_SERVER_SERVICE_GET_RELAY_TOKEN_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.hub.v1.LinkedServerService/GetRelayToken",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::NoSideEffects);
 /// Static [`Spec`](::connectrpc::Spec) for the `RecordViewingEvents` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const LINKED_SERVER_SERVICE_RECORD_VIEWING_EVENTS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.hub.v1.LinkedServerService/RecordViewingEvents",
@@ -3894,7 +3942,8 @@ pub trait LinkedServerService: Send + Sync + 'static {
     /// whenever they change, and every half hour, since only then does the Hub check from outside
     /// whether its `public_port` can be reached. Also names the Server after them (ADR 0104). Fails
     /// with `REFUSAL_REASON_SERVER_ADDRESS_INVALID` for one that isn't an `http` or `https` URL, for
-    /// too many, or for a port over 65535, and fails while the Hub can't write the Server's names.
+    /// too many, for a port over 65535, or for a `relay` that isn't an `<ip>:<port>`, and fails while
+    /// the Hub can't write the Server's names.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -3942,6 +3991,32 @@ pub trait LinkedServerService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::hub::v1::SetCertificateChallengeResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// A token that proves to a Relay the calling Server holds its own name, so the Relay routes TLS
+    /// whose SNI is that name, or one under it, to the Server (ADR 0057): a JWT signed as
+    /// `PollServerLinkResponse`'s is, whose `sub` is the Server's own name and `aud` is `relay`, and
+    /// which expires 5 minutes after it was made. Fails on a Hub that names no Server.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn get_relay_token<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::hub::v1::GetRelayTokenRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::hub::v1::GetRelayTokenResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -4519,6 +4594,35 @@ impl<S: LinkedServerService> LinkedServerServiceExt for S {
                 },
             )
             .with_spec(LINKED_SERVER_SERVICE_SET_CERTIFICATE_CHALLENGE_SPEC)
+            .route_view_idempotent(
+                LINKED_SERVER_SERVICE_SERVICE_NAME,
+                "GetRelayToken",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::hub::v1::__buffa::view::GetRelayTokenRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::hub::v1::GetRelayTokenRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.get_relay_token(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::hub::v1::GetRelayTokenResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(LINKED_SERVER_SERVICE_GET_RELAY_TOKEN_SPEC)
             .route_view(
                 LINKED_SERVER_SERVICE_SERVICE_NAME,
                 "RecordViewingEvents",
@@ -4756,6 +4860,12 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(LINKED_SERVER_SERVICE_SET_CERTIFICATE_CHALLENGE_SPEC),
+                )
+            }
+            "GetRelayToken" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(true)
+                        .with_spec(LINKED_SERVER_SERVICE_GET_RELAY_TOKEN_SPEC),
                 )
             }
             "RecordViewingEvents" => {
@@ -5142,6 +5252,28 @@ impl<T: LinkedServerService> ::connectrpc::Dispatcher for LinkedServerServiceSer
                         .await?
                         .encode::<
                             crate::messages::nama::hub::v1::SetCertificateChallengeResponse,
+                        >(format)
+                })
+            }
+            "GetRelayToken" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::hub::v1::GetRelayTokenRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::hub::v1::__buffa::view::GetRelayTokenRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::hub::v1::GetRelayTokenRequest,
+                    >::from_parts(&req, &body);
+                    svc.get_relay_token(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::hub::v1::GetRelayTokenResponse,
                         >(format)
                 })
             }
@@ -6053,6 +6185,51 @@ where
                 &self.transport,
                 &self.config,
                 LINKED_SERVER_SERVICE_SET_CERTIFICATE_CHALLENGE_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetRelayToken RPC. Sends a request to /nama.hub.v1.LinkedServerService/GetRelayToken.
+    pub async fn get_relay_token(
+        &self,
+        request: crate::messages::nama::hub::v1::GetRelayTokenRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::GetRelayTokenResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_relay_token_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the GetRelayToken RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_relay_token_with_options(
+        &self,
+        request: crate::messages::nama::hub::v1::GetRelayTokenRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::hub::v1::__buffa::view::GetRelayTokenResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                LINKED_SERVER_SERVICE_GET_RELAY_TOKEN_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

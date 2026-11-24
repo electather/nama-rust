@@ -15,7 +15,7 @@ fn a_show_and_a_movie_that_share_an_id_each_get_only_their_own_images() {
     };
     let poster = LocalRole::Title(Role::Poster);
 
-    let urls = LocalImageUrls::filed(vec![
+    let urls = LocalImageUrls::filed(&[
         image(poster, None, "movie"),
         image(poster, Some(1), "show"),
         image(LocalRole::SeasonPoster, Some(1), "season"),

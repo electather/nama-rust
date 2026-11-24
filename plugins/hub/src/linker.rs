@@ -483,6 +483,13 @@ impl ServerLinker for Linker {
         })
     }
 
+    fn relay_token(&self) -> BoxFuture<'_, Result<String, PluginError>> {
+        Box::pin(async move {
+            let token = self.call(LinkedHub::relay_token);
+            Ok(token.await?.ok_or(accounts::NOT_LINKED)?)
+        })
+    }
+
     fn watch_states(
         &self,
         user_id: i64,

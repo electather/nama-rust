@@ -9,7 +9,7 @@ use std::{
     collections::HashSet,
     panic::AssertUnwindSafe,
     path::{Path, PathBuf},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 #[cfg(feature = "testing")]
@@ -548,9 +548,10 @@ pub(crate) fn highest_migration_known() -> i64 {
 #[cfg(feature = "testing")]
 static OFFSET_MS: AtomicI64 = AtomicI64::new(0);
 
-/// Moves the Server's clock, which [`now`], [`now_ms`] and so a Plugin's `nama.now` read, ahead by
-/// `by`. Testing only. Process-wide, so `TestServer` tests sharing a process take turns, each
-/// starting on the real clock: see "One clock" in `crates/nama-server/AGENTS.md`.
+/// Moves the Server's clock, which [`now`], [`now_ms`], [`instant_now`] and so a Plugin's
+/// `nama.now` read, ahead by `by`. Testing only. Process-wide, so `TestServer` tests sharing a
+/// process take turns, each starting on the real clock: see "One clock" in
+/// `crates/nama-server/AGENTS.md`.
 #[cfg(feature = "testing")]
 pub fn advance_clock(by: Duration) {
     let by = i64::try_from(by.as_millis()).unwrap_or(i64::MAX);
@@ -588,6 +589,12 @@ pub(crate) fn now_ms() -> i64 {
             i64::try_from(since.as_millis()).unwrap_or(i64::MAX)
         })
         .saturating_add(offset_ms())
+}
+
+/// Now, for timing how long ago something happened: monotonic, unlike [`now_ms`], so a change to
+/// the system's time can't stretch or shrink it, but moved by `advance_clock` too.
+pub(crate) fn instant_now() -> Instant {
+    Instant::now() + Duration::from_millis(u64::try_from(offset_ms()).unwrap_or_default())
 }
 
 /// Why the data directory's filesystem is a poor home for SQLite's WAL, which needs working

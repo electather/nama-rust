@@ -9,11 +9,11 @@ use nama_forwarded::RequestSource;
 use nama_hub_proto::nama::hub::v1::{
     self as proto, AcceptUserInviteRequest, AcceptUserInviteResponse, ApproveServerLinkRequest,
     ApproveServerLinkResponse, ApproveServerSignInRequest, ApproveServerSignInResponse,
-    ApproveUserLinkRequest, ApproveUserLinkResponse, GetServerSignInRequest,
-    GetServerSignInResponse, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest,
-    InviteUserResponse, LinkService, LinkedServerService, ListLinkedServersRequest,
-    ListLinkedServersResponse, ListLinkedUsersRequest, ListLinkedUsersResponse,
-    ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
+    ApproveUserLinkRequest, ApproveUserLinkResponse, GetRelayTokenRequest, GetRelayTokenResponse,
+    GetServerSignInRequest, GetServerSignInResponse, GetUserLinkRequest, GetUserLinkResponse,
+    InviteUserRequest, InviteUserResponse, LinkService, LinkedServerService,
+    ListLinkedServersRequest, ListLinkedServersResponse, ListLinkedUsersRequest,
+    ListLinkedUsersResponse, ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
     ListRecommendedTitlesRequest, ListRecommendedTitlesResponse, ListSimilarTitlesRequest,
     ListSimilarTitlesResponse, ListTrendingTitlesRequest, ListTrendingTitlesResponse,
     ListUserInvitesRequest, ListUserInvitesResponse, PollServerLinkRequest, PollServerLinkResponse,
@@ -38,7 +38,7 @@ use crate::{
     links::{
         self, ADDRESS_LENGTH, CODE_LIFETIME_MINS, InviteId, LinkId, LinkedServer, Links,
         ListedInvite, ListedServer, ListedUser, MAX_CHALLENGE_VALUES, MAX_LAN_ADDRESSES,
-        POLL_INTERVAL_SECS, Polled, SignInId,
+        POLL_INTERVAL_SECS, Polled, ReportedAddresses, SignInId,
     },
     recommendations::Recommendations,
     sync::{TrackPreferences, WatchStates, Watchlists},
@@ -533,10 +533,15 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .iter()
             .map(|&address| address.to_owned())
             .collect();
-        let public = public_address(&ctx, request.public_port)?;
+        let reported = ReportedAddresses {
+            url: request.url,
+            lan_addresses: &lan_addresses,
+            public: public_address(&ctx, request.public_port)?,
+            relay: parse_relay(request.relay)?,
+        };
         let checked = self
             .links
-            .set_addresses(linked_server(&ctx)?, request.url, &lan_addresses, public)
+            .set_addresses(linked_server(&ctx)?, reported)
             .await
             .map_err(refused)?;
         let probed = checked.public.unwrap_or_default();
@@ -558,6 +563,22 @@ impl LinkedServerService for LinkedServerServiceHandler {
             .await
             .map_err(refused)?;
         Response::ok(SetCertificateChallengeResponse::default())
+    }
+
+    #[expect(
+        clippy::unused_async_trait_impl,
+        reason = "the token is signed in memory, but the generated trait's methods are async"
+    )]
+    async fn get_relay_token(
+        &self,
+        ctx: RequestContext,
+        _request: ServiceRequest<'_, GetRelayTokenRequest>,
+    ) -> ServiceResult<GetRelayTokenResponse> {
+        let token = (self.links.relay_token(linked_server(&ctx)?)).map_err(refused)?;
+        Response::ok(GetRelayTokenResponse {
+            token,
+            ..Default::default()
+        })
     }
 
     async fn record_viewing_events(
@@ -617,6 +638,22 @@ fn public_address(ctx: &RequestContext, port: u32) -> Result<Option<SocketAddr>,
         .get::<RequestSource>()
         .ok_or_else(|| hub_failed(&"a request came without its peer's address"))?;
     Ok(Some(SocketAddr::new(source.client_ip.to_canonical(), port)))
+}
+
+/// The Relay `relay` names, as `<ip>:<port>`, or `None` for empty. One no client could connect
+/// to, such as on port 0 or a loopback address, is refused, since the Hub names it and offers it.
+fn parse_relay(relay: &str) -> Result<Option<SocketAddr>, ConnectError> {
+    if relay.is_empty() {
+        return Ok(None);
+    }
+    let relay: SocketAddr = relay
+        .parse()
+        .map_err(|_not_an_address| refused(links::Error::AddressInvalid))?;
+    let ip = relay.ip().to_canonical();
+    if relay.port() == 0 || ip.is_unspecified() || ip.is_loopback() || ip.is_multicast() {
+        return Err(refused(links::Error::AddressInvalid));
+    }
+    Ok(Some(relay))
 }
 
 /// The invite `id` names. One that isn't a UUID names none.
