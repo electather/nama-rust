@@ -8,6 +8,8 @@ mod browsing;
 mod burn_in;
 #[path = "playback/chapters.rs"]
 mod chapters;
+// The fake ffprobe is a shell script.
+#[cfg(unix)]
 #[path = "playback/direct_play.rs"]
 mod direct_play;
 #[path = "playback/failing_ffmpeg.rs"]
