@@ -30,7 +30,7 @@ use crate::{
 };
 
 use super::{
-    browse::{Fields, headshot_url, refused},
+    browse::{Fields, headshot_url, refused, seen_by},
     caller, database_failed, external_id_to_proto, proto_number, refuse,
     requests::{searched_show_to_proto, searched_to_proto},
     title_kind_from_proto,
@@ -69,9 +69,13 @@ impl SearchService for SearchServiceHandler {
             .ok()
             .filter(|&limit| limit > 0)
             .map_or(DEFAULT_LIMIT, |limit| limit.min(MAX_LIMIT));
-        let found = self.browse.search(query, kind, limit).await;
+        let seen = Self {
+            browse: seen_by(&self.browse, viewer.id).await?,
+            ..self.clone()
+        };
+        let found = seen.browse.search(query, kind, limit).await;
         let found = found.map_err(database_failed)?;
-        let people = self.browse.people_named(query, kind).await;
+        let people = seen.browse.people_named(query, kind).await;
         let people = people.map_err(refused(Fields::NONE))?;
         let images = self.images.shown().await.map_err(database_failed)?;
         let sent = Sent {
@@ -100,8 +104,7 @@ impl SearchService for SearchServiceHandler {
         // source's without waiting for the Search sources asked beside it. The work is polled with
         // the stream rather than spawned, so a client that leaves stops the sources being asked.
         let (parts, received) = mpsc::unbounded_channel();
-        let handler = self.clone();
-        let sending = async move { handler.after_library(searched, sent, images, &parts).await };
+        let sending = async move { seen.after_library(searched, sent, images, &parts).await };
         let sending =
             stream::once(sending.instrument(Span::current())).filter_map(|()| future::ready(None));
         let received = stream::unfold(received, |mut received| async move {

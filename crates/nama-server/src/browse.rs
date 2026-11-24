@@ -5,6 +5,7 @@
 //! `src/library/AGENTS.md`), and attaches the User's [`WatchState`]s and, only to the Movies and
 //! Episodes it answers with, their Versions' Tracks.
 //! It writes only Watch State, for what a reported Version or a marked title stands for (ADR 0013).
+//! A handler reads through [`Browse::seen_by`], which keeps to the Libraries its User sees.
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -23,6 +24,7 @@ use crate::{
     playback::{Probe, StoredTracks, Track},
     plugins::ExtensionPoints,
     scanner::read_only_folder,
+    users::{LibraryAccess, library_access},
 };
 
 mod box_sets;
@@ -92,6 +94,9 @@ pub(crate) struct Browse {
     contents: Contents,
     tracks: StoredTracks,
     watch_states: WatchStates,
+    db: Arc<Database>,
+    /// The Libraries it reads titles from: every one until [`Self::seen_by`] keeps to a User's.
+    seen: LibraryAccess,
 }
 
 impl Browse {
@@ -101,8 +106,19 @@ impl Browse {
             libraries: Libraries::new(Arc::clone(&db)),
             contents: Contents::new(Arc::clone(&db)),
             tracks: StoredTracks::new(Arc::clone(&db)),
-            watch_states: WatchStates::new(db, points),
+            watch_states: WatchStates::new(Arc::clone(&db), points),
+            db,
+            seen: LibraryAccess::All,
         }
+    }
+
+    /// This Browse as the User `user` sees it: a Library they don't see is one there isn't, and
+    /// its titles are on no Library.
+    pub(crate) async fn seen_by(&self, user: i64) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            seen: library_access(&self.db, user).await?,
+            ..self.clone()
+        })
     }
 
     /// A page of the Movies of the Movies Library `library` that `listing` keeps, in its order,
@@ -234,15 +250,16 @@ impl Browse {
             .collect())
     }
 
-    /// The best `limit` Movies, Shows and Episodes of every Library that a search for `query`
-    /// finds, of `kind` only if it's set: see [`Contents::search`].
+    /// The best `limit` Movies, Shows and Episodes of the Libraries it sees that a search for
+    /// `query` finds, of `kind` only if it's set: see [`Contents::search`].
     pub(crate) async fn search(
         &self,
         query: &str,
         kind: Option<TitleKind>,
         limit: usize,
     ) -> Result<Vec<Found>, sqlx::Error> {
-        self.contents.search(query, kind, limit).await
+        let seen = |library| self.seen.sees(library);
+        self.contents.search(query, kind, limit, seen).await
     }
 
     /// The `asked` page of the Unmatched Items of the Library `library`, the one found most
@@ -357,9 +374,8 @@ impl Browse {
         self.tracks.of(&files).await
     }
 
-    /// The titles of `kind` that `ids` name and a Library has, in the order of `ids`, each once,
-    /// in the oldest Library that has it, by any id it shares with one of `ids`. Every Library
-    /// counts, since every User may browse each one.
+    /// The titles of `kind` that `ids` name and a Library it sees has, in the order of `ids`, each
+    /// once, in the oldest such Library that has it, by any id it shares with one of `ids`.
     pub(crate) async fn in_libraries(
         &self,
         kind: TitleKind,
@@ -368,7 +384,7 @@ impl Browse {
         if ids.is_empty() {
             return Ok(Vec::new());
         }
-        let libraries = self.libraries.list().await.map_err(finding_failed)?;
+        let libraries = self.libraries().await?;
         let kind = match kind {
             TitleKind::Movie => LibraryKind::Movies,
             TitleKind::Show => LibraryKind::Shows,
@@ -376,12 +392,18 @@ impl Browse {
         Ok(OnServer::in_order_of(&self.contents, &libraries, kind, ids).await?)
     }
 
-    /// Every Library, oldest first: every User may browse each one.
+    /// Every Library it sees, oldest first.
     pub(crate) async fn libraries(&self) -> Result<Vec<Library>, Error> {
-        self.libraries.list().await.map_err(finding_failed)
+        let mut libraries = self.libraries.list().await.map_err(finding_failed)?;
+        libraries.retain(|library| self.seen.sees(library.id));
+        Ok(libraries)
     }
 
+    /// The Library `library`, [`NotFound::NoSuchLibrary`] if it doesn't see it.
     pub(super) async fn library(&self, library: i64) -> Result<Library, Error> {
+        if !self.seen.sees(library) {
+            return Err(NotFound::NoSuchLibrary(library).into());
+        }
         self.libraries.get(library).await.map_err(finding_failed)
     }
 }

@@ -3,6 +3,7 @@
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
+    sync::Arc,
 };
 
 use buffa::EnumValue;
@@ -19,6 +20,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
+    db::Database,
     library::{
         Contents, FolderProblem, ImageSources, LastScan, Libraries, Library, LibraryError,
         LibraryKind, NewestBackdrop, Order, ShownImages, TitleSources, TitleTarget as Target,
@@ -26,6 +28,7 @@ use crate::{
     plugin_settings::PluginSettings,
     plugins::ExtensionPoints,
     scanner::{self, Deleted, Scanner, TakenAlong, ToDelete},
+    users::library_access,
 };
 
 use super::{
@@ -36,8 +39,8 @@ use super::{
 };
 
 /// `nama.v1.LibraryService`: managing the Server's Libraries. Needs `PERMISSION_MANAGE_LIBRARIES`,
-/// which [`require_access`](super::require_access) enforces, except listing them, which any
-/// signed-in User may do to browse, and deleting media, which needs `PERMISSION_DELETE_MEDIA`.
+/// which [`require_access`](super::require_access) enforces, except listing those they see, which
+/// any signed-in User may do to browse, and deleting media, which needs `PERMISSION_DELETE_MEDIA`.
 pub(super) struct LibraryServiceHandler {
     /// Only reads (see AGENTS.md, "One path for Library changes").
     pub(super) libraries: Libraries,
@@ -51,6 +54,8 @@ pub(super) struct LibraryServiceHandler {
     pub(super) plugins: ExtensionPoints,
     /// Says what each title source keeps.
     pub(super) plugin_settings: PluginSettings,
+    /// Says which Libraries the caller sees.
+    pub(super) db: Arc<Database>,
 }
 
 /// What each Library is shown by: see [`ShownImages::of_library`].
@@ -107,11 +112,12 @@ impl LibraryService for LibraryServiceHandler {
     ) -> ServiceResult<ListLibrariesResponse> {
         // Disk paths are for those who manage Libraries (see AGENTS.md), and so is Library upkeep
         // such as the last Scan, as #1125 decided.
-        let manages_libraries = caller(&ctx)?
-            .user
-            .permissions
-            .allow(Permission::ManageLibraries);
-        let libraries = self.libraries.list().await?;
+        let user = &caller(&ctx)?.user;
+        let manages_libraries = user.permissions.allow(Permission::ManageLibraries);
+        let seen = library_access(&self.db, user.id).await;
+        let seen = seen.map_err(database_failed)?;
+        let mut libraries = self.libraries.list().await?;
+        libraries.retain(|library| seen.sees(library.id));
         let backdrops = self.backdrops().await?;
         Response::ok(ListLibrariesResponse {
             libraries: libraries

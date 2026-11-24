@@ -22,7 +22,7 @@ use crate::{
     db::Database,
     ffmpeg::Ffmpeg,
     library::Contents,
-    users::{Caller, remote_cap},
+    users::{Caller, library_access, remote_cap},
 };
 
 pub(super) fn direct_play_url(version: i64) -> String {
@@ -30,7 +30,7 @@ pub(super) fn direct_play_url(version: i64) -> String {
 }
 
 /// Serves `GET /media/versions/<id>` with the file of the Version `id` in `db`, and 404 if
-/// there is none, marking the caller's Direct Plays of it in `running` asked for as the request
+/// there is none or the caller doesn't see its Library, marking the caller's Direct Plays of it in `running` asked for as the request
 /// arrives and with each part of the file sent, and the subtitles plans offer, found in `db`, read
 /// with `ffmpeg`, a Version's text ones in a background pass on `reads`, and cached in `cache`.
 /// A caller off the local network whose User has a cap for remote playback gets 403 unless their
@@ -69,6 +69,16 @@ async fn serve(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
+    if let Some(user) = user {
+        match sees_version(&db, user, id).await {
+            Ok(true) => {}
+            Ok(false) => return StatusCode::NOT_FOUND.into_response(),
+            Err(err) => {
+                tracing::error!("could not look up which Libraries a User sees: {err}");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        }
+    }
     // A plan made off the local network applied the cap where it could, so one running lets the
     // file through, even past the cap for a picture of unknown size (ADR 0031, #2134). One made
     // on the local network never applied the cap (#2130).
@@ -106,6 +116,22 @@ async fn serve(
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
+}
+
+/// Whether the User `user` sees the Library of the Version `version`, as they must to play it.
+/// One there is no such Version of is for the caller to refuse.
+pub(super) async fn sees_version(
+    db: &Arc<Database>,
+    user: i64,
+    version: i64,
+) -> Result<bool, sqlx::Error> {
+    let library = Contents::new(Arc::clone(db))
+        .library_of_version(version)
+        .await?;
+    let Some(library) = library else {
+        return Ok(true);
+    };
+    Ok(library_access(db, user).await?.sees(library))
 }
 
 /// Whether the User `user`, asking from `client`, is off the local network with a cap for remote

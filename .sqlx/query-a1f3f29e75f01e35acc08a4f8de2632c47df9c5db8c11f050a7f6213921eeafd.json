@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT library_id FROM user_libraries WHERE user_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "library_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "user_libraries",
+            "name": "library_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a1f3f29e75f01e35acc08a4f8de2632c47df9c5db8c11f050a7f6213921eeafd"
+}

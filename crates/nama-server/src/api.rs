@@ -218,6 +218,7 @@ pub(crate) fn router(
             title_sources: TitleSources::new(plugins.clone()),
             plugins: plugins.clone(),
             plugin_settings: plugin_settings.clone(),
+            db: Arc::clone(&db),
         }))
         .add_service(Arc::new(events::EventServiceHandler {
             events,

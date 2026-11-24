@@ -14,7 +14,7 @@ use crate::{
     },
     playback::{Probe, StoredTracks, Track, TrackKind, Tracks},
     plugins::{ExtensionPoints, Registry},
-    users::{Permissions, User, Users},
+    users::{LibraryAccess, Permissions, User, Users},
 };
 
 const ALIEN_TMDB_ID: i64 = 348;
@@ -358,14 +358,13 @@ async fn continue_watching_reads_no_library_for_a_user_who_started_nothing() {
     let browse = Browse {
         libraries: Libraries::new(Arc::clone(&unreadable)),
         contents: Contents::new(Arc::clone(&unreadable)),
-        tracks: StoredTracks::new(unreadable),
+        tracks: StoredTracks::new(Arc::clone(&unreadable)),
         watch_states: WatchStates::new(db, ExtensionPoints::default()),
+        db: unreadable,
+        seen: LibraryAccess::All,
     };
 
-    let (started, _) = browse
-        .continue_watching(1, &PageRequest::default())
-        .await
-        .unwrap();
+    let (started, _) = (browse.continue_watching(1, &PageRequest::default()).await).unwrap();
 
     assert!(started.is_empty(), "{started:?}");
 }

@@ -28,6 +28,17 @@ pub(crate) enum Found {
     Episode(FoundEpisode),
 }
 
+impl Found {
+    /// The Library it was found in.
+    fn library(&self) -> i64 {
+        match self {
+            Self::Movie(FoundMovie { library, .. })
+            | Self::Show(FoundShow { library, .. })
+            | Self::Episode(FoundEpisode { library, .. }) => *library,
+        }
+    }
+}
+
 /// A Movie a search found, with the metadata the Match of its best-fitting Item stores.
 #[derive(Debug, Clone)]
 pub(crate) struct FoundMovie {
@@ -77,8 +88,8 @@ pub(crate) struct FoundEpisode {
 }
 
 impl Contents {
-    /// The best `limit` Matched Movies, Shows and Episodes of every Library whose titles have
-    /// each of the words of `query`, ignoring case, accents and the marks that join words, of
+    /// The best `limit` Matched Movies, Shows and Episodes of each Library `seen` keeps whose
+    /// titles have each of the words of `query`, ignoring case, accents and the marks that join words, of
     /// `kind` only if it's set, a Show's with its Episodes. A year after other words keeps only
     /// those of that year, or with it in their title. Ordered as ADR 0080 says: Movies and Shows
     /// before Episodes, then by [`Fit`], then the year asked for, FTS5's rank, and the shorter
@@ -89,6 +100,7 @@ impl Contents {
         query: &str,
         kind: Option<TitleKind>,
         limit: usize,
+        seen: impl Fn(i64) -> bool,
     ) -> Result<Vec<Found>, sqlx::Error> {
         let Some(words) = SearchWords::of(query) else {
             return Ok(Vec::new());
@@ -105,6 +117,7 @@ impl Contents {
                 found.extend(ranked(corrected_rows, &corrected));
             }
         }
+        found.retain(|found| seen(found.library()));
         found.truncate(limit);
         Ok(found)
     }

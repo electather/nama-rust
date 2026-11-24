@@ -43,6 +43,14 @@ service UserService {
   rpc SetPermissions(SetPermissionsRequest) returns (SetPermissionsResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Replaces which Libraries a User sees, from their next request: browsing, search, Home rows,
+  // Plugin rows, Similar titles, title pages, playback and Requests leave out the titles of any
+  // other. Without `PERMISSION_ADMIN`, the caller may change neither an Admin's nor their own, so
+  // a User can't lift their own. Fails with `not_found` if no User has the ID, and
+  // `permission_denied` for an Admin's or the caller's own without `PERMISSION_ADMIN`.
+  rpc SetLibraryAccess(SetLibraryAccessRequest) returns (SetLibraryAccessResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
   // Deletes a User with their Devices and credentials, so they can't sign in, their sessions stop
   // working at once and their open `EventService.Subscribe` streams end. The caller may delete
   // themselves, which signs out the calling Device too. Fails with `not_found` if no User has the
@@ -274,6 +282,16 @@ message SetPermissionsRequest {
 }
 
 message SetPermissionsResponse {}
+
+message SetLibraryAccessRequest {
+  // The ID of the User whose Library access changes.
+  int64 user_id = 1;
+  // The Libraries they are to see, replacing those they saw: unset for every one, those added
+  // later included. An ID no Library has is left out.
+  LibraryAccess library_access = 2;
+}
+
+message SetLibraryAccessResponse {}
 
 message DeleteUserRequest {
   // The ID of the User to delete.

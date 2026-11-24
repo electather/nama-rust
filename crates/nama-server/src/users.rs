@@ -25,6 +25,7 @@ mod expired;
 mod home_layout;
 mod inbox;
 mod invites;
+mod library_access;
 mod managing;
 mod names;
 mod notification_preferences;
@@ -47,6 +48,7 @@ pub(crate) use inbox::{
     store as store_in_inbox, unread as count_unread_in_inbox,
 };
 pub(crate) use invites::Invite;
+pub(crate) use library_access::{LibraryAccess, library_access};
 pub(crate) use managing::remote_cap;
 use managing::{default_permissions, ensure_may_change, ensure_may_grant};
 use names::checked_name;

@@ -22,10 +22,11 @@ use nama_proto::nama::v1::{
     ResetHomeLayoutRequest, ResetHomeLayoutResponse, ResetPasswordRequest, ResetPasswordResponse,
     RevokeDeviceRequest, RevokeDeviceResponse, RevokeInviteRequest, RevokeInviteResponse,
     SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetHomeLayoutRequest,
-    SetHomeLayoutResponse, SetNotificationPreferenceRequest, SetNotificationPreferenceResponse,
-    SetPermissionsRequest, SetPermissionsResponse, StartPluginConnectionRequest,
-    StartPluginConnectionResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkUserRequest,
-    UnlinkUserResponse, UpdatePersonalSettingsRequest, UpdatePersonalSettingsResponse, UserService,
+    SetHomeLayoutResponse, SetLibraryAccessRequest, SetLibraryAccessResponse,
+    SetNotificationPreferenceRequest, SetNotificationPreferenceResponse, SetPermissionsRequest,
+    SetPermissionsResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
+    StartUserLinkRequest, StartUserLinkResponse, UnlinkUserRequest, UnlinkUserResponse,
+    UpdatePersonalSettingsRequest, UpdatePersonalSettingsResponse, UserService,
     home_layout_row::Row as LayoutRow, home_row::KernelOrPlugin,
 };
 
@@ -40,7 +41,7 @@ use crate::{
     plugin_settings::{Personal, PluginSettings},
     server_settings::{ServerUrl, Settings},
     users::{
-        self, AskedHomeLayout, Caller, Permissions, User, UserHomeLayout, Users,
+        self, AskedHomeLayout, Caller, LibraryAccess, Permissions, User, UserHomeLayout, Users,
         notification_preferences_of, set_notification_preference,
     },
 };
@@ -132,11 +133,18 @@ impl UserService for UserServiceHandler {
     ) -> ServiceResult<ListUsersResponse> {
         let users = self.users.list().await.map_err(database_failed)?;
         let caps = self.users.remote_caps().await.map_err(database_failed)?;
+        let mut chosen = (self.users.chosen_libraries().await).map_err(database_failed)?;
         let cannot_sign_in = (self.users.cannot_sign_in().await).map_err(database_failed)?;
         Response::ok(ListUsersResponse {
             users: (users.into_iter())
                 .map(|user| proto::User {
                     remote_playback_limit: limit_to_proto(caps.get(&user.id).copied()).into(),
+                    library_access: (chosen.remove(&user.id))
+                        .map(|chosen| proto::LibraryAccess {
+                            library_ids: chosen.into_iter().collect(),
+                            ..Default::default()
+                        })
+                        .into(),
                     ..user_to_proto(user)
                 })
                 .collect(),
@@ -157,6 +165,21 @@ impl UserService for UserServiceHandler {
             .set_permissions(&caller(&ctx)?.user, request.user_id, permissions, cap)
             .await?;
         Response::ok(SetPermissionsResponse::default())
+    }
+
+    async fn set_library_access(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetLibraryAccessRequest>,
+    ) -> ServiceResult<SetLibraryAccessResponse> {
+        let request = request.to_owned_message();
+        let access = (request.library_access.into_option()).map_or(LibraryAccess::All, |chosen| {
+            LibraryAccess::Only(chosen.library_ids.into_iter().collect())
+        });
+        (self.users)
+            .set_library_access(&caller(&ctx)?.user, request.user_id, access)
+            .await?;
+        Response::ok(SetLibraryAccessResponse::default())
     }
 
     async fn delete_user(

@@ -1193,8 +1193,8 @@ export const LibraryService: GenService<{
     output: typeof CreateLibraryResponseSchema;
   },
   /**
-   * Lists every Library on the Server, oldest first. Any signed-in User may list them, to browse,
-   * but only one with `PERMISSION_MANAGE_LIBRARIES` gets their folders.
+   * Lists every Library the caller sees (`User.library_access`), oldest first. Any signed-in User
+   * may list them, to browse, but only one with `PERMISSION_MANAGE_LIBRARIES` gets their folders.
    *
    * @generated from rpc nama.v1.LibraryService.ListLibraries
    */

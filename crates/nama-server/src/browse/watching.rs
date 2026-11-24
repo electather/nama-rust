@@ -298,7 +298,7 @@ impl Browse {
             listed: Vec::new(),
         };
         // Oldest first, so a title in two Libraries is found in the older.
-        for library in self.libraries.list().await.map_err(finding_failed)? {
+        for library in self.libraries().await? {
             match self.titles(&library).await? {
                 Titles::Movies(movies) => found.movies(library.id, movies),
                 Titles::Shows(shows) => found.shows(library.id, shows),
