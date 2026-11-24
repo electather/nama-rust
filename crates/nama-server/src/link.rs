@@ -284,7 +284,7 @@ impl Linking {
             .await;
     }
 
-    /// What `call` gets from the Server's own Link. Its failure, such as the Hub being
+    /// What `call` gets from the Kernel's Link with the Hub. Its failure, such as the Hub being
     /// unreachable, is logged.
     async fn ask_hub<'a, R, F>(&'a self, call: impl FnOnce(&'a ServerLink) -> F) -> Result<R, Error>
     where
@@ -292,7 +292,7 @@ impl Linking {
     {
         let server = self.server.as_deref().ok_or(Error::NoHub)?;
         call(server).await.map_err(|failure| {
-            tracing::warn!("Linking the Server failed: {failure}");
+            tracing::warn!("Linking failed: {failure}");
             Error::Failed
         })
     }

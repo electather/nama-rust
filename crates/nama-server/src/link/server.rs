@@ -6,7 +6,6 @@
 //! dropped means. Its Users' Links and signing in with an Account are in `users.rs`.
 
 use std::{
-    collections::HashMap,
     future::Future,
     sync::{Arc, PoisonError},
     time::{Duration, Instant},
@@ -25,7 +24,7 @@ use tokio::sync::{Mutex, watch};
 use super::{
     hub::{Failure, Hub, LinkDropped, LinkedHub, Polling},
     token::{self, Claims, Rejected},
-    users::UserState,
+    users::KnownUsers,
 };
 use crate::db::{self, Database};
 
@@ -99,9 +98,8 @@ pub(crate) struct ServerLink {
     reachability: std::sync::Mutex<Option<(String, Reachability)>>,
     /// Told each time the Hub answers a report.
     found: watch::Sender<()>,
-    /// What is known of each User's Link beyond what `hub_user_links` keeps, under the
-    /// [`Kept::id`] of the Server's Link it was learned through.
-    pub(super) users: std::sync::Mutex<(Option<String>, HashMap<i64, UserState>)>,
+    /// What is known of each User's Link beyond what `hub_user_links` keeps.
+    pub(super) users: std::sync::Mutex<KnownUsers>,
 }
 
 impl std::fmt::Debug for ServerLink {

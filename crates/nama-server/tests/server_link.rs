@@ -285,9 +285,7 @@ const ON_SERVER: &str = "https://nama.example/sign-in";
 /// A Server Linked to an Account on the fake Hub, at the Server URL `https://nama.example`, with no
 /// Plugin enabled, and the Hub.
 async fn linked_server() -> (TestServer, FakeHub) {
-    let hub = FakeHub::start().await;
-    let server = TestServer::builder().config(hub.config()).start().await;
-    hub.link(&server).await;
+    let (server, hub) = FakeHub::linked_server().await;
     set_server_url(&server, "https://nama.example").await;
     (server, hub)
 }

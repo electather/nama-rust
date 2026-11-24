@@ -24,9 +24,17 @@ use crate::db;
 /// time, which is how the Server learns the code was entered.
 const ASK_AGAIN_AFTER: Duration = Duration::from_mins(1);
 
+/// What is known of the Server's Users' Links beyond what `hub_user_links` keeps.
+#[derive(Default)]
+pub(super) struct KnownUsers {
+    /// The [`Kept::id`] of the Server's Link it was learned through.
+    server_link: Option<String>,
+    by_id: HashMap<i64, UserState>,
+}
+
 /// What is known of one User's Link beyond what `hub_user_links` keeps.
 #[derive(Default)]
-pub(super) struct UserState {
+struct UserState {
     /// The code they show, and when it stops working.
     code: Option<(String, Instant)>,
     /// When the Hub was last asked whether they are Linked.
@@ -140,8 +148,11 @@ impl ServerLink {
         let kept = self.kept().await?;
         let id = kept.as_ref().map(Kept::id);
         let mut users = self.users.lock().unwrap_or_else(PoisonError::into_inner);
-        if users.0 != id {
-            *users = (id, HashMap::default());
+        if users.server_link != id {
+            *users = KnownUsers {
+                server_link: id,
+                by_id: HashMap::default(),
+            };
         }
         drop(users);
         Ok(kept)
@@ -243,6 +254,6 @@ impl ServerLink {
 
     fn with_user<R>(&self, user_id: i64, change: impl FnOnce(&mut UserState) -> R) -> R {
         let mut users = self.users.lock().unwrap_or_else(PoisonError::into_inner);
-        change(users.1.entry(user_id).or_default())
+        change(users.by_id.entry(user_id).or_default())
     }
 }

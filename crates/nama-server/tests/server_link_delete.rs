@@ -18,14 +18,6 @@ use log::Log;
 use nama_proto::nama::v1::{DeleteUserRequest, ListUsersRequest, Permission, UserServiceClient};
 use server::TestServer;
 
-/// A Server Linked to the fake Hub, and the Hub.
-async fn linked_server() -> (TestServer, FakeHub) {
-    let hub = FakeHub::start().await;
-    let server = TestServer::builder().config(hub.config()).start().await;
-    hub.link(&server).await;
-    (server, hub)
-}
-
 fn users(config: ClientConfig) -> UserServiceClient<HttpClient> {
     UserServiceClient::new(HttpClient::plaintext(), config)
 }
@@ -43,7 +35,7 @@ async fn delete(who: ClientConfig, user_id: i64) -> Result<(), ConnectError> {
 
 #[tokio::test]
 async fn deleting_a_linked_user_unlinks_them_once() {
-    let (server, hub) = linked_server().await;
+    let (server, hub) = FakeHub::linked_server().await;
     let grace = server.user_with_default_permissions("Grace").await;
     hub.link_user(grace.id);
 
@@ -54,7 +46,7 @@ async fn deleting_a_linked_user_unlinks_them_once() {
 
 #[tokio::test]
 async fn deleting_a_user_doesnt_wait_for_the_hub_to_unlink_them() {
-    let (server, hub) = linked_server().await;
+    let (server, hub) = FakeHub::linked_server().await;
     let grace = server.user_with_default_permissions("Grace").await;
     hub.hang();
 
@@ -66,7 +58,7 @@ async fn deleting_a_user_doesnt_wait_for_the_hub_to_unlink_them() {
 
 #[tokio::test]
 async fn an_admin_deleting_themselves_is_unlinked() {
-    let (server, hub) = linked_server().await;
+    let (server, hub) = FakeHub::linked_server().await;
     let ada = server.user("Ada", &[Permission::Admin]).await;
 
     delete(ada.client_config(), ada.id).await.unwrap();
@@ -76,7 +68,7 @@ async fn an_admin_deleting_themselves_is_unlinked() {
 
 #[tokio::test]
 async fn a_refused_delete_unlinks_no_one() {
-    let (server, hub) = linked_server().await;
+    let (server, hub) = FakeHub::linked_server().await;
 
     delete(server.client_config(), 9999).await.unwrap_err();
 
@@ -94,7 +86,7 @@ async fn a_user_is_deleted_on_a_server_whose_config_names_no_hub() {
 #[tokio::test]
 async fn a_hub_that_cant_unlink_a_deleted_user_leaves_them_deleted_and_warns() {
     let log = Log::global();
-    let (server, hub) = linked_server().await;
+    let (server, hub) = FakeHub::linked_server().await;
     let grace = server.user_with_default_permissions("Grace").await;
     hub.fail_unlinks();
 

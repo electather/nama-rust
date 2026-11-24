@@ -315,6 +315,15 @@ impl FakeHub {
         self.serving.abort();
     }
 
+    /// A Server Linked to [`EMAIL`]'s Account on a fake started for it, with no Plugin enabled,
+    /// and the fake.
+    pub(crate) async fn linked_server() -> (TestServer, Self) {
+        let hub = Self::start().await;
+        let server = TestServer::builder().config(hub.config()).start().await;
+        hub.link(&server).await;
+        (server, hub)
+    }
+
     /// Links `server` to [`EMAIL`]'s Account, as its Admin does in Settings.
     #[expect(
         clippy::unwrap_used,
