@@ -14,15 +14,22 @@ use nama_plugin_api::{
     notifier::{Notification, Notifier, Recipient, RecipientGone},
 };
 
+use axum::http::StatusCode;
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+
 use super::{EventBus, Filter, Viewer, deliver, event, users_to_tell};
 use crate::{
     db::Database,
     page::Page,
     plugins::{ExtensionPoints, ProviderError, without_secrets},
-    server_settings::ServerUrl,
+    server_settings::{ServerUrl, web_push_key},
     users::{
         Permissions, User, list_inbox, personal_settings_of, replace_personal_settings,
         set_notification_preference,
+    },
+    web_push::{
+        subscribe as subscribe_web_push,
+        tests::{browser, push_service},
     },
 };
 
@@ -506,4 +513,41 @@ fn an_empty_secret_leaves_a_message_alone() {
         without_secrets("it failed".to_owned(), &[String::new()]),
         "it failed"
     );
+}
+
+#[tokio::test]
+async fn a_published_notification_is_pushed_to_its_users_browsers_but_not_a_kind_turned_off() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let (ada, lin) = (insert_user(&db, "ada").await, insert_user(&db, "lin").await);
+    set_notification_preference(&db, ada, NotificationKind::Approved, false)
+        .await
+        .unwrap();
+    let (ada_endpoint, ada_got) = push_service(StatusCode::CREATED).await;
+    let (lin_endpoint, lin_got) = push_service(StatusCode::CREATED).await;
+    subscribe_web_push(&db, ada, browser(&ada_endpoint))
+        .await
+        .unwrap();
+    subscribe_web_push(&db, lin, browser(&lin_endpoint))
+        .await
+        .unwrap();
+    let bus = EventBus::new(
+        Arc::clone(&db),
+        ExtensionPoints::default(),
+        ServerUrl::default(),
+    );
+
+    bus.publish(vec![moved_to(RequestState::Approved, &[ada, lin])]);
+    bus.shutdown().await;
+
+    assert!(ada_got.lock().unwrap().is_empty());
+    let (headers, _) = lin_got.lock().unwrap().pop().unwrap();
+    let key = web_push_key(&db).await.unwrap();
+    let k = headers["authorization"]
+        .to_str()
+        .unwrap()
+        .split_once(", k=")
+        .unwrap()
+        .1;
+    assert_eq!(k, URL_SAFE_NO_PAD.encode(key.public_key()));
 }

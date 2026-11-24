@@ -35,6 +35,7 @@ pub mod users;
 mod watchlist;
 #[cfg(feature = "web")]
 mod web;
+mod web_push;
 
 use std::{future::Future, io, sync::Arc, time::Duration};
 

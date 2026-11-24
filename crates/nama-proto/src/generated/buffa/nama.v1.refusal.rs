@@ -311,6 +311,9 @@ pub enum RefusalReason {
     /// `not_found`: the caller's inbox has no notification with the ID, as another User's isn't in
     /// theirs. `field` is `id`. Params: `notificationId`.
     REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND = 103i32,
+    /// `invalid_argument`: a push subscription's `endpoint` isn't an https URL, `p256dh` isn't a
+    /// P-256 public key or `auth` isn't 16 bytes. `field` names which.
+    REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID = 104i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -616,6 +619,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const InboxNotificationNotFound: Self = Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const WebPushSubscriptionInvalid: Self = Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -936,6 +942,11 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND,
                 )
             }
+            104i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1138,6 +1149,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_PERSON_NOT_FOUND => "REFUSAL_REASON_PERSON_NOT_FOUND",
             Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND => {
                 "REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND"
+            }
+            Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID => {
+                "REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID"
             }
         }
     }
@@ -1476,6 +1490,11 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND,
                 )
             }
+            "REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1582,6 +1601,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD,
             Self::REFUSAL_REASON_PERSON_NOT_FOUND,
             Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND,
+            Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID,
         ]
     }
 }

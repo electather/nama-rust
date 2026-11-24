@@ -343,4 +343,7 @@ enum RefusalReason {
   // `not_found`: the caller's inbox has no notification with the ID, as another User's isn't in
   // theirs. `field` is `id`. Params: `notificationId`.
   REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND = 103;
+  // `invalid_argument`: a push subscription's `endpoint` isn't an https URL, `p256dh` isn't a
+  // P-256 public key or `auth` isn't 16 bytes. `field` names which.
+  REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID = 104;
 }

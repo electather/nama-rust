@@ -4,7 +4,7 @@
 //! keeps them, the most Transcodes it runs at once, what they run on, and the default Playback
 //! Limit for remote playback; and whether Posters and Backdrops are resized, how much disk the
 //! resized copies take, and which store keeps the images; the default Home layout; and where
-//! Backups go and how many are kept.
+//! Backups go and how many are kept; and the VAPID key the Server signs its Web Push with.
 //!
 //! [`Settings`] owns the table (see the crate's `AGENTS.md`).
 
@@ -32,11 +32,13 @@ use crate::{
 
 mod home_layout;
 mod playback;
+mod web_push_key;
 
 pub(crate) use home_layout::{HomeLayout, HomeRowId, PlacedRow, keep_unnamed};
 pub(crate) use playback::{
     HardwareChoice, PickedGpu, PlaybackChange, PlaybackLimit, PlaybackSettings, PlaybackValues,
 };
+pub(crate) use web_push_key::web_push_key;
 
 /// How many MiB the resized copies of images take while no limit is set.
 const DEFAULT_RESIZED_CACHE_MIB: u32 = 1024;

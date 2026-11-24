@@ -17,6 +17,7 @@ include!("nama.v1.inbox.rs");
 include!("nama.v1.job.rs");
 include!("nama.v1.search.rs");
 include!("nama.v1.watchlist.rs");
+include!("nama.v1.web_push.rs");
 #[allow(
     non_camel_case_types,
     dead_code,
@@ -51,6 +52,7 @@ pub mod __buffa {
         include!("nama.v1.job.__view.rs");
         include!("nama.v1.search.__view.rs");
         include!("nama.v1.watchlist.__view.rs");
+        include!("nama.v1.web_push.__view.rs");
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
@@ -541,6 +543,13 @@ pub mod __buffa {
         reg.register_json_any(super::__ADD_TO_WATCHLIST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REMOVE_FROM_WATCHLIST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__REMOVE_FROM_WATCHLIST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_WEB_PUSH_KEY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_WEB_PUSH_KEY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SUBSCRIBE_WEB_PUSH_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SUBSCRIBE_WEB_PUSH_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UNSUBSCRIBE_WEB_PUSH_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UNSUBSCRIBE_WEB_PUSH_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__WEB_PUSH_MESSAGE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -2339,5 +2348,33 @@ pub use self::__buffa::view::RemoveFromWatchlistRequestOwnedView;
 pub use self::__buffa::view::RemoveFromWatchlistResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::RemoveFromWatchlistResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetWebPushKeyRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetWebPushKeyRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetWebPushKeyResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetWebPushKeyResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SubscribeWebPushRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SubscribeWebPushRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SubscribeWebPushResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SubscribeWebPushResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnsubscribeWebPushRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UnsubscribeWebPushRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnsubscribeWebPushResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UnsubscribeWebPushResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::WebPushMessageView;
+#[doc(inline)]
+pub use self::__buffa::view::WebPushMessageOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;
