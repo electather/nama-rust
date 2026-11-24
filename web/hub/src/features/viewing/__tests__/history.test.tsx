@@ -11,13 +11,12 @@ import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
 import {
   cleanup,
-  configure,
   fireEvent,
   render,
   screen,
   waitForElementToBeRemoved,
 } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, test, vi } from "vite-plus/test";
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
 const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
 
@@ -85,11 +84,6 @@ function exportedBlob(file: Blob | MediaSource | undefined) {
 }
 
 describe("viewing history", () => {
-  beforeAll(() => {
-    // A file's first `findBy…` waits while the route chunks load for the first time.
-    configure({ asyncUtilTimeout: 5000 });
-  });
-
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();

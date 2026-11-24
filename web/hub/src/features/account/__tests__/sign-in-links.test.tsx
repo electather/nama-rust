@@ -11,8 +11,8 @@ import { HubService } from "@hub/gen/nama/hub/v1/hub_pb";
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
-import { cleanup, configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, test } from "vite-plus/test";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, test } from "vite-plus/test";
 
 // Partial: the page's own key also holds the input and transport.
 const hubInfoKey = createConnectQueryKey({
@@ -89,10 +89,6 @@ function openHub(path: string, signInLinks: boolean | null, signedIn?: Account) 
 }
 
 describe("a Sign-in Link", () => {
-  beforeAll(() => {
-    configure({ asyncUtilTimeout: 5000 });
-  });
-
   afterEach(() => {
     cleanup();
   });

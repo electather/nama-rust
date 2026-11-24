@@ -12,8 +12,8 @@ import {
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
-import { cleanup, configure, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeAll, expect, test, vi } from "vite-plus/test";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 
 const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
 
@@ -101,11 +101,6 @@ function openHub(path: string, hub: Hub = {}) {
   render(<RouterProvider router={router} />);
   return router;
 }
-
-beforeAll(() => {
-  // A file's first `findBy…` waits while the route chunks load for the first time.
-  configure({ asyncUtilTimeout: 5000 });
-});
 
 afterEach(() => {
   cleanup();

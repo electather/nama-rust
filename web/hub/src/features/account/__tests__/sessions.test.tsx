@@ -9,8 +9,8 @@ import {
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
-import { cleanup, configure, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, test, vi } from "vite-plus/test";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 
 const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
 
@@ -83,10 +83,6 @@ async function listed() {
 
 describe("where an Account is signed in", () => {
   const signOutButtons = ["Sign out Safari on iPhone", "Sign out everywhere else"];
-
-  beforeAll(() => {
-    configure({ asyncUtilTimeout: 5000 });
-  });
 
   afterEach(() => {
     cleanup();
