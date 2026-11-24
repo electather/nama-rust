@@ -169,7 +169,7 @@ async fn dark_season_1(server: &TestServer, library: &Library) -> Vec<Episode> {
                 ..Default::default()
             }
             .into(),
-            season_number: 1,
+            season_number: Some(1),
             ..Default::default()
         })
         .await

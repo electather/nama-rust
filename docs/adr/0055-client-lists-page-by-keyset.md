@@ -12,5 +12,5 @@ A client list that can grow without bound (a Library's Movies or Shows, Requests
 ## Consequences
 
 - Titles sort by a stored sort title: Unicode lowercase folded in Rust, with a leading English "The", "A" or "An" dropped. SQLite here has no ICU collation, and `NOCASE` folds ASCII only.
-- Config lists that stay small (Libraries, Users, Devices, Plugins, Qualities), one Season's Episodes, and searches answered by an outside source's own page aren't paged.
+- Config lists that stay small (Libraries, Users, Devices, Plugins, Qualities), a Show's Episodes (one Season's or every Season's, as its page shows them all in one row), and searches answered by an outside source's own page aren't paged.
 - The web app reads paged lists through one hook over `useInfiniteQuery`, holding at most 10 pages, so an event that invalidates a list refetches at most 1,000 rows.

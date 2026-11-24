@@ -145,6 +145,8 @@ pub(crate) enum Error {
     CodeNotFound,
     #[error("the User is Linked already; Unlink them first")]
     UserLinked,
+    #[error("your Account has a User on this Server already; Unlink them first")]
+    AccountHasUserOnServer,
     #[error("the code expired; start again")]
     Expired,
     #[error("no User created from your Account is waiting on this")]

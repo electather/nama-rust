@@ -21,6 +21,7 @@ import { Route as MemberBoxSetsBoxSetIdRouteImport } from './routes/_member/box-
 import { Route as MemberCodeIndexRouteImport } from './routes/_member/code.index'
 import { Route as MemberCodeApproveRouteImport } from './routes/_member/code.approve'
 import { Route as MemberCodeDoneRouteImport } from './routes/_member/code.done'
+import { Route as MemberLibrariesIndexRouteImport } from './routes/_member/libraries/index'
 import { Route as MemberMoviesMovieIdRouteImport } from './routes/_member/movies/$movieId'
 import { Route as MemberPeoplePersonIdRouteImport } from './routes/_member/people/$personId'
 import { Route as MemberReauthenticateAccountRouteImport } from './routes/_member/reauthenticate.account'
@@ -94,6 +95,11 @@ const MemberCodeDoneRoute = MemberCodeDoneRouteImport.update({
   id: '/done',
   path: '/done',
   getParentRoute: () => MemberCodeRoute,
+} as any)
+const MemberLibrariesIndexRoute = MemberLibrariesIndexRouteImport.update({
+  id: '/libraries/',
+  path: '/libraries/',
+  getParentRoute: () => MemberRoute,
 } as any)
 const MemberMoviesMovieIdRoute = MemberMoviesMovieIdRouteImport.update({
   id: '/movies/$movieId',
@@ -199,6 +205,7 @@ export interface FileRoutesByFullPath {
   '/invite/$token': typeof SignedOutInviteTokenRoute
   '/sign-in/account': typeof SignedOutSignInAccountRoute
   '/code/': typeof MemberCodeIndexRoute
+  '/libraries/': typeof MemberLibrariesIndexRoute
   '/sign-in/': typeof SignedOutSignInIndexRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
@@ -224,6 +231,7 @@ export interface FileRoutesByTo {
   '/invite/$token': typeof SignedOutInviteTokenRoute
   '/sign-in/account': typeof SignedOutSignInAccountRoute
   '/code': typeof MemberCodeIndexRoute
+  '/libraries': typeof MemberLibrariesIndexRoute
   '/sign-in': typeof SignedOutSignInIndexRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/libraries/$libraryId': typeof MemberLibrariesLibraryIdIndexRoute
@@ -254,6 +262,7 @@ export interface FileRoutesById {
   '/_signed-out/invite/$token': typeof SignedOutInviteTokenRoute
   '/_signed-out/sign-in/account': typeof SignedOutSignInAccountRoute
   '/_member/code/': typeof MemberCodeIndexRoute
+  '/_member/libraries/': typeof MemberLibrariesIndexRoute
   '/_signed-out/sign-in/': typeof SignedOutSignInIndexRoute
   '/_signed-out/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/_member/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
@@ -283,6 +292,7 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/sign-in/account'
     | '/code/'
+    | '/libraries/'
     | '/sign-in/'
     | '/sign-in/code/waiting'
     | '/libraries/$libraryId/'
@@ -308,6 +318,7 @@ export interface FileRouteTypes {
     | '/invite/$token'
     | '/sign-in/account'
     | '/code'
+    | '/libraries'
     | '/sign-in'
     | '/sign-in/code/waiting'
     | '/libraries/$libraryId'
@@ -337,6 +348,7 @@ export interface FileRouteTypes {
     | '/_signed-out/invite/$token'
     | '/_signed-out/sign-in/account'
     | '/_member/code/'
+    | '/_member/libraries/'
     | '/_signed-out/sign-in/'
     | '/_signed-out/sign-in/code/waiting'
     | '/_member/libraries/$libraryId/'
@@ -438,6 +450,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/code/done'
       preLoaderRoute: typeof MemberCodeDoneRouteImport
       parentRoute: typeof MemberCodeRoute
+    }
+    '/_member/libraries/': {
+      id: '/_member/libraries/'
+      path: '/libraries'
+      fullPath: '/libraries/'
+      preLoaderRoute: typeof MemberLibrariesIndexRouteImport
+      parentRoute: typeof MemberRoute
     }
     '/_member/movies/$movieId': {
       id: '/_member/movies/$movieId'
@@ -573,6 +592,7 @@ interface MemberRouteChildren {
   MemberPeoplePersonIdRoute: typeof MemberPeoplePersonIdRoute
   MemberReauthenticateAccountRoute: typeof MemberReauthenticateAccountRoute
   MemberShowsShowIdRoute: typeof MemberShowsShowIdRoute
+  MemberLibrariesIndexRoute: typeof MemberLibrariesIndexRoute
   MemberLibrariesLibraryIdIndexRoute: typeof MemberLibrariesLibraryIdIndexRoute
   MemberLibrariesLibraryIdMoviesMovieIdPlayRoute: typeof MemberLibrariesLibraryIdMoviesMovieIdPlayRoute
   MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute: typeof MemberLibrariesLibraryIdUnmatchedVersionIdPlayRoute
@@ -591,6 +611,7 @@ const MemberRouteChildren: MemberRouteChildren = {
   MemberPeoplePersonIdRoute: MemberPeoplePersonIdRoute,
   MemberReauthenticateAccountRoute: MemberReauthenticateAccountRoute,
   MemberShowsShowIdRoute: MemberShowsShowIdRoute,
+  MemberLibrariesIndexRoute: MemberLibrariesIndexRoute,
   MemberLibrariesLibraryIdIndexRoute: MemberLibrariesLibraryIdIndexRoute,
   MemberLibrariesLibraryIdMoviesMovieIdPlayRoute:
     MemberLibrariesLibraryIdMoviesMovieIdPlayRoute,

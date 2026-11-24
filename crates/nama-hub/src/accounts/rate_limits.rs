@@ -2,9 +2,10 @@
 //! client IP or for one email, as the Server's `users/rate_limits.rs` does for User names, and
 //! mail floods, by refusing Sign-in Links asked for too often the same way; and bounding the argon2
 //! work, throwaway Accounts and probing for taken emails one client can cause, by refusing Account
-//! creations after too many recent ones from its IP; and keeping one client from filling the
-//! Hub's waiting passkey challenges, by refusing it more after too many recent ones. A client IP is
-//! counted by its /64 if it is IPv6.
+//! creations after too many recent ones from its IP; and bounding the failed passkey sign-ins one
+//! client can send to the database, by refusing it passkey challenges after too many recent ones
+//! (`webauthn.rs` caps how many it may have waiting at once). A client IP is counted by its /64 if
+//! it is IPv6, here and by that cap.
 //!
 //! ponytail: counts live in this process's memory (ADR 0096); they move to PostgreSQL once the Hub
 //! runs as replicas. They expire as the window slides past them and a restart forgets them, so
@@ -39,8 +40,9 @@ const LINKS_PER_IP: usize = 20;
 /// hold before its creations are refused.
 const CREATIONS_PER_IP: usize = 10;
 
-/// How many passkey challenges one client IP may be handed in the window, so it would take
-/// hundreds of clients to fill the Hub's waiting ones (`webauthn.rs`).
+/// How many passkey challenges one client IP may ask for in the window. A used challenge frees
+/// its waiting share (`webauthn.rs`) but not this, so a client can't start and fail passkey
+/// sign-ins against the database without end.
 const CHALLENGES_PER_IP: usize = 30;
 
 /// The recent failed sign-ins, by client IP and by email.
@@ -97,8 +99,8 @@ pub(crate) struct Caller {
 #[derive(Debug, thiserror::Error)]
 #[error("too many attempts lately; try again in {} seconds", self.retry_after_secs())]
 pub(crate) struct Blocked {
-    /// How long until the oldest count in the way leaves the window.
-    retry_after: Duration,
+    /// How long until the client may try again.
+    pub(super) retry_after: Duration,
 }
 
 impl Blocked {
@@ -212,7 +214,7 @@ fn counted_email(email: &str) -> String {
 
 /// What `ip` is counted under: an IPv6 address by its /64, since one client
 /// normally holds a whole /64 and could use a new address for each attempt.
-fn counted_ip(ip: IpAddr) -> IpAddr {
+pub(super) fn counted_ip(ip: IpAddr) -> IpAddr {
     match ip.to_canonical() {
         IpAddr::V6(v6) => IpAddr::V6((u128::from(v6) & !u128::from(u64::MAX)).into()),
         v4 @ IpAddr::V4(_) => v4,

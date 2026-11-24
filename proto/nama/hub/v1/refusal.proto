@@ -101,4 +101,7 @@ enum RefusalReason {
   // `failed_precondition`: removing it would leave the Account no way to sign in: no password, no
   // other passkey, and no Sign-in Link, which the Hub offers only while it has mail set up.
   REFUSAL_REASON_LAST_SIGN_IN_METHOD = 28;
+  // `already_exists`: the signed-in Account has a User Linked on that Server already, and an
+  // Account Links one User on each Server. Unlink that User first.
+  REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER = 29;
 }

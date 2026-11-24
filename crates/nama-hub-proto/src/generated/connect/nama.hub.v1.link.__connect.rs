@@ -1991,8 +1991,10 @@ pub trait LinkService: Send + Sync + 'static {
         >,
     > + Send;
     /// Links the User showing `code` on their Server to the signed-in Account. An Account may have
-    /// Users on many Servers. Fails like `ApproveServerLink`, with `REFUSAL_REASON_LINK_CODE_NOT_FOUND`
-    /// for a code no User is waiting on.
+    /// Users on many Servers, but one on each. Fails like `ApproveServerLink`, with
+    /// `REFUSAL_REASON_LINK_CODE_NOT_FOUND` for a code no User is waiting on, and with
+    /// `REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER` if the Account has another User on that Server,
+    /// leaving the code to work once that User is Unlinked.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -2087,7 +2089,8 @@ pub trait LinkService: Send + Sync + 'static {
     > + Send;
     /// Accepts a User created from the signed-in Account, which Links them to it, so they can sign in
     /// with it. Fails like `ApproveServerLink`, with `REFUSAL_REASON_USER_INVITE_NOT_FOUND` for an id
-    /// none of its invites has, and with `REFUSAL_REASON_USER_LINKED` if the User Linked meanwhile.
+    /// none of its invites has, with `REFUSAL_REASON_USER_LINKED` if the User Linked meanwhile, and
+    /// with `REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER` like `ApproveUserLink`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

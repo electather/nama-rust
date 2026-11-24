@@ -9,7 +9,8 @@
 //! limits do; they move to PostgreSQL once the Hub runs as replicas.
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, hash_map::Entry},
+    net::IpAddr,
     sync::{Mutex, MutexGuard, PoisonError},
     time::{Duration, Instant},
 };
@@ -22,7 +23,10 @@ use serde::Deserialize;
 use sha2::{Digest as _, Sha256};
 use url::Url;
 
-use super::{AccountId, Error};
+use super::{
+    AccountId, Error,
+    rate_limits::{Blocked, Caller, counted_ip},
+};
 
 /// COSE's id (RFC 9053) for ECDSA with P-256 and SHA-256.
 const ES256: i32 = -7;
@@ -34,6 +38,13 @@ const CHALLENGE_LIFETIME: Duration = Duration::from_mins(5);
 
 /// The most challenges that may wait at once, so a flood of requests can't fill the Hub's memory.
 const MOST_WAITING: usize = 10_000;
+
+/// The most challenges one client, as `counted_ip` counts it, may have waiting, far below
+/// `MOST_WAITING` so one client can't fill the Hub's.
+///
+/// ponytail: a client rotating through a /48's /64s is bounded only by `MOST_WAITING`; stateless,
+/// HMAC-signed challenges would close that, should it matter (#2049).
+const WAITING_PER_CLIENT: usize = 20;
 
 /// A P-256 `SubjectPublicKeyInfo` up to its uncompressed point, the same in every one.
 const P256_SPKI_PREFIX: &[u8] = &[
@@ -74,7 +85,23 @@ pub(super) struct RelyingParty {
     pub(super) id: String,
     /// The public address's origin, which every answer must come from.
     origin: String,
-    waiting: Mutex<HashMap<[u8; 32], (Ceremony, Instant)>>,
+    waiting: Mutex<Waiting>,
+}
+
+/// The challenges waiting for their answer, and when each client's were handed out, so checking
+/// one client's share doesn't go through every waiting challenge.
+#[derive(Debug, Default)]
+struct Waiting {
+    challenges: HashMap<[u8; 32], Handed>,
+    held: HashMap<IpAddr, Vec<Instant>>,
+}
+
+/// What a waiting challenge was handed out for, when, and to which client.
+#[derive(Debug, Clone, Copy)]
+struct Handed {
+    ceremony: Ceremony,
+    at: Instant,
+    client: IpAddr,
 }
 
 /// What the browser says it signed, `clientDataJSON` (§5.8.1).
@@ -98,18 +125,20 @@ impl RelyingParty {
         })
     }
 
-    /// A fresh challenge for `ceremony`, which waits for its answer from `now`.
-    pub(super) fn challenge(&self, ceremony: Ceremony, now: Instant) -> Result<[u8; 32], Error> {
+    /// A fresh challenge for `ceremony`, handed to `caller`, which waits for its answer from when
+    /// it asked. Refused with `Blocked` while `caller` holds its share of waiting challenges, and
+    /// with `ChallengesBusy` while the Hub holds `MOST_WAITING`.
+    pub(super) fn challenge(&self, ceremony: Ceremony, caller: Caller) -> Result<[u8; 32], Error> {
         let mut challenge = [0; 32];
         getrandom::fill(&mut challenge)?;
-        let mut waiting = self.lock();
-        if waiting.len() >= MOST_WAITING {
-            waiting.retain(|_, &mut (_, at)| !expired(at, now));
-            if waiting.len() >= MOST_WAITING {
-                return Err(Error::ChallengesBusy);
-            }
-        }
-        waiting.insert(challenge, (ceremony, now));
+        self.lock().hand_out(
+            challenge,
+            Handed {
+                ceremony,
+                at: caller.now,
+                client: counted_ip(caller.ip),
+            },
+        )?;
         Ok(challenge)
     }
 
@@ -136,8 +165,7 @@ impl RelyingParty {
         client_data.kind == ceremony.client_data_type()
             && client_data.origin == self.origin
             && !client_data.cross_origin
-            && waited
-                .is_some_and(|(handed_out_for, at)| handed_out_for == ceremony && !expired(at, now))
+            && waited.is_some_and(|handed| handed.ceremony == ceremony && !expired(handed.at, now))
     }
 
     /// Whether `signature` is `public_key`'s, of `authenticator_data` for this relying party with
@@ -158,9 +186,69 @@ impl RelyingParty {
             && public_key.verify(&signed, signature).is_ok()
     }
 
-    fn lock(&self) -> MutexGuard<'_, HashMap<[u8; 32], (Ceremony, Instant)>> {
-        // Each change is one insert, remove or retain, so a panic elsewhere doesn't spoil it.
+    fn lock(&self) -> MutexGuard<'_, Waiting> {
+        // Nothing panics between a change to `challenges` and the matching one to `held`, so a
+        // panic elsewhere doesn't spoil them.
         self.waiting.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+impl Waiting {
+    /// Keeps `challenge` waiting for `handed.client`, unless that client holds its share or the
+    /// Hub holds `MOST_WAITING`.
+    fn hand_out(&mut self, challenge: [u8; 32], handed: Handed) -> Result<(), Error> {
+        if let Some(retry_after) = self.wait(handed.client, handed.at) {
+            return Err(Blocked { retry_after }.into());
+        }
+        if self.challenges.len() >= MOST_WAITING {
+            self.drop_expired(handed.at);
+            if self.challenges.len() >= MOST_WAITING {
+                return Err(Error::ChallengesBusy);
+            }
+        }
+        self.insert(challenge, handed);
+        Ok(())
+    }
+
+    /// How long `client` must wait for one of its challenges to expire, if it holds its share at
+    /// `now`. Forgets its expired ones; their challenges go when the waiting ones are full.
+    fn wait(&mut self, client: IpAddr, now: Instant) -> Option<Duration> {
+        let times = self.held.get_mut(&client)?;
+        times.retain(|&at| !expired(at, now));
+        if times.len() < WAITING_PER_CLIENT {
+            return None;
+        }
+        // At its share, so `times` isn't empty.
+        let oldest = times.iter().min()?;
+        Some(CHALLENGE_LIFETIME.saturating_sub(now.saturating_duration_since(*oldest)))
+    }
+
+    fn insert(&mut self, challenge: [u8; 32], handed: Handed) {
+        if self.challenges.insert(challenge, handed).is_none() {
+            self.held.entry(handed.client).or_default().push(handed.at);
+        }
+    }
+
+    fn remove(&mut self, challenge: &[u8; 32]) -> Option<Handed> {
+        let handed = self.challenges.remove(challenge)?;
+        if let Entry::Occupied(mut times) = self.held.entry(handed.client) {
+            // Not found once `wait` forgot it as expired; another of the same instant expires alike.
+            if let Some(index) = times.get().iter().position(|&at| at == handed.at) {
+                times.get_mut().swap_remove(index);
+            }
+            if times.get().is_empty() {
+                times.remove();
+            }
+        }
+        Some(handed)
+    }
+
+    fn drop_expired(&mut self, now: Instant) {
+        self.challenges.retain(|_, handed| !expired(handed.at, now));
+        self.held.retain(|_, times| {
+            times.retain(|&at| !expired(at, now));
+            !times.is_empty()
+        });
     }
 }
 

@@ -51,13 +51,20 @@ function refused(code: Code, reason: RefusalReason) {
  * passkeys unless `passkeys` says not. Returns the Hub's state, which a test may change.
  */
 function openHub(path: string, { signedIn = false, passkeys = true, password = true } = {}) {
-  let session = signedIn;
   const hub = {
+    /** Whether this browser's session is live; another browser may end it. */
+    signedIn,
     passkeys: [create(PasskeySchema, { id: "0193-laptop", name: "Laptop" })],
     /** Whether changing passkeys is refused for want of a recent sign-in. */
     stale: false,
   };
+  const signedInOnly = () => {
+    if (!hub.signedIn) {
+      throw refused(Code.Unauthenticated, RefusalReason.SIGN_IN_REQUIRED);
+    }
+  };
   const recentOnly = () => {
+    signedInOnly();
     if (hub.stale) {
       throw refused(Code.FailedPrecondition, RefusalReason.RECENT_AUTHENTICATION_REQUIRED);
     }
@@ -66,9 +73,7 @@ function openHub(path: string, { signedIn = false, passkeys = true, password = t
     service(HubService, { getHubInfo: () => ({ version: "0.1.0", signInLinks: true, passkeys }) });
     service(AccountService, {
       getAccount: () => {
-        if (!session) {
-          throw refused(Code.Unauthenticated, RefusalReason.SIGN_IN_REQUIRED);
-        }
+        signedInOnly();
         return { account: ada, hasPassword: password };
       },
       listPasskeys: () => ({ passkeys: hub.passkeys }),
@@ -88,7 +93,7 @@ function openHub(path: string, { signedIn = false, passkeys = true, password = t
       },
       startPasskeySignIn: () => ({ challenge: new Uint8Array(32), rpId: "hub.example" }),
       signInWithPasskey: () => {
-        session = true;
+        hub.signedIn = true;
         return { account: ada };
       },
     });
@@ -214,6 +219,31 @@ describe("an Account's passkeys", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Remove Laptop" }));
     fireEvent.click(await screen.findByRole("link", { name: "Sign in again" }));
+
+    await expect(screen.findByRole("heading", { name: "Sign in" })).resolves.toBeDefined();
+    expect(hub.passkeys.map((passkey) => passkey.name)).toStrictEqual(["Laptop"]);
+  });
+
+  test("adding a passkey once this session ended elsewhere opens the sign-in page", async () => {
+    const credentials = browserCredentials({ create: vi.fn<() => Promise<unknown>>() });
+    const hub = openHub("/", { signedIn: true });
+
+    fireEvent.change(await screen.findByLabelText("New passkey’s name"), {
+      target: { value: "Phone" },
+    });
+    hub.signedIn = false;
+    fireEvent.click(screen.getByRole("button", { name: "Add passkey" }));
+
+    await expect(screen.findByRole("heading", { name: "Sign in" })).resolves.toBeDefined();
+    expect(credentials.create).not.toHaveBeenCalled();
+  });
+
+  test("removing a passkey once this session ended elsewhere opens the sign-in page", async () => {
+    const hub = openHub("/", { signedIn: true });
+
+    const remove = await screen.findByRole("button", { name: "Remove Laptop" });
+    hub.signedIn = false;
+    fireEvent.click(remove);
 
     await expect(screen.findByRole("heading", { name: "Sign in" })).resolves.toBeDefined();
     expect(hub.passkeys.map((passkey) => passkey.name)).toStrictEqual(["Laptop"]);

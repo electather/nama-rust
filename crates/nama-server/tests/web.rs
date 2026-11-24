@@ -30,7 +30,7 @@ async fn a_deep_link_serves_the_app() {
 #[tokio::test]
 async fn the_app_s_stylesheet_is_served() {
     let server = TestServer::builder().start().await;
-    let stylesheet = stylesheet_path(server.addr).await;
+    let stylesheet = linked_asset(server.addr, "css").await;
 
     let (status, headers, _) = http1_get(server.addr, &stylesheet).await;
 
@@ -43,7 +43,7 @@ async fn the_app_s_stylesheet_is_served() {
 #[tokio::test]
 async fn hashed_assets_are_cached_for_good_and_the_shell_is_not() {
     let server = TestServer::builder().start().await;
-    let stylesheet = stylesheet_path(server.addr).await;
+    let stylesheet = linked_asset(server.addr, "css").await;
 
     let (_, asset_headers, _) = http1_get(server.addr, &stylesheet).await;
     let (_, shell_headers, _) = http1_get(server.addr, "/").await;
@@ -53,6 +53,68 @@ async fn hashed_assets_are_cached_for_good_and_the_shell_is_not() {
         "public, max-age=31536000, immutable"
     );
     assert!(!shell_headers.contains_key("cache-control"));
+}
+
+/// A browser that accepts brotli or gzip gets the app's text compressed with it, marked so a cache
+/// keeps each encoding apart.
+#[tokio::test]
+async fn the_app_s_text_is_compressed_for_a_browser_that_accepts_it() {
+    let server = TestServer::builder().start().await;
+    let script = linked_asset(server.addr, "js").await;
+    let stylesheet = linked_asset(server.addr, "css").await;
+
+    for encoding in ["br", "gzip"] {
+        for path in ["/", "/libraries/3", &script, &stylesheet, "/icon.svg"] {
+            let (status, headers, _) =
+                http1_get_with(server.addr, path, &[("accept-encoding", encoding)]).await;
+
+            assert_eq!(status, 200, "{path}");
+            assert_eq!(headers["content-encoding"], encoding, "{path}");
+            assert_eq!(headers["vary"], "accept-encoding", "{path}");
+        }
+    }
+}
+
+/// A client that accepts no encoding gets the files exactly as `vp build` wrote them.
+#[tokio::test]
+async fn the_app_is_sent_as_built_to_a_client_that_accepts_no_encoding() {
+    let server = TestServer::builder().start().await;
+    let script = linked_asset(server.addr, "js").await;
+    let stylesheet = linked_asset(server.addr, "css").await;
+    let dist = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist");
+
+    for (path, file) in [
+        ("/", "index.html"),
+        (&script, script.trim_start_matches('/')),
+        (&stylesheet, stylesheet.trim_start_matches('/')),
+        ("/icon.svg", "icon.svg"),
+    ] {
+        let (status, headers, body) = http1_get_with(server.addr, path, &[]).await;
+
+        assert_eq!(status, 200, "{path}");
+        assert!(!headers.contains_key("content-encoding"), "{path}");
+        assert_eq!(body, std::fs::read(dist.join(file)).unwrap(), "{path}");
+    }
+}
+
+/// A file stored compressed, such as a PNG or a woff2 font, isn't compressed again.
+#[tokio::test]
+async fn a_compressed_file_is_sent_as_it_is() {
+    let server = TestServer::builder().start().await;
+    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/assets");
+    let font = std::fs::read_dir(assets)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .find(|name| Path::new(name).extension().is_some_and(|e| e == "woff2"))
+        .unwrap();
+
+    for path in ["/icon-192.png", &format!("/assets/{font}")] {
+        let (status, headers, _) =
+            http1_get_with(server.addr, path, &[("accept-encoding", "br, gzip")]).await;
+
+        assert_eq!(status, 200, "{path}");
+        assert!(!headers.contains_key("content-encoding"), "{path}");
+    }
 }
 
 /// A WebAssembly module the app loads, such as the PGS renderer's, is served as one, which
@@ -119,18 +181,19 @@ async fn unknown_rpc_and_media_paths_are_not_found() {
     }
 }
 
-/// The path of the stylesheet the app's `index.html` links to.
+/// The path of the file with `extension` under `/assets/` that the app's `index.html` links to.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn stylesheet_path(addr: SocketAddr) -> String {
+async fn linked_asset(addr: SocketAddr, extension: &str) -> String {
     let (_, _, shell) = http1_get(addr, "/").await;
     String::from_utf8(shell)
         .unwrap()
         .split('"')
         .find(|part| {
-            part.starts_with("/assets/") && Path::new(part).extension().is_some_and(|e| e == "css")
+            part.starts_with("/assets/")
+                && Path::new(part).extension().is_some_and(|e| e == extension)
         })
         .unwrap()
         .to_owned()
@@ -152,6 +215,24 @@ async fn http1_get_as(
     path: &str,
     token: Option<&str>,
 ) -> (u16, HeaderMap, Vec<u8>) {
+    let authorization = token.map(|token| format!("Bearer {token}"));
+    let header = authorization
+        .as_deref()
+        .map(|value| ("authorization", value));
+    http1_get_with(addr, path, header.as_slice()).await
+}
+
+/// Sends a plain HTTP/1.1 `GET` for `path` with `request_headers` and returns the status, the
+/// response's headers and its body as sent.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn http1_get_with(
+    addr: SocketAddr,
+    path: &str,
+    request_headers: &[(&str, &str)],
+) -> (u16, HeaderMap, Vec<u8>) {
     use http_body_util::{BodyExt, Empty};
     use hyper::{Request, body::Bytes, client::conn::http1};
     use hyper_util::rt::TokioIo;
@@ -161,8 +242,8 @@ async fn http1_get_as(
     tokio::spawn(connection);
 
     let mut request = Request::get(path).header("host", addr.to_string());
-    if let Some(token) = token {
-        request = request.header("authorization", format!("Bearer {token}"));
+    for (name, value) in request_headers {
+        request = request.header(*name, *value);
     }
     let request = request.body(Empty::<Bytes>::new()).unwrap();
     let response = sender.send_request(request).await.unwrap();

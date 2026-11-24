@@ -3883,6 +3883,16 @@ pub struct FoundHardware {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub automatic: bool,
+    /// Whether it also passed decoding and encoding 10-bit HEVC, which a Transcode of a 4K or HDR
+    /// Version makes on it.
+    ///
+    /// Field 6: `hevc`
+    #[serde(
+        rename = "hevc",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub hevc: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -3895,6 +3905,7 @@ impl ::core::fmt::Debug for FoundHardware {
             .field("tone_maps", &self.tone_maps)
             .field("tone_mapping", &self.tone_mapping)
             .field("automatic", &self.automatic)
+            .field("hevc", &self.hevc)
             .finish()
     }
 }
@@ -3951,6 +3962,9 @@ impl ::buffa::Message for FoundHardware {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.hevc {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -3986,6 +4000,9 @@ impl ::buffa::Message for FoundHardware {
                 buf,
             );
             self.gpu.write_to(__cache, buf);
+        }
+        if self.hevc {
+            ::buffa::types::put_bool_field(6u32, self.hevc, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4041,6 +4058,13 @@ impl ::buffa::Message for FoundHardware {
                     ctx,
                 )?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.hevc = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -4054,6 +4078,7 @@ impl ::buffa::Message for FoundHardware {
         self.tone_mapping = ::buffa::EnumValue::from(0);
         self.automatic = false;
         self.gpu = ::buffa::MessageField::none();
+        self.hevc = false;
         self.__buffa_unknown_fields.clear();
     }
 }

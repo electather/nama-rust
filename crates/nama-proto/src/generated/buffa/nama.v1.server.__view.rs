@@ -6665,6 +6665,11 @@ pub struct FoundHardwareView<'a> {
     ///
     /// Field 4: `automatic`
     pub automatic: bool,
+    /// Whether it also passed decoding and encoding 10-bit HEVC, which a Transcode of a 4K or HDR
+    /// Version makes on it.
+    ///
+    /// Field 6: `hevc`
+    pub hevc: bool,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for FoundHardwareView<'a> {
@@ -6750,6 +6755,13 @@ impl<'a> ::buffa::MessageView<'a> for FoundHardwareView<'a> {
                 )?;
                 view.automatic = ::buffa::types::decode_bool(&mut cur)?;
             }
+            6u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                view.hevc = ::buffa::types::decode_bool(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -6785,6 +6797,7 @@ impl<'a> ::buffa::MessageView<'a> for FoundHardwareView<'a> {
             tone_maps: self.tone_maps,
             tone_mapping: self.tone_mapping,
             automatic: self.automatic,
+            hevc: self.hevc,
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -6821,6 +6834,9 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundHardwareView<'a> {
             size
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
+        }
+        if self.hevc {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -6859,6 +6875,9 @@ impl<'a> ::buffa::ViewEncode<'a> for FoundHardwareView<'a> {
             );
             self.gpu.write_to(__cache, buf);
         }
+        if self.hevc {
+            ::buffa::types::put_bool_field(6u32, self.hevc, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -6896,6 +6915,9 @@ impl<'__a> ::serde::Serialize for FoundHardwareView<'__a> {
         }
         if self.automatic {
             __map.serialize_entry("automatic", &self.automatic)?;
+        }
+        if self.hevc {
+            __map.serialize_entry("hevc", &self.hevc)?;
         }
         __map.end()
     }
@@ -7026,6 +7048,14 @@ impl FoundHardwareOwnedView {
     #[must_use]
     pub fn automatic(&self) -> bool {
         self.0.reborrow().automatic
+    }
+    /// Whether it also passed decoding and encoding 10-bit HEVC, which a Transcode of a 4K or HDR
+    /// Version makes on it.
+    ///
+    /// Field 6: `hevc`
+    #[must_use]
+    pub fn hevc(&self) -> bool {
+        self.0.reborrow().hevc
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<FoundHardwareView<'static>>>

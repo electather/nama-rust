@@ -1974,7 +1974,7 @@ impl Fixture {
             .list_episodes(ListEpisodesRequest {
                 library_id: self.library,
                 show_id: tmdb_id(DARK).into(),
-                season_number: season,
+                season_number: Some(season),
                 ..Default::default()
             })
             .await

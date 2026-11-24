@@ -10,27 +10,31 @@ use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::PluginKind;
 use tracing::{info, warn};
 
-use super::{Installed, Listable, Refused, load::read_plugins, printable};
+use super::{
+    Installed, Listable, Refused,
+    load::{Loaded, read_plugins},
+    printable,
+};
 use crate::plugins::{Registry, registry::Described};
 
 /// The bundled Installed Plugins and those in `<data_dir>/plugins/`, compiled but not yet listed.
 pub(crate) struct Found(Vec<(PathBuf, Result<Installed, Refused>)>);
 
 /// Reads the bundled Installed Plugins and those in `<data_dir>/plugins/`, for
-/// [`Registry::list_installed`] to list.
+/// [`Registry::list_installed`] to list, reusing those in `loaded` whose file hasn't changed.
 ///
-/// Blocks while it compiles each Plugin. wasmtime caches what it compiles under
+/// Blocks while it compiles each Plugin it can't reuse. wasmtime caches what it compiles under
 /// `<data_dir>/wasmtime/`, not in the home directory.
-pub(crate) fn read(data_dir: &Path) -> Found {
-    Found(read_plugins(data_dir))
+pub(crate) fn read(data_dir: &Path, loaded: &mut Loaded) -> Found {
+    Found(read_plugins(data_dir, loaded))
 }
 
 impl Registry {
     /// Reads and lists the bundled Installed Plugins and those in `<data_dir>/plugins/` at start,
     /// as listing the Plugins does, and logs each one's id and version, or why the Server refused
-    /// it. Enables none.
-    pub(crate) fn load_installed(&self, data_dir: &Path) {
-        let found = read(data_dir);
+    /// it. Enables none. Keeps what it read in `loaded`.
+    pub(crate) fn load_installed(&self, data_dir: &Path, loaded: &mut Loaded) {
+        let found = read(data_dir, loaded);
         for (file, plugin) in &found.0 {
             match plugin {
                 Ok(plugin) => info!(

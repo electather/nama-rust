@@ -23,4 +23,5 @@ The Server keeps each image at full size (ADR 0037) and, while an admin leaves r
 - Opaque JPEG XL files are written with progressive DC, so Chrome and Firefox paint a blur from the first kilobyte; with `jixel` it costs no bytes. A file with transparency paints nothing early, whichever encoder wrote it, and Safari paints only finished files.
 - Everywhere else the placeholder is a small hash sent with the image's URL. It is computed during an image's first resize, when the image is already decoded, so there are no placeholders with resizing off.
 - A width that both kinds of client ask for is kept twice in the cache, and responses vary by `Accept`.
+- The Poster grid's width at one device pixel per CSS pixel, 320 px, is made ahead in both formats for each Poster of a Library once its scan or Matching has downloaded its images, in the background and one at a time like any other resize, so a first visit to the Library resizes nothing on request (#2042). Every other width is still made on request.
 - An SVG logo is never resized.

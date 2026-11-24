@@ -414,7 +414,9 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND
         | R::REFUSAL_REASON_PASSKEY_NOT_FOUND => ErrorCode::NotFound,
         R::REFUSAL_REASON_TOO_MANY_ATTEMPTS => ErrorCode::ResourceExhausted,
-        R::REFUSAL_REASON_EMAIL_TAKEN | R::REFUSAL_REASON_USER_LINKED => ErrorCode::AlreadyExists,
+        R::REFUSAL_REASON_EMAIL_TAKEN
+        | R::REFUSAL_REASON_USER_LINKED
+        | R::REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER => ErrorCode::AlreadyExists,
         // `UNSPECIFIED` is never sent; a client sees it only for a reason it doesn't know.
         R::REFUSAL_REASON_EMAIL_INVALID
         | R::REFUSAL_REASON_PASSWORD_LENGTH

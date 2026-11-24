@@ -173,6 +173,16 @@ pub struct Resize {
     cache_limit: u64,
 }
 
+impl Resize {
+    /// A copy `width` pixels wide, one of [`WIDTHS`], or `None` while `images` has resizing off.
+    pub(crate) fn to(width: u32, images: &ImageSettings) -> Option<Self> {
+        debug_assert!(WIDTHS.contains(&width), "{width} isn't on the width list");
+        images
+            .resizing()
+            .map(|cache_limit| Self { width, cache_limit })
+    }
+}
+
 /// What an image's URL asks for after the `?`.
 #[derive(Debug, Deserialize)]
 pub(crate) struct Asked {

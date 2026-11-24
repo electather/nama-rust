@@ -160,7 +160,7 @@ pub fn serve(
         settings.clone(),
         points.clone(),
     );
-    let artwork = Artwork::new(images.clone(), points);
+    let artwork = Artwork::new(images.clone(), points).resizing_posters_ahead(settings.images());
     let plugin_logos = PluginLogos::new(images.clone());
     let custom_images = CustomImages::new(Arc::clone(&db), images.clone());
     let scanner = Scanner::new(

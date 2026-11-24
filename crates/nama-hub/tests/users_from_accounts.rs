@@ -308,25 +308,23 @@ async fn an_account_without_a_user_on_the_server_cant_sign_in_to_it(db: PgPool) 
 }
 
 #[sqlx::test(migrations = false)]
-async fn an_account_with_two_users_on_a_server_signs_in_as_the_one_linked_first(db: PgPool) {
+async fn an_account_with_a_user_on_the_server_cant_accept_another_there(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
     let server = linked(&hub, &ada, "Ada's").await;
-    for user_id in [7, 8] {
-        let code = start_user(&hub, &server, user_id).await.unwrap();
-        approve_user(&hub, &ada, &code).await.unwrap();
-    }
-    let started = start_sign_in(&hub, &server).await;
+    let code = start_user(&hub, &server, 7).await.unwrap();
+    approve_user(&hub, &ada, &code).await.unwrap();
+    invite(&hub, &server, 8, "ada@example.com").await;
+    let (id, _) = &invites(&hub, &ada).await[0];
 
-    assert_eq!(
-        sign_in_page(&hub, &ada, &started.id).await.unwrap(),
-        ("Ada's".to_owned(), "Grace".to_owned())
+    assert_refused(
+        accept(&hub, &ada, id).await,
+        ErrorCode::AlreadyExists,
+        RefusalReason::REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER,
     );
-    let back = approve_sign_in(&hub, &ada, &started.id).await.unwrap();
-    let token = poll_sign_in(&hub, &server, &started.device_code, code_in(&back))
-        .await
-        .unwrap();
-    assert_eq!(verified_claims(&hub, &token).await["sub"], "7");
+    assert_eq!(user_account(&hub, &server, 8).await, "");
+    // Still waiting, to accept once the other User is Unlinked.
+    assert_eq!(invites(&hub, &ada).await.len(), 1);
 }
 
 #[sqlx::test(migrations = false)]

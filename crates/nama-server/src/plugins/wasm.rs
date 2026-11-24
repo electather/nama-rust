@@ -63,6 +63,7 @@ mod calls_tests;
 mod fulfiller_tests;
 
 pub(crate) use listing::read;
+pub(crate) use load::Loaded;
 use load::{
     CALL_TIMEOUT, Compiled, MEMORY_MAX_PAGES, allowed_hosts, compile, compile_with_kernel,
     extism_config,
@@ -128,6 +129,9 @@ pub(super) enum Refused {
     HostWithPort(String),
     #[error("its id {0} is another Plugin's")]
     IdTaken(PluginId),
+    /// Refused before for this reason, and its file hasn't changed since.
+    #[error("{0}")]
+    Again(String),
     #[error(
         "its Manifest names no Extension Points, so it would do nothing; a Plugin built before \
          Extension Points became services must name them in points"

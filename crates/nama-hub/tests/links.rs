@@ -222,6 +222,27 @@ async fn an_account_links_users_on_many_servers_but_a_user_links_to_one(db: PgPo
 }
 
 #[sqlx::test(migrations = false)]
+async fn an_account_links_one_user_on_each_server(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    let first = start_user(&hub, &server, 7).await.unwrap();
+    approve_user(&hub, &ada, &first).await.unwrap();
+    let second = start_user(&hub, &server, 8).await.unwrap();
+
+    assert_refused(
+        approve_user(&hub, &ada, &second).await,
+        ErrorCode::AlreadyExists,
+        RefusalReason::REFUSAL_REASON_ACCOUNT_HAS_USER_ON_SERVER,
+    );
+    assert_eq!(user_account(&hub, &server, 8).await, "");
+    // The refused code still works once the first User is Unlinked.
+    unlink_user(&hub, &server, 7).await;
+    approve_user(&hub, &ada, &second).await.unwrap();
+    assert_eq!(user_account(&hub, &server, 8).await, "ada@example.com");
+}
+
+#[sqlx::test(migrations = false)]
 async fn the_server_unlinks_only_its_own_user(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
