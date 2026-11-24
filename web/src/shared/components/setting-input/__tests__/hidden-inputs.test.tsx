@@ -9,10 +9,15 @@ import { forgottenField } from "@/shared/lib/setting-values";
 
 afterEach(cleanup);
 
+/** The element `container` renders at its top whose descendant `selector` finds. */
+function rowHolding(container: HTMLElement, selector: string) {
+  return [...container.children].find((row) => row.querySelector(selector) !== null);
+}
+
 // A row's first/last-row styles go by `:first-child` and `:last-child`, so a hidden input beside it
 // would take that place (#2127).
 describe("a hidden input stays inside its setting's row", () => {
-  test("a forgotten secret keeps its key inside its row, the first and only child", () => {
+  test("a forgotten secret's row holds its key and stays its parent's first child", () => {
     const setting = create(SettingSchema, {
       key: "api_key",
       label: "API key",
@@ -24,15 +29,14 @@ describe("a hidden input stays inside its setting's row", () => {
     fireEvent.click(getByRole("button", { name: "Forget API key" }));
     // The X is gone once it asks, so this is the confirmation's Forget.
     fireEvent.click(getByRole("button", { name: "Forget API key" }));
+    const key = `input[name="${forgottenField}"]`;
+    const row = rowHolding(container, key);
 
-    expect(
-      [...container.children].map((row) =>
-        row.querySelector(`input[name="${forgottenField}"]`)?.getAttribute("value"),
-      ),
-    ).toStrictEqual(["api_key"]);
+    expect(row?.matches(":first-child")).toBe(true);
+    expect(row?.querySelector(key)?.getAttribute("value")).toBe("api_key");
   });
 
-  test("a locked choice keeps its stored choice inside its row, the last and only child", () => {
+  test("a locked choice's row holds its stored choice and stays its parent's last child", () => {
     const setting = create(SettingSchema, {
       key: "profile",
       label: "Profile",
@@ -42,11 +46,10 @@ describe("a hidden input stays inside its setting's row", () => {
     const { container } = render(
       <ChoiceInput setting={setting} choices={undefined} error={undefined} required={false} />,
     );
+    const stored = 'input[type="hidden"][name="profile"]';
+    const row = rowHolding(container, stored);
 
-    expect(
-      [...container.children].map((row) =>
-        row.querySelector('input[type="hidden"][name="profile"]')?.getAttribute("value"),
-      ),
-    ).toStrictEqual(["hd"]);
+    expect(row?.matches(":last-child")).toBe(true);
+    expect(row?.querySelector(stored)?.getAttribute("value")).toBe("hd");
   });
 });

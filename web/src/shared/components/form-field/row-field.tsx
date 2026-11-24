@@ -26,7 +26,7 @@ export function RowField({
   size?: ControlSize;
   /**
    * A hidden input the form sends with the setting, kept inside the row: the row's first/last-row
-   * styles need it to be the only element its parent holds.
+   * styles need the row to be the only element its parent holds.
    */
   hiddenInput?: ReactNode;
   children: (control: FieldControl) => ReactNode;
