@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     io::Cursor,
     sync::{
         Arc,
@@ -74,9 +74,7 @@ async fn no_more_than_two_images_download_at_once() {
     let artwork = artwork_on(&data, slow_images).await;
     let images = (0..5).map(|n| ("tmdb".to_owned(), format!("/{n}.jpg")));
 
-    artwork
-        .download(images.collect(), &HashSet::new(), None)
-        .await;
+    artwork.download(images.collect(), &HashMap::new()).await;
     let _all_finished = artwork.downloads.acquire_many(2).await.unwrap();
 
     assert_eq!(running.most.load(Ordering::SeqCst), 2);
@@ -99,8 +97,7 @@ async fn deleting_unused_images_does_not_wait_for_a_download() {
     artwork
         .download(
             vec![("tmdb".to_owned(), "/slow.jpg".to_owned())],
-            &HashSet::new(),
-            None,
+            &HashMap::new(),
         )
         .await;
     while asked.load(Ordering::SeqCst) == 0 {
@@ -537,7 +534,7 @@ async fn a_poster_whose_title_shows_the_one_beside_its_media_in_its_place_gets_n
         .unwrap();
     let images = ServerSettings::new(Arc::clone(&db), data.path().to_owned()).images();
     let custom_images = CustomImages::new(Arc::clone(&db), store.clone());
-    let artwork = Artwork::new(store, Registry::new().extension_points()).resizing_posters_ahead(
+    let artwork = Artwork::new(store, Registry::new().extension_points()).resizing_ahead(
         images,
         custom_images,
         local_images,

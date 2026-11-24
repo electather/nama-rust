@@ -100,6 +100,44 @@ impl Contents {
         Ok(rows.into_iter().map(|row| (row.plugin, row.path)).collect())
     }
 
+    /// Each Backdrop, titled ones among them, and then each Title Logo a Match in the Library
+    /// `library` stores, as its Plugin and path.
+    pub(crate) async fn backdrops_and_title_logos(
+        &self,
+        library: i64,
+    ) -> Result<(Vec<(String, String)>, Vec<(String, String)>), sqlx::Error> {
+        let rows = sqlx::query!(
+            r#"WITH matched AS (
+                   SELECT item_matches.backdrop, item_matches.backdrop_plugin,
+                          item_matches.titled_backdrop, item_matches.titled_backdrop_plugin,
+                          item_matches.logo, item_matches.logo_plugin
+                   FROM item_matches
+                   JOIN library_items ON library_items.id = item_matches.item_id
+                   JOIN library_files ON library_files.id = library_items.file_id
+                   WHERE item_matches.state = 'matched' AND library_files.library_id = ?)
+               SELECT backdrop_plugin AS "plugin!", backdrop AS "path!", FALSE AS "title_logo!: bool"
+               FROM matched WHERE backdrop IS NOT NULL
+               UNION
+               SELECT titled_backdrop_plugin, titled_backdrop, FALSE FROM matched
+               WHERE titled_backdrop IS NOT NULL
+               UNION
+               SELECT logo_plugin, logo, TRUE FROM matched WHERE logo IS NOT NULL"#,
+            library
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        let (mut backdrops, mut title_logos) = (Vec::new(), Vec::new());
+        for row in rows {
+            let kind = if row.title_logo {
+                &mut title_logos
+            } else {
+                &mut backdrops
+            };
+            kind.push((row.plugin, row.path));
+        }
+        Ok((backdrops, title_logos))
+    }
+
     /// Each Poster, a title's, its Season's or its Show's, a Match in the Library `library`
     /// stores, with whose it is.
     pub(crate) async fn posters(&self, library: i64) -> Result<Vec<TitlePoster>, sqlx::Error> {

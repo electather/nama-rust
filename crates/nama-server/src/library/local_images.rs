@@ -259,15 +259,15 @@ impl LocalImages {
             .await
     }
 
-    /// Makes, in the background, `copy` of each Poster beside the Library `library`'s media that a
-    /// title shows, having none of `custom_images` in its place, where that copy isn't there. Each
+    /// Makes, in the background, `copies` of each Poster beside the Library `library`'s media that a
+    /// title shows, having none of `custom_images` in its place, where they aren't there. Each
     /// one, not only those a scan just copied in, so a Library recorded before Posters were
     /// resized ahead gets its copies too (#2152).
     pub(super) fn resize_shown_posters(
         &self,
         library: i64,
         custom_images: CustomImages,
-        copy: Resize,
+        copies: Vec<Resize>,
     ) {
         let local_images = self.clone();
         tokio::spawn(async move {
@@ -282,7 +282,7 @@ impl LocalImages {
             let folder = library.to_string();
             for poster in posters {
                 (local_images.store)
-                    .copy_ahead(&[DIR, &folder, &poster], copy)
+                    .copy_ahead(&[DIR, &folder, &poster], &copies)
                     .await;
             }
         });
