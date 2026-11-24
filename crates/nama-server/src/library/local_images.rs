@@ -62,7 +62,7 @@ pub(crate) struct LocalImages {
     store: ImageStore,
     /// What the Posters it copies in are resized by right after, so a first visit finds them
     /// made. `None` unless startup hands it over (`LocalImages::resizing_posters_ahead`).
-    images: Option<ImageSettings>,
+    image_settings: Option<ImageSettings>,
     /// Held while one scan batch's Posters are resized, so at most one of them waits on the resize
     /// thread ahead of a request's (ADR 0039).
     resizing: Arc<Mutex<()>>,
@@ -162,7 +162,7 @@ impl LocalImages {
         Self {
             contents: Contents::new(db),
             store,
-            images: None,
+            image_settings: None,
             resizing: Arc::default(),
         }
     }
@@ -171,7 +171,7 @@ impl LocalImages {
     #[must_use]
     pub(crate) fn resizing_posters_ahead(self, images: ImageSettings) -> Self {
         Self {
-            images: Some(images),
+            image_settings: Some(images),
             ..self
         }
     }
@@ -261,7 +261,7 @@ impl LocalImages {
     /// Resizes, in the background, each of `posters`, as stored in the Library `library`'s folder,
     /// to the Poster grid's width, where resizing is on.
     fn resize_ahead(&self, library: i64, posters: HashSet<String>) {
-        let Some(copy) = self.images.as_ref().and_then(poster_grid_copy) else {
+        let Some(copy) = self.image_settings.as_ref().and_then(poster_grid_copy) else {
             return;
         };
         let (store, resizing) = (self.store.clone(), Arc::clone(&self.resizing));

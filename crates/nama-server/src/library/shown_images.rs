@@ -43,7 +43,7 @@ pub(crate) struct ShownImages {
 /// The Custom Images and images beside the media that titles show in place of their downloaded
 /// images, read once.
 #[derive(Debug)]
-pub(crate) struct InPlaceOfDownloaded {
+pub(super) struct InPlaceOfDownloaded {
     custom: CustomImageUrls,
     local: LocalImageUrls,
 }
@@ -196,7 +196,7 @@ impl InPlaceOfDownloaded {
     /// # Errors
     ///
     /// If the database can't be read.
-    pub(crate) async fn read(
+    pub(super) async fn read(
         custom_images: &CustomImages,
         local_images: &LocalImages,
     ) -> sqlx::Result<Self> {
@@ -208,7 +208,7 @@ impl InPlaceOfDownloaded {
 
     /// Whether the title with every id `ids` shows its downloaded `image`, having no Custom Image or
     /// image beside its media in its place.
-    pub(crate) fn shows_downloaded(&self, ids: &ExternalIds, image: TitleImage) -> bool {
+    pub(super) fn shows_downloaded(&self, ids: &ExternalIds, image: TitleImage) -> bool {
         // Any one id identifies a title (ADR 0042), so whichever goes first finds the same images.
         (ids.iter().next()).is_none_or(|id| self.of_title(&id, ids, image).is_none())
     }
