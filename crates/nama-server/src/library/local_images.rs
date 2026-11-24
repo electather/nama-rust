@@ -30,6 +30,7 @@ use axum::{
     routing::get,
 };
 use nama_plugin_api::metadata::{ExternalId, ExternalIds};
+use tokio::sync::Mutex;
 use tokio_util::io::ReaderStream;
 
 use crate::{
@@ -37,6 +38,7 @@ use crate::{
     images::{Asked, ImageStore, LOCAL_IMAGES_DIR, UploadError},
     library::{
         Role,
+        artwork::poster_grid_copy,
         contents::{Contents, LocalImage, LocalImageFile, LocalRole, TitleLocalImage},
         custom_images::served_type,
     },
@@ -58,6 +60,12 @@ const ROLES: [LocalRole; 3] = [
 pub(crate) struct LocalImages {
     contents: Contents,
     store: ImageStore,
+    /// What the Posters it copies in are resized by right after, so a first visit finds them
+    /// made. `None` unless startup hands it over (`LocalImages::resizing_posters_ahead`).
+    images: Option<ImageSettings>,
+    /// Held while one scan batch's Posters are resized, so at most one of them waits on the resize
+    /// thread ahead of a request's (ADR 0039).
+    resizing: Arc<Mutex<()>>,
 }
 
 /// The images found beside a Library's Versions, by Version id and what each stands in for.
@@ -154,6 +162,17 @@ impl LocalImages {
         Self {
             contents: Contents::new(db),
             store,
+            images: None,
+            resizing: Arc::default(),
+        }
+    }
+
+    /// This, resizing each Poster it copies in to the Poster grid's width as `images` says.
+    #[must_use]
+    pub(crate) fn resizing_posters_ahead(self, images: ImageSettings) -> Self {
+        Self {
+            images: Some(images),
+            ..self
         }
     }
 
@@ -193,7 +212,7 @@ impl LocalImages {
 
     /// Replaces the images stored beside each of `versions`, in the Library `library`, with those
     /// `found` beside it, copying each into the store. One a Custom Image couldn't be is skipped,
-    /// and logged.
+    /// and logged. Then resizes, in the background, each Poster kept to the Poster grid's width.
     ///
     /// # Errors
     ///
@@ -223,9 +242,36 @@ impl LocalImages {
                 Err(err) => tracing::warn!("skipped the image {}: {err}", file.path),
             }
         }
+        let posters = (kept.iter())
+            .filter(|image| {
+                matches!(
+                    image.role,
+                    LocalRole::Title(Role::Poster) | LocalRole::SeasonPoster
+                )
+            })
+            .map(|image| image.stored.clone())
+            .collect();
         (self.contents)
             .replace_local_images(versions.to_vec(), kept)
-            .await
+            .await?;
+        self.resize_ahead(library, posters);
+        Ok(())
+    }
+
+    /// Resizes, in the background, each of `posters`, as stored in the Library `library`'s folder,
+    /// to the Poster grid's width, where resizing is on.
+    fn resize_ahead(&self, library: i64, posters: HashSet<String>) {
+        let Some(copy) = self.images.as_ref().and_then(poster_grid_copy) else {
+            return;
+        };
+        let (store, resizing) = (self.store.clone(), Arc::clone(&self.resizing));
+        tokio::spawn(async move {
+            let _resizing = resizing.lock().await;
+            let library = library.to_string();
+            for poster in posters {
+                store.copy_ahead(&[DIR, &library, &poster], copy).await;
+            }
+        });
     }
 
     /// Copies the image at `path` into the Library `library`'s folder in the store, as an upload
