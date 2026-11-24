@@ -308,6 +308,9 @@ pub enum RefusalReason {
     /// `not_found`: no title in a Library has a Role of the Person with the ID. `field` is
     /// `person_id`.
     REFUSAL_REASON_PERSON_NOT_FOUND = 102i32,
+    /// `not_found`: the caller's inbox has no notification with the ID, as another User's isn't in
+    /// theirs. `field` is `id`. Params: `notificationId`.
+    REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND = 103i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -610,6 +613,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_PERSON_NOT_FOUND`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const PersonNotFound: Self = Self::REFUSAL_REASON_PERSON_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const InboxNotificationNotFound: Self = Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -925,6 +931,11 @@ impl ::buffa::Enumeration for RefusalReason {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD)
             }
             102i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_PERSON_NOT_FOUND),
+            103i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1125,6 +1136,9 @@ impl ::buffa::Enumeration for RefusalReason {
                 "REFUSAL_REASON_LAST_SIGN_IN_METHOD"
             }
             Self::REFUSAL_REASON_PERSON_NOT_FOUND => "REFUSAL_REASON_PERSON_NOT_FOUND",
+            Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND => {
+                "REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND"
+            }
         }
     }
     fn from_proto_name(name: &str) -> ::core::option::Option<Self> {
@@ -1457,6 +1471,11 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_PERSON_NOT_FOUND" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_PERSON_NOT_FOUND)
             }
+            "REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1562,6 +1581,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_WRONG_ACCOUNT,
             Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD,
             Self::REFUSAL_REASON_PERSON_NOT_FOUND,
+            Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND,
         ]
     }
 }

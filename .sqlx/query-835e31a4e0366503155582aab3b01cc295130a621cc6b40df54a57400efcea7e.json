@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", display_username AS name,\n                      permissions AS \"permissions: Permissions\", created_at\n               FROM users ORDER BY id",
+  "query": "SELECT id AS \"id!\", display_username AS name,\n                  permissions AS \"permissions: Permissions\", created_at\n           FROM users ORDER BY id",
   "describe": {
     "columns": [
       {
@@ -58,5 +58,5 @@
       false
     ]
   },
-  "hash": "1eb040837b3472a37055f4420f8bbc6d3511c5f4bf8bcf542d9ac810a25f7e67"
+  "hash": "835e31a4e0366503155582aab3b01cc295130a621cc6b40df54a57400efcea7e"
 }

@@ -1,6 +1,6 @@
 use nama_proto::nama::v1::{
-    Event, FollowedShow, FollowedShowCreated, LibraryItemAdded, NotificationKind, Permission,
-    Playback, PlaybackStarted, Request, RequestCancelled, RequestCreated, RequestState,
+    Event, FollowedShow, FollowedShowCreated, LibraryItemAdded, NotificationKind, PageRequest,
+    Permission, Playback, PlaybackStarted, Request, RequestCancelled, RequestCreated, RequestState,
     RequestStateChanged, Requester, RequesterAdded,
 };
 
@@ -14,12 +14,14 @@ use nama_plugin_api::{
     notifier::{Notification, Notifier, Recipient, RecipientGone},
 };
 
-use super::{Filter, Viewer, deliver, event, users_to_tell};
+use super::{EventBus, Filter, Viewer, deliver, event, users_to_tell};
 use crate::{
     db::Database,
-    plugins::{ProviderError, without_secrets},
+    page::Page,
+    plugins::{ExtensionPoints, ProviderError, without_secrets},
+    server_settings::ServerUrl,
     users::{
-        Permissions, User, personal_settings_of, replace_personal_settings,
+        Permissions, User, list_inbox, personal_settings_of, replace_personal_settings,
         set_notification_preference,
     },
 };
@@ -389,6 +391,31 @@ impl Notifier for KeepsRecipients {
         self.0.lock().unwrap().push(recipient.clone());
         Box::pin(async { Ok(()) })
     }
+}
+
+#[tokio::test]
+async fn shutting_down_stores_what_was_published_before_and_lets_go_of_the_database() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let ada = insert_user(&db, "ada").await;
+    let bus = EventBus::new(
+        Arc::clone(&db),
+        ExtensionPoints::default(),
+        ServerUrl::default(),
+    );
+
+    bus.publish(vec![moved_to(RequestState::Approved, &[ada])]);
+    bus.shutdown().await;
+    bus.publish(vec![moved_to(RequestState::Declined, &[ada])]);
+    drop(bus);
+
+    assert_eq!(Arc::strong_count(&db), 1);
+    let page = Page::read(&PageRequest::default(), b"").unwrap();
+    let (stored, _) = list_inbox(&db, ada, &page).await.unwrap();
+    let kinds: Vec<_> = (stored.iter())
+        .map(|notification| notification.kind.as_known())
+        .collect();
+    assert_eq!(kinds, [Some(NotificationKind::Approved)]);
 }
 
 #[tokio::test]

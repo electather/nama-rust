@@ -23,6 +23,7 @@ mod codes;
 mod device_names;
 mod expired;
 mod home_layout;
+mod inbox;
 mod invites;
 mod managing;
 mod names;
@@ -41,6 +42,10 @@ pub use codes::SetupCode;
 use codes::new_token;
 pub(crate) use codes::random_secret;
 pub(crate) use home_layout::{AskedHomeLayout, UserHomeLayout};
+pub(crate) use inbox::{
+    list as list_inbox, mark_all_read as mark_all_inbox_read, mark_read as mark_inbox_read,
+    store as store_in_inbox, unread as count_unread_in_inbox,
+};
 pub(crate) use invites::Invite;
 pub(crate) use managing::remote_cap;
 use managing::{default_permissions, ensure_may_change, ensure_may_grant};
@@ -393,14 +398,7 @@ impl Users {
 
     /// Every User, oldest first.
     pub(crate) async fn list(&self) -> Result<Vec<User>, sqlx::Error> {
-        sqlx::query_as!(
-            User,
-            r#"SELECT id AS "id!", display_username AS name,
-                      permissions AS "permissions: Permissions", created_at
-               FROM users ORDER BY id"#
-        )
-        .fetch_all(self.db.reader())
-        .await
+        every_user(&self.db).await
     }
 
     /// The Devices of the User `user` that haven't expired, oldest first, or `None` if there is no
@@ -620,6 +618,18 @@ impl Users {
 /// What the database keeps of a session token.
 fn hash_token(token: &str) -> [u8; 32] {
     Sha256::digest(token).into()
+}
+
+/// Every User, oldest first, for a task that holds no [`Users`], such as `crate::events`.
+pub(crate) async fn every_user(db: &Database) -> Result<Vec<User>, sqlx::Error> {
+    sqlx::query_as!(
+        User,
+        r#"SELECT id AS "id!", display_username AS name,
+                  permissions AS "permissions: Permissions", created_at
+           FROM users ORDER BY id"#
+    )
+    .fetch_all(db.reader())
+    .await
 }
 
 async fn any_user(conn: &mut SqliteConnection) -> Result<bool, sqlx::Error> {

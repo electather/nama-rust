@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE inbox SET read_at = ? WHERE user_id = ? AND read_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "6f2d9e9b37edbdfe049c8802d26897c855cfd52f3d77a0204be0f5c7980b0d1f"
+}
