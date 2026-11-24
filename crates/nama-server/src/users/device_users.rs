@@ -6,10 +6,32 @@
 
 use sqlx::SqliteConnection;
 
-use super::{DEVICE_LIFETIME, Device, Error, NewDevice, Permissions, User, Users};
+use super::{
+    Caller, DEVICE_LIFETIME, Device, Error, NewDevice, Permissions, Proved, SignedIn, User, Users,
+    codes::new_token, hash_token, proved::proved_user,
+};
 use crate::db::now;
 
 impl Users {
+    /// Signs `device`, whose name has been checked, in as whoever `proved` says. A Device already
+    /// signed in, holding the session token `session`, has the User added to it instead and keeps
+    /// its name and token (ADR 0106). A User deleted since their password was checked is refused as
+    /// a wrong name or password; a Sign-in Code is refused if its approving User was deleted or
+    /// signed out of its approving Device. The only place sessions are issued.
+    pub(crate) async fn sign_in_as(
+        &self,
+        proved: Proved,
+        device: NewDevice,
+        session: Option<&str>,
+    ) -> Result<SignedIn, Error> {
+        let held = session.map(str::to_owned);
+        let new = new_token()?;
+        self.write_telling(move |tx| {
+            Box::pin(async move { sign_in_device(tx, proved, device, held, new).await })
+        })
+        .await
+    }
+
     /// The Users signed in to the Device `device`, oldest User first.
     pub(crate) async fn users_on(&self, device: i64) -> Result<Vec<User>, sqlx::Error> {
         sqlx::query_as!(
@@ -58,6 +80,39 @@ async fn switch(conn: &mut SqliteConnection, device: i64, user: i64) -> Result<V
     .execute(conn)
     .await?;
     Ok(vec![device])
+}
+
+/// Signs `device` in as whoever `proved` says, as [`Users::sign_in_as`] does: adds them to the
+/// Device holding the session token `held`, if one does, or else stores `device` with the session
+/// token `new`. Answers the id of the Device it switched, if any, and the session.
+async fn sign_in_device(
+    conn: &mut SqliteConnection,
+    proved: Proved,
+    device: NewDevice,
+    held: Option<String>,
+    new: String,
+) -> Result<(Vec<i64>, SignedIn), Error> {
+    let (user, method) = proved_user(conn, proved).await?;
+    let joined = match held {
+        Some(token) => (add_to_device(conn, &hash_token(&token), user.id, method).await?)
+            .map(|joined| (joined, token)),
+        None => None,
+    };
+    if let Some((joined, token)) = joined {
+        // It no longer acts as whoever it did, so what it opened as them ends.
+        let switched = vec![joined.id];
+        let caller = Caller {
+            user,
+            device: joined,
+        };
+        return Ok((switched, SignedIn { caller, token }));
+    }
+    let inserted = insert_device(conn, user.id, method, device, &hash_token(&new)).await?;
+    let caller = Caller {
+        user,
+        device: inserted,
+    };
+    Ok((Vec::new(), SignedIn { caller, token: new }))
 }
 
 /// Stores `device`, whose name has been checked, signed in as and acting as the User `user`, who

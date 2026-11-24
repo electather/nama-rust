@@ -300,9 +300,9 @@ impl SignIn {
     /// Gives `caller`'s User Recent Authentication on their Device if `proof` proves who they are,
     /// as asked from `ip` at `now`. A missing proof is refused with [`Error::ProofMissing`] and a
     /// User found signed out of the Device once the proof checked out with
-    /// [`users::Error::SignedOut`]; neither is a guess. A proof of another User is refused like a wrong password, or as
-    /// [`Error::WrongAccount`]. The Hub is asked about an Account's only once the attempt is let
-    /// through, and its failure counts as a guess.
+    /// [`users::Error::SignedOut`]; neither is a guess. A proof of another User is refused like a
+    /// wrong password, or as [`Error::WrongAccount`]. The Hub is asked about an Account's only once
+    /// the attempt is let through, and its failure counts as a guess.
     pub(crate) async fn reauthenticate(
         &self,
         caller: &Caller,

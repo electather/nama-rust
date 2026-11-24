@@ -42,7 +42,7 @@ mod sign_in_codes;
 pub use codes::SetupCode;
 use codes::new_token;
 pub(crate) use codes::random_secret;
-use device_users::{add_to_device, insert_device};
+use device_users::insert_device;
 pub(crate) use home_layout::{AskedHomeLayout, UserHomeLayout};
 pub(crate) use inbox::{
     list as list_inbox, mark_all_read as mark_all_inbox_read, mark_read as mark_inbox_read,
@@ -65,7 +65,6 @@ pub(crate) use personal_settings::{
     replace as replace_personal_settings, text as personal_text, value as personal_value,
 };
 pub(crate) use proved::Proved;
-use proved::proved_user;
 pub(crate) use rate_limits::Blocked;
 pub(crate) use seeing::{is_requester, may_see};
 pub(crate) use sessions::{
@@ -451,45 +450,6 @@ impl Users {
         .map(drop)
     }
 
-    /// Signs `device`, whose name has been checked, in as whoever `proved` says. A Device already
-    /// signed in, holding the session token `session`, has the User added to it instead and keeps
-    /// its name and token (ADR 0106). A User deleted since their password was checked is refused as
-    /// a wrong name or password; a Sign-in Code is refused if its approving User was deleted or
-    /// signed out of its approving Device. The only place sessions are issued.
-    pub(crate) async fn sign_in_as(
-        &self,
-        proved: Proved,
-        device: NewDevice,
-        session: Option<&str>,
-    ) -> Result<SignedIn, Error> {
-        let new = new_token()?;
-        let new_hash = hash_token(&new);
-        let held_hash = session.map(hash_token);
-        let (caller, added) = self
-            .db
-            .write(move |tx| {
-                Box::pin(async move {
-                    let (user, method) = proved_user(tx, proved).await?;
-                    let held = match held_hash {
-                        Some(held_hash) => add_to_device(tx, &held_hash, user.id, method).await?,
-                        None => None,
-                    };
-                    let added = held.is_some();
-                    let device = match held {
-                        Some(held) => held,
-                        None => insert_device(tx, user.id, method, device, &new_hash).await?,
-                    };
-                    Ok::<_, Error>((Caller { user, device }, added))
-                })
-            })
-            .await?;
-        let token = match session {
-            Some(held) if added => held.to_owned(),
-            _ => new,
-        };
-        Ok(SignedIn { caller, token })
-    }
-
     /// Signs the Device `device` out by deleting it, with every User signed in to it, so its
     /// session stops working and [`Users::signed_out`] resolves for it.
     pub(crate) async fn sign_out(&self, device: i64) -> Result<(), sqlx::Error> {
@@ -506,9 +466,8 @@ impl Users {
     }
 
     /// Runs `write`, which signs Users out of Devices or switches them and returns those Devices'
-    /// ids, tells the waiters in
-    /// [`Users::signed_out`] about them and answers how many. Both run in a task of their own: a
-    /// queued write goes through even if the caller stops waiting, and its waiters must hear of it.
+    /// ids, tells the waiters in [`Users::signed_out`] about them and answers how many, as
+    /// [`Users::write_telling`] does.
     async fn write_signing_out<E, F>(&self, write: F) -> Result<usize, E>
     where
         E: From<sqlx::Error> + Send + 'static,
@@ -516,15 +475,40 @@ impl Users {
             + Send
             + 'static,
     {
+        self.write_telling(move |tx| {
+            let written = write(tx);
+            Box::pin(async move {
+                let devices = written.await?;
+                let count = devices.len();
+                Ok((devices, count))
+            })
+        })
+        .await
+    }
+
+    /// Runs `write`, which answers the ids of the Devices it signed Users out of or switched, and
+    /// what else it made, tells the waiters in [`Users::signed_out`] about those Devices and
+    /// answers the rest. Both run in a task of their own: a queued write goes through even if the
+    /// caller stops waiting, and its waiters must hear of it.
+    async fn write_telling<T, E, F>(&self, write: F) -> Result<T, E>
+    where
+        T: Send + 'static,
+        E: From<sqlx::Error> + Send + 'static,
+        F: for<'t> FnOnce(
+                &'t mut Transaction<'_, Sqlite>,
+            ) -> BoxFuture<'t, Result<(Vec<i64>, T), E>>
+            + Send
+            + 'static,
+    {
         let users = self.clone();
         let written = tokio::spawn(
             async move {
-                let devices = users.db.write(write).await?;
+                let (devices, made) = users.db.write(write).await?;
                 for &device in &devices {
                     // Fails only when nobody is waiting, which is fine.
                     let _: Result<usize, _> = users.sign_outs.send(device);
                 }
-                Ok(devices.len())
+                Ok(made)
             }
             .in_current_span(),
         );

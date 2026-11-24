@@ -13,10 +13,10 @@ use connectrpc::{
     client::{ClientConfig, HttpClient},
 };
 use nama_proto::nama::v1::{
-    ApproveSignInCodeRequest, ChangePasswordRequest, ListDevicesRequest, PollSignInCodeRequest,
-    RefusalReason, RevokeDeviceRequest, SessionDelivery, SignInRequest, SignInServiceClient,
-    StartSignInCodeRequest, SwitchUserRequest, User, UserServiceClient, WhoAmIRequest,
-    WhoAmIResponse,
+    ApproveSignInCodeRequest, ChangePasswordRequest, DeleteUserRequest, ListDevicesRequest,
+    PollSignInCodeRequest, RefusalReason, RevokeDeviceRequest, SessionDelivery, SignInRequest,
+    SignInServiceClient, StartSignInCodeRequest, SwitchUserRequest, User, UserServiceClient,
+    WhoAmIRequest, WhoAmIResponse,
 };
 use refused::assert_refused;
 use server::{PASSWORD, SignedIn, TestServer, subscribe};
@@ -242,5 +242,37 @@ async fn an_admin_revoking_one_user_from_a_device_leaves_it_acting_as_the_other(
     let me = who_am_i(&server, &ada.token).await.unwrap();
 
     assert_eq!(acting_as(&me), Some(ada.id));
+    assert_eq!(device_users(&me), [(ada.id, "Ada")]);
+}
+
+#[tokio::test]
+async fn a_second_sign_in_ends_the_streams_the_device_opened_as_the_user_it_acted_as() {
+    let server = TestServer::builder().start().await;
+    let ada = server.user("Ada", &[]).await;
+    server.user("Grace", &[]).await;
+    let mut as_ada = subscribe(&server.client_config_as(&ada.token), &[]).await;
+
+    sign_in_on(&server, &ada.token, "Grace").await;
+
+    assert!(
+        matches!(as_ada.message().await, Ok(None)),
+        "the stream is still open"
+    );
+}
+
+#[tokio::test]
+async fn deleting_a_user_signs_them_out_of_a_shared_device_and_leaves_the_others() {
+    let (server, ada, grace) = ada_and_grace_on_one_device().await;
+
+    UserServiceClient::new(HttpClient::plaintext(), server.client_config())
+        .delete_user(DeleteUserRequest {
+            user_id: grace.id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let me = who_am_i(&server, &ada.token).await.unwrap();
+
+    assert_eq!(acting_as(&me), None);
     assert_eq!(device_users(&me), [(ada.id, "Ada")]);
 }

@@ -2,7 +2,7 @@
 -- on it keeps how they signed in to it and when they last proved who they are there; the Device
 -- keeps its token, expiry and the User it acts as now.
 CREATE TABLE device_users (
-    -- The `devices` rebuilt below: other tables name it, so the name holds across the rebuild.
+    -- Names `devices` before the rebuild below, which keeps the name, so this key holds after it.
     device_id INTEGER NOT NULL REFERENCES devices (id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     -- How they signed in to it, or NULL for a Sign-in Code or an Account. Removing the Sign-in
