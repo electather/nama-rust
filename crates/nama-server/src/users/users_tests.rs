@@ -1,5 +1,6 @@
 use buffa::Enumeration;
 use nama_proto::nama::v1::Permission;
+use sqlx::{Connection, SqliteConnection, sqlite::SqliteConnectOptions};
 
 use super::{rate_limits::Attempt, *};
 use crate::plugins::Registry;
@@ -624,4 +625,56 @@ async fn resetting_the_password_of_a_user_without_one_adds_it_and_keeps_their_ot
     let password = password_method(&users, ada).await;
     // Refused if it were Ada's last Sign-in Method.
     delete_sign_in_method(&users, password).await.unwrap();
+}
+
+/// The version of the migration that adds `device_users`.
+const DEVICE_USERS: i64 = 20_261_124_205_739;
+
+#[tokio::test]
+async fn a_device_signed_in_before_upgrading_to_device_users_still_acts_as_its_user() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let options = SqliteConnectOptions::new()
+        .filename(data_dir.path().join(crate::db::FILE_NAME))
+        .create_if_missing(true);
+    let mut conn = SqliteConnection::connect_with(&options).await.unwrap();
+    let migrations = sqlx::migrate!();
+    let before = (migrations.iter().map(|migration| migration.version))
+        .filter(|&version| version < DEVICE_USERS)
+        .max();
+    migrations.run_to(before.unwrap(), &mut conn).await.unwrap();
+    let signed_in_at = now();
+    sqlx::query(
+        "INSERT INTO users (id, username, display_username, permissions, created_at, updated_at)
+         VALUES (1, 'ada', 'Ada', 0, 0, 0)",
+    )
+    .execute(&mut conn)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO devices (id, user_id, sign_in_method_id, name, token_hash, ip_address,
+                              created_at, updated_at, last_seen_at, expires_at, authenticated_at)
+         VALUES (3, 1, NULL, 'TV', ?1, '127.0.0.1', ?2, ?2, ?2, ?3, 0)",
+    )
+    .bind(hash_token(TOKEN).as_slice())
+    .bind(signed_in_at)
+    .bind(signed_in_at + NINETY_DAYS)
+    .execute(&mut conn)
+    .await
+    .unwrap();
+    conn.close().await.unwrap();
+    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let users = Users::new(db, ExtensionPoints::default());
+
+    let session = users.session(TOKEN).await.unwrap().unwrap();
+
+    assert_eq!(session.device.id, 3);
+    assert_eq!(session.user.map(|user| user.name), Some("Ada".to_owned()));
+    let on_device = users.users_on(3).await.unwrap();
+    assert_eq!(
+        on_device
+            .into_iter()
+            .map(|user| user.id)
+            .collect::<Vec<_>>(),
+        [1]
+    );
 }

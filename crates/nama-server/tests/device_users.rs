@@ -113,6 +113,18 @@ async fn a_second_sign_in_on_a_device_adds_its_user_and_the_device_lists_exactly
 }
 
 #[tokio::test]
+async fn signing_in_again_as_a_user_already_on_the_device_lists_them_once_and_acts_as_them() {
+    let (server, ada, grace) = ada_and_grace_on_one_device().await;
+
+    let again = sign_in_on(&server, &ada.token, "Ada").await;
+
+    assert_eq!(again, ada.token, "the Device's session changed");
+    let me = who_am_i(&server, &ada.token).await.unwrap();
+    assert_eq!(acting_as(&me), Some(ada.id));
+    assert_eq!(device_users(&me), [(ada.id, "Ada"), (grace.id, "Grace")]);
+}
+
+#[tokio::test]
 async fn approving_a_sign_in_code_for_a_device_that_polls_with_its_session_adds_the_approver() {
     let server = TestServer::builder().start().await;
     let ada = server.user("Ada", &[]).await;
