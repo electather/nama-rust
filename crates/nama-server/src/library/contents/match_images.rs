@@ -86,4 +86,26 @@ impl Contents {
         .await?;
         Ok(rows.into_iter().map(|row| (row.plugin, row.path)).collect())
     }
+
+    /// Each Poster, a title's or its Show's, a Match in the Library `library` stores, as its
+    /// Plugin and path.
+    pub(crate) async fn posters(&self, library: i64) -> Result<Vec<(String, String)>, sqlx::Error> {
+        let rows = sqlx::query!(
+            r#"WITH matched AS (
+                   SELECT item_matches.poster, item_matches.poster_plugin,
+                          item_matches.show_poster, item_matches.show_poster_plugin
+                   FROM item_matches
+                   JOIN library_items ON library_items.id = item_matches.item_id
+                   JOIN library_files ON library_files.id = library_items.file_id
+                   WHERE item_matches.state = 'matched' AND library_files.library_id = ?)
+               SELECT poster_plugin AS "plugin!", poster AS "path!" FROM matched
+               WHERE poster IS NOT NULL
+               UNION
+               SELECT show_poster_plugin, show_poster FROM matched WHERE show_poster IS NOT NULL"#,
+            library
+        )
+        .fetch_all(self.db.reader())
+        .await?;
+        Ok(rows.into_iter().map(|row| (row.plugin, row.path)).collect())
+    }
 }
