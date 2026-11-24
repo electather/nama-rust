@@ -1,13 +1,14 @@
 //! Continue Watching and Featured entries, the Episodes either side of one, a Home row's titles,
 //! and a title's Roles and Trailers, as clients see them.
 
-use connectrpc::ConnectError;
+use connectrpc::{ConnectError, RequestContext};
 use nama_proto::nama::v1 as proto;
 
 use crate::{
     api::{
-        ImageSources, database_failed, external_id_to_proto,
+        ImageSources, external_id_to_proto,
         requests::{missing_movie_to_proto, missing_show_to_proto},
+        shown_images,
     },
     browse::{self, Episode, Featured, Started},
     home_rows::RowTitle,
@@ -20,10 +21,11 @@ use super::{
 };
 
 /// The Episode `GetNextEpisode` or `GetPreviousEpisode` `found` beside the one asked about, with
-/// its images as `images` shows them, or the Refusal for the request.
+/// its images as `images` shows them to `ctx`'s caller, or the Refusal for the request.
 pub(super) async fn episode_beside_to_proto(
     found: Result<Option<(Episode, Option<WatchState>)>, browse::Error>,
     images: &ImageSources,
+    ctx: &RequestContext,
 ) -> Result<Option<proto::Episode>, ConnectError> {
     let found = found.map_err(refused(Fields {
         title: "show_id",
@@ -31,7 +33,7 @@ pub(super) async fn episode_beside_to_proto(
         episode: "episode_number",
         ..Fields::LIBRARY
     }))?;
-    let images = images.shown().await.map_err(database_failed)?;
+    let images = shown_images(images, ctx).await?;
     Ok(found.map(|(episode, state)| episode_to_proto(episode, state, &images)))
 }
 
