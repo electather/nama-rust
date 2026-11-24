@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { serverQueries } from "@/shared/hooks/server-key";
 import type { ImageRules } from "@/shared/lib/image-rules";
-import { serverUrl } from "@/shared/lib/server";
+import { onServer } from "@/shared/lib/server";
 
 /** The most bytes the Server takes for an image: 20 MiB. */
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
@@ -23,7 +23,7 @@ export function useChangeImage(path: string, { refusals }: ImageRules) {
     setPending(true);
     setError(undefined);
     try {
-      const response = await fetch(serverUrl(transport, url), init);
+      const response = await fetch(onServer(transport, url), init);
       if (response.ok) {
         // Any of the Server's queries may send the image's URL, which is new now.
         await queryClient.invalidateQueries(serverQueries(transport));

@@ -50,17 +50,17 @@ function marking({ libraryId, target, played }: Asked) {
 }
 
 /** Marks what `asked` names in the cached Movie or Episodes, before the Server has answered. */
-function showMarked(cache: RouterContext, asked: Asked) {
+function showMarked(context: RouterContext, asked: Asked) {
   const mark = marking(asked);
   if (!mark) {
     return;
   }
   const { libraryId, target, played } = mark;
   if (target.case === "movieId") {
-    showMovieMarked(cache, { libraryId, movieId: target.value }, played);
+    showMovieMarked(context, { libraryId, movieId: target.value }, played);
     return;
   }
-  showEpisodesMarked(cache, { libraryId, target, played });
+  showEpisodesMarked(context, { libraryId, target, played });
 }
 
 /** Marks the cached Episodes `mark` covers: one Episode, or a Season's or Show's. */

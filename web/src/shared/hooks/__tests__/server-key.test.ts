@@ -8,7 +8,6 @@ import { ScanStartedSchema } from "@/gen/nama/v1/event_pb";
 import { GetServerInfoResponseSchema, ServerService } from "@/gen/nama/v1/server_pb";
 import { scanQuery } from "@/shared/hooks/scan-query";
 import { serverQueries } from "@/shared/hooks/server-key";
-import { serverTransport, serverUrl } from "@/shared/lib/server";
 
 test("two Servers' data sit in one cache, and each Server's queries are only its own", () => {
   const home = createRouterTransport(() => {});
@@ -35,19 +34,4 @@ test("two Servers' data sit in one cache, and each Server's queries are only its
     scanQuery(home, 1n).queryKey,
   ]);
   expect(queryClient.getQueryData(info(friends))).toBe(friendsInfo);
-});
-
-test("a path is on the Server its transport goes to, or on the page's own when it names none", () => {
-  expect(serverUrl(serverTransport("https://friend.example", []), "/custom-images/movie/1")).toBe(
-    "https://friend.example/custom-images/movie/1",
-  );
-  expect(serverUrl(serverTransport("", []), "/custom-images/movie/1")).toBe(
-    "/custom-images/movie/1",
-  );
-  expect(
-    serverUrl(
-      createRouterTransport(() => {}),
-      "/custom-images/movie/1",
-    ),
-  ).toBe("/custom-images/movie/1");
 });

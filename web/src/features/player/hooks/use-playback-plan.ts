@@ -1,6 +1,5 @@
 import { useState } from "react";
 
-import { useFrameSheets } from "@/features/player/data/use-frame-sheets";
 import { usePlan } from "@/features/player/data/use-plan";
 import { useCantPlay } from "@/features/player/hooks/use-cant-play";
 import { useSubtitleChoice } from "@/features/player/hooks/use-subtitle-choice";
@@ -34,7 +33,7 @@ export function usePlaybackPlan({
   // again.
   const [asking, setAsking] = useState<Asking>(() => firstAsking(watchState));
   const { startPositionMs } = asking;
-  const { plan, playableVersions } = usePlan(versionId, asking);
+  const { plan, playableVersions, sheets } = usePlan(versionId, asking);
   const askFromHere = asker(setAsking, plan, startPositionMs);
   const subtitles = useSubtitleChoice(askFromHere, plan);
   const failing = useCantPlay(plan, asking, setAsking);
@@ -43,7 +42,7 @@ export function usePlaybackPlan({
     versionId,
     plan,
     playableVersions,
-    sheets: useFrameSheets(plan.previewFrames, versionId),
+    sheets,
     startPositionMs,
     justChose,
     asks,

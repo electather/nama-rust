@@ -15,23 +15,23 @@ import { serverQueries } from "@/shared/hooks/server-key";
 import { unmatchedKey } from "@/shared/hooks/unmatched-key";
 
 /** Updates or invalidates the queries of the Server `response` came from that it's about. */
-export function applyEvent({ message }: SubscribeResponse, target: RouterContext) {
+export function applyEvent({ message }: SubscribeResponse, context: RouterContext) {
   if (message.case === "event") {
-    recordScan(message.value, target);
-    relistUnmatched(message.value, target);
-    dropDecided(message.value, target);
-    refreshBrowsing(message.value, target);
-    refreshLibrary(message.value, target);
-    refreshRequests(message.value, target);
-    refreshPlays(message.value, target);
-    recordAdminStop(message.value, target);
+    recordScan(message.value, context);
+    relistUnmatched(message.value, context);
+    dropDecided(message.value, context);
+    refreshBrowsing(message.value, context);
+    refreshLibrary(message.value, context);
+    refreshRequests(message.value, context);
+    refreshPlays(message.value, context);
+    recordAdminStop(message.value, context);
   } else if (message.case === "lagged") {
-    forgetMissed(target);
+    forgetMissed(context);
   }
 }
 
 /**
- * Refetches everything after Events were missed. Scans can't be refetched, so what's known of them
+ * Refetches everything of the Server after its Events were missed. Scans can't be refetched, so what's known of them
  * is forgotten rather than left stuck mid-scan.
  */
 export function forgetMissed({ queryClient, transport }: RouterContext) {
@@ -61,9 +61,9 @@ function relistUnmatched({ event }: Event, { queryClient, transport }: RouterCon
 }
 
 /** Drops each Unmatched Item that is Matched or gone. */
-function dropDecided({ event }: Event, target: RouterContext) {
+function dropDecided({ event }: Event, context: RouterContext) {
   if (event.case === "itemMatched" || event.case === "libraryItemRemoved") {
-    dropUnmatched(target, event.value.libraryId, event.value.itemId);
+    dropUnmatched(context, event.value.libraryId, event.value.itemId);
   }
 }
 
