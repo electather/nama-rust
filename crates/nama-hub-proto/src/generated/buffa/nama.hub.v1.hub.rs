@@ -127,7 +127,7 @@ pub struct GetHubInfoResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub sign_in_links: bool,
-    /// Whether the Hub offers passkeys, which it does once it has a public URL.
+    /// Whether the Hub offers passkeys, which it does once it has a public address.
     ///
     /// Field 3: `passkeys`
     #[serde(

@@ -236,7 +236,7 @@ pub struct GetHubInfoResponseView<'a> {
     ///
     /// Field 2: `sign_in_links`
     pub sign_in_links: bool,
-    /// Whether the Hub offers passkeys, which it does once it has a public URL.
+    /// Whether the Hub offers passkeys, which it does once it has a public address.
     ///
     /// Field 3: `passkeys`
     pub passkeys: bool,
@@ -497,7 +497,7 @@ impl GetHubInfoResponseOwnedView {
     pub fn sign_in_links(&self) -> bool {
         self.0.reborrow().sign_in_links
     }
-    /// Whether the Hub offers passkeys, which it does once it has a public URL.
+    /// Whether the Hub offers passkeys, which it does once it has a public address.
     ///
     /// Field 3: `passkeys`
     #[must_use]

@@ -18,6 +18,6 @@ message GetHubInfoResponse {
   string version = 1;
   // Whether the Hub emails Sign-in Links, which it does once it has mail set up.
   bool sign_in_links = 2;
-  // Whether the Hub offers passkeys, which it does once it has a public URL.
+  // Whether the Hub offers passkeys, which it does once it has a public address.
   bool passkeys = 3;
 }

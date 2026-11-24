@@ -44,7 +44,7 @@ export type GetHubInfoResponse = Message<"nama.hub.v1.GetHubInfoResponse"> & {
   signInLinks: boolean;
 
   /**
-   * Whether the Hub offers passkeys, which it does once it has a public URL.
+   * Whether the Hub offers passkeys, which it does once it has a public address.
    *
    * @generated from field: bool passkeys = 3;
    */

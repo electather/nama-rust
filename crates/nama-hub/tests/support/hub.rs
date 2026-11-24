@@ -94,7 +94,7 @@ impl TestHub {
     }
 
     /// As [`TestHub::start`], but with no public address, as without `NAMA_HUB_PUBLIC_URL`.
-    pub(crate) async fn start_without_public_url(db: PgPool) -> Self {
+    pub(crate) async fn start_without_public_address(db: PgPool) -> Self {
         Self::start_at(db, None, None).await
     }
 

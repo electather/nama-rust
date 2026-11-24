@@ -292,7 +292,7 @@ impl Accounts {
         self.outbox.is_some()
     }
 
-    /// Whether the Hub offers passkeys, which it does with a public URL.
+    /// Whether the Hub offers passkeys, which it does with a public address.
     pub(crate) fn offers_passkeys(&self) -> bool {
         self.relying_party.is_some()
     }

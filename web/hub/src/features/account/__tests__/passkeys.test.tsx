@@ -56,6 +56,8 @@ function openHub(path: string, signedIn = false, passkeys = true) {
     passkeys: [create(PasskeySchema, { id: "0193-laptop", name: "Laptop" })],
     /** Whether changing passkeys is refused for want of a recent sign-in. */
     stale: false,
+    /** Whether the page has asked the Hub if it offers passkeys. */
+    told: false,
   };
   const recentOnly = () => {
     if (hub.stale) {
@@ -63,7 +65,12 @@ function openHub(path: string, signedIn = false, passkeys = true) {
     }
   };
   const transport = createRouterTransport(({ service }) => {
-    service(HubService, { getHubInfo: () => ({ version: "0.1.0", passkeys }) });
+    service(HubService, {
+      getHubInfo: () => {
+        hub.told = true;
+        return { version: "0.1.0", passkeys };
+      },
+    });
     service(AccountService, {
       getAccount: () => {
         if (!session) {
@@ -133,9 +140,11 @@ describe("an Account's passkeys", () => {
 
   test("a Hub that offers no passkeys has no passkey sign-in", async () => {
     browserCredentials({ get: vi.fn<() => Promise<unknown>>() });
-    openHub("/sign-in", false, false);
+    const hub = openHub("/sign-in", false, false);
 
-    await expect(screen.findByRole("heading", { name: "Sign in" })).resolves.toBeDefined();
+    await vi.waitFor(() => {
+      expect(hub.told).toBe(true);
+    });
     expect(screen.queryByRole("button", { name: "Sign in with a passkey" })).toBeNull();
   });
 
@@ -172,9 +181,12 @@ describe("an Account's passkeys", () => {
   });
 
   test("a Hub that offers no passkeys has no form to add one, but lists those there are", async () => {
-    openHub("/", true, false);
+    const hub = openHub("/", true, false);
 
     await expect(screen.findByText("Laptop")).resolves.toBeDefined();
+    await vi.waitFor(() => {
+      expect(hub.told).toBe(true);
+    });
     expect(screen.queryByLabelText("New passkey’s name")).toBeNull();
   });
 

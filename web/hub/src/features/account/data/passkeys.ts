@@ -20,8 +20,8 @@ const passkeysKey = createConnectQueryKey({
 });
 
 /**
- * Whether passkeys work here: the Hub offers them, which it does once it has a public URL, and the
- * browser has them. Unknown is no, since the Hub refuses passkeys without that URL.
+ * Whether passkeys work here: the Hub offers them, which it does once it has a public address, and
+ * the browser has them. Unknown is no, since the Hub refuses passkeys without that address.
  */
 export function usePasskeysWork() {
   const { data } = useQuery(HubService.method.getHubInfo, {});
