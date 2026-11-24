@@ -30,6 +30,7 @@ export function ConfirmItsYou({ children }: { children: ReactNode }) {
 
   function answerWith(confirmed: boolean) {
     give.current?.(confirmed);
+    give.current = undefined;
     answer.current = undefined;
   }
 
