@@ -106,7 +106,7 @@ impl LocalImageUrls {
     }
 
     /// Files each of `images` under its title's ids; of one title's, the first is kept.
-    pub(super) fn filed(images: Vec<TitleLocalImage>) -> Self {
+    pub(super) fn filed(images: &[TitleLocalImage]) -> Self {
         let mut urls = Self::default();
         for image in images {
             let (ids, url) = (&image.ids, url(image.library, &image.stored));
@@ -295,10 +295,10 @@ impl LocalImages {
         library: i64,
         custom_images: &CustomImages,
     ) -> sqlx::Result<HashSet<String>> {
-        let (images, in_place) = tokio::try_join!(
-            self.contents.titles_local_images(),
-            InPlaceOfDownloaded::read(custom_images, self)
-        )?;
+        let (images, custom) =
+            tokio::try_join!(self.contents.titles_local_images(), custom_images.urls())?;
+        // Filed from the rows just read, which `InPlaceOfDownloaded::read` would read again.
+        let in_place = InPlaceOfDownloaded::new(custom, LocalImageUrls::filed(&images));
         let shown = |image: &TitleLocalImage| {
             image.library == library
                 && image.poster().is_some_and(|poster| {
@@ -372,7 +372,7 @@ impl LocalImages {
     // `CustomImages::urls` does. Query by title if that ever grows.
     pub(crate) async fn urls(&self) -> sqlx::Result<LocalImageUrls> {
         let images = self.contents.titles_local_images().await?;
-        Ok(LocalImageUrls::filed(images))
+        Ok(LocalImageUrls::filed(&images))
     }
 
     /// The thumbhash of each copy resized so far, by the URL clients fetch it at.

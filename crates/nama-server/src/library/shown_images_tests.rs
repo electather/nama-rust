@@ -163,7 +163,7 @@ fn snapshot(artwork: Artwork, resized: bool) -> ShownImages {
             let thumbhash = url.as_bytes().to_vec();
             (url, thumbhash)
         });
-    let local = LocalImageUrls::filed(local_images);
+    let local = LocalImageUrls::filed(&local_images);
     ShownImages {
         in_place: InPlaceOfDownloaded { custom, local },
         thumbhashes: thumbhashes.collect(),

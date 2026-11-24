@@ -280,9 +280,9 @@ impl Artwork {
     }
 
     /// Downloads, in the background, each image a Match in the Library `library` stores that
-    /// isn't kept yet, logging those that fail, which the Library's next scan tries again. Then
-    /// resizes each of its Posters a title shows, kept before or just now, or beside its media,
-    /// to the Poster grid's width, where resizing is on now and that copy isn't there.
+    /// isn't kept yet, logging those that fail, which the Library's next scan tries again. Each
+    /// Poster a title of it shows, downloaded before or just now or beside its media, is resized
+    /// to the Poster grid's width too, where resizing is on now and that copy isn't there.
     pub(crate) fn download_missing(&self, contents: Contents, library: i64) {
         let artwork = self.clone();
         // Read before any download lands, so a change of settings after the scan has no part in it.

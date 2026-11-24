@@ -200,10 +200,15 @@ impl InPlaceOfDownloaded {
         custom_images: &CustomImages,
         local_images: &LocalImages,
     ) -> sqlx::Result<Self> {
-        Ok(Self {
-            custom: custom_images.urls().await?,
-            local: local_images.urls().await?,
-        })
+        Ok(Self::new(
+            custom_images.urls().await?,
+            local_images.urls().await?,
+        ))
+    }
+
+    /// What titles show in place of their downloaded images, of the URLs `custom` and `local`.
+    pub(super) const fn new(custom: CustomImageUrls, local: LocalImageUrls) -> Self {
+        Self { custom, local }
     }
 
     /// Whether the title with every id `ids` shows its downloaded `image`, having no Custom Image or
