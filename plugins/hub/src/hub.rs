@@ -23,10 +23,9 @@ use nama_hub_proto::nama::hub::v1::{
     ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
     ListRecommendedTitlesRequest, ListSimilarTitlesRequest, ListSimilarTitlesResponse,
     ListTrendingTitlesRequest, ListTrendingTitlesResponse, PollServerSignInRequest,
-    PullTrackPreferencesRequest, PullWatchStatesRequest, PushTrackPreferencesRequest,
-    PushWatchStatesRequest, RecommendedTitle, RecordViewingEventsRequest, StartServerSignInRequest,
-    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest,
-    TrackPreferenceChange, UnlinkUserRequest, UserViewingEvent, WatchStateChange, WatchlistEntry,
+    RecommendedTitle, RecordViewingEventsRequest, StartServerSignInRequest,
+    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkUserRequest,
+    UserViewingEvent,
 };
 use nama_plugin_api::{PluginError, diagnostics_sharer::Signal};
 
@@ -143,88 +142,6 @@ impl LinkedHub {
             .await
             .map_err(link_dropped)?;
         Ok(())
-    }
-
-    /// Pushes `changes` to the Watch State of the Accounts the Server's Users are Linked to, in
-    /// order.
-    pub(crate) async fn push_watch_states(
-        self,
-        changes: Vec<WatchStateChange>,
-    ) -> Result<(), PluginError> {
-        (self.client()?)
-            .push_watch_states(PushWatchStatesRequest {
-                changes,
-                ..Default::default()
-            })
-            .await
-            .map_err(link_dropped)?;
-        Ok(())
-    }
-
-    /// The Watch State of the Account the User `user_id` is Linked to, each title by each id
-    /// apart; empty while they aren't Linked.
-    pub(crate) async fn pull_watch_states(
-        self,
-        user_id: i64,
-    ) -> Result<Vec<WatchStateChange>, PluginError> {
-        let pulled = (self.client()?)
-            .pull_watch_states(PullWatchStatesRequest {
-                user_id,
-                ..Default::default()
-            })
-            .await
-            .map_err(link_dropped)?;
-        Ok(pulled.into_owned().watch_states)
-    }
-
-    /// Merges `changes` to the Track Preferences of the Server's Users into their Accounts'.
-    pub(crate) async fn push_track_preferences(
-        self,
-        changes: Vec<TrackPreferenceChange>,
-    ) -> Result<(), PluginError> {
-        (self.client()?)
-            .push_track_preferences(PushTrackPreferencesRequest {
-                changes,
-                ..Default::default()
-            })
-            .await
-            .map_err(link_dropped)?;
-        Ok(())
-    }
-
-    /// The Track Preferences of the Account the User `user_id` is Linked to; empty while they
-    /// aren't Linked.
-    pub(crate) async fn pull_track_preferences(
-        self,
-        user_id: i64,
-    ) -> Result<Vec<TrackPreferenceChange>, PluginError> {
-        let pulled = (self.client()?)
-            .pull_track_preferences(PullTrackPreferencesRequest {
-                user_id,
-                ..Default::default()
-            })
-            .await
-            .map_err(link_dropped)?;
-        Ok(pulled.into_owned().preferences)
-    }
-
-    /// Merges `entries`, the whole Watchlist of the User `user_id`, into the Account they are
-    /// Linked to, and answers the Account's, each title by each id apart; empty while they aren't
-    /// Linked.
-    pub(crate) async fn sync_watchlist(
-        self,
-        user_id: i64,
-        entries: Vec<WatchlistEntry>,
-    ) -> Result<Vec<WatchlistEntry>, PluginError> {
-        let synced = (self.client()?)
-            .sync_watchlist(SyncWatchlistRequest {
-                user_id,
-                entries,
-                ..Default::default()
-            })
-            .await
-            .map_err(link_dropped)?;
-        Ok(synced.into_owned().entries)
     }
 
     /// Asks the Account with `email`, if any, to accept the User `user_id`, named `name`.

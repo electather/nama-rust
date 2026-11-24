@@ -1,11 +1,12 @@
 //! An in-process stand-in for the Hub a Server's config names, answering the calls the Kernel
 //! makes as the Server's Link (ADR 0105): its device flow, Unlinking, the Server Addresses, whose
-//! public port it reaches only at [`OPEN_PORT`], the Relay token, and the key set it signs tokens
-//! with. It speaks the Connect protocol's unary calls with protobuf bodies, as the Kernel's client
-//! does, so it needs none of the Hub API's other calls.
+//! public port it reaches only at [`OPEN_PORT`], the Relay token, the key set it signs tokens with,
+//! and syncing Users' Watch State, Track Preferences and Watchlists, all as one [`Account`]'s, which
+//! a fake for another Server can share. It speaks the Connect protocol's unary calls with protobuf
+//! bodies, as the Kernel's client does, so it needs none of the Hub API's other calls.
 
 use std::{
-    future,
+    any, future,
     net::SocketAddr,
     sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::{SystemTime, UNIX_EPOCH},
@@ -23,8 +24,12 @@ use buffa::Message;
 use connectrpc::{ConnectError, client::HttpClient};
 use nama_hub_proto::nama::hub::v1::{
     GetRelayTokenRequest, GetRelayTokenResponse, PollServerLinkRequest, PollServerLinkResponse,
-    SetServerAddressesRequest, SetServerAddressesResponse, StartServerLinkRequest,
-    StartServerLinkResponse, UnlinkServerRequest, UnlinkServerResponse,
+    PullTrackPreferencesRequest, PullTrackPreferencesResponse, PullWatchStatesRequest,
+    PullWatchStatesResponse, PushTrackPreferencesRequest, PushTrackPreferencesResponse,
+    PushWatchStatesRequest, PushWatchStatesResponse, SetServerAddressesRequest,
+    SetServerAddressesResponse, StartServerLinkRequest, StartServerLinkResponse,
+    SyncWatchlistRequest, SyncWatchlistResponse, TrackPreferenceChange, UnlinkServerRequest,
+    UnlinkServerResponse, WatchStateChange, WatchlistEntry,
 };
 use nama_proto::nama::v1::{
     GetServerLinkRequest, ServerServiceClient, StartServerLinkRequest as Start,
@@ -73,22 +78,90 @@ struct State {
     told: Vec<SetServerAddressesRequest>,
     /// Whether every call waits forever, as a Hub slow to time out.
     hanging: bool,
+    /// Whether every call fails `unavailable`, as a Hub that is down.
+    down: bool,
+    /// The type of each request that failed so.
+    refused: Vec<&'static str>,
+    account: Arc<Mutex<Account>>,
+}
+
+/// What the one Account the fake syncs every User with keeps: of each title and Preference, the
+/// change made last, as the Hub does.
+#[derive(Default)]
+pub(crate) struct Account {
+    pub(crate) watch_states: Vec<WatchStateChange>,
+    pub(crate) preferences: Vec<TrackPreferenceChange>,
+    pub(crate) watchlist: Vec<WatchlistEntry>,
+    /// Each Watch State push (`"push"`) and pull (`"pull"`), in the order they came.
+    pub(crate) asked: Vec<&'static str>,
+}
+
+impl Account {
+    /// Keeps `change` unless one made later of the same title is kept.
+    pub(crate) fn keep_watch_state(&mut self, change: WatchStateChange) {
+        let title = |kept: &WatchStateChange| (kept.episode, kept.ids.clone());
+        keep_latest(&mut self.watch_states, change, title, |kept| {
+            kept.changed_at_ms
+        });
+    }
+
+    /// Keeps `change` unless one made later of the same Preference is kept.
+    pub(crate) fn keep_preference(&mut self, change: TrackPreferenceChange) {
+        let preference =
+            |kept: &TrackPreferenceChange| (kept.audio, kept.title_kind, kept.title_id.clone());
+        keep_latest(&mut self.preferences, change, preference, |kept| {
+            kept.changed_at_ms
+        });
+    }
+
+    /// Keeps `entry` unless one made later of the same title is kept.
+    pub(crate) fn keep_entry(&mut self, entry: WatchlistEntry) {
+        let title = |kept: &WatchlistEntry| (kept.kind, kept.id.clone());
+        keep_latest(&mut self.watchlist, entry, title, |kept| kept.changed_at_ms);
+    }
+}
+
+/// Puts `item` in `kept` in place of the one of the same `key`, unless that one was made later.
+fn keep_latest<T, K: PartialEq>(
+    kept: &mut Vec<T>,
+    item: T,
+    key: impl Fn(&T) -> K,
+    at: impl Fn(&T) -> i64,
+) {
+    match kept.iter_mut().find(|old| key(old) == key(&item)) {
+        Some(old) if at(old) > at(&item) => {}
+        Some(old) => *old = item,
+        None => kept.push(item),
+    }
 }
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
 pub(crate) struct FakeHub {
     addr: SocketAddr,
     state: Arc<Mutex<State>>,
+    account: Arc<Mutex<Account>>,
     serving: JoinHandle<()>,
 }
 
 impl FakeHub {
+    pub(crate) async fn start() -> Self {
+        Self::keeping(Arc::default()).await
+    }
+
+    /// The Hub as another Server Linked to the same Account sees it, sharing what it syncs.
+    pub(crate) async fn for_another_server(&self) -> Self {
+        Self::keeping(Arc::clone(&self.account)).await
+    }
+
     #[expect(
         clippy::unwrap_used,
         reason = "a test helper fails its test by panicking"
     )]
-    pub(crate) async fn start() -> Self {
-        let state: Arc<Mutex<State>> = Arc::default();
+    async fn keeping(account: Arc<Mutex<Account>>) -> Self {
+        let state = Arc::new(Mutex::new(State {
+            account: Arc::clone(&account),
+            ..State::default()
+        }));
         let key = Arc::new(Ed25519KeyPair::from_seed_unchecked(&[7; 32]).unwrap());
         let key_set = json!({ "keys": [{
             "kty": "OKP",
@@ -120,6 +193,26 @@ impl FakeHub {
             .route(
                 &format!("{linked}/GetRelayToken"),
                 unary(&state, &key, relay_token),
+            )
+            .route(
+                &format!("{linked}/PushWatchStates"),
+                unary(&state, &key, push_watch_states),
+            )
+            .route(
+                &format!("{linked}/PullWatchStates"),
+                unary(&state, &key, pull_watch_states),
+            )
+            .route(
+                &format!("{linked}/PushTrackPreferences"),
+                unary(&state, &key, push_track_preferences),
+            )
+            .route(
+                &format!("{linked}/PullTrackPreferences"),
+                unary(&state, &key, pull_track_preferences),
+            )
+            .route(
+                &format!("{linked}/SyncWatchlist"),
+                unary(&state, &key, sync_watchlist),
             );
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
@@ -127,6 +220,7 @@ impl FakeHub {
         Self {
             addr,
             state,
+            account,
             serving,
         }
     }
@@ -171,6 +265,24 @@ impl FakeHub {
     /// Has every call from now on wait forever.
     pub(crate) fn hang(&self) {
         lock(&self.state).hanging = true;
+    }
+
+    /// What the Account keeps.
+    pub(crate) fn account(&self) -> MutexGuard<'_, Account> {
+        lock(&self.account)
+    }
+
+    /// Fails every call from now on `unavailable`, as a Hub that is down, or answers again.
+    pub(crate) fn set_down(&self, down: bool) {
+        lock(&self.state).down = down;
+    }
+
+    /// How many calls of `request`, such as `PushWatchStatesRequest`, failed while it was down.
+    pub(crate) fn refused(&self, request: &str) -> usize {
+        let state = lock(&self.state);
+        (state.refused.iter())
+            .filter(|refused| refused.ends_with(request))
+            .count()
     }
 
     /// Goes down, as if unreachable.
@@ -225,9 +337,21 @@ where
         if hanging {
             future::pending::<()>().await;
         }
+        let down = {
+            let mut state = lock(&state);
+            if state.down {
+                state.refused.push(any::type_name::<Req>());
+            }
+            state.down
+        };
         let answered = Req::decode_from_slice(&body)
             .map_err(|_unreadable| ConnectError::invalid_argument("not a request"))
-            .and_then(|request| answer(&mut lock(&state), &headers, &request, &key));
+            .and_then(|request| {
+                if down {
+                    return Err(ConnectError::unavailable("the Hub is down"));
+                }
+                answer(&mut lock(&state), &headers, &request, &key)
+            });
         match answered {
             Ok(response) => (
                 [(CONTENT_TYPE, "application/proto")],
@@ -346,6 +470,80 @@ fn relay_token(
     })
 }
 
+fn push_watch_states(
+    state: &mut State,
+    headers: &HeaderMap,
+    request: &PushWatchStatesRequest,
+    _: &Ed25519KeyPair,
+) -> Result<PushWatchStatesResponse, ConnectError> {
+    caller(state, headers)?;
+    let mut account = lock(&state.account);
+    account.asked.push("push");
+    for change in &request.changes {
+        account.keep_watch_state(change.clone());
+    }
+    Ok(PushWatchStatesResponse::default())
+}
+
+fn pull_watch_states(
+    state: &mut State,
+    headers: &HeaderMap,
+    _: &PullWatchStatesRequest,
+    _: &Ed25519KeyPair,
+) -> Result<PullWatchStatesResponse, ConnectError> {
+    caller(state, headers)?;
+    let mut account = lock(&state.account);
+    account.asked.push("pull");
+    Ok(PullWatchStatesResponse {
+        watch_states: account.watch_states.clone(),
+        ..Default::default()
+    })
+}
+
+fn push_track_preferences(
+    state: &mut State,
+    headers: &HeaderMap,
+    request: &PushTrackPreferencesRequest,
+    _: &Ed25519KeyPair,
+) -> Result<PushTrackPreferencesResponse, ConnectError> {
+    caller(state, headers)?;
+    let mut account = lock(&state.account);
+    for change in &request.changes {
+        account.keep_preference(change.clone());
+    }
+    Ok(PushTrackPreferencesResponse::default())
+}
+
+fn pull_track_preferences(
+    state: &mut State,
+    headers: &HeaderMap,
+    _: &PullTrackPreferencesRequest,
+    _: &Ed25519KeyPair,
+) -> Result<PullTrackPreferencesResponse, ConnectError> {
+    caller(state, headers)?;
+    Ok(PullTrackPreferencesResponse {
+        preferences: lock(&state.account).preferences.clone(),
+        ..Default::default()
+    })
+}
+
+fn sync_watchlist(
+    state: &mut State,
+    headers: &HeaderMap,
+    request: &SyncWatchlistRequest,
+    _: &Ed25519KeyPair,
+) -> Result<SyncWatchlistResponse, ConnectError> {
+    caller(state, headers)?;
+    let mut account = lock(&state.account);
+    for entry in &request.entries {
+        account.keep_entry(entry.clone());
+    }
+    Ok(SyncWatchlistResponse {
+        entries: account.watchlist.clone(),
+        ..Default::default()
+    })
+}
+
 /// Refuses a call without the credential of the Server the fake has Linked, as the Hub does.
 fn caller(state: &State, headers: &HeaderMap) -> Result<(), ConnectError> {
     let bearer = format!("Bearer {}", credential(state.credentials));
@@ -389,6 +587,6 @@ fn sign(key: &Ed25519KeyPair, claims: &Value) -> String {
     )
 }
 
-fn lock(state: &Mutex<State>) -> MutexGuard<'_, State> {
-    state.lock().unwrap_or_else(PoisonError::into_inner)
+fn lock<T>(locked: &Mutex<T>) -> MutexGuard<'_, T> {
+    locked.lock().unwrap_or_else(PoisonError::into_inner)
 }

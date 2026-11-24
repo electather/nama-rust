@@ -248,6 +248,7 @@ pub fn serve(
         let scan_follower = syncing.follow_scans(&events);
         // Before serving, so it hears the first look at each Link.
         let link_follower = syncing.follow_links();
+        let sending_to_hub = syncing.keep_sending();
         scanner.start_all().await;
         preview_frames.start();
         text_passes.start();
@@ -316,6 +317,8 @@ pub fn serve(
         // The next start's scans pull and sync again, and its first looks push each Link again.
         scan_follower.abort();
         link_follower.abort();
+        // What waits for the Hub is kept, and goes from the next start.
+        sending_to_hub.abort();
         plugins.shutdown().await;
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
         drop(automation);

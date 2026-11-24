@@ -21,6 +21,7 @@ use sqlx::{Sqlite, SqliteConnection, Transaction};
 
 use crate::{
     db::{BoxFuture, Database, detached, now_ms},
+    link,
     plugins::ExtensionPoints,
 };
 
@@ -32,7 +33,7 @@ const EPISODE: &str = "episode";
 #[derive(Debug, Clone)]
 pub(crate) struct WatchStates {
     db: Arc<Database>,
-    /// Told of each change a write makes, such as the Hub Plugin's, which syncs them (ADR 0008).
+    /// Told of each change a write makes.
     points: ExtensionPoints,
 }
 
@@ -272,9 +273,9 @@ impl WatchStates {
         .await
     }
 
-    /// Runs `write` of the User `user`'s Watch State, then tells `WatchStatesChanged` Observers
-    /// of the changes it returns, in a task of its own, so they're told even if the caller stops
-    /// waiting once the write is sent (ADR 0029).
+    /// Runs `write` of the User `user`'s Watch State, queuing the changes it returns for the Hub in
+    /// the same write, then tells `WatchStatesChanged` Observers of them, in a task of its own, so
+    /// they're queued and told even if the caller stops waiting once the write is sent (ADR 0029).
     async fn write_and_tell<F>(
         &self,
         user: i64,
@@ -289,7 +290,7 @@ impl WatchStates {
     {
         let (db, points) = (Arc::clone(&self.db), self.points.clone());
         detached(async move {
-            let changes = db.write(write).await?;
+            let changes = (db.write(move |tx| Box::pin(queued_for_hub(tx, user, write)))).await?;
             if !changes.is_empty() {
                 let told = WatchStateChanges {
                     user_id: user,
@@ -305,8 +306,8 @@ impl WatchStates {
     /// Takes the newest of `pulled`, other Servers' changes to the User `user`'s Watch State, of
     /// each Movie or Episode here, made after any this Server has of it under any of its ids, in
     /// one write: as of when it was made, it forgets one marked unplayed and stores any other,
-    /// under the preferred id. One once played here stays played. Returns nothing to tell
-    /// Observers: the change is the service's own news.
+    /// under the preferred id. One once played here stays played. Returns nothing to queue for
+    /// the Hub or tell Observers: the change is the Hub's own news.
     pub(crate) async fn take_pulled(
         &self,
         user: i64,
@@ -705,6 +706,23 @@ async fn forget(
     .execute(conn)
     .await?;
     Ok(forgot.rows_affected() > 0)
+}
+
+/// Runs `write` of the User `user`'s Watch State through `tx`, and queues the changes it returns
+/// for the Hub in the same write.
+async fn queued_for_hub<F>(
+    tx: &mut Transaction<'_, Sqlite>,
+    user: i64,
+    write: F,
+) -> Result<Vec<WatchStateChange>, sqlx::Error>
+where
+    F: for<'t> FnOnce(
+        &'t mut Transaction<'_, Sqlite>,
+    ) -> BoxFuture<'t, Result<Vec<WatchStateChange>, sqlx::Error>>,
+{
+    let changes = write(tx).await?;
+    link::queue_watch_states(tx, user, &changes).await?;
+    Ok(changes)
 }
 
 #[cfg(test)]

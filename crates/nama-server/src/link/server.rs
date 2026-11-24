@@ -3,23 +3,31 @@
 //! Addresses it tells the Hub, and the Hub's key set in `hub_key_set`, which the tokens the Hub
 //! signs are checked against. [`ServerLink`] alone reads and writes both tables, and every Hub call
 //! made as the Server goes through [`ServerLink::call`], so one rule decides what a Link the Hub
-//! dropped means.
+//! dropped means. Through it go Linked Users' changes waiting for the Hub, and their pulls and
+//! Watchlist syncs (`sync.rs`).
 
 use std::{
+    collections::{HashMap, hash_map::Entry},
     future::Future,
     sync::{Arc, PoisonError},
     time::{Duration, Instant},
 };
 
+use connectrpc::{ConnectError, ErrorCode};
 use nama_plugin_api::{
     BoxFuture, PluginError,
-    server_link::{Link, Reachability, ServerAddresses},
+    points::{TrackPreference, WatchStateChange},
+    server_link::{Link, Reachability, ServerAddresses, WatchlistEntry},
 };
 use nama_plugin_hub::KernelLink;
+use serde::de::DeserializeOwned;
+use sqlx::SqliteConnection;
 use tokio::sync::{Mutex, watch};
 
 use super::{
+    Linking,
     hub::{Failure, Hub, LinkDropped, LinkedHub, Polling},
+    sync::{self, Queued},
     token::{self, Claims, Rejected},
 };
 use crate::db::{self, Database};
@@ -85,6 +93,8 @@ pub(crate) struct ServerLink {
     reachability: std::sync::Mutex<Option<(String, Reachability)>>,
     /// Told each time the Hub answers a report.
     found: watch::Sender<()>,
+    /// Held while the changes waiting are sent, so none goes twice.
+    sending: Mutex<()>,
 }
 
 impl std::fmt::Debug for ServerLink {
@@ -105,6 +115,7 @@ impl ServerLink {
             reported: Mutex::default(),
             reachability: std::sync::Mutex::default(),
             found: watch::channel(()).0,
+            sending: Mutex::default(),
         })
     }
 
@@ -268,6 +279,93 @@ impl ServerLink {
         Ok(token.await?.ok_or(NOT_LINKED)?)
     }
 
+    /// Sends the changes waiting for the Hub, a page per call, oldest first, each kind apart, so one
+    /// the Hub refuses holds back only its own. Those of a User `linking` says isn't Linked are
+    /// forgotten unsent, as Linking pushes their whole Watch State and Preferences anyway. A page
+    /// the Hub refuses as invalid is dropped, as it would refuse it again, and without the Server's
+    /// Link every change is, having nowhere to go. Any other failure, such as the Hub being down,
+    /// keeps the page and the rest.
+    pub(super) async fn send_queued(&self, linking: &Linking) -> Result<(), Failure> {
+        let _sending = self.sending.lock().await;
+        let watch_states = self.send_waiting(false, linking).await;
+        let preferences = self.send_waiting(true, linking).await;
+        watch_states.and(preferences)
+    }
+
+    /// [`ServerLink::send_queued`] of the Track Preference changes, if `preference`, else of the
+    /// Watch State changes.
+    async fn send_waiting(&self, preference: bool, linking: &Linking) -> Result<(), Failure> {
+        let mut linked = HashMap::new();
+        loop {
+            let page = sync::waiting(&self.db, preference).await?;
+            let Some(last) = page.last().map(|queued| queued.id) else {
+                return Ok(());
+            };
+            let to_send = of_linked_users(page, linking, &mut linked).await?;
+            let sent = if to_send.is_empty() {
+                Ok(Some(()))
+            } else if preference {
+                let changes = parsed(&to_send);
+                self.call(|hub| hub.push_track_preferences(changes)).await
+            } else {
+                let changes = parsed(&to_send);
+                self.call(|hub| hub.push_watch_states(changes)).await
+            };
+            match sent {
+                Ok(Some(())) => {}
+                Ok(None) => return Ok(sync::forget_all(&self.db).await?),
+                Err(err) if refused_as_invalid(&err) => {
+                    tracing::warn!(
+                        preference,
+                        "the Hub refused a page of changes as invalid, so it was dropped: {err}"
+                    );
+                }
+                Err(err) => return Err(err),
+            }
+            sync::forget_through(&self.db, preference, last).await?;
+        }
+    }
+
+    /// The Watch State of the Account the User `user_id` is Linked to; empty while the Server
+    /// isn't Linked.
+    pub(super) async fn pull_watch_states(
+        &self,
+        user_id: i64,
+    ) -> Result<Vec<WatchStateChange>, Failure> {
+        let pulled = self.call(|hub| hub.pull_watch_states(user_id)).await?;
+        Ok((pulled.unwrap_or_default().into_iter())
+            .map(sync::watch_state_from_proto)
+            .collect())
+    }
+
+    /// The Track Preferences of the Account the User `user_id` is Linked to; empty while the
+    /// Server isn't Linked.
+    pub(super) async fn pull_track_preferences(
+        &self,
+        user_id: i64,
+    ) -> Result<Vec<TrackPreference>, Failure> {
+        let pulled = self.call(|hub| hub.pull_track_preferences(user_id)).await?;
+        Ok((pulled.unwrap_or_default().into_iter())
+            .filter_map(sync::preference_from_proto)
+            .collect())
+    }
+
+    /// Merges `watchlist`, the User `user_id`'s, into the Account they are Linked to, and answers
+    /// the Account's; empty while the Server isn't Linked.
+    pub(super) async fn sync_watchlist(
+        &self,
+        user_id: i64,
+        watchlist: Vec<WatchlistEntry>,
+    ) -> Result<Vec<WatchlistEntry>, Failure> {
+        let entries = sync::watchlist_to_proto(watchlist);
+        let synced = self
+            .call(|hub| hub.sync_watchlist(user_id, entries))
+            .await?;
+        Ok((synced.unwrap_or_default().into_iter())
+            .filter_map(sync::entry_from_proto)
+            .collect())
+    }
+
     /// Forgets the Link holding `credential`, as Unlinking does, so the Server can Link again. A
     /// Link kept since, under another credential, stays.
     async fn forget_link(&self, credential: &str) -> Result<(), sqlx::Error> {
@@ -362,6 +460,54 @@ impl ServerLink {
             })
             .await
     }
+}
+
+/// Whether the Server is Linked, as `conn` reads it.
+pub(super) async fn is_linked(conn: &mut SqliteConnection) -> Result<bool, sqlx::Error> {
+    let linked =
+        sqlx::query_scalar!(r#"SELECT EXISTS (SELECT 1 FROM hub_link) AS "linked!: bool""#)
+            .fetch_one(conn)
+            .await?;
+    Ok(linked)
+}
+
+/// The changes of `page` whose User `linking` says is Linked, asking of each User once, as
+/// `linked` remembers.
+async fn of_linked_users(
+    page: Vec<Queued>,
+    linking: &Linking,
+    linked: &mut HashMap<i64, bool>,
+) -> Result<Vec<Queued>, super::Error> {
+    for queued in &page {
+        if let Entry::Vacant(unasked) = linked.entry(queued.user_id) {
+            unasked.insert(linking.is_user_linked(queued.user_id).await?);
+        }
+    }
+    Ok((page.into_iter())
+        .filter(|queued| linked.get(&queued.user_id) == Some(&true))
+        .collect())
+}
+
+/// The Hub API's messages `queued` holds, leaving out, logged, any that doesn't read as one.
+fn parsed<T: DeserializeOwned>(queued: &[Queued]) -> Vec<T> {
+    (queued.iter())
+        .filter_map(|queued| {
+            serde_json::from_str(&queued.change)
+                .inspect_err(|err| {
+                    tracing::warn!(
+                        user = queued.user_id,
+                        "a change waiting for the Hub doesn't read: {err}"
+                    );
+                })
+                .ok()
+        })
+        .collect()
+}
+
+/// Whether the Hub refused a call as invalid, which it would refuse again.
+fn refused_as_invalid(err: &Failure) -> bool {
+    err.downcast_ref::<ConnectError>()
+        .is_some_and(|refused| refused.code == ErrorCode::InvalidArgument)
 }
 
 /// What the Hub Plugin calls the Hub with until the rest of Linking moves into the Kernel (#2203).

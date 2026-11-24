@@ -1,18 +1,14 @@
 //! Calling the Hub as the Linked Server, whose Link the Kernel keeps (ADR 0105), and through it
 //! sharing what the Admin chooses with Nama's developers (ADR 0054). Every Hub call made as the
 //! Server goes through [`Linker::call`], so one rule decides what a Link the Hub dropped means.
-//! The Server's Users' Links are in `users.rs`, syncing their Watch State both ways in `watch_states.rs`, their Subtitle and
-//! Audio Preferences in `track_preferences.rs`, and their Watchlists in `watchlist.rs`, their plays
-//! as Viewing Events in `viewing.rs`, and signing in with an Account, and Users created from one,
-//! in `accounts.rs`. What goes to the Hub waits in a queue per kind, in `queue.rs`.
+//! The Server's Users' Links are in `users.rs`, their plays as Viewing Events in `viewing.rs`, and
+//! signing in with an Account, and Users created from one, in `accounts.rs`. What goes to the Hub
+//! waits in a queue per kind, in `queue.rs`.
 
 mod accounts;
 pub(crate) mod queue;
-mod track_preferences;
 mod users;
 mod viewing;
-mod watch_states;
-mod watchlist;
 
 use std::{
     collections::HashMap,
@@ -21,17 +17,13 @@ use std::{
 };
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use nama_hub_proto::nama::hub::v1::{
-    TrackPreferenceChange as TrackPreferenceChangeProto, WatchStateChange as WatchStateChangeProto,
-};
 use nama_plugin_api::{
     BoxFuture, PluginError,
     automation::{Kernel, functions::StoreGet},
     contract::StoreKey,
     diagnostics_sharer::{DiagnosticsSharer, Signal},
     job::{JobRunner, RunJob},
-    points::{TrackPreference, WatchStateChange},
-    server_link::{AccountSignIn, Link, ServerLinker, WatchlistEntry},
+    server_link::{AccountSignIn, Link, ServerLinker},
 };
 use ring::digest;
 
@@ -40,18 +32,11 @@ use crate::{
     hub::{Hub, LinkDropped, LinkedHub},
 };
 
-use self::queue::Queue;
-
-pub(crate) use self::{
-    track_preferences::TrackPreferenceSync,
-    viewing::{ViewingEvents, send_job},
-    watch_states::{WatchStateSync, sync_job},
-};
+pub(crate) use self::viewing::{ViewingEvents, send_job};
 
 /// Runs the Hub Plugin's Jobs. One runner serves them all, as the Kernel asks only the first
 /// `JobRunner` a Plugin provides.
 pub(crate) struct Jobs {
-    pub(crate) linker: Arc<Linker>,
     pub(crate) viewing: ViewingEvents,
 }
 
@@ -59,12 +44,6 @@ impl JobRunner for Jobs {
     fn run<'a>(&'a self, run: &'a RunJob) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(async move {
             match run.job_id.as_str() {
-                watch_states::SYNC => {
-                    // Each queue apart, so one the Hub refuses holds back only its own.
-                    let watch_states = self.linker.send_queued().await;
-                    let preferences = self.linker.send_queued_preferences().await;
-                    watch_states.and(preferences)
-                }
                 viewing::SEND_JOB => self.viewing.send().await,
                 other => Err(format!("the Hub Plugin has no Job {other}").into()),
             }
@@ -93,15 +72,11 @@ pub(crate) struct Linker {
     /// What the Plugin knows of each User's Link but what it keeps in the Store, under the
     /// [`Kept::id`] of the Server's Link it learned it through.
     users: Mutex<(Option<String>, HashMap<i64, users::UserState>)>,
-    watch_states: Queue<WatchStateChangeProto>,
-    preferences: Queue<TrackPreferenceChangeProto>,
 }
 
 impl Linker {
     pub(crate) fn new(hub: Hub, link: Arc<dyn KernelLink>, kernel: Arc<dyn Kernel>) -> Self {
         Self {
-            watch_states: Queue::new(Arc::clone(&kernel)),
-            preferences: Queue::new(Arc::clone(&kernel)),
             hub,
             link,
             kernel,
@@ -207,28 +182,6 @@ impl ServerLinker for Linker {
         code: &'a str,
     ) -> BoxFuture<'a, Result<Option<i64>, PluginError>> {
         Box::pin(self.finish_sign_in(handle, code))
-    }
-
-    fn watch_states(
-        &self,
-        user_id: i64,
-    ) -> BoxFuture<'_, Result<Vec<WatchStateChange>, PluginError>> {
-        Box::pin(self.pull(user_id))
-    }
-
-    fn track_preferences(
-        &self,
-        user_id: i64,
-    ) -> BoxFuture<'_, Result<Vec<TrackPreference>, PluginError>> {
-        Box::pin(self.pull_preferences(user_id))
-    }
-
-    fn sync_watchlist(
-        &self,
-        user_id: i64,
-        watchlist: Vec<WatchlistEntry>,
-    ) -> BoxFuture<'_, Result<Vec<WatchlistEntry>, PluginError>> {
-        Box::pin(self.merge_watchlist(user_id, watchlist))
     }
 }
 

@@ -1,6 +1,7 @@
-//! A User's Watch State and Track Preferences on their other Servers coming back through the
-//! enabled Plugin that links the Server (ADR 0008, ADR 0092), and their Watchlist syncing with them
-//! (ADR 0056), here a stand-in for the Hub that two Servers share.
+//! A Linked User's Watch State, Subtitle and Audio Preferences and Watchlist syncing with the Hub
+//! the Server's config names, which the Kernel does (ADR 0008, ADR 0056, ADR 0092, ADR 0105), here
+//! a fake whose one Account two Servers share. Which Users are Linked is still the enabled Plugin's
+//! to say (#2218), here one that says each is but those its test names.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/browsing.rs"]
@@ -13,126 +14,83 @@ mod fake_hub;
 mod server;
 
 use std::{
-    collections::HashMap,
+    collections::HashSet,
     future,
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
-    time::Duration,
+    sync::{
+        Arc, Mutex, PoisonError,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use browsing::{ALIEN_1080P, Fixture, tmdb_id};
 use connectrpc::client::{ClientConfig, HttpClient};
 use fake_hub::FakeHub;
+use nama_hub_proto::nama::hub::v1::{
+    self as hub, TrackPreferenceChange, WatchStateChange, WatchlistEntry,
+};
 use nama_plugin_api::{
-    BoxFuture, Manifest, Observer, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    points::{
-        TrackDescription, TrackPreference, TrackPreferenceChange, TrackPreferenceChanged,
-        WatchStateChange, WatchStateChanges, WatchStatesChanged,
-    },
-    server_link::{AccountSignIn, Link, ServerLinker, WatchlistEntry},
+    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
+    server_link::{AccountSignIn, Link, ServerLinker},
 };
 use nama_proto::nama::v1::{
     AddToWatchlistRequest, BrowseServiceClient, GetMovieRequest, GetTrackPreferencesRequest,
-    GetTrackPreferencesResponse, GetUserLinkRequest, LibraryKind, ListContinueWatchingRequest,
-    PlaybackServiceClient, RemoveFromWatchlistRequest, ReportProgressRequest,
-    SetAudioPreferenceRequest, SetSubtitlePreferenceRequest, StartUserLinkRequest, SubtitleKind,
-    TitleKind, UnlinkUserRequest, UserServiceClient, UsersAudioPreference, UsersSubtitlePreference,
-    WatchStateServiceClient, WatchlistServiceClient, continue_watching_entry::MovieOrEpisode,
+    GetTrackPreferencesResponse, LibraryKind, ListContinueWatchingRequest, PlaybackServiceClient,
+    RemoveFromWatchlistRequest, ReportProgressRequest, SetAudioPreferenceRequest,
+    SetSubtitlePreferenceRequest, StartUserLinkRequest, SubtitleKind, TitleKind, UserServiceClient,
+    UsersAudioPreference, UsersSubtitlePreference, WatchStateServiceClient, WatchlistServiceClient,
+    continue_watching_entry::MovieOrEpisode,
 };
 use nama_server::plugins::Registry;
 use server::{TestServer, WAIT, tmdb::ALIEN};
 
-/// A stand-in for the Hub, shared by every Server it's enabled on: it keeps each Watch State and
-/// Track Preference change a Server tells of, and hands them all back to every User's pull, and
-/// merges every Watchlist synced, the change made last winning, all as one Account's.
+/// The Plugin that links the Server's Users: once the Server is Linked, each is Linked to the
+/// Hub's one Account, but those in `unlinked`. Before, as the Hub Plugin does, it answers none.
 #[derive(Clone, Default)]
-struct Hub {
-    watch_states: Arc<Mutex<Vec<WatchStateChange>>>,
-    preferences: Arc<Mutex<Vec<TrackPreference>>>,
-    watchlist: Arc<Mutex<HashMap<(bool, String), WatchlistEntry>>>,
-    /// Each Watch State push (`"push"`) and pull (`"pull"`), in the order they came.
-    asked: Arc<Mutex<Vec<&'static str>>>,
+struct Users {
+    server_linked: Arc<AtomicBool>,
+    unlinked: Arc<Mutex<HashSet<i64>>>,
 }
 
-impl Hub {
-    fn kept(&self) -> MutexGuard<'_, Vec<WatchStateChange>> {
-        self.watch_states
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+impl Users {
+    fn unlink(&self, user_id: i64) {
+        (self.unlinked.lock().unwrap_or_else(PoisonError::into_inner)).insert(user_id);
     }
 
-    fn kept_preferences(&self) -> MutexGuard<'_, Vec<TrackPreference>> {
-        self.preferences
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-    }
-
-    fn watchlist(&self) -> MutexGuard<'_, HashMap<(bool, String), WatchlistEntry>> {
-        self.watchlist
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-    }
-
-    fn asked(&self) -> MutexGuard<'_, Vec<&'static str>> {
-        self.asked.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    /// A Server the Hub is enabled on, as `builder` starts it.
-    #[expect(
-        clippy::unwrap_used,
-        reason = "a test helper fails its test by panicking"
-    )]
-    fn on(&self, builder: server::Builder) -> server::Builder {
-        let plugins = Registry::new();
-        plugins.enable(Arc::new(self.clone())).unwrap();
-        builder.plugins(plugins)
+    /// Links `server`, whose Users these are, with `hub`, as its Admin does in Settings.
+    async fn link(&self, hub: &FakeHub, server: &TestServer) {
+        hub.link(server).await;
+        self.server_linked.store(true, Ordering::Relaxed);
     }
 }
 
-impl Plugin for Hub {
+impl Plugin for Users {
     fn manifest(&self) -> Manifest {
         Manifest {
-            extension_points: vec![
-                PointKey::provide::<dyn ServerLinker>(),
-                PointKey::observe::<WatchStatesChanged>(),
-                PointKey::observe::<TrackPreferenceChanged>(),
-            ],
+            extension_points: vec![PointKey::provide::<dyn ServerLinker>()],
             ..Manifest::new(PluginId::from_static("hub"))
         }
     }
 
     fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
         registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::new(self.clone()));
-        registrar.observe::<WatchStatesChanged>(self.clone());
-        registrar.observe::<TrackPreferenceChanged>(self.clone());
         Ok(())
     }
 }
 
-impl Observer<WatchStatesChanged> for Hub {
-    fn observe<'a>(
-        &'a self,
-        event: &'a WatchStateChanges,
-    ) -> BoxFuture<'a, Result<(), PluginError>> {
-        self.kept().extend(event.changes.iter().cloned());
-        self.asked().push("push");
-        Box::pin(future::ready(Ok(())))
-    }
-}
-
-impl Observer<TrackPreferenceChanged> for Hub {
-    fn observe<'a>(
-        &'a self,
-        event: &'a TrackPreferenceChange,
-    ) -> BoxFuture<'a, Result<(), PluginError>> {
-        self.kept_preferences().push(event.preference.clone());
-        Box::pin(future::ready(Ok(())))
-    }
-}
-
-/// Only what pulling and syncing ask; the rest is `tests/server_link.rs`'s.
-impl ServerLinker for Hub {
-    fn user_link(&self, _: i64) -> BoxFuture<'_, Result<Option<Link>, PluginError>> {
-        Box::pin(future::ready(Ok(Some(linked()))))
+/// Only whether a User is Linked; the rest is `tests/server_link.rs`'s.
+impl ServerLinker for Users {
+    fn user_link(&self, user_id: i64) -> BoxFuture<'_, Result<Option<Link>, PluginError>> {
+        if !self.server_linked.load(Ordering::Relaxed) {
+            return Box::pin(future::ready(Ok(None)));
+        }
+        let unlinked = self.unlinked.lock().unwrap_or_else(PoisonError::into_inner);
+        let link = if unlinked.contains(&user_id) {
+            Link::NotLinked
+        } else {
+            linked()
+        };
+        Box::pin(future::ready(Ok(Some(link))))
     }
 
     fn start_user_link<'a>(
@@ -170,59 +128,55 @@ impl ServerLinker for Hub {
     ) -> BoxFuture<'a, Result<Option<i64>, PluginError>> {
         Box::pin(future::ready(Ok(None)))
     }
-
-    fn watch_states(&self, _: i64) -> BoxFuture<'_, Result<Vec<WatchStateChange>, PluginError>> {
-        self.asked().push("pull");
-        Box::pin(future::ready(Ok(self.kept().clone())))
-    }
-
-    fn track_preferences(
-        &self,
-        _: i64,
-    ) -> BoxFuture<'_, Result<Vec<TrackPreference>, PluginError>> {
-        Box::pin(future::ready(Ok(self.kept_preferences().clone())))
-    }
-
-    fn sync_watchlist(
-        &self,
-        _: i64,
-        watchlist: Vec<WatchlistEntry>,
-    ) -> BoxFuture<'_, Result<Vec<WatchlistEntry>, PluginError>> {
-        let mut kept = self.watchlist();
-        for entry in watchlist {
-            let title = (entry.show, entry.id.clone());
-            if (kept.get(&title)).is_none_or(|old| old.changed_at_ms < entry.changed_at_ms) {
-                kept.insert(title, entry);
-            }
-        }
-        Box::pin(future::ready(Ok(kept.values().cloned().collect())))
-    }
 }
 
 fn linked() -> Link {
     Link::Linked {
-        account: "ada@example.com".to_owned(),
+        account: fake_hub::EMAIL.to_owned(),
         reachability: None,
     }
 }
 
-/// Watches Alien a minute in on `fx`'s Server as its Admin, and waits until the Hub has it.
+/// A Server whose config names `hub` and whose Users `users` links, as `builder` starts it.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn on(hub: &FakeHub, users: &Users, builder: server::Builder) -> server::Builder {
+    let plugins = Registry::new();
+    plugins.enable(Arc::new(users.clone())).unwrap();
+    builder.config(hub.config()).plugins(plugins)
+}
+
+/// A Server with Alien, Linked with `hub`, all its Users Linked.
+async fn alien_linked_with(hub: &FakeHub) -> Fixture {
+    let users = Users::default();
+    let fx = Fixture::alien_on(on(hub, &users, TestServer::builder())).await;
+    users.link(hub, &fx.server).await;
+    fx
+}
+
+/// Has `server` send what waits for the Hub, rather than wait for its minute's send: signing its
+/// Admin in again pulls, and a pull sends first.
+async fn send_waiting(server: &TestServer) {
+    server.sign_in(1, "Admin").await;
+}
+
+/// Reports Alien `position_ms` in on `fx`'s Server as whoever `who` calls as.
 #[expect(
     clippy::unwrap_used,
     clippy::indexing_slicing,
     reason = "a test helper fails its test by panicking"
 )]
-async fn watch_alien(fx: &Fixture, hub: &Hub) {
-    let watch_states =
-        WatchStateServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
+async fn watch_alien(fx: &Fixture, who: &ClientConfig, position_ms: u64) {
+    let watch_states = WatchStateServiceClient::new(HttpClient::plaintext(), who.clone());
     let report = ReportProgressRequest {
         version_id: fx.version_ids(ALIEN).await[0],
-        position_ms: 60_000,
+        position_ms,
         duration_ms: 7_200_000,
         ..Default::default()
     };
     watch_states.report_progress(report).await.unwrap();
-    until("the Hub has the progress", async || !hub.kept().is_empty()).await;
 }
 
 /// The position of Alien in the Continue Watching of the User signed in as `who`, if it's there.
@@ -246,7 +200,14 @@ async fn alien_in_continue_watching(who: &ClientConfig) -> Option<u64> {
         })
 }
 
-/// Waits until `done`, as a pull happens in the background.
+/// The positions of every Watch State the Hub keeps.
+fn positions(hub: &FakeHub) -> Vec<u64> {
+    (hub.account().watch_states.iter())
+        .map(|change| change.position_ms)
+        .collect()
+}
+
+/// Waits until `done`, as a sync happens in the background.
 async fn until(what: &str, mut done: impl AsyncFnMut() -> bool) {
     let waited = tokio::time::timeout(WAIT, async {
         while !done().await {
@@ -257,13 +218,29 @@ async fn until(what: &str, mut done: impl AsyncFnMut() -> bool) {
     assert!(waited.is_ok(), "timed out waiting until {what}");
 }
 
+/// A minute from now, in milliseconds since the Unix epoch: later than anything the test does.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+fn in_a_minute_ms() -> i64 {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    i64::try_from(now.as_millis()).unwrap() + 60_000
+}
+
 #[tokio::test]
 async fn progress_watched_on_one_server_shows_once_signed_in_on_another() {
-    let hub = Hub::default();
-    let first = Fixture::alien_on(hub.on(TestServer::builder())).await;
-    let second = Fixture::alien_on(hub.on(TestServer::builder())).await;
+    let hub = FakeHub::start().await;
+    let other_hub = hub.for_another_server().await;
+    let first = alien_linked_with(&hub).await;
+    let second = alien_linked_with(&other_hub).await;
 
-    watch_alien(&first, &hub).await;
+    watch_alien(&first, &first.server.client_config(), 60_000).await;
+    send_waiting(&first.server).await;
+    until("the Hub has the progress", async || {
+        positions(&hub) == [60_000]
+    })
+    .await;
     let ada = second.server.user_with_default_permissions("Ada").await;
 
     until("Continue Watching shows the progress", async || {
@@ -273,17 +250,65 @@ async fn progress_watched_on_one_server_shows_once_signed_in_on_another() {
 }
 
 #[tokio::test]
+async fn progress_made_while_the_hub_is_down_reaches_it_once_it_is_back() {
+    let hub = FakeHub::start().await;
+    let fx = alien_linked_with(&hub).await;
+    hub.set_down(true);
+
+    watch_alien(&fx, &fx.server.client_config(), 60_000).await;
+    send_waiting(&fx.server).await;
+    until("the Server tried to push", async || {
+        hub.refused("PushWatchStatesRequest") > 0
+    })
+    .await;
+    hub.set_down(false);
+    send_waiting(&fx.server).await;
+
+    until("the Hub has the progress", async || {
+        positions(&hub) == [60_000]
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn an_unlinked_users_progress_never_reaches_the_hub() {
+    let (hub, users) = (FakeHub::start().await, Users::default());
+    let fx = Fixture::alien_on(on(&hub, &users, TestServer::builder())).await;
+    users.link(&hub, &fx.server).await;
+    let ada = fx.server.user_with_default_permissions("Ada").await;
+    users.unlink(ada.id);
+
+    // In the order they're queued, so a page holds Ada's before the Admin's.
+    watch_alien(&fx, &ada.client_config(), 60_000).await;
+    watch_alien(&fx, &fx.server.client_config(), 30_000).await;
+    send_waiting(&fx.server).await;
+
+    until("the Hub has the Admin's progress", async || {
+        !positions(&hub).is_empty()
+    })
+    .await;
+    assert_eq!(positions(&hub), [30_000]);
+}
+
+#[tokio::test]
 async fn progress_on_a_title_the_server_lacks_shows_once_a_scan_adds_it() {
-    let hub = Hub::default();
-    let first = Fixture::alien_on(hub.on(TestServer::builder())).await;
+    let hub = FakeHub::start().await;
+    let first = alien_linked_with(&hub).await;
+    let (other_hub, users) = (hub.for_another_server().await, Users::default());
     let second = Fixture::start_on(
         LibraryKind::LIBRARY_KIND_MOVIES,
-        hub.on(TestServer::builder()),
+        on(&other_hub, &users, TestServer::builder()),
     )
     .await;
+    users.link(&other_hub, &second.server).await;
     // Signed in before anything is watched, so only the scan's pull can bring the progress.
     let ada = second.server.user_with_default_permissions("Ada").await;
-    watch_alien(&first, &hub).await;
+    watch_alien(&first, &first.server.client_config(), 60_000).await;
+    send_waiting(&first.server).await;
+    until("the Hub has the progress", async || {
+        positions(&hub) == [60_000]
+    })
+    .await;
     assert_eq!(alien_in_continue_watching(&ada.client_config()).await, None);
 
     second.write(ALIEN_1080P, b"video");
@@ -293,17 +318,6 @@ async fn progress_on_a_title_the_server_lacks_shows_once_a_scan_adds_it() {
         alien_in_continue_watching(&ada.client_config()).await == Some(60_000)
     })
     .await;
-}
-
-/// Watches Alien on `fx`'s Server, then has the Hub forget it, as if it was watched before the
-/// Link, and answers the change the Server told of, as of the second the Server stores.
-async fn alien_watched_before_linking(fx: &Fixture, hub: &Hub) -> WatchStateChange {
-    watch_alien(fx, hub).await;
-    let made = hub.kept().remove(0);
-    WatchStateChange {
-        changed_at_ms: made.changed_at_ms.div_euclid(1000) * 1000,
-        ..made
-    }
 }
 
 /// The own Track Preferences of whoever `who` calls as, as the Server gives them.
@@ -334,13 +348,12 @@ fn audio_in(language: &str) -> UsersAudioPreference {
     }
 }
 
-/// Sets English SDH subtitles and Japanese audio as the own Preferences of whoever `who` calls as,
-/// and waits until the Hub has both.
+/// Sets English SDH subtitles and Japanese audio as the own Preferences of whoever `who` calls as.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn prefer_english_sdh_and_japanese(who: &ClientConfig, hub: &Hub) {
+async fn prefer_english_sdh_and_japanese(who: &ClientConfig) {
     let playback = PlaybackServiceClient::new(HttpClient::plaintext(), who.clone());
     let subtitle = SetSubtitlePreferenceRequest {
         subtitle: english_sdh().into(),
@@ -352,34 +365,33 @@ async fn prefer_english_sdh_and_japanese(who: &ClientConfig, hub: &Hub) {
         ..Default::default()
     };
     playback.set_audio_preference(audio).await.unwrap();
-    until("the Hub has both", async || {
-        hub.kept_preferences().len() == 2
-    })
-    .await;
 }
 
-/// [`prefer_english_sdh_and_japanese`] as `server`'s Admin, then has the Hub forget both, as if
-/// they were set before the Link, and answers the changes the Server told of, subtitles first.
-async fn preferences_set_before_linking(server: &TestServer, hub: &Hub) -> Vec<TrackPreference> {
-    prefer_english_sdh_and_japanese(&server.client_config(), hub).await;
-    subtitles_first(hub.kept_preferences().drain(..).collect())
-}
-
-/// `preferences`, the Subtitle Preference before the Audio Preference, as the Server may tell of
-/// them in either order.
-fn subtitles_first(mut preferences: Vec<TrackPreference>) -> Vec<TrackPreference> {
-    preferences.sort_by_key(|preference| preference.audio);
-    preferences
+/// The language of each Preference the Hub keeps, the Subtitle Preference first.
+fn languages(hub: &FakeHub) -> Vec<(bool, String)> {
+    let mut kept: Vec<_> = (hub.account().preferences.iter())
+        .map(|change| (change.audio, change.language.clone()))
+        .collect();
+    kept.sort();
+    kept
 }
 
 #[tokio::test]
 async fn subtitle_and_audio_preferences_set_on_one_server_are_the_users_once_signed_in_on_another()
 {
-    let hub = Hub::default();
-    let first = hub.on(TestServer::builder()).start().await;
-    let second = hub.on(TestServer::builder()).start().await;
+    let (hub, first_users, second_users) =
+        (FakeHub::start().await, Users::default(), Users::default());
+    let first = on(&hub, &first_users, TestServer::builder()).start().await;
+    first_users.link(&hub, &first).await;
+    let other_hub = hub.for_another_server().await;
+    let second = on(&other_hub, &second_users, TestServer::builder())
+        .start()
+        .await;
+    second_users.link(&other_hub, &second).await;
 
-    prefer_english_sdh_and_japanese(&first.client_config(), &hub).await;
+    prefer_english_sdh_and_japanese(&first.client_config()).await;
+    send_waiting(&first).await;
+    until("the Hub has both", async || languages(&hub).len() == 2).await;
     let ada = second.user_with_default_permissions("Ada").await;
 
     until("the second Server has them", async || {
@@ -392,227 +404,83 @@ async fn subtitle_and_audio_preferences_set_on_one_server_are_the_users_once_sig
     .await;
 }
 
-/// Asks for the Link of `server`'s Admin, as Settings does once they Link.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn look_at_admins_link(server: &TestServer) {
-    let users = UserServiceClient::new(HttpClient::plaintext(), server.client_config());
-    users
-        .get_user_link(GetUserLinkRequest::default())
-        .await
-        .unwrap();
-}
-
-/// Unlinks `server`'s Admin, who also has a password.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn unlink_admin(server: &TestServer) {
-    let users = UserServiceClient::new(HttpClient::plaintext(), server.client_config());
-    users
-        .unlink_user(UnlinkUserRequest::default())
-        .await
-        .unwrap();
-}
-
 #[tokio::test]
-async fn linking_a_user_pushes_their_watch_state_from_before_dated_as_stored() {
-    let hub = Hub::default();
-    let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
-    let stored = alien_watched_before_linking(&fx, &hub).await;
-
-    look_at_admins_link(&fx.server).await;
-
-    until("the Hub has the progress", async || !hub.kept().is_empty()).await;
-    assert_eq!(*hub.kept(), [stored]);
-}
-
-#[tokio::test]
-async fn a_users_new_link_pushes_their_watch_state_once_however_often_looked_at_and_again_after_a_restart()
+async fn linking_the_server_pushes_its_users_watch_state_and_preferences_from_before_dated_as_stored()
  {
-    let hub = Hub::default();
-    let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
-    let stored = alien_watched_before_linking(&fx, &hub).await;
-    look_at_admins_link(&fx.server).await;
-    until("the Hub has the push", async || !hub.kept().is_empty()).await;
-
-    look_at_admins_link(&fx.server).await;
-    // Pushed after any push the second look made, as new Links are pushed in the order seen.
-    unlink_admin(&fx.server).await;
-    look_at_admins_link(&fx.server).await;
-    until("the Hub has the relink's push", async || {
-        hub.kept().len() > 1
-    })
-    .await;
-    let pushed_before_restart = hub.kept().len();
-    let restarted = hub.on(TestServer::builder()).restart(fx.server).await;
-    look_at_admins_link(&restarted).await;
-
-    assert_eq!(pushed_before_restart, 2, "a second look pushed again");
-    until("the Hub has the restart's push", async || {
-        hub.kept().len() == 3
-    })
-    .await;
-    assert_eq!(*hub.kept(), [stored.clone(), stored.clone(), stored]);
-}
-
-#[tokio::test]
-async fn linking_a_user_leaves_a_title_the_account_has_newer_as_the_account_has_it() {
-    let hub = Hub::default();
-    let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
-    let stored = alien_watched_before_linking(&fx, &hub).await;
-    let watched_on_another_server = WatchStateChange {
-        position_ms: 90_000,
-        changed_at_ms: stored.changed_at_ms + 60_000,
-        ..stored.clone()
-    };
-    hub.kept().push(watched_on_another_server.clone());
-
-    look_at_admins_link(&fx.server).await;
-
-    until("the Hub has the push", async || hub.kept().len() == 2).await;
-    let newest = (hub.kept().iter())
-        .max_by_key(|change| change.changed_at_ms)
-        .cloned();
-    assert_eq!(newest, Some(watched_on_another_server));
-    until(
-        "Continue Watching shows the Account's progress",
-        async || alien_in_continue_watching(&fx.server.client_config()).await == Some(90_000),
-    )
-    .await;
-}
-
-/// Starts Linking `server`'s Admin, as Settings does, which the Hub answers is Linked already.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn start_admins_link(server: &TestServer) {
-    let users = UserServiceClient::new(HttpClient::plaintext(), server.client_config());
-    users
-        .start_user_link(StartUserLinkRequest::default())
-        .await
-        .unwrap();
-}
-
-#[tokio::test]
-async fn starting_a_link_already_made_pushes_then_pulls_and_syncs_the_watchlist() {
-    let hub = Hub::default();
-    let fx = Fixture::alien_on(hub.on(TestServer::builder())).await;
-    let stored = alien_watched_before_linking(&fx, &hub).await;
-    let watched_on_another_server = WatchStateChange {
-        position_ms: 90_000,
-        changed_at_ms: stored.changed_at_ms + 60_000,
-        ..stored.clone()
-    };
-    hub.kept().push(watched_on_another_server);
-    let added_on_another_server = WatchlistEntry {
-        show: false,
-        id: format!("tmdb-{ALIEN}"),
-        removed: false,
-        changed_at_ms: stored.changed_at_ms,
-    };
-    (hub.watchlist()).insert(
-        (false, added_on_another_server.id.clone()),
-        added_on_another_server,
-    );
-
-    start_admins_link(&fx.server).await;
-
-    until("the Hub has the push", async || hub.kept().len() == 2).await;
+    let hub = FakeHub::start().await;
+    let users = Users::default();
+    let fx = Fixture::alien_on(on(&hub, &users, TestServer::builder())).await;
     let admin = fx.server.client_config();
+    // Before the Server is Linked, so nothing waits for the Hub but what Linking pushes.
+    watch_alien(&fx, &admin, 60_000).await;
+    prefer_english_sdh_and_japanese(&admin).await;
+
+    users.link(&hub, &fx.server).await;
+    send_waiting(&fx.server).await;
+
+    until("the Hub has them", async || {
+        positions(&hub) == [60_000] && languages(&hub).len() == 2
+    })
+    .await;
+    let changed_at_ms = hub.account().watch_states[0].changed_at_ms;
+    assert_eq!(changed_at_ms % 1000, 0, "dated to the second, as stored");
+    assert_eq!(
+        languages(&hub),
+        [(false, "eng".to_owned()), (true, "jpn".to_owned())]
+    );
+}
+
+/// Alien as another Server left it for the Account: `position_ms` in, `changed_at_ms`.
+fn alien_watched_elsewhere(position_ms: u64, changed_at_ms: i64) -> WatchStateChange {
+    WatchStateChange {
+        ids: vec![format!("tmdb-{ALIEN}")],
+        position_ms,
+        duration_ms: 7_200_000,
+        changed_at_ms,
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn linking_leaves_a_title_the_account_has_newer_as_the_account_has_it() {
+    let hub = FakeHub::start().await;
+    let users = Users::default();
+    let fx = Fixture::alien_on(on(&hub, &users, TestServer::builder())).await;
+    let admin = fx.server.client_config();
+    watch_alien(&fx, &admin, 60_000).await;
+    (hub.account()).keep_watch_state(alien_watched_elsewhere(90_000, in_a_minute_ms()));
+
+    users.link(&hub, &fx.server).await;
+    send_waiting(&fx.server).await;
+
     until(
         "Continue Watching shows the Account's progress",
         async || alien_in_continue_watching(&admin).await == Some(90_000),
     )
     .await;
-    until("the Watchlist has the Account's title", async || {
-        alien_on_watchlist(&fx, &admin).await
-    })
-    .await;
-    // Nothing pushes after the Link's push, so a pull last means it came after.
-    let asked = hub.asked().clone();
-    let last = |step: &str| asked.iter().rposition(|asked| *asked == step);
-    assert!(
-        last("pull") > last("push"),
-        "pulled before pushing: {asked:?}"
-    );
 }
 
 #[tokio::test]
-async fn linking_the_server_pushes_every_users_watch_state_dated_as_stored() {
-    let (hub, kernels_hub) = (Hub::default(), FakeHub::start().await);
-    let fx = Fixture::alien_on(hub.on(TestServer::builder().config(kernels_hub.config()))).await;
-    let stored = alien_watched_before_linking(&fx, &hub).await;
+async fn linking_leaves_a_preference_the_account_has_newer_as_the_account_has_it() {
+    let hub = FakeHub::start().await;
+    let users = Users::default();
+    let server = on(&hub, &users, TestServer::builder()).start().await;
+    prefer_english_sdh_and_japanese(&server.client_config()).await;
+    hub.account().keep_preference(TrackPreferenceChange {
+        audio: true,
+        language: "fre".to_owned(),
+        changed_at_ms: in_a_minute_ms(),
+        ..Default::default()
+    });
 
-    kernels_hub.link(&fx.server).await;
+    users.link(&hub, &server).await;
+    send_waiting(&server).await;
 
-    until("the Hub has the progress", async || !hub.kept().is_empty()).await;
-    assert_eq!(*hub.kept(), [stored]);
-}
-
-#[tokio::test]
-async fn linking_a_user_pushes_their_track_preferences_from_before_dated_as_stored() {
-    let hub = Hub::default();
-    let server = hub.on(TestServer::builder()).start().await;
-    let stored = preferences_set_before_linking(&server, &hub).await;
-
-    look_at_admins_link(&server).await;
-
-    until("the Hub has both", async || {
-        hub.kept_preferences().len() == 2
-    })
-    .await;
-    assert_eq!(subtitles_first(hub.kept_preferences().clone()), stored);
-}
-
-#[tokio::test]
-async fn linking_a_user_leaves_a_preference_the_account_has_newer_as_the_account_has_it() {
-    let hub = Hub::default();
-    let server = hub.on(TestServer::builder()).start().await;
-    let [_, japanese] = <[_; 2]>::try_from(preferences_set_before_linking(&server, &hub).await)
-        .expect("one Subtitle and one Audio Preference");
-    let set_on_another_server = TrackPreference {
-        like: Some(TrackDescription {
-            language: Some("fre".to_owned()),
-            ..TrackDescription::default()
-        }),
-        changed_at_ms: japanese.changed_at_ms + 60_000,
-        ..japanese
-    };
-    hub.kept_preferences().push(set_on_another_server);
-
-    look_at_admins_link(&server).await;
-
-    until("the Hub has the push", async || {
-        hub.kept_preferences().len() == 3
-    })
-    .await;
     until("the Server has the Account's audio", async || {
         let preferences = own_preferences(&server.client_config()).await;
         preferences.audio.into_option() == Some(audio_in("fre"))
     })
     .await;
-}
-
-#[tokio::test]
-async fn linking_the_server_pushes_every_users_track_preferences_dated_as_stored() {
-    let (hub, kernels_hub) = (Hub::default(), FakeHub::start().await);
-    let server = (hub.on(TestServer::builder().config(kernels_hub.config())))
-        .start()
-        .await;
-    let stored = preferences_set_before_linking(&server, &hub).await;
-
-    kernels_hub.link(&server).await;
-
-    until("the Hub has both", async || {
-        hub.kept_preferences().len() == 2
-    })
-    .await;
-    assert_eq!(subtitles_first(hub.kept_preferences().clone()), stored);
 }
 
 /// Whether Alien is on the Watchlist of the User signed in as `who` on `fx`'s Server.
@@ -631,11 +499,61 @@ async fn alien_on_watchlist(fx: &Fixture, who: &ClientConfig) -> bool {
     got.movie.into_option().unwrap().on_watchlist
 }
 
+/// Starts Linking `server`'s Admin, as Settings does, which is Linked already.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn start_admins_link(server: &TestServer) {
+    let users = UserServiceClient::new(HttpClient::plaintext(), server.client_config());
+    users
+        .start_user_link(StartUserLinkRequest::default())
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn starting_a_link_already_made_pushes_then_pulls_and_syncs_the_watchlist() {
+    let hub = FakeHub::start().await;
+    let users = Users::default();
+    let fx = Fixture::alien_on(on(&hub, &users, TestServer::builder())).await;
+    let admin = fx.server.client_config();
+    watch_alien(&fx, &admin, 60_000).await;
+    (hub.account()).keep_watch_state(alien_watched_elsewhere(90_000, in_a_minute_ms()));
+    hub.account().keep_entry(WatchlistEntry {
+        kind: hub::TitleKind::TITLE_KIND_MOVIE.into(),
+        id: format!("tmdb-{ALIEN}"),
+        changed_at_ms: in_a_minute_ms(),
+        ..Default::default()
+    });
+    users.link(&hub, &fx.server).await;
+
+    start_admins_link(&fx.server).await;
+
+    until(
+        "Continue Watching shows the Account's progress",
+        async || alien_in_continue_watching(&admin).await == Some(90_000),
+    )
+    .await;
+    until("the Watchlist has the Account's title", async || {
+        alien_on_watchlist(&fx, &admin).await
+    })
+    .await;
+    // Later sends may push again after a pull, such as the Server Link's push of the same title.
+    let asked = hub.account().asked.clone();
+    let first = |step: &str| asked.iter().position(|asked| *asked == step);
+    assert!(
+        first("push").is_some() && first("push") < first("pull"),
+        "pulled before pushing: {asked:?}"
+    );
+}
+
 #[tokio::test]
 async fn a_title_added_on_one_server_and_removed_on_another_ends_off_both() {
-    let hub = Hub::default();
-    let first = Fixture::alien_on(hub.on(TestServer::builder())).await;
-    let second = Fixture::alien_on(hub.on(TestServer::builder())).await;
+    let hub = FakeHub::start().await;
+    let other_hub = hub.for_another_server().await;
+    let first = alien_linked_with(&hub).await;
+    let second = alien_linked_with(&other_hub).await;
     let admin = first.server.client_config();
     let alien = (TitleKind::TITLE_KIND_MOVIE.into(), tmdb_id(ALIEN));
     let on_first = WatchlistServiceClient::new(HttpClient::plaintext(), admin.clone());
@@ -646,7 +564,7 @@ async fn a_title_added_on_one_server_and_removed_on_another_ends_off_both() {
     };
     on_first.add_to_watchlist(added).await.unwrap();
     until("the Hub has the title", async || {
-        !hub.watchlist().is_empty()
+        !hub.account().watchlist.is_empty()
     })
     .await;
 
@@ -663,7 +581,7 @@ async fn a_title_added_on_one_server_and_removed_on_another_ends_off_both() {
     };
     on_second.remove_from_watchlist(removed).await.unwrap();
     until("the Hub has the removal", async || {
-        hub.watchlist().values().all(|entry| entry.removed)
+        hub.account().watchlist.iter().all(|entry| entry.removed)
     })
     .await;
     first.scan_and_match().await;

@@ -1,5 +1,5 @@
 //! When a Linked User's Watch State, Track Preferences and Watchlist move between the Server and
-//! the enabled Plugin that links it (ADR 0008, ADR 0056, ADR 0092).
+//! the Hub, through the Kernel's [`Linking`] (ADR 0008, ADR 0056, ADR 0092, ADR 0105).
 //!
 //! Each trigger is one call on [`Syncing`], and what each runs is decided only here:
 //!
@@ -10,18 +10,18 @@
 //! | The Server's Link is new               | every User's of both      |                           |                          |
 //! | A User changed their Watchlist         |                           |                           | yes                      |
 //! | Each scan's Matching                   |                           | each User's Watch State   | each User's              |
+//! | Every minute                           | what waits for the Hub    |                           |                          |
 //!
 //! A Link is new when a look finds it Linked that the last didn't, or first since the Server
 //! started, as [`Linking`] tells it, so a restart pushes once more what a missed push left out. A
-//! push comes before its pull, waiting on Observers gives up after [`SYNC_TIMEOUT`], and a Server
-//! no Plugin links does no sync work at all. Telling Observers of a User's own changes is for the
-//! Watch State and Track Preference owners, not this.
+//! push queues what it pushes for the Hub, as the owners of Watch State and Track Preferences
+//! queue each change in the write that makes it. Every pull sends what waits first, so a push comes
+//! before its pull, and the minute's send takes the rest, such as what waited while the Hub was
+//! unreachable. A Server with no Plugin that links its Users does no sync work at all but that
+//! minute's send, which forgets what waits, as none of its Users can be Linked.
 
 use std::{future::Future, sync::Arc, time::Duration};
 
-use nama_plugin_api::points::{
-    TrackPreferenceChange, TrackPreferenceChanged, WatchStateChanges, WatchStatesChanged,
-};
 use nama_proto::nama::v1::{Event, event};
 use tokio::{
     sync::broadcast::{self, error::RecvError},
@@ -34,20 +34,19 @@ use crate::{
     db::Database,
     diagnostics,
     events::EventBus,
-    link::{Linking, Whose},
+    link::{self, Linking, Whose},
     playback::TrackPreferences,
     plugins::ExtensionPoints,
     users::Users,
     watchlist,
 };
 
-/// How long a pull waits for Observers to queue the push before it.
-const SYNC_TIMEOUT: Duration = Duration::from_mins(1);
+/// How often what waits for the Hub is sent.
+const SEND_EVERY: Duration = Duration::from_mins(1);
 
-/// Runs each trigger's sync with the enabled Plugin that links the Server.
+/// Runs each trigger's sync with the Hub.
 #[derive(Debug, Clone)]
 pub(crate) struct Syncing {
-    points: ExtensionPoints,
     linking: Linking,
     browse: Browse,
     preferences: TrackPreferences,
@@ -56,16 +55,31 @@ pub(crate) struct Syncing {
 }
 
 impl Syncing {
-    /// Syncs what `db` holds of `users` through the Plugins of `points`.
+    /// Syncs what `db` holds of `users`, telling the Observers of `points` of what it takes.
     pub(crate) fn new(db: Arc<Database>, points: ExtensionPoints, users: Users) -> Self {
         Self {
             browse: Browse::new(Arc::clone(&db), points.clone()),
-            preferences: TrackPreferences::new(Arc::clone(&db), points.clone()),
+            preferences: TrackPreferences::new(Arc::clone(&db), points),
             linking: users.linking().clone(),
-            points,
             db,
             users,
         }
+    }
+
+    /// Sends what waits for the Hub every [`SEND_EVERY`], until the task is aborted. A failure is
+    /// logged by the Link: what didn't go waits for the next.
+    pub(crate) fn keep_sending(&self) -> JoinHandle<()> {
+        let linking = self.linking.clone();
+        tokio::spawn(async move {
+            let mut ticks = tokio::time::interval(SEND_EVERY);
+            loop {
+                ticks.tick().await;
+                let span = diagnostics::following_current(
+                    tracing::info_span!(parent: None, "send_to_hub"),
+                );
+                let _: Result<(), link::Error> = linking.send_queued().instrument(span).await;
+            }
+        })
     }
 
     /// The User `user_id` signed in: pulls their Watch State and Track Preferences, then syncs
@@ -172,7 +186,7 @@ impl Syncing {
     }
 
     /// Runs `work` in a task of its own, in `span`, so a slow or unreachable service holds up
-    /// nothing, unless no Plugin links the Server.
+    /// nothing, unless no Plugin links the Server's Users.
     fn soon<F>(&self, span: Span, work: impl FnOnce(Self) -> F)
     where
         F: Future<Output = ()> + Send + 'static,
@@ -199,27 +213,30 @@ impl Syncing {
         }
     }
 
-    /// Tells the Plugins that observe Watch State of the User `user_id`'s whole Watch State, each
-    /// change dated as stored, and waits until they have it queued, so a pull after it sends it
-    /// first. The Plugin that links the Server queues it only for a Linked User, and the later of
-    /// a title's changes wins (ADR 0008).
+    /// Queues the User `user_id`'s whole Watch State for the Hub, each change dated as stored, so a
+    /// pull after it sends it first. It goes only for a Linked User, and the later of a title's
+    /// changes wins (ADR 0008).
     async fn push_watch_states(&self, user_id: i64) {
         let changes = match self.browse.watch_state_changes(user_id).await {
-            Ok(changes) if changes.is_empty() => return,
             Ok(changes) => changes,
             Err(err) => {
                 tracing::error!(user = user_id, "reading a User's Watch State failed: {err}");
                 return;
             }
         };
-        let told = (self.points)
-            .notify_and_wait::<WatchStatesChanged>(WatchStateChanges { user_id, changes });
-        wait_until_told(told, user_id, "Watch State").await;
+        let queued = (self.db)
+            .write(move |tx| {
+                Box::pin(async move { link::queue_watch_states(tx, user_id, &changes).await })
+            })
+            .await;
+        if let Err(err) = queued {
+            tracing::error!(user = user_id, "queuing a User's Watch State failed: {err}");
+        }
     }
 
-    /// Tells the Plugins that observe Track Preferences of each of the User `user_id`'s, dated as
-    /// stored, as [`Syncing::push_watch_states`] does their Watch State, and for the same reasons.
-    /// The change made last of each wins (ADR 0092).
+    /// Queues each of the User `user_id`'s Track Preferences for the Hub, dated as stored, as
+    /// [`Syncing::push_watch_states`] does their Watch State, and for the same reasons. The change
+    /// made last of each wins (ADR 0092).
     async fn push_track_preferences(&self, user_id: i64) {
         let stored = match self.preferences.changes_of_user(user_id).await {
             Ok(stored) => stored,
@@ -231,28 +248,32 @@ impl Syncing {
                 return;
             }
         };
-        // One at a time, so the Plugin that links the Server checks the User's Link once, not once
-        // each, and in a task of its own, so the rest are still told after waiting on them times
-        // out.
-        let points = self.points.clone();
-        let telling = async move {
-            for preference in stored {
-                let change = TrackPreferenceChange {
-                    user_id,
-                    preference,
-                };
-                points
-                    .notify_and_wait::<TrackPreferenceChanged>(change)
-                    .await;
-            }
-        };
-        let told = tokio::spawn(telling.in_current_span());
-        wait_until_told(told, user_id, "Track Preferences").await;
+        let queued = (self.db)
+            .write(move |tx| {
+                Box::pin(async move { link::queue_track_preferences(tx, user_id, &stored).await })
+            })
+            .await;
+        if let Err(err) = queued {
+            tracing::error!(
+                user = user_id,
+                "queuing a User's Track Preferences failed: {err}"
+            );
+        }
     }
 
-    /// Takes the User `user_id`'s Watch State from the Plugin that links the Server, where it is
-    /// newer than the Server's own. A failure is logged: the next sign-in or scan pulls again.
+    /// Sends what waits for the Hub, so a push comes before its pull: whether it all went. A
+    /// failure is logged by the Link.
+    async fn sent(&self) -> bool {
+        self.linking.send_queued().await.is_ok()
+    }
+
+    /// Takes the User `user_id`'s Watch State from the Hub, where it is newer than the Server's
+    /// own, once what waits for it is sent. A failure is logged: the next sign-in or scan pulls
+    /// again.
     async fn pull_watch_states(&self, user_id: i64) {
+        if !self.sent().await {
+            return;
+        }
         let Some(pulled) = self.linking.watch_states(user_id).await else {
             return;
         };
@@ -264,9 +285,13 @@ impl Syncing {
         }
     }
 
-    /// Takes the User `user_id`'s Track Preferences from the Plugin that links the Server, each
-    /// where it is newer than the Server's own. A failure is logged: the next sign-in pulls again.
+    /// Takes the User `user_id`'s Track Preferences from the Hub, each where it is newer than the
+    /// Server's own, once what waits for it is sent. A failure is logged: the next sign-in pulls
+    /// again.
     async fn pull_track_preferences(&self, user_id: i64) {
+        if !self.sent().await {
+            return;
+        }
         let Some(pulled) = self.linking.track_preferences(user_id).await else {
             return;
         };
@@ -278,9 +303,9 @@ impl Syncing {
         }
     }
 
-    /// Hands the User `user_id`'s whole Watchlist to the Plugin that links the Server, and takes
-    /// what it answers where that is newer than the Server's own. A failure is logged: the next
-    /// change, sign-in or scan syncs again, sending what this didn't.
+    /// Hands the User `user_id`'s whole Watchlist to the Hub, and takes what it answers where that
+    /// is newer than the Server's own. A failure is logged: the next change, sign-in or scan syncs
+    /// again, sending what this didn't.
     async fn sync_watchlist(&self, user_id: i64) {
         let entries = match watchlist::entries(&self.db, user_id).await {
             Ok(entries) => entries,
@@ -301,17 +326,5 @@ impl Syncing {
                 "taking a User's synced Watchlist failed: {err}"
             );
         }
-    }
-}
-
-/// Waits until `told`, Observers taking the User `user_id`'s `what`, but no longer than
-/// [`SYNC_TIMEOUT`], so an Observer that never answers can't hold up the pull; the Plugin's Sync
-/// Job sends what it queues later.
-async fn wait_until_told(told: impl Future, user_id: i64, what: &str) {
-    if tokio::time::timeout(SYNC_TIMEOUT, told).await.is_err() {
-        tracing::warn!(
-            user = user_id,
-            "Observers took too long to take a User's {what}"
-        );
     }
 }

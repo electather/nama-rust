@@ -1,9 +1,9 @@
 //! The Hub Plugin (ADR 0094): the Built-in Plugin through which a Linked Server does what is
 //! Hub-facing but the Link itself, which the Kernel keeps (ADR 0105, [`KernelLink`]). It sends the
 //! Hub the Diagnostics and Usage Analytics the Admin shares (ADR 0054). The Server's Users Link to
-//! their own Accounts through a code each enters on the Hub (ADR 0011), their Watch State, Subtitle
-//! and Audio Preferences and Watchlists sync with the Hub (ADR 0092), and each play of theirs goes
-//! to the Hub as a Viewing Event (ADR 0093).
+//! their own Accounts through a code each enters on the Hub (ADR 0011), and each play of theirs goes
+//! to the Hub as a Viewing Event (ADR 0093). The Kernel syncs their Watch State, Subtitle and Audio
+//! Preferences and Watchlists (ADR 0105).
 //! Once Linked, it is also a Similar source answering the titles the Hub finds alike (ADR 0084,
 //! 0095), a Home row source giving each Linked User the titles the Hub recommends from what
 //! their Account finished, as a row and as Featured suggestions (ADR 0072), and sharing Home rows
@@ -24,7 +24,7 @@ use nama_plugin_api::{
     diagnostics_sharer::DiagnosticsSharer,
     home_row::{HomeRowMethod, HomeRowSource},
     job::JobRunner,
-    points::{Events, TrackPreferenceChanged, WatchStatesChanged},
+    points::Events,
     server_link::ServerLinker,
     similar_source::SimilarSource,
 };
@@ -32,9 +32,7 @@ use nama_plugin_api::{
 use crate::{
     charts::Charts,
     hub::Hub as HubApi,
-    linker::{
-        Jobs, Linker, TrackPreferenceSync, ViewingEvents, WatchStateSync, send_job, sync_job,
-    },
+    linker::{Jobs, Linker, ViewingEvents, send_job},
     recommended::Recommended,
     similar::Similar,
 };
@@ -92,13 +90,12 @@ impl Plugin for Hub {
     fn manifest(&self) -> Manifest {
         Manifest {
             name: "Hub".to_owned(),
-            description: "Links the Server's Users to Accounts on Nama's Hub, syncs \
-                          Linked Users' Watch State, Subtitle and Audio Preferences and \
-                          Watchlists there and sends it what they play, sends it the Diagnostics \
-                          and Usage Analytics you share in Settings, adds the titles the Hub \
-                          finds alike to Similar titles, gives each Linked User a Recommended \
-                          for you row and Featured suggestions from what they finished, and \
-                          shows Trending on Nama and Most watchlisted on Nama rows on home."
+            description: "Links the Server's Users to Accounts on Nama's Hub, sends it what \
+                          Linked Users play, sends it the Diagnostics and Usage Analytics you \
+                          share in Settings, adds the titles the Hub finds alike to Similar \
+                          titles, gives each Linked User a Recommended for you row and Featured \
+                          suggestions from what they finished, and shows Trending on Nama and \
+                          Most watchlisted on Nama rows on home."
                 .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_markdown: "Link the Server under Settings, Server, and enable it. Each User can \
@@ -117,8 +114,6 @@ impl Plugin for Hub {
             extension_points: vec![
                 PointKey::provide::<dyn ServerLinker>(),
                 PointKey::provide::<dyn DiagnosticsSharer>(),
-                PointKey::observe::<WatchStatesChanged>(),
-                PointKey::observe::<TrackPreferenceChanged>(),
                 PointKey::observe::<Events>(),
                 PointKey::provide::<dyn JobRunner>(),
                 PointKey::provide::<dyn SimilarSource>(),
@@ -131,7 +126,7 @@ impl Plugin for Hub {
                 Permission::PERMISSION_READ_WATCH_STATES,
                 Permission::PERMISSION_READ_USERS,
             ],
-            jobs: vec![sync_job(), send_job()],
+            jobs: vec![send_job()],
             ..Manifest::new(Self::ID)
         }
     }
@@ -153,10 +148,8 @@ impl Plugin for Hub {
         let sharer: Arc<dyn DiagnosticsSharer> = Arc::<Linker>::clone(&linker);
         registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::<Linker>::clone(&linker));
         registrar.provide::<dyn DiagnosticsSharer>(Priority::DEFAULT, sharer);
-        registrar.observe::<WatchStatesChanged>(WatchStateSync(Arc::clone(&linker)));
-        registrar.observe::<TrackPreferenceChanged>(TrackPreferenceSync(Arc::clone(&linker)));
         registrar.observe::<Events>(viewing.clone());
-        let jobs: Arc<dyn JobRunner> = Arc::new(Jobs { linker, viewing });
+        let jobs: Arc<dyn JobRunner> = Arc::new(Jobs { viewing });
         registrar.provide::<dyn JobRunner>(Priority::DEFAULT, jobs);
         registrar.provide::<dyn SimilarSource>(Priority::DEFAULT, similar);
         registrar.provide::<dyn HomeRowSource>(Priority::DEFAULT, rows);
