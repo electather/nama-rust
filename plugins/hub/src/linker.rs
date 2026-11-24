@@ -1,9 +1,7 @@
-//! Linking the Server to an Account (ADR 0011): the code it shows while it waits, and the Link it
-//! keeps in the Plugin's Store once someone entered it, the Server Addresses it tells the Hub, and
-//! through it shares what the Admin chooses with Nama's developers (ADR 0054). [`Linker`] holds
-//! the Link: it alone reads and writes it, and every Hub call made as the Server goes through
-//! [`Linker::call`], so one rule decides what a Link the Hub dropped means. Its Users' Links are
-//! in `users.rs`, syncing their Watch State both ways in `watch_states.rs`, their Subtitle and
+//! Calling the Hub as the Linked Server, whose Link the Kernel keeps (ADR 0105), and through it
+//! sharing what the Admin chooses with Nama's developers (ADR 0054). Every Hub call made as the
+//! Server goes through [`Linker::call`], so one rule decides what a Link the Hub dropped means.
+//! The Server's Users' Links are in `users.rs`, syncing their Watch State both ways in `watch_states.rs`, their Subtitle and
 //! Audio Preferences in `track_preferences.rs`, and their Watchlists in `watchlist.rs`, their plays
 //! as Viewing Events in `viewing.rs`, and signing in with an Account, and Users created from one,
 //! in `accounts.rs`. What goes to the Hub waits in a queue per kind, in `queue.rs`.
@@ -19,8 +17,7 @@ mod watchlist;
 use std::{
     collections::HashMap,
     future::Future,
-    sync::{Arc, PoisonError},
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    sync::{Arc, Mutex, PoisonError},
 };
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -29,25 +26,18 @@ use nama_hub_proto::nama::hub::v1::{
 };
 use nama_plugin_api::{
     BoxFuture, PluginError,
-    automation::{
-        Kernel,
-        functions::{StoreDelete, StoreGet, StorePut},
-    },
-    contract::{StoreEntry, StoreKey},
+    automation::{Kernel, functions::StoreGet},
+    contract::StoreKey,
     diagnostics_sharer::{DiagnosticsSharer, Signal},
     job::{JobRunner, RunJob},
     points::{TrackPreference, WatchStateChange},
-    server_link::{
-        AccountSignIn, Link, Reachability, ServerAddresses, ServerLinker, WatchlistEntry,
-    },
+    server_link::{AccountSignIn, Link, ServerLinker, WatchlistEntry},
 };
 use ring::digest;
-use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
 
 use crate::{
-    hub::{Hub, LinkDropped, LinkedHub, Polling},
-    token::{self, Claims, Rejected},
+    KernelLink,
+    hub::{Hub, LinkDropped, LinkedHub},
 };
 
 use self::queue::Queue;
@@ -82,33 +72,10 @@ impl JobRunner for Jobs {
     }
 }
 
-/// The Store key of the Link, a [`Kept`] as JSON.
-const LINK_KEY: &str = "link";
-
-/// The Store key of the Hub's key set, as the Hub publishes it.
-const KEY_SET_KEY: &str = "key-set";
-
-/// How long the Hub's check of the Server's public port stands: the same Server Addresses go to
-/// the Hub again after this, so it checks again, such as after the router's public IP changed.
-const RECHECK_EVERY: Duration = Duration::from_mins(30);
-
-/// A code the Server shows, waiting for someone to enter it on the Hub.
-struct Waiting {
-    device_code: String,
-    code: String,
-    poll_every: Duration,
-    next_poll: Instant,
-    expires: Instant,
-}
-
-/// What the Plugin keeps of its Link.
-#[derive(Serialize, Deserialize)]
+/// The Server's Link as the Kernel keeps it.
 struct Kept {
-    /// What the Server presents on every later Hub call (ADR 0098).
+    /// What the Server presents on every Hub call (ADR 0098).
     credential: String,
-    /// The Account's email, as the Hub's signed token named it; `None` if the token couldn't be
-    /// checked when the credential came.
-    account: Option<String>,
 }
 
 impl Kept {
@@ -118,140 +85,28 @@ impl Kept {
     }
 }
 
-/// The Server Addresses the Hub has.
-struct Reported {
-    /// The [`Kept::id`] of the Link it got them through.
-    link: String,
-    addresses: ServerAddresses,
-    /// When the Hub got them, and checked their public port.
-    at: Instant,
-}
-
-impl Reported {
-    /// Whether the Hub needs no report of `addresses` through `link` at `now`: it has them, and
-    /// checked their public port less than [`RECHECK_EVERY`] ago.
-    fn covers(&self, link: &str, addresses: &ServerAddresses, now: Instant) -> bool {
-        self.link == link
-            && self.addresses == *addresses
-            && now.duration_since(self.at) < RECHECK_EVERY
-    }
-}
-
-/// Who a Link whose token couldn't be checked belongs to, as Settings shows it.
-const UNCONFIRMED_ACCOUNT: &str = "an Account the Hub didn't confirm";
-
-/// The Server's Link to the Hub.
+/// Calls the Hub as the Server, through the Kernel's Link.
 pub(crate) struct Linker {
     hub: Hub,
+    link: Arc<dyn KernelLink>,
     kernel: Arc<dyn Kernel>,
-    /// Held across a poll, so two polls never race for the one credential.
-    waiting: Mutex<Option<Waiting>>,
-    /// What the Plugin knows of each User's Link but what it keeps in the Store.
-    users: std::sync::Mutex<HashMap<i64, users::UserState>>,
+    /// What the Plugin knows of each User's Link but what it keeps in the Store, under the
+    /// [`Kept::id`] of the Server's Link it learned it through.
+    users: Mutex<(Option<String>, HashMap<i64, users::UserState>)>,
     watch_states: Queue<WatchStateChangeProto>,
     preferences: Queue<TrackPreferenceChangeProto>,
-    /// Held across telling the Hub, so a report never overtakes another.
-    reported: Mutex<Option<Reported>>,
-    /// What the Hub found of the Server's public port and the names it gave it, with the
-    /// [`Kept::id`] of the Link it found them through. Apart from `reported`, so showing the Link
-    /// never waits on a report.
-    reachability: std::sync::Mutex<Option<(String, Reachability)>>,
 }
 
 impl Linker {
-    pub(crate) fn new(hub: Hub, kernel: Arc<dyn Kernel>) -> Self {
+    pub(crate) fn new(hub: Hub, link: Arc<dyn KernelLink>, kernel: Arc<dyn Kernel>) -> Self {
         Self {
             watch_states: Queue::new(Arc::clone(&kernel)),
             preferences: Queue::new(Arc::clone(&kernel)),
             hub,
+            link,
             kernel,
-            waiting: Mutex::default(),
-            users: std::sync::Mutex::default(),
-            reported: Mutex::default(),
-            reachability: std::sync::Mutex::default(),
+            users: Mutex::default(),
         }
-    }
-
-    async fn current_link(&self) -> Result<Link, PluginError> {
-        let mut waiting = self.waiting.lock().await;
-        if let Some(code) = waiting.as_mut() {
-            match self.poll(code).await? {
-                Some(showing) => return Ok(showing),
-                None => *waiting = None,
-            }
-        }
-        Ok(match self.kept().await? {
-            Some(kept) => Link::Linked {
-                reachability: self.reachability(&kept),
-                account: kept
-                    .account
-                    .unwrap_or_else(|| UNCONFIRMED_ACCOUNT.to_owned()),
-            },
-            None => Link::NotLinked,
-        })
-    }
-
-    /// Asks the Hub whether `code` was entered, once its poll interval has passed. `Some` while
-    /// it still waits, `None` once it is gone: expired, or entered and its Link kept.
-    async fn poll(&self, code: &mut Waiting) -> Result<Option<Link>, PluginError> {
-        let now = Instant::now();
-        if now >= code.expires {
-            return Ok(None);
-        }
-        if now < code.next_poll {
-            return Ok(Some(self.showing(code)));
-        }
-        code.next_poll = now + code.poll_every;
-        let polled = match self.hub.poll(&code.device_code).await {
-            Ok(polled) => polled,
-            Err(Polling::Expired) => return Ok(None),
-            // The code still works on the Hub, and the next poll asks again: a Hub that is down
-            // for a moment shouldn't fail the Settings that show the code.
-            Err(Polling::Failed) => return Ok(Some(self.showing(code))),
-        };
-        if !polled.linked {
-            return Ok(Some(self.showing(code)));
-        }
-        // Kept before the token is checked: the Hub has handed it out for good, and a Link whose
-        // credential was lost could never be Unlinked.
-        let mut kept = Kept {
-            credential: polled.credential,
-            account: None,
-        };
-        self.keep(&kept).await?;
-        kept.account = Some(self.verify(&polled.token).await?.email);
-        self.keep(&kept).await?;
-        Ok(None)
-    }
-
-    async fn start(&self, server_name: &str) -> Result<Link, PluginError> {
-        // Held from the check on: a poll keeping a credential meanwhile would otherwise see its
-        // Link overwritten by the next, leaving one on the Hub that nothing could Unlink.
-        let mut waiting = self.waiting.lock().await;
-        if self.kept().await?.is_some() {
-            return Err("the Server is Linked already: Unlink it first".into());
-        }
-        let started = self.hub.start(server_name).await?;
-        let now = Instant::now();
-        let code = Waiting {
-            device_code: started.device_code,
-            code: started.user_code,
-            poll_every: Duration::from_secs(started.interval_seconds.try_into().unwrap_or(5)),
-            next_poll: now,
-            expires: now + Duration::from_secs(started.expires_in_seconds.try_into().unwrap_or(0)),
-        };
-        let link = self.showing(&code);
-        *waiting = Some(code);
-        Ok(link)
-    }
-
-    async fn forget_link(&self) -> Result<(), PluginError> {
-        *self.waiting.lock().await = None;
-        // `None` is not Linked, or a Link the Hub dropped, which `call` forgot already.
-        if self.call(LinkedHub::unlink).await?.is_some() {
-            self.forget_kept().await?;
-        }
-        Ok(())
     }
 
     /// Makes `call` to the Hub as the Linked Server: `None` while the Server isn't Linked, and
@@ -269,89 +124,11 @@ impl Linker {
         };
         match call(self.hub.linked(&kept.credential)).await {
             Err(err) if err.is::<LinkDropped>() => {
-                self.forget_dropped(&kept).await?;
+                self.link.forget(&kept.credential).await?;
                 Ok(None)
             }
             called => called.map(Some),
         }
-    }
-
-    /// Forgets `dropped`, the Link the Hub answered [`LinkDropped`] to, as Unlinking does, so the
-    /// Server can Link again. A Link kept since, under another credential, stays.
-    async fn forget_dropped(&self, dropped: &Kept) -> Result<(), PluginError> {
-        // Held so a poll can't keep a new Link between the check and the delete.
-        let _waiting = self.waiting.lock().await;
-        if self
-            .kept()
-            .await?
-            .is_some_and(|kept| kept.credential == dropped.credential)
-        {
-            self.forget_kept().await?;
-        }
-        Ok(())
-    }
-
-    async fn forget_kept(&self) -> Result<(), PluginError> {
-        self.kernel.ask::<StoreDelete>(store_key(LINK_KEY)).await?;
-        // The Hub Unlinked the Server's Users with it: their codes are gone, and what the Store
-        // keeps of their Links names this Link, so none shows once the Server is Linked again.
-        self.users
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clear();
-        *self
-            .reachability
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) = None;
-        Ok(())
-    }
-
-    /// Tells the Hub `addresses`, unless the Server isn't Linked or the Hub has them already from
-    /// this Link and checked them lately. Forgotten on a restart, so the Hub hears them once more
-    /// then.
-    async fn report(&self, addresses: ServerAddresses) -> Result<(), PluginError> {
-        let Some(kept) = self.kept().await? else {
-            return Ok(());
-        };
-        let mut reported = self.reported.lock().await;
-        let (link, now) = (kept.id(), Instant::now());
-        if reported
-            .as_ref()
-            .is_some_and(|reported| reported.covers(&link, &addresses, now))
-        {
-            return Ok(());
-        }
-        let Some(reachability) = self.call(|hub| hub.set_addresses(&addresses)).await? else {
-            return Ok(());
-        };
-        *self
-            .reachability
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) =
-            reachability.map(|reachability| (link.clone(), reachability));
-        *reported = Some(Reported {
-            link,
-            addresses,
-            at: now,
-        });
-        Ok(())
-    }
-
-    /// What the Hub found of the Server's public port and names through the Link `kept`, if it
-    /// answered a report.
-    fn reachability(&self, kept: &Kept) -> Option<Reachability> {
-        let found = self
-            .reachability
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        found
-            .as_ref()
-            .filter(|(link, _)| *link == kept.id())
-            .map(|(_, reachability)| reachability.clone())
-    }
-
-    fn showing(&self, code: &Waiting) -> Link {
-        self.waiting_on(code.code.clone())
     }
 
     /// The Link that waits for someone to enter `code` on the Hub.
@@ -362,29 +139,9 @@ impl Linker {
         }
     }
 
-    /// `token`'s claims, checked against the Hub's key set as last kept, so it passes while the
-    /// Hub is unreachable. Only a token naming a key the kept set lacks fetches the set again.
-    pub(crate) async fn verify(&self, token: &str) -> Result<Claims, PluginError> {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let kept = self.stored(KEY_SET_KEY).await?;
-        if let Some(key_set) = &kept {
-            match token::verify(key_set, token, now) {
-                Err(Rejected::UnknownKey) => {}
-                verified => return verified.map_err(rejected),
-            }
-        }
-        let key_set = self.hub.key_set().await?;
-        self.kernel
-            .ask::<StorePut>(StoreEntry {
-                key: KEY_SET_KEY.to_owned(),
-                value: key_set.to_vec(),
-                ..Default::default()
-            })
-            .await?;
-        token::verify(&key_set, token, now).map_err(rejected)
+    /// Whom `token`, which the Hub signed, names, as the Kernel checks it.
+    pub(crate) async fn token_subject(&self, token: &str) -> Result<String, PluginError> {
+        self.link.token_subject(token).await
     }
 
     /// Sends `batch` to the Hub as the Linked Server, or drops it while not Linked.
@@ -394,21 +151,16 @@ impl Linker {
     }
 
     async fn kept(&self) -> Result<Option<Kept>, PluginError> {
-        let Some(kept) = self.stored(LINK_KEY).await? else {
-            return Ok(None);
-        };
-        Ok(Some(serde_json::from_slice(&kept)?))
-    }
-
-    async fn keep(&self, kept: &Kept) -> Result<(), PluginError> {
-        self.kernel
-            .ask::<StorePut>(StoreEntry {
-                key: LINK_KEY.to_owned(),
-                value: serde_json::to_vec(kept)?,
-                ..Default::default()
-            })
-            .await?;
-        Ok(())
+        let kept = (self.link.credential().await?).map(|credential| Kept { credential });
+        let id = kept.as_ref().map(Kept::id);
+        let mut users = self.users.lock().unwrap_or_else(PoisonError::into_inner);
+        // The Hub Unlinked the Server's Users with an earlier Link: what is known of them is that
+        // Link's, so none shows once the Server is Linked again.
+        if users.0 != id {
+            *users = (id, HashMap::new());
+        }
+        drop(users);
+        Ok(kept)
     }
 
     async fn stored(&self, key: &str) -> Result<Option<Vec<u8>>, PluginError> {
@@ -417,18 +169,6 @@ impl Linker {
 }
 
 impl ServerLinker for Linker {
-    fn link(&self) -> BoxFuture<'_, Result<Link, PluginError>> {
-        Box::pin(self.current_link())
-    }
-
-    fn start_link<'a>(&'a self, server_name: &'a str) -> BoxFuture<'a, Result<Link, PluginError>> {
-        Box::pin(self.start(server_name))
-    }
-
-    fn unlink(&self) -> BoxFuture<'_, Result<(), PluginError>> {
-        Box::pin(self.forget_link())
-    }
-
     fn user_link(&self, user_id: i64) -> BoxFuture<'_, Result<Option<Link>, PluginError>> {
         Box::pin(self.current_user_link(user_id))
     }
@@ -469,27 +209,6 @@ impl ServerLinker for Linker {
         Box::pin(self.finish_sign_in(handle, code))
     }
 
-    fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>> {
-        Box::pin(self.report(addresses))
-    }
-
-    fn set_certificate_challenge(
-        &self,
-        values: Vec<String>,
-    ) -> BoxFuture<'_, Result<(), PluginError>> {
-        Box::pin(async move {
-            let set = self.call(|hub| hub.set_certificate_challenge(values));
-            Ok(set.await?.ok_or(accounts::NOT_LINKED)?)
-        })
-    }
-
-    fn relay_token(&self) -> BoxFuture<'_, Result<String, PluginError>> {
-        Box::pin(async move {
-            let token = self.call(LinkedHub::relay_token);
-            Ok(token.await?.ok_or(accounts::NOT_LINKED)?)
-        })
-    }
-
     fn watch_states(
         &self,
         user_id: i64,
@@ -525,14 +244,3 @@ fn store_key(key: &str) -> StoreKey {
         ..Default::default()
     }
 }
-
-fn rejected(rejected: Rejected) -> PluginError {
-    match rejected {
-        Rejected::UnknownKey => "the Hub's token names a key it doesn't publish".into(),
-        Rejected::Invalid(why) => format!("the Hub's token doesn't check out: {why}").into(),
-    }
-}
-
-#[cfg(test)]
-#[path = "linker/linker_tests.rs"]
-mod tests;

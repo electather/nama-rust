@@ -100,6 +100,9 @@ async fn a_plain_http1_json_post_gets_a_json_answer() {
         serde_json::json!({
             "name": "Attic",
             "imageWidths": [320, 480, 640, 960, 1280, 1920, 2560],
+            "posterWidths": [320, 480, 640],
+            "backdropWidths": [640, 1280, 1920, 2560],
+            "titleLogoWidths": [320, 480, 640, 960],
             "version": env!("CARGO_PKG_VERSION"),
         })
     );

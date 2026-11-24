@@ -21,7 +21,7 @@ export function TrailerTile({
 }) {
   return (
     <BackdropFrame
-      art={{ ...art, sizes: backdropTileSizes }}
+      art={{ ...art, sizes: backdropTileSizes, widths: "backdropWidths" }}
       caption={<TrailerCaption name={trailer.name} host={trailerHost(trailer.url)} />}
       menu={<TrailerMenu trailer={trailer} />}
     >

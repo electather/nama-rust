@@ -14,7 +14,7 @@ use tracing::Instrument as _;
 
 use crate::{
     db::{BoxFuture, Database, now},
-    link::Linking,
+    link::{Linking, ServerLink},
     plugins::ExtensionPoints,
 };
 
@@ -49,8 +49,8 @@ pub(crate) use inbox::{
 };
 pub(crate) use invites::Invite;
 pub(crate) use library_access::{LibraryAccess, library_access};
-pub(crate) use managing::remote_cap;
 use managing::{default_permissions, ensure_may_change, ensure_may_grant};
+pub(crate) use managing::{every_user, remote_cap};
 use names::checked_name;
 pub(crate) use names::name_key;
 pub(crate) use notification_preferences::{
@@ -332,11 +332,20 @@ impl Users {
     pub fn new(db: Arc<Database>, plugins: ExtensionPoints) -> Self {
         Self {
             db,
-            linking: Linking::new(plugins.clone()),
+            linking: Linking::new(plugins.clone(), None),
             plugins,
             sign_outs: broadcast::channel(SIGN_OUTS_BUFFERED).0,
             permission_changes: broadcast::channel(PERMISSION_CHANGES_BUFFERED).0,
             library_access_changes: broadcast::channel(LIBRARY_ACCESS_CHANGES_BUFFERED).0,
+        }
+    }
+
+    /// These Users, whose Server Links with the Hub through `server`, its own Link (ADR 0105).
+    #[must_use]
+    pub(crate) fn linking_through(self, server: Option<Arc<ServerLink>>) -> Self {
+        Self {
+            linking: Linking::new(self.plugins.clone(), server),
+            ..self
         }
     }
 
@@ -628,18 +637,6 @@ impl Users {
 /// What the database keeps of a session token.
 fn hash_token(token: &str) -> [u8; 32] {
     Sha256::digest(token).into()
-}
-
-/// Every User, oldest first, for a task that holds no [`Users`], such as `crate::events`.
-pub(crate) async fn every_user(db: &Database) -> Result<Vec<User>, sqlx::Error> {
-    sqlx::query_as!(
-        User,
-        r#"SELECT id AS "id!", display_username AS name,
-                  permissions AS "permissions: Permissions", created_at
-           FROM users ORDER BY id"#
-    )
-    .fetch_all(db.reader())
-    .await
 }
 
 async fn any_user(conn: &mut SqliteConnection) -> Result<bool, sqlx::Error> {

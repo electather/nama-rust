@@ -37,6 +37,10 @@ const DOWNLOAD_SUBTITLES: [&str; 2] = [
     "/nama.v1.PlaybackService/DownloadSubtitle",
 ];
 
+/// Every RPC that downloads a Version's file or one re-encoded as for a Transcode, which needs
+/// `PERMISSION_DOWNLOAD`: none yet (#2195, #2198).
+const DOWNLOAD: [&str; 0] = [];
+
 /// Every RPC that manages Libraries or Matches, which needs `PERMISSION_MANAGE_LIBRARIES`.
 const MANAGE_LIBRARIES: [&str; 11] = [
     "/nama.v1.LibraryService/CreateLibrary",
@@ -180,7 +184,7 @@ const SIGNED_IN: [&str; 24] = [
 
 /// Each Permission some RPC needs, with every RPC that needs it: kept by hand, as a second
 /// statement of who may call what that doesn't read `ACCESS`.
-const NEEDS_PERMISSION: [(Permission, &[&str]); 9] = [
+const NEEDS_PERMISSION: [(Permission, &[&str]); 10] = [
     (Permission::ManageLibraries, &MANAGE_LIBRARIES),
     (Permission::ManageUsers, &MANAGE_USERS),
     (Permission::ManageSettings, &MANAGE_SETTINGS),
@@ -190,6 +194,7 @@ const NEEDS_PERMISSION: [(Permission, &[&str]); 9] = [
     (Permission::RequestTv, &REQUEST_TV),
     (Permission::DeleteMedia, &DELETE_MEDIA),
     (Permission::DownloadSubtitles, &DOWNLOAD_SUBTITLES),
+    (Permission::Download, &DOWNLOAD),
 ];
 
 const SIGN_OUT: &str = "/nama.v1.SignInService/SignOut";

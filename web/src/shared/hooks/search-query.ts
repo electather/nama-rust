@@ -3,16 +3,19 @@ import { experimental_streamedQuery as streamedQuery, queryOptions } from "@tans
 
 import type { TitleKind } from "@/gen/nama/v1/match_pb";
 import { type SearchResponse, SearchService } from "@/gen/nama/v1/search_pb";
+import { serverKey } from "@/shared/hooks/server-key";
 
 /** Every search: what to refresh when a Request changes, since each title found carries its own. */
-export const searchKey = ["search"] as const;
+export function searchKey(transport: Transport) {
+  return ["search", serverKey(transport)] as const;
+}
 
 /**
  * What `Search` streams for `words` of `kind`, as its parts arrive. A new search aborts the last.
  */
 export function searchQuery(words: string, kind: TitleKind, transport: Transport) {
   return queryOptions({
-    queryKey: [...searchKey, words, kind],
+    queryKey: [...searchKey(transport), words, kind],
     queryFn: streamedQuery<SearchResponse>({
       streamFn: ({ signal }) =>
         createClient(SearchService, transport).search({ query: words, kind }, { signal }),

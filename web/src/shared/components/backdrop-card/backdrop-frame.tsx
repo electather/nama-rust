@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { CardCaption } from "@/shared/components/backdrop-card/card-caption";
 import { TileArt } from "@/shared/components/tile-art";
+import type { OfferedWidths } from "@/shared/hooks/use-src-set";
 import { backdropRadius } from "@/shared/lib/backdrop-card-classes";
 
 /**
@@ -17,7 +18,12 @@ export function BackdropFrame({
   menu,
   children,
 }: {
-  art: { url: string | undefined; thumbhash: Uint8Array | undefined; sizes: string };
+  art: {
+    url: string | undefined;
+    thumbhash: Uint8Array | undefined;
+    sizes: string;
+    widths?: OfferedWidths | undefined;
+  };
   tall?: boolean;
   caption: ReactNode;
   menu: ReactNode;
@@ -35,7 +41,7 @@ export function BackdropFrame({
         <TileArt
           url={art.url}
           thumbhash={art.thumbhash}
-          look={{ sizes: art.sizes, radius: backdropRadius }}
+          look={{ sizes: art.sizes, radius: backdropRadius, widths: art.widths }}
         />
         {children}
         <CardCaption caption={caption} menu={menu} />

@@ -1,17 +1,21 @@
+import { useTransport } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { serverQueries } from "@/shared/hooks/server-key";
 import type { ImageRules } from "@/shared/lib/image-rules";
+import { onServer } from "@/shared/lib/server";
 
 /** The most bytes the Server takes for an image: 20 MiB. */
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 /**
- * Uploads to or removes the Custom Image at `path` with `change`, then has the page read its images
- * again, and says why the Server refused.
+ * Uploads to or removes the Custom Image at `path` on the Server with `change`, then has the page
+ * read that Server's images again, and says why the Server refused.
  */
-export function useChangeImage(path: string, { refusals, queryKey }: ImageRules) {
+export function useChangeImage(path: string, { refusals }: ImageRules) {
   const queryClient = useQueryClient();
+  const transport = useTransport();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -19,10 +23,10 @@ export function useChangeImage(path: string, { refusals, queryKey }: ImageRules)
     setPending(true);
     setError(undefined);
     try {
-      const response = await fetch(url, init);
+      const response = await fetch(onServer(transport, url), init);
       if (response.ok) {
-        // The page reads its images from those queries, which now send the new URL.
-        await queryClient.invalidateQueries({ queryKey });
+        // Any of the Server's queries may send the image's URL, which is new now.
+        await queryClient.invalidateQueries(serverQueries(transport));
       } else {
         setError(refusals[response.status] ?? "The Server couldn’t change the image. Try again.");
       }

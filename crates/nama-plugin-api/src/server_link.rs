@@ -1,9 +1,8 @@
-//! Provide: Linking the Server to an outside service through a code an Admin enters there, such as
-//! the Hub (ADR 0011, ADR 0094), and then Linking its Users the same way. The Plugin keeps whatever
-//! identity the service gives the Server. Its Users then sign in with their accounts there, and an
-//! Admin creates Users from such accounts (ADR 0092). Their Watch State and Subtitle and Audio
-//! Preferences on their other Servers come back through it too (ADR 0008, ADR 0092), and their
-//! Watchlist syncs with them (ADR 0056). Only a Built-in Plugin provides it, by registering it:
+//! Provide: Linking the Server's Users to an outside service through a code each enters there, once
+//! the Kernel has Linked the Server itself with the Hub (ADR 0011, ADR 0105). Its Users then sign in
+//! with their accounts there, and an Admin creates Users from such accounts (ADR 0092). Their Watch
+//! State and Subtitle and Audio Preferences on their other Servers come back through it too (ADR
+//! 0008, ADR 0092), and their Watchlist syncs with them (ADR 0056). Only a Built-in Plugin provides it, by registering it:
 //!
 //! ```ignore
 //! registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::new(my_linker));
@@ -96,34 +95,11 @@ pub struct WatchlistEntry {
     pub changed_at_ms: i64,
 }
 
-/// A Provider that Links the Server, and its Users, to an outside service.
+/// A Provider that Links the Server's Users to an outside service.
 pub trait ServerLinker: Send + Sync + 'static {
-    /// Where Linking stands. While a code waits, this is also when the Plugin asks the service
-    /// whether it was entered, so the Kernel asks only while an Admin is looking.
-    ///
-    /// # Errors
-    ///
-    /// When the service couldn't be asked while a code waits.
-    fn link(&self) -> BoxFuture<'_, Result<Link, PluginError>>;
-
-    /// Starts Linking the Server, which the service lists as `server_name`, replacing any code
-    /// waiting, and answers the new code.
-    ///
-    /// # Errors
-    ///
-    /// When the service couldn't be asked.
-    fn start_link<'a>(&'a self, server_name: &'a str) -> BoxFuture<'a, Result<Link, PluginError>>;
-
-    /// Unlinks the Server, telling the service so it revokes the Server's identity there, or
-    /// forgets a waiting code. Unlinking a Server that isn't Linked does nothing.
-    ///
-    /// # Errors
-    ///
-    /// When the service couldn't be told: the Server stays Linked.
-    fn unlink(&self) -> BoxFuture<'_, Result<(), PluginError>>;
-
     /// Where Linking the User `user_id` stands, or `None` while the Server isn't Linked, when its
-    /// Users can't Link. As with [`ServerLinker::link`], this is when the Plugin asks the service.
+    /// Users can't Link. While a code waits, this is also when the Plugin asks the service whether
+    /// it was entered, so the Kernel asks only while someone is looking.
     ///
     /// # Errors
     ///
@@ -189,43 +165,6 @@ pub trait ServerLinker: Send + Sync + 'static {
         handle: &'a str,
         code: &'a str,
     ) -> BoxFuture<'a, Result<Option<i64>, PluginError>>;
-    /// Tells the Plugin the Server's `addresses`, for the service to hand its clients. The Kernel
-    /// tells it every minute whether or not they changed, so the Plugin passes on only a change,
-    /// or the same now and then for the service to check its public port again, and only while
-    /// the Server is Linked. [`ServerLinker::link`] then answers what the service found.
-    ///
-    /// # Errors
-    ///
-    /// When the service couldn't be told: the Kernel tells the Plugin again a minute later.
-    fn set_addresses(&self, addresses: ServerAddresses) -> BoxFuture<'_, Result<(), PluginError>>;
-
-    /// Has the service publish `values` as the DNS-01 challenge an ACME CA set the Server for a
-    /// certificate for its [`Reachability::names`], replacing any published before, or remove them
-    /// when it is empty (ADR 0057). Only the challenge leaves the Server, never the certificate's
-    /// key.
-    ///
-    /// # Errors
-    ///
-    /// When the Server isn't Linked, the service names no Server or couldn't be told, and from a
-    /// service that publishes none.
-    fn set_certificate_challenge(
-        &self,
-        _values: Vec<String>,
-    ) -> BoxFuture<'_, Result<(), PluginError>> {
-        Box::pin(async { Err("the service publishes no certificate challenge".into()) })
-    }
-
-    /// A token the service signed that proves to a Relay the Server holds its own name among its
-    /// [`Reachability::names`], so the Relay routes TLS for that name to the Server (ADR 0057). It
-    /// lasts minutes: the Kernel asks again for each new one.
-    ///
-    /// # Errors
-    ///
-    /// When the Server isn't Linked, the service names no Server or couldn't be asked, and from a
-    /// service that signs none.
-    fn relay_token(&self) -> BoxFuture<'_, Result<String, PluginError>> {
-        Box::pin(async { Err("the service signs no Relay token".into()) })
-    }
 
     /// The Watch State the service keeps of the User `user_id` from every Server they use, such as
     /// their Account's on the Hub (ADR 0008), each title's by any of its ids, with when it last

@@ -7,7 +7,7 @@ export function SwitchSignInWay({
   redirect,
   label,
 }: {
-  to: "/sign-in" | "/sign-in/code";
+  to: "/sign-in" | "/sign-in/code" | "/send-sign-in-link";
   /** Where signing in goes, kept from this page. */
   redirect: string | undefined;
   label: string;

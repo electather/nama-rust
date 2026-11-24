@@ -5,7 +5,10 @@ use anyhow::Context as _;
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use crate::report::{HistoryLine, unix_seconds};
+use crate::{
+    report::{HistoryLine, unix_seconds},
+    results::Outcome,
+};
 
 /// One log record per line, stamped with the run's start. The body is the line exactly as the
 /// history holds it. `outcome` and `branch` are record attributes, which Loki keeps as structured
@@ -16,8 +19,11 @@ pub(crate) fn logs(lines: &[HistoryLine]) -> anyhow::Result<Value> {
         .map(|line| {
             let seconds =
                 unix_seconds(&line.time).with_context(|| format!("time {:?}", line.time))?;
+            let (severity_number, severity_text) = severity(line.outcome);
             Ok(json!({
                 "timeUnixNano": (i128::from(seconds) * 1_000_000_000).to_string(),
+                "severityNumber": severity_number,
+                "severityText": severity_text,
                 "body": { "stringValue": serde_json::to_string(line)? },
                 "attributes": [attribute("outcome", line.outcome), attribute("branch", &line.branch)],
             }))
@@ -29,6 +35,16 @@ pub(crate) fn logs(lines: &[HistoryLine]) -> anyhow::Result<Value> {
             "scopeLogs": [{ "scope": { "name": "nama-test-report" }, "logRecords": records }],
         }],
     }))
+}
+
+/// The OTLP severity for `outcome`, as its number and text. Without one, Loki guesses a record's
+/// level from its body, and a passing test named for an error shows as one.
+fn severity(outcome: Outcome) -> (u8, &'static str) {
+    match outcome {
+        Outcome::Pass => (9, "INFO"),
+        Outcome::Flaky => (13, "WARN"),
+        Outcome::Fail | Outcome::Hung => (17, "ERROR"),
+    }
 }
 
 fn attribute(key: &str, value: impl Serialize) -> Value {
@@ -46,7 +62,7 @@ mod tests {
     };
 
     #[test]
-    fn each_line_is_a_record_with_its_json_as_body_and_outcome_and_branch_as_attributes() {
+    fn each_line_is_a_record_with_its_json_as_body_its_outcomes_severity_and_attributes() {
         let line = HistoryLine {
             test: TestId {
                 tool: Tool::Nextest,
@@ -71,6 +87,8 @@ mod tests {
             json!([{ "key": "service.name", "value": { "stringValue": "nama-ci-tests" } }]),
         );
         assert_eq!(record["timeUnixNano"], "1795158000000000000");
+        assert_eq!(record["severityNumber"], 13);
+        assert_eq!(record["severityText"], "WARN");
         let body: HistoryLine =
             serde_json::from_str(record["body"]["stringValue"].as_str().unwrap()).unwrap();
         assert_eq!(body, line);

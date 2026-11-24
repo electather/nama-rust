@@ -2432,6 +2432,39 @@ pub struct GetServerInfoResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub account_sign_in: bool,
+    /// The widths among `image_widths`, smallest first, that a Poster grid offers in its `srcset`.
+    /// While resizing is on, the Server makes each downloaded Poster at these widths once its
+    /// Library's scan or Matching has downloaded it, so a first visit asking only for them waits on
+    /// no resize.
+    ///
+    /// Field 8: `poster_widths`
+    #[serde(
+        rename = "posterWidths",
+        alias = "poster_widths",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub poster_widths: ::buffa::alloc::vec::Vec<u32>,
+    /// As `poster_widths`, for Backdrops, titled ones among them.
+    ///
+    /// Field 9: `backdrop_widths`
+    #[serde(
+        rename = "backdropWidths",
+        alias = "backdrop_widths",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub backdrop_widths: ::buffa::alloc::vec::Vec<u32>,
+    /// As `poster_widths`, for Title Logos.
+    ///
+    /// Field 10: `title_logo_widths`
+    #[serde(
+        rename = "titleLogoWidths",
+        alias = "title_logo_widths",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub title_logo_widths: ::buffa::alloc::vec::Vec<u32>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2445,6 +2478,9 @@ impl ::core::fmt::Debug for GetServerInfoResponse {
             .field("image_widths", &self.image_widths)
             .field("exports_diagnostics", &self.exports_diagnostics)
             .field("account_sign_in", &self.account_sign_in)
+            .field("poster_widths", &self.poster_widths)
+            .field("backdrop_widths", &self.backdrop_widths)
+            .field("title_logo_widths", &self.title_logo_widths)
             .finish()
     }
 }
@@ -2498,6 +2534,30 @@ impl ::buffa::Message for GetServerInfoResponse {
         if self.account_sign_in {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if !self.poster_widths.is_empty() {
+            let payload: u64 = self
+                .poster_widths
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.backdrop_widths.is_empty() {
+            let payload: u64 = self
+                .backdrop_widths
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.title_logo_widths.is_empty() {
+            let payload: u64 = self
+                .title_logo_widths
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2533,6 +2593,39 @@ impl ::buffa::Message for GetServerInfoResponse {
         }
         if self.account_sign_in {
             ::buffa::types::put_bool_field(7u32, self.account_sign_in, buf);
+        }
+        if !self.poster_widths.is_empty() {
+            let payload: u64 = self
+                .poster_widths
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(8u32, payload, buf);
+            for &v in &self.poster_widths {
+                ::buffa::types::encode_uint32(v, buf);
+            }
+        }
+        if !self.backdrop_widths.is_empty() {
+            let payload: u64 = self
+                .backdrop_widths
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(9u32, payload, buf);
+            for &v in &self.backdrop_widths {
+                ::buffa::types::encode_uint32(v, buf);
+            }
+        }
+        if !self.title_logo_widths.is_empty() {
+            let payload: u64 = self
+                .title_logo_widths
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(10u32, payload, buf);
+            for &v in &self.title_logo_widths {
+                ::buffa::types::encode_uint32(v, buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2622,6 +2715,126 @@ impl ::buffa::Message for GetServerInfoResponse {
                 )?;
                 self.account_sign_in = ::buffa::types::decode_bool(buf)?;
             }
+            8u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    if buf.chunk().len() >= len {
+                        ::buffa::types::extend_packed_uint32(
+                            &buf.chunk()[..len],
+                            &mut self.poster_widths,
+                            len,
+                        )?;
+                        buf.advance(len);
+                    } else {
+                        self.poster_widths.reserve(len);
+                        let mut limited = buf.take(len);
+                        while limited.has_remaining() {
+                            self.poster_widths
+                                .push(::buffa::types::decode_uint32_packed(&mut limited)?);
+                        }
+                        let leftover = limited.remaining();
+                        if leftover > 0 {
+                            limited.advance(leftover);
+                        }
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.poster_widths.push(::buffa::types::decode_uint32(buf)?);
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            9u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    if buf.chunk().len() >= len {
+                        ::buffa::types::extend_packed_uint32(
+                            &buf.chunk()[..len],
+                            &mut self.backdrop_widths,
+                            len,
+                        )?;
+                        buf.advance(len);
+                    } else {
+                        self.backdrop_widths.reserve(len);
+                        let mut limited = buf.take(len);
+                        while limited.has_remaining() {
+                            self.backdrop_widths
+                                .push(::buffa::types::decode_uint32_packed(&mut limited)?);
+                        }
+                        let leftover = limited.remaining();
+                        if leftover > 0 {
+                            limited.advance(leftover);
+                        }
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.backdrop_widths.push(::buffa::types::decode_uint32(buf)?);
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            10u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let len = ::buffa::encoding::decode_varint(buf)?;
+                    let len = usize::try_from(len)
+                        .map_err(|_| ::buffa::DecodeError::MessageTooLarge)?;
+                    if buf.remaining() < len {
+                        return ::core::result::Result::Err(
+                            ::buffa::DecodeError::UnexpectedEof,
+                        );
+                    }
+                    if buf.chunk().len() >= len {
+                        ::buffa::types::extend_packed_uint32(
+                            &buf.chunk()[..len],
+                            &mut self.title_logo_widths,
+                            len,
+                        )?;
+                        buf.advance(len);
+                    } else {
+                        self.title_logo_widths.reserve(len);
+                        let mut limited = buf.take(len);
+                        while limited.has_remaining() {
+                            self.title_logo_widths
+                                .push(::buffa::types::decode_uint32_packed(&mut limited)?);
+                        }
+                        let leftover = limited.remaining();
+                        if leftover > 0 {
+                            limited.advance(leftover);
+                        }
+                    }
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    self.title_logo_widths.push(::buffa::types::decode_uint32(buf)?);
+                } else {
+                    return ::core::result::Result::Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2636,6 +2849,9 @@ impl ::buffa::Message for GetServerInfoResponse {
         self.image_widths.clear();
         self.exports_diagnostics = false;
         self.account_sign_in = false;
+        self.poster_widths.clear();
+        self.backdrop_widths.clear();
+        self.title_logo_widths.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

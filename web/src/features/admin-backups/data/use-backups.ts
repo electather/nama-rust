@@ -1,4 +1,5 @@
 import { create } from "@bufbuild/protobuf";
+import type { Transport } from "@connectrpc/connect";
 import { createConnectQueryKey, useSuspenseQuery } from "@connectrpc/connect-query";
 
 import { BackupSettingsSchema, ServerService } from "@/gen/nama/v1/server_pb";
@@ -10,7 +11,10 @@ export function useBackups() {
 }
 
 /** The key of `useBackups`' query, to list the Backups again. */
-export const backupsKey = createConnectQueryKey({
-  schema: ServerService.method.getBackups,
-  cardinality: "finite",
-});
+export function backupsKey(transport: Transport) {
+  return createConnectQueryKey({
+    schema: ServerService.method.getBackups,
+    cardinality: "finite",
+    transport,
+  });
+}

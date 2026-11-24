@@ -1,13 +1,17 @@
+import type { Transport } from "@connectrpc/connect";
 import { createConnectQueryKey, useSuspenseQuery } from "@connectrpc/connect-query";
 
 import { WAITING_POLL_MS } from "@/features/settings/lib/server-link";
 import { ServerService } from "@/gen/nama/v1/server_pb";
 
 /** The query key of where Linking stands, to refetch after starting or Unlinking. */
-export const serverLinkKey = createConnectQueryKey({
-  schema: ServerService.method.getServerLink,
-  cardinality: "finite",
-});
+export function serverLinkKey(transport: Transport) {
+  return createConnectQueryKey({
+    schema: ServerService.method.getServerLink,
+    cardinality: "finite",
+    transport,
+  });
+}
 
 /**
  * Where Linking the Server stands, or `undefined` without an enabled Plugin that links it, such

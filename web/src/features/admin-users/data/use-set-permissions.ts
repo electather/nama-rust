@@ -16,7 +16,7 @@ export function useSetPermissions(user: User, you: User | undefined) {
   return useSensitiveMutation(UserService.method.setPermissions, {
     onSettled: async () => {
       // Refused or not, the list may be out of date.
-      await queryClient.invalidateQueries({ queryKey: usersKey });
+      await queryClient.invalidateQueries({ queryKey: usersKey(transport) });
       // Your own Permissions decide which pages and links you see, so ask again who is signed in.
       if (user.id === you?.id) {
         // Fetched, not removed: removing would cancel the router's own recheck when the list is

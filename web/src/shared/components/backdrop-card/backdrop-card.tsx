@@ -2,6 +2,7 @@ import { Link, type LinkOptions } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { BackdropFrame } from "@/shared/components/backdrop-card/backdrop-frame";
+import type { OfferedWidths } from "@/shared/hooks/use-src-set";
 import { backdropLink } from "@/shared/lib/backdrop-card-classes";
 
 /**
@@ -18,7 +19,12 @@ export function BackdropCard({
   caption,
   menu,
 }: {
-  art: { url: string | undefined; thumbhash: Uint8Array | undefined; sizes: string };
+  art: {
+    url: string | undefined;
+    thumbhash: Uint8Array | undefined;
+    sizes: string;
+    widths?: OfferedWidths | undefined;
+  };
   link: LinkOptions;
   label: string;
   tall?: boolean;
