@@ -8,6 +8,8 @@ mod browsing;
 mod burn_in;
 #[path = "playback/chapters.rs"]
 mod chapters;
+#[path = "playback/direct_play.rs"]
+mod direct_play;
 #[path = "playback/failing_ffmpeg.rs"]
 mod failing_ffmpeg;
 #[path = "support/http.rs"]

@@ -1,6 +1,6 @@
 //! Direct Play: serving a Version's file as it is.
 
-use std::{io, sync::Arc};
+use std::{io, net::IpAddr, sync::Arc};
 
 use axum::{
     Router,
@@ -14,19 +14,27 @@ use axum::{
     routing::get,
 };
 use futures_util::StreamExt as _;
+use nama_forwarded::RequestSource;
 use tower_http::services::ServeFile;
 
-use super::{WholeFileReads, running::RunningPlans, subtitles};
-use crate::{db::Database, ffmpeg::Ffmpeg, library::Contents, users::Caller};
+use super::{WholeFileReads, limits::on_local_network, running::RunningPlans, subtitles};
+use crate::{
+    db::Database,
+    ffmpeg::Ffmpeg,
+    library::Contents,
+    users::{Caller, remote_cap},
+};
 
 pub(super) fn direct_play_url(version: i64) -> String {
     format!("/media/versions/{version}")
 }
 
 /// Serves `GET /media/versions/<id>` with the file of the Version `id` in `db`, and 404 if
-/// there is none, marking the caller's Direct Plays of it in `running` asked for as the request
-/// arrives and with each part of the file sent, and the subtitles plans offer, found in `db`, read
-/// with `ffmpeg`, a Version's text ones in a background pass on `reads`, and cached in `cache`.
+/// there is none, or 403 to a caller off the local network whose User has a cap for remote
+/// playback unless their Device has a plan that Direct Plays it, marking the caller's Direct Plays
+/// of it in `running` asked for as the request arrives and with each part of the file sent, and
+/// the subtitles plans offer, found in `db`, read with `ffmpeg`, a Version's text ones in a
+/// background pass on `reads`, and cached in `cache`.
 /// Whether the caller has a session is up to the layers the router is put behind.
 pub(crate) fn router(
     running: RunningPlans,
@@ -38,19 +46,20 @@ pub(crate) fn router(
     let subtitles = subtitles::router(subtitles::Subtitles::new(db, ffmpeg, cache, reads));
     Router::new()
         .route("/media/versions/{id}", get(serve))
-        .with_state((Contents::new(Arc::clone(db)), running))
+        .with_state((Contents::new(Arc::clone(db)), running, Arc::clone(db)))
         .merge(subtitles)
 }
 
 async fn serve(
-    State((contents, running)): State<(Contents, RunningPlans)>,
+    State((contents, running, db)): State<(Contents, RunningPlans, Arc<Database>)>,
     Path(id): Path<i64>,
     request: Request,
 ) -> Response {
-    let device = (request.extensions().get::<Caller>()).map(|caller| caller.device.id);
-    if let Some(device) = device {
-        running.ask_direct_plays(id, device);
-    }
+    let caller = request.extensions().get::<Caller>();
+    let user = caller.map(|caller| caller.user.id);
+    let device = caller.map(|caller| caller.device.id);
+    let client = (request.extensions().get::<RequestSource>()).map(|source| source.client_ip);
+    let direct_played = device.is_some_and(|device| running.ask_direct_plays(id, device));
     let path = match contents.version_file(id).await {
         Ok(Some((path, _))) => path,
         Ok(None) => return StatusCode::NOT_FOUND.into_response(),
@@ -59,6 +68,17 @@ async fn serve(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
+    // A plan only Direct Plays a Version within the cap, so one running lets the file through.
+    if !direct_played {
+        match capped_remotely(&db, user, client).await {
+            Ok(false) => {}
+            Ok(true) => return StatusCode::FORBIDDEN.into_response(),
+            Err(err) => {
+                tracing::error!("could not look up a User's cap for remote playback: {err}");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        }
+    }
     // Taken once the Version is known to be there, so asking for made-up ids keeps nothing.
     let (deleted, stopped) = (running.served(id), running.stopped(id, device));
     // `ServeFile` answers `Range` (206 and `Content-Range`), sets `Accept-Ranges`, `ETag` and
@@ -82,6 +102,21 @@ async fn serve(
             tracing::error!("could not serve {path}: {err}");
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
+    }
+}
+
+/// Whether the User `user`, asking from `client`, is off the local network with a cap for remote
+/// playback. An unknown address counts as off it.
+async fn capped_remotely(
+    db: &Database,
+    user: Option<i64>,
+    client: Option<IpAddr>,
+) -> Result<bool, sqlx::Error> {
+    match user {
+        Some(user) if !client.is_some_and(on_local_network) => {
+            Ok(remote_cap(db, user).await?.is_some())
+        }
+        _ => Ok(false),
     }
 }
 

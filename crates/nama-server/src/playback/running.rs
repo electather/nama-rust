@@ -573,17 +573,20 @@ impl RunningPlans {
     }
 
     /// Marks the Device `device`'s Direct Plays of the Version `version` asked for now, which
-    /// keeps them another [`STOP_UNUSED_AFTER`].
-    pub(crate) fn ask_direct_plays(&self, version: i64, device: i64) {
+    /// keeps them another [`STOP_UNUSED_AFTER`], and says whether it has any.
+    pub(crate) fn ask_direct_plays(&self, version: i64, device: i64) -> bool {
         let plans = lock(&self.inner.plans);
         let direct_plays = plans.values().filter(|plan| {
             plan.hls.is_none()
                 && plan.playback.version_id == version
                 && plan.playback.device_id == device
         });
+        let mut any = false;
         for plan in direct_plays {
             *lock(&plan.last_used) = Instant::now();
+            any = true;
         }
+        any
     }
 
     /// `file`, the parts of the Version `version`'s file being sent to the Device `device`, which
