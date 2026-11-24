@@ -68,12 +68,16 @@ export function useSessions() {
 
 /** Signs out one of the Account's other sessions, by its id. */
 export function useSignOutSession() {
-  return useMutation(AccountService.method.signOutSession, { onSettled: useRefreshSessions() });
+  return useMutation(AccountService.method.signOutSession, {
+    onError: useSignInIfSessionEnded(),
+    onSettled: useRefreshSessions(),
+  });
 }
 
 /** Signs out every session of the Account but this browser's. */
 export function useSignOutOtherSessions() {
   return useMutation(AccountService.method.signOutOtherSessions, {
+    onError: useSignInIfSessionEnded(),
     onSettled: useRefreshSessions(),
   });
 }
