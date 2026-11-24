@@ -200,10 +200,15 @@ impl InPlaceOfDownloaded {
         custom_images: &CustomImages,
         local_images: &LocalImages,
     ) -> sqlx::Result<Self> {
-        Ok(Self {
-            custom: custom_images.urls().await?,
-            local: local_images.urls().await?,
-        })
+        Ok(Self::new(
+            custom_images.urls().await?,
+            local_images.urls().await?,
+        ))
+    }
+
+    /// What titles show in place of their downloaded images, of the URLs `custom` and `local`.
+    pub(super) const fn new(custom: CustomImageUrls, local: LocalImageUrls) -> Self {
+        Self { custom, local }
     }
 
     /// Whether the title with every id `ids` shows its downloaded `image`, having no Custom Image or
@@ -211,6 +216,19 @@ impl InPlaceOfDownloaded {
     pub(super) fn shows_downloaded(&self, ids: &ExternalIds, image: TitleImage) -> bool {
         // Any one id identifies a title (ADR 0042), so whichever goes first finds the same images.
         (ids.iter().next()).is_none_or(|id| self.of_title(&id, ids, image).is_none())
+    }
+
+    /// Whether the title with every id `ids` shows the image beside its media at `url` as its
+    /// `image`, having no Custom Image in its place.
+    pub(super) fn shows_beside_media(
+        &self,
+        ids: &ExternalIds,
+        image: TitleImage,
+        url: &str,
+    ) -> bool {
+        (ids.iter().next())
+            .and_then(|id| self.of_title(&id, ids, image))
+            .is_some_and(|(shown, custom)| !custom && shown == url)
     }
 
     /// The URL of the image the title `id`, with every id `ids`, shows as its `image` in place of
