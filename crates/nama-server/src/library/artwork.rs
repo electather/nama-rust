@@ -103,7 +103,7 @@ pub struct Artwork {
     /// Written while unused images are deleted, and read while one is looked for, written or
     /// served, so a Match stored meanwhile never finds its image there and then has it deleted.
     sweeping: Arc<RwLock<()>>,
-    /// The settings Posters are resized by once downloaded, so a first visit finds them made.
+    /// The settings Posters are resized by once kept, so a first visit finds them made.
     /// `None` until startup hands them over (`Artwork::resizing_posters_ahead`), so tests that build
     /// their own `Artwork` make copies on request only.
     image_settings: Option<ImageSettings>,
@@ -138,8 +138,8 @@ impl Artwork {
         }
     }
 
-    /// This, resizing each Poster it downloads to the Poster grid's width as `images` says, so a
-    /// first visit to a Library finds them made.
+    /// This, resizing each Poster of a Library it downloads images for to the Poster grid's width
+    /// as `images` says, so a first visit to the Library finds them made.
     #[must_use]
     pub(crate) fn resizing_posters_ahead(self, images: ImageSettings) -> Self {
         Self {
@@ -258,7 +258,8 @@ impl Artwork {
 
     /// Downloads, in the background, each image a Match in the Library `library` stores that
     /// isn't kept yet, logging those that fail, which the Library's next scan tries again. Then
-    /// resizes each Poster to the Poster grid's width, where resizing is on now and it isn't there.
+    /// resizes each of its Posters, kept before or just now, to the Poster grid's width, where
+    /// resizing is on now and that copy isn't there.
     pub(crate) fn download_missing(&self, contents: Contents, library: i64) {
         let artwork = self.clone();
         // Read before any download lands, so a change of settings after the scan has no part in it.
@@ -280,8 +281,8 @@ impl Artwork {
     }
 
     /// Downloads each of `images`, a Plugin and a path, unless it is kept already, and makes
-    /// `poster_copy` of each of `posters` among them, at most [`DOWNLOADS`] at a time across the
-    /// Server. Returns once the last has started.
+    /// `poster_copy` of each of `posters` among them, kept already or not, at most [`DOWNLOADS`]
+    /// at a time across the Server. Returns once the last has started.
     async fn download(
         &self,
         images: Vec<(String, String)>,
@@ -307,12 +308,20 @@ impl Artwork {
         copy: Option<Resize>,
         _permit: OwnedSemaphorePermit,
     ) {
-        if let Err(err) = self.keep(&PluginId::from(plugin.clone()), &path).await {
-            tracing::warn!(path, "could not download an image: {err}");
-        } else if let Some(copy) = copy {
-            self.store
-                .copy_ahead(&key(KEPT_DIR, &plugin, &path), copy)
-                .await;
+        match self
+            .store_in(KEPT_DIR, &PluginId::from(plugin.clone()), &path)
+            .await
+        {
+            Err(err) => tracing::warn!(path, "could not download an image: {err}"),
+            // Held through the copy, as a request's resize holds it, so a sweep deleting the
+            // image meanwhile can't leave its copy and thumbhash behind.
+            Ok(_sweeping) => {
+                if let Some(copy) = copy {
+                    self.store
+                        .copy_ahead(&key(KEPT_DIR, &plugin, &path), copy)
+                        .await;
+                }
+            }
         }
     }
 
