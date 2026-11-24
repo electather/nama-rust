@@ -93,12 +93,9 @@ async fn sign_in_device(
     new: String,
 ) -> Result<(Vec<i64>, SignedIn), Error> {
     let (user, method) = proved_user(conn, proved).await?;
-    let joined = match held {
-        Some(token) => (add_to_device(conn, &hash_token(&token), user.id, method).await?)
-            .map(|joined| (joined, token)),
-        None => None,
-    };
-    if let Some((joined, token)) = joined {
+    if let Some(token) = held
+        && let Some(joined) = add_to_device(conn, &hash_token(&token), user.id, method).await?
+    {
         // It no longer acts as whoever it did, so what it opened as them ends.
         let switched = vec![joined.id];
         let caller = Caller {

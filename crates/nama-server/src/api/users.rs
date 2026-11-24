@@ -48,12 +48,12 @@ use crate::{
 use super::{
     access::permission_required,
     browse::home_rows_of,
-    caller, database_failed,
+    caller, calling_device, database_failed,
     playback::cap_from_proto,
     plugins::{change_refused, list_failed, logo_url, setting_to_proto, settings_from_proto},
     refuse,
     server::{home_layout_from_proto, home_row_from_proto},
-    server_link, signed_out_if_last, unknown_enum_value,
+    server_link, signed_out, unknown_enum_value,
 };
 
 /// `nama.v1.UserService`: managing the Server's Users, their Devices and Plugin Connections. Needs
@@ -166,12 +166,7 @@ impl UserService for UserServiceHandler {
         let caller = caller(&ctx)?;
         self.users.delete(&caller.user, request.user_id).await?;
         self.linking.unlink_deleted_user(request.user_id);
-        let response = DeleteUserResponse::default();
-        Ok(if request.user_id == caller.user.id {
-            signed_out_if_last(&self.users, response, &ctx).await?
-        } else {
-            Response::new(response)
-        })
+        self.signed_out_if_last(&ctx).await
     }
 
     async fn list_devices(
@@ -210,12 +205,7 @@ impl UserService for UserServiceHandler {
         self.users
             .revoke(&caller.user, owner, request.device_id)
             .await?;
-        let response = RevokeDeviceResponse::default();
-        Ok(if request.device_id == caller.device.id {
-            signed_out_if_last(&self.users, response, &ctx).await?
-        } else {
-            Response::new(response)
-        })
+        self.signed_out_if_last(&ctx).await
     }
 
     async fn change_password(
@@ -593,6 +583,17 @@ impl UserService for UserServiceHandler {
 }
 
 impl UserServiceHandler {
+    /// The response to a call that may have signed a User out of the calling Device: a cookie
+    /// session has its cookie cleared only once the Device's last User is gone (ADR 0106).
+    async fn signed_out_if_last<M: Default>(&self, ctx: &RequestContext) -> ServiceResult<M> {
+        let still_signed_in = self.users.device_exists(calling_device(ctx)?.id).await;
+        Ok(if still_signed_in.map_err(database_failed)? {
+            Response::new(M::default())
+        } else {
+            signed_out(M::default(), ctx)
+        })
+    }
+
     /// `reader`'s Home layout with every Home row they could see now, as the API has it.
     async fn home_layout(&self, reader: &User) -> Result<proto::HomeLayout, ConnectError> {
         let rows = home_rows_of(&self.home_rows, &self.browse, reader).await?;

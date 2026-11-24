@@ -293,22 +293,6 @@ fn signed_out<M>(body: M, ctx: &RequestContext) -> Response<M> {
     }
 }
 
-/// The response to a request that signed a User out of its own Device, carrying `body`, which
-/// clears a cookie session's cookie only if that was the Device's last User (ADR 0106).
-async fn signed_out_if_last<M>(
-    users: &Users,
-    body: M,
-    ctx: &RequestContext,
-) -> Result<Response<M>, ConnectError> {
-    let device = calling_device(ctx)?.id;
-    let still_signed_in = users.device_exists(device).await.map_err(database_failed)?;
-    Ok(if still_signed_in {
-        Response::new(body)
-    } else {
-        signed_out(body, ctx)
-    })
-}
-
 fn title_kind_from_proto(kind: EnumValue<proto::TitleKind>) -> Result<TitleKind, ConnectError> {
     match kind {
         EnumValue::Known(proto::TitleKind::TITLE_KIND_MOVIE) => Ok(TitleKind::Movie),
