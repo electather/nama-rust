@@ -40,7 +40,7 @@ const wording: RefusalWording<LinkErrors> = {
     form: "Linking needs your email proven first. Sign in with a Sign-in Link sent to it, then try again.",
     proveEmail: true,
   }),
-  // On a Link, the Hub has no mail, so nothing can prove the email Linking needs.
+  // A Link gets this, not EMAIL_NOT_PROVEN, on a Hub without mail, which can't prove an email.
   [RefusalReason.SIGN_IN_LINKS_OFF]: () => ({
     form: "This Hub can’t prove emails, so Linking isn’t possible on it. Ask whoever runs it to set up email.",
   }),
