@@ -8,7 +8,7 @@ import { librariesQuery } from "@/shared/hooks/use-libraries";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/movies/$movieId/")({
   loader: ({ context, params }) => {
-    // For the page's link to its Library, without holding up the Movie; it shows its own failure.
+    // Beside the Movie, not before it: only the page's link to its Library needs them, and fails with them.
     void context.queryClient.query(librariesQuery(context.transport)).catch(() => null);
     return loadMovie(context, params);
   },

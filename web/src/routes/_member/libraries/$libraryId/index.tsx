@@ -22,14 +22,14 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/")({
   loader: async ({ context, params, deps }) => {
     const { queryClient, transport } = context;
     const libraryId = libraryIdFromParam(params.libraryId);
-    const unmatched = {
-      ...pagedQuery(BrowseService.method.listUnmatched, firstUnmatchedPage(libraryId), transport),
-      staleTime: "static" as const,
-    };
     // Only the titles need the Library's kind, so these go out without waiting for the Libraries.
-    // Awaited again below, which fails the page if they failed.
-    void queryOrNotFound(context, BrowseService.method.listGenres, { libraryId }).catch(() => null);
-    void queryClient.infiniteQuery(unmatched).catch(() => null);
+    const genres = queryOrNotFound(context, BrowseService.method.listGenres, { libraryId });
+    const unmatched = queryClient.infiniteQuery({
+      ...pagedQuery(BrowseService.method.listUnmatched, firstUnmatchedPage(libraryId), transport),
+      staleTime: "static",
+    });
+    // Handled now, so a failure while the Libraries load isn't unhandled; awaited below.
+    void Promise.allSettled([genres, unmatched]);
     const library = await libraryFromParam(context, params.libraryId);
     const boxSets =
       library.kind === LibraryKind.MOVIES && deps.view === "box-sets"
@@ -56,12 +56,7 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/")({
             ),
             staleTime: "static",
           });
-    await Promise.all([
-      titles,
-      boxSets,
-      queryOrNotFound(context, BrowseService.method.listGenres, { libraryId }),
-      queryClient.infiniteQuery(unmatched),
-    ]);
+    await Promise.all([titles, boxSets, genres, unmatched]);
     return library;
   },
   notFoundComponent: NotFound,

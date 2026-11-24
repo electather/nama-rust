@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showI
   loaderDeps: ({ search }) => ({ season: search.season }),
   loader: async ({ context, params, deps }) => {
     const { queryClient, transport } = context;
-    // For the page's link to its Library, without holding up the Show; it shows its own failure.
+    // Beside the Show, not before it: only the page's link to its Library needs them, and fails with them.
     void queryClient.query(librariesQuery(transport)).catch(() => null);
     const show = {
       libraryId: libraryIdFromParam(params.libraryId),

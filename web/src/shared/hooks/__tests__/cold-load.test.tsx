@@ -17,6 +17,14 @@ const movie = {
   versions: [{ id: 7n, fileName: "The Matrix (1999).mkv", size: 1n }],
 };
 
+const episode = {
+  id: { namespace: "tmdb", value: "62085" },
+  seasonNumber: 1,
+  episodeNumber: 1,
+  title: "Pilot",
+  versions: [{ id: 8n, fileName: "Breaking Bad S01E01.mkv", size: 1n }],
+};
+
 /** A fake Server in `state` that never lists its Libraries, and the RPCs the app asked it. */
 function withLibrariesHeldBack(state: ServerState) {
   const asked: string[] = [];
@@ -36,7 +44,10 @@ function withLibrariesHeldBack(state: ServerState) {
           return { movie };
         },
         getShow: recordedAndHeld("getShow"),
-        listEpisodes: recordedAndHeld("listEpisodes"),
+        listEpisodes: () => {
+          asked.push("listEpisodes");
+          return { episodes: [episode] };
+        },
         listGenres: recordedAndHeld("listGenres"),
         listUnmatched: recordedAndHeld("listUnmatched"),
       });
@@ -67,7 +78,7 @@ test.each([
   { path: "/libraries/1/movies/tmdb-603/play", first: ["planPlayback"] },
   {
     path: "/libraries/2/shows/tmdb-1396/seasons/1/episodes/1/play",
-    first: ["listEpisodes"],
+    first: ["planPlayback"],
   },
 ])(
   "a cold load of $path asks for its own data before the Libraries answer",
