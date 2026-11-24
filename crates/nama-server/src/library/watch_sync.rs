@@ -26,12 +26,13 @@ use crate::{
 /// settings, in its scope so disabling it stops the call, without waiting. A failure is logged
 /// and shown on the Plugins page, and not asked again. Must be called within a Tokio runtime.
 pub(super) fn scrobble(db: &Arc<Database>, points: &ExtensionPoints, told: &WatchStateChanges) {
+    let asked = ScrobbleAsked {
+        user_id: told.user_id,
+        changes: told.changes.iter().map(synced).collect(),
+        ..ScrobbleAsked::default()
+    };
     for plugin in points.providers::<dyn WatchSync>() {
-        let asked = ScrobbleAsked {
-            user_id: told.user_id,
-            changes: told.changes.iter().map(synced).collect(),
-            ..ScrobbleAsked::default()
-        };
+        let asked = asked.clone();
         let telling = scrobble_to(Arc::clone(db), points.clone(), plugin.clone(), asked);
         points.spawn_in(&plugin, telling);
     }
