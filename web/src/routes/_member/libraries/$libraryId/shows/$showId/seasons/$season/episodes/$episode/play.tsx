@@ -18,14 +18,20 @@ export const Route = createFileRoute(
 )({
   validateSearch: (search) => ({ ...versionSearch(search), ...streakSearch(search) }),
   loader: async ({ context, params }) => {
-    const input = {
+    const show = {
       libraryId: (await libraryFromParam(context, params.libraryId)).id,
       showId: externalIdFromParam(params.showId),
-      seasonNumber: wholeNumberFromParam(params.season),
     };
-    const { episodes } = await queryOrNotFound(context, BrowseService.method.listEpisodes, input);
+    // The whole Show's, as the Show page and the Episodes panel ask, so they share one request.
+    const { episodes } = await queryOrNotFound(context, BrowseService.method.listEpisodes, show);
+    const input = { ...show, seasonNumber: wholeNumberFromParam(params.season) };
     const episodeNumber = wholeNumberFromParam(params.episode);
-    if (!episodes.some((episode) => episode.episodeNumber === episodeNumber)) {
+    if (
+      !episodes.some(
+        (episode) =>
+          episode.seasonNumber === input.seasonNumber && episode.episodeNumber === episodeNumber,
+      )
+    ) {
       throw notFound();
     }
     return { input, episodeNumber };
