@@ -128,7 +128,7 @@ async fn download(
     match contents.version_file(id).await {
         Ok(Some(_)) => (
             StatusCode::CONFLICT,
-            "the Device has no plan Direct Playing this Version: plan it first",
+            "only a Version the Device has a Direct Play plan for downloads",
         )
             .into_response(),
         Ok(None) => StatusCode::NOT_FOUND.into_response(),

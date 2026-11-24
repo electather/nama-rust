@@ -14,8 +14,6 @@ mod compression;
 #[cfg(unix)]
 #[path = "playback/direct_play.rs"]
 mod direct_play;
-#[path = "playback/downloads.rs"]
-mod downloads;
 #[path = "playback/failing_ffmpeg.rs"]
 mod failing_ffmpeg;
 #[path = "support/http.rs"]
@@ -26,6 +24,8 @@ mod http;
 mod keyframes;
 #[path = "playback/now_playing.rs"]
 mod now_playing;
+#[path = "playback/offline_downloads.rs"]
+mod offline_downloads;
 // The fake ffmpeg and ffprobe are shell scripts.
 #[cfg(unix)]
 #[path = "playback/other_versions.rs"]
