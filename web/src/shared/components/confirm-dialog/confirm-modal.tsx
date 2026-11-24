@@ -15,8 +15,8 @@ export interface Confirmation {
   children?: ReactNode;
   /** Does it, with what was typed in the dialog. Rejects if the Server refuses. */
   onConfirm: (typed: FormData) => Promise<unknown>;
-  /** Why the Server refused, as a sentence. */
-  refusal: (error: unknown) => string | undefined;
+  /** Why the Server refused, as a sentence, which may hold a way past the refusal. */
+  refusal: (error: unknown) => ReactNode;
 }
 
 /**

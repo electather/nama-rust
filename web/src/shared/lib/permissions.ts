@@ -35,6 +35,11 @@ export const permissionChoices: PermissionChoice[] = [
     about: "Search for subtitles while watching, and download one for everyone to use.",
   },
   {
+    permission: Permission.DOWNLOAD,
+    label: "Download",
+    about: "Save Movies and Episodes to a Device to watch offline.",
+  },
+  {
     permission: Permission.MANAGE_SETTINGS,
     label: "Manage settings",
     about: "Change the Server’s settings, such as its Plugins.",

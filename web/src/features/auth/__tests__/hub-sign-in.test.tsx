@@ -5,23 +5,15 @@ import { afterEach, expect, test } from "vite-plus/test";
 
 import { AccountSchema, AccountService } from "@/gen/nama/hub/v1/account_pb";
 import { HubService } from "@/gen/nama/hub/v1/hub_pb";
-import { RefusalReason, RefusalSchema } from "@/gen/nama/hub/v1/refusal_pb";
+import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 import { fakeServer, fill, newUser, openApp } from "@/test-app";
+import { ada, hubRefused } from "@/test-hub";
 import { expectUnderField } from "@/test-refusal";
 
 afterEach(cleanup);
 
-const ada = create(AccountSchema, { id: "0192-ada", email: "ada@example.com" });
-
-/** A Connect error as the Hub refuses with one. */
-function refused(code: Code, reason: RefusalReason, params: Record<string, string> = {}) {
-  return new ConnectError("refused", code, undefined, [
-    { desc: RefusalSchema, value: create(RefusalSchema, { reason, params }) },
-  ]);
-}
-
 function signInRequired() {
-  return refused(Code.Unauthenticated, RefusalReason.SIGN_IN_REQUIRED);
+  return hubRefused(Code.Unauthenticated, RefusalReason.SIGN_IN_REQUIRED);
 }
 
 /**
@@ -44,14 +36,14 @@ function fakeHub({ signedIn = false } = {}) {
       },
       signIn: ({ email, password }) => {
         if (email !== ada.email || password !== "correct horse") {
-          throw refused(Code.Unauthenticated, RefusalReason.WRONG_EMAIL_OR_PASSWORD);
+          throw hubRefused(Code.Unauthenticated, RefusalReason.WRONG_EMAIL_OR_PASSWORD);
         }
         session = ada;
         return { account: ada };
       },
       createAccount: ({ email }) => {
         if (email === ada.email) {
-          throw refused(Code.AlreadyExists, RefusalReason.EMAIL_TAKEN);
+          throw hubRefused(Code.AlreadyExists, RefusalReason.EMAIL_TAKEN);
         }
         session = create(AccountSchema, { id: "0193-bea", email });
         return { account: session };
@@ -65,13 +57,13 @@ function fakeHub({ signedIn = false } = {}) {
           throw new ConnectError("database is locked", Code.Internal);
         }
         if (token !== "link-token" || linkUsed) {
-          throw refused(Code.NotFound, RefusalReason.SIGN_IN_LINK_EXPIRED);
+          throw hubRefused(Code.NotFound, RefusalReason.SIGN_IN_LINK_EXPIRED);
         }
         return { account: ada, emailProven: true };
       },
       signInWithLink: ({ token }) => {
         if (token !== "link-token" || linkUsed) {
-          throw refused(Code.NotFound, RefusalReason.SIGN_IN_LINK_EXPIRED);
+          throw hubRefused(Code.NotFound, RefusalReason.SIGN_IN_LINK_EXPIRED);
         }
         linkUsed = true;
         session = ada;

@@ -21,7 +21,8 @@ use nama_proto::nama::v1::{
     SessionDelivery, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse,
     SignInService, SignInWithAccountRequest, SignInWithAccountResponse, SignOutRequest,
     SignOutResponse, StartAccountSignInRequest, StartAccountSignInResponse, StartSignInCodeRequest,
-    StartSignInCodeResponse, WhoAmIRequest, WhoAmIResponse, reauthenticate_request::Proof,
+    StartSignInCodeResponse, SwitchUserRequest, SwitchUserResponse, User as ProtoUser,
+    WhoAmIRequest, WhoAmIResponse, reauthenticate_request::Proof,
 };
 
 use crate::{
@@ -30,19 +31,21 @@ use crate::{
     sync::Syncing,
     users::{
         self, Blocked, Caller, Delivery, NewDevice, Polled, SignIn, SignInCodeError, SignInError,
-        SignedIn, session_cookie,
+        SignedIn, Users, session_cookie, session_token,
     },
 };
 use nama_forwarded::RequestSource;
 
 use super::{
-    caller, database_failed, refuse, server_link, signed_out, unknown_enum_value,
+    caller, calling_device, database_failed, refuse, server_link, signed_out, unknown_enum_value,
     users::{device_to_proto, user_to_proto},
 };
 
 /// `nama.v1.SignInService`: signing Devices in, and saying who is signed in.
 pub(super) struct SignInServiceHandler {
     pub(super) sign_in: SignIn,
+    /// Lists a Device's Users and switches between them.
+    pub(super) users: Users,
     /// Starts a User signing in with their Account.
     pub(super) linking: Linking,
     /// Told of each sign-in.
@@ -100,7 +103,10 @@ impl SignInService for SignInServiceHandler {
             password: request.password,
         };
         let device = new_device(request.device_name, &ctx)?;
-        let signed_in = self.sign_in.sign_in(proof, device, Instant::now()).await?;
+        let session = session_token(ctx.headers(), ctx.extensions());
+        let signed_in = (self.sign_in)
+            .sign_in(proof, device, session, Instant::now())
+            .await?;
         Ok(
             self.hand_out_session(signed_in, delivery, &ctx, |caller, token| SignInResponse {
                 user: user_to_proto(caller.user).into(),
@@ -116,7 +122,7 @@ impl SignInService for SignInServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, SignOutRequest>,
     ) -> ServiceResult<SignOutResponse> {
-        let device = caller(&ctx)?.device.id;
+        let device = calling_device(&ctx)?.id;
         self.sign_in
             .sign_out(device)
             .await
@@ -124,19 +130,40 @@ impl SignInService for SignInServiceHandler {
         Ok(signed_out(SignOutResponse::default(), &ctx))
     }
 
-    fn who_am_i<'a>(
-        &'a self,
+    async fn who_am_i(
+        &self,
         ctx: RequestContext,
         _request: ServiceRequest<'_, WhoAmIRequest>,
-    ) -> impl Future<Output = ServiceResult<impl Encodable<WhoAmIResponse> + Send + use<'a>>> + Send
-    {
-        future::ready(caller(&ctx).and_then(|caller| {
-            Response::ok(WhoAmIResponse {
-                user: user_to_proto(caller.user.clone()).into(),
-                device: device_to_proto(caller.device.clone(), true).into(),
+    ) -> ServiceResult<WhoAmIResponse> {
+        let device = calling_device(&ctx)?;
+        let device_users = (self.users.users_on(device.id).await)
+            .map_err(database_failed)?
+            .into_iter()
+            .map(|user| ProtoUser {
+                id: user.id,
+                name: user.name,
                 ..Default::default()
             })
-        }))
+            .collect();
+        Response::ok(WhoAmIResponse {
+            user: caller(&ctx)
+                .ok()
+                .map(|caller| user_to_proto(caller.user.clone()))
+                .into(),
+            device: device_to_proto(device.clone(), true).into(),
+            device_users,
+            ..Default::default()
+        })
+    }
+
+    async fn switch_user(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SwitchUserRequest>,
+    ) -> ServiceResult<SwitchUserResponse> {
+        let device = calling_device(&ctx)?.id;
+        self.users.switch(device, request.user_id).await?;
+        Response::ok(SwitchUserResponse::default())
     }
 
     async fn reauthenticate(
@@ -231,6 +258,7 @@ impl SignInService for SignInServiceHandler {
                 request.handle,
                 ip_address,
                 user_agent(ctx.headers()),
+                session_token(ctx.headers(), ctx.extensions()),
                 Instant::now(),
             )
             .await?;
@@ -311,7 +339,10 @@ impl SignInService for SignInServiceHandler {
             handle: request.handle,
             code: request.code,
         };
-        let signed_in = self.sign_in.sign_in(proof, device, Instant::now()).await?;
+        let session = session_token(ctx.headers(), ctx.extensions());
+        let signed_in = (self.sign_in)
+            .sign_in(proof, device, session, Instant::now())
+            .await?;
         Ok(
             self.hand_out_session(signed_in, delivery, &ctx, |caller, token| {
                 SignInWithAccountResponse {

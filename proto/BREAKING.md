@@ -10,6 +10,12 @@ Newest entry first. Each entry is a `## YYYY-MM-DD, #<issue>, <package>` heading
 
 CI counts those headings, so a break passes only with one more than main has: editing an entry passes nothing, and deleting one is a change of its own. The entries from before the Hub API, which name no package, are all `nama.v1`'s.
 
+## 2026-11-24, #2214, nama.v1
+
+- None that `buf breaking` reports: in `nama/v1/sign_in.proto`, `SignInService` gains `SwitchUser`, and `WhoAmIResponse` gains `device_users` (3).
+- `SignIn`, `PollSignInCode` and `SignInWithAccount` sent with a session add the User to that Device and keep its session, where they made a new Device. `RevokeDevice` and `DeleteUser` sign a User out of a Device, and sign it out only once its last User goes. A Device whose User is signed out of it while others stay acts as none of them: `WhoAmIResponse.user` is unset, and until it calls `SwitchUser`, calls other than `SignOut`, `WhoAmI` and `SwitchUser` fail with `unauthenticated`.
+- A client built before reads a `WhoAmI` with `user` unset as signed in, and its other calls then fail. It must regenerate, and treat an unset `user` as asking which of `device_users` to switch to. The web app is the only client.
+
 ## 2026-11-23, #2040, nama.v1
 
 - `FIELD_SAME_CARDINALITY`, `nama/v1/browse.proto`: `ListEpisodesRequest.season_number` is now `optional`. Its wire and JSON forms are unchanged.

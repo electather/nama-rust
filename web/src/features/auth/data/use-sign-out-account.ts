@@ -8,14 +8,14 @@ import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 
 /**
  * Signs the Account out of this browser, forgets everything cached for it, and opens sign-in, as it
- * does when the session already ended, elsewhere or by expiring.
+ * does when the session already ended, elsewhere or by expiring. Signing in goes on to `redirect`.
  */
-export function useSignOutAccount() {
+export function useSignOutAccount(redirect?: string) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const goToSignIn = async () => {
     queryClient.clear();
-    await navigate({ to: "/sign-in" });
+    await navigate({ to: "/sign-in", search: { redirect } });
   };
   return useMutation(AccountService.method.signOut, {
     onSuccess: goToSignIn,

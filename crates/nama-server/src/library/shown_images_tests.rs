@@ -168,6 +168,7 @@ fn snapshot(artwork: Artwork, resized: bool) -> ShownImages {
         in_place: InPlaceOfDownloaded { custom, local },
         thumbhashes: thumbhashes.collect(),
         artwork,
+        signer: None,
     }
 }
 

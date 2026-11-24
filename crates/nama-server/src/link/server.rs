@@ -150,6 +150,14 @@ impl ServerLink {
         })
     }
 
+    /// Whether `origin` is the Hub's and the Server is Linked with it, reading only `hub_link`.
+    pub(super) async fn is_linked_hub_origin(&self, origin: &str) -> bool {
+        self.hub.origin() == Some(origin)
+            && (self.kept().await)
+                .inspect_err(|err| tracing::error!("couldn't read the Server's Link: {err}"))
+                .is_ok_and(|kept| kept.is_some())
+    }
+
     /// Asks the Hub whether `code` was entered, once its poll interval has passed. `Some` while
     /// it still waits, `None` once it is gone: expired, or entered and its Link kept.
     async fn poll(&self, code: &mut Waiting) -> Result<Option<Link>, Failure> {

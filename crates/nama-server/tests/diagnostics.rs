@@ -137,6 +137,12 @@ async fn a_call_is_one_trace_of_its_sql_and_plugin_calls_and_a_failed_one_is_mar
         );
     }
     assert!(
+        spans.iter().any(|span| span.attributes.iter().any(|kv| {
+            kv.key.as_str() == "db.query.text" && kv.value.as_str().starts_with("SELECT ")
+        })),
+        "no SQL span carries its statement in {spans:#?}"
+    );
+    assert!(
         children.contains(&"plugin Authenticator"),
         "no Plugin call span in {children:?}"
     );

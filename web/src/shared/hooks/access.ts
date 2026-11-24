@@ -79,7 +79,13 @@ export async function isAtHub(context: RouterContext) {
 
 /** What anyone can read about the Hub, such as whether it emails Sign-in Links; `null` at a Server. */
 export async function hubInfo({ queryClient, transport }: RouterContext) {
-  const info = await queryClient.query({
+  const info = await queryClient.query({ ...hubInfoQuery(transport), staleTime: "static" });
+  return info;
+}
+
+/** The query behind `hubInfo`: a Server's `unimplemented` isn't an error. */
+export function hubInfoQuery(transport: Transport) {
+  return queryOptions({
     queryKey: ["hub-info"],
     queryFn: async () => {
       const answer = await nullWhen(
@@ -88,15 +94,22 @@ export async function hubInfo({ queryClient, transport }: RouterContext) {
       );
       return answer;
     },
-    staleTime: "static",
   });
-  return info;
 }
 
 /** The Account signed in at the Hub, or `null` when none is. */
 export async function signedInAccount({ queryClient, transport }: RouterContext) {
   const signedIn = await queryClient.query({
-    queryKey: ["signed-in-account"],
+    ...signedInAccountQuery(transport),
+    staleTime: "static",
+  });
+  return signedIn?.account ?? null;
+}
+
+/** The query behind `signedInAccount`, which also says whether the Account has a password. */
+export function signedInAccountQuery(transport: Transport) {
+  return queryOptions({
+    queryKey: signedInAccountKey,
     // The Hub refuses with `SIGN_IN_REQUIRED`, the only refusal `GetAccount` has.
     queryFn: async () => {
       const answer = await nullWhen(
@@ -105,10 +118,18 @@ export async function signedInAccount({ queryClient, transport }: RouterContext)
       );
       return answer;
     },
-    staleTime: "static",
   });
-  return signedIn?.account ?? null;
 }
+
+/**
+ * Forgets which Account is signed in at the Hub, for when a page finds its session ended, so the
+ * next access check asks the Hub again.
+ */
+export function forgetSignedInAccount(queryClient: QueryClient) {
+  queryClient.removeQueries({ queryKey: signedInAccountKey });
+}
+
+const signedInAccountKey = ["signed-in-account"];
 
 /** The Account signed in at the Hub; without one, sends the visitor to sign in, then to `href`. */
 export async function accountOrSignIn(context: RouterContext, href: string) {

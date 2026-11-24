@@ -38,7 +38,7 @@ use super::{
     browse::{Fields, refused, roles_to_proto, trailers_to_proto},
     caller, database_failed, external_id_to_proto, refuse, required_id,
     search::{movie_hits, show_hits},
-    title_kind_from_proto,
+    shown_images, title_kind_from_proto,
 };
 
 /// `nama.v1.RequestService`: Users asking for Movies and Seasons of Shows. Asking needs
@@ -241,7 +241,7 @@ impl RequestService for RequestServiceHandler {
             FoundPageError::LookUp(err) => err.into(),
             FoundPageError::Browse(err) => refused(Fields::NONE)(err),
         })?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         Response::ok(LookUpMovieResponse {
             movie: proto::FoundMovie {
                 similar: movie_hits(page.similar, &images),
@@ -271,7 +271,7 @@ impl RequestService for RequestServiceHandler {
             FoundPageError::LookUp(err) => err.into(),
             FoundPageError::Browse(err) => refused(Fields::NONE)(err),
         })?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         Response::ok(LookUpShowResponse {
             show: proto::FoundShow {
                 similar: show_hits(page.similar, &images),

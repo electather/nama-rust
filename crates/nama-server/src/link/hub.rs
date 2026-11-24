@@ -42,6 +42,8 @@ type Transport = ServiceTransport<Client<HttpsConnector<HttpConnector>, ClientBo
 #[derive(Clone)]
 pub(super) struct Hub {
     url: String,
+    /// The origin of [`Self::url`] as a browser sends it, `None` for a URL with no such origin.
+    origin: Option<String>,
     transport: Transport,
 }
 
@@ -76,8 +78,14 @@ impl Hub {
         http.set_local_address(Some(Ipv4Addr::UNSPECIFIED.into()));
         let connector = builder.https_or_http().enable_http1().wrap_connector(http);
         let client = Client::builder(TokioExecutor::new()).build(connector);
+        // Opaque, it would read `null`, which any sandboxed page can send as its origin.
+        let origin = (url::Url::parse(&url).ok())
+            .map(|url| url.origin())
+            .filter(url::Origin::is_tuple)
+            .map(|origin| origin.ascii_serialization());
         Ok(Self {
             url,
+            origin,
             transport: ServiceTransport::new(client),
         })
     }
@@ -85,6 +93,11 @@ impl Hub {
     /// The address of the Hub's pages, where a person enters a Server's code.
     pub(super) fn url(&self) -> &str {
         &self.url
+    }
+
+    /// The origin the Hub serves its web app from, such as `https://hub.example`.
+    pub(super) fn origin(&self) -> Option<&str> {
+        self.origin.as_deref()
     }
 
     /// The Hub's API for the Linked Server whose credential is `credential`.

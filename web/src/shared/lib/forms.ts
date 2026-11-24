@@ -17,6 +17,7 @@ export interface FormErrors {
   password?: string;
   deviceName?: string;
   signInCode?: string;
+  linkCode?: string;
   newPassword?: string;
   folders?: string;
   titleSources?: string;

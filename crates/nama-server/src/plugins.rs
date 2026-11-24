@@ -416,13 +416,16 @@ fn kept_license(license: &str) -> Result<String, String> {
 }
 
 /// `answer`, its error turned into a [`Failure`] once it is ready, for [`contain_call`] to await
-/// and mark its span failed.
-async fn formatted<R, K, E: ProviderError<K>>(
+/// and mark its span failed if the kind [counts](FailureKind::is_failure).
+async fn formatted<R, K: FailureKind, E: ProviderError<K>>(
     answer: impl Future<Output = Result<R, E>>,
 ) -> Result<R, Failure<K>> {
     answer.await.map_err(|err| {
-        diagnostics::failed(&Span::current(), std::any::type_name::<E>());
-        err.failure()
+        let failure = err.failure();
+        if failure.kind.is_failure() {
+            diagnostics::failed(&Span::current(), std::any::type_name::<E>());
+        }
+        failure
     })
 }
 

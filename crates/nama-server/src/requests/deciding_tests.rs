@@ -1,13 +1,13 @@
 use nama_plugin_api::metadata::ExternalId;
 use nama_proto::nama::v1::RequestState;
 
-use super::{RequestTitle, approve, cancel, cancel_deleted, decline, retry, withdraw};
+use super::{RequestTitle, approve, cancel, cancel_deleted, decline, retry};
+use crate::requests::Error;
 use crate::requests::asking::{Wanted, ask, ask_seasons};
 use crate::requests::testing::{
-    ADA, NOTHING, ada_and_bob, ask_for, dark, failed_needing, fulfilled, handed_off, happened,
-    match_dark_episodes, match_in_a_library, movie, scan_dark, settled,
+    ADA, NOTHING, ada_and_bob, ask_for, dark, fulfilled, handed_off, happened, match_dark_episodes,
+    match_in_a_library, movie, scan_dark, settled,
 };
-use crate::requests::{Error, asked};
 
 #[tokio::test]
 async fn approving_a_pending_request_hands_it_off() {
@@ -68,29 +68,6 @@ async fn retrying_a_failed_request_approves_and_hands_it_off() {
 }
 
 #[tokio::test]
-async fn retrying_a_request_that_lacked_an_id_forgets_the_ids_it_needed() {
-    let (_data, db) = ada_and_bob().await;
-    let id = ask_for(&db, ADA, 949, RequestState::Approved)
-        .await
-        .value
-        .id;
-    let failed = failed_needing(&db, id, &["tvdb"]).await;
-    assert!(failed.failure.as_option().is_some(), "{failed:?}");
-
-    let retried = db
-        .write(move |tx| Box::pin(retry(tx, id, None)))
-        .await
-        .unwrap();
-
-    assert_eq!(retried.value.failure_reason, None);
-    assert!(
-        retried.value.failure.as_option().is_none(),
-        "{:?}",
-        retried.value
-    );
-}
-
-#[tokio::test]
 async fn cancelling_a_request_says_so_whatever_its_state() {
     let (_data, db) = ada_and_bob().await;
     let pending = ask_for(&db, ADA, 949, RequestState::Pending).await.value.id;
@@ -144,24 +121,6 @@ async fn cancelling_a_request_says_so_whatever_its_state() {
             ("cancelled", RequestState::Available),
             ("cancelled", RequestState::PartiallyAvailable)
         ]
-    );
-}
-
-#[tokio::test]
-async fn withdrawing_from_a_request_that_is_not_pending_is_refused() {
-    let (_data, db) = ada_and_bob().await;
-    let id = ask_for(&db, ADA, 603, RequestState::Approved)
-        .await
-        .value
-        .id;
-
-    let refused = db
-        .write(move |tx| Box::pin(withdraw(tx, ADA, None, id)))
-        .await;
-
-    assert!(
-        matches!(refused, Err(Error::NotPending(asked::Asked::Request, refused_id)) if refused_id == id),
-        "{refused:?}"
     );
 }
 

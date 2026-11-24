@@ -36,6 +36,9 @@ opentelemetry = { version = "0.33.1", default-features = false, features = ["tra
 opentelemetry-appender-tracing = "0.33.1"
 opentelemetry-otlp = { version = "0.33.1", default-features = false, features = ["http-proto", "logs", "reqwest-blocking-client", "trace"] }
 opentelemetry_sdk = { version = "0.33.1", default-features = false, features = ["logs", "trace"] }
+# To name the Linked Server in each batch it shares; opentelemetry-otlp builds both already.
+opentelemetry-proto = { version = "0.33.1", default-features = false, features = ["gen-tonic-messages", "logs", "trace"] }
+prost = "0.14"
 # Ed25519 signing (ADR 0098) and passkeys' signatures, the same ring rustls already builds.
 ring = "0.17"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls-no-provider"] }
