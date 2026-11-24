@@ -44,11 +44,12 @@ export function PersonalForm({ plugin, headingId }: { plugin: Personal; headingI
     <div key={forgotten} className="flex flex-col">
       {plugin.settings.map((setting) => (
         // Each row is drawn by the input its kind takes, so `?setting=` finds this box around it,
-        // which draws the hairline between rows in its place.
+        // which draws the hairline between rows in its place. The row is last in its box, so it
+        // gives back its bottom padding; every box but the last puts it back.
         <div
           key={setting.key}
           data-setting={personalSetting(plugin.pluginId, setting.key)}
-          className="not-first:border-t"
+          className="not-first:border-t not-last:pb-3.5"
         >
           {/* No choices: the Kernel refuses a CHOICE Personal setting (ADR 0046). */}
           <SettingInput setting={setting} error={errors[setting.key]} checksRequired />

@@ -13,15 +13,19 @@ import { rowText } from "@/shared/lib/setting-text";
  * their Link to an Account on the Hub.
  */
 export function SigninPane({ user }: { user: User | undefined }) {
+  const usernameRow = (
+    <SettingRow {...rowText(signinLabels, "username")}>
+      {(control) => (
+        <output {...control} className="text-sm font-medium">
+          {user?.name}
+        </output>
+      )}
+    </SettingRow>
+  );
   return (
     <PaneFrame section="signin">
-      <SettingRow {...rowText(signinLabels, "username")}>
-        {(control) => (
-          <output {...control} className="text-sm font-medium">
-            {user?.name}
-          </output>
-        )}
-      </SettingRow>
+      {/* Last in its own box, so the row gives back its bottom padding before "Password". */}
+      <div>{usernameRow}</div>
       <SettingGroup title="Password">
         <PasswordForm />
       </SettingGroup>
