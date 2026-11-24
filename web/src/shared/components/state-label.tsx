@@ -10,8 +10,8 @@ const TONES = {
   quiet: "bg-secondary text-foreground",
   // It's as it should be, such as Connected or Saved: lit, as a chosen thing is.
   positive: "bg-accent text-primary",
-  // Something gave way, such as a Playback Limit the player couldn't keep: it stands out of the
-  // picture without the alarm of Destructive.
+  // Something gave way, such as a Playback Limit the player couldn't keep. Drawn as quiet for now,
+  // as DESIGN.md says; whether it should stand apart is #2202.
   warning: "bg-secondary text-foreground",
   // Declined or Failed: DESIGN.md keeps Destructive the only status colour, so no other state uses it.
   destructive: "bg-destructive/15 text-destructive",
