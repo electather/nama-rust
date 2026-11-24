@@ -6,7 +6,7 @@ use connectrpc::ConnectError;
 use nama_proto::nama::v1::{self as proto, Permission, RefusalReason};
 
 use super::{refuse, sign_in_required};
-use crate::{db::now, diagnostics, users::Caller};
+use crate::{db::now, diagnostics, signed_urls::SignedUrl, users::Caller};
 
 /// Who may call an RPC or fetch media.
 #[derive(Clone, Copy)]
@@ -280,8 +280,12 @@ fn check_recent_authentication(path: &str, caller: Option<&Caller>) -> Result<()
 }
 
 /// Refuses `request`, before any handler sees it, unless the caller
-/// [`identify_caller`](crate::users::identify_caller) found may.
+/// [`identify_caller`](crate::users::identify_caller) found may, or its URL was signed.
 pub(super) async fn require_access(request: Request, next: Next) -> axum::response::Response {
+    // Its signature, which `admit` checked, names this one path, so it needs no session.
+    if request.extensions().get::<SignedUrl>().is_some() {
+        return next.run(request).await;
+    }
     let caller = request.extensions().get::<Caller>();
     let path = request.uri().path();
     let allowed = Access::of(path)

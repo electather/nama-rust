@@ -131,6 +131,7 @@ const ROWS: &[&[&str]] = &[
         "port_mapping",
         "tls",
         "diagnostics",
+        "signed_urls",
         "db",
         "page",
         "config",

@@ -23,6 +23,7 @@
 - **One owner for who sees an Event.** Only `src/events.rs` decides which subscriber gets an Event and what of it; handlers pass the caller.
 - **Spans carry ids, not words.** A span's fields hold only ids (Item, Library, User, Device, Plugin), counts, sizes, durations, codecs and outcomes, never a title, file path, name, IP address or search text, since the Hub forwards them as they are when an admin shares Diagnostics (ADR 0054).
 - **Shared lines and Usage Analytics are named lists.** A log line reaches the Hub only once its call site's `name:` is in `SHARED_LINES`, and a Usage Analytics event only as a `Usage` variant, both in `src/diagnostics.rs` and reviewed to hold what a span may (ADR 0054).
+- **Bearer callers get signed media URLs (ADR 0105).** An `<img>` can't send a bearer token, so every image URL a response gives is signed for a bearer caller, through `ImageSources::shown` or `url_signer` in `src/api.rs`, and a cookie caller's stays as it is. A new image URL in a response is signed the same way, or a bearer caller can't load it.
 - **Forwarded headers from trusted proxies only.** Read where a request came from (client IP, HTTPS) from the `RequestSource` that `nama-forwarded`, shared with the Hub, sets. It believes `X-Forwarded-*` only from a peer in `Config::trusted_proxies` (ADR 0018), since any client can set them.
 
 ### Tests

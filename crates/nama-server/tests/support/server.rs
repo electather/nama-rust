@@ -408,10 +408,10 @@ impl TestServer {
         self.client_config_as(&self.admin_token)
     }
 
-    /// Client settings that point at this Server and present `token` as a bearer token.
+    /// Client settings that point at this Server and present `token` in the session cookie.
     pub(crate) fn client_config_as(&self, token: &str) -> ClientConfig {
         self.anonymous_client_config()
-            .with_default_header("authorization", format!("Bearer {token}"))
+            .with_default_header("cookie", format!("nama_session={token}"))
     }
 
     /// Client settings that point at this Server and carry no session.

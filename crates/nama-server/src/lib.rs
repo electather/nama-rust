@@ -29,6 +29,7 @@ mod requests;
 mod scanner;
 mod server_addresses;
 mod server_settings;
+mod signed_urls;
 mod sync;
 mod tls;
 pub mod users;

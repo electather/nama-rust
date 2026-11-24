@@ -39,6 +39,7 @@ use crate::{
         contents::{library_with_movie, library_with_show, matched_episodes, parse_hint},
     },
     server_settings::ImageSettings,
+    signed_urls::strip_signature,
 };
 
 /// Where the store keeps them, under the data directory.
@@ -510,7 +511,7 @@ async fn upload(
     // (ADR 0029).
     let uploaded = tokio::spawn(async move {
         let body = match picked.artwork {
-            Some(url) => Body::from(artwork.offered_bytes(&url).await?),
+            Some(url) => Body::from(artwork.offered_bytes(&strip_signature(&url)).await?),
             None => body,
         };
         custom_images.upload(slot, body, poster_copy).await
