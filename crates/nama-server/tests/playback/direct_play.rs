@@ -26,9 +26,9 @@ EOF
     }
 }
 
-/// Alien in 1080p and 720p, probed with [`ffprobe_reading_height_by_name`] in `bin`, on a Server
-/// `builder` starts behind a trusted proxy, with those Versions' ids, and Bishop, capped at 720p
-/// remotely.
+/// Alien in 1080p and 720p, probed with [`ffprobe_reading_height_by_name`] in `bin`, on the Server
+/// `builder` starts, which must trust the proxy as [`behind_proxy`]'s does, with those Versions'
+/// ids, and Bishop, capped at 720p remotely.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
