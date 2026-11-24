@@ -40,6 +40,19 @@ use crate::{db::Database, server_settings::ImageSettings};
 /// Backdrops are shown at, at one to three device pixels per CSS pixel. Any other is refused.
 pub const WIDTHS: [u32; 7] = [320, 480, 640, 960, 1280, 1920, 2560];
 
+/// The widths of [`WIDTHS`] the web app's Poster grid offers, made of each Poster ahead of it
+/// (#2105). A 3x phone takes 640, a little soft, sparing the resized cache a fourth copy.
+pub const POSTER_WIDTHS: [u32; 3] = [320, 480, 640];
+
+/// The widths of [`WIDTHS`] the web app offers Backdrops at, made of each ahead of it: 640 and 1280
+/// for a shelf tile's 280 to 440 px at 1x and 2x, and up to 2560 for a full-width one's. A 1x tile
+/// takes a 640, sparing the resized cache two more copies.
+pub const BACKDROP_WIDTHS: [u32; 4] = [640, 1280, 1920, 2560];
+
+/// The widths of [`WIDTHS`] the web app offers Title Logos at, made of each ahead of it: a Continue
+/// Watching card's 264 px and a title page's 448 px, each at 1x and 2x.
+pub const TITLE_LOGO_WIDTHS: [u32; 4] = [320, 480, 640, 960];
+
 /// The Built-in store: files in `data_dir`, as [`ImageStore::new`] keeps them.
 pub(crate) fn local_disk(data_dir: &Path) -> Arc<dyn Blobs> {
     Arc::new(LocalDisk::new(data_dir))
@@ -174,12 +187,15 @@ pub struct Resize {
 }
 
 impl Resize {
-    /// A copy `width` pixels wide, one of [`WIDTHS`], or `None` while `images` has resizing off.
-    pub(crate) fn to(width: u32, images: &ImageSettings) -> Option<Self> {
-        debug_assert!(WIDTHS.contains(&width), "{width} isn't on the width list");
-        images
-            .resizing()
-            .map(|cache_limit| Self { width, cache_limit })
+    /// A copy at each of `widths`, all on [`WIDTHS`], or none while `images` has resizing off.
+    pub(crate) fn each(widths: &[u32], images: &ImageSettings) -> Vec<Self> {
+        let Some(cache_limit) = images.resizing() else {
+            return Vec::new();
+        };
+        (widths.iter())
+            .inspect(|width| debug_assert!(WIDTHS.contains(width), "{width} isn't on the list"))
+            .map(|&width| Self { width, cache_limit })
+            .collect()
     }
 }
 

@@ -10,7 +10,7 @@ export function LibraryArt({ library }: { library: Library }) {
       <TileArt
         url={library.backdropUrl}
         thumbhash={library.backdropThumbhash}
-        look={{ sizes: backdropTileSizes, radius: "rounded-lg" }}
+        look={{ sizes: backdropTileSizes, radius: "rounded-lg", widths: "backdropWidths" }}
       />
       <span className="relative w-full truncate caption-scrim px-4 pt-10 pb-3 text-3xl font-medium tracking-tight text-foreground">
         {library.name}

@@ -235,6 +235,15 @@ message GetServerInfoResponse {
   // Whether the Server is Linked to the Hub, so its Users can sign in with their Accounts
   // (`SignInService.StartAccountSignIn`).
   bool account_sign_in = 7;
+  // The widths among `image_widths`, smallest first, that a Poster grid offers in its `srcset`.
+  // While resizing is on, the Server makes each downloaded Poster at these widths once its
+  // Library's scan or Matching has downloaded it, so a first visit asking only for them waits on
+  // no resize.
+  repeated uint32 poster_widths = 8;
+  // As `poster_widths`, for Backdrops, titled ones among them.
+  repeated uint32 backdrop_widths = 9;
+  // As `poster_widths`, for Title Logos.
+  repeated uint32 title_logo_widths = 10;
 }
 
 message GetServerSettingsRequest {}

@@ -97,7 +97,7 @@ impl Users {
     async fn account_way_in(&self, user_id: i64) -> WayIn {
         match self.linking.user_link(user_id).await {
             Ok(Some(Link::Linked { .. })) => WayIn::Account,
-            Ok(_) | Err(link::Error::NoLinkingPlugin) => WayIn::Nothing,
+            Ok(_) | Err(link::Error::NoLinkingPlugin | link::Error::NoHub) => WayIn::Nothing,
             Err(link::Error::Failed) => WayIn::Unknown,
         }
     }
@@ -128,7 +128,7 @@ impl Users {
 impl From<link::Error> for Error {
     fn from(err: link::Error) -> Self {
         match err {
-            link::Error::NoLinkingPlugin => Self::NoLinkingPlugin,
+            link::Error::NoLinkingPlugin | link::Error::NoHub => Self::NoLinkingPlugin,
             link::Error::Failed => Self::LinkingFailed,
         }
     }

@@ -12,10 +12,12 @@ export interface FormErrors {
   wait?: string;
   setupCode?: string;
   name?: string;
+  email?: string;
   note?: string;
   password?: string;
   deviceName?: string;
   signInCode?: string;
+  linkCode?: string;
   newPassword?: string;
   folders?: string;
   titleSources?: string;

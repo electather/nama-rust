@@ -1,3 +1,4 @@
+import { useTransport } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { UserService } from "@/gen/nama/v1/user_pb";
@@ -7,9 +8,10 @@ import { usersKey } from "@/shared/hooks/use-users";
 /** Deletes a User, then refetches the Users. */
 export function useDeleteUser() {
   const queryClient = useQueryClient();
+  const transport = useTransport();
   return useSensitiveMutation(UserService.method.deleteUser, {
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: usersKey });
+      await queryClient.invalidateQueries({ queryKey: usersKey(transport) });
     },
   });
 }

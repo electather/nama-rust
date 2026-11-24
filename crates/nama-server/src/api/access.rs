@@ -44,6 +44,13 @@ const DELETE_MEDIA: Access = Access::Needs(Permission::DeleteMedia);
 /// Searching the subtitle sources and downloading their subtitles.
 const DOWNLOAD_SUBTITLES: Access = Access::Needs(Permission::DownloadSubtitles);
 
+/// Downloading a Version's file, or one re-encoded as for a Transcode, for offline playback.
+#[expect(
+    dead_code,
+    reason = "no download endpoint (#2195, #2198) checks it yet"
+)]
+const DOWNLOAD: Access = Access::Needs(Permission::Download);
+
 /// Who may call each RPC, by path; one missing here is refused to everyone (see AGENTS.md, "New
 /// RPCs start closed"). Media and uploads have their own entries, in [`PREFIXES`].
 // One row per RPC reads as a table; rustfmt would split most rows over four lines.
@@ -116,6 +123,10 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::WATCH_STATE_SERVICE_SET_HIDDEN_FROM_CONTINUE_WATCHING_SPEC.procedure, Access::SignedIn),
     (proto::WATCHLIST_SERVICE_ADD_TO_WATCHLIST_SPEC.procedure,    Access::SignedIn),
     (proto::WATCHLIST_SERVICE_REMOVE_FROM_WATCHLIST_SPEC.procedure, Access::SignedIn),
+    (proto::INBOX_SERVICE_LIST_INBOX_NOTIFICATIONS_SPEC.procedure, Access::SignedIn),
+    (proto::INBOX_SERVICE_COUNT_UNREAD_INBOX_NOTIFICATIONS_SPEC.procedure, Access::SignedIn),
+    (proto::INBOX_SERVICE_MARK_INBOX_NOTIFICATION_READ_SPEC.procedure, Access::SignedIn),
+    (proto::INBOX_SERVICE_MARK_ALL_INBOX_NOTIFICATIONS_READ_SPEC.procedure, Access::SignedIn),
     (proto::PLAYBACK_SERVICE_PLAN_PLAYBACK_SPEC.procedure,        Access::SignedIn),
     (proto::PLAYBACK_SERVICE_STOP_PLAYBACK_SPEC.procedure,        Access::SignedIn),
     (proto::PLAYBACK_SERVICE_REPORT_TRACK_PICK_SPEC.procedure,    Access::SignedIn),

@@ -1,5 +1,5 @@
 import { Thumbhash } from "@/shared/components/thumbhash";
-import { useSrcSet } from "@/shared/hooks/use-src-set";
+import { type OfferedWidths, useSrcSet } from "@/shared/hooks/use-src-set";
 
 /**
  * A shelf tile's art, filling its box, its thumbhash until it loads, under a hairline drawn inside
@@ -12,10 +12,13 @@ export function TileArt({
 }: {
   url: string | undefined;
   thumbhash: Uint8Array | undefined;
-  /** How wide it shows, for its `srcset`, and its tile's corners' radius, for its hairline. */
-  look: { sizes: string; radius: string };
+  /**
+   * How wide it shows and which widths it offers, for its `srcset`, and its tile's corners'
+   * radius, for its hairline.
+   */
+  look: { sizes: string; radius: string; widths?: OfferedWidths | undefined };
 }) {
-  const srcSet = useSrcSet(url);
+  const srcSet = useSrcSet(url, look.widths);
   return (
     <>
       <Thumbhash thumbhash={thumbhash} />

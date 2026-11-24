@@ -13,8 +13,10 @@ import { Route as MemberRouteImport } from './routes/_member'
 import { Route as SignedOutRouteImport } from './routes/_signed-out'
 import { Route as MemberIndexRouteImport } from './routes/_member/index'
 import { Route as MemberSplatRouteImport } from './routes/_member/$'
+import { Route as MemberHubRouteImport } from './routes/_member/_hub'
 import { Route as MemberCodeRouteImport } from './routes/_member/code'
 import { Route as MemberSearchRouteImport } from './routes/_member/search'
+import { Route as SignedOutHubRouteImport } from './routes/_signed-out/_hub'
 import { Route as SignedOutSetupRouteImport } from './routes/_signed-out/setup'
 import { Route as SignedOutSignInRouteImport } from './routes/_signed-out/sign-in'
 import { Route as MemberBoxSetsBoxSetIdRouteImport } from './routes/_member/box-sets/$boxSetId'
@@ -26,9 +28,14 @@ import { Route as MemberMoviesMovieIdRouteImport } from './routes/_member/movies
 import { Route as MemberPeoplePersonIdRouteImport } from './routes/_member/people/$personId'
 import { Route as MemberReauthenticateAccountRouteImport } from './routes/_member/reauthenticate.account'
 import { Route as MemberShowsShowIdRouteImport } from './routes/_member/shows/$showId'
+import { Route as SignedOutHubCreateAccountRouteImport } from './routes/_signed-out/_hub/create-account'
+import { Route as SignedOutHubSendSignInLinkRouteImport } from './routes/_signed-out/_hub/send-sign-in-link'
+import { Route as SignedOutHubSignInLinkRouteImport } from './routes/_signed-out/_hub/sign-in-link'
+import { Route as SignedOutHubSignInLinkSentRouteImport } from './routes/_signed-out/_hub/sign-in-link-sent'
 import { Route as SignedOutInviteTokenRouteImport } from './routes/_signed-out/invite.$token'
 import { Route as SignedOutSignInIndexRouteImport } from './routes/_signed-out/sign-in.index'
 import { Route as SignedOutSignInAccountRouteImport } from './routes/_signed-out/sign-in.account'
+import { Route as MemberHubServerSignInIdRouteImport } from './routes/_member/_hub/server-sign-in.$id'
 import { Route as MemberLibrariesLibraryIdIndexRouteImport } from './routes/_member/libraries/$libraryId/index'
 import { Route as SignedOutSignInCodeIndexRouteImport } from './routes/_signed-out/sign-in.code.index'
 import { Route as SignedOutSignInCodeWaitingRouteImport } from './routes/_signed-out/sign-in.code.waiting'
@@ -56,6 +63,10 @@ const MemberSplatRoute = MemberSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => MemberRoute,
 } as any)
+const MemberHubRoute = MemberHubRouteImport.update({
+  id: '/_hub',
+  getParentRoute: () => MemberRoute,
+} as any)
 const MemberCodeRoute = MemberCodeRouteImport.update({
   id: '/code',
   path: '/code',
@@ -65,6 +76,10 @@ const MemberSearchRoute = MemberSearchRouteImport.update({
   id: '/search',
   path: '/search',
   getParentRoute: () => MemberRoute,
+} as any)
+const SignedOutHubRoute = SignedOutHubRouteImport.update({
+  id: '/_hub',
+  getParentRoute: () => SignedOutRoute,
 } as any)
 const SignedOutSetupRoute = SignedOutSetupRouteImport.update({
   id: '/setup',
@@ -122,6 +137,29 @@ const MemberShowsShowIdRoute = MemberShowsShowIdRouteImport.update({
   path: '/shows/$showId',
   getParentRoute: () => MemberRoute,
 } as any)
+const SignedOutHubCreateAccountRoute =
+  SignedOutHubCreateAccountRouteImport.update({
+    id: '/create-account',
+    path: '/create-account',
+    getParentRoute: () => SignedOutHubRoute,
+  } as any)
+const SignedOutHubSendSignInLinkRoute =
+  SignedOutHubSendSignInLinkRouteImport.update({
+    id: '/send-sign-in-link',
+    path: '/send-sign-in-link',
+    getParentRoute: () => SignedOutHubRoute,
+  } as any)
+const SignedOutHubSignInLinkRoute = SignedOutHubSignInLinkRouteImport.update({
+  id: '/sign-in-link',
+  path: '/sign-in-link',
+  getParentRoute: () => SignedOutHubRoute,
+} as any)
+const SignedOutHubSignInLinkSentRoute =
+  SignedOutHubSignInLinkSentRouteImport.update({
+    id: '/sign-in-link-sent',
+    path: '/sign-in-link-sent',
+    getParentRoute: () => SignedOutHubRoute,
+  } as any)
 const SignedOutInviteTokenRoute = SignedOutInviteTokenRouteImport.update({
   id: '/invite/$token',
   path: '/invite/$token',
@@ -136,6 +174,11 @@ const SignedOutSignInAccountRoute = SignedOutSignInAccountRouteImport.update({
   id: '/account',
   path: '/account',
   getParentRoute: () => SignedOutSignInRoute,
+} as any)
+const MemberHubServerSignInIdRoute = MemberHubServerSignInIdRouteImport.update({
+  id: '/server-sign-in/$id',
+  path: '/server-sign-in/$id',
+  getParentRoute: () => MemberHubRoute,
 } as any)
 const MemberLibrariesLibraryIdIndexRoute =
   MemberLibrariesLibraryIdIndexRouteImport.update({
@@ -202,11 +245,16 @@ export interface FileRoutesByFullPath {
   '/people/$personId': typeof MemberPeoplePersonIdRoute
   '/reauthenticate/account': typeof MemberReauthenticateAccountRoute
   '/shows/$showId': typeof MemberShowsShowIdRoute
+  '/create-account': typeof SignedOutHubCreateAccountRoute
+  '/send-sign-in-link': typeof SignedOutHubSendSignInLinkRoute
+  '/sign-in-link': typeof SignedOutHubSignInLinkRoute
+  '/sign-in-link-sent': typeof SignedOutHubSignInLinkSentRoute
   '/invite/$token': typeof SignedOutInviteTokenRoute
   '/sign-in/account': typeof SignedOutSignInAccountRoute
   '/code/': typeof MemberCodeIndexRoute
   '/libraries/': typeof MemberLibrariesIndexRoute
   '/sign-in/': typeof SignedOutSignInIndexRoute
+  '/server-sign-in/$id': typeof MemberHubServerSignInIdRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
   '/sign-in/code/': typeof SignedOutSignInCodeIndexRoute
@@ -228,11 +276,16 @@ export interface FileRoutesByTo {
   '/people/$personId': typeof MemberPeoplePersonIdRoute
   '/reauthenticate/account': typeof MemberReauthenticateAccountRoute
   '/shows/$showId': typeof MemberShowsShowIdRoute
+  '/create-account': typeof SignedOutHubCreateAccountRoute
+  '/send-sign-in-link': typeof SignedOutHubSendSignInLinkRoute
+  '/sign-in-link': typeof SignedOutHubSignInLinkRoute
+  '/sign-in-link-sent': typeof SignedOutHubSignInLinkSentRoute
   '/invite/$token': typeof SignedOutInviteTokenRoute
   '/sign-in/account': typeof SignedOutSignInAccountRoute
   '/code': typeof MemberCodeIndexRoute
   '/libraries': typeof MemberLibrariesIndexRoute
   '/sign-in': typeof SignedOutSignInIndexRoute
+  '/server-sign-in/$id': typeof MemberHubServerSignInIdRoute
   '/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/libraries/$libraryId': typeof MemberLibrariesLibraryIdIndexRoute
   '/sign-in/code': typeof SignedOutSignInCodeIndexRoute
@@ -247,8 +300,10 @@ export interface FileRoutesById {
   '/_member': typeof MemberRouteWithChildren
   '/_signed-out': typeof SignedOutRouteWithChildren
   '/_member/$': typeof MemberSplatRoute
+  '/_member/_hub': typeof MemberHubRouteWithChildren
   '/_member/code': typeof MemberCodeRouteWithChildren
   '/_member/search': typeof MemberSearchRoute
+  '/_signed-out/_hub': typeof SignedOutHubRouteWithChildren
   '/_signed-out/setup': typeof SignedOutSetupRoute
   '/_signed-out/sign-in': typeof SignedOutSignInRouteWithChildren
   '/_member/': typeof MemberIndexRoute
@@ -259,11 +314,16 @@ export interface FileRoutesById {
   '/_member/people/$personId': typeof MemberPeoplePersonIdRoute
   '/_member/reauthenticate/account': typeof MemberReauthenticateAccountRoute
   '/_member/shows/$showId': typeof MemberShowsShowIdRoute
+  '/_signed-out/_hub/create-account': typeof SignedOutHubCreateAccountRoute
+  '/_signed-out/_hub/send-sign-in-link': typeof SignedOutHubSendSignInLinkRoute
+  '/_signed-out/_hub/sign-in-link': typeof SignedOutHubSignInLinkRoute
+  '/_signed-out/_hub/sign-in-link-sent': typeof SignedOutHubSignInLinkSentRoute
   '/_signed-out/invite/$token': typeof SignedOutInviteTokenRoute
   '/_signed-out/sign-in/account': typeof SignedOutSignInAccountRoute
   '/_member/code/': typeof MemberCodeIndexRoute
   '/_member/libraries/': typeof MemberLibrariesIndexRoute
   '/_signed-out/sign-in/': typeof SignedOutSignInIndexRoute
+  '/_member/_hub/server-sign-in/$id': typeof MemberHubServerSignInIdRoute
   '/_signed-out/sign-in/code/waiting': typeof SignedOutSignInCodeWaitingRoute
   '/_member/libraries/$libraryId/': typeof MemberLibrariesLibraryIdIndexRoute
   '/_signed-out/sign-in/code/': typeof SignedOutSignInCodeIndexRoute
@@ -289,11 +349,16 @@ export interface FileRouteTypes {
     | '/people/$personId'
     | '/reauthenticate/account'
     | '/shows/$showId'
+    | '/create-account'
+    | '/send-sign-in-link'
+    | '/sign-in-link'
+    | '/sign-in-link-sent'
     | '/invite/$token'
     | '/sign-in/account'
     | '/code/'
     | '/libraries/'
     | '/sign-in/'
+    | '/server-sign-in/$id'
     | '/sign-in/code/waiting'
     | '/libraries/$libraryId/'
     | '/sign-in/code/'
@@ -315,11 +380,16 @@ export interface FileRouteTypes {
     | '/people/$personId'
     | '/reauthenticate/account'
     | '/shows/$showId'
+    | '/create-account'
+    | '/send-sign-in-link'
+    | '/sign-in-link'
+    | '/sign-in-link-sent'
     | '/invite/$token'
     | '/sign-in/account'
     | '/code'
     | '/libraries'
     | '/sign-in'
+    | '/server-sign-in/$id'
     | '/sign-in/code/waiting'
     | '/libraries/$libraryId'
     | '/sign-in/code'
@@ -333,8 +403,10 @@ export interface FileRouteTypes {
     | '/_member'
     | '/_signed-out'
     | '/_member/$'
+    | '/_member/_hub'
     | '/_member/code'
     | '/_member/search'
+    | '/_signed-out/_hub'
     | '/_signed-out/setup'
     | '/_signed-out/sign-in'
     | '/_member/'
@@ -345,11 +417,16 @@ export interface FileRouteTypes {
     | '/_member/people/$personId'
     | '/_member/reauthenticate/account'
     | '/_member/shows/$showId'
+    | '/_signed-out/_hub/create-account'
+    | '/_signed-out/_hub/send-sign-in-link'
+    | '/_signed-out/_hub/sign-in-link'
+    | '/_signed-out/_hub/sign-in-link-sent'
     | '/_signed-out/invite/$token'
     | '/_signed-out/sign-in/account'
     | '/_member/code/'
     | '/_member/libraries/'
     | '/_signed-out/sign-in/'
+    | '/_member/_hub/server-sign-in/$id'
     | '/_signed-out/sign-in/code/waiting'
     | '/_member/libraries/$libraryId/'
     | '/_signed-out/sign-in/code/'
@@ -395,6 +472,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberSplatRouteImport
       parentRoute: typeof MemberRoute
     }
+    '/_member/_hub': {
+      id: '/_member/_hub'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof MemberHubRouteImport
+      parentRoute: typeof MemberRoute
+    }
     '/_member/code': {
       id: '/_member/code'
       path: '/code'
@@ -408,6 +492,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/search'
       preLoaderRoute: typeof MemberSearchRouteImport
       parentRoute: typeof MemberRoute
+    }
+    '/_signed-out/_hub': {
+      id: '/_signed-out/_hub'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof SignedOutHubRouteImport
+      parentRoute: typeof SignedOutRoute
     }
     '/_signed-out/setup': {
       id: '/_signed-out/setup'
@@ -486,6 +577,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemberShowsShowIdRouteImport
       parentRoute: typeof MemberRoute
     }
+    '/_signed-out/_hub/create-account': {
+      id: '/_signed-out/_hub/create-account'
+      path: '/create-account'
+      fullPath: '/create-account'
+      preLoaderRoute: typeof SignedOutHubCreateAccountRouteImport
+      parentRoute: typeof SignedOutHubRoute
+    }
+    '/_signed-out/_hub/send-sign-in-link': {
+      id: '/_signed-out/_hub/send-sign-in-link'
+      path: '/send-sign-in-link'
+      fullPath: '/send-sign-in-link'
+      preLoaderRoute: typeof SignedOutHubSendSignInLinkRouteImport
+      parentRoute: typeof SignedOutHubRoute
+    }
+    '/_signed-out/_hub/sign-in-link': {
+      id: '/_signed-out/_hub/sign-in-link'
+      path: '/sign-in-link'
+      fullPath: '/sign-in-link'
+      preLoaderRoute: typeof SignedOutHubSignInLinkRouteImport
+      parentRoute: typeof SignedOutHubRoute
+    }
+    '/_signed-out/_hub/sign-in-link-sent': {
+      id: '/_signed-out/_hub/sign-in-link-sent'
+      path: '/sign-in-link-sent'
+      fullPath: '/sign-in-link-sent'
+      preLoaderRoute: typeof SignedOutHubSignInLinkSentRouteImport
+      parentRoute: typeof SignedOutHubRoute
+    }
     '/_signed-out/invite/$token': {
       id: '/_signed-out/invite/$token'
       path: '/invite/$token'
@@ -506,6 +625,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/sign-in/account'
       preLoaderRoute: typeof SignedOutSignInAccountRouteImport
       parentRoute: typeof SignedOutSignInRoute
+    }
+    '/_member/_hub/server-sign-in/$id': {
+      id: '/_member/_hub/server-sign-in/$id'
+      path: '/server-sign-in/$id'
+      fullPath: '/server-sign-in/$id'
+      preLoaderRoute: typeof MemberHubServerSignInIdRouteImport
+      parentRoute: typeof MemberHubRoute
     }
     '/_member/libraries/$libraryId/': {
       id: '/_member/libraries/$libraryId/'
@@ -566,6 +692,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface MemberHubRouteChildren {
+  MemberHubServerSignInIdRoute: typeof MemberHubServerSignInIdRoute
+}
+
+const MemberHubRouteChildren: MemberHubRouteChildren = {
+  MemberHubServerSignInIdRoute: MemberHubServerSignInIdRoute,
+}
+
+const MemberHubRouteWithChildren = MemberHubRoute._addFileChildren(
+  MemberHubRouteChildren,
+)
+
 interface MemberCodeRouteChildren {
   MemberCodeApproveRoute: typeof MemberCodeApproveRoute
   MemberCodeDoneRoute: typeof MemberCodeDoneRoute
@@ -584,6 +722,7 @@ const MemberCodeRouteWithChildren = MemberCodeRoute._addFileChildren(
 
 interface MemberRouteChildren {
   MemberSplatRoute: typeof MemberSplatRoute
+  MemberHubRoute: typeof MemberHubRouteWithChildren
   MemberCodeRoute: typeof MemberCodeRouteWithChildren
   MemberSearchRoute: typeof MemberSearchRoute
   MemberIndexRoute: typeof MemberIndexRoute
@@ -603,6 +742,7 @@ interface MemberRouteChildren {
 
 const MemberRouteChildren: MemberRouteChildren = {
   MemberSplatRoute: MemberSplatRoute,
+  MemberHubRoute: MemberHubRouteWithChildren,
   MemberCodeRoute: MemberCodeRouteWithChildren,
   MemberSearchRoute: MemberSearchRoute,
   MemberIndexRoute: MemberIndexRoute,
@@ -628,6 +768,24 @@ const MemberRouteChildren: MemberRouteChildren = {
 const MemberRouteWithChildren =
   MemberRoute._addFileChildren(MemberRouteChildren)
 
+interface SignedOutHubRouteChildren {
+  SignedOutHubCreateAccountRoute: typeof SignedOutHubCreateAccountRoute
+  SignedOutHubSendSignInLinkRoute: typeof SignedOutHubSendSignInLinkRoute
+  SignedOutHubSignInLinkRoute: typeof SignedOutHubSignInLinkRoute
+  SignedOutHubSignInLinkSentRoute: typeof SignedOutHubSignInLinkSentRoute
+}
+
+const SignedOutHubRouteChildren: SignedOutHubRouteChildren = {
+  SignedOutHubCreateAccountRoute: SignedOutHubCreateAccountRoute,
+  SignedOutHubSendSignInLinkRoute: SignedOutHubSendSignInLinkRoute,
+  SignedOutHubSignInLinkRoute: SignedOutHubSignInLinkRoute,
+  SignedOutHubSignInLinkSentRoute: SignedOutHubSignInLinkSentRoute,
+}
+
+const SignedOutHubRouteWithChildren = SignedOutHubRoute._addFileChildren(
+  SignedOutHubRouteChildren,
+)
+
 interface SignedOutSignInRouteChildren {
   SignedOutSignInAccountRoute: typeof SignedOutSignInAccountRoute
   SignedOutSignInIndexRoute: typeof SignedOutSignInIndexRoute
@@ -647,12 +805,14 @@ const SignedOutSignInRouteWithChildren = SignedOutSignInRoute._addFileChildren(
 )
 
 interface SignedOutRouteChildren {
+  SignedOutHubRoute: typeof SignedOutHubRouteWithChildren
   SignedOutSetupRoute: typeof SignedOutSetupRoute
   SignedOutSignInRoute: typeof SignedOutSignInRouteWithChildren
   SignedOutInviteTokenRoute: typeof SignedOutInviteTokenRoute
 }
 
 const SignedOutRouteChildren: SignedOutRouteChildren = {
+  SignedOutHubRoute: SignedOutHubRouteWithChildren,
   SignedOutSetupRoute: SignedOutSetupRoute,
   SignedOutSignInRoute: SignedOutSignInRouteWithChildren,
   SignedOutInviteTokenRoute: SignedOutInviteTokenRoute,

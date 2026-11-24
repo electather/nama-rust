@@ -1,7 +1,6 @@
-//! The Server's Server Addresses (GLOSSARY.md), which the enabled Plugin that links the Server,
-//! such as the Hub Plugin, is told so the service can hand them to clients (ADR 0094), and the
-//! port it opens on the router for clients outside the LAN while that Plugin has it Linked
-//! (ADR 0057).
+//! The Server's Server Addresses (GLOSSARY.md), which the Hub is told so it can hand them to
+//! clients (ADR 0105), and the port the Server opens on the router for clients outside the LAN
+//! while it is Linked (ADR 0057).
 
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
@@ -15,22 +14,20 @@ use url::Url;
 
 use crate::{link::Linking, port_mapping, server_settings::ServerUrl};
 
-/// How often the Plugin is told, so it hears of a new LAN address, or tells a service it was just
-/// enabled or Linked to, within this long. It passes on only a change.
+/// How often the Hub is told, so it hears of a new LAN address, or of a Server just Linked, within
+/// this long. Only a change goes, or the same now and then for it to check the public port again.
 const EVERY: Duration = Duration::from_mins(1);
 
-/// How many times the Plugin is told between opening the port on the router again: half its
+/// How many times the Hub is told between opening the port on the router again: half its
 /// [`port_mapping::LEASE`], so it never closes while the Server runs. Saving the Server URL tells it
 /// between minutes too, which only opens the port again sooner.
 const OPEN_PORT_EVERY: u64 = port_mapping::LEASE.as_secs() / 2 / EVERY.as_secs();
 
-/// Tells the enabled Plugin that links the Server its Server Addresses now, every minute, and as
-/// soon as `url_saves` wakes, since the service refuses a sign-in returning anywhere else: the
-/// Server URL `url` holds, the LAN address of `listening`, the public port: `forwarded`, the one
-/// the Admin forwarded, or else one the Server opens on the router, only while such a Plugin has
-/// it Linked, and the `relay` the Admin runs, if any. Runs until the task is aborted; `linking`
-/// asks in the Plugin's scope, so disabling it or shutting down cancels and joins the call. A
-/// Plugin that fails shows it on its page.
+/// Tells the Hub named in the Server's config its Server Addresses now, every minute, and as soon as
+/// `url_saves` wakes, since the Hub refuses a sign-in returning anywhere else: the Server URL `url`
+/// holds, the LAN address of `listening`, the public port: `forwarded`, the one the Admin
+/// forwarded, or else one the Server opens on the router, only while it is Linked, and the `relay`
+/// the Admin runs, if any. Runs until the task is aborted. A failure is logged.
 #[expect(
     clippy::too_many_arguments,
     reason = "each is a separate input the Server Addresses are made of, or when to tell them"
@@ -44,6 +41,10 @@ pub(crate) fn keep_telling(
     relay: Option<SocketAddr>,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
+        // ADR 0002: a Server whose config names no Hub tells no one and opens no port.
+        if !linking.has_hub() {
+            return;
+        }
         let mut ticks = tokio::time::interval(EVERY);
         let mut opened = OpenedPort::default();
         loop {
@@ -52,15 +53,10 @@ pub(crate) fn keep_telling(
                 // Err once the settings are dropped: the arm sits out and the minute still ticks.
                 Ok(()) = url_saves.changed() => {}
             }
-            let Some(plugin) = linking.linking_plugin() else {
-                // So enabling it again opens the port at once, whose lease may have run out since.
-                opened = OpenedPort::default();
-                continue;
-            };
             let lan = lan_address(listening);
             let public_port = match forwarded {
                 Some(port) => Some(port.get()),
-                None if linking.is_server_linked_by(&plugin).await => opened.port(lan).await,
+                None if linking.is_server_linked().await => opened.port(lan).await,
                 None => {
                     // Shut while the Server isn't Linked, and opened at once when it is.
                     opened = OpenedPort::default();
@@ -68,13 +64,13 @@ pub(crate) fn keep_telling(
                 }
             };
             let addresses = addresses(&url, lan, public_port, relay);
-            linking.tell_addresses(&plugin, addresses).await;
+            linking.tell_addresses(addresses).await;
         }
     })
 }
 
-/// Whether `address` has the scheme, host and port of one of the Server Addresses the Plugin is
-/// told but the public one: the Server URL `url` holds, or the LAN address of `listening`. The Hub
+/// Whether `address` has the scheme, host and port of one of the Server Addresses the Hub is told
+/// but the public one: the Server URL `url` holds, or the LAN address of `listening`. The Hub
 /// sends a sign-in with an Account back only to those, as `nama-hub`'s `is_on_server` checks.
 pub(crate) fn is_reported(address: &str, url: &ServerUrl, listening: SocketAddr) -> bool {
     let Ok(address) = Url::parse(address) else {
@@ -86,7 +82,7 @@ pub(crate) fn is_reported(address: &str, url: &ServerUrl, listening: SocketAddr)
     })
 }
 
-/// The Server Addresses the Plugin is told: the Server URL `url` holds, the LAN address `lan`, the
+/// The Server Addresses the Hub is told: the Server URL `url` holds, the LAN address `lan`, the
 /// public port and the Relay.
 fn addresses(
     url: &ServerUrl,

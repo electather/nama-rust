@@ -8,7 +8,7 @@ fn the_same_addresses_go_to_the_hub_again_once_its_check_is_old() {
         ..ServerAddresses::default()
     };
     let reported = Reported {
-        link: "link".to_owned(),
+        credential: "link".to_owned(),
         addresses: addresses.clone(),
         at,
     };

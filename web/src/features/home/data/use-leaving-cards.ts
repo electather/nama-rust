@@ -1,4 +1,5 @@
-import { useMutationState } from "@tanstack/react-query";
+import { useTransport } from "@connectrpc/connect-query";
+import { type MutationKey, useMutationState } from "@tanstack/react-query";
 
 import { setHiddenKey } from "@/features/home/data/use-set-hidden-from-continue-watching";
 import { askedText, removed, watched } from "@/features/home/lib/asked";
@@ -11,13 +12,17 @@ import { setPlayedKey } from "@/shared/hooks/use-set-played";
  * Server refuses.
  */
 export function useLeavingCards() {
-  const asked = new Set([...usePending(setPlayedKey), ...usePending(setHiddenKey)]);
+  const transport = useTransport();
+  const asked = new Set([
+    ...usePending(setPlayedKey(transport)),
+    ...usePending(setHiddenKey(transport)),
+  ]);
   return (card: Card) =>
     asked.has(askedText(watched(card.marking))) || asked.has(askedText(removed(card.hiding)));
 }
 
 /** What each pending mutation under `mutationKey` asks, as `askedText` writes it. */
-function usePending(mutationKey: string[]) {
+function usePending(mutationKey: MutationKey) {
   return useMutationState({
     filters: { mutationKey, status: "pending" },
     select: ({ state }) => askedText(state.variables),

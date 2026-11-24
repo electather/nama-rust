@@ -1,3 +1,4 @@
+import { useTransport } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
@@ -12,6 +13,7 @@ import { isRunning } from "@/features/admin-jobs/lib/outcomes";
  */
 export function useBackUpJob() {
   const queryClient = useQueryClient();
+  const transport = useTransport();
   const job = useJobs().find(({ pluginId, id }) => pluginId === UPKEEP && id === BACK_UP_JOB);
   const runId = job?.lastRun?.id;
   const running = isRunning(job?.lastRun);
@@ -20,9 +22,9 @@ export function useBackUpJob() {
   const seen = useRef({ runId, running });
   useEffect(() => {
     if (!running && (seen.current.running || seen.current.runId !== runId)) {
-      void queryClient.invalidateQueries({ queryKey: backupsKey });
+      void queryClient.invalidateQueries({ queryKey: backupsKey(transport) });
     }
     seen.current = { runId, running };
-  }, [runId, running, queryClient]);
+  }, [runId, running, queryClient, transport]);
   return job;
 }

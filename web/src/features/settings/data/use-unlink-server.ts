@@ -1,3 +1,4 @@
+import { useTransport } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { serverLinkKey } from "@/features/settings/data/use-server-link";
@@ -7,10 +8,11 @@ import { useSensitiveMutation } from "@/shared/hooks/use-sensitive-mutation";
 /** Unlinks the Server, or stops showing its code, once the User confirms it's them. */
 export function useUnlinkServer() {
   const queryClient = useQueryClient();
+  const transport = useTransport();
   return useSensitiveMutation(ServerService.method.unlinkServer, {
     confirming: "Unlink the Server",
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: serverLinkKey });
+      await queryClient.invalidateQueries({ queryKey: serverLinkKey(transport) });
     },
   });
 }

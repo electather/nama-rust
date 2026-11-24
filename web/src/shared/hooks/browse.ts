@@ -4,7 +4,7 @@ import {
   type MessageInitShape,
   create,
 } from "@bufbuild/protobuf";
-import { Code } from "@connectrpc/connect";
+import { Code, type Transport } from "@connectrpc/connect";
 import { createConnectQueryKey, createQueryOptions } from "@connectrpc/connect-query";
 import { notFound } from "@tanstack/react-router";
 
@@ -79,7 +79,9 @@ export function externalIdFromParam(param: string) {
 }
 
 /** Every browse query, including Continue Watching: what to refresh when Watch State changes. */
-export const browseKey = createConnectQueryKey({ schema: BrowseService, cardinality: undefined });
+export function browseKey(transport: Transport) {
+  return createConnectQueryKey({ schema: BrowseService, cardinality: undefined, transport });
+}
 
 /**
  * The Library id in the URL, or the router's not-found if it isn't one. A title's RPC answers
