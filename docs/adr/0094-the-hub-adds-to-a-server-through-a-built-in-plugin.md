@@ -1,5 +1,7 @@
 # The Hub adds to a Server through a Built-in Plugin, and answers only with External IDs
 
+_Its Built-in Plugin half is superseded by [ADR 0105](0105-the-hub-serves-the-web-app-for-all-of-an-accounts-servers.md): the Kernel talks to the Hub, and only the Hub's suggestions stay a Plugin._
+
 Everything a Server does today stays on the Server (ADR 0002). The Hub only adds features, and each one reaches a Server through one Built-in Plugin that implements the existing Extension Points (ADR 0006): Featured suggestions, Home rows and a Similar source, built from the Account's history and the pooled counts (ADR 0072, 0084, 0093). The same Plugin registers the Server, Links Users, syncs Watch State, Watchlists and Subtitle Preferences, sends Viewing Events, and is the Sign-in Method provider for Accounts (ADR 0014), as local-auth is for passwords. The Kernel learns nothing about the Hub and gains only general Kernel functions the Plugin lacks. A Server that isn't Linked doesn't enable the Plugin.
 
 The Hub never holds or serves TMDB or TVDB content. Its answers are External IDs with weights. The Server's own title source Plugins, with the Admin's own keys, turn them into titles, artwork and charts, and show the attribution those services require. TMDB's terms license only the app holding the key and forbid sublicensing access and "derivatives" of its API. TVDB's forbid distributing its data. A Hub serving their data to every Server would break both.
