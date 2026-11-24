@@ -1,5 +1,7 @@
 use std::fs;
 
+use nama_proto::nama::v1::Permission;
+
 use super::{ACCESS, Access};
 
 /// Every RPC `buf generate` wrote a stub for, by path, read from the generated code so a new
@@ -51,5 +53,13 @@ fn media_needs_a_session() {
     assert!(matches!(
         Access::of("/media/versions/1"),
         Some(Access::SignedIn)
+    ));
+}
+
+#[test]
+fn downloading_a_versions_file_needs_download() {
+    assert!(matches!(
+        Access::of("/media/downloads/1"),
+        Some(Access::Needs(Permission::Download))
     ));
 }

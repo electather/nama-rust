@@ -14,6 +14,8 @@ mod compression;
 #[cfg(unix)]
 #[path = "playback/direct_play.rs"]
 mod direct_play;
+#[path = "playback/downloads.rs"]
+mod downloads;
 #[path = "playback/failing_ffmpeg.rs"]
 mod failing_ffmpeg;
 #[path = "support/http.rs"]
