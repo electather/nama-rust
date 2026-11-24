@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package nama.plugin.v1;
+
+import "nama/plugin/v1/automation.proto";
+import "nama/plugin/v1/request.proto";
+
+// The Extension Point for Watch sync: a Plugin that follows each User's Watch State to an outside
+// tracker, such as Trakt, and brings the changes made there back. An Installed Plugin serves it
+// through the WASM exports its rpcs name, taking and returning its messages encoded as protobuf.
+// Both exports are required.
+//
+// Each User links their own account through the Plugin's Personal settings (ADR 0046): the Kernel
+// asks only for a User who set any of them, with that User's values and never another's. Watch
+// State only; ratings don't sync.
+service WatchSyncService {
+  // The `scrobble` export: one write's changes to a User's Watch State, told as the write is
+  // made, a position update while they play included. Best effort: a failed call is logged and
+  // shown on the Plugins page, and not asked again. A change `import` brought in is never
+  // scrobbled back.
+  rpc Scrobble(ScrobbleAsked) returns (Scrobbled);
+  // The `import` export: the changes to a User's Watch State on the outside tracker since the
+  // last import, asked every 15 minutes. The Kernel takes each of a Movie or an Episode a Library
+  // has that is newer than the Server's own (ADR 0008), and keeps the `cursor` for the next ask,
+  // per User, until the User or the Plugin is gone. A failed call keeps the cursor.
+  rpc Import(ImportAsked) returns (Imported);
+}
+
+// What the `scrobble` export is told.
+message ScrobbleAsked {
+  // The User's values for the Plugin's Personal settings, as `UserRowsAsked.personal_settings`.
+  map<string, string> personal_settings = 1;
+  int64 user_id = 2;
+  // One per Movie or Episode the write changed.
+  repeated SyncedWatchState changes = 3;
+}
+
+// What the `scrobble` export returns: nothing yet.
+message Scrobbled {}
+
+// What the `import` export is asked.
+message ImportAsked {
+  // As `ScrobbleAsked.personal_settings`.
+  map<string, string> personal_settings = 1;
+  int64 user_id = 2;
+  // The `cursor` the Plugin returned for this User last, empty on the first ask.
+  string since = 3;
+}
+
+// What the `import` export returns.
+message Imported {
+  // Changes to the User's Watch State since `since`, in any order. One whose title no Library
+  // has, or that isn't newer than the Server's own, is dropped.
+  repeated SyncedWatchState changes = 1;
+  // Where the next ask continues from, opaque to the Kernel, which hands it back as `since`.
+  string cursor = 2;
+}
+
+// A Movie's or Episode's Watch State as a change left it.
+message SyncedWatchState {
+  // TITLE_REF_KIND_MOVIE or TITLE_REF_KIND_EPISODE.
+  TitleRefKind kind = 1;
+  // Its External IDs, any of which identifies it. The Kernel sends every one it has, the one it
+  // keeps the Watch State under first (ADR 0013).
+  repeated TitleId ids = 2;
+  bool played = 3;
+  // How far in, in milliseconds. Unplayed at 0 of 0 is marked unplayed.
+  uint64 position_ms = 4;
+  // How long it is, in milliseconds; 0 if unknown.
+  uint64 duration_ms = 5;
+  // When it changed, in milliseconds since the Unix epoch, which decides the newer of two changes.
+  int64 changed_at_ms = 6;
+}
