@@ -127,7 +127,7 @@ async fn the_app_s_webassembly_is_served_as_such() {
     let wasm = std::fs::read_dir(assets)
         .unwrap()
         .map(|entry| entry.unwrap().file_name().into_string().unwrap())
-        .find(|name| name.ends_with(".wasm"))
+        .find(|name| Path::new(name).extension().is_some_and(|e| e == "wasm"))
         .unwrap();
 
     let (status, headers, _) = http1_get(server.addr, &format!("/assets/{wasm}")).await;
@@ -206,10 +206,6 @@ async fn http1_get(addr: SocketAddr, path: &str) -> (u16, HeaderMap, Vec<u8>) {
 }
 
 /// Like [`http1_get`], presenting `token`, if any, as a bearer token.
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
 async fn http1_get_as(
     addr: SocketAddr,
     path: &str,

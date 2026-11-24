@@ -130,6 +130,8 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo clippy --workspace --locked -- -D warnings
 cargo clippy $(.github/scripts/wasm-packages.sh) --target wasm32-unknown-unknown --locked -- -D warnings
+cargo clippy -p nama-server --features web --all-targets --locked -- -D warnings   # after `vp -C web build`
+cargo clippy -p nama-hub --features web --all-targets --locked -- -D warnings      # after `vp -C web/hub build`
 cargo nextest run --workspace --locked
 cargo test --workspace --doc --locked
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
@@ -145,7 +147,7 @@ Building the Server builds the Plugins it bundles for wasm32 (`crates/nama-serve
 
 CI also checks that the generated code and the sqlx query data are current. If you change `proto/`, see [`crates/nama-proto/README.md`](crates/nama-proto/README.md). If you change a query or a migration, see [`crates/nama-server/README.md`](crates/nama-server/README.md), or the Hub's [`crates/nama-hub/README.md`](crates/nama-hub/README.md).
 
-Its jobs run side by side on GitHub-hosted runners: `lint`, `rust-check`, `test` (split in two, on Linux for a PR and also on macOS and Windows on main), the web app's checks in `web` ([`web/README.md`](web/README.md), "Checks"), `web-test`, which builds the web app and runs `cargo nextest run -p nama-server --features web --test web` against it, then builds the Hub's and runs its `web::` unit tests, and `hub`, which runs the Hub's tests against PostgreSQL in a service container, which only Linux runners have, so `test` leaves the Hub out. On a PR, path filters skip the side it doesn't touch: a web-only PR skips the Rust checks and the workspace tests, a Rust-only one the web checks, and one that touches neither, such as docs or Markdown no check reads, runs nothing. A push to main runs everything. A PR merges into main only once `ci-ok` passes, which waits for all the others and passes when none failed.
+Its jobs run side by side on GitHub-hosted runners: `lint`, `rust-check`, `test` (split in two, on Linux for a PR and also on macOS and Windows on main), the web app's checks in `web` ([`web/README.md`](web/README.md), "Checks"), `web-test`, which builds the web app, lints the Server with `web` on and runs `cargo nextest run -p nama-server --features web --test web` against it, then builds the Hub's, lints the Hub with `web` on and runs its `web::` unit tests, and `hub`, which runs the Hub's tests against PostgreSQL in a service container, which only Linux runners have, so `test` leaves the Hub out. On a PR, path filters skip the side it doesn't touch: a web-only PR skips the Rust checks and the workspace tests, a Rust-only one the web checks, and one that touches neither, such as docs or Markdown no check reads, runs nothing. A push to main runs everything. A PR merges into main only once `ci-ok` passes, which waits for all the others and passes when none failed.
 
 ### Flaky and slow tests
 
