@@ -136,7 +136,7 @@ fn push_plugin_line(plugin: &PluginId, line_at: impl FnOnce(i64) -> PluginLine) 
     if lines.len() == KEPT_PLUGIN_LINES {
         lines.pop_front();
     }
-    // Read under the lock, so the order it keeps lines in is their `at_ms` order.
+    // The time is read under the lock, so the order it keeps lines in is their `at_ms` order.
     lines.push_back(line_at(db::now_ms()));
 }
 
