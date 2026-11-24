@@ -20,8 +20,12 @@ use url::Url;
 use crate::{db::now, diagnostics};
 
 mod subscriptions;
+#[cfg(test)]
+mod testing;
 
 pub(crate) use subscriptions::{push as push_to_subscriptions, subscribe, unsubscribe};
+#[cfg(test)]
+pub(crate) use testing::{browser, push_service};
 
 /// How long a push service keeps a push for a browser that's offline, in seconds.
 const KEPT_FOR_SECONDS: u32 = 7 * 24 * 60 * 60;
@@ -90,8 +94,8 @@ impl VapidKey {
     }
 }
 
-/// A browser's push subscription: where its push service takes pushes for it, and its keys.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A browser's push subscription: where its push service takes pushes for it, and its keys. All
+/// three are its secrets, so it has no `Debug`.
 pub(crate) struct Subscription {
     pub(crate) endpoint: String,
     /// The browser's P-256 public key, uncompressed.
@@ -109,7 +113,7 @@ pub(crate) enum Invalid {
     Endpoint,
     #[error("p256dh isn't an uncompressed P-256 public key")]
     P256dh,
-    #[error("auth isn't {AUTH_LEN} bytes")]
+    #[error("auth isn't the browser's authentication secret")]
     Auth,
 }
 
@@ -153,7 +157,7 @@ pub(crate) enum Pushed {
 pub(crate) enum PushError {
     /// The endpoint isn't a URL, its keys aren't the browser's, or signing failed.
     #[error("could not encrypt or sign a push for the subscription")]
-    Encrypting,
+    Unsendable,
     #[error("could not reach the push service: {0}")]
     Unreachable(reqwest::Error),
     #[error("the push service answered {0}")]
@@ -194,10 +198,10 @@ impl Pusher {
         to: &Subscription,
         message: &[u8],
     ) -> Result<Pushed, PushError> {
-        let endpoint = Url::parse(&to.endpoint).map_err(|_unreadable| PushError::Encrypting)?;
+        let endpoint = Url::parse(&to.endpoint).map_err(|_failed| PushError::Unsendable)?;
         let authorization =
-            (self.key.authorization(&endpoint)).map_err(|_unreadable| PushError::Encrypting)?;
-        let body = encrypt(to, message).map_err(|_unreadable| PushError::Encrypting)?;
+            (self.key.authorization(&endpoint)).map_err(|_failed| PushError::Unsendable)?;
+        let body = encrypt(to, message).map_err(|_failed| PushError::Unsendable)?;
         let response = (self.client.post(endpoint))
             .header("Authorization", authorization)
             .header("Content-Encoding", "aes128gcm")
@@ -268,4 +272,4 @@ fn hkdf(salt: &[u8], ikm: &[u8], info: &[u8], out: &mut [u8]) -> Result<(), Unsp
 
 #[cfg(test)]
 #[path = "web_push/web_push_tests.rs"]
-pub(crate) mod tests;
+mod tests;

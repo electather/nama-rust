@@ -27,10 +27,7 @@ use crate::{
         Permissions, User, list_inbox, personal_settings_of, replace_personal_settings,
         set_notification_preference,
     },
-    web_push::{
-        subscribe as subscribe_web_push,
-        tests::{browser, push_service},
-    },
+    web_push::{browser, push_service, subscribe as subscribe_web_push},
 };
 
 fn user(id: i64, permissions: Permissions) -> User {

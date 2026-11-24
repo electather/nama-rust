@@ -28,7 +28,7 @@ use tokio::{
         broadcast::{self, error::RecvError},
         mpsc,
     },
-    task::{JoinHandle, JoinSet},
+    task::{JoinError, JoinHandle, JoinSet},
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
@@ -164,7 +164,7 @@ impl EventBus {
         let Some((_, About::Request(request))) = classify(event) else {
             return;
         };
-        let request_url = (self.server_url.requests_link()).filter(|_| !is_removed(event));
+        let request_url = request_link(&self.server_url, event);
         let Some(notification) = plugins::notification(event, request, request_url) else {
             return;
         };
@@ -190,7 +190,7 @@ impl EventBus {
         if matches!(*inboxes, Inboxes::NotStarted) {
             // Unbounded, as `publish` can't wait; it carries one event per Request change.
             let (sender, receiver) = mpsc::unbounded_channel();
-            let storing = tokio::spawn(store_each_in_inboxes(
+            let storing = tokio::spawn(store_and_push_each(
                 Arc::clone(&self.db),
                 self.server_url.clone(),
                 receiver,
@@ -395,7 +395,7 @@ async fn deliver(
 /// [`store_in_inboxes`] for each event `published` sends, in order, logging each that fails, then
 /// pushes what it stored to its Users' browsers, linking to the Requests at `server_url`. Each
 /// event's pushes run on their own, so a slow push service holds up no other notification.
-async fn store_each_in_inboxes(
+async fn store_and_push_each(
     db: Arc<Database>,
     server_url: ServerUrl,
     mut published: mpsc::UnboundedReceiver<Event>,
@@ -415,14 +415,24 @@ async fn store_each_in_inboxes(
             pusher = make_pusher(&db).await;
         }
         if let Some(pusher) = pusher.clone() {
-            let link = (server_url.requests_link()).filter(|_| !is_removed(&event));
+            let link = request_link(&server_url, &event);
             let db = Arc::clone(&db);
             pushing.spawn(async move { push_to_subscriptions(&db, &pusher, stored, link).await });
         }
-        while pushing.try_join_next().is_some() {}
+        while let Some(pushed) = pushing.try_join_next() {
+            log_panic(pushed);
+        }
     }
     // Before the database closes: a push deletes a subscription that's gone.
-    while pushing.join_next().await.is_some() {}
+    while let Some(pushed) = pushing.join_next().await {
+        log_panic(pushed);
+    }
+}
+
+fn log_panic(pushed: Result<(), JoinError>) {
+    if let Err(err) = pushed {
+        error!("pushing notifications panicked: {err}");
+    }
 }
 
 /// What pushes signed with the Server's VAPID key, or `None`, logged, if it can't be read or made.
@@ -459,15 +469,17 @@ async fn store_in_inboxes(
     store_in_inbox(db, told, kind, request).await
 }
 
-/// Whether `event` removed its Request, which is then no longer in the web app to link to.
-fn is_removed(event: &Event) -> bool {
-    matches!(
+/// Where the web app lists `event`'s Request, at `server_url`, or `None` once the event removed
+/// it, as it's then no longer there to link to.
+fn request_link(server_url: &ServerUrl, event: &Event) -> Option<String> {
+    let removed = matches!(
         classify(event),
         Some((
             EventType::EVENT_TYPE_REQUEST_CANCELLED | EventType::EVENT_TYPE_REQUEST_WITHDRAWN,
             _
         ))
-    )
+    );
+    server_url.requests_link().filter(|_| !removed)
 }
 
 /// The recipients a Notifier didn't reach, each with its error: a User by id, or the channel.

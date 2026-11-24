@@ -13,7 +13,7 @@ use crate::{
     db::Database,
     web_push::{
         Pusher,
-        tests::{assert_valid_vapid, browser, new_key, push_service, silent_push_service},
+        testing::{assert_valid_vapid, browser, new_key, push_service, silent_push_service},
     },
 };
 
