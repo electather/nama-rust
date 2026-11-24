@@ -54,13 +54,14 @@ pub(super) fn network(facts: &Facts, _: Option<&Candidates>) -> Vec<Reason> {
             "This Device is outside the local network, where its User's cap for remote playback is {}",
             cap.name
         );
-        // A cap is a bandwidth courtesy: a Version of unknown size still plays, as an unprobed
-        // one does (ADR 0026), so the cap is best-effort there.
+        // A cap is best-effort for a picture of unknown size, which still plays (ADR 0031).
         if picture(facts).is_none() {
             return vec![limit_reason(
                 Kind::PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN,
                 cap,
-                format!("{text}, but its picture size isn't known, so the cap can't be applied"),
+                format!(
+                    "{text}, but the picture's size isn't known, so it can't be scaled down to the cap"
+                ),
             )];
         }
         if lower(wanted, Some(cap)) != wanted && scales_down(facts, cap) {
@@ -187,7 +188,8 @@ pub(super) fn playback_limit(facts: &Facts, candidates: Option<&Candidates>) -> 
                 .ruling_out([Method::DirectPlay, Method::Remux]),
         ];
     }
-    if picture(facts).is_some() {
+    // The network step already said a remote cap can't be applied to a picture of unknown size.
+    if picture(facts).is_some() || remote_cap_of(facts) == Some(limit) {
         return vec![];
     }
     let text = format!(

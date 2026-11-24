@@ -126,7 +126,7 @@ const wordings: Record<PlaybackReasonKind, Wording | undefined> = {
   [PlaybackReasonKind.REMOTE_CAP]: (param) =>
     `This Device is outside the local network, where your cap for remote playback is ${param.limit()}.`,
   [PlaybackReasonKind.REMOTE_CAP_PICTURE_SIZE_UNKNOWN]: (param) =>
-    `This Device is outside the local network, where your cap for remote playback is ${param.limit()}, but its picture size isn’t known, so the cap can’t be applied.`,
+    `This Device is outside the local network, where your cap for remote playback is ${param.limit()}, but the picture’s size isn’t known, so it can’t be scaled down to the cap.`,
   [PlaybackReasonKind.PICTURE_SIZE_UNKNOWN]: (param) =>
     `Its picture size isn’t known, so it’s taken to fit the ${param.limit()} Playback Limit.`,
   [PlaybackReasonKind.CHOSEN_AUDIO_DROPPED]: () =>

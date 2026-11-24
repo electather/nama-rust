@@ -448,7 +448,7 @@ One fact that shaped a Playback Plan, such as a codec the Device can't decode or
 _Avoid_: explanation, note
 
 **Playback Limit**:
-The most a User asks playback to send, such as "Original", "1080p" or "720p". A limit below the Version's own makes it Transcode; when the Server can't Transcode it, it plays as it is and the Playback Plan says why. Until the User picks one, a Device outside the local network gets the default an Admin sets for remote playback. An Admin may also cap a User's remote playback: outside the local network their Devices are never sent more than that cap, whatever they pick, and a plan that can't keep to it doesn't play.
+The most a User asks playback to send, such as "Original", "1080p" or "720p". A limit below the Version's own makes it Transcode; when the Server can't Transcode it, it plays as it is and the Playback Plan says why. Until the User picks one, a Device outside the local network gets the default an Admin sets for remote playback. An Admin may also cap a User's remote playback: outside the local network their Devices are never sent more than that cap, whatever they pick, and a plan that can't keep to it doesn't play. A picture of unknown size is the exception: the cap can't be applied to it, so it plays anyway and the Playback Plan says why.
 _Avoid_: quality, bitrate, resolution
 
 **Subtitle Preference**:

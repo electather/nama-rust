@@ -11,4 +11,4 @@ ADR 0027's steps all narrow, so a choice that needs a Remux or a Transcode (an a
 
 - A busy Server refuses a plan only when the Device itself needs a Transcode, never because of a choice.
 - A dropped choice is forgotten, so it isn't honoured later just because something else was chosen.
-- A User's cap for remote playback, which an Admin sets, is no choice of theirs. A limit is never dropped where that would send more than the cap, so a capped plan that can't keep to it doesn't play. The plan names the cap, so the player shows the limits above it as unavailable (#2023).
+- A User's cap for remote playback, which an Admin sets, is no choice of theirs. A limit is never dropped where that would send more than the cap, so a capped plan that can't keep to it doesn't play. The plan names the cap, so the player shows the limits above it as unavailable (#2023). A picture of unknown size, such as a Version Probing hasn't reached or one on a Server without ffprobe (ADR 0026), can't be scaled down, so the cap is best-effort there: a cap is a bandwidth courtesy, so it still plays, possibly larger than the cap, and a Playback Reason says so (#2134).
