@@ -74,8 +74,8 @@ service LinkService {
 // `REFUSAL_REASON_SERVER_NOT_LINKED` without one the Hub knows.
 service LinkedServerService {
   // Unlinks the calling Server: its credential stops working at once, it leaves its Account's
-  // Servers, and its names are removed (ADR 0104). Fails, leaving the Server Linked, while the Hub
-  // can't remove its names.
+  // Servers, and its names and certificate challenge are removed (ADR 0104). Fails, leaving the
+  // Server Linked, while the Hub can't remove them.
   rpc UnlinkServer(UnlinkServerRequest) returns (UnlinkServerResponse);
   // The titles most like one title, of its kind, by the vectors the Hub builds from Wikidata's
   // facts (ADR 0095): at most 100, most alike first. Empty when Wikidata lacks the title or the
@@ -164,8 +164,8 @@ service LinkedServerService {
   // own name, so an ACME CA such as Let's Encrypt finds the DNS-01 challenge it set the Server for
   // a certificate for its names (ADR 0057). The Server makes the certificate's key itself and sends
   // only the challenge, so the Hub never holds the key. Empty `values` remove them. Fails with
-  // `REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID` for too many values or one that isn't one, with
-  // `failed_precondition` on a Hub that names no Server, and while the Hub can't write them.
+  // `REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID` for too many values or one that isn't one, and
+  // on a Hub that names no Server or while the Hub can't write them.
   rpc SetCertificateChallenge(SetCertificateChallengeRequest) returns (SetCertificateChallengeResponse) {
     option idempotency_level = IDEMPOTENT;
   }

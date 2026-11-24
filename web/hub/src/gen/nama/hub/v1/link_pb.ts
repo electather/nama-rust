@@ -1873,8 +1873,8 @@ export const LinkService: GenService<{
 export const LinkedServerService: GenService<{
   /**
    * Unlinks the calling Server: its credential stops working at once, it leaves its Account's
-   * Servers, and its names are removed (ADR 0104). Fails, leaving the Server Linked, while the Hub
-   * can't remove its names.
+   * Servers, and its names and certificate challenge are removed (ADR 0104). Fails, leaving the
+   * Server Linked, while the Hub can't remove them.
    *
    * @generated from rpc nama.hub.v1.LinkedServerService.UnlinkServer
    */
@@ -2063,8 +2063,8 @@ export const LinkedServerService: GenService<{
    * own name, so an ACME CA such as Let's Encrypt finds the DNS-01 challenge it set the Server for
    * a certificate for its names (ADR 0057). The Server makes the certificate's key itself and sends
    * only the challenge, so the Hub never holds the key. Empty `values` remove them. Fails with
-   * `REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID` for too many values or one that isn't one, with
-   * `failed_precondition` on a Hub that names no Server, and while the Hub can't write them.
+   * `REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID` for too many values or one that isn't one, and
+   * on a Hub that names no Server or while the Hub can't write them.
    *
    * @generated from rpc nama.hub.v1.LinkedServerService.SetCertificateChallenge
    */

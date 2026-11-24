@@ -16,6 +16,12 @@ pub(super) fn own_name(server: LinkedServerId, zone: &str) -> String {
     format!("{}.{zone}", server.0.simple())
 }
 
+/// Where `own`, a Server's own name, holds the TXT records of the DNS-01 challenge for its
+/// certificate (RFC 8555, section 8.4).
+pub(super) fn challenge_name(own: &str) -> String {
+    format!("_acme-challenge.{own}")
+}
+
 /// The records under `own`, a Server's own name: `own` itself at `public`, where the Hub reached
 /// it, and one name per private IPv4 address among `lan_addresses`, carrying the address, such as
 /// `192-168-1-10.<own>`.

@@ -240,6 +240,20 @@ async fn a_server_publishes_its_certificate_challenge_under_its_own_name_until_i
 }
 
 #[sqlx::test(migrations = false)]
+async fn unlinking_a_server_removes_its_certificate_challenge(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let living_room = linked(&hub, &ada, "Living room").await;
+    set_challenge(&hub, &living_room, &CHALLENGES)
+        .await
+        .unwrap();
+
+    unlink(&hub, &living_room).await.unwrap();
+
+    assert!(hub.texts().is_empty());
+}
+
+#[sqlx::test(migrations = false)]
 async fn a_certificate_challenge_that_isnt_one_is_refused(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;

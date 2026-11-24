@@ -25,7 +25,7 @@ use rustls::{
     sign::CertifiedKey,
 };
 use serde::{Deserialize, Serialize};
-use tokio::task::JoinHandle;
+use tokio::{task::JoinHandle, time::MissedTickBehavior};
 use url::Url;
 use x509_parser::{certificate::X509Certificate, extensions::GeneralName, prelude::FromDer as _};
 
@@ -145,6 +145,8 @@ pub(crate) fn keep_renewed(
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
         let mut ticks = tokio::time::interval(EVERY);
+        // A renewal can outlast a tick, and the ticks it missed needn't follow at once.
+        ticks.set_missed_tick_behavior(MissedTickBehavior::Delay);
         let mut next_try = i64::MIN;
         loop {
             ticks.tick().await;

@@ -472,11 +472,15 @@ impl Links {
         Ok(shown)
     }
 
-    /// Removes every record under `server`'s own name, if the Hub names Servers.
+    /// Removes every record under `server`'s own name, its certificate challenge's included, if
+    /// the Hub names Servers.
     async fn forget_names(&self, server: LinkedServerId) -> Result<(), DnsError> {
         if let Some(server_names) = &self.names {
             let own = names::own_name(server, &server_names.zone);
             server_names.records.replace(&own, Vec::new()).await?;
+            (server_names.records)
+                .replace_texts(&names::challenge_name(&own), Vec::new())
+                .await?;
         }
         Ok(())
     }
@@ -493,10 +497,9 @@ impl Links {
         }
         let server_names = self.names.as_ref().ok_or(Error::NamesOff)?;
         let own = names::own_name(server.id, &server_names.zone);
-        let challenge = format!("_acme-challenge.{own}");
         server_names
             .records
-            .replace_texts(&challenge, values)
+            .replace_texts(&names::challenge_name(&own), values)
             .await?;
         Ok(())
     }

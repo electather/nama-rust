@@ -744,8 +744,8 @@ fn refused(err: links::Error) -> ConnectError {
         E::ChallengeInvalid => refuse(R::REFUSAL_REASON_CERTIFICATE_CHALLENGE_INVALID, message)
             .field("values")
             .param("maxValues", &MAX_CHALLENGE_VALUES),
-        E::NamesOff => return ConnectError::failed_precondition(message),
-        E::Random(_) | E::Database(_) | E::Names(_) => return hub_failed(&err),
+        // ADR 0019: no Refusal, as it is the Hub's own setup.
+        E::Random(_) | E::Database(_) | E::Names(_) | E::NamesOff => return hub_failed(&err),
     };
     refused.into()
 }

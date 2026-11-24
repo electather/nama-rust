@@ -2,7 +2,7 @@
 
 A Server Linked to the Hub gets its own HTTPS names from it (ADR 0057), which Settings shows: its own name, such as `<id>.namadirect.net`, and `192-168-1-10.<id>.namadirect.net` for each of its LAN addresses. It gets a certificate for them from Let's Encrypt, agreeing to its Subscriber Agreement, and keeps it, with its key, which never leaves the Server, in `certificate.pem` in its data directory, renewing it a month before it expires. It serves HTTPS on its own port, 7980, beside plain HTTP, which the LAN keeps using, even while the certificate can't be renewed, such as while the Hub is down. Its own name reaches it from outside only while the Hub can reach its public port: one the Server opens on the router with UPnP or NAT-PMP, or the one you forward and name in `forwarded_port` in `nama.toml`. Then, unless you set a Server URL, `https://<id>.namadirect.net:<port>` is the Server URL.
 
-Where that can't work, such as behind CGNAT, an Admin opens a Server to the internet themselves. Pick one of the two setups below. Never forward port 7980 straight to the internet: without HTTPS, passwords and session cookies cross it in plain text.
+Where that can't work, such as behind CGNAT, an Admin opens a Server to the internet themselves. Pick one of the two setups below. For these, don't forward port 7980 to the internet yourself: over its plain HTTP, passwords and session cookies cross it in plain text.
 
 | | Caddy | Tailscale |
 |---|---|---|
