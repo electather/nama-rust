@@ -20,10 +20,10 @@ export const planKey = ["planPlayback"] as const;
 const KEEP_ALIVE_MS = 30_000;
 
 /**
- * A Worker's script that, sent a number of milliseconds, posts an empty message that often. Chrome
- * doesn't throttle a dedicated Worker's timers, while a silent page hidden for 5 minutes fires its
- * own at most once a minute, which would let the Server stop a paused player's plan (#2164). A page
- * Chrome freezes stops its Workers too, and plans again when it's back (#2084).
+ * A Worker's script that, sent a number of milliseconds, posts an empty message that often (why a
+ * Worker: `features/player/AGENTS.md`). Inline: a file of its own would import nothing, which
+ * oxlint's `import/unambiguous` rejects with no line to suppress it on. A page Chrome freezes stops its
+ * Workers too, and plans again when it's back (#2084).
  */
 const TICKER_URL = URL.createObjectURL(
   new Blob(["onmessage = ({ data }) => setInterval(() => postMessage(null), data);"], {
