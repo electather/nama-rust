@@ -10,7 +10,7 @@ Accounts (GLOSSARY.md): creating one with an email and a password, signing it in
 - **Sign-in Links reveal nothing.** Asking for one answers the same whether or not the email has an Account, and one task sends them in order, off the request path (`sign_in_links.rs`). A link lasts 15 minutes, works once, and continues only at a Hub path.
 - **Passkeys are WebAuthn** for the host of `NAMA_HUB_PUBLIC_URL`, ES256 or RS256, with no attestation, checked with `ring` in `webauthn.rs`; their challenges wait in memory too (ADR 0096).
 - **An Account keeps a way to sign in**: a password, a passkey, or, while mail is set up, the Sign-in Link (ADR 0100). Removing a passkey checks it under the Account's row lock.
-- **Rate limits live in memory** (ADR 0096): failed sign-ins and Sign-in Links asked for, per client IP, an IPv6 client by its /64, and per email, and Account creations per client IP, checked before any argon2 work (`rate_limits.rs`), and at most 20 waiting passkey challenges per client IP, freed when used or expired (`webauthn.rs`).
+- **Rate limits live in memory** (ADR 0096): failed sign-ins and Sign-in Links asked for, per client IP, an IPv6 client by its /64, and per email, and Account creations and passkey challenges asked for per client IP, checked before any argon2 work (`rate_limits.rs`), and at most 20 waiting passkey challenges per client IP, freed when used or expired (`webauthn.rs`).
 
 ### Neighbours
 
