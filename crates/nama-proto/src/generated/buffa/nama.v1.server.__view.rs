@@ -3969,6 +3969,21 @@ pub struct GetServerInfoResponseView<'a> {
     ///
     /// Field 7: `account_sign_in`
     pub account_sign_in: bool,
+    /// The widths among `image_widths`, smallest first, that a Poster grid offers in its `srcset`.
+    /// While resizing is on, the Server makes each downloaded Poster at these widths once its
+    /// Library's scan or Matching has downloaded it, so a first visit asking only for them waits on
+    /// no resize.
+    ///
+    /// Field 8: `poster_widths`
+    pub poster_widths: ::buffa::RepeatedView<'a, u32>,
+    /// As `poster_widths`, for Backdrops, titled ones among them.
+    ///
+    /// Field 9: `backdrop_widths`
+    pub backdrop_widths: ::buffa::RepeatedView<'a, u32>,
+    /// As `poster_widths`, for Title Logos.
+    ///
+    /// Field 10: `title_logo_widths`
+    pub title_logo_widths: ::buffa::RepeatedView<'a, u32>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
@@ -4055,6 +4070,64 @@ impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
                     );
                 }
             }
+            8u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    ::buffa::types::extend_packed_uint32(
+                        payload,
+                        view.poster_widths.as_mut_vec(),
+                        ::buffa::encoding::count_varints(payload),
+                    )?;
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.poster_widths.push(::buffa::types::decode_uint32(&mut cur)?);
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            9u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    ::buffa::types::extend_packed_uint32(
+                        payload,
+                        view.backdrop_widths.as_mut_vec(),
+                        ::buffa::encoding::count_varints(payload),
+                    )?;
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.backdrop_widths.push(::buffa::types::decode_uint32(&mut cur)?);
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
+            10u32 => {
+                if tag.wire_type() == ::buffa::encoding::WireType::LengthDelimited {
+                    let payload = ::buffa::types::borrow_bytes(&mut cur)?;
+                    ::buffa::types::extend_packed_uint32(
+                        payload,
+                        view.title_logo_widths.as_mut_vec(),
+                        ::buffa::encoding::count_varints(payload),
+                    )?;
+                } else if tag.wire_type() == ::buffa::encoding::WireType::Varint {
+                    view.title_logo_widths
+                        .push(::buffa::types::decode_uint32(&mut cur)?);
+                } else {
+                    return Err(
+                        ::buffa::encoding::wire_type_mismatch(
+                            tag,
+                            ::buffa::encoding::WireType::LengthDelimited,
+                        ),
+                    );
+                }
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4089,6 +4162,9 @@ impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
             image_widths: self.image_widths.to_vec(),
             exports_diagnostics: self.exports_diagnostics,
             account_sign_in: self.account_sign_in,
+            poster_widths: self.poster_widths.to_vec(),
+            backdrop_widths: self.backdrop_widths.to_vec(),
+            title_logo_widths: self.title_logo_widths.to_vec(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4122,6 +4198,30 @@ impl<'a> ::buffa::ViewEncode<'a> for GetServerInfoResponseView<'a> {
         }
         if self.account_sign_in {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        if !self.poster_widths.is_empty() {
+            let payload: u64 = self
+                .poster_widths
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.backdrop_widths.is_empty() {
+            let payload: u64 = self
+                .backdrop_widths
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        if !self.title_logo_widths.is_empty() {
+            let payload: u64 = self
+                .title_logo_widths
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -4159,6 +4259,39 @@ impl<'a> ::buffa::ViewEncode<'a> for GetServerInfoResponseView<'a> {
         }
         if self.account_sign_in {
             ::buffa::types::put_bool_field(7u32, self.account_sign_in, buf);
+        }
+        if !self.poster_widths.is_empty() {
+            let payload: u64 = self
+                .poster_widths
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(8u32, payload, buf);
+            for &v in &self.poster_widths {
+                ::buffa::types::encode_uint32(v, buf);
+            }
+        }
+        if !self.backdrop_widths.is_empty() {
+            let payload: u64 = self
+                .backdrop_widths
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(9u32, payload, buf);
+            for &v in &self.backdrop_widths {
+                ::buffa::types::encode_uint32(v, buf);
+            }
+        }
+        if !self.title_logo_widths.is_empty() {
+            let payload: u64 = self
+                .title_logo_widths
+                .iter()
+                .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
+                .sum::<u64>();
+            ::buffa::types::put_len_delimited_header(10u32, payload, buf);
+            for &v in &self.title_logo_widths {
+                ::buffa::types::encode_uint32(v, buf);
+            }
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -4202,6 +4335,27 @@ impl<'__a> ::serde::Serialize for GetServerInfoResponseView<'__a> {
         }
         if self.account_sign_in {
             __map.serialize_entry("accountSignIn", &self.account_sign_in)?;
+        }
+        if !self.poster_widths.is_empty() {
+            __map
+                .serialize_entry(
+                    "posterWidths",
+                    &::buffa::json_helpers::RepeatedJson(&self.poster_widths),
+                )?;
+        }
+        if !self.backdrop_widths.is_empty() {
+            __map
+                .serialize_entry(
+                    "backdropWidths",
+                    &::buffa::json_helpers::RepeatedJson(&self.backdrop_widths),
+                )?;
+        }
+        if !self.title_logo_widths.is_empty() {
+            __map
+                .serialize_entry(
+                    "titleLogoWidths",
+                    &::buffa::json_helpers::RepeatedJson(&self.title_logo_widths),
+                )?;
         }
         __map.end()
     }
@@ -4353,6 +4507,30 @@ impl GetServerInfoResponseOwnedView {
     #[must_use]
     pub fn account_sign_in(&self) -> bool {
         self.0.reborrow().account_sign_in
+    }
+    /// The widths among `image_widths`, smallest first, that a Poster grid offers in its `srcset`.
+    /// While resizing is on, the Server makes each downloaded Poster at these widths once its
+    /// Library's scan or Matching has downloaded it, so a first visit asking only for them waits on
+    /// no resize.
+    ///
+    /// Field 8: `poster_widths`
+    #[must_use]
+    pub fn poster_widths(&self) -> &::buffa::RepeatedView<'_, u32> {
+        &self.0.reborrow().poster_widths
+    }
+    /// As `poster_widths`, for Backdrops, titled ones among them.
+    ///
+    /// Field 9: `backdrop_widths`
+    #[must_use]
+    pub fn backdrop_widths(&self) -> &::buffa::RepeatedView<'_, u32> {
+        &self.0.reborrow().backdrop_widths
+    }
+    /// As `poster_widths`, for Title Logos.
+    ///
+    /// Field 10: `title_logo_widths`
+    #[must_use]
+    pub fn title_logo_widths(&self) -> &::buffa::RepeatedView<'_, u32> {
+        &self.0.reborrow().title_logo_widths
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<GetServerInfoResponseView<'static>>>

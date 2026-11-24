@@ -43,6 +43,7 @@ mod access;
 mod browse;
 mod browser_spans;
 mod events;
+mod inbox;
 mod jobs;
 mod libraries;
 mod matches;
@@ -172,6 +173,9 @@ pub(crate) fn router(
         .add_service(Arc::new(watch_states::WatchStateServiceHandler {
             browse: Browse::new(Arc::clone(&db), plugins.clone()),
             running: running.clone(),
+        }))
+        .add_service(Arc::new(inbox::InboxServiceHandler {
+            db: Arc::clone(&db),
         }))
         .add_service(Arc::new(watchlist::WatchlistServiceHandler {
             db: Arc::clone(&db),
@@ -450,6 +454,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_NOTHING_MATCHED
         | R::REFUSAL_REASON_BOX_SET_NOT_FOUND
         | R::REFUSAL_REASON_PERSON_NOT_FOUND
+        | R::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND
         | R::REFUSAL_REASON_SEASON_NOT_FOUND
         | R::REFUSAL_REASON_EPISODE_NOT_FOUND
         | R::REFUSAL_REASON_VERSION_NOT_FOUND

@@ -764,6 +764,7 @@ fn refused(err: links::Error) -> ConnectError {
     let refused = match err {
         E::RecentAuthenticationRequired(ref err) => recent_authentication_required(err),
         E::EmailNotProven => refuse(R::REFUSAL_REASON_EMAIL_NOT_PROVEN, message),
+        E::SignInLinksOff => refuse(R::REFUSAL_REASON_SIGN_IN_LINKS_OFF, message),
         E::CodeNotFound => refuse(R::REFUSAL_REASON_LINK_CODE_NOT_FOUND, message).field("code"),
         E::Expired => refuse(R::REFUSAL_REASON_LINK_EXPIRED, message).field("device_code"),
         E::UserLinked => refuse(R::REFUSAL_REASON_USER_LINKED, message),

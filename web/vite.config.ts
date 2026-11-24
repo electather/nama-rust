@@ -5,6 +5,8 @@ import { defineConfig } from "vite-plus";
 
 // The Server `vp dev` forwards RPCs and media to, so the browser sees one origin (ADR 0015).
 const serverUrl = process.env["NAMA_SERVER_URL"] ?? "http://localhost:7980";
+// Set, the app finds itself at the Hub, whose API answers there (ADR 0105); unset, at the Server.
+const hubUrl = process.env["NAMA_HUB_URL"];
 
 // CI sets `CI`. There a failed test is retried twice and the results go to a report that
 // `nama-test-report` reads (ADR 0022); locally a flaky test fails, so you notice it.
@@ -78,6 +80,8 @@ export default defineConfig({
       // paths the Server keeps out of the web app (`crates/nama-server/src/web.rs`). Custom Images
       // are uploaded with `PUT` and removed with `DELETE`, which the web app never answers, and
       // the web app's Diagnostics are posted.
+      // The first key a path matches wins, so the Hub's API goes ahead of the Server's.
+      ...(hubUrl === undefined ? {} : { "^/nama\\.hub\\.": hubUrl }),
       "^/nama\\.": serverUrl,
       "/media/": serverUrl,
       "/custom-images/": serverUrl,

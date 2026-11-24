@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE inbox SET read_at = coalesce(read_at, ?) WHERE id = ? AND user_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "17822b46ca3c5fedd5c6d117bd8e11d04706dfba3363bdc71b52bb8edb3c8e92"
+}

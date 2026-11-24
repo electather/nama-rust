@@ -1,5 +1,4 @@
 import { TextField } from "@hub/features/account/components/text-field";
-import { useSendsSignInLinks } from "@hub/features/account/data/sign-in-links";
 import { LinkFormEnd } from "@hub/features/links/components/link-form-end";
 import { linkErrors, typedCode } from "@hub/features/links/lib/link-refusal";
 
@@ -27,7 +26,7 @@ export function CodeForm({
     isPending: boolean;
   };
 }) {
-  const errors = linkErrors(approve.error, useSendsSignInLinks());
+  const errors = linkErrors(approve.error);
   return (
     <form
       aria-labelledby={id}

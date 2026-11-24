@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+import { AccountHome } from "@/features/auth/components/account-home";
 import { HomePage } from "@/features/home/components/home-page";
 import { HomePending } from "@/features/home/components/home-pending";
 import { continueWatchingQuery } from "@/features/home/data/use-continue-watching";
@@ -11,7 +12,10 @@ import { librariesQuery } from "@/shared/hooks/use-libraries";
 const shownBySection = () => {};
 
 export const Route = createFileRoute("/_member/")({
-  loader: async ({ context: { queryClient, transport } }) => {
+  loader: async ({ context: { queryClient, transport, account } }) => {
+    if (account) {
+      return;
+    }
     // The top of the page starts beside the layout rather than after it, and Home waits only on
     // its rows and Libraries, so neither shifts what's below once it shows: each section shows its
     // own skeleton until its titles arrive.
@@ -23,5 +27,10 @@ export const Route = createFileRoute("/_member/")({
     ]);
   },
   pendingComponent: HomePending,
-  component: HomePage,
+  component: HomeRoute,
 });
+
+function HomeRoute() {
+  const { account } = Route.useRouteContext();
+  return account ? <AccountHome email={account.email} /> : <HomePage />;
+}

@@ -7,8 +7,8 @@ use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
 use super::{
-    CODE_LIFETIME_MINS, Error, LinkedServer, LinkedServerId, Links, kept_name, may_link,
-    random_code, shown_code, typed_code,
+    CODE_LIFETIME_MINS, Error, LinkedServer, LinkedServerId, Links, kept_name, random_code,
+    shown_code, typed_code,
 };
 use crate::accounts::{AccountId, AccountSession};
 
@@ -92,7 +92,7 @@ impl Links {
         session: &AccountSession,
         code: &str,
     ) -> Result<ListedUser, Error> {
-        may_link(session)?;
+        self.may_link(session)?;
         let mut tx = self.db.begin().await?;
         let waiting = sqlx::query!(
             "DELETE FROM user_link_codes WHERE user_code = $1 AND expires_at > now()

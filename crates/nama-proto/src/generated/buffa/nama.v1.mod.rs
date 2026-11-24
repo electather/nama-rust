@@ -10,11 +10,12 @@ include!("nama.v1.watch_state.rs");
 include!("nama.v1.browse.rs");
 include!("nama.v1.playback.rs");
 include!("nama.v1.event.rs");
-include!("nama.v1.job.rs");
-include!("nama.v1.search.rs");
 include!("nama.v1.server.rs");
 include!("nama.v1.sign_in.rs");
 include!("nama.v1.user.rs");
+include!("nama.v1.inbox.rs");
+include!("nama.v1.job.rs");
+include!("nama.v1.search.rs");
 include!("nama.v1.watchlist.rs");
 #[allow(
     non_camel_case_types,
@@ -43,11 +44,12 @@ pub mod __buffa {
         include!("nama.v1.browse.__view.rs");
         include!("nama.v1.playback.__view.rs");
         include!("nama.v1.event.__view.rs");
-        include!("nama.v1.job.__view.rs");
-        include!("nama.v1.search.__view.rs");
         include!("nama.v1.server.__view.rs");
         include!("nama.v1.sign_in.__view.rs");
         include!("nama.v1.user.__view.rs");
+        include!("nama.v1.inbox.__view.rs");
+        include!("nama.v1.job.__view.rs");
+        include!("nama.v1.search.__view.rs");
         include!("nama.v1.watchlist.__view.rs");
         pub mod oneof {
             #[allow(unused_imports)]
@@ -58,9 +60,9 @@ pub mod __buffa {
             include!("nama.v1.watch_state.__view_oneof.rs");
             include!("nama.v1.browse.__view_oneof.rs");
             include!("nama.v1.event.__view_oneof.rs");
-            include!("nama.v1.search.__view_oneof.rs");
             include!("nama.v1.server.__view_oneof.rs");
             include!("nama.v1.sign_in.__view_oneof.rs");
+            include!("nama.v1.search.__view_oneof.rs");
         }
     }
     pub mod oneof {
@@ -72,9 +74,9 @@ pub mod __buffa {
         include!("nama.v1.watch_state.__oneof.rs");
         include!("nama.v1.browse.__oneof.rs");
         include!("nama.v1.event.__oneof.rs");
-        include!("nama.v1.search.__oneof.rs");
         include!("nama.v1.server.__oneof.rs");
         include!("nama.v1.sign_in.__oneof.rs");
+        include!("nama.v1.search.__oneof.rs");
     }
     /// Register this package's `Any` type entries and extension entries.
     pub fn register_types(reg: &mut ::buffa::type_registry::TypeRegistry) {
@@ -360,25 +362,6 @@ pub mod __buffa {
         reg.register_json_any(super::__ADMIN_STOP_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_CHANGED_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_JSON_ANY);
-        reg.register_json_any(super::__LIST_JOBS_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__LIST_JOBS_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__JOB_JSON_ANY);
-        reg.register_json_any(super::__CONFIGURE_JOB_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__CONFIGURE_JOB_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__PREVIEW_JOB_SCHEDULE_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__PREVIEW_JOB_SCHEDULE_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__LIST_JOB_RUNS_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__LIST_JOB_RUNS_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__RUN_JOB_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__RUN_JOB_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__JOB_RUN_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_REQUEST_JSON_ANY);
-        reg.register_json_any(super::__SEARCH_RESPONSE_JSON_ANY);
-        reg.register_json_any(super::__HITS_JSON_ANY);
-        reg.register_json_any(super::__HIT_JSON_ANY);
-        reg.register_json_any(super::__EPISODE_HIT_JSON_ANY);
-        reg.register_json_any(super::__PERSON_HIT_JSON_ANY);
-        reg.register_json_any(super::__DONE_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_LINK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_SERVER_LINK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SERVER_LINK_JSON_ANY);
@@ -518,6 +501,42 @@ pub mod __buffa {
         reg.register_json_any(super::__REORDER_HOME_ROWS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__RESET_HOME_LAYOUT_REQUEST_JSON_ANY);
         reg.register_json_any(super::__RESET_HOME_LAYOUT_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_INBOX_NOTIFICATIONS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_INBOX_NOTIFICATIONS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__INBOX_NOTIFICATION_JSON_ANY);
+        reg.register_json_any(
+            super::__COUNT_UNREAD_INBOX_NOTIFICATIONS_REQUEST_JSON_ANY,
+        );
+        reg.register_json_any(
+            super::__COUNT_UNREAD_INBOX_NOTIFICATIONS_RESPONSE_JSON_ANY,
+        );
+        reg.register_json_any(super::__MARK_INBOX_NOTIFICATION_READ_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__MARK_INBOX_NOTIFICATION_READ_RESPONSE_JSON_ANY);
+        reg.register_json_any(
+            super::__MARK_ALL_INBOX_NOTIFICATIONS_READ_REQUEST_JSON_ANY,
+        );
+        reg.register_json_any(
+            super::__MARK_ALL_INBOX_NOTIFICATIONS_READ_RESPONSE_JSON_ANY,
+        );
+        reg.register_json_any(super::__LIST_JOBS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_JOBS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__JOB_JSON_ANY);
+        reg.register_json_any(super::__CONFIGURE_JOB_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__CONFIGURE_JOB_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__PREVIEW_JOB_SCHEDULE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__PREVIEW_JOB_SCHEDULE_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__LIST_JOB_RUNS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_JOB_RUNS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__RUN_JOB_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__RUN_JOB_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__JOB_RUN_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SEARCH_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__HITS_JSON_ANY);
+        reg.register_json_any(super::__HIT_JSON_ANY);
+        reg.register_json_any(super::__EPISODE_HIT_JSON_ANY);
+        reg.register_json_any(super::__PERSON_HIT_JSON_ANY);
+        reg.register_json_any(super::__DONE_JSON_ANY);
         reg.register_json_any(super::__ADD_TO_WATCHLIST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__ADD_TO_WATCHLIST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REMOVE_FROM_WATCHLIST_REQUEST_JSON_ANY);
@@ -1637,82 +1656,6 @@ pub use self::__buffa::view::PlaybackView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackOwnedView;
 #[doc(inline)]
-pub use self::__buffa::view::ListJobsRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ListJobsRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListJobsResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ListJobsResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::JobView;
-#[doc(inline)]
-pub use self::__buffa::view::JobOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ConfigureJobRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ConfigureJobRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ConfigureJobResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ConfigureJobResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PreviewJobScheduleRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::PreviewJobScheduleRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PreviewJobScheduleResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::PreviewJobScheduleResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListJobRunsRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::ListJobRunsRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::ListJobRunsResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::ListJobRunsResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::RunJobRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::RunJobRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::RunJobResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::RunJobResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::JobRunView;
-#[doc(inline)]
-pub use self::__buffa::view::JobRunOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchRequestView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchRequestOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchResponseView;
-#[doc(inline)]
-pub use self::__buffa::view::SearchResponseOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::HitsView;
-#[doc(inline)]
-pub use self::__buffa::view::HitsOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::HitView;
-#[doc(inline)]
-pub use self::__buffa::view::HitOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::EpisodeHitView;
-#[doc(inline)]
-pub use self::__buffa::view::EpisodeHitOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::PersonHitView;
-#[doc(inline)]
-pub use self::__buffa::view::PersonHitOwnedView;
-#[doc(inline)]
-pub use self::__buffa::view::DoneView;
-#[doc(inline)]
-pub use self::__buffa::view::DoneOwnedView;
-#[doc(inline)]
 pub use self::__buffa::view::GetServerLinkRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::GetServerLinkRequestOwnedView;
@@ -2268,6 +2211,118 @@ pub use self::__buffa::view::ResetHomeLayoutRequestOwnedView;
 pub use self::__buffa::view::ResetHomeLayoutResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ResetHomeLayoutResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListInboxNotificationsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListInboxNotificationsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListInboxNotificationsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListInboxNotificationsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::InboxNotificationView;
+#[doc(inline)]
+pub use self::__buffa::view::InboxNotificationOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CountUnreadInboxNotificationsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::CountUnreadInboxNotificationsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CountUnreadInboxNotificationsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::CountUnreadInboxNotificationsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MarkInboxNotificationReadRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::MarkInboxNotificationReadRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MarkInboxNotificationReadResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::MarkInboxNotificationReadResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MarkAllInboxNotificationsReadRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::MarkAllInboxNotificationsReadRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::MarkAllInboxNotificationsReadResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::MarkAllInboxNotificationsReadResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListJobsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListJobsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListJobsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListJobsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::JobView;
+#[doc(inline)]
+pub use self::__buffa::view::JobOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ConfigureJobRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ConfigureJobRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ConfigureJobResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ConfigureJobResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewJobScheduleRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewJobScheduleRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewJobScheduleResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PreviewJobScheduleResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListJobRunsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListJobRunsRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ListJobRunsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ListJobRunsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RunJobRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::RunJobRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::RunJobResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::RunJobResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::JobRunView;
+#[doc(inline)]
+pub use self::__buffa::view::JobRunOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SearchResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HitsView;
+#[doc(inline)]
+pub use self::__buffa::view::HitsOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HitView;
+#[doc(inline)]
+pub use self::__buffa::view::HitOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeHitView;
+#[doc(inline)]
+pub use self::__buffa::view::EpisodeHitOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonHitView;
+#[doc(inline)]
+pub use self::__buffa::view::PersonHitOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::DoneView;
+#[doc(inline)]
+pub use self::__buffa::view::DoneOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::AddToWatchlistRequestView;
 #[doc(inline)]

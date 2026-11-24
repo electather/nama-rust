@@ -22,5 +22,7 @@ declare module "@tanstack/history" {
     refusedCode?: { code: string; errors: FormErrors };
     /** For `/code/done`: the Device just signed in. */
     signedInDevice?: string;
+    /** For `/sign-in-link-sent`: the email a Sign-in Link went to, if an Account has it. */
+    signInLinkSentTo?: string;
   }
 }

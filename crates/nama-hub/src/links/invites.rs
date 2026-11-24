@@ -6,7 +6,7 @@ use std::{fmt, str::FromStr};
 use uuid::Uuid;
 
 use super::{
-    Error, LinkedServer, LinkedServerId, Links, ListedUser, kept_name, may_link, users::insert_link,
+    Error, LinkedServer, LinkedServerId, Links, ListedUser, kept_name, users::insert_link,
 };
 use crate::accounts::{AccountId, AccountSession};
 
@@ -100,7 +100,7 @@ impl Links {
         session: &AccountSession,
         invite: InviteId,
     ) -> Result<ListedUser, Error> {
-        may_link(session)?;
+        self.may_link(session)?;
         let mut tx = self.db.begin().await?;
         let invited = sqlx::query!(
             "DELETE FROM user_invites WHERE id = $1 AND account_id = $2

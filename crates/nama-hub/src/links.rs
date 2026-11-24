@@ -164,6 +164,8 @@ pub(crate) enum Error {
     RecentAuthenticationRequired(#[from] RecentAuthenticationRequired),
     #[error("prove your email with a Sign-in Link before Linking")]
     EmailNotProven,
+    #[error("the Hub has no mail set up, so it can't prove emails, and Linking needs a proven one")]
+    SignInLinksOff,
     #[error("nothing is waiting on this code")]
     CodeNotFound,
     #[error("the User is Linked already; Unlink them first")]
@@ -284,7 +286,7 @@ impl Links {
         session: &AccountSession,
         code: &str,
     ) -> Result<ListedServer, Error> {
-        may_link(session)?;
+        self.may_link(session)?;
         let code = typed_code(code);
         let mut tx = self.db.begin().await?;
         let waiting = sqlx::query!(
@@ -633,6 +635,20 @@ impl Links {
         }
         Ok(())
     }
+
+    /// Whether `session` may Link: with a proven email (ADR 0100), checked first since signing in
+    /// again can't fix it, then Recent Authentication. Without mail nothing can prove an email, so
+    /// an unproven one is refused as [`Error::SignInLinksOff`] rather than offered a Sign-in Link.
+    fn may_link(&self, session: &AccountSession) -> Result<(), Error> {
+        if !session.email_proven {
+            return Err(if self.accounts.sends_sign_in_links() {
+                Error::EmailNotProven
+            } else {
+                Error::SignInLinksOff
+            });
+        }
+        Ok(session.require_recent_authentication()?)
+    }
 }
 
 /// Now, in seconds since the Unix epoch, as a token's `iat`.
@@ -641,15 +657,6 @@ fn issued_at() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
-}
-
-/// Whether `session` may Link: with a proven email (ADR 0100), checked first since signing in again
-/// can't fix it, then Recent Authentication.
-fn may_link(session: &AccountSession) -> Result<(), Error> {
-    if !session.email_proven {
-        return Err(Error::EmailNotProven);
-    }
-    Ok(session.require_recent_authentication()?)
 }
 
 /// Whether `value` is a DNS-01 challenge's value. Only base64url, so it can't break out of the TXT

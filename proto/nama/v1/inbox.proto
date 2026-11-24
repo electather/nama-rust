@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package nama.v1;
+
+import "nama/v1/page.proto";
+import "nama/v1/user.proto";
+
+// The signed-in caller's inbox: each Request notification the Server told them, whether or not a
+// Notifier delivered it, but none of a kind they turned off with
+// `UserService.SetNotificationPreference`. It keeps their newest 200. A caller sees and marks only
+// their own.
+service InboxService {
+  // Lists the caller's notifications, newest first.
+  rpc ListInboxNotifications(ListInboxNotificationsRequest) returns (ListInboxNotificationsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Counts the caller's unread notifications.
+  rpc CountUnreadInboxNotifications(CountUnreadInboxNotificationsRequest) returns (CountUnreadInboxNotificationsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Marks one of the caller's notifications read. Marking a read one changes nothing. Fails with
+  // `REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND` for an id that isn't one of theirs.
+  rpc MarkInboxNotificationRead(MarkInboxNotificationReadRequest) returns (MarkInboxNotificationReadResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Marks every one of the caller's notifications read.
+  rpc MarkAllInboxNotificationsRead(MarkAllInboxNotificationsReadRequest) returns (MarkAllInboxNotificationsReadResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+}
+
+message ListInboxNotificationsRequest {
+  // The page of notifications to list.
+  PageRequest page = 1;
+}
+
+message ListInboxNotificationsResponse {
+  repeated InboxNotification notifications = 1;
+  // The rest of the list: the next page's token, and on the first page how many the caller has.
+  PageResponse page = 2;
+}
+
+// A Request notification in a User's inbox.
+message InboxNotification {
+  // What `MarkInboxNotificationRead` takes.
+  int64 id = 1;
+  // What happened to the Request.
+  NotificationKind kind = 2;
+  // The Movie's title, or the Show's for a Season, as it was when the notification was made.
+  string title = 3;
+  // The Season's number, for a Season's Request only.
+  optional uint32 season_number = 4;
+  // The Request it is about, which may be gone since, as a cancelled one is.
+  int64 request_id = 5;
+  // When it was made, in seconds since the Unix epoch.
+  int64 created_at = 6;
+  // When the User first marked it read, in seconds since the Unix epoch, unset while unread.
+  optional int64 read_at = 7;
+}
+
+message CountUnreadInboxNotificationsRequest {}
+
+message CountUnreadInboxNotificationsResponse {
+  // How many of the caller's notifications are unread.
+  uint32 unread = 1;
+}
+
+message MarkInboxNotificationReadRequest {
+  // The notification's `id`.
+  int64 id = 1;
+}
+
+message MarkInboxNotificationReadResponse {}
+
+message MarkAllInboxNotificationsReadRequest {}
+
+message MarkAllInboxNotificationsReadResponse {}

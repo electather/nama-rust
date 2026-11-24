@@ -93,16 +93,18 @@ async function newVideo(before: HTMLElement) {
 }
 
 // The Server stops a plan a minute after it was last asked for, and a paused player asks for nothing.
+// happy-dom never plays, so each `<video>` here stays as one whose autoplay the browser refused.
 test.each([
   ["Remux", PlaybackMethod.REMUX, PLAYLIST],
   ["Direct Play", PlaybackMethod.DIRECT_PLAY, FILE],
 ])(
-  "an open %s asks for its URL's headers every 30 seconds, so a pause doesn't stop it",
+  "an open %s asks for its URL's headers every 30 seconds, though it never started, as when autoplay is refused",
   async (_, method, url) => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     const fetched = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response());
     openApp("/libraries/1/movies/tmdb-603/play", planning(method, url));
-    await screen.findByLabelText("The Matrix");
+    const video = await screen.findByLabelText<HTMLVideoElement>("The Matrix");
+    expect(video.paused).toBe(true);
     const asks = () => fetched.mock.calls.filter(([asked]) => asked === url);
     const before = asks().length;
 

@@ -35,7 +35,7 @@ use crate::{
     db::Database,
     images::{Asked, CUSTOM_IMAGES_DIR, ImageStore, Received, Resize, UploadError, percent_decode},
     library::{
-        artwork::{Artwork, Error as ArtworkError, poster_grid_copy},
+        artwork::{Artwork, Error as ArtworkError, poster_copies},
         contents::{library_with_movie, library_with_show, matched_episodes, parse_hint},
     },
     server_settings::ImageSettings,
@@ -290,13 +290,8 @@ impl CustomImages {
     }
 
     /// Keeps `body` as the Custom Image at `slot`, in place of any there before, then makes
-    /// `poster_copy` of it in the background.
-    async fn upload(
-        &self,
-        slot: Slot,
-        body: Body,
-        poster_copy: Option<Resize>,
-    ) -> Result<(), Error> {
+    /// `copies` of it in the background.
+    async fn upload(&self, slot: Slot, body: Body, copies: Vec<Resize>) -> Result<(), Error> {
         let received = self.store.receive(&slot.key(), body).await?;
         let version = received.version.clone();
         let stored = slot.0.clone();
@@ -312,12 +307,12 @@ impl CustomImages {
         if let Some(old) = replaced?.filter(|old| *old != version) {
             self.delete_file(&slot, &old).await?;
         }
-        if let Some(copy) = poster_copy {
+        if !copies.is_empty() {
             let store = self.store.clone();
             tokio::spawn(async move {
                 let mut key = slot.key();
                 key.push(&version);
-                store.copy_ahead(&key, copy).await;
+                store.copy_ahead(&key, &copies).await;
             });
         }
         Ok(())
@@ -505,7 +500,11 @@ async fn upload(
         }
         Err(err) => return failed("keep", &err.into()),
     }
-    let poster_copy = poster_grid_copy(&images).filter(|_| slot.is_poster());
+    let copies = if slot.is_poster() {
+        poster_copies(&images)
+    } else {
+        Vec::new()
+    };
     // The write commits even if the client goes away, so deleting what it replaced must follow
     // (ADR 0029).
     let uploaded = tokio::spawn(async move {
@@ -513,7 +512,7 @@ async fn upload(
             Some(url) => Body::from(artwork.offered_bytes(&url).await?),
             None => body,
         };
-        custom_images.upload(slot, body, poster_copy).await
+        custom_images.upload(slot, body, copies).await
     });
     match uploaded.await.unwrap_or_else(|err| Err(err.into())) {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),

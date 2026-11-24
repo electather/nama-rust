@@ -703,6 +703,10 @@ enum PlaybackReasonKind {
   // the Device is outside the local network, and the limit scaled the picture down. A cap is never
   // dropped. Params: `playbackLimit`.
   PLAYBACK_REASON_KIND_REMOTE_CAP = 39;
+  // The Device is outside the local network, where its User has a cap for remote playback, but
+  // the picture's size isn't known, so it can't be scaled down to the cap and may be sent larger.
+  // Params: `playbackLimit`, the cap.
+  PLAYBACK_REASON_KIND_REMOTE_CAP_PICTURE_SIZE_UNKNOWN = 40;
   // A Playback Limit below Original is in effect and the picture's size isn't known, so it's
   // taken to fit. Params: `playbackLimit`.
   PLAYBACK_REASON_KIND_PICTURE_SIZE_UNKNOWN = 22;

@@ -9,7 +9,7 @@ export function TitleBackdrop({
   url: string | undefined;
   thumbhash: Uint8Array | undefined;
 }) {
-  const srcSet = useSrcSet(url);
+  const srcSet = useSrcSet(url, "backdropWidths");
   if (url === undefined) {
     return null;
   }

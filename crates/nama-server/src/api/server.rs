@@ -116,6 +116,9 @@ impl ServerService for ServerServiceHandler {
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_required,
             image_widths: images::WIDTHS.to_vec(),
+            poster_widths: images::POSTER_WIDTHS.to_vec(),
+            backdrop_widths: images::BACKDROP_WIDTHS.to_vec(),
+            title_logo_widths: images::TITLE_LOGO_WIDTHS.to_vec(),
             exports_diagnostics: self.browser_spans.exports(),
             account_sign_in,
             ..Default::default()

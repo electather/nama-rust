@@ -11,16 +11,25 @@ afterEach(cleanup);
 const poster = "/media/artwork/tmdb/%2Fposter.jpg";
 const backdrop = "/media/artwork/tmdb/%2Fbackdrop.jpg";
 const heatPoster = "/media/artwork/tmdb/%2Fheat.jpg";
+const logo = "/media/artwork/tmdb/%2Flogo.png";
 const alien = { namespace: "tmdb", value: "348" };
 const heat = { namespace: "tmdb", value: "949" };
 /** A grey 2 by 3 image's thumbhash. */
 const thumbhash = rgbaToThumbHash(2, 3, new Uint8Array(2 * 3 * 4).fill(128));
 
+/** Widths a fake Server resizes to, and those it makes Posters, Backdrops and Title Logos at. */
+const widths = {
+  imageWidths: [320, 480, 640, 1280],
+  posterWidths: [320, 480],
+  backdropWidths: [640, 1280],
+  titleLogoWidths: [480],
+};
+
 /**
- * A fake Server that resizes to 320 and 640 pixels wide, with Library 1, shown by `backdrop`, and
- * two Movies in it: Alien, whose poster has a thumbhash, and Heat, whose poster has none.
+ * A fake Server that lists `offered` widths, with Library 1, shown by `backdrop`, and two
+ * Movies in it: Alien, whose poster has a thumbhash, and Heat, whose poster has none.
  */
-function serverWithAMovie() {
+function serverWithAMovie(offered: Partial<typeof widths> = widths) {
   return fakeServer(
     {
       signedIn: newUser,
@@ -33,7 +42,7 @@ function serverWithAMovie() {
           backdropThumbhash: thumbhash,
         },
       ],
-      serverService: { getServerInfo: () => ({ name: "Living Room", imageWidths: [320, 640] }) },
+      serverService: { getServerInfo: () => ({ name: "Living Room", ...offered }) },
     },
     {},
     {},
@@ -49,7 +58,13 @@ function serverWithAMovie() {
         listContinueWatching: () => ({}),
         listGenres: () => ({}),
         getMovie: () => ({
-          movie: { title: "Alien", backdropUrl: backdrop, versions: [{ id: 1n }] },
+          movie: {
+            title: "Alien",
+            backdropUrl: backdrop,
+            titleLogoUrl: logo,
+            versions: [{ id: 1n }],
+            trailers: [{ name: "Teaser", url: "https://vimeo.com/123456789" }],
+          },
         }),
       });
     },
@@ -61,26 +76,45 @@ function srcSetOf(url: string) {
   return document.querySelector(`img[src="${url}"]`)?.getAttribute("srcset");
 }
 
+/** The `srcset` of each image whose `src` is `url`. */
+function srcSetsOf(url: string) {
+  return [...document.querySelectorAll(`img[src="${url}"]`)].map((img) =>
+    img.getAttribute("srcset"),
+  );
+}
+
 /** The thumbhash preview drawn in the box of the one image whose `src` is `url`, if there is one. */
 function previewBehind(url: string) {
   const box = document.querySelector(`img[src="${url}"]`)?.parentElement;
   return box?.querySelector('img[src^="data:image/png"]');
 }
 
-test("a Poster offers a copy at each width the Server resizes to", async () => {
+test("a Poster offers a copy at only each width the Server makes Posters at ahead", async () => {
   openApp("/libraries/1", serverWithAMovie());
 
   await screen.findByText("Alien");
 
-  expect(srcSetOf(poster)).toBe(`${poster}?width=320 320w, ${poster}?width=640 640w`);
+  expect(srcSetOf(poster)).toBe(`${poster}?width=320 320w, ${poster}?width=480 480w`);
 });
 
-test("a Backdrop offers a copy at each width the Server resizes to", async () => {
+test("a Backdrop and a Title Logo offer a copy at only each width the Server makes them at ahead", async () => {
   openApp("/libraries/1/movies/tmdb-348", serverWithAMovie());
+
+  await screen.findByRole("img", { name: "Alien" });
+  await screen.findByRole("region", { name: "Trailers" });
+
+  // The page's Backdrop, and the Teaser's tile showing it.
+  const backdropSrcSet = `${backdrop}?width=640 640w, ${backdrop}?width=1280 1280w`;
+  expect(srcSetsOf(backdrop)).toStrictEqual([backdropSrcSet, backdropSrcSet]);
+  expect(srcSetOf(logo)).toBe(`${logo}?width=480 480w`);
+});
+
+test("a Poster from a Server that makes none ahead offers each width it resizes to", async () => {
+  openApp("/libraries/1", serverWithAMovie({ imageWidths: [320, 640] }));
 
   await screen.findByText("Alien");
 
-  expect(srcSetOf(backdrop)).toBe(`${backdrop}?width=320 320w, ${backdrop}?width=640 640w`);
+  expect(srcSetOf(poster)).toBe(`${poster}?width=320 320w, ${poster}?width=640 640w`);
 });
 
 test("a Poster shows its thumbhash in its box until the image covers it", async () => {

@@ -232,8 +232,11 @@ async fn a_source_with_an_english_backdrop_gives_movies_and_shows_a_titled_backd
 #[tokio::test]
 async fn once_resized_a_titled_backdrop_is_sent_with_its_thumbhash() {
     let server = server().await;
+    // Off while the scans download, so no copy, nor its thumbhash, is made ahead of the request.
+    server.set_image_settings(false, None).await;
     let (movies, movie) = alien(&server, &["tmdb", TITLED]).await;
     let (shows, show) = dark(&server, &["tmdb", TITLED]).await;
+    server.set_image_settings(true, None).await;
     // Titled lists the same image for every title, so resizing it once serves both.
     let url = movie.titled_backdrop_url.clone().unwrap();
     assert_eq!(show.titled_backdrop_url.as_ref(), Some(&url));
