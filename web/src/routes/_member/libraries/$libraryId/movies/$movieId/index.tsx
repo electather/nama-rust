@@ -4,12 +4,11 @@ import { NotFound } from "@/app/route-error/not-found";
 import { MoviePage } from "@/features/title/components/movie-page";
 import { TitlePending } from "@/features/title/components/title-pending";
 import { loadMovie } from "@/shared/hooks/browse";
-import { librariesQuery } from "@/shared/hooks/use-libraries";
+import { prefetchLibraries } from "@/shared/hooks/use-libraries";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/movies/$movieId/")({
   loader: ({ context, params }) => {
-    // Beside the Movie, not before it: only the page's link to its Library needs them, and fails with them.
-    void context.queryClient.query(librariesQuery(context.transport)).catch(() => null);
+    void prefetchLibraries(context);
     return loadMovie(context, params);
   },
   pendingComponent: TitlePending,

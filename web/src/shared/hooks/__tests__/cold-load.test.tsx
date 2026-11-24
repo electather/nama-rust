@@ -34,7 +34,7 @@ function withLibrariesHeldBack(state: ServerState) {
     return {};
   };
   const transport = fakeServer(
-    { ...state, libraryService: { listLibraries: neverAnswers } },
+    { ...state, libraryService: { listLibraries: recordedAndHeld("listLibraries") } },
     {},
     {},
     (router: ConnectRouter) => {
@@ -57,7 +57,7 @@ function withLibrariesHeldBack(state: ServerState) {
   return { transport, asked };
 }
 
-test("the session is checked without waiting for the Server's info", async () => {
+test("who is signed in is asked without waiting for the Server's info", async () => {
   let askedWhoAmI = false;
   const whoAmI = async () => {
     askedWhoAmI = true;
@@ -87,7 +87,7 @@ test.each([
     openApp(path, transport);
 
     await waitFor(() => {
-      expect(first.every((name) => asked.includes(name))).toBe(true);
+      expect(asked).toStrictEqual(expect.arrayContaining(first));
     });
   },
 );

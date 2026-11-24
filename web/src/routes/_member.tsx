@@ -31,11 +31,16 @@ export const Route = createFileRoute("/_member")({
     setting: idParam(search["setting"]),
   }),
   beforeLoad: async ({ context, location }) => {
-    // Asked together, so the page's own calls wait on one round trip, not two.
-    const [info, signedIn] = await Promise.all([serverInfo(context), whoIsSignedIn(context)]);
+    // Asked together, so the page's own calls wait on one round trip, not two. Who is signed in is
+    // awaited only after the setup check, so a fresh Server still sends you to /setup if it fails.
+    const whoAmI = whoIsSignedIn(context);
+    // Handled now, so a failure while the Server's info loads isn't unhandled; awaited below.
+    void whoAmI.catch(() => null);
+    const info = await serverInfo(context);
     if (info.setupRequired) {
       throw redirect({ to: "/setup" });
     }
+    const signedIn = await whoAmI;
     if (!signedIn) {
       throw redirect({ to: "/sign-in", search: { redirect: location.href } });
     }

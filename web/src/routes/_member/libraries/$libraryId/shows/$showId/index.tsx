@@ -6,7 +6,7 @@ import { ShowPage } from "@/features/title/components/show-page";
 import { TitlePending } from "@/features/title/components/title-pending";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import { externalIdFromParam, libraryIdFromParam, queryOrNotFound } from "@/shared/hooks/browse";
-import { librariesQuery } from "@/shared/hooks/use-libraries";
+import { prefetchLibraries } from "@/shared/hooks/use-libraries";
 import { deletedFromSearch, type DeletedSearch } from "@/shared/lib/deleted-search";
 
 export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showId/")({
@@ -17,14 +17,13 @@ export const Route = createFileRoute("/_member/libraries/$libraryId/shows/$showI
   },
   loaderDeps: ({ search }) => ({ season: search.season }),
   loader: async ({ context, params, deps }) => {
-    const { queryClient, transport } = context;
-    // Beside the Show, not before it: only the page's link to its Library needs them, and fails with them.
-    void queryClient.query(librariesQuery(transport)).catch(() => null);
+    void prefetchLibraries(context);
     const show = {
       libraryId: libraryIdFromParam(params.libraryId),
       showId: externalIdFromParam(params.showId),
     };
     const { seasons } = await queryOrNotFound(context, BrowseService.method.getShow, show);
+    const { queryClient, transport } = context;
     await Promise.all([
       // Every Season's, as the page shows them all in one row.
       ...seasons.map(({ number }) =>
