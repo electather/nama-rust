@@ -23,6 +23,8 @@ export function SessionItems() {
             session={session}
             signingOut={signingOut}
             onSignOut={() => {
+              // One notice says why the last sign-out failed, so an older failure gives way.
+              signOutOthers.reset();
               signOut.mutate({ sessionId: session.id });
             }}
           />
@@ -43,6 +45,7 @@ export function SessionItems() {
             variant="outline"
             disabled={signingOut}
             onClick={() => {
+              signOut.reset();
               signOutOthers.mutate({});
             }}
           >
