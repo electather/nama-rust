@@ -88,6 +88,8 @@ export default defineConfig({
     // Tests live in `__tests__` folders, the Hub web app's too.
     include: ["src/**/__tests__/**/*.test.{ts,tsx}", "hub/src/**/__tests__/**/*.test.{ts,tsx}"],
     environment: "happy-dom",
+    // The Hub web app's Testing Library wait; the web app sets its own in `src/test-app.tsx`.
+    setupFiles: ["hub/src/test-setup.ts"],
     retry: ci ? 2 : 0,
     // Under a full run's load the app can take over the default 1 s to send its first RPC (`src/test-app.tsx` raises Testing Library's wait to match).
     expect: { poll: { timeout: 10_000 } },
