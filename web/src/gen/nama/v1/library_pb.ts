@@ -1215,7 +1215,9 @@ export const LibraryService: GenService<{
   },
   /**
    * Replaces a Library's name and folders. Its kind can't change. Fails like `CreateLibrary`,
-   * or with `not_found` if there is no such Library.
+   * except that a namespace the Library already names passes, and counts as searching, even if no
+   * title source keeps it any more, so a Library whose Plugin went away stays editable. Also fails
+   * with `not_found` if there is no such Library.
    *
    * @generated from rpc nama.v1.LibraryService.UpdateLibrary
    */
