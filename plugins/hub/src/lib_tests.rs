@@ -1,7 +1,10 @@
 use std::{
     collections::HashMap,
     future,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -1816,6 +1819,11 @@ const MATRIX_MS: u64 = 8_160_000;
 /// Movie `tmdb-603`, that any User asked about stopped it at [`STOPPED_MS`] just now, and that
 /// [`TV`] is a TV.
 fn playing() -> Arc<dyn Kernel> {
+    playing_at(Arc::new(AtomicU64::new(STOPPED_MS)))
+}
+
+/// [`playing`]'s Kernel, but any User asked about stopped `tmdb-603` where `position` says then.
+fn playing_at(position: Arc<AtomicU64>) -> Arc<dyn Kernel> {
     let store = store();
     Arc::new(
         move |function: &str,
@@ -1845,7 +1853,7 @@ fn playing() -> Arc<dyn Kernel> {
                 let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
                 let state = WatchState {
                     user_id: asked.user_id.unwrap(),
-                    position_ms: STOPPED_MS,
+                    position_ms: position.load(Ordering::Relaxed),
                     duration_ms: MATRIX_MS,
                     updated_at_ms: i64::try_from(now.as_millis()).unwrap(),
                     ..Default::default()
@@ -1911,32 +1919,49 @@ fn enabled_points(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Points {
 
 /// The User `user_id` plays `version` on [`TV`] as the plan `plan_id`, and stops.
 async fn play(observer: &dyn Observer<Events>, user_id: i64, version: i64, plan_id: u64) {
-    let playback = Playback {
+    let playback = on_tv(user_id, version, plan_id);
+    start(observer, playback.clone()).await;
+    end(observer, playback).await;
+}
+
+/// The User `user_id`'s play of `version` on [`TV`] as the plan `plan_id`.
+fn on_tv(user_id: i64, version: i64, plan_id: u64) -> Playback {
+    Playback {
         user_id,
         device_id: TV,
         version_id: version,
         plan_id,
         ..Default::default()
-    };
-    let event = |happened: Happened| Event {
-        event: Some(happened),
-        ..Default::default()
-    };
+    }
+}
+
+/// Tells `observer` that `playback` started.
+async fn start(observer: &dyn Observer<Events>, playback: Playback) {
     let started = PlaybackStarted {
-        playback: playback.clone().into(),
+        playback: playback.into(),
         ..Default::default()
     };
+    observe(observer, started.into()).await;
+}
+
+/// Tells `observer` that `playback` ended.
+async fn end(observer: &dyn Observer<Events>, playback: Playback) {
     let ended = PlaybackEnded {
         playback: playback.into(),
         ..Default::default()
     };
-    for happened in [started.into(), ended.into()] {
-        let batch = ObservedEvents {
-            events: vec![event(happened)],
+    observe(observer, ended.into()).await;
+}
+
+async fn observe(observer: &dyn Observer<Events>, happened: Happened) {
+    let batch = ObservedEvents {
+        events: vec![Event {
+            event: Some(happened),
             ..Default::default()
-        };
-        observer.observe(&batch).await.unwrap();
-    }
+        }],
+        ..Default::default()
+    };
+    observer.observe(&batch).await.unwrap();
 }
 
 /// Runs the Job that sends the Viewing Events the Hub hasn't had yet.
@@ -1983,6 +2008,30 @@ async fn a_linked_users_play_of_a_matched_title_goes_to_the_hub() {
             ..Default::default()
         }
     );
+}
+
+#[tokio::test]
+async fn a_play_left_open_keeps_where_it_stopped_though_a_later_play_of_its_title_finishes() {
+    let hub = FakeHub::start().await;
+    let position = Arc::new(AtomicU64::new(14_000));
+    let Points {
+        linker, observer, ..
+    } = enabled_points(&hub, &playing_at(Arc::clone(&position)));
+    link(&hub, linker.as_ref()).await;
+    link_user(&hub, linker.as_ref(), 7).await;
+    let (left_open, later) = (on_tv(7, MATRIX_VERSION, 1), on_tv(7, MATRIX_VERSION, 2));
+
+    start(observer.as_ref(), left_open.clone()).await;
+    start(observer.as_ref(), later.clone()).await;
+    position.store(STOPPED_MS, Ordering::Relaxed);
+    end(observer.as_ref(), later).await;
+    end(observer.as_ref(), left_open).await;
+
+    let ends = Vec::from_iter(hub.viewing_events().iter().map(|sent| {
+        let event = sent.event.as_option().unwrap();
+        (event.stop_position_ms, event.finished)
+    }));
+    assert_eq!(ends, [(14_000, false), (7_500_000, true)]);
 }
 
 /// The Movie `tmdb-<id>` on the Watchlist, changed at `changed_at_ms`.
