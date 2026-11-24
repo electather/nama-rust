@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT m.name AS \"method?\", d.ip_address, d.user_agent, du.authenticated_at\n               FROM devices d JOIN device_users du ON du.device_id = d.id\n               LEFT JOIN sign_in_methods m ON m.id = du.sign_in_method_id\n               WHERE d.id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "method?",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "sign_in_methods",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "ip_address",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "devices",
+            "name": "ip_address"
+          }
+        }
+      },
+      {
+        "name": "user_agent",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "devices",
+            "name": "user_agent"
+          }
+        }
+      },
+      {
+        "name": "authenticated_at",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "device_users",
+            "name": "authenticated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "c3284dc814063461d34f52f5e71c37e175a40201eb9381a2fcfe13df021c7e20"
+}

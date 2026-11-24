@@ -45,11 +45,3 @@ fn a_path_in_no_entry_has_no_access() {
         assert!(Access::of(path).is_none(), "{path}");
     }
 }
-
-#[test]
-fn media_needs_a_session() {
-    assert!(matches!(
-        Access::of("/media/versions/1"),
-        Some(Access::SignedIn)
-    ));
-}

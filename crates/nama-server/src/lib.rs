@@ -31,6 +31,7 @@ mod scanner;
 mod server_addresses;
 mod server_settings;
 mod signed_urls;
+mod status;
 mod sync;
 mod tls;
 pub mod users;
@@ -206,6 +207,14 @@ pub fn serve(
         Backups::new(&config.data_dir, &config.file, settings.clone()),
     );
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
+    let status = status::Sources {
+        db: Arc::clone(&db),
+        contents: contents.clone(),
+        ffmpeg: Arc::clone(&ffmpeg),
+        abilities: abilities.clone(),
+        running: running.clone(),
+        data_dir: config.data_dir.clone(),
+    };
     let server_url = settings.server_url();
     let url_saves = settings.url_saves();
     // `listen` differs from the bound address only when it asks for port 0.
@@ -288,6 +297,7 @@ pub fn serve(
             forwarded_port,
             relay,
         );
+        let recording_status = status::keep_recording(status);
         let closing = events.clone();
         let served = tls::serve(listener, relayed, app, Arc::new(certificate), async move {
             shutdown.await;
@@ -295,6 +305,9 @@ pub fn serve(
             closing.close();
         })
         .await;
+        // Awaited, so its database handle is gone before the database closes.
+        recording_status.abort();
+        let _: Result<(), _> = recording_status.await;
         // First, so their ffmpeg doesn't start on a Version as the plans stop.
         preview_frames.shutdown().await;
         text_passes.shutdown().await;

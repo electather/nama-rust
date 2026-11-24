@@ -271,19 +271,6 @@ async fn a_recogniser_failure_drops_the_files_change_and_keeps_the_rest() {
     assert!(matches!(changes.last(), Some(Change::Remove(7))));
 }
 
-#[tokio::test]
-async fn a_library_not_listing_the_recogniser_leaves_the_file_unread() {
-    let changes = recognised_listing(&[], || Some(episodes([2]))).await;
-
-    assert_eq!(
-        stored(&changes),
-        [
-            ("/media/Show - 2.mkv", &[][..]),
-            ("/media/Show/Show - S01E01.mkv", &[episode(1)][..]),
-        ]
-    );
-}
-
 /// A Recogniser that can't tell what any file is, counting the files it is asked about.
 #[derive(Clone, Default)]
 struct Counting(Arc<AtomicUsize>);

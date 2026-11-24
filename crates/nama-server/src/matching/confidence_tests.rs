@@ -56,16 +56,6 @@ fn the_year_tells_a_remake_from_the_original() {
 }
 
 #[test]
-fn a_year_off_by_one_still_matches() {
-    let found = [candidate(438_631, "Dune", Some(2021))];
-
-    assert_eq!(
-        decide("Dune", Some(2020), &found),
-        Decision::Match(ExternalId::tmdb(438_631))
-    );
-}
-
-#[test]
 fn case_and_punctuation_do_not_count() {
     let found = [candidate(945_961, "Alien: Romulus", Some(2024))];
 

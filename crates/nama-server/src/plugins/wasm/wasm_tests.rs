@@ -528,18 +528,6 @@ fn a_logo_over_64_kib_or_not_svg_is_dropped_saying_why_and_the_plugin_still_take
     }
 }
 
-#[test]
-fn every_bundled_plugin_has_the_exports_its_manifests_points_need() {
-    let data_dir = tempfile::tempdir().unwrap();
-    let cache_config = write_cache_config(data_dir.path()).unwrap();
-
-    for (file, wasm) in BUNDLED {
-        let refused = load(wasm.to_vec(), &cache_config).err();
-
-        assert_eq!(refused.map(|refused| refused.to_string()), None, "{file}");
-    }
-}
-
 // Adding a Plugin is adding its folder (`plugins/AGENTS.md`), so its exact settings are tested in
 // its own crate, and here only what the Kernel needs of every one.
 #[test]

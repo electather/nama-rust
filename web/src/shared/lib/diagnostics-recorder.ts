@@ -45,9 +45,12 @@ export function recordSpan(name: string, startTime: number, attributes: Attribut
   tracer.startSpan(name, { startTime, attributes }).end();
 }
 
-/** Records an uncaught error of `kind`, such as `TypeError`: its message may quote a title. */
-export function recordError(kind: string) {
-  const span = tracer.startSpan("uncaught error", { attributes: { "error.type": kind } });
+/**
+ * Records an error span `name`d, of `kind`, such as `TypeError`. Never its message: it may quote a
+ * title.
+ */
+export function recordError(kind: string, name = "uncaught error") {
+  const span = tracer.startSpan(name, { attributes: { "error.type": kind } });
   span.setStatus({ code: SpanStatusCode.ERROR });
   span.end();
 }

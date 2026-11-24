@@ -10,17 +10,24 @@ const SettingsModal = lazy(async () => {
 });
 
 /**
- * Settings, over whichever page `?settings=<section>` is on. Opening it is a history entry, so Back
- * closes it, and a link to that address opens it on its section.
+ * Settings, over whichever page `?settings=<section>` is on, with the Account's sections `atHub`.
+ * Opening it is a history entry, so Back closes it, and a link to that address opens it on its
+ * section.
  */
-export function SettingsLoader({ user }: { user: User | undefined }) {
+export function SettingsLoader({
+  user,
+  atHub = false,
+}: {
+  user: User | undefined;
+  atHub?: boolean;
+}) {
   const section = useSearch({ strict: false, select: ({ settings }) => settings });
   if (section === undefined) {
     return null;
   }
   return (
     <Suspense fallback={null}>
-      <SettingsModal section={section} user={user} />
+      <SettingsModal section={section} user={user} atHub={atHub} />
     </Suspense>
   );
 }

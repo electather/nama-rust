@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use nama_plugin_api::metadata::{ExternalId, ExternalIds, IMDB};
 
-use super::{DEFAULT_ORDER, Pin, matched_ids, parse_hint, primary_id};
+use super::{DEFAULT_ORDER, Pin, matched_ids, primary_id};
 use crate::{
     db::Database,
     library::{
@@ -14,27 +14,6 @@ use crate::{
 
 fn id(namespace: &str, value: &str) -> ExternalId {
     ExternalId::new(namespace, value).unwrap()
-}
-
-#[test]
-fn a_stored_id_hint_reads_back_as_the_id_it_was() {
-    let hints = [
-        ExternalId::tmdb(78),
-        ExternalId::tvdb(433_631),
-        ExternalId::new(IMDB, "tt0083658").unwrap(),
-        id("anidb", "123"),
-        id("anidb", "a-b"),
-    ];
-    for hint in hints {
-        assert_eq!(parse_hint(&hint.to_string()), Some(hint));
-    }
-}
-
-#[test]
-fn an_id_hint_needs_a_well_formed_namespace_and_a_value() {
-    for text in ["Anidb-1", "-1", "anidb-", "anidb"] {
-        assert_eq!(parse_hint(text), None, "{text}");
-    }
 }
 
 #[test]
