@@ -31,8 +31,8 @@ export function applyEvent({ message }: SubscribeResponse, context: RouterContex
 }
 
 /**
- * Refetches everything of the Server after its Events were missed. Scans can't be refetched, so what's known of them
- * is forgotten rather than left stuck mid-scan.
+ * Refetches everything of the Server after its Events were missed. Scans can't be refetched, so
+ * what's known of them is forgotten rather than left stuck mid-scan.
  */
 export function forgetMissed({ queryClient, transport }: RouterContext) {
   void queryClient.resetQueries({ queryKey: scansKey(transport) });
