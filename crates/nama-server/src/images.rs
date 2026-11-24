@@ -44,8 +44,9 @@ pub const WIDTHS: [u32; 7] = [320, 480, 640, 960, 1280, 1920, 2560];
 /// (#2105). A 3x phone takes 640, a little soft, sparing the resized cache a fourth copy.
 pub const POSTER_WIDTHS: [u32; 3] = [320, 480, 640];
 
-/// The widths of [`WIDTHS`] the web app offers Backdrops at, made of each ahead of it: a shelf
-/// tile's 280 to 440 px and a full-width one's, each at 1x and 2x.
+/// The widths of [`WIDTHS`] the web app offers Backdrops at, made of each ahead of it: 640 and 1280
+/// for a shelf tile's 280 to 440 px at 1x and 2x, and up to 2560 for a full-width one's. A 1x tile
+/// takes a 640, sparing the resized cache two more copies.
 pub const BACKDROP_WIDTHS: [u32; 4] = [640, 1280, 1920, 2560];
 
 /// The widths of [`WIDTHS`] the web app offers Title Logos at, made of each ahead of it: a Continue
