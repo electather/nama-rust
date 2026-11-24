@@ -1,6 +1,7 @@
 import { create } from "@bufbuild/protobuf";
 import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
 import { AccountSchema, AccountService, PasskeySchema } from "@hub/gen/nama/hub/v1/account_pb";
+import { HubService } from "@hub/gen/nama/hub/v1/hub_pb";
 import { RefusalReason, RefusalSchema } from "@hub/gen/nama/hub/v1/refusal_pb";
 import { getRouter } from "@hub/router";
 import { RouterProvider } from "@tanstack/react-router";
@@ -45,10 +46,11 @@ function refused(code: Code, reason: RefusalReason) {
 }
 
 /**
- * Opens `path` on a fake Hub where Ada has a passkey named "Laptop", signed in from the start
- * when `signedIn` says so. Returns the Hub's state, which a test may change.
+ * Opens `path` on a fake Hub with mail where Ada has a passkey named "Laptop", and a password
+ * unless `password` says not, signed in from the start when `signedIn` says so. The Hub offers
+ * passkeys unless `passkeys` says not. Returns the Hub's state, which a test may change.
  */
-function openHub(path: string, signedIn = false) {
+function openHub(path: string, { signedIn = false, passkeys = true, password = true } = {}) {
   const hub = {
     /** Whether this browser's session is live; another browser may end it. */
     signedIn,
@@ -68,10 +70,11 @@ function openHub(path: string, signedIn = false) {
     }
   };
   const transport = createRouterTransport(({ service }) => {
+    service(HubService, { getHubInfo: () => ({ version: "0.1.0", signInLinks: true, passkeys }) });
     service(AccountService, {
       getAccount: () => {
         signedInOnly();
-        return { account: ada, hasPassword: true };
+        return { account: ada, hasPassword: password };
       },
       listPasskeys: () => ({ passkeys: hub.passkeys }),
       startAddingPasskey: () => {
@@ -133,6 +136,17 @@ describe("an Account's passkeys", () => {
     });
   });
 
+  test("a Hub that offers no passkeys has no passkey sign-in", async () => {
+    browserCredentials({ get: vi.fn<() => Promise<unknown>>() });
+    openHub("/sign-in", { passkeys: false });
+
+    // Shown from the same answer from the Hub as the passkey would be.
+    await expect(
+      screen.findByRole("link", { name: "Email me a Sign-in Link" }),
+    ).resolves.toBeDefined();
+    expect(screen.queryByRole("button", { name: "Sign in with a passkey" })).toBeNull();
+  });
+
   test("cancelling the browser's prompt says nothing", async () => {
     browserCredentials({
       get: vi
@@ -154,7 +168,7 @@ describe("an Account's passkeys", () => {
     browserCredentials({
       create: vi.fn<() => Promise<unknown>>().mockResolvedValue(created),
     });
-    openHub("/", true);
+    openHub("/", { signedIn: true });
 
     fireEvent.change(await screen.findByLabelText("New passkey’s name"), {
       target: { value: "Phone" },
@@ -165,9 +179,18 @@ describe("an Account's passkeys", () => {
     expect(screen.getByText("Laptop")).toBeDefined();
   });
 
+  test("a Hub that offers no passkeys has no form to add one, but lists those there are", async () => {
+    openHub("/", { signedIn: true, passkeys: false, password: false });
+
+    // Shown from the same answer from the Hub as the form would be.
+    await expect(screen.findByText(/as well as with Sign-in Links/u)).resolves.toBeDefined();
+    await expect(screen.findByText("Laptop")).resolves.toBeDefined();
+    expect(screen.queryByLabelText("New passkey’s name")).toBeNull();
+  });
+
   test("a blank name is refused before the browser creates a passkey", async () => {
     const credentials = browserCredentials({ create: vi.fn<() => Promise<unknown>>() });
-    openHub("/", true);
+    openHub("/", { signedIn: true });
 
     fireEvent.change(await screen.findByLabelText("New passkey’s name"), {
       target: { value: "   " },
@@ -181,7 +204,7 @@ describe("an Account's passkeys", () => {
   });
 
   test("removing a passkey takes it off the list", async () => {
-    openHub("/", true);
+    openHub("/", { signedIn: true });
 
     fireEvent.click(await screen.findByRole("button", { name: "Remove Laptop" }));
 
@@ -191,7 +214,7 @@ describe("an Account's passkeys", () => {
   });
 
   test("past 10 minutes since signing in, changing passkeys offers to sign in again", async () => {
-    const hub = openHub("/", true);
+    const hub = openHub("/", { signedIn: true });
     hub.stale = true;
 
     fireEvent.click(await screen.findByRole("button", { name: "Remove Laptop" }));
@@ -203,7 +226,7 @@ describe("an Account's passkeys", () => {
 
   test("adding a passkey once this session ended elsewhere opens the sign-in page", async () => {
     const credentials = browserCredentials({ create: vi.fn<() => Promise<unknown>>() });
-    const hub = openHub("/", true);
+    const hub = openHub("/", { signedIn: true });
 
     fireEvent.change(await screen.findByLabelText("New passkey’s name"), {
       target: { value: "Phone" },
@@ -216,7 +239,7 @@ describe("an Account's passkeys", () => {
   });
 
   test("removing a passkey once this session ended elsewhere opens the sign-in page", async () => {
-    const hub = openHub("/", true);
+    const hub = openHub("/", { signedIn: true });
 
     const remove = await screen.findByRole("button", { name: "Remove Laptop" });
     hub.signedIn = false;

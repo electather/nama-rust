@@ -127,6 +127,15 @@ pub struct GetHubInfoResponse {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
     )]
     pub sign_in_links: bool,
+    /// Whether the Hub offers passkeys, which it does once it has a public address.
+    ///
+    /// Field 3: `passkeys`
+    #[serde(
+        rename = "passkeys",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub passkeys: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -136,6 +145,7 @@ impl ::core::fmt::Debug for GetHubInfoResponse {
         f.debug_struct("GetHubInfoResponse")
             .field("version", &self.version)
             .field("sign_in_links", &self.sign_in_links)
+            .field("passkeys", &self.passkeys)
             .finish()
     }
 }
@@ -172,6 +182,9 @@ impl ::buffa::Message for GetHubInfoResponse {
         if self.sign_in_links {
             size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
         }
+        if self.passkeys {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -187,6 +200,9 @@ impl ::buffa::Message for GetHubInfoResponse {
         }
         if self.sign_in_links {
             ::buffa::types::put_bool_field(2u32, self.sign_in_links, buf);
+        }
+        if self.passkeys {
+            ::buffa::types::put_bool_field(3u32, self.passkeys, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -215,6 +231,13 @@ impl ::buffa::Message for GetHubInfoResponse {
                 )?;
                 self.sign_in_links = ::buffa::types::decode_bool(buf)?;
             }
+            3u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.passkeys = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -225,6 +248,7 @@ impl ::buffa::Message for GetHubInfoResponse {
     fn clear(&mut self) {
         self.version.clear();
         self.sign_in_links = false;
+        self.passkeys = false;
         self.__buffa_unknown_fields.clear();
     }
 }
