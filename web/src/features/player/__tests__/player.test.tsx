@@ -1,4 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 
@@ -81,7 +82,7 @@ const directPlayFailed = "Direct Play failed on this Device";
 /** Direct Plays Version 9, and says any other can't play. */
 const onlyVersion9: Planned = (request) => (request.versionId === 9n ? directPlay(request) : {});
 /**
- * A Server whose Library 1 has The Matrix in three Versions, the largest being Version 8, and
+ * A Server whose only Library, 1, has The Matrix in three Versions, the largest being Version 8, and
  * whose plans are `planned`'s, by default Direct Playing each from an address of its own with
  * `plannedTracks`. As the real Server does, a plan asked for after Direct Play failed says it can't
  * play, unless the Server `ignoresFailures`. Each plan request goes in `asked`. The Movie's Watch
@@ -113,23 +114,28 @@ const serverPlanning = ({
       },
     });
     router.service(BrowseService, {
-      getMovie: () => ({
-        movie: {
-          id: { namespace: "tmdb", value: "603" },
-          title: "The Matrix",
-          watchState,
-          versions: [
-            { id: 7n, fileName: "The Matrix (1999) 720p.mkv", size: 2_000_000_000n },
-            { id: 8n, fileName: "The Matrix (1999) 2160p.mkv", size: 40_000_000_000n },
-            {
-              id: 9n,
-              fileName: "The Matrix (1999) 1080p.mkv",
-              size: 9_000_000_000n,
-              tracks: plannedTracks,
-            },
-          ],
-        },
-      }),
+      getMovie: ({ libraryId }) => {
+        if (libraryId !== 1n) {
+          throw new ConnectError("no such Library", Code.NotFound);
+        }
+        return {
+          movie: {
+            id: { namespace: "tmdb", value: "603" },
+            title: "The Matrix",
+            watchState,
+            versions: [
+              { id: 7n, fileName: "The Matrix (1999) 720p.mkv", size: 2_000_000_000n },
+              { id: 8n, fileName: "The Matrix (1999) 2160p.mkv", size: 40_000_000_000n },
+              {
+                id: 9n,
+                fileName: "The Matrix (1999) 1080p.mkv",
+                size: 9_000_000_000n,
+                tracks: plannedTracks,
+              },
+            ],
+          },
+        };
+      },
     });
   });
 const server = serverPlanning();

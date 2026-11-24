@@ -8,7 +8,7 @@ import { versionSearch } from "@/features/player/lib/version-search";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
 import {
   externalIdFromParam,
-  libraryFromParam,
+  libraryIdFromParam,
   queryOrNotFound,
   wholeNumberFromParam,
 } from "@/shared/hooks/browse";
@@ -19,7 +19,7 @@ export const Route = createFileRoute(
   validateSearch: (search) => ({ ...versionSearch(search), ...streakSearch(search) }),
   loader: async ({ context, params }) => {
     const show = {
-      libraryId: (await libraryFromParam(context, params.libraryId)).id,
+      libraryId: libraryIdFromParam(params.libraryId),
       showId: externalIdFromParam(params.showId),
     };
     // The whole Show's, as the Show page and the Episodes panel ask, so they share one request.

@@ -1,4 +1,4 @@
-import { Code } from "@connectrpc/connect";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
@@ -48,6 +48,18 @@ async function submitSetup(setupCode: string) {
 
 test.each(["/", "/libraries/1", "/sign-in"])("a fresh Server sends %s to /setup", async (path) => {
   const router = openApp(path, fakeServer({ setupRequired: true }));
+
+  await expect(screen.findByRole("heading", { name: "Set up Living Room" })).resolves.toBeDefined();
+  expect(router.state.location.pathname).toBe("/setup");
+});
+
+test("a fresh Server sends a page to /setup even when asking who is signed in fails", async () => {
+  const whoAmIFailing = {
+    whoAmI: () => {
+      throw new ConnectError("no Users yet", Code.Internal);
+    },
+  };
+  const router = openApp("/libraries/1", fakeServer({ setupRequired: true }, whoAmIFailing));
 
   await expect(screen.findByRole("heading", { name: "Set up Living Room" })).resolves.toBeDefined();
   expect(router.state.location.pathname).toBe("/setup");
