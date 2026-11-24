@@ -501,6 +501,16 @@ impl Links {
             .records
             .replace_texts(&names::challenge_name(&own), values)
             .await?;
+        // As a report does, for an Unlink that removed the challenge while it was being written.
+        let linked = sqlx::query_scalar!(
+            r#"SELECT EXISTS (SELECT FROM linked_servers WHERE id = $1) AS "linked!""#,
+            server.id.0,
+        )
+        .fetch_one(&self.db)
+        .await?;
+        if !linked {
+            self.forget_names(server.id).await?;
+        }
         Ok(())
     }
 

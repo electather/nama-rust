@@ -240,17 +240,24 @@ async fn a_server_publishes_its_certificate_challenge_under_its_own_name_until_i
 }
 
 #[sqlx::test(migrations = false)]
-async fn unlinking_a_server_removes_its_certificate_challenge(db: PgPool) {
+async fn unlinking_a_server_removes_its_certificate_challenge_and_no_others(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db).await;
     let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
     let living_room = linked(&hub, &ada, "Living room").await;
+    let cabin = linked(&hub, &ada, "Cabin").await;
+    let cabins = names_after_reporting(&hub, &cabin, &[], 0).await.unwrap();
     set_challenge(&hub, &living_room, &CHALLENGES)
         .await
         .unwrap();
+    set_challenge(&hub, &cabin, &CHALLENGES[..1]).await.unwrap();
 
     unlink(&hub, &living_room).await.unwrap();
 
-    assert!(hub.texts().is_empty());
+    let published = hub.texts();
+    assert_eq!(
+        published.keys().collect::<Vec<_>>(),
+        [&format!("_acme-challenge.{}", cabins[0])]
+    );
 }
 
 #[sqlx::test(migrations = false)]
