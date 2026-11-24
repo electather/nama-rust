@@ -218,8 +218,10 @@ fn a_used_or_expired_challenge_frees_its_clients_share() {
 
     hub.challenge(Ceremony::SignIn, caller("203.0.113.1", now))
         .unwrap();
-    hub.challenge(Ceremony::SignIn, caller("203.0.113.1", now))
-        .unwrap_err();
+    assert!(matches!(
+        hub.challenge(Ceremony::SignIn, caller("203.0.113.1", now)),
+        Err(Error::Blocked(_))
+    ));
     hub.challenge(
         Ceremony::SignIn,
         caller("203.0.113.1", now + CHALLENGE_LIFETIME),

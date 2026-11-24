@@ -40,8 +40,10 @@ const CHALLENGE_LIFETIME: Duration = Duration::from_mins(5);
 const MOST_WAITING: usize = 10_000;
 
 /// The most challenges one client, as `counted_ip` counts it, may have waiting, so it would take
-/// 500 of them to fill the Hub's. Rotating through a /48's /64s is bounded only by `MOST_WAITING`;
-/// stateless, HMAC-signed challenges would close that, should it matter (#2049).
+/// 500 of them to fill the Hub's.
+///
+/// ponytail: a client rotating through a /48's /64s is bounded only by `MOST_WAITING`; stateless,
+/// HMAC-signed challenges would close that, should it matter (#2049).
 const WAITING_PER_CLIENT: usize = 20;
 
 /// A P-256 `SubjectPublicKeyInfo` up to its uncompressed point, the same in every one.
@@ -86,11 +88,12 @@ pub(super) struct RelyingParty {
     waiting: Mutex<Waiting>,
 }
 
-/// The challenges waiting for their answer, and how many each client holds.
+/// The challenges waiting for their answer, and when each client's were handed out, so checking
+/// one client's share doesn't go through every waiting challenge.
 #[derive(Debug, Default)]
 struct Waiting {
     challenges: HashMap<[u8; 32], Handed>,
-    held: HashMap<IpAddr, usize>,
+    held: HashMap<IpAddr, Vec<Instant>>,
 }
 
 /// What a waiting challenge was handed out for, when, and to which client.
@@ -129,15 +132,14 @@ impl RelyingParty {
         let mut challenge = [0; 32];
         getrandom::fill(&mut challenge)?;
         let mut waiting = self.lock();
-        if waiting.challenges.len() >= MOST_WAITING || waiting.held_by(client) >= WAITING_PER_CLIENT
-        {
-            waiting.drop_expired(caller.now);
-        }
         if let Some(retry_after) = waiting.wait(client, caller.now) {
             return Err(Blocked { retry_after }.into());
         }
         if waiting.challenges.len() >= MOST_WAITING {
-            return Err(Error::ChallengesBusy);
+            waiting.drop_expired(caller.now);
+            if waiting.challenges.len() >= MOST_WAITING {
+                return Err(Error::ChallengesBusy);
+            }
         }
         waiting.insert(
             challenge,
@@ -195,61 +197,50 @@ impl RelyingParty {
     }
 
     fn lock(&self) -> MutexGuard<'_, Waiting> {
-        // Each change keeps `held` counting `challenges`, so a panic elsewhere doesn't spoil it.
+        // Each change keeps `held` in step with `challenges`, so a panic elsewhere doesn't spoil it.
         self.waiting.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
 impl Waiting {
-    fn held_by(&self, client: IpAddr) -> usize {
-        self.held.get(&client).copied().unwrap_or_default()
-    }
-
-    /// How long `client`, at its share at `now`, must wait for its oldest challenge to expire.
-    /// Expects expired challenges dropped.
-    fn wait(&self, client: IpAddr, now: Instant) -> Option<Duration> {
-        if self.held_by(client) < WAITING_PER_CLIENT {
+    /// How long `client` must wait for one of its challenges to expire, if it holds its share at
+    /// `now`. Forgets its expired ones; their challenges go when the waiting ones are full.
+    fn wait(&mut self, client: IpAddr, now: Instant) -> Option<Duration> {
+        let times = self.held.get_mut(&client)?;
+        times.retain(|&at| !expired(at, now));
+        if times.len() < WAITING_PER_CLIENT {
             return None;
         }
-        let oldest = self
-            .challenges
-            .values()
-            .filter(|handed| handed.client == client)
-            .map(|handed| handed.at)
-            .min()?;
-        Some(CHALLENGE_LIFETIME.saturating_sub(now.saturating_duration_since(oldest)))
+        let oldest = times.iter().min()?;
+        Some(CHALLENGE_LIFETIME.saturating_sub(now.saturating_duration_since(*oldest)))
     }
 
     fn insert(&mut self, challenge: [u8; 32], handed: Handed) {
-        self.challenges.insert(challenge, handed);
-        *self.held.entry(handed.client).or_default() += 1;
+        if self.challenges.insert(challenge, handed).is_none() {
+            self.held.entry(handed.client).or_default().push(handed.at);
+        }
     }
 
     fn remove(&mut self, challenge: &[u8; 32]) -> Option<Handed> {
         let handed = self.challenges.remove(challenge)?;
-        release(&mut self.held, handed.client);
+        if let Entry::Occupied(mut times) = self.held.entry(handed.client) {
+            // Not found once `wait` forgot it as expired; another of the same instant expires alike.
+            if let Some(index) = times.get().iter().position(|&at| at == handed.at) {
+                times.get_mut().swap_remove(index);
+            }
+            if times.get().is_empty() {
+                times.remove();
+            }
+        }
         Some(handed)
     }
 
     fn drop_expired(&mut self, now: Instant) {
-        let held = &mut self.held;
-        self.challenges.retain(|_, handed| {
-            let expired = expired(handed.at, now);
-            if expired {
-                release(held, handed.client);
-            }
-            !expired
+        self.challenges.retain(|_, handed| !expired(handed.at, now));
+        self.held.retain(|_, times| {
+            times.retain(|&at| !expired(at, now));
+            !times.is_empty()
         });
-    }
-}
-
-/// Takes one off `client`'s count, dropping it at zero so `held` doesn't keep every client seen.
-fn release(held: &mut HashMap<IpAddr, usize>, client: IpAddr) {
-    if let Entry::Occupied(mut count) = held.entry(client) {
-        *count.get_mut() -= 1;
-        if *count.get() == 0 {
-            count.remove();
-        }
     }
 }
 
