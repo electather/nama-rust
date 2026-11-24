@@ -36,7 +36,7 @@ export function LinkCodeForm({
       aria-labelledby={id}
       className="flex flex-col gap-3"
       onSubmit={onSubmitted((typed, form) => {
-        onCode(formText(typed, "code"), form);
+        onCode(formText(typed, "linkCode"), form);
       })}
     >
       <h2 id={id} className="text-lg font-semibold">
@@ -44,7 +44,7 @@ export function LinkCodeForm({
       </h2>
       <FormField
         label="Code"
-        name="code"
+        name="linkCode"
         variant="code"
         autoComplete="off"
         autoCapitalize="characters"

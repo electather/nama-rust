@@ -1,7 +1,23 @@
-import { ServerSignInRefused } from "@/features/auth/components/server-sign-in-refused";
-import { serverSignInErrors } from "@/features/auth/lib/hub-errors";
+import { useRouter } from "@tanstack/react-router";
+import { Button } from "nama-ui/components/button";
 
-/** A sign-in to a Server the Hub couldn't look up, such as one that expired, and why. */
-export function ServerSignInFailed({ error }: { error: unknown }) {
-  return <ServerSignInRefused heading="Sign in to a Server" errors={serverSignInErrors(error)} />;
+import { Notice } from "@/shared/components/sign-in-layout/notice";
+import { SignInCard } from "@/shared/components/sign-in-layout/sign-in-card";
+
+/** A sign-in to a Server's page when the Hub couldn't look it up. Looking it up uses nothing up. */
+export function ServerSignInFailed() {
+  const router = useRouter();
+  return (
+    <SignInCard heading="Sign in to a Server">
+      <Notice kind="error">The Hub couldn’t look up this sign-in just now.</Notice>
+      <Button
+        size="lg"
+        onClick={() => {
+          void router.invalidate();
+        }}
+      >
+        Try again
+      </Button>
+    </SignInCard>
+  );
 }

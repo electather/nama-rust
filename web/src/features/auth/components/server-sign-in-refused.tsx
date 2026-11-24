@@ -1,12 +1,11 @@
-import { FormNotices } from "@/shared/components/sign-in-layout/form-notices";
+import { Notice } from "@/shared/components/sign-in-layout/notice";
 import { SignInCard } from "@/shared/components/sign-in-layout/sign-in-card";
-import type { FormErrors } from "@/shared/lib/forms";
 
 /** A sign-in to a Server that can't go ahead, saying why. */
-export function ServerSignInRefused({ heading, errors }: { heading: string; errors: FormErrors }) {
+export function ServerSignInRefused({ heading, reason }: { heading: string; reason: string }) {
   return (
     <SignInCard heading={heading}>
-      <FormNotices errors={errors} />
+      <Notice kind="error">{reason}</Notice>
     </SignInCard>
   );
 }

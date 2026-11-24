@@ -1,5 +1,5 @@
 import { create } from "@bufbuild/protobuf";
-import { Code, createRouterTransport } from "@connectrpc/connect";
+import { Code, ConnectError, createRouterTransport } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vite-plus/test";
 
@@ -20,9 +20,18 @@ const basement = create(LinkedServerSchema, { id: "0193-basement", name: "Baseme
 /**
  * A fake Hub with Ada's Account, signed in when `signedIn` says so. "SRVR-CODE" Links Basement and
  * "USER-CODE" Ada's User there; sign-in "1" is to Basement as `userName`, and every other is gone.
+ * Looking a sign-in up fails the first time when `lookUpFails`, and the session ends on approving
+ * when `sessionEnds`.
  */
-function fakeHub({ signedIn = true, userName = "Ada" } = {}) {
+function fakeHub({
+  signedIn = true,
+  userName = "Ada",
+  lookUpFails = false,
+  sessionEnds = false,
+} = {}) {
   let session = signedIn ? ada : undefined;
+  let failLookUp = lookUpFails;
+  let endSession = sessionEnds;
   return createRouterTransport(({ service }) => {
     service(HubService, { getHubInfo: () => ({ version: "1.0.0", signInLinks: true }) });
     service(AccountService, {
@@ -51,12 +60,23 @@ function fakeHub({ signedIn = true, userName = "Ada" } = {}) {
         return { user: create(LinkedUserSchema, { name: "Ada", serverName: "Basement" }) };
       },
       getServerSignIn: ({ id }) => {
+        if (failLookUp) {
+          failLookUp = false;
+          throw new ConnectError("database is locked", Code.Internal);
+        }
         if (id !== "1") {
           throw hubRefused(Code.NotFound, RefusalReason.SERVER_SIGN_IN_NOT_FOUND);
         }
         return { serverName: "Basement", userName };
       },
-      approveServerSignIn: () => ({ returnUrl: "https://basement.example/sign-in/account?code=c" }),
+      approveServerSignIn: () => {
+        if (endSession) {
+          endSession = false;
+          session = undefined;
+          throw hubRefused(Code.Unauthenticated, RefusalReason.SIGN_IN_REQUIRED);
+        }
+        return { returnUrl: "https://basement.example/sign-in/account?code=c" };
+      },
     });
   });
 }
@@ -126,6 +146,28 @@ test("a signed-out Account signs in first, then comes back to approve", async ()
   fill("Email", ada.email);
   fill("Password", "correct horse");
   fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+  await expect(
+    screen.findByRole("heading", { name: "Sign in to Basement" }),
+  ).resolves.toBeDefined();
+});
+
+test("an Account whose session ended while approving signs in again, then comes back", async () => {
+  openApp("/server-sign-in/1", fakeHub({ sessionEnds: true }));
+
+  fireEvent.click(await screen.findByRole("button", { name: "Sign in as Ada" }));
+  await screen.findByRole("heading", { name: "Sign in to the Hub" });
+  fill("Email", ada.email);
+  fill("Password", "correct horse");
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+  await expect(screen.findByRole("button", { name: "Sign in as Ada" })).resolves.toBeDefined();
+});
+
+test("a sign-in the Hub couldn't look up is looked up again on Try again", async () => {
+  openApp("/server-sign-in/1", fakeHub({ lookUpFails: true }));
+
+  fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
 
   await expect(
     screen.findByRole("heading", { name: "Sign in to Basement" }),
