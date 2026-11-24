@@ -1,4 +1,5 @@
 import type { MessageInitShape } from "@bufbuild/protobuf";
+import type { Transport } from "@connectrpc/connect";
 import { createConnectQueryKey, useMutation, useTransport } from "@connectrpc/connect-query";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -12,10 +13,17 @@ import type { ExternalIdSchema } from "@/gen/nama/v1/match_pb";
 import { type SetPlayedRequestSchema, WatchStateService } from "@/gen/nama/v1/watch_state_pb";
 import type { RouterContext } from "@/shared/hooks/access";
 import { browseKey } from "@/shared/hooks/browse";
+import { serverKey } from "@/shared/hooks/server-key";
 import { markEpisodes, markMovie } from "@/shared/lib/marked-played";
 
-/** Each `useSetPlayed` mutation's, for a screen to show what's being marked before it's done. */
-export const setPlayedKey = [WatchStateService.method.setPlayed.name];
+/**
+ * Each `useSetPlayed` mutation's key on the Server `transport` talks to, for a screen to show
+ * what's being marked before it's done.
+ */
+export const setPlayedKey = (transport: Transport) => [
+  WatchStateService.method.setPlayed.name,
+  serverKey(transport),
+];
 
 type Asked = MessageInitShape<typeof SetPlayedRequestSchema>;
 type Target = Extract<Asked["target"], { case: string }>;
@@ -29,7 +37,7 @@ export function useSetPlayed() {
   const queryClient = useQueryClient();
   const transport = useTransport();
   const { mutate } = useMutation(WatchStateService.method.setPlayed, {
-    mutationKey: setPlayedKey,
+    mutationKey: setPlayedKey(transport),
     onMutate: async (asked) => {
       // A refetch already on its way would answer with the state from before.
       await queryClient.cancelQueries({ queryKey: browseKey(transport) });

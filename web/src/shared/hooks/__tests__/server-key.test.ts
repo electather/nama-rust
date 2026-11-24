@@ -33,5 +33,5 @@ test("two Servers' data sit in one cache, and each Server's queries are only its
     info(home),
     scanQuery(home, 1n).queryKey,
   ]);
-  expect(queryClient.getQueryData(info(friends))).toBe(friendsInfo);
+  expect(queryClient.getQueryData(info(friends))).toStrictEqual(friendsInfo);
 });
