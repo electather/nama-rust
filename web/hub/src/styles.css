@@ -1,4 +1,0 @@
-@import "nama-ui/styles.css";
-
-/* nama-ui's components sit outside this package, where Tailwind doesn't look for classes itself. */
-@source "../../ui/src";

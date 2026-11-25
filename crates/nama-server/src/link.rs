@@ -1,8 +1,8 @@
 //! Every Link call the Server makes, answered in the Kernel's terms: a [`Link`], or an [`Error`]
 //! that tells "nothing to ask" from "it couldn't tell". The Server's own Link, its Users' Links and
 //! signing in with an Account are the Kernel's, with the Hub its config names ([`ServerLink`], ADR
-//! 0105), and so is syncing its Linked Users with the Hub and sending it their Viewing Events. Each
-//! call's bound is named once:
+//! 0105), and so is syncing its Linked Users with the Hub, sending it their Viewing Events and
+//! asking what it suggests for Plugins (`suggestions.rs`). Each call's bound is named once:
 //!
 //! | Calls                                                              | Bound         |
 //! |--------------------------------------------------------------------|---------------|
@@ -10,7 +10,7 @@
 //! | Changes at the service: starting or ending a Link, inviting a User, starting or finishing an Account sign-in, Unlinking a deleted User, publishing a certificate challenge | none |
 //! | Whether a request comes from the web app at the Hub the Server is Linked with: only the Server's own table | none |
 //! | Bulk transfers: a pull or a Watchlist sync                         | [`BULK`]      |
-//! | The Server Addresses tick, a Relay token, sending what waits, sharing Diagnostics, and trading a Hub token for a Device, which fetches only the key set | the Hub client's own (`hub::TIMEOUT`) |
+//! | The Server Addresses tick, a Relay token, sending what waits, sharing Diagnostics, what the Hub suggests, and trading a Hub token for a Device, which fetches only the key set | the Hub client's own (`hub::TIMEOUT`) |
 //!
 //! A change isn't cut: cut mid-way, it could leave the service changed without the Server knowing,
 //! such as an invite sent for a User the Server then deletes. The limit on each call to the service
@@ -24,6 +24,7 @@
 mod hub;
 mod server;
 mod sharing;
+mod suggestions;
 mod sync;
 mod token;
 mod users;

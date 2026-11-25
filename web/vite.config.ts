@@ -13,23 +13,10 @@ const hubUrl = process.env["NAMA_HUB_URL"];
 const ci = Boolean(process.env["CI"]);
 
 // Written by `buf generate` and the router plugin, never by hand.
-const generated = [
-  "src/gen/**",
-  "src/routeTree.gen.ts",
-  "hub/src/gen/**",
-  "hub/src/routeTree.gen.ts",
-];
+const generated = ["src/gen/**", "src/routeTree.gen.ts"];
 
-// The feature layout's folders (web/src/AGENTS.md), nama-ui and the Hub web app's, where the
-// strictest rules apply.
-const newFolders = [
-  "src/app/**",
-  "src/features/**",
-  "src/shared/**",
-  "ui/src/**",
-  "hub/src/app/**",
-  "hub/src/features/**",
-];
+// The feature layout's folders (web/src/AGENTS.md) and nama-ui's, where the strictest rules apply.
+const newFolders = ["src/app/**", "src/features/**", "src/shared/**", "ui/src/**"];
 
 // better-tailwindcss's rules, reading the classes `stylesheet` defines. Each package's files are read
 // against its own stylesheet (ADR 0101), and oxlint's `overrides` can't change `settings`, so the
@@ -89,14 +76,12 @@ export default defineConfig({
     },
   },
   test: {
-    // Tests live in `__tests__` folders, the Hub web app's too.
-    include: ["src/**/__tests__/**/*.test.{ts,tsx}", "hub/src/**/__tests__/**/*.test.{ts,tsx}"],
+    // Tests live in `__tests__` folders.
+    include: ["src/**/__tests__/**/*.test.{ts,tsx}"],
     environment: "happy-dom",
-    // Runs before every test file, the web app's too: its page tests set the same wait again in
-    // `src/test-app.tsx`, and the few that don't import it (`use-paged.test.tsx`) wait 10 s, not 1 s.
-    setupFiles: ["hub/src/test-setup.ts"],
+    setupFiles: ["src/test-setup.ts"],
     retry: ci ? 2 : 0,
-    // Under a full run's load the app can take over the default 1 s to send its first RPC (`src/test-app.tsx` and `hub/src/test-setup.ts` raise Testing Library's wait to match).
+    // Under a full run's load the app can take over the default 1 s to send its first RPC (`src/test-setup.ts` raises Testing Library's wait to match).
     expect: { poll: { timeout: 10_000 } },
     // Over the 10 s waits, so one that runs out names what it missed; a cold run's first imports take seconds.
     testTimeout: 30_000,
@@ -109,17 +94,11 @@ export default defineConfig({
     ignorePatterns: generated,
     sortImports: true,
     sortTailwindcss: { stylesheet: "src/styles.css", functions: ["cn", "cva"] },
-    // nama-ui's and the Hub web app's classes sort against their own stylesheets (ADR 0101).
+    // nama-ui's classes sort against its own stylesheet (ADR 0101).
     overrides: [
       {
         files: ["ui/src/**"],
         options: { sortTailwindcss: { stylesheet: "ui/src/styles.css", functions: ["cn", "cva"] } },
-      },
-      {
-        files: ["hub/src/**"],
-        options: {
-          sortTailwindcss: { stylesheet: "hub/src/styles.css", functions: ["cn", "cva"] },
-        },
       },
     ],
   },
@@ -305,7 +284,6 @@ export default defineConfig({
         },
       },
       { files: ["ui/src/**"], rules: tailwindRules("ui/src/styles.css") },
-      { files: ["hub/src/**"], rules: tailwindRules("hub/src/styles.css") },
       // shadcn generates a component with its sub-parts and variants in one file, and a re-run of
       // `shadcn add` is diffed against ours (ui/src/components/AGENTS.md).
       {
@@ -337,7 +315,7 @@ export default defineConfig({
       { files: ["src/*.d.ts"], rules: { "import/unambiguous": "off" } },
       // Vite reads its config's default export, in Node.
       {
-        files: ["vite.config.ts", "hub/vite.config.ts"],
+        files: ["vite.config.ts"],
         env: { node: true },
         rules: { "import/no-default-export": "off", "import/no-nodejs-modules": "off" },
       },

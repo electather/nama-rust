@@ -185,8 +185,10 @@ async fn a_user_shows_the_code_the_hub_gives_them_and_then_whose_they_are() {
 #[tokio::test]
 async fn a_server_linked_again_doesnt_show_its_users_old_links_while_the_hub_is_unreachable() {
     let (server, hub) = linked_server().await;
-    let grace = server.user_with_default_permissions("Grace").await;
-    hub.link_user(grace.id);
+    let grace = server.create_user("Grace").await;
+    // Before she signs in, as signing in asks the Hub and keeps its answer a minute.
+    hub.link_user(grace);
+    let grace = server.sign_in(grace, "Grace").await;
     assert_eq!(
         user_link(grace.client_config()).await.unwrap().account,
         EMAIL
@@ -525,12 +527,14 @@ async fn a_user_with_no_password_whose_account_unlinked_them_is_listed_as_unable
 async fn a_user_who_signs_in_only_with_their_account_cant_unlink_from_it_but_can_cancel_a_code() {
     let (server, hub) = linked_server().await;
     let grace = create_from_account(&server, "Grace").await.unwrap();
+    // Linked before signing in, since signing in has the Server ask the Hub whether she is, and
+    // keep the answer for a minute.
+    hub.link_user(grace);
     let started = start_account_sign_in(&server, ON_SERVER).await.unwrap();
     hub.approve_sign_in(grace);
     let signed_in = sign_in_with_account(&server, &started.handle, SIGN_IN_CODE)
         .await
         .unwrap();
-    hub.link_user(grace);
     let device = server.client_config_as(&signed_in.token);
     let unlink = async || {
         users(device.clone())

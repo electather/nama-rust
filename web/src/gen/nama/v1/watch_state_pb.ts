@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file nama/v1/watch_state.proto.
  */
 export const file_nama_v1_watch_state: GenFile = /*@__PURE__*/
-  fileDesc("ChluYW1hL3YxL3dhdGNoX3N0YXRlLnByb3RvEgduYW1hLnYxIloKCldhdGNoU3RhdGUSEwoLcG9zaXRpb25fbXMYASABKAQSEwoLZHVyYXRpb25fbXMYAiABKAQSDgoGcGxheWVkGAMgASgIEhIKCnVwZGF0ZWRfYXQYBCABKAMiVQoVUmVwb3J0UHJvZ3Jlc3NSZXF1ZXN0EhIKCnZlcnNpb25faWQYASABKAMSEwoLcG9zaXRpb25fbXMYAiABKAQSEwoLZHVyYXRpb25fbXMYAyABKAQiGAoWUmVwb3J0UHJvZ3Jlc3NSZXNwb25zZSLjAQoQU2V0UGxheWVkUmVxdWVzdBISCgpsaWJyYXJ5X2lkGAEgASgDEicKCG1vdmllX2lkGAIgASgLMhMubmFtYS52MS5FeHRlcm5hbElkSAASKQoKZXBpc29kZV9pZBgDIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZEgAEiUKBnNlYXNvbhgEIAEoCzITLm5hbWEudjEuU2hvd1NlYXNvbkgAEiYKB3Nob3dfaWQYBSABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWRIABIOCgZwbGF5ZWQYBiABKAhCCAoGdGFyZ2V0IkkKClNob3dTZWFzb24SJAoHc2hvd19pZBgBIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZBIVCg1zZWFzb25fbnVtYmVyGAIgASgNIhMKEVNldFBsYXllZFJlc3BvbnNlIqUBCiRTZXRIaWRkZW5Gcm9tQ29udGludWVXYXRjaGluZ1JlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAxInCghtb3ZpZV9pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZEgAEiYKB3Nob3dfaWQYAyABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWRIABIOCgZoaWRkZW4YBCABKAhCCAoGdGFyZ2V0IicKJVNldEhpZGRlbkZyb21Db250aW51ZVdhdGNoaW5nUmVzcG9uc2UyugIKEVdhdGNoU3RhdGVTZXJ2aWNlElYKDlJlcG9ydFByb2dyZXNzEh4ubmFtYS52MS5SZXBvcnRQcm9ncmVzc1JlcXVlc3QaHy5uYW1hLnYxLlJlcG9ydFByb2dyZXNzUmVzcG9uc2UiA5ACAhJHCglTZXRQbGF5ZWQSGS5uYW1hLnYxLlNldFBsYXllZFJlcXVlc3QaGi5uYW1hLnYxLlNldFBsYXllZFJlc3BvbnNlIgOQAgISgwEKHVNldEhpZGRlbkZyb21Db250aW51ZVdhdGNoaW5nEi0ubmFtYS52MS5TZXRIaWRkZW5Gcm9tQ29udGludWVXYXRjaGluZ1JlcXVlc3QaLi5uYW1hLnYxLlNldEhpZGRlbkZyb21Db250aW51ZVdhdGNoaW5nUmVzcG9uc2UiA5ACAmIGcHJvdG8z", [file_nama_v1_match]);
+  fileDesc("ChluYW1hL3YxL3dhdGNoX3N0YXRlLnByb3RvEgduYW1hLnYxIloKCldhdGNoU3RhdGUSEwoLcG9zaXRpb25fbXMYASABKAQSEwoLZHVyYXRpb25fbXMYAiABKAQSDgoGcGxheWVkGAMgASgIEhIKCnVwZGF0ZWRfYXQYBCABKAMiVQoVUmVwb3J0UHJvZ3Jlc3NSZXF1ZXN0EhIKCnZlcnNpb25faWQYASABKAMSEwoLcG9zaXRpb25fbXMYAiABKAQSEwoLZHVyYXRpb25fbXMYAyABKAQiGAoWUmVwb3J0UHJvZ3Jlc3NSZXNwb25zZSJTCh5SZXBvcnRPZmZsaW5lV2F0Y2hTdGF0ZVJlcXVlc3QSMQoHY2hhbmdlcxgBIAMoCzIgLm5hbWEudjEuT2ZmbGluZVdhdGNoU3RhdGVDaGFuZ2UixwEKF09mZmxpbmVXYXRjaFN0YXRlQ2hhbmdlEicKCG1vdmllX2lkGAEgASgLMhMubmFtYS52MS5FeHRlcm5hbElkSAASKQoKZXBpc29kZV9pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZEgAEhMKC3Bvc2l0aW9uX21zGAMgASgEEhMKC2R1cmF0aW9uX21zGAQgASgEEg4KBnBsYXllZBgFIAEoCBIVCg1jaGFuZ2VkX2F0X21zGAYgASgDQgcKBXRpdGxlIiEKH1JlcG9ydE9mZmxpbmVXYXRjaFN0YXRlUmVzcG9uc2Ui4wEKEFNldFBsYXllZFJlcXVlc3QSEgoKbGlicmFyeV9pZBgBIAEoAxInCghtb3ZpZV9pZBgCIAEoCzITLm5hbWEudjEuRXh0ZXJuYWxJZEgAEikKCmVwaXNvZGVfaWQYAyABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWRIABIlCgZzZWFzb24YBCABKAsyEy5uYW1hLnYxLlNob3dTZWFzb25IABImCgdzaG93X2lkGAUgASgLMhMubmFtYS52MS5FeHRlcm5hbElkSAASDgoGcGxheWVkGAYgASgIQggKBnRhcmdldCJJCgpTaG93U2Vhc29uEiQKB3Nob3dfaWQYASABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWQSFQoNc2Vhc29uX251bWJlchgCIAEoDSITChFTZXRQbGF5ZWRSZXNwb25zZSKlAQokU2V0SGlkZGVuRnJvbUNvbnRpbnVlV2F0Y2hpbmdSZXF1ZXN0EhIKCmxpYnJhcnlfaWQYASABKAMSJwoIbW92aWVfaWQYAiABKAsyEy5uYW1hLnYxLkV4dGVybmFsSWRIABImCgdzaG93X2lkGAMgASgLMhMubmFtYS52MS5FeHRlcm5hbElkSAASDgoGaGlkZGVuGAQgASgIQggKBnRhcmdldCInCiVTZXRIaWRkZW5Gcm9tQ29udGludWVXYXRjaGluZ1Jlc3BvbnNlMq0DChFXYXRjaFN0YXRlU2VydmljZRJWCg5SZXBvcnRQcm9ncmVzcxIeLm5hbWEudjEuUmVwb3J0UHJvZ3Jlc3NSZXF1ZXN0Gh8ubmFtYS52MS5SZXBvcnRQcm9ncmVzc1Jlc3BvbnNlIgOQAgIScQoXUmVwb3J0T2ZmbGluZVdhdGNoU3RhdGUSJy5uYW1hLnYxLlJlcG9ydE9mZmxpbmVXYXRjaFN0YXRlUmVxdWVzdBooLm5hbWEudjEuUmVwb3J0T2ZmbGluZVdhdGNoU3RhdGVSZXNwb25zZSIDkAICEkcKCVNldFBsYXllZBIZLm5hbWEudjEuU2V0UGxheWVkUmVxdWVzdBoaLm5hbWEudjEuU2V0UGxheWVkUmVzcG9uc2UiA5ACAhKDAQodU2V0SGlkZGVuRnJvbUNvbnRpbnVlV2F0Y2hpbmcSLS5uYW1hLnYxLlNldEhpZGRlbkZyb21Db250aW51ZVdhdGNoaW5nUmVxdWVzdBouLm5hbWEudjEuU2V0SGlkZGVuRnJvbUNvbnRpbnVlV2F0Y2hpbmdSZXNwb25zZSIDkAICYgZwcm90bzM", [file_nama_v1_match]);
 
 /**
  * A User's progress through a Movie or Episode.
@@ -105,6 +105,103 @@ export const ReportProgressResponseSchema: GenMessage<ReportProgressResponse> = 
   messageDesc(file_nama_v1_watch_state, 2);
 
 /**
+ * @generated from message nama.v1.ReportOfflineWatchStateRequest
+ */
+export type ReportOfflineWatchStateRequest = Message<"nama.v1.ReportOfflineWatchStateRequest"> & {
+  /**
+   * The changes, in any order.
+   *
+   * @generated from field: repeated nama.v1.OfflineWatchStateChange changes = 1;
+   */
+  changes: OfflineWatchStateChange[];
+};
+
+/**
+ * Describes the message nama.v1.ReportOfflineWatchStateRequest.
+ * Use `create(ReportOfflineWatchStateRequestSchema)` to create a new message.
+ */
+export const ReportOfflineWatchStateRequestSchema: GenMessage<ReportOfflineWatchStateRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_watch_state, 3);
+
+/**
+ * A change a Device made to its User's Watch State of a Movie or Episode while offline.
+ *
+ * @generated from message nama.v1.OfflineWatchStateChange
+ */
+export type OfflineWatchStateChange = Message<"nama.v1.OfflineWatchStateChange"> & {
+  /**
+   * What changed, identified as browsing identifies it.
+   *
+   * @generated from oneof nama.v1.OfflineWatchStateChange.title
+   */
+  title: {
+    /**
+     * A Movie, by its id as `ListMovies` gave it.
+     *
+     * @generated from field: nama.v1.ExternalId movie_id = 1;
+     */
+    value: ExternalId;
+    case: "movieId";
+  } | {
+    /**
+     * An Episode, by its id as `ListEpisodes` gave it.
+     *
+     * @generated from field: nama.v1.ExternalId episode_id = 2;
+     */
+    value: ExternalId;
+    case: "episodeId";
+  } | { case: undefined; value?: undefined };
+
+  /**
+   * How far in, in milliseconds. A position past the duration is taken as the end.
+   *
+   * @generated from field: uint64 position_ms = 3;
+   */
+  positionMs: bigint;
+
+  /**
+   * How long it is, in milliseconds. Must not be zero.
+   *
+   * @generated from field: uint64 duration_ms = 4;
+   */
+  durationMs: bigint;
+
+  /**
+   * Whether it is played: its position passed 90% of its duration, or it was marked played.
+   *
+   * @generated from field: bool played = 5;
+   */
+  played: boolean;
+
+  /**
+   * When the Device made the change, in milliseconds since the Unix epoch.
+   *
+   * @generated from field: int64 changed_at_ms = 6;
+   */
+  changedAtMs: bigint;
+};
+
+/**
+ * Describes the message nama.v1.OfflineWatchStateChange.
+ * Use `create(OfflineWatchStateChangeSchema)` to create a new message.
+ */
+export const OfflineWatchStateChangeSchema: GenMessage<OfflineWatchStateChange> = /*@__PURE__*/
+  messageDesc(file_nama_v1_watch_state, 4);
+
+/**
+ * @generated from message nama.v1.ReportOfflineWatchStateResponse
+ */
+export type ReportOfflineWatchStateResponse = Message<"nama.v1.ReportOfflineWatchStateResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.ReportOfflineWatchStateResponse.
+ * Use `create(ReportOfflineWatchStateResponseSchema)` to create a new message.
+ */
+export const ReportOfflineWatchStateResponseSchema: GenMessage<ReportOfflineWatchStateResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_watch_state, 5);
+
+/**
  * @generated from message nama.v1.SetPlayedRequest
  */
 export type SetPlayedRequest = Message<"nama.v1.SetPlayedRequest"> & {
@@ -167,7 +264,7 @@ export type SetPlayedRequest = Message<"nama.v1.SetPlayedRequest"> & {
  * Use `create(SetPlayedRequestSchema)` to create a new message.
  */
 export const SetPlayedRequestSchema: GenMessage<SetPlayedRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_watch_state, 3);
+  messageDesc(file_nama_v1_watch_state, 6);
 
 /**
  * A Season of a Show, as browsing identifies it.
@@ -195,7 +292,7 @@ export type ShowSeason = Message<"nama.v1.ShowSeason"> & {
  * Use `create(ShowSeasonSchema)` to create a new message.
  */
 export const ShowSeasonSchema: GenMessage<ShowSeason> = /*@__PURE__*/
-  messageDesc(file_nama_v1_watch_state, 4);
+  messageDesc(file_nama_v1_watch_state, 7);
 
 /**
  * @generated from message nama.v1.SetPlayedResponse
@@ -208,7 +305,7 @@ export type SetPlayedResponse = Message<"nama.v1.SetPlayedResponse"> & {
  * Use `create(SetPlayedResponseSchema)` to create a new message.
  */
 export const SetPlayedResponseSchema: GenMessage<SetPlayedResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_watch_state, 5);
+  messageDesc(file_nama_v1_watch_state, 8);
 
 /**
  * @generated from message nama.v1.SetHiddenFromContinueWatchingRequest
@@ -257,7 +354,7 @@ export type SetHiddenFromContinueWatchingRequest = Message<"nama.v1.SetHiddenFro
  * Use `create(SetHiddenFromContinueWatchingRequestSchema)` to create a new message.
  */
 export const SetHiddenFromContinueWatchingRequestSchema: GenMessage<SetHiddenFromContinueWatchingRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_watch_state, 6);
+  messageDesc(file_nama_v1_watch_state, 9);
 
 /**
  * @generated from message nama.v1.SetHiddenFromContinueWatchingResponse
@@ -270,7 +367,7 @@ export type SetHiddenFromContinueWatchingResponse = Message<"nama.v1.SetHiddenFr
  * Use `create(SetHiddenFromContinueWatchingResponseSchema)` to create a new message.
  */
 export const SetHiddenFromContinueWatchingResponseSchema: GenMessage<SetHiddenFromContinueWatchingResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_watch_state, 7);
+  messageDesc(file_nama_v1_watch_state, 10);
 
 /**
  * Remembering how far the signed-in caller has got through what they play.
@@ -299,6 +396,22 @@ export const WatchStateService: GenService<{
     methodKind: "unary";
     input: typeof ReportProgressRequestSchema;
     output: typeof ReportProgressResponseSchema;
+  },
+  /**
+   * Sends back the changes the caller's Device made to their Watch State while offline, as when
+   * playing a downloaded file, once it reconnects. Each is stored, as of when the Device made it,
+   * only if made after the Watch State the Server has of that Movie or Episode under any of its
+   * ids, so the change made last wins whichever Device made it; one made in the same second as the
+   * Server's is left. One dated in the future is taken as made now. One once played stays played.
+   * A change to a Movie or Episode no Library has is left out. Fails with `invalid_argument` if a
+   * change names no Movie or Episode, or its duration is zero.
+   *
+   * @generated from rpc nama.v1.WatchStateService.ReportOfflineWatchState
+   */
+  reportOfflineWatchState: {
+    methodKind: "unary";
+    input: typeof ReportOfflineWatchStateRequestSchema;
+    output: typeof ReportOfflineWatchStateResponseSchema;
   },
   /**
    * Marks a Movie, an Episode, or every Episode of a Season or a Show that is Matched in a

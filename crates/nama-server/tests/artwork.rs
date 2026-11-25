@@ -165,10 +165,12 @@ async fn a_match_corrected_to_another_title_drops_the_old_titles_images() {
 #[tokio::test]
 async fn deleting_a_library_drops_the_images_only_its_items_used() {
     let fx = Fixture::alien().await;
+    // Kept before `other` scans, so its scan starts no second download that could land after
+    // the last sweep (the ceiling `store_in` documents).
+    until_kept(&fx.server, TMDB, &[POSTER, BACKDROP]).await;
     let other = (fx.server)
         .matched_library(LibraryKind::LIBRARY_KIND_MOVIES, &[ALIEN_1080P])
         .await;
-    until_kept(&fx.server, TMDB, &[POSTER, BACKDROP]).await;
 
     delete_library(&fx.server, fx.library).await;
     let shared_kept = kept(&fx.server, TMDB, POSTER).exists();

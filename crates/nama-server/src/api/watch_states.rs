@@ -1,10 +1,12 @@
 //! Each signed-in User's progress through what they play: `nama.v1.WatchStateService`.
 
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
+use nama_plugin_api::points::WatchStateChange;
 use nama_proto::nama::v1::{
-    ExternalId, RefusalReason, ReportProgressRequest, ReportProgressResponse,
+    ExternalId, OfflineWatchStateChange, RefusalReason, ReportOfflineWatchStateRequest,
+    ReportOfflineWatchStateResponse, ReportProgressRequest, ReportProgressResponse,
     SetHiddenFromContinueWatchingRequest, SetHiddenFromContinueWatchingResponse, SetPlayedRequest,
-    SetPlayedResponse, WatchStateService,
+    SetPlayedResponse, WatchStateService, offline_watch_state_change::Title,
     set_hidden_from_continue_watching_request::Target as Hide, set_played_request::Target,
 };
 
@@ -37,16 +39,8 @@ impl WatchStateService for WatchStateServiceHandler {
         request: ServiceRequest<'_, ReportProgressRequest>,
     ) -> ServiceResult<ReportProgressResponse> {
         let caller = caller(&ctx)?;
-        let progress =
-            Progress::new(request.position_ms, request.duration_ms).ok_or_else(|| {
-                refuse(
-                    RefusalReason::REFUSAL_REASON_DURATION_OUT_OF_RANGE,
-                    "the duration must be more than zero and less than 2^63 milliseconds",
-                )
-                .field("duration_ms")
-                .param("minDurationMs", &1)
-                .param("maxDurationMs", &i64::MAX)
-            })?;
+        let progress = Progress::new(request.position_ms, request.duration_ms)
+            .ok_or_else(|| duration_out_of_range("duration_ms"))?;
         self.browse
             .report(caller.user.id, request.version_id, progress)
             .await
@@ -60,6 +54,22 @@ impl WatchStateService for WatchStateServiceHandler {
         };
         (self.running).report_progress(request.version_id, caller.device.id, reported);
         Response::ok(ReportProgressResponse::default())
+    }
+
+    async fn report_offline_watch_state(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ReportOfflineWatchStateRequest>,
+    ) -> ServiceResult<ReportOfflineWatchStateResponse> {
+        let user = caller(&ctx)?.user.id;
+        let changes = (request.to_owned_message().changes.into_iter().enumerate())
+            .map(|(index, change)| offline_change(change, &format!("changes[{index}]")))
+            .collect::<Result<_, _>>()?;
+        self.browse
+            .take_offline(user, changes)
+            .await
+            .map_err(refused(Fields::NONE))?;
+        Response::ok(ReportOfflineWatchStateResponse::default())
     }
 
     async fn set_played(
@@ -157,4 +167,53 @@ fn show_target(id: ExternalId) -> Result<(TitleTarget, Fields), ConnectError> {
     };
     let id = required_id(Some(id), fields.title, "Show")?;
     Ok((TitleTarget::Show(id), fields))
+}
+
+/// The refusal of a duration `Progress` can't hold, in the request's `field`.
+fn duration_out_of_range(field: &str) -> ConnectError {
+    refuse(
+        RefusalReason::REFUSAL_REASON_DURATION_OUT_OF_RANGE,
+        "the duration must be more than zero and less than 2^63 milliseconds",
+    )
+    .field(field)
+    .param("minDurationMs", &1)
+    .param("maxDurationMs", &i64::MAX)
+    .into()
+}
+
+/// A request's offline `change`, at `field`, as the change Browse looks up by its id.
+fn offline_change(
+    change: OfflineWatchStateChange,
+    field: &str,
+) -> Result<WatchStateChange, ConnectError> {
+    let (episode, id) = match change.title {
+        Some(Title::MovieId(id)) => (
+            false,
+            required_id(Some(*id), &format!("{field}.movie_id"), "Movie")?,
+        ),
+        Some(Title::EpisodeId(id)) => (
+            true,
+            required_id(Some(*id), &format!("{field}.episode_id"), "Episode")?,
+        ),
+        None => {
+            return Err(refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                "say which Movie or Episode changed",
+            )
+            .field(&format!("{field}.title"))
+            .into());
+        }
+    };
+    // A 0 of 0 change would mark it unplayed, which offline progress never does.
+    if Progress::new(change.position_ms, change.duration_ms).is_none() {
+        return Err(duration_out_of_range(&format!("{field}.duration_ms")));
+    }
+    Ok(WatchStateChange {
+        episode,
+        ids: vec![id.to_string()],
+        played: change.played,
+        position_ms: change.position_ms,
+        duration_ms: change.duration_ms,
+        changed_at_ms: change.changed_at_ms,
+    })
 }

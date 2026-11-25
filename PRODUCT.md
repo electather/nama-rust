@@ -43,7 +43,7 @@ Warm, quiet, confident. Like a good living room: it gets out of the way and lets
 
 ## The Hub
 
-The Hub's web pages are a second, small app with the same look (ADR 0010): a person creates an Account, signs in and out, Links Servers by the code each shows, and sees their list. They never browse or play media, which stays on each Server. The pages are a single calm card each, in the Glossary's words: "Account", never "profile" or "login".
+The Hub serves the same web app, which finds on startup that it runs there and adds the Account's pages (ADR 0105): a person creates an Account, signs in and out, Links Servers by the code each shows, and sees their Servers. Media still streams from each Server, never through the Hub. The Account's signed-out pages are a single calm card each, in the Glossary's words: "Account", never "profile" or "login".
 
 ## Accessibility & Inclusion
 

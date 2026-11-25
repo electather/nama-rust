@@ -2551,14 +2551,8 @@ dependencies = [
 name = "nama-plugin-hub"
 version = "0.1.0"
 dependencies = [
- "axum",
  "buffa",
- "connectrpc",
- "hyper-rustls",
- "hyper-util",
- "nama-hub-proto",
  "nama-plugin-api",
- "rustls",
  "tokio",
 ]
 

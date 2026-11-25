@@ -1,5 +1,5 @@
 //! Rust types generated from the Hub API, `proto/nama/hub/` (ADR 0007), which the Hub serves and
-//! the Hub Plugin calls (ADR 0094).
+//! the Server's Kernel calls (ADR 0105).
 //!
 //! `nama.hub.v1.GetHubInfoRequest` is [`nama::hub::v1::GetHubInfoRequest`]. A package module holds
 //! the message types (from `buffa`) and the ConnectRPC service trait, server and client (from

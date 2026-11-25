@@ -17,11 +17,9 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use bytes::Bytes;
 use connectrpc::{ConnectError, ErrorCode};
 use nama_plugin_api::{
-    BoxFuture, PluginError,
     points::{TrackPreference, WatchStateChange},
     server_link::{Link, Reachability, ServerAddresses, WatchlistEntry},
 };
-use nama_plugin_hub::KernelLink;
 use ring::digest;
 use serde::de::DeserializeOwned;
 use sqlx::SqliteConnection;
@@ -589,6 +587,12 @@ impl ServerLink {
         Ok(())
     }
 
+    /// The credential the Server keeps, for the upgrade test that hands it the Hub Plugin's Link.
+    #[cfg(test)]
+    pub(crate) async fn credential(&self) -> Option<String> {
+        self.kept().await.ok()?.map(|kept| kept.credential)
+    }
+
     pub(super) async fn kept(&self) -> Result<Option<Kept>, sqlx::Error> {
         let kept = sqlx::query!("SELECT credential, account, server_id FROM hub_link")
             .fetch_optional(self.db.reader())
@@ -678,24 +682,6 @@ fn parsed<T: DeserializeOwned>(queued: &[Queued]) -> Vec<T> {
 fn refused_as_invalid(err: &Failure) -> bool {
     err.downcast_ref::<ConnectError>()
         .is_some_and(|refused| refused.code == ErrorCode::InvalidArgument)
-}
-
-/// What the Hub Plugin calls the Hub with until the rest of Linking moves into the Kernel (#2203).
-impl KernelLink for ServerLink {
-    fn hub_url(&self) -> &str {
-        self.hub.url()
-    }
-
-    fn credential(&self) -> BoxFuture<'_, Result<Option<String>, PluginError>> {
-        Box::pin(async { Ok(self.kept().await?.map(|kept| kept.credential)) })
-    }
-
-    // ponytail: the Hub Plugin's own `ServerLink`, made in `plugin_settings.rs`, has no follower,
-    // so a Link the Hub dropped that only a Hub Suggestions call finds is never announced
-    // Unlinked; it goes once Hub Suggestions call the Hub through the Kernel's Link (#2222).
-    fn forget<'a>(&'a self, credential: &'a str) -> BoxFuture<'a, Result<(), PluginError>> {
-        Box::pin(async { Ok(self.forget_link(credential).await?) })
-    }
 }
 
 /// Whether a sign-in token for `audience` is for this Server, whose id at the Hub is `own` once

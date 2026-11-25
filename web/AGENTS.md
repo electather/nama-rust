@@ -1,16 +1,15 @@
 ## web
 
-Rules for every web package: the web app at the root, nama-ui, the design system, in `ui/`, and the Hub web app in `hub/` (`README.md`, "Toolchain"). The web app's own rules are in `src/AGENTS.md`, nama-ui's in `ui/src/components/AGENTS.md`.
+Rules for every web package: the web app at the root, which the Server and the Hub both serve (ADR 0105), and nama-ui, the design system, in `ui/` (`README.md`, "Toolchain"). The web app's own rules are in `src/AGENTS.md`, nama-ui's in `ui/src/components/AGENTS.md`.
 
 - **Load the `web-app` skill** before you change anything here. It holds building to `PRODUCT.md` and `DESIGN.md` with impeccable, the checks, the screenshot step and the review.
 - **Only `vp`.** Run, build, check and test through `vp` (ADR 0017). Don't add ESLint, Prettier, Biome, a separate `vitest.config.ts` or `.oxlintrc`. Config goes in `vite.config.ts`. An ESLint plugin oxlint loads as a JS plugin is fine: it runs inside `vp check`.
 - **Suppressions name a reason.** To silence a lint, use `// oxlint-disable-next-line <rule> -- <reason>` on the line, never a whole file. For a type error, use `// @ts-expect-error <reason>`, never `@ts-ignore`. To raise a complexity limit, use a Fallow `thresholdOverrides` entry with a `reason`.
 - **Semantic tokens only.** Style with shadcn's semantic utilities (`bg-background`, `text-muted-foreground`, `bg-primary`). Never use Tailwind palette colours, raw colour values or `dark:` variants (ADR 0016). If a screen needs a colour that no token covers, add a token to `ui/src/styles.css`.
 - **Logical properties.** Use `ms-`/`me-`/`ps-`/`pe-`/`start-`/`end-`, never `ml-`/`mr-`/`pl-`/`pr-`/`left-`/`right-`, so right-to-left languages can be added later.
-- **Imports go one way.** nama-ui imports nothing from an app, and an app imports it by name (`nama-ui/components/button`), never by path. `ui/tsconfig.json` leaves out the web app's `@/` alias, and lint bans parent-relative imports, so `vp check` fails on either. The two apps share nothing but nama-ui (ADR 0101): the Hub web app imports its own files through `@hub/`, never the web app's `@/`, and Fallow's `hub` zone and `hub/tsconfig.json` fail either reaching across.
-- **The Hub web app speaks only `nama.hub.v1`**, from `hub/src/gen/`.
+- **Imports go one way.** nama-ui imports nothing from an app, and an app imports it by name (`nama-ui/components/button`), never by path. `ui/tsconfig.json` leaves out the web app's `@/` alias, and lint bans parent-relative imports, so `vp check` fails on either.
 - **One version of a shared dependency.** A dependency more than one package declares is `catalog:` in each, pinned once in `pnpm-workspace.yaml`'s `catalog`. nama-ui takes React as a peer dependency, so an app and its components share one React.
-- **Strictest lint.** The web app's `src/app/`, `src/features/` and `src/shared/`, nama-ui's `ui/src/`, and the Hub web app's `hub/src/app/` and `hub/src/features/` get extra oxlint rules (the `newFolders` override in `vite.config.ts`). The ones that change how code is written:
+- **Strictest lint.** The web app's `src/app/`, `src/features/` and `src/shared/` and nama-ui's `ui/src/` get extra oxlint rules (the `newFolders` override in `vite.config.ts`). The ones that change how code is written:
   - `satisfies` or a type guard, never a cast.
   - `""` and `0` aren't conditions: compare them. Checking whether an object is there is fine.
   - A function that returns a promise is `async`, and awaits rather than chaining `.then`.

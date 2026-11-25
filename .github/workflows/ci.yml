@@ -147,8 +147,7 @@ jobs:
           git diff --exit-code || {
             echo "::error::crates/nama-proto/src/generated," \
               "crates/nama-plugin-proto/src/generated, crates/nama-hub-proto/src/generated," \
-              "web/src/gen or web/hub/src/gen is stale; run 'buf generate' in proto/ and commit" \
-              "the result"
+              "or web/src/gen is stale; run 'buf generate' in proto/ and commit the result"
             exit 1
           }
       - uses: taiki-e/install-action@v2
@@ -201,7 +200,6 @@ jobs:
           vp check
           vp test
           vp build
-          vp -C hub build
           vp run fallow
       # For the test-report workflow (ADR 0022). Missing when the tests never ran. Named per
       # attempt, so a re-run records only the jobs it re-ran. `tree` names the code tested, which
@@ -218,9 +216,9 @@ jobs:
             web/test-results/tree
           if-no-files-found: ignore
       # From the repo root, where impeccable finds .impeccable/config.json (which ignores
-      # web/src/gen and web/hub/src/gen) and DESIGN.md. From web/ it would read neither.
+      # web/src/gen) and DESIGN.md. From web/ it would read neither.
       - name: Design check
-        run: vp dlx impeccable@4.8.0 detect --json web/src web/ui/src web/hub/src
+        run: vp dlx impeccable@4.8.0 detect --json web/src web/ui/src
 
   # Everything that type-checks the workspace: .sqlx query data, clippy and rustdoc.
   rust-check:
@@ -446,8 +444,8 @@ jobs:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
 
-  # The Server with the `web` feature, which embeds the `vp build` output and serves it. Runs
-  # for a web-only PR too.
+  # The Server and the Hub with the `web` feature, which embeds the `vp build` output and serves it.
+  # Runs for a web-only PR too.
   web-test:
     needs: changes
     if: >-
@@ -477,9 +475,8 @@ jobs:
       # is linted here.
       - run: cargo clippy -p nama-server --features web --all-targets --locked -- -D warnings
       - run: cargo nextest run -p nama-server --features web --test web --locked --profile ci-web
-      # The Hub embeds its web app as the Server does. Its other tests need PostgreSQL, which `hub`
-      # has, so this runs only its web pages' unit tests, which need none.
-      - run: vp -C web/hub build
+      # The Hub embeds the same web app. Its other tests need PostgreSQL, which `hub` has, so this
+      # runs only its `web::` unit tests, which need none.
       - run: cargo clippy -p nama-hub --features web --all-targets --locked -- -D warnings
       - run: cargo nextest run -p nama-hub --features web --lib --locked --profile ci -E 'test(/^web::/)'
       - if: ${{ !cancelled() && hashFiles('target/nextest/*/junit.xml') != '' }}

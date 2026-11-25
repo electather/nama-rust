@@ -6,6 +6,16 @@ pub type OwnedReportProgressRequestView = ::buffa::view::OwnedView<
 pub type OwnedReportProgressResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ReportProgressResponseView<'static>,
 >;
+///Shorthand for `OwnedView<ReportOfflineWatchStateRequestView<'static>>`.
+pub type OwnedReportOfflineWatchStateRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ReportOfflineWatchStateRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ReportOfflineWatchStateResponseView<'static>>`.
+pub type OwnedReportOfflineWatchStateResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ReportOfflineWatchStateResponseView<
+        'static,
+    >,
+>;
 ///Shorthand for `OwnedView<SetPlayedRequestView<'static>>`.
 pub type OwnedSetPlayedRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetPlayedRequestView<'static>,
@@ -38,6 +48,42 @@ for crate::messages::nama::v1::__buffa::view::ReportProgressResponseView<'_> {
 impl ::connectrpc::Encodable<crate::messages::nama::v1::ReportProgressResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ReportProgressResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ReportOfflineWatchStateResponse>
+for crate::messages::nama::v1::__buffa::view::ReportOfflineWatchStateResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ReportOfflineWatchStateResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ReportOfflineWatchStateResponseView<
+        'static,
+    >,
 > {
     fn encode(
         &self,
@@ -144,6 +190,12 @@ pub const WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC: ::connectrpc::Spec = ::conne
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `ReportOfflineWatchState` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const WATCH_STATE_SERVICE_REPORT_OFFLINE_WATCH_STATE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.WatchStateService/ReportOfflineWatchState",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
 /// Static [`Spec`](::connectrpc::Spec) for the `SetPlayed` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const WATCH_STATE_SERVICE_SET_PLAYED_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.WatchStateService/SetPlayed",
@@ -239,6 +291,35 @@ pub trait WatchStateService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::ReportProgressResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Sends back the changes the caller's Device made to their Watch State while offline, as when
+    /// playing a downloaded file, once it reconnects. Each is stored, as of when the Device made it,
+    /// only if made after the Watch State the Server has of that Movie or Episode under any of its
+    /// ids, so the change made last wins whichever Device made it; one made in the same second as the
+    /// Server's is left. One dated in the future is taken as made now. One once played stays played.
+    /// A change to a Movie or Episode no Library has is left out. Fails with `invalid_argument` if a
+    /// change names no Movie or Episode, or its duration is zero.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn report_offline_watch_state<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ReportOfflineWatchStateRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ReportOfflineWatchStateResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -360,6 +441,35 @@ impl<S: WatchStateService> WatchStateServiceExt for S {
             .with_spec(WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC)
             .route_view(
                 WATCH_STATE_SERVICE_SERVICE_NAME,
+                "ReportOfflineWatchState",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ReportOfflineWatchStateRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ReportOfflineWatchStateRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.report_offline_watch_state(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ReportOfflineWatchStateResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(WATCH_STATE_SERVICE_REPORT_OFFLINE_WATCH_STATE_SPEC)
+            .route_view(
+                WATCH_STATE_SERVICE_SERVICE_NAME,
                 "SetPlayed",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
@@ -476,6 +586,12 @@ impl<T: WatchStateService> ::connectrpc::Dispatcher for WatchStateServiceServer<
                         .with_spec(WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC),
                 )
             }
+            "ReportOfflineWatchState" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(WATCH_STATE_SERVICE_REPORT_OFFLINE_WATCH_STATE_SPEC),
+                )
+            }
             "SetPlayed" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -524,6 +640,28 @@ impl<T: WatchStateService> ::connectrpc::Dispatcher for WatchStateServiceServer<
                         .await?
                         .encode::<
                             crate::messages::nama::v1::ReportProgressResponse,
+                        >(format)
+                })
+            }
+            "ReportOfflineWatchState" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ReportOfflineWatchStateRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ReportOfflineWatchStateRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ReportOfflineWatchStateRequest,
+                    >::from_parts(&req, &body);
+                    svc.report_offline_watch_state(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ReportOfflineWatchStateResponse,
                         >(format)
                 })
             }
@@ -736,6 +874,51 @@ where
                 &self.transport,
                 &self.config,
                 WATCH_STATE_SERVICE_REPORT_PROGRESS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ReportOfflineWatchState RPC. Sends a request to /nama.v1.WatchStateService/ReportOfflineWatchState.
+    pub async fn report_offline_watch_state(
+        &self,
+        request: crate::messages::nama::v1::ReportOfflineWatchStateRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ReportOfflineWatchStateResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.report_offline_watch_state_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ReportOfflineWatchState RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn report_offline_watch_state_with_options(
+        &self,
+        request: crate::messages::nama::v1::ReportOfflineWatchStateRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ReportOfflineWatchStateResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                WATCH_STATE_SERVICE_REPORT_OFFLINE_WATCH_STATE_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

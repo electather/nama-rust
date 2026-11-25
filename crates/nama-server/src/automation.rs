@@ -1,6 +1,7 @@
 //! Automation: the Kernel's functions any Plugin calls (ADR 0048, ADR 0071), each by name, with
 //! the Plugin Permission it needs checked before its request is read.
 
+mod hub;
 mod playing;
 mod sharing;
 mod store;
@@ -25,9 +26,10 @@ use nama_plugin_api::{
         Kernel, KernelFunction, KernelRefused, Permission,
         functions::{
             BackUp, DeleteExpiredSignIns, DeleteMedia, ForgetGonePlugins, ForgetHomeRows,
-            ListDevices, ListLibraries, ListRequesters, ListTitles, ListTitlesSharing, ListUsers,
-            ListVersionTitles, ListWatchStates, ListWatchlist, RefreshMetadata, StoreDelete,
-            StoreGet, StorePut,
+            ListDevices, ListHubMostWatchlisted, ListHubRecommended, ListHubSimilar,
+            ListHubTrending, ListLibraries, ListRequesters, ListTitles, ListTitlesSharing,
+            ListUsers, ListVersionTitles, ListWatchStates, ListWatchlist, RefreshMetadata,
+            StoreDelete, StoreGet, StorePut,
         },
     },
     contract::{
@@ -153,6 +155,10 @@ const FUNCTIONS: &[Function] = &[
     row!(BackUp, Caller::back_up),
     row!(ListVersionTitles, Caller::list_version_titles),
     row!(ListDevices, Caller::list_devices),
+    row!(ListHubSimilar, Caller::list_hub_similar),
+    row!(ListHubRecommended, Caller::list_hub_recommended),
+    row!(ListHubTrending, Caller::list_hub_trending),
+    row!(ListHubMostWatchlisted, Caller::list_hub_most_watchlisted),
 ];
 
 /// Decodes `request` as `F` takes it, has `handler` answer it for `caller`, and encodes its

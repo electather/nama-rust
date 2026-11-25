@@ -152,6 +152,10 @@ pub mod __buffa {
         reg.register_json_any(super::__TITLES_SHARING_ASKED_JSON_ANY);
         reg.register_json_any(super::__SHARING_TITLES_JSON_ANY);
         reg.register_json_any(super::__SHARING_TITLE_JSON_ANY);
+        reg.register_json_any(super::__HUB_RECOMMENDED_ASKED_JSON_ANY);
+        reg.register_json_any(super::__HUB_CHART_ASKED_JSON_ANY);
+        reg.register_json_any(super::__HUB_TITLES_JSON_ANY);
+        reg.register_json_any(super::__HUB_TITLE_JSON_ANY);
         reg.register_json_any(super::__BLOB_TO_PUT_JSON_ANY);
         reg.register_json_any(super::__BLOB_PUT_JSON_ANY);
         reg.register_json_any(super::__BLOB_KEY_JSON_ANY);
@@ -563,6 +567,22 @@ pub use self::__buffa::view::SharingTitlesOwnedView;
 pub use self::__buffa::view::SharingTitleView;
 #[doc(inline)]
 pub use self::__buffa::view::SharingTitleOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HubRecommendedAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::HubRecommendedAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HubChartAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::HubChartAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HubTitlesView;
+#[doc(inline)]
+pub use self::__buffa::view::HubTitlesOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HubTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::HubTitleOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::BlobToPutView;
 #[doc(inline)]
