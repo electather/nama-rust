@@ -1,4 +1,4 @@
-import { Code } from "@connectrpc/connect";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, expect, test } from "vite-plus/test";
 
@@ -34,6 +34,9 @@ function sharedTv(acting = 1n) {
     { signedIn: newUser },
     {
       whoAmI: () => {
+        if (tv.users.length === 0) {
+          throw new ConnectError("signed out", Code.Unauthenticated);
+        }
         const user = tv.users.find((each) => each.id === tv.acting);
         return {
           user: user && { ...user, permissions: newUser },
@@ -63,6 +66,10 @@ function sharedTv(acting = 1n) {
           field: "switch_pin",
           params: { triesLeft: String(PIN_TRIES - tv.wrongPins) },
         });
+      },
+      signOut: () => {
+        tv.users = [];
+        return {};
       },
       signIn: () => {
         tv.users = [...tv.users, { id: 4n, name: "Lee" }];
@@ -178,4 +185,15 @@ test("signing out signs out only the User the Device acts as, and the picker off
   await expectPicker(["Ada", "Kim"]);
   // The caller's own User, not another's.
   expect(tv.revoked).toStrictEqual([[7n, undefined]]);
+});
+
+test("the User picker signs every User out of this Device", async () => {
+  const { tv, transport } = sharedTv(0n);
+  const router = openApp("/switch-user", transport);
+
+  fireEvent.click(await screen.findByRole("button", { name: "Sign everyone out" }));
+
+  await screen.findByRole("heading", { name: "Sign in to Living Room" });
+  expect(router.state.location.pathname).toBe("/sign-in");
+  expect(tv.users).toStrictEqual([]);
 });

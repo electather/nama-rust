@@ -64,11 +64,11 @@ export function actingUserOrRedirect(signedIn: WhoAmIResponse | null, href: stri
 }
 
 /**
- * Whether a sign-in page goes straight on to where it signs in to, `goesTo`: once anyone is signed
- * in, unless it goes on to the User picker, from which signing in adds a User to this Device
+ * Whether a sign-in page skips signing in and goes straight on to `goesTo`: once anyone is signed
+ * in, unless it goes on to the User picker, as signing in to add a User to this Device does
  * (ADR 0106).
  */
-export async function isSignedInAlready(context: RouterContext, goesTo: string | undefined) {
+export async function skipsSignIn(context: RouterContext, goesTo: string | undefined) {
   if (goesTo?.startsWith("/switch-user") === true) {
     return false;
   }

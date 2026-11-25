@@ -1,8 +1,9 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { buttonVariants } from "nama-ui/components/button";
+import { Button, buttonVariants } from "nama-ui/components/button";
 
 import { DeviceUserItem } from "@/features/auth/components/device-user-item";
 import { useFinishSignIn } from "@/features/auth/data/use-finish-sign-in";
+import { useSignOutDevice } from "@/features/auth/data/use-sign-out-device";
 import { useSwitchUser } from "@/features/auth/data/use-switch-user";
 import { needsSwitchPin, switchErrors } from "@/features/auth/lib/switch-errors";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
@@ -11,7 +12,8 @@ import { SignInCard } from "@/shared/components/sign-in-layout/sign-in-card";
 
 /**
  * The User picker: the `users` signed in to this Device, the one it acts as `current`, to switch
- * to, then go on to `redirect`; and signing in another.
+ * to, then go on to `redirect`; signing in another; and signing them all out, which a shared
+ * Device acting as none of them has no other way to do.
  */
 export function UserPicker({
   users,
@@ -26,6 +28,7 @@ export function UserPicker({
   const here = useLocation({ select: (location) => location.href });
   const finish = useFinishSignIn(redirect);
   const switchUser = useSwitchUser(finish);
+  const signOut = useSignOutDevice();
   const pick = (user: User) => {
     if (user.id === current) {
       void navigate({ href: redirect ?? "/" });
@@ -59,7 +62,7 @@ export function UserPicker({
         ))}
       </ul>
       <FormNotices errors={switchUser.error ? switchErrors(switchUser.error) : {}} />
-      {/* Signing in from here adds a User to this Device (`routes/_signed-out/sign-in.tsx`). */}
+      {/* Signing in on its way back here adds a User to this Device (`skipsSignIn`). */}
       <Link
         to="/sign-in"
         search={{ redirect: here }}
@@ -67,6 +70,18 @@ export function UserPicker({
       >
         Add another User
       </Link>
+      <p className="text-center text-sm">
+        <Button
+          variant="link"
+          size="link"
+          disabled={signOut.isPending}
+          onClick={() => {
+            signOut.mutate({});
+          }}
+        >
+          Sign everyone out
+        </Button>
+      </p>
     </SignInCard>
   );
 }
