@@ -96,12 +96,16 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
     ("src/library/watch_states", &["watch_states"]),
     ("src/users/personal_settings", &["personal_settings"]),
     ("src/users/inbox", &["inbox"]),
+    ("src/web_push/subscriptions", &["push_subscriptions"]),
     ("src/users/library_access", &["user_libraries"]),
     ("src/automation/store", &["plugin_store"]),
     ("src/watchlist", &["watchlist"]),
     ("src/playback/preview_frames", &["preview_frames"]),
     ("src/home_rows/refreshes", &["home_visits"]),
-    ("src/link/server", &["hub_link", "hub_key_set"]),
+    (
+        "src/link/server",
+        &["hub_link", "hub_key_set", "hub_tokens_used"],
+    ),
     ("src/link/sync", &["hub_sync_queue"]),
     ("src/link/users", &["hub_user_links"]),
 ];
@@ -138,6 +142,7 @@ const ROWS: &[&[&str]] = &[
     &[
         "images",
         "server_settings",
+        "web_push",
         "ffmpeg",
         "web",
         "port_mapping",

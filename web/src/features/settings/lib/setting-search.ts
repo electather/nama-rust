@@ -2,7 +2,9 @@ import { backupLabels } from "@/features/admin-backups/lib/backup-settings";
 import { serverPlaybackLabels } from "@/features/admin-playback/lib/playback-labels";
 import { notificationLabels } from "@/features/settings/lib/notification-labels";
 import {
+  accountHistoryLabels,
   accountLabels,
+  accountServerLabels,
   accountSessionLabels,
   accountSigninLabels,
   deviceLabels,
@@ -55,6 +57,8 @@ const builtIn: Record<Section, Record<string, SettingText>> = {
   account: accountLabels,
   "account-signin": accountSigninLabels,
   "account-sessions": accountSessionLabels,
+  "account-servers": accountServerLabels,
+  "account-history": accountHistoryLabels,
 };
 
 /** What the built-in setting `key` of `section` says, if it has one by that key. */

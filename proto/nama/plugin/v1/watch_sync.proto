@@ -8,11 +8,12 @@ import "nama/plugin/v1/request.proto";
 // The Extension Point for Watch sync: a Plugin that follows each User's Watch State to an outside
 // tracker, such as Trakt, and brings the changes made there back. An Installed Plugin serves it
 // through the WASM exports its rpcs name, taking and returning its messages encoded as protobuf.
-// Both exports are required.
+// Every export is required.
 //
-// Each User links their own account through the Plugin's Personal settings (ADR 0046): the Kernel
-// asks only for a User who set any of them, with that User's values and never another's. Watch
-// State only; ratings don't sync.
+// Each User links their own account by device code (`start_link`, `poll_link`), and the Kernel
+// keeps what the tracker hands back as their secret Personal settings (ADR 0046): it asks
+// `scrobble` and `import` only for a User who set any of them, with that User's values and never
+// another's. Watch State only; ratings don't sync.
 service WatchSyncService {
   // The `scrobble` export: one write's changes to a User's Watch State, told as the write is
   // made, a position update while they play included. Best effort: a failed call is logged and
@@ -24,6 +25,46 @@ service WatchSyncService {
   // has that is newer than the Server's own (ADR 0008), and keeps the `cursor` for the next ask,
   // per User, until the User or the Plugin is gone. A failed call keeps the cursor.
   rpc Import(ImportAsked) returns (Imported);
+  // The `start_link` export: starts linking a User's account at the tracker, for the User to enter
+  // `user_code` at `verification_url`.
+  rpc StartLink(StartLinkAsked) returns (LinkStarted);
+  // The `poll_link` export: whether the User entered the code `start_link` gave yet, asked as
+  // often as its `interval_seconds` while they link.
+  rpc PollLink(PollLinkAsked) returns (LinkPolled);
+}
+
+// What the `start_link` export is asked: nothing yet.
+message StartLinkAsked {}
+
+// What the `start_link` export returns.
+message LinkStarted {
+  // The code the User enters at `verification_url`.
+  string user_code = 1;
+  // Where the User enters `user_code`, such as `https://trakt.tv/activate`.
+  string verification_url = 2;
+  // How long `user_code` works, in seconds.
+  uint32 expires_in_seconds = 3;
+  // How often `poll_link` may be asked, in seconds.
+  uint32 interval_seconds = 4;
+  // Opaque to the Kernel, which hands it back to `poll_link`. The User's own client holds it
+  // while they link.
+  string device_code = 5;
+}
+
+// What the `poll_link` export is asked.
+message PollLinkAsked {
+  // What `start_link` returned as `device_code`.
+  string device_code = 1;
+}
+
+// What the `poll_link` export returns: empty while the User hasn't entered the code.
+message LinkPolled {
+  // Once the User entered the code, the tracker's tokens as values of the Plugin's SECRET Personal
+  // settings by key, which the Kernel keeps as the User's, never shows back, and hands to
+  // `scrobble` and `import`. A key that isn't a SECRET Personal setting is dropped.
+  map<string, string> personal_settings = 1;
+  // The code expired or the User refused it: they start again.
+  bool expired = 2;
 }
 
 // What the `scrobble` export is told.

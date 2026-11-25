@@ -9,11 +9,12 @@ use nama_forwarded::RequestSource;
 use nama_hub_proto::nama::hub::v1::{
     self as proto, AcceptUserInviteRequest, AcceptUserInviteResponse, ApproveServerLinkRequest,
     ApproveServerLinkResponse, ApproveServerSignInRequest, ApproveServerSignInResponse,
-    ApproveUserLinkRequest, ApproveUserLinkResponse, GetRelayTokenRequest, GetRelayTokenResponse,
-    GetServerSignInRequest, GetServerSignInResponse, GetUserLinkRequest, GetUserLinkResponse,
-    InviteUserRequest, InviteUserResponse, LinkService, LinkedServerService,
-    ListLinkedServersRequest, ListLinkedServersResponse, ListLinkedUsersRequest,
-    ListLinkedUsersResponse, ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
+    ApproveUserLinkRequest, ApproveUserLinkResponse, CreateServerTokenRequest,
+    CreateServerTokenResponse, GetRelayTokenRequest, GetRelayTokenResponse, GetServerSignInRequest,
+    GetServerSignInResponse, GetUserLinkRequest, GetUserLinkResponse, InviteUserRequest,
+    InviteUserResponse, LinkService, LinkedServerService, ListLinkedServersRequest,
+    ListLinkedServersResponse, ListLinkedUsersRequest, ListLinkedUsersResponse,
+    ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
     ListRecommendedTitlesRequest, ListRecommendedTitlesResponse, ListSimilarTitlesRequest,
     ListSimilarTitlesResponse, ListTrendingTitlesRequest, ListTrendingTitlesResponse,
     ListUserInvitesRequest, ListUserInvitesResponse, PollServerLinkRequest, PollServerLinkResponse,
@@ -31,8 +32,10 @@ use nama_hub_proto::nama::hub::v1::{
 use sqlx::PgPool;
 
 use super::{
-    accounts::session, hub_failed, recent_authentication_required, refuse, track_preferences,
-    viewing, watch_states, watchlists,
+    accounts::session,
+    hub_failed, recent_authentication_required, refuse,
+    titles::{recommended_to_proto, similar_to_proto, trending_to_proto},
+    track_preferences, viewing, watch_states, watchlists,
 };
 use crate::{
     links::{
@@ -42,8 +45,8 @@ use crate::{
     },
     recommendations::Recommendations,
     sync::{TrackPreferences, WatchStates, Watchlists},
-    titles::{self, ExternalId, RecommendedTitle, SimilarTitle, TitleKind},
-    viewing::{TrendingTitle, Viewing},
+    titles::{self, ExternalId, TitleKind},
+    viewing::Viewing,
 };
 
 /// `nama.hub.v1.ServerLinkService`: a Server not yet Linked, so anyone.
@@ -252,6 +255,22 @@ impl LinkService for LinkServiceHandler {
             .map_err(refused)?;
         Response::ok(ApproveServerSignInResponse {
             return_url,
+            ..Default::default()
+        })
+    }
+
+    async fn create_server_token(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, CreateServerTokenRequest>,
+    ) -> ServiceResult<CreateServerTokenResponse> {
+        let account = session(&ctx)?.account.id;
+        // An id that isn't a UUID names no Linked Server, so none the Account has a User on.
+        let server = (request.linked_server_id.parse())
+            .map_err(|_not_a_uuid| refused(links::Error::NoUserOnServer))?;
+        let token = (self.links.server_token(account, server).await).map_err(refused)?;
+        Response::ok(CreateServerTokenResponse {
+            token,
             ..Default::default()
         })
     }
@@ -674,51 +693,6 @@ fn linked_server(ctx: &RequestContext) -> Result<&LinkedServer, ConnectError> {
     ctx.extensions()
         .get::<LinkedServer>()
         .ok_or_else(|| hub_failed(&"a LinkedServerService call came without its Linked Server"))
-}
-
-fn similar_to_proto(similar: SimilarTitle) -> proto::SimilarTitle {
-    proto::SimilarTitle {
-        id: id_to_proto(similar.id).into(),
-        weight: similar.weight,
-        ..Default::default()
-    }
-}
-
-fn recommended_to_proto(recommended: RecommendedTitle) -> proto::RecommendedTitle {
-    let kind = match recommended.kind {
-        TitleKind::Movie => proto::TitleKind::TITLE_KIND_MOVIE,
-        TitleKind::Show => proto::TitleKind::TITLE_KIND_SHOW,
-    };
-    proto::RecommendedTitle {
-        kind: kind.into(),
-        id: id_to_proto(recommended.id).into(),
-        weight: recommended.weight,
-        ..Default::default()
-    }
-}
-
-fn id_to_proto(id: ExternalId) -> proto::ExternalId {
-    proto::ExternalId {
-        namespace: id.namespace,
-        value: id.value,
-        ..Default::default()
-    }
-}
-
-/// `trending` as a Server reads it, or `None` for an External ID not written `namespace-value`,
-/// which no Server sends.
-fn trending_to_proto(trending: &TrendingTitle) -> Option<proto::TrendingTitle> {
-    let (namespace, value) = trending.external_id.split_once('-')?;
-    Some(proto::TrendingTitle {
-        id: proto::ExternalId {
-            namespace: namespace.to_owned(),
-            value: value.to_owned(),
-            ..Default::default()
-        }
-        .into(),
-        weight: trending.weight,
-        ..Default::default()
-    })
 }
 
 fn server_to_proto(server: ListedServer) -> proto::LinkedServer {

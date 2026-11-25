@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use nama_plugin_api::{
     Manifest, PluginId,
-    settings::{SettingKind, SettingValue, Settings},
+    settings::{SettingKind, SettingValue, Settings, SettingsSchema},
 };
 
 use super::{ChangeError, ListError, PluginSettings, StoredPlugin, sent::with_stored_secrets};
@@ -84,10 +84,7 @@ impl PluginSettings {
         let rows: Vec<_> = fitted
             .into_iter()
             .map(|(key, value)| {
-                let secret = schema
-                    .fields
-                    .iter()
-                    .any(|field| field.key == key && field.kind == SettingKind::Secret);
+                let secret = is_secret(schema, &key);
                 (key, personal_text(value), secret)
             })
             .collect();
@@ -110,6 +107,45 @@ impl PluginSettings {
             manifest,
             values,
         })
+    }
+
+    /// Keeps the `tokens` a Watch sync's tracker handed back as `user`'s secret Personal settings
+    /// for the Plugin `id`, beside the others they set, and says whether it kept any. A token
+    /// whose key the Manifest doesn't declare SECRET is dropped. Unlike a save, it asks no check of
+    /// the Plugin, whose own answer the tokens are.
+    ///
+    /// # Errors
+    ///
+    /// If the Plugin or the values can't be read, or the tokens can't be written.
+    pub(super) async fn keep_tokens(
+        &self,
+        user: i64,
+        id: &PluginId,
+        tokens: impl IntoIterator<Item = (String, String)>,
+    ) -> Result<bool, sqlx::Error> {
+        let manifest = self
+            .get(id)
+            .await?
+            .and_then(|found| declaring(&found.plugin));
+        let Some(schema) = manifest
+            .as_ref()
+            .map(|manifest| &manifest.personal_settings)
+        else {
+            return Ok(false);
+        };
+        let mut tokens = (tokens.into_iter())
+            .filter(|(key, _)| is_secret(schema, key))
+            .peekable();
+        if tokens.peek().is_none() {
+            return Ok(false);
+        }
+        let mut stored = personal_settings_of(&self.db, user, id).await?;
+        stored.extend(tokens.map(|(key, token)| (key, (token, true))));
+        let rows = (stored.into_iter())
+            .map(|(key, (value, secret))| (key, value, secret))
+            .collect();
+        replace_personal_settings(&self.db, user, id, rows).await?;
+        Ok(true)
     }
 
     /// Deletes all of `user`'s Personal settings for the Plugin `id`.
@@ -144,6 +180,11 @@ impl PluginSettings {
             })
             .collect())
     }
+}
+
+/// Whether `schema` declares `key` a SECRET Personal setting.
+fn is_secret(schema: &SettingsSchema, key: &str) -> bool {
+    (schema.fields.iter()).any(|field| field.key == key && field.kind == SettingKind::Secret)
 }
 
 /// `plugin`'s Manifest if it is enabled and declares Personal settings.

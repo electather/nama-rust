@@ -3,6 +3,7 @@
 
 mod accounts;
 mod links;
+mod titles;
 mod track_preferences;
 mod viewing;
 mod watch_states;

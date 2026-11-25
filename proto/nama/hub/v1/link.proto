@@ -68,6 +68,11 @@ service LinkService {
   // go back to, with the one-time code the Server finishes with. Fails like `GetServerSignIn`, and
   // with `REFUSAL_REASON_NO_USER_ON_SERVER` if the Account has no User Linked on that Server.
   rpc ApproveServerSignIn(ApproveServerSignInRequest) returns (ApproveServerSignInResponse);
+  // Signs a token naming the signed-in Account's User on one of its Linked Servers, which the web
+  // app at the Hub trades at that Server for a Device with a bearer token (ADR 0105). The token
+  // works once, for 5 minutes, at that Server only. Fails with `REFUSAL_REASON_NO_USER_ON_SERVER`
+  // unless the Account has a User Linked there.
+  rpc CreateServerToken(CreateServerTokenRequest) returns (CreateServerTokenResponse);
 }
 
 // What a Linked Server asks the Hub. It sends the credential `PollServerLink` gave it in an
@@ -557,6 +562,16 @@ message ApproveServerSignInResponse {
   // Where to send the person back to, on the Server: the sign-in's `return_url`, with the one-time
   // code the Server finishes with added to its query as `code`.
   string return_url = 1;
+}
+
+message CreateServerTokenRequest {
+  // The `LinkedServer.id`.
+  string linked_server_id = 1;
+}
+
+message CreateServerTokenResponse {
+  // What the page sends that Server's `nama.v1.SignInService.SignInWithHubToken`.
+  string token = 1;
 }
 
 message InviteUserRequest {

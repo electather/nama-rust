@@ -15,13 +15,14 @@ use crate::{
 const KEPT: i64 = 200;
 
 /// Stores that `kind` happened to `request` in the inbox of each of `users`, who
-/// `crate::events` picked. A User deleted since is skipped.
+/// `crate::events` picked, and returns each notification stored with its User. A User deleted
+/// since is skipped.
 pub(crate) async fn store(
     db: &Database,
     users: Vec<i64>,
     kind: NotificationKind,
     request: &Request,
-) -> Result<(), sqlx::Error> {
+) -> Result<Vec<(i64, InboxNotification)>, sqlx::Error> {
     let (title, season_number) = match &request.movie_or_season {
         Some(MovieOrSeason::Movie(movie)) => (movie.title.clone(), None),
         Some(MovieOrSeason::Season(season)) => {
@@ -29,21 +30,30 @@ pub(crate) async fn store(
         }
         None => (String::new(), None),
     };
-    let (kind, request, created_at) = (kind as i32, request.id, now());
-    db.write(move |tx| {
+    let (stored_kind, request, created_at) = (kind as i32, request.id, now());
+    let notification = InboxNotification {
+        kind: kind.into(),
+        title: title.clone(),
+        season_number,
+        request_id: request,
+        created_at,
+        ..Default::default()
+    };
+    let stored = db.write(move |tx| {
         Box::pin(async move {
+            let mut stored = Vec::new();
             for user in users {
-                sqlx::query!(
-                    "INSERT INTO inbox (user_id, kind, title, season_number, request_id, created_at)
-                     SELECT id, ?, ?, ?, ?, ? FROM users WHERE id = ?",
-                    kind,
+                let id = sqlx::query_scalar!(
+                    r#"INSERT INTO inbox (user_id, kind, title, season_number, request_id, created_at)
+                     SELECT id, ?, ?, ?, ?, ? FROM users WHERE id = ? RETURNING id AS "id!""#,
+                    stored_kind,
                     title,
                     season_number,
                     request,
                     created_at,
                     user
                 )
-                .execute(&mut **tx)
+                .fetch_optional(&mut **tx)
                 .await?;
                 // Deletes nothing until the User has more than `KEPT`, as the subquery is NULL.
                 sqlx::query!(
@@ -55,11 +65,20 @@ pub(crate) async fn store(
                 )
                 .execute(&mut **tx)
                 .await?;
+                stored.extend(id.map(|id| (user, id)));
             }
-            Ok(())
+            Ok::<_, sqlx::Error>(stored)
         })
     })
-    .await
+    .await?;
+    let stored = stored.into_iter().map(|(user, id)| {
+        let notification = InboxNotification {
+            id,
+            ..notification.clone()
+        };
+        (user, notification)
+    });
+    Ok(stored.collect())
 }
 
 /// The `page` of `user`'s notifications, newest first. Only the first page counts them all.

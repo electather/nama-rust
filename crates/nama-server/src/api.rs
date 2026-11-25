@@ -51,6 +51,7 @@ mod inbox;
 mod jobs;
 mod libraries;
 mod matches;
+mod personal_settings;
 mod playback;
 mod plugins;
 mod requests;
@@ -61,6 +62,7 @@ mod sign_in;
 mod users;
 mod watch_states;
 mod watchlist;
+mod web_push;
 
 use access::require_access;
 pub(crate) use browser_spans::BrowserSpans;
@@ -185,6 +187,9 @@ pub(crate) fn router(
             running: running.clone(),
         }))
         .add_service(Arc::new(inbox::InboxServiceHandler {
+            db: Arc::clone(&db),
+        }))
+        .add_service(Arc::new(web_push::WebPushServiceHandler {
             db: Arc::clone(&db),
         }))
         .add_service(Arc::new(watchlist::WatchlistServiceHandler {
@@ -448,11 +453,13 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SEGMENT_SOURCES_INVALID
         | R::REFUSAL_REASON_PERMISSION_NOT_REQUESTED
         | R::REFUSAL_REASON_MESSAGE_TOO_LONG
-        | R::REFUSAL_REASON_SCHEDULE_INVALID => ErrorCode::InvalidArgument,
+        | R::REFUSAL_REASON_SCHEDULE_INVALID
+        | R::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID => ErrorCode::InvalidArgument,
         R::REFUSAL_REASON_SIGN_IN_REQUIRED
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD
         | R::REFUSAL_REASON_WRONG_ACCOUNT
+        | R::REFUSAL_REASON_HUB_TOKEN_REFUSED
         | R::REFUSAL_REASON_SIGNED_OUT => ErrorCode::Unauthenticated,
         R::REFUSAL_REASON_PERMISSION_REQUIRED
         | R::REFUSAL_REASON_WRONG_SETUP_CODE

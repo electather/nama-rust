@@ -10,7 +10,7 @@
 //! | Changes at the service: starting or ending a Link, inviting a User, starting or finishing an Account sign-in, Unlinking a deleted User, publishing a certificate challenge | none |
 //! | Whether a request comes from the web app at the Hub the Server is Linked with: only the Server's own table | none |
 //! | Bulk transfers: a pull or a Watchlist sync                         | [`BULK`]      |
-//! | The Server Addresses tick, a Relay token, sending what waits, and sharing Diagnostics | the Hub client's own (`hub::TIMEOUT`) |
+//! | The Server Addresses tick, a Relay token, sending what waits, sharing Diagnostics, and trading a Hub token for a Device, which fetches only the key set | the Hub client's own (`hub::TIMEOUT`) |
 //!
 //! A change isn't cut: cut mid-way, it could leave the service changed without the Server knowing,
 //! such as an invite sent for a User the Server then deletes. The limit on each call to the service
@@ -278,6 +278,14 @@ impl Linking {
         code: &str,
     ) -> Result<Option<i64>, Error> {
         self.ask_hub(async |server| server.finish_sign_in(handle, code).await)
+            .await
+    }
+
+    /// The id of the User `token` names, a token the Hub signed for the web app at the Hub to trade
+    /// here for a Device (ADR 0105), using it up; `None` when it is refused: one for another
+    /// Server, expired, used already or not the Hub's.
+    pub(crate) async fn hub_token_user(&self, token: &str) -> Result<Option<i64>, Error> {
+        self.ask_hub(async |server| server.hub_token_user(token).await)
             .await
     }
 

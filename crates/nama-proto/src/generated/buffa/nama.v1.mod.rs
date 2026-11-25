@@ -17,6 +17,7 @@ include!("nama.v1.inbox.rs");
 include!("nama.v1.job.rs");
 include!("nama.v1.search.rs");
 include!("nama.v1.watchlist.rs");
+include!("nama.v1.web_push.rs");
 #[allow(
     non_camel_case_types,
     dead_code,
@@ -51,6 +52,7 @@ pub mod __buffa {
         include!("nama.v1.job.__view.rs");
         include!("nama.v1.search.__view.rs");
         include!("nama.v1.watchlist.__view.rs");
+        include!("nama.v1.web_push.__view.rs");
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
@@ -445,6 +447,8 @@ pub mod __buffa {
         reg.register_json_any(super::__START_ACCOUNT_SIGN_IN_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SIGN_IN_WITH_ACCOUNT_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SIGN_IN_WITH_ACCOUNT_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SIGN_IN_WITH_HUB_TOKEN_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SIGN_IN_WITH_HUB_TOKEN_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_USER_LINK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_USER_LINK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__USER_LINK_JSON_ANY);
@@ -497,6 +501,10 @@ pub mod __buffa {
         reg.register_json_any(super::__UPDATE_PERSONAL_SETTINGS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__DELETE_PERSONAL_SETTINGS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__DELETE_PERSONAL_SETTINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__START_WATCH_SYNC_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__START_WATCH_SYNC_LINK_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__POLL_WATCH_SYNC_LINK_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__POLL_WATCH_SYNC_LINK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_NOTIFICATION_PREFERENCES_REQUEST_JSON_ANY);
         reg.register_json_any(super::__LIST_NOTIFICATION_PREFERENCES_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__NOTIFICATION_PREFERENCE_JSON_ANY);
@@ -550,6 +558,13 @@ pub mod __buffa {
         reg.register_json_any(super::__ADD_TO_WATCHLIST_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REMOVE_FROM_WATCHLIST_REQUEST_JSON_ANY);
         reg.register_json_any(super::__REMOVE_FROM_WATCHLIST_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__GET_WEB_PUSH_KEY_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_WEB_PUSH_KEY_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SUBSCRIBE_WEB_PUSH_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SUBSCRIBE_WEB_PUSH_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__UNSUBSCRIBE_WEB_PUSH_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__UNSUBSCRIBE_WEB_PUSH_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__WEB_PUSH_MESSAGE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -1997,6 +2012,14 @@ pub use self::__buffa::view::SignInWithAccountResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SignInWithAccountResponseOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::SignInWithHubTokenRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithHubTokenRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithHubTokenResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithHubTokenResponseOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::GetUserLinkRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::GetUserLinkRequestOwnedView;
@@ -2205,6 +2228,22 @@ pub use self::__buffa::view::DeletePersonalSettingsResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::DeletePersonalSettingsResponseOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::StartWatchSyncLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::StartWatchSyncLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::StartWatchSyncLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::StartWatchSyncLinkResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PollWatchSyncLinkRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::PollWatchSyncLinkRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::PollWatchSyncLinkResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::PollWatchSyncLinkResponseOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::ListNotificationPreferencesRequestView;
 #[doc(inline)]
 pub use self::__buffa::view::ListNotificationPreferencesRequestOwnedView;
@@ -2384,5 +2423,33 @@ pub use self::__buffa::view::RemoveFromWatchlistRequestOwnedView;
 pub use self::__buffa::view::RemoveFromWatchlistResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::RemoveFromWatchlistResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetWebPushKeyRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetWebPushKeyRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::GetWebPushKeyResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::GetWebPushKeyResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SubscribeWebPushRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SubscribeWebPushRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SubscribeWebPushResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SubscribeWebPushResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnsubscribeWebPushRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::UnsubscribeWebPushRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UnsubscribeWebPushResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::UnsubscribeWebPushResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::WebPushMessageView;
+#[doc(inline)]
+pub use self::__buffa::view::WebPushMessageOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

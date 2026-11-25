@@ -9,7 +9,10 @@
 
 use crate::{
     BoxFuture, PluginError,
-    contract::{ImportAsked, Imported, ScrobbleAsked, Scrobbled},
+    contract::{
+        ImportAsked, Imported, LinkPolled, LinkStarted, PollLinkAsked, ScrobbleAsked, Scrobbled,
+        StartLinkAsked,
+    },
 };
 
 /// Watch sync. It speaks the contract's `WatchSyncService` messages, as an Installed Plugin's
@@ -34,4 +37,25 @@ pub trait WatchSync: Send + Sync + 'static {
     /// When it couldn't ask: the Kernel keeps the cursor and asks again next time.
     fn import<'a>(&'a self, asked: &'a ImportAsked)
     -> BoxFuture<'a, Result<Imported, PluginError>>;
+
+    /// Starts linking a User's account at the outside tracker by device code.
+    ///
+    /// # Errors
+    ///
+    /// When the tracker couldn't be asked for a code.
+    fn start_link<'a>(
+        &'a self,
+        asked: &'a StartLinkAsked,
+    ) -> BoxFuture<'a, Result<LinkStarted, PluginError>>;
+
+    /// Whether the User entered the code `asked.device_code` came with, and the tracker's tokens
+    /// once they did.
+    ///
+    /// # Errors
+    ///
+    /// When the tracker couldn't be asked.
+    fn poll_link<'a>(
+        &'a self,
+        asked: &'a PollLinkAsked,
+    ) -> BoxFuture<'a, Result<LinkPolled, PluginError>>;
 }

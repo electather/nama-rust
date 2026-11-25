@@ -14,3 +14,4 @@ include!("nama.v1.inbox.__connect.rs");
 include!("nama.v1.job.__connect.rs");
 include!("nama.v1.search.__connect.rs");
 include!("nama.v1.watchlist.__connect.rs");
+include!("nama.v1.web_push.__connect.rs");

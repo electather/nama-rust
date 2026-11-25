@@ -3,7 +3,8 @@ use std::{future, sync::Arc, time::Duration};
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     contract::{
-        ImportAsked, Imported, ScrobbleAsked, Scrobbled, SyncedWatchState, TitleId, TitleRefKind,
+        ImportAsked, Imported, LinkPolled, LinkStarted, PollLinkAsked, ScrobbleAsked, Scrobbled,
+        StartLinkAsked, SyncedWatchState, TitleId, TitleRefKind,
     },
     metadata::{ExternalId, ExternalIds},
     watch_sync::WatchSync,
@@ -69,6 +70,20 @@ impl WatchSync for Tracker {
         _asked: &'a ImportAsked,
     ) -> BoxFuture<'a, Result<Imported, PluginError>> {
         Box::pin(future::ready(Ok(self.imported.clone())))
+    }
+
+    fn start_link<'a>(
+        &'a self,
+        _asked: &'a StartLinkAsked,
+    ) -> BoxFuture<'a, Result<LinkStarted, PluginError>> {
+        Box::pin(future::ready(Err("these tests link no one".into())))
+    }
+
+    fn poll_link<'a>(
+        &'a self,
+        _asked: &'a PollLinkAsked,
+    ) -> BoxFuture<'a, Result<LinkPolled, PluginError>> {
+        Box::pin(future::ready(Err("these tests link no one".into())))
     }
 }
 

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, created_at)\n                 VALUES (?, ?, ?, ?, ?)\n                 ON CONFLICT (endpoint) DO UPDATE SET user_id = excluded.user_id,\n                     p256dh = excluded.p256dh, auth = excluded.auth,\n                     created_at = excluded.created_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "c0f599b67cc83aab4432170b2ec65373c7210e52df2aef98ac293acf88a0b100"
+}
