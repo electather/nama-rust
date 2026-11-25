@@ -350,7 +350,10 @@ enum RefusalReason {
   // `invalid_argument`: a Switch PIN must be 4 to 6 digits. `field` is `switch_pin`. Params:
   // `minLength`, `maxLength`, in digits.
   REFUSAL_REASON_SWITCH_PIN_INVALID = 105;
+  // `invalid_argument`: a push subscription's `endpoint` isn't an https URL, `p256dh` isn't a
+  // P-256 public key or `auth` isn't 16 bytes. `field` names which.
+  REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID = 106;
   // `unauthenticated`: the Hub didn't sign the token for this Server, or it expired or was used
   // already. `field` is `hub_token`.
-  REFUSAL_REASON_HUB_TOKEN_REFUSED = 106;
+  REFUSAL_REASON_HUB_TOKEN_REFUSED = 107;
 }

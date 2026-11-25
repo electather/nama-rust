@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT web_push_key FROM server_settings",
+  "describe": {
+    "columns": [
+      {
+        "name": "web_push_key",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "web_push_key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "dbcfc44243f784a18c8e40bc886d40589deb0d2102c8fc2af41234a8e8d81fc0"
+}
