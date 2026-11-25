@@ -51,7 +51,7 @@ use super::{
 
 /// The Settings Sections this Server serves, by their `?settings=` words, as
 /// `GetServerInfoResponse.settings_sections` lists them.
-// The web app at the Hub says to update a Server for a Section it doesn't list: add new ones here.
+// A new Settings Section goes here too (`web/src/AGENTS.md`).
 const SETTINGS_SECTIONS: &str = "signin devices playback home requests connections libraries \
     needs-a-match now-playing jobs server users backups default-home server-playback plugins";
 
