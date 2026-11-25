@@ -2,7 +2,7 @@ import { createQueryOptions } from "@connectrpc/connect-query";
 import { useQueries } from "@tanstack/react-query";
 
 import { useLibrariesElsewhere } from "@/features/title/data/use-libraries-elsewhere";
-import { onePerServer } from "@/features/title/lib/copies";
+import { onePerServer } from "@/features/title/lib/server-choices";
 import { BrowseService, type Episode } from "@/gen/nama/v1/browse_pb";
 import { LibraryKind } from "@/gen/nama/v1/library_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
@@ -14,6 +14,7 @@ import { loaderStaleTime } from "@/shared/hooks/loader-stale-time";
  */
 export function useEpisodeElsewhere(showId: ExternalId, episode: Episode | undefined) {
   const libraries = useLibrariesElsewhere(LibraryKind.SHOWS);
+  // Not suspended, as `useLibrariesElsewhere` isn't.
   return useQueries({
     // As the Show's page asks its own Server, so playing there finds it cached.
     queries: libraries.map(({ transport, libraryId }) => ({

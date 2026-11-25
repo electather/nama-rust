@@ -7,7 +7,7 @@ import { OpenerItem } from "@/features/title/components/opener-item";
 import { ServerItems } from "@/features/title/components/server-items";
 import { VersionItems } from "@/features/title/components/version-items";
 import { useMayDelete } from "@/features/title/hooks/use-may-delete";
-import type { PlayFrom } from "@/features/title/lib/copies";
+import type { PlayFrom } from "@/features/title/lib/server-choices";
 import type { Movie, Version } from "@/gen/nama/v1/browse_pb";
 import type { ExternalId } from "@/gen/nama/v1/match_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";

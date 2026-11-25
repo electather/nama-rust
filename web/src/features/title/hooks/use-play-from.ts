@@ -1,18 +1,28 @@
 import { useRouteContext } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { type Copy, copyToPlay, type PlayFrom } from "@/features/title/lib/copies";
+import {
+  type OwnChoice,
+  type PlayFrom,
+  type ServerChoice,
+  choiceToPlay,
+} from "@/features/title/lib/server-choices";
 
 /**
- * Which Server Play plays from: the page's own, holding `here`, or one of `elsewhere`, by default
- * the one with the best Version until one is chosen. Nothing to play without `here`.
+ * Which Server Play plays from: the page's own, holding `own`, or one of `elsewhere`, by default
+ * the one with the best Version until one is chosen. Nothing to play without `own`.
  */
-export function usePlayFrom(here: Omit<Copy, "server"> | undefined, elsewhere: Copy[]): PlayFrom {
-  const { here: server } = useRouteContext({ from: "/_member/_server" });
+export function usePlayFrom(
+  own: OwnChoice,
+  elsewhere: ServerChoice[],
+): PlayFrom & { choice: ServerChoice };
+export function usePlayFrom(own: OwnChoice | undefined, elsewhere: ServerChoice[]): PlayFrom;
+export function usePlayFrom(own: OwnChoice | undefined, elsewhere: ServerChoice[]): PlayFrom {
+  const { here } = useRouteContext({ from: "/_member/_server" });
   const [chosen, setChosen] = useState<string>();
-  if (!here) {
-    return { copies: [], copy: undefined, onChoose: setChosen };
+  if (!own) {
+    return { choices: [], choice: undefined, onChoose: setChosen };
   }
-  const copies: [Copy, ...Copy[]] = [{ ...here, server }, ...elsewhere];
-  return { copies, copy: copyToPlay(copies, chosen), onChoose: setChosen };
+  const choices: [ServerChoice, ...ServerChoice[]] = [{ ...own, server: here }, ...elsewhere];
+  return { choices, choice: choiceToPlay(choices, chosen), onChoose: setChosen };
 }

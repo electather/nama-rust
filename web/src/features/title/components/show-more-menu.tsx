@@ -6,7 +6,7 @@ import { FixMatch } from "@/features/title/components/fix-match";
 import { MoreActions } from "@/features/title/components/more-actions";
 import { ServerItems } from "@/features/title/components/server-items";
 import { ShowMenuItems } from "@/features/title/components/show-menu-items";
-import type { PlayFrom } from "@/features/title/lib/copies";
+import type { PlayFrom } from "@/features/title/lib/server-choices";
 import { showImages } from "@/features/title/lib/title-images";
 import { titleToMatch } from "@/features/title/lib/title-to-match";
 import type { Season, Show } from "@/gen/nama/v1/browse_pb";

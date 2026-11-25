@@ -11,8 +11,8 @@ import { yearOf } from "@/shared/lib/title-facts";
 
 /**
  * The top of a Show's page, which says what it is and plays `toPlay`, at the Hub from whichever of
- * the Account's Servers has it best. Its "…" menu acts on the
- * Show, and edits the Poster of the Season the row is on, `seasonNumber`, with the Show's images.
+ * the Account's Servers has it best. Its "…" menu acts on the Show, and edits the Poster of the
+ * Season the row is on, `seasonNumber`, with the Show's images.
  */
 export function ShowHero({
   libraryId,
@@ -45,7 +45,7 @@ export function ShowHero({
       boxed={titleBadges(episodes.flatMap(({ versions }) => versions))}
       actions={
         toPlay &&
-        playFrom.copy && <ShowPlay showId={showId} episode={toPlay} copy={playFrom.copy} />
+        playFrom.choice && <ShowPlay showId={showId} episode={toPlay} choice={playFrom.choice} />
       }
       more={
         <ShowMoreLoader

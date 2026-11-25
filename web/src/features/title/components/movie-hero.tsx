@@ -30,10 +30,10 @@ export function MovieHero({
 }) {
   const { versions, watchState } = movie;
   const playFrom = usePlayFrom({ libraryId, versions, watchState }, useMovieElsewhere(movieId));
-  const copy = playFrom.copy ?? { server: undefined, libraryId, versions, watchState };
+  const { choice } = playFrom;
   const [chosen, setChosen] = useState<number>();
   // The largest until one is chosen, and again if an Event removed the chosen one.
-  const version = versionToPlay(copy.versions, chosen);
+  const version = versionToPlay(choice.versions, chosen);
   return (
     <TitleTop
       title={movie}
@@ -42,11 +42,11 @@ export function MovieHero({
       logoUrl={movie.titleLogoUrl}
       facts={[yearOf(movie.releaseDate), runtimeOf(movie.runtimeMinutes, "short")]}
       boxed={titleBadges(movie.versions)}
-      actions={<Play movieId={params.movieId} copy={copy} version={version} />}
+      actions={<Play movieId={params.movieId} choice={choice} version={version} />}
       more={
         <MovieMoreLoader
           {...{ libraryId, movieId, movie, readOnlyFolder, version }}
-          versions={copy.versions}
+          versions={choice.versions}
           onChoose={setChosen}
           playFrom={{
             ...playFrom,
