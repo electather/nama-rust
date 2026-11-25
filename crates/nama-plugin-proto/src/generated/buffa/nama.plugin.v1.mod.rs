@@ -188,6 +188,10 @@ pub mod __buffa {
         reg.register_json_any(super::__PLAYBACK_STARTED_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_ENDED_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_CHANGED_JSON_ANY);
+        reg.register_json_any(super::__SERVER_LINKED_JSON_ANY);
+        reg.register_json_any(super::__SERVER_UNLINKED_JSON_ANY);
+        reg.register_json_any(super::__USER_LINKED_JSON_ANY);
+        reg.register_json_any(super::__USER_UNLINKED_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_JSON_ANY);
         reg.register_json_any(super::__FULFILLED_JSON_ANY);
         reg.register_json_any(super::__PROGRESS_ASKED_JSON_ANY);
@@ -707,6 +711,22 @@ pub use self::__buffa::view::PlaybackEndedOwnedView;
 pub use self::__buffa::view::PlaybackChangedView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackChangedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ServerLinkedView;
+#[doc(inline)]
+pub use self::__buffa::view::ServerLinkedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ServerUnlinkedView;
+#[doc(inline)]
+pub use self::__buffa::view::ServerUnlinkedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserLinkedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserLinkedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserUnlinkedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserUnlinkedOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackView;
 #[doc(inline)]

@@ -1,11 +1,77 @@
 //! A notification's wording, shared by the Notifier Plugins so each says the same.
 
+use ::extism_pdk::Error;
+
 use crate::{
-    Notification,
+    Notification, SettingField, SettingKind,
     nama_plugin_proto::nama::plugin::v1::{
         Request, RequestState, event::Event, request::MovieOrSeason,
     },
+    setting, setting_default, setting_field, setting_value,
 };
+
+/// The key of the setting [`announce_linking`] declares.
+pub const ANNOUNCE_LINKING: &str = "announce_linking";
+
+/// The bool setting with which an Admin chooses whether a Notifier tells of the Server and its
+/// Users being Linked and Unlinked, on unless they turn it off. [`announcement`] reads it.
+#[must_use]
+pub fn announce_linking() -> SettingField {
+    SettingField {
+        default_value: setting_default(setting_value::Value::BoolValue(true)),
+        ..setting_field(
+            ANNOUNCE_LINKING,
+            "Announce Linking",
+            "Tell the Admins when the Server or a User is Linked to the Hub or Unlinked.",
+            SettingKind::SETTING_KIND_BOOL,
+        )
+    }
+}
+
+/// What a Notifier declaring [`announce_linking`] tells of `notification`: [`what_happened`] to a
+/// Request, or a Link changing while that setting is on, or `None` for what it doesn't tell.
+///
+/// # Errors
+///
+/// When the Server's config can't be read.
+pub fn announcement(notification: &Notification) -> Result<Option<String>, Error> {
+    if let Some(text) = what_happened(notification) {
+        return Ok(Some(text));
+    }
+    let Some(news) = link_changed(notification) else {
+        return Ok(None);
+    };
+    Ok((setting(ANNOUNCE_LINKING)?.as_deref() == Some("true")).then_some(news))
+}
+
+/// What `notification` says of a Link changing, or `None` for any other event.
+fn link_changed(notification: &Notification) -> Option<String> {
+    Some(match notification.event.as_option()?.event.as_ref()? {
+        Event::ServerLinked(_) => "The Server was Linked to the Hub.".to_owned(),
+        Event::ServerUnlinked(_) => "The Server was Unlinked from the Hub.".to_owned(),
+        Event::UserLinked(linked) => format!("{} was Linked to an Account.", linked.name),
+        Event::UserUnlinked(unlinked) => {
+            format!("{} was Unlinked from their Account.", unlinked.name)
+        }
+        Event::ScanStarted(_)
+        | Event::ScanProgress(_)
+        | Event::ScanFinished(_)
+        | Event::LibraryItemAdded(_)
+        | Event::LibraryItemRemoved(_)
+        | Event::ItemMatched(_)
+        | Event::MatchingFinished(_)
+        | Event::ProbingFinished(_)
+        | Event::RequestCreated(_)
+        | Event::RequesterAdded(_)
+        | Event::RequestStateChanged(_)
+        | Event::RequestCancelled(_)
+        | Event::RequesterRemoved(_)
+        | Event::RequestWithdrawn(_)
+        | Event::PlaybackStarted(_)
+        | Event::PlaybackEnded(_)
+        | Event::PlaybackChanged(_) => return None,
+    })
+}
 
 /// What happened, or `None` for what a Notifier doesn't tell: an event that isn't about a Request,
 /// or a state this nama-pdk doesn't know.
@@ -59,7 +125,11 @@ pub fn what_happened(notification: &Notification) -> Option<String> {
         | Event::ProbingFinished(_)
         | Event::PlaybackStarted(_)
         | Event::PlaybackEnded(_)
-        | Event::PlaybackChanged(_) => return None,
+        | Event::PlaybackChanged(_)
+        | Event::ServerLinked(_)
+        | Event::ServerUnlinked(_)
+        | Event::UserLinked(_)
+        | Event::UserUnlinked(_) => return None,
     })
 }
 

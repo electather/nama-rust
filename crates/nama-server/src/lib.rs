@@ -291,6 +291,8 @@ pub fn serve(
         let scan_follower = syncing.follow_scans(&events);
         // Before serving, so it hears the first look at each Link.
         let link_follower = syncing.follow_links();
+        // Before serving, so no Link kept or forgotten goes unannounced.
+        let announcing_links = events.announce_links(&linking);
         let sending_to_hub = syncing.keep_sending();
         // Before serving, so it sees every play start.
         let viewing_follower = viewing_events.follow_plays(&events);
@@ -371,6 +373,8 @@ pub fn serve(
         // The next start's scans pull and sync again, and its first looks push each Link again.
         scan_follower.abort();
         link_follower.abort();
+        // A Link changed as the Server stops may go unannounced.
+        announcing_links.abort();
         // What waits for the Hub is kept, and goes from the next start.
         sending_to_hub.abort();
         // A play the shutdown ends may go unrecorded.

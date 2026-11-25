@@ -1,6 +1,6 @@
-//! The Discord Installed Plugin: posts the Requests the Server tells a User about to the Discord
-//! webhook that User set in their Personal settings (ADR 0046). The Server builds it for wasm32
-//! and bundles it in its binary.
+//! The Discord Installed Plugin: posts the Requests the Server tells a User about, and the Links
+//! it tells an Admin about, to the Discord webhook that User set in their Personal settings (ADR
+//! 0046). The Server builds it for wasm32 and bundles it in its binary.
 
 use nama_pdk::{
     Manifest, SettingField, SettingKind, services, setting_default, setting_field, setting_value,
@@ -68,7 +68,7 @@ mod exports {
     /// Posts `notification` to the webhook `user` set, on the Discord URL setting, so a User's
     /// value never widens the hosts the Plugin reaches (ADR 0046).
     fn post(notification: &Notification, user: &UserRecipient) -> Result<(), Error> {
-        let Some(text) = super::message(notification) else {
+        let Some(text) = super::message(notification)? else {
             return Ok(());
         };
         let webhook = super::webhook(user.personal_settings.get(WEBHOOK).map(String::as_str))?;
@@ -114,17 +114,20 @@ fn manifest() -> Manifest {
         // No Connector: a User reaches Discord through their Personal settings.
         points: vec![nama_pdk::point(services::NOTIFIER)],
         allowed_hosts: vec!["discord.com".to_owned()],
-        settings: vec![SettingField {
-            default_value: setting_default(setting_value::Value::TextValue(
-                "https://discord.com".to_owned(),
-            )),
-            ..setting_field(
-                API_URL,
-                "Discord URL",
-                "Where Discord is. Change it only for a proxy or a test.",
-                SettingKind::SETTING_KIND_URL,
-            )
-        }],
+        settings: vec![
+            SettingField {
+                default_value: setting_default(setting_value::Value::TextValue(
+                    "https://discord.com".to_owned(),
+                )),
+                ..setting_field(
+                    API_URL,
+                    "Discord URL",
+                    "Where Discord is. Change it only for a proxy or a test.",
+                    SettingKind::SETTING_KIND_URL,
+                )
+            },
+            nama_pdk::announce_linking(),
+        ],
         personal_settings: vec![SettingField {
             required: true,
             ..setting_field(
@@ -136,7 +139,8 @@ fn manifest() -> Manifest {
             )
         }],
         name: "Discord".to_owned(),
-        description: "Tells each User about their Requests through their own Discord webhook."
+        description: "Tells each User about their Requests, and the Admins about Linking, through \
+                      their own Discord webhook."
             .to_owned(),
         ..nama_pdk::manifest("discord", env!("CARGO_PKG_VERSION"))
     }
@@ -144,12 +148,14 @@ fn manifest() -> Manifest {
 
 /// What to post about `notification`, then the link to its Request if the Server gives one, or
 /// `None` for what a User isn't told.
-fn message(notification: &nama_pdk::Notification) -> Option<String> {
-    let text = nama_pdk::what_happened(notification)?;
-    Some(match &notification.request_url {
+fn message(
+    notification: &nama_pdk::Notification,
+) -> Result<Option<String>, nama_pdk::extism_pdk::Error> {
+    let told = nama_pdk::announcement(notification)?;
+    Ok(told.map(|text| match &notification.request_url {
         Some(link) => format!("{text}\n{link}"),
         None => text,
-    })
+    }))
 }
 
 /// The `<id>/<token>` after `/api/webhooks/` in `webhook`, whatever its host. A failure names the

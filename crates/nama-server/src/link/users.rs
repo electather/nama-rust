@@ -12,8 +12,10 @@ use std::{
 };
 
 use nama_plugin_api::server_link::{AccountSignIn, Link};
+use sqlx::SqliteConnection;
 
 use super::{
+    LinkChange, Whose,
     hub::Failure,
     server::{Kept, NOT_LINKED, ServerLink},
 };
@@ -179,11 +181,15 @@ impl ServerLink {
         account: &str,
     ) -> Result<(), Failure> {
         let linked = !account.is_empty();
-        if linked {
-            self.keep_account(user_id, kept.id(), account.to_owned())
-                .await?;
+        let changed = if linked {
+            let newly_linked = (self.keep_account(user_id, kept.id(), account.to_owned())).await?;
+            newly_linked.then_some(LinkChange::Linked(Whose::User(user_id)))
         } else {
-            self.forget_account(user_id).await?;
+            let was_linked = self.forget_account(user_id, kept.id()).await?;
+            was_linked.then_some(LinkChange::Unlinked(Whose::User(user_id)))
+        };
+        if let Some(change) = changed {
+            self.changed(change);
         }
         self.with_user(user_id, |user| {
             user.asked = Some(db::instant_now());
@@ -194,15 +200,18 @@ impl ServerLink {
         Ok(())
     }
 
+    /// Keeps `account` as `user_id`'s under `server_link`, answering whether that made them
+    /// Linked, as they weren't under it.
     async fn keep_account(
         &self,
         user_id: i64,
         server_link: String,
         account: String,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<bool, sqlx::Error> {
         self.db
             .write(move |tx| {
                 Box::pin(async move {
+                    let was_linked = kept_under(tx, user_id, &server_link).await?;
                     sqlx::query!(
                         "INSERT OR REPLACE INTO hub_user_links (user_id, server_link, account)
                          VALUES (?, ?, ?)",
@@ -212,20 +221,23 @@ impl ServerLink {
                     )
                     .execute(&mut **tx)
                     .await?;
-                    Ok(())
+                    Ok(!was_linked)
                 })
             })
             .await
     }
 
-    async fn forget_account(&self, user_id: i64) -> Result<(), sqlx::Error> {
+    /// Forgets `user_id`'s Link, answering whether they were Linked under `server_link`, the
+    /// Server's Link: one kept under an earlier Link was never shown.
+    async fn forget_account(&self, user_id: i64, server_link: String) -> Result<bool, sqlx::Error> {
         self.db
             .write(move |tx| {
                 Box::pin(async move {
+                    let was_linked = kept_under(tx, user_id, &server_link).await?;
                     sqlx::query!("DELETE FROM hub_user_links WHERE user_id = ?", user_id)
                         .execute(&mut **tx)
                         .await?;
-                    Ok(())
+                    Ok(was_linked)
                 })
             })
             .await
@@ -256,4 +268,21 @@ impl ServerLink {
         let mut users = self.users.lock().unwrap_or_else(PoisonError::into_inner);
         change(users.by_id.entry(user_id).or_default())
     }
+}
+
+/// Whether `user_id` is Linked under the Server's Link `server_link`, as `conn` reads it.
+async fn kept_under(
+    conn: &mut SqliteConnection,
+    user_id: i64,
+    server_link: &str,
+) -> Result<bool, sqlx::Error> {
+    // The text `kept_account` reads with, so both share one entry of the query data.
+    let kept = sqlx::query_scalar!(
+        "SELECT account FROM hub_user_links WHERE user_id = ? AND server_link = ?",
+        user_id,
+        server_link
+    )
+    .fetch_optional(conn)
+    .await?;
+    Ok(kept.is_some())
 }

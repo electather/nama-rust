@@ -2,8 +2,8 @@ use nama_pdk::{
     Notification, Notifier, Recipient, RecipientGone, Response,
     extism_pdk::json::{self, Value as Json, json},
     nama_plugin_proto::nama::plugin::v1::{
-        Event, Request, RequestState, RequestStateChanged, RequestedMovie, SettingKind,
-        UserRecipient, setting_value::Value,
+        Event, Request, RequestState, RequestStateChanged, RequestedMovie, ServerLinked,
+        SettingKind, UserRecipient, setting_value::Value,
     },
     testing::{Kernel, with},
 };
@@ -75,6 +75,41 @@ fn a_message_posts_to_the_users_own_webhook_on_the_discord_url_setting() {
         posted,
         json!({"content": "Dune (2021) is now Approved.\nhttps://nama.example.com/requests/7"})
     );
+}
+
+/// The Server Linked to the Hub, as the Kernel tells an Admin.
+fn server_linked() -> Notification {
+    Notification {
+        event: Event {
+            event: Some(ServerLinked::default().into()),
+            ..Event::default()
+        }
+        .into(),
+        ..Notification::default()
+    }
+}
+
+#[test]
+fn an_admin_is_told_of_linking_unless_they_turned_announcing_it_off() {
+    let webhook = "https://discord.com/api/webhooks/1/ada-token";
+    let mut on = discord(204, &json!(null)).setting("announce_linking", "true");
+    let mut off = discord(204, &json!(null)).setting("announce_linking", "false");
+
+    with(&mut on, || Discord::deliver(server_linked(), user(webhook))).unwrap();
+    with(&mut off, || {
+        Discord::deliver(server_linked(), user(webhook))
+    })
+    .unwrap();
+
+    let [sent] = on.sent() else {
+        panic!("Discord was sent {} requests, not one", on.sent().len());
+    };
+    let posted: Json = json::from_slice(&sent.body).unwrap();
+    assert_eq!(
+        posted,
+        json!({"content": "The Server was Linked to the Hub."})
+    );
+    assert_eq!(off.sent(), []);
 }
 
 #[test]
@@ -177,7 +212,7 @@ fn a_missing_webhook_is_refused_naming_the_setting() {
 }
 
 #[test]
-fn manifest_declares_the_discord_url_defaulting_to_discord_com() {
+fn manifest_declares_the_discord_url_defaulting_to_discord_com_and_announcing_linking() {
     let settings = manifest().settings;
     let settings: Vec<_> = settings
         .iter()
@@ -193,10 +228,17 @@ fn manifest_declares_the_discord_url_defaulting_to_discord_com() {
 
     assert_eq!(
         settings,
-        [(
-            "api_url",
-            Some(SettingKind::SETTING_KIND_URL),
-            Some(Value::TextValue("https://discord.com".to_owned())),
-        )]
+        [
+            (
+                "api_url",
+                Some(SettingKind::SETTING_KIND_URL),
+                Some(Value::TextValue("https://discord.com".to_owned())),
+            ),
+            (
+                "announce_linking",
+                Some(SettingKind::SETTING_KIND_BOOL),
+                Some(Value::BoolValue(true)),
+            ),
+        ]
     );
 }

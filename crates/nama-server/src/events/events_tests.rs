@@ -17,7 +17,7 @@ use nama_plugin_api::{
 use axum::http::StatusCode;
 use url::Url;
 
-use super::{EventBus, Filter, Viewer, deliver, event, users_to_tell};
+use super::{Audience, EventBus, Filter, Viewer, deliver, event, users_to_tell};
 use crate::{
     db::Database,
     page::Page,
@@ -297,6 +297,13 @@ fn other_request_events_pick_nobody() {
     }
 }
 
+#[test]
+fn a_link_changing_picks_only_the_admins_whatever_they_turned_off() {
+    let turned_off = [(4, NotificationKind::NewPending)];
+
+    assert_eq!(Audience::Admins.pick(&users(), &turned_off), [4]);
+}
+
 /// A Notifier that keeps the Personal settings of each User it is handed, fails for those whose
 /// `webhook` is [`FAILING_WEBHOOK`], naming it, and finds those whose `webhook` is
 /// [`GONE_WEBHOOK`] gone.
@@ -374,7 +381,7 @@ async fn a_request_event_reaches_each_told_user_with_their_own_personal_settings
     let notifier = Arc::new(KeepsUsers::default());
     // Approved tells the Requesters, Ada and Grace, and not Lin.
     let told = Arc::new((
-        moved_to(RequestState::Approved, &[ada, grace]),
+        Audience::Request(moved_to(RequestState::Approved, &[ada, grace])),
         Notification::default(),
     ));
 
@@ -461,7 +468,7 @@ async fn a_user_who_turned_a_kind_off_is_not_told_it_and_the_channel_still_is() 
         .unwrap();
     let notifier = Arc::new(KeepsRecipients::default());
     let told = Arc::new((
-        moved_to(RequestState::Approved, &[ada, lin]),
+        Audience::Request(moved_to(RequestState::Approved, &[ada, lin])),
         Notification::default(),
     ));
 
@@ -496,7 +503,7 @@ async fn a_user_recipient_the_notifier_finds_gone_loses_their_personal_settings(
     }
     let (ada, lin) = (ids[0], ids[1]);
     let told = Arc::new((
-        moved_to(RequestState::Approved, &[ada, lin]),
+        Audience::Request(moved_to(RequestState::Approved, &[ada, lin])),
         Notification::default(),
     ));
 

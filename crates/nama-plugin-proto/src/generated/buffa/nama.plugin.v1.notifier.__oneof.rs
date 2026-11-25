@@ -5,7 +5,8 @@ pub mod delivery {
     #[allow(unused_imports)]
     use super::*;
     /// Whom it is for. A Plugin that finds none it knows, which a newer Server may send, fails
-    /// rather than tell the wrong people.
+    /// rather than tell the wrong people. Of a Link changing, the Kernel tells the channel and the
+    /// Admins.
     #[derive(Clone, PartialEq, Debug)]
     pub enum Recipient {
         Channel(::buffa::alloc::boxed::Box<super::super::super::Channel>),

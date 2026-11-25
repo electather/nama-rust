@@ -18,7 +18,8 @@
 //!
 //! It remembers whose Link the last look found Linked, the Server's and each User's, and tells its
 //! followers ([`Linking::follow`]) when a look finds one Linked that the last didn't; the first
-//! look since the Server started counts.
+//! look since the Server started counts. Apart from that, it tells [`Linking::follow_changes`]'s
+//! followers each time it keeps a Link or forgets one, once for each.
 
 mod hub;
 mod server;
@@ -70,7 +71,7 @@ const PAGE_READ: Duration = Duration::from_secs(10);
 /// pulls.
 const BULK: Duration = Duration::from_mins(1);
 
-/// How many new Links may be told before a follower has heard them.
+/// How many new or changed Links may be told before a follower has heard them.
 const NEW_LINKS_BUFFERED: usize = 64;
 
 /// The Server's own Link with the Hub `config` names, kept in `db`: `None` without one, or, logged,
@@ -102,6 +103,13 @@ pub(crate) enum Whose {
     User(i64),
 }
 
+/// A Link the Server kept, or forgot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LinkChange {
+    Linked(Whose),
+    Unlinked(Whose),
+}
+
 /// Asks the Kernel's Server Link. Cloning it gives another handle to the same.
 #[derive(Debug, Clone)]
 pub(crate) struct Linking {
@@ -131,6 +139,12 @@ impl Linking {
     /// them; never without a Hub.
     pub(crate) fn follow_found(&self) -> watch::Receiver<()> {
         (self.server.as_ref()).map_or_else(|| watch::channel(()).1, |server| server.follow_found())
+    }
+
+    /// Each Link the Server keeps or forgets from now on; never one without a Hub.
+    pub(crate) fn follow_changes(&self) -> broadcast::Receiver<LinkChange> {
+        (self.server.as_ref())
+            .map_or_else(|| broadcast::channel(1).1, |server| server.follow_changes())
     }
 
     /// Whether the Server's config names a Hub, so the Server can Link with it.
