@@ -1,5 +1,5 @@
-//! The ntfy Installed Plugin: publishes the Requests the Server tells a User about to the ntfy
-//! topic that User set in their Personal settings (ADR 0046), on ntfy.sh or an ntfy server the
+//! The ntfy Installed Plugin: publishes the Requests the Server tells a User about, and the Links
+//! it tells an Admin about, to the ntfy topic that User set in their Personal settings (ADR 0046), on ntfy.sh or an ntfy server the
 //! Admin names. The Server builds it for wasm32 and bundles it in its binary.
 
 use nama_pdk::{
@@ -71,7 +71,7 @@ mod exports {
     /// has no answer meaning a topic is gone, so this never fails with `RecipientGone`.
     fn publish(notification: &Notification, user: &UserRecipient) -> Result<(), Error> {
         let personal = &user.personal_settings;
-        let Some(text) = nama_pdk::what_happened(notification) else {
+        let Some(text) = nama_pdk::announcement(notification)? else {
             return Ok(());
         };
         let topic = super::topic(personal.get(TOPIC).map(String::as_str))?;
@@ -107,18 +107,21 @@ fn manifest() -> Manifest {
         logo_svg: include_str!("../logo.svg").to_owned(),
         // No `allowed_hosts`: the Server allows the host of the ntfy server setting.
         points: vec![nama_pdk::point(services::NOTIFIER)],
-        settings: vec![SettingField {
-            default_value: setting_default(setting_value::Value::TextValue(
-                "https://ntfy.sh".to_owned(),
-            )),
-            ..setting_field(
-                SERVER_URL,
-                "ntfy server",
-                "The ntfy server every User's topic is on. Change it only for an ntfy server \
-                 of your own.",
-                SettingKind::SETTING_KIND_URL,
-            )
-        }],
+        settings: vec![
+            SettingField {
+                default_value: setting_default(setting_value::Value::TextValue(
+                    "https://ntfy.sh".to_owned(),
+                )),
+                ..setting_field(
+                    SERVER_URL,
+                    "ntfy server",
+                    "The ntfy server every User's topic is on. Change it only for an ntfy server \
+                     of your own.",
+                    SettingKind::SETTING_KIND_URL,
+                )
+            },
+            nama_pdk::announce_linking(),
+        ],
         // The token is each User's, since the topic it opens is theirs.
         personal_settings: vec![
             SettingField {
@@ -139,7 +142,10 @@ fn manifest() -> Manifest {
             ),
         ],
         name: "ntfy".to_owned(),
-        description: "Tells each User about their Requests on their own ntfy topic.".to_owned(),
+        description:
+            "Tells each User about their Requests, and the Admins about Linking, on their \
+                      own ntfy topic."
+                .to_owned(),
         ..nama_pdk::manifest("ntfy", env!("CARGO_PKG_VERSION"))
     }
 }

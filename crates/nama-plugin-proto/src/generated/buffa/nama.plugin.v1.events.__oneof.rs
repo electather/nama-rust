@@ -43,6 +43,10 @@ pub mod event {
         PlaybackChanged(
             ::buffa::alloc::boxed::Box<super::super::super::PlaybackChanged>,
         ),
+        ServerLinked(::buffa::alloc::boxed::Box<super::super::super::ServerLinked>),
+        ServerUnlinked(::buffa::alloc::boxed::Box<super::super::super::ServerUnlinked>),
+        UserLinked(::buffa::alloc::boxed::Box<super::super::super::UserLinked>),
+        UserUnlinked(::buffa::alloc::boxed::Box<super::super::super::UserUnlinked>),
     }
     impl ::buffa::Oneof for Event {}
     impl From<super::super::super::ScanStarted> for Event {
@@ -217,6 +221,46 @@ pub mod event {
             Self::Some(Event::from(v))
         }
     }
+    impl From<super::super::super::ServerLinked> for Event {
+        fn from(v: super::super::super::ServerLinked) -> Self {
+            Self::ServerLinked(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::ServerLinked> for ::core::option::Option<Event> {
+        fn from(v: super::super::super::ServerLinked) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
+    impl From<super::super::super::ServerUnlinked> for Event {
+        fn from(v: super::super::super::ServerUnlinked) -> Self {
+            Self::ServerUnlinked(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::ServerUnlinked> for ::core::option::Option<Event> {
+        fn from(v: super::super::super::ServerUnlinked) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
+    impl From<super::super::super::UserLinked> for Event {
+        fn from(v: super::super::super::UserLinked) -> Self {
+            Self::UserLinked(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::UserLinked> for ::core::option::Option<Event> {
+        fn from(v: super::super::super::UserLinked) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
+    impl From<super::super::super::UserUnlinked> for Event {
+        fn from(v: super::super::super::UserUnlinked) -> Self {
+            Self::UserUnlinked(::buffa::alloc::boxed::Box::new(v))
+        }
+    }
+    impl From<super::super::super::UserUnlinked> for ::core::option::Option<Event> {
+        fn from(v: super::super::super::UserUnlinked) -> Self {
+            Self::Some(Event::from(v))
+        }
+    }
     impl ::serde::Serialize for Event {
         fn serialize<S: ::serde::Serializer>(
             &self,
@@ -275,6 +319,18 @@ pub mod event {
                 }
                 Self::PlaybackChanged(v) => {
                     map.serialize_entry("playbackChanged", &**v)?;
+                }
+                Self::ServerLinked(v) => {
+                    map.serialize_entry("serverLinked", &**v)?;
+                }
+                Self::ServerUnlinked(v) => {
+                    map.serialize_entry("serverUnlinked", &**v)?;
+                }
+                Self::UserLinked(v) => {
+                    map.serialize_entry("userLinked", &**v)?;
+                }
+                Self::UserUnlinked(v) => {
+                    map.serialize_entry("userUnlinked", &**v)?;
                 }
             }
             map.end()

@@ -106,7 +106,11 @@ fn what_happened(notification: &Notification) -> Option<(&'static str, String)> 
         | Event::ProbingFinished(_)
         | Event::PlaybackStarted(_)
         | Event::PlaybackEnded(_)
-        | Event::PlaybackChanged(_) => return None,
+        | Event::PlaybackChanged(_)
+        | Event::ServerLinked(_)
+        | Event::ServerUnlinked(_)
+        | Event::UserLinked(_)
+        | Event::UserUnlinked(_) => return None,
     };
     Some((event, title(notification.request.as_option()?)))
 }

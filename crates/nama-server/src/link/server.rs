@@ -25,10 +25,10 @@ use nama_plugin_hub::KernelLink;
 use ring::digest;
 use serde::de::DeserializeOwned;
 use sqlx::SqliteConnection;
-use tokio::sync::{Mutex, watch};
+use tokio::sync::{Mutex, broadcast, watch};
 
 use super::{
-    Linking,
+    LinkChange, Linking, NEW_LINKS_BUFFERED, Whose,
     hub::{Failure, Hub, LinkDropped, LinkedHub, Polling},
     sync::{self, Kind, Queued},
     token::{self, Claims, Rejected},
@@ -109,6 +109,8 @@ pub(crate) struct ServerLink {
     reachability: std::sync::Mutex<Option<(String, Reachability)>>,
     /// Told each time the Hub answers a report.
     found: watch::Sender<()>,
+    /// Told each time a Link is kept or forgotten.
+    changes: broadcast::Sender<LinkChange>,
     /// Held while the changes waiting are sent, so none goes twice.
     sending: Mutex<()>,
     /// What is known of each User's Link beyond what `hub_user_links` keeps.
@@ -133,6 +135,7 @@ impl ServerLink {
             reported: Mutex::default(),
             reachability: std::sync::Mutex::default(),
             found: watch::channel(()).0,
+            changes: broadcast::channel(NEW_LINKS_BUFFERED).0,
             sending: Mutex::default(),
             users: std::sync::Mutex::default(),
         })
@@ -141,6 +144,17 @@ impl ServerLink {
     /// Wakes each time the Hub answers a report of the Server Addresses.
     pub(super) fn follow_found(&self) -> watch::Receiver<()> {
         self.found.subscribe()
+    }
+
+    /// Each Link kept or forgotten from now on.
+    pub(super) fn follow_changes(&self) -> broadcast::Receiver<LinkChange> {
+        self.changes.subscribe()
+    }
+
+    /// Tells [`ServerLink::follow_changes`]'s followers of `change`.
+    pub(super) fn changed(&self, change: LinkChange) {
+        // Fails only while nothing follows, which has no one to tell.
+        let _: Result<usize, _> = self.changes.send(change);
     }
 
     /// Where the Link stands. While a code waits, this is also when the Hub is asked whether it
@@ -409,16 +423,22 @@ impl ServerLink {
     /// Link kept since, under another credential, stays.
     async fn forget_link(&self, credential: &str) -> Result<(), sqlx::Error> {
         let credential = credential.to_owned();
-        self.db
+        let forgot = self
+            .db
             .write(move |tx| {
                 Box::pin(async move {
-                    sqlx::query!("DELETE FROM hub_link WHERE credential = ?", credential)
-                        .execute(&mut **tx)
-                        .await?;
-                    Ok(())
+                    let deleted =
+                        sqlx::query!("DELETE FROM hub_link WHERE credential = ?", credential)
+                            .execute(&mut **tx)
+                            .await?;
+                    Ok::<_, sqlx::Error>(deleted.rows_affected() > 0)
                 })
             })
-            .await
+            .await?;
+        if forgot {
+            self.changed(LinkChange::Unlinked(Whose::Server));
+        }
+        Ok(())
     }
 
     /// What the Hub found of the Server's public port and names through the Link holding
@@ -587,9 +607,11 @@ impl ServerLink {
         server_id: Option<String>,
     ) -> Result<(), sqlx::Error> {
         let credential = credential.to_owned();
-        self.db
+        let newly = self
+            .db
             .write(move |tx| {
                 Box::pin(async move {
+                    let was_linked = is_linked(tx).await?;
                     sqlx::query!(
                         "INSERT OR REPLACE INTO hub_link (id, credential, account, server_id)
                          VALUES (1, ?, ?, ?)",
@@ -599,10 +621,14 @@ impl ServerLink {
                     )
                     .execute(&mut **tx)
                     .await?;
-                    Ok(())
+                    Ok::<_, sqlx::Error>(!was_linked)
                 })
             })
-            .await
+            .await?;
+        if newly {
+            self.changed(LinkChange::Linked(Whose::Server));
+        }
+        Ok(())
     }
 }
 
@@ -664,6 +690,9 @@ impl KernelLink for ServerLink {
         Box::pin(async { Ok(self.kept().await?.map(|kept| kept.credential)) })
     }
 
+    // shortcut: the Hub Plugin's own `ServerLink`, made in `plugin_settings.rs`, has no follower,
+    // so a Link the Hub dropped that only a Hub Suggestions call finds is never announced
+    // Unlinked; it goes once Hub Suggestions call the Hub through the Kernel's Link (#2222).
     fn forget<'a>(&'a self, credential: &'a str) -> BoxFuture<'a, Result<(), PluginError>> {
         Box::pin(async { Ok(self.forget_link(credential).await?) })
     }

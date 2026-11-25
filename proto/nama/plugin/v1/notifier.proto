@@ -12,12 +12,12 @@ service NotifierService {
   rpc Deliver(Delivery) returns (Delivered);
 }
 
-// What the Kernel hands a Notifier to deliver: something that happened to a Request. The Notifier
-// formats it for its service.
+// What the Kernel hands a Notifier to deliver: something that happened to a Request, or a Link
+// changing. The Notifier formats it for its service.
 message Notification {
-  // What happened: one of the Request kinds of `Event`.
+  // What happened: one of the Request or Link kinds of `Event`.
   Event event = 1;
-  // The Request it happened to, as the event holds it.
+  // The Request it happened to, as the event holds it. Unset for a Link kind.
   Request request = 2;
   // The Request's place in the web app, if the Server knows its own URL (`ServerSettings.url`) and
   // the Request wasn't removed.
@@ -28,10 +28,11 @@ message Notification {
 message Delivery {
   Notification notification = 1;
   // Whom it is for. A Plugin that finds none it knows, which a newer Server may send, fails
-  // rather than tell the wrong people.
+  // rather than tell the wrong people. Of a Link changing, the Kernel tells the channel and the
+  // Admins.
   oneof recipient {
-    // The channel set in the Plugin's settings, which hears about every Request event. A Plugin
-    // with no channel set does nothing with these.
+    // The channel set in the Plugin's settings, which hears about every Request and Link event. A
+    // Plugin with no channel set does nothing with these.
     Channel channel = 2;
     // The Plugin Connection of one User the Server tells, as the Plugin's Connector found it, such
     // as their Telegram chat id.

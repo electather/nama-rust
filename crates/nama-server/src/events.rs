@@ -2,7 +2,8 @@
 //! client subscribed through `EventService.Subscribe` and to every Observer at
 //! [`points::Events`], and each Request event to every [`Notifier`], for its channel and for the
 //! Plugin Connections and Personal settings of the Users told about it, whose inbox it goes in too,
-//! and from there to their browsers by Web Push.
+//! and from there to their browsers by Web Push. Each Link the Server keeps or forgets goes to
+//! Observers and Notifiers alone, the Admins told of it (ADR 0105).
 //!
 //! Publishing never waits for a subscriber. Each subscriber may fall up to [`BUFFERED`] events
 //! behind; past that its oldest unread events are dropped, and it is sent a `Lagged` in their
@@ -11,7 +12,11 @@
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use futures_util::{Stream, StreamExt, stream};
-use nama_plugin_api::{notifier::Notifier, points};
+use nama_plugin_api::{
+    notifier::{Notification, Notifier},
+    points::{self, ObservedEvents},
+};
+use nama_plugin_proto::nama::plugin::v1 as wire;
 use nama_proto::nama::v1::{
     Event, EventType, FollowedShow, InboxNotification, Lagged, NotificationKind, Permission,
     Request, RequestState, SubscribeResponse, event, subscribe_response,
@@ -24,11 +29,12 @@ use tokio::{
     task::{JoinError, JoinHandle, JoinSet},
 };
 use tokio_util::sync::CancellationToken;
-use tracing::error;
+use tracing::{error, warn};
 
-use self::notifying::deliver;
+use self::notifying::{Audience, deliver};
 use crate::{
     db::Database,
+    link::{LinkChange, Linking, Whose},
     plugins::{self, ExtensionPoints},
     server_settings::{ServerUrl, web_push_key},
     users::{self, LibraryAccess, User, every_notification_turned_off, every_user, store_in_inbox},
@@ -160,12 +166,56 @@ impl EventBus {
         let Some(notification) = plugins::notification(event, request, request_url) else {
             return;
         };
-        let told = Arc::new((event.clone(), notification));
+        self.tell_each_notifier(Audience::Request(event.clone()), notification);
+    }
+
+    /// Hands `notification` to every Notifier, for its channel and for whom `audience` picks.
+    fn tell_each_notifier(&self, audience: Audience, notification: Notification) {
+        let told = Arc::new((audience, notification));
         let db = Arc::clone(&self.db);
         self.plugins
             .tell_each(move |plugin, notifier: Arc<dyn Notifier>| {
                 deliver(Arc::clone(&db), plugin, notifier, Arc::clone(&told))
             });
+    }
+
+    /// Tells Plugins of each Link `linking` keeps or forgets from now on, until it keeps no more.
+    pub(crate) fn announce_links(&self, linking: &Linking) -> JoinHandle<()> {
+        tokio::spawn(self.clone().announce_each(linking.follow_changes()))
+    }
+
+    /// [`EventBus::announce_links`]'s loop over the Link changes `changes` brings.
+    async fn announce_each(self, mut changes: broadcast::Receiver<LinkChange>) {
+        loop {
+            match changes.recv().await {
+                Ok(change) => self.announce(change).await,
+                Err(RecvError::Lagged(missed)) => {
+                    warn!(
+                        missed,
+                        "Plugins weren't told of some Links kept or forgotten"
+                    );
+                }
+                Err(RecvError::Closed) => return,
+            }
+        }
+    }
+
+    /// Hands `change` to every Observer and every Notifier, for its channel and the Admins. Never
+    /// to a client: the client API has no twin of it, as Settings shows each Link.
+    async fn announce(&self, change: LinkChange) {
+        let Some(event) = link_event(&self.db, change).await else {
+            return;
+        };
+        let batch = ObservedEvents {
+            events: vec![event.clone()],
+            ..Default::default()
+        };
+        self.plugins.notify::<points::Events>(batch);
+        let notification = Notification {
+            event: event.into(),
+            ..Default::default()
+        };
+        self.tell_each_notifier(Audience::Admins, notification);
     }
 
     /// Queues each of `events` that makes a personal notification for the inbox of each User
@@ -399,6 +449,40 @@ fn request_link(server_url: &ServerUrl, event: &Event) -> Option<String> {
         ))
     );
     server_url.requests_link().filter(|_| !removed)
+}
+
+/// The contract's Event for `change`, naming its User as `db` has them, or `None` once they are
+/// gone or, logged, can't be read.
+async fn link_event(db: &Database, change: LinkChange) -> Option<wire::Event> {
+    let happened: wire::event::Event = match change {
+        LinkChange::Linked(Whose::Server) => wire::ServerLinked::default().into(),
+        LinkChange::Unlinked(Whose::Server) => wire::ServerUnlinked::default().into(),
+        LinkChange::Linked(Whose::User(user_id)) => wire::UserLinked {
+            user_id,
+            name: name_of(db, user_id).await?,
+            ..Default::default()
+        }
+        .into(),
+        LinkChange::Unlinked(Whose::User(user_id)) => wire::UserUnlinked {
+            user_id,
+            name: name_of(db, user_id).await?,
+            ..Default::default()
+        }
+        .into(),
+    };
+    Some(wire::Event {
+        event: Some(happened),
+        ..Default::default()
+    })
+}
+
+/// The name of the User `user_id`, or `None` once they are gone or, logged, `db` can't be read.
+async fn name_of(db: &Database, user_id: i64) -> Option<String> {
+    let users = (every_user(db).await)
+        .inspect_err(|err| error!(user = user_id, "could not read whose Link changed: {err}"))
+        .ok()?;
+    let named = users.into_iter().find(|user| user.id == user_id);
+    named.map(|user| user.name)
 }
 
 /// An event's type and what it is about.

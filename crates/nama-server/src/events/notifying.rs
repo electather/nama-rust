@@ -11,7 +11,7 @@ use nama_plugin_api::{
     PluginError, PluginId,
     notifier::{DELIVER_TIMEOUT, Notification, Notifier, Recipient, RecipientGone},
 };
-use nama_proto::nama::v1::{Event, NotificationKind};
+use nama_proto::nama::v1::{Event, NotificationKind, Permission};
 use tracing::{error, info};
 
 use super::users_to_tell;
@@ -28,6 +28,15 @@ use crate::{
 /// delivery holds a blocking thread, so a Request with many Users to tell mustn't take one each.
 const DELIVERING_AT_ONCE: usize = 4;
 
+/// Whom the Kernel tells of a notification, besides each Notifier's channel.
+#[derive(Debug)]
+pub(super) enum Audience {
+    /// Those [`users_to_tell`] picks for this Request event.
+    Request(Event),
+    /// Every Admin, of a Link changing.
+    Admins,
+}
+
 /// Hands `told`'s notification to `plugin`'s `notifier` for its channel, and for the Plugin
 /// Connection to `plugin` and the Personal settings for it of each User told about its event,
 /// [`DELIVERING_AT_ONCE`] at a time. A User with neither is skipped, and one the Notifier finds
@@ -42,9 +51,9 @@ pub(super) async fn deliver(
     db: Arc<Database>,
     plugin: PluginId,
     notifier: Arc<dyn Notifier>,
-    told: Arc<(Event, Notification)>,
+    told: Arc<(Audience, Notification)>,
 ) -> Result<(), Undelivered> {
-    let (event, notification) = &*told;
+    let (audience, notification) = &*told;
     let mut recipients = vec![(None, Recipient::Channel)];
     let turned_off = match every_notification_turned_off(&db).await {
         Ok(turned_off) => turned_off,
@@ -55,13 +64,20 @@ pub(super) async fn deliver(
         }
     };
     match connections::connected(&db, &plugin).await {
-        Ok(connected) => recipients.extend(connections_to_tell(event, connected, &turned_off)),
+        Ok(connected) => {
+            recipients.extend(connections_to_tell(audience, connected, &turned_off));
+        }
         Err(err) => error!(%plugin, "could not read whom to message about a Request: {err}"),
     }
     let mut secrets = HashMap::new();
     match personal_settings_recipients(&db, &plugin).await {
         Ok(personal) => {
-            recipients.extend(personal_to_tell(event, personal, &turned_off, &mut secrets));
+            recipients.extend(personal_to_tell(
+                audience,
+                personal,
+                &turned_off,
+                &mut secrets,
+            ));
         }
         Err(err) => error!(%plugin, "could not read whose Personal settings to use: {err}"),
     }
@@ -120,15 +136,15 @@ impl ProviderError<()> for Undelivered {
     }
 }
 
-/// The Plugin Connection of each of `connected` that [`users_to_tell`] picks for `event`, with
-/// the id of the User whose it is.
+/// The Plugin Connection of each of `connected` that `audience` picks, with the id of the User
+/// whose it is.
 fn connections_to_tell(
-    event: &Event,
+    audience: &Audience,
     connected: Vec<(User, String)>,
     turned_off: &[(i64, NotificationKind)],
 ) -> Vec<(Option<i64>, Recipient)> {
     let (users, connections): (Vec<_>, Vec<_>) = connected.into_iter().unzip();
-    let told = users_to_tell(event, &users, turned_off);
+    let told = audience.pick(&users, turned_off);
     users
         .iter()
         .zip(connections)
@@ -137,16 +153,16 @@ fn connections_to_tell(
         .collect()
 }
 
-/// The Personal settings of each of `personal` that [`users_to_tell`] picks for `event`, with the
-/// id of the User whose they are. Each picked User's secret values go in `secrets`.
+/// The Personal settings of each of `personal` that `audience` picks, with the id of the User
+/// whose they are. Each picked User's secret values go in `secrets`.
 fn personal_to_tell(
-    event: &Event,
+    audience: &Audience,
     personal: Vec<(User, BTreeMap<String, String>, Vec<String>)>,
     turned_off: &[(i64, NotificationKind)],
     secrets: &mut HashMap<i64, Vec<String>>,
 ) -> Vec<(Option<i64>, Recipient)> {
     let users: Vec<User> = personal.iter().map(|(user, ..)| user.clone()).collect();
-    let told = users_to_tell(event, &users, turned_off);
+    let told = audience.pick(&users, turned_off);
     personal
         .into_iter()
         .filter(|(user, ..)| told.contains(&user.id))
@@ -155,6 +171,19 @@ fn personal_to_tell(
             (Some(user.id), Recipient::User(values))
         })
         .collect()
+}
+
+impl Audience {
+    /// The IDs of those of `users` told, but for those `turned_off` lists with the kind told.
+    pub(super) fn pick(&self, users: &[User], turned_off: &[(i64, NotificationKind)]) -> Vec<i64> {
+        match self {
+            Self::Request(event) => users_to_tell(event, users, turned_off),
+            Self::Admins => (users.iter())
+                .filter(|user| user.permissions.allow(Permission::Admin))
+                .map(|user| user.id)
+                .collect(),
+        }
+    }
 }
 
 /// Deletes `user`'s Plugin Connection to `plugin`, `connection`, which its Notifier found gone.
