@@ -241,6 +241,14 @@ impl TestServer {
             .with_default_header("cookie", format!("nama_session={token}"))
     }
 
+    /// Client settings presenting the Admin's token as a bearer token, as the web app at the Hub
+    /// does, so media URLs come signed (ADR 0105).
+    pub(crate) fn bearer_client_config(&self) -> ClientConfig {
+        let token = &self.admin_token;
+        self.anonymous_client_config()
+            .with_default_header("authorization", format!("Bearer {token}"))
+    }
+
     /// Client settings that point at this Server and carry no session.
     pub(crate) fn anonymous_client_config(&self) -> ClientConfig {
         anonymous_config(self.addr)

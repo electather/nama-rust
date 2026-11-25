@@ -210,11 +210,10 @@ async fn a_sheet_is_served_to_a_signed_in_device_and_refused_without_a_session()
 async fn a_bearer_callers_sheet_loads_under_its_plans_signed_prefix() {
     let frames = Frames::start(true).await;
     frames.wait_until_made().await;
-    let token = &frames.fx.server.admin_token;
-    let bearer = (frames.fx.server.anonymous_client_config())
-        .with_default_header("authorization", format!("Bearer {token}"));
 
-    let plan = frames.plan_as(bearer).await;
+    let plan = frames
+        .plan_as(frames.fx.server.bearer_client_config())
+        .await;
 
     let (prefix, _) = plan.url.split_once("versions/").unwrap();
     let sheet = format!("{prefix}versions/{}/preview-frames/0.jpg", frames.version);

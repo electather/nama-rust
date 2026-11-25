@@ -27,7 +27,7 @@ use crate::{
         StartedPlan, SubtitleAppearance, SubtitleDownloads, SubtitlePreference, TrackPreferences,
         is_autoplay_on, is_language, limit_to_proto, method_to_proto, reason_to_proto,
         set_autoplay, set_subtitle_background, set_subtitle_size, subtitle_appearance_of,
-        track_to_proto,
+        track_to_proto, viewer_of_caller,
     },
     server_settings::PlaybackLimit,
     signed_urls::{PlaybackGrant, UrlSigner, Viewer},
@@ -98,11 +98,7 @@ impl PlaybackService for PlaybackServiceHandler {
         let planned = (self.plans.plan(caller, asked).await)
             .map_err(|err| plan_failed(err, request.version_id))?
             .ok_or_else(version_not_found)?;
-        let viewer = Viewer {
-            user: caller.user.id,
-            device: caller.device.id,
-        };
-        let signing = url_signer(&ctx).map(|signer| (signer, viewer));
+        let signing = url_signer(&ctx).map(|signer| (signer, viewer_of_caller(caller)));
         Response::ok(planned_to_proto(
             planned,
             self.downloads.has_source(),

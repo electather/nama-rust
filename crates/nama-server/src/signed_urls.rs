@@ -43,7 +43,9 @@ pub(crate) struct SignedUrl;
 /// since a plan belongs to its Device and a User's Library access and cap apply to what it plays.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Viewer {
+    /// The User, by id.
     pub(crate) user: i64,
+    /// The Device, by id.
     pub(crate) device: i64,
 }
 
@@ -51,8 +53,11 @@ pub(crate) struct Viewer {
 /// plan `plan`'s, as `viewer`.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PlaybackGrant {
+    /// Who the plan was made for.
     pub(crate) viewer: Viewer,
+    /// The Version, by id.
     pub(crate) version: i64,
+    /// The plan, by the id the API gives it, 0 being none.
     pub(crate) plan: u64,
 }
 
@@ -125,7 +130,7 @@ impl UrlSigner {
             return url.to_owned();
         };
         let expires = expiry();
-        let signature = self.signature(&message(&expires.to_string(), url));
+        let signature = self.signature(&image_message(&expires.to_string(), url));
         format!("{SIGNED}{expires}/{signature}/{rest}")
     }
 
@@ -152,7 +157,7 @@ impl UrlSigner {
             hmac::verify(&self.key, &playback_message(token), &signature).ok()?;
             (grant.covers(rest)).then_some((expires, Some(grant.viewer)))?
         } else {
-            hmac::verify(&self.key, &message(token, &path), &signature).ok()?;
+            hmac::verify(&self.key, &image_message(token, &path), &signature).ok()?;
             (token.parse().ok()?, None)
         };
         (now() < expires).then_some((path, viewer))
@@ -188,7 +193,7 @@ pub(crate) fn signed_by(signer: Option<&UrlSigner>, url: String) -> String {
 
 /// What an image's signature signs. `path` starts with `/`, which no `expires` holds, so no other
 /// pair makes the same message.
-fn message(expires: &str, path: &str) -> Vec<u8> {
+fn image_message(expires: &str, path: &str) -> Vec<u8> {
     format!("{expires}{path}").into_bytes()
 }
 

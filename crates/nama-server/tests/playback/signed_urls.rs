@@ -1,16 +1,8 @@
 //! Signed playback URLs (ADR 0105): a caller with a bearer token gets URLs a `<video>`, an HLS
-//! player and a subtitle `<track>` load with no cookie or header, each for its one Version or Plan
+//! player and a subtitle `<track>` load with no cookie or header, each for its one Version or plan
 //! and for a few minutes.
 
 use super::*;
-
-/// Client settings that call `server` as its Admin with a bearer token, as the web app at the Hub
-/// does.
-fn bearer(server: &TestServer) -> ClientConfig {
-    let token = &server.admin_token;
-    (server.anonymous_client_config())
-        .with_default_header("authorization", format!("Bearer {token}"))
-}
 
 impl Fixture {
     /// The Admin's Playback Plan for the Version `version` on [`chrome`], asked with a bearer
@@ -29,7 +21,7 @@ impl Fixture {
         reason = "a test helper fails its test by panicking"
     )]
     async fn ask_as_bearer(&self, request: PlanPlaybackRequest) -> PlaybackPlan {
-        ask_for_plan_as(bearer(&self.server), request)
+        ask_for_plan_as(self.server.bearer_client_config(), request)
             .await
             .unwrap()
     }

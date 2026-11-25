@@ -18,7 +18,7 @@ mod server;
 use std::time::Duration;
 
 use browsing::{ALIEN_1080P, Fixture, tmdb_id};
-use connectrpc::client::{ClientConfig, HttpClient};
+use connectrpc::client::HttpClient;
 use custom_images::image;
 use http::fetch;
 use image::ImageFormat;
@@ -29,14 +29,6 @@ use nama_proto::nama::v1::{
 use nama_server::plugins::Registry;
 use server::{TestServer, tmdb::ALIEN};
 
-/// Client settings that call `server` as its Admin with a bearer token, as the web app at the Hub
-/// does.
-fn bearer(server: &TestServer) -> ClientConfig {
-    let token = &server.admin_token;
-    (server.anonymous_client_config())
-        .with_default_header("authorization", format!("Bearer {token}"))
-}
-
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
@@ -44,7 +36,7 @@ fn bearer(server: &TestServer) -> ClientConfig {
 impl Fixture {
     /// Alien as `GetMovie` gives it to the Admin calling with a bearer token.
     async fn alien_as_bearer(&self) -> Movie {
-        BrowseServiceClient::new(HttpClient::plaintext(), bearer(&self.server))
+        BrowseServiceClient::new(HttpClient::plaintext(), self.server.bearer_client_config())
             .get_movie(GetMovieRequest {
                 library_id: self.library,
                 movie_id: tmdb_id(ALIEN).into(),
@@ -103,7 +95,7 @@ async fn a_bearer_callers_plugin_logo_loads_with_no_session() {
         .plugins(Registry::with_builtins())
         .start()
         .await;
-    let plugins = PluginServiceClient::new(HttpClient::plaintext(), bearer(&server));
+    let plugins = PluginServiceClient::new(HttpClient::plaintext(), server.bearer_client_config());
 
     let listed = plugins.list_plugins(ListPluginsRequest::default()).await;
 
@@ -155,7 +147,8 @@ async fn a_signed_url_passes_on_the_width_it_asks_for() {
 #[tokio::test]
 async fn a_bearer_caller_picks_a_poster_by_the_signed_url_the_artwork_list_gave_it() {
     let fx = Fixture::alien().await;
-    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), bearer(&fx.server));
+    let libraries =
+        LibraryServiceClient::new(HttpClient::plaintext(), fx.server.bearer_client_config());
     let listed = libraries.list_artwork(ListArtworkRequest {
         kind: TitleKind::TITLE_KIND_MOVIE.into(),
         id: tmdb_id(ALIEN).into(),

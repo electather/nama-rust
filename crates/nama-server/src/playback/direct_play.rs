@@ -137,11 +137,16 @@ pub(crate) async fn seen_versions_only(
 /// signed for.
 pub(super) fn viewer_of(request: &Request) -> Option<Viewer> {
     let extensions = request.extensions();
-    let session = (extensions.get::<Caller>()).map(|caller| Viewer {
+    let session = extensions.get::<Caller>().map(viewer_of_caller);
+    session.or_else(|| extensions.get::<Viewer>().copied())
+}
+
+/// The Viewer a request with `caller`'s session acts as.
+pub(crate) fn viewer_of_caller(caller: &Caller) -> Viewer {
+    Viewer {
         user: caller.user.id,
         device: caller.device.id,
-    });
-    session.or_else(|| extensions.get::<Viewer>().copied())
+    }
 }
 
 /// Whether the User `user` sees the Library of the Version `version`, as they must to play it.
