@@ -21,9 +21,10 @@ use nama_proto::nama::v1::{
     ReauthenticateResponse, RefusalReason, SessionDelivery, SetSwitchPinRequest,
     SetSwitchPinResponse, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest,
     SignInResponse, SignInService, SignInWithAccountRequest, SignInWithAccountResponse,
-    SignOutRequest, SignOutResponse, StartAccountSignInRequest, StartAccountSignInResponse,
-    StartSignInCodeRequest, StartSignInCodeResponse, SwitchUserRequest, SwitchUserResponse,
-    User as ProtoUser, WhoAmIRequest, WhoAmIResponse, reauthenticate_request::Proof,
+    SignInWithHubTokenRequest, SignInWithHubTokenResponse, SignOutRequest, SignOutResponse,
+    StartAccountSignInRequest, StartAccountSignInResponse, StartSignInCodeRequest,
+    StartSignInCodeResponse, SwitchUserRequest, SwitchUserResponse, User as ProtoUser,
+    WhoAmIRequest, WhoAmIResponse, reauthenticate_request::Proof,
 };
 
 use crate::{
@@ -380,6 +381,30 @@ impl SignInService for SignInServiceHandler {
             }),
         )
     }
+
+    async fn sign_in_with_hub_token(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SignInWithHubTokenRequest>,
+    ) -> ServiceResult<SignInWithHubTokenResponse> {
+        let request = request.to_owned_message();
+        let device = new_device(request.device_name, &ctx)?;
+        let signed_in = (self.sign_in)
+            .sign_in_with_hub_token(&request.hub_token, device, Instant::now())
+            .await?;
+        // A bearer token: the web app at the Hub calls from another origin, which gets no cookie
+        // (ADR 0015).
+        Ok(
+            self.hand_out_session(signed_in, Delivery::Token, &ctx, |caller, token| {
+                SignInWithHubTokenResponse {
+                    user: user_to_proto(caller.user).into(),
+                    device: device_to_proto(caller.device, true).into(),
+                    token,
+                    ..Default::default()
+                }
+            }),
+        )
+    }
 }
 
 /// A `PollSignInCode` answer that carries only `status`.
@@ -527,6 +552,12 @@ impl From<SignInError> for ConnectError {
                 err.to_string(),
             )
             .field(field)
+            .into(),
+            err @ SignInError::HubTokenRefused => refuse(
+                RefusalReason::REFUSAL_REASON_HUB_TOKEN_REFUSED,
+                err.to_string(),
+            )
+            .field("hub_token")
             .into(),
             err @ SignInError::SwitchPinMissing => refuse(
                 RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,

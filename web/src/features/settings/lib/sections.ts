@@ -23,6 +23,8 @@ const sections = [
   "account",
   "account-signin",
   "account-sessions",
+  "account-servers",
+  "account-history",
 ] as const;
 
 /** A section of Settings. */
@@ -87,6 +89,8 @@ export const sectionTitles: Record<Section, string> = {
   account: "Account",
   "account-signin": "Sign-in",
   "account-sessions": "Sessions",
+  "account-servers": "Servers",
+  "account-history": "Viewing History",
 };
 
 /** What a pane that didn't load says it couldn't load. */
@@ -110,6 +114,8 @@ export const loadNouns: Record<Section, string> = {
   account: "your Account",
   "account-signin": "your sign-in details",
   "account-sessions": "where you’re signed in",
+  "account-servers": "your Servers and Users",
+  "account-history": "your viewing history",
 };
 
 /** What else search finds a section by, past its name, for the sections that have such words. */
@@ -123,6 +129,8 @@ export const sectionWords: Partial<Record<Section, string>> = {
   account: "email delete",
   "account-signin": "password passkeys",
   "account-sessions": "sign out browsers",
+  "account-servers": "linked unlink",
+  "account-history": "viewing events plays export pooled counts",
 };
 
 /** The sidebar's sections under a heading. */
@@ -158,7 +166,10 @@ const groups: SectionGroup[] = [
 
 // The Account's own Sections, only at the Hub (ADR 0105), where no Server's are.
 const hubGroups: SectionGroup[] = [
-  { label: "Your Account", items: ["account", "account-signin", "account-sessions"] },
+  {
+    label: "Your Account",
+    items: ["account", "account-signin", "account-sessions", "account-servers", "account-history"],
+  },
 ];
 
 /** The sections `user` may open, grouped as the sidebar lists them; at the Hub, the Account's. */

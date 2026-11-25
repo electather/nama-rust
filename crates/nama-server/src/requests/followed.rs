@@ -36,7 +36,8 @@ impl Requests {
     /// Season Requests open in.
     /// Returns the Followed Show and the Season Requests in Season order.
     ///
-    /// Refuses a `chosen` Quality as [`Self::create_seasons`] does.
+    /// Refuses a `chosen` Quality as [`Self::create_seasons`] does, and with
+    /// [`Error::NoSuchShow`] a Show `asker`'s Maximum Age keeps from them.
     pub(crate) async fn follow(
         &self,
         asker: &User,
@@ -45,6 +46,12 @@ impl Requests {
     ) -> Result<(FollowedShow, Vec<Request>), Error> {
         let quality = self.quality::<Shows>(asker, chosen).await?;
         let (source, show) = self.show(show_id).await?;
+        if self
+            .kept_from(asker, show.content_rating.as_deref())
+            .await?
+        {
+            return Err(Error::NoSuchShow(show_id.clone()));
+        }
         let id = kept_under(show_id, &show.ids);
         let wanted = WantedSeasons {
             seasons: self.seasons_from(&source, show_id, &show).await?,

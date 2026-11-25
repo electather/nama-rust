@@ -86,6 +86,14 @@ impl From<Uuid> for LinkedServerId {
     }
 }
 
+impl std::str::FromStr for LinkedServerId {
+    type Err = uuid::Error;
+
+    fn from_str(id: &str) -> Result<Self, Self::Err> {
+        id.parse().map(Self)
+    }
+}
+
 impl fmt::Display for LinkedServerId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)

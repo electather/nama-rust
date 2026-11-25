@@ -30,11 +30,20 @@ pub(crate) enum Found {
 
 impl Found {
     /// The Library it was found in.
-    fn library(&self) -> i64 {
+    pub(crate) fn library(&self) -> i64 {
         match self {
             Self::Movie(FoundMovie { library, .. })
             | Self::Show(FoundShow { library, .. })
             | Self::Episode(FoundEpisode { library, .. }) => *library,
+        }
+    }
+
+    /// Its Content Rating, an Episode's its Show's.
+    pub(crate) fn content_rating(&self) -> Option<&str> {
+        match self {
+            Self::Movie(FoundMovie { content_rating, .. })
+            | Self::Show(FoundShow { content_rating, .. })
+            | Self::Episode(FoundEpisode { content_rating, .. }) => content_rating.as_deref(),
         }
     }
 }
@@ -50,6 +59,7 @@ pub(crate) struct FoundMovie {
     pub(crate) title: String,
     pub(crate) release_date: Option<String>,
     pub(crate) poster: Option<ImageRef>,
+    pub(crate) content_rating: Option<String>,
 }
 
 /// A Show a search found, with the metadata the Match of its best-fitting Episode stores.
@@ -65,6 +75,7 @@ pub(crate) struct FoundShow {
     /// As [`show_poster`] picks it, from the Match and the Seasons of the Show's Episodes the
     /// search found.
     pub(crate) poster: Option<ImageRef>,
+    pub(crate) content_rating: Option<String>,
 }
 
 /// An Episode a search found, with what browsing needs to find it: its Show and Season.
@@ -85,10 +96,12 @@ pub(crate) struct FoundEpisode {
     pub(crate) number: i64,
     pub(crate) title: String,
     pub(crate) still: Option<ImageRef>,
+    /// Its Show's.
+    pub(crate) content_rating: Option<String>,
 }
 
 impl Contents {
-    /// The best `limit` Matched Movies, Shows and Episodes of each Library `seen` keeps whose
+    /// The best `limit` Matched Movies, Shows and Episodes that `seen` keeps whose
     /// titles have each of the words of `query`, ignoring case, accents and the marks that join
     /// words, of `kind` only if it's set, a Show's with its Episodes. A year after other words
     /// keeps only those of that year, or with it in their title. Ordered as ADR 0080 says: Movies
@@ -100,7 +113,7 @@ impl Contents {
         query: &str,
         kind: Option<TitleKind>,
         limit: usize,
-        seen: impl Fn(i64) -> bool,
+        seen: impl Fn(&Found) -> bool,
     ) -> Result<Vec<Found>, sqlx::Error> {
         let Some(words) = SearchWords::of(query) else {
             return Ok(Vec::new());
@@ -117,9 +130,9 @@ impl Contents {
                 found.extend(ranked(corrected_rows, &corrected));
             }
         }
-        // ponytail: filtered after the SQL keeps the best `CANDIDATES` of every Library, so hidden
-        // Libraries' fits can crowd out a User's own; filter in SQL if that's ever seen.
-        found.retain(|found| seen(found.library()));
+        // ponytail: filtered after the SQL keeps the best `CANDIDATES` of every Library, so titles
+        // a User doesn't see can crowd out their own; filter in SQL if that's ever seen.
+        found.retain(seen);
         found.truncate(limit);
         Ok(found)
     }
@@ -205,7 +218,7 @@ impl Contents {
                               plugin, still,
                               item_matches.poster, item_matches.poster_plugin,
                               item_matches.show_poster, item_matches.show_poster_plugin,
-                              item_matches.metadata_version,
+                              item_matches.metadata_version, item_matches.content_rating,
                               iif(best.by_show, (
                                   SELECT json_group_array(json_array(
                                       library_items.season, item_matches.poster,
@@ -294,6 +307,8 @@ struct SearchRow {
     kind: ItemKind,
     /// Set for an Episode.
     season: Option<i64>,
+    /// An Episode's Show's.
+    content_rating: Option<String>,
     /// Set for an Episode.
     episode: Option<i64>,
     /// As [`ids_sql`] gives them.
@@ -365,6 +380,7 @@ fn found(row: SearchRow) -> Option<Found> {
             title: row.title,
             release_date: row.release_date,
             poster: ImageRef::stored(row.poster, row.poster_plugin),
+            content_rating: row.content_rating,
         })),
     }
 }
@@ -388,6 +404,7 @@ fn found_episode(row: SearchRow, id: ExternalId) -> Option<FoundEpisode> {
         number,
         title: row.title,
         still: ImageRef::stored(row.still, row.plugin),
+        content_rating: row.content_rating,
     })
 }
 
@@ -408,6 +425,7 @@ fn found_show(row: SearchRow) -> Option<FoundShow> {
         title: row.show_title?,
         first_air_date: row.show_first_air_date,
         poster: show_poster(own, row.metadata_version, seasons),
+        content_rating: row.content_rating,
     })
 }
 

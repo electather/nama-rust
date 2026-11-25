@@ -38,6 +38,14 @@ pub type OwnedSetLibraryAccessRequestView = ::buffa::view::OwnedView<
 pub type OwnedSetLibraryAccessResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetLibraryAccessResponseView<'static>,
 >;
+///Shorthand for `OwnedView<SetMaximumAgeRequestView<'static>>`.
+pub type OwnedSetMaximumAgeRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetMaximumAgeRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetMaximumAgeResponseView<'static>>`.
+pub type OwnedSetMaximumAgeResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetMaximumAgeResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<DeleteUserRequestView<'static>>`.
 pub type OwnedDeleteUserRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::DeleteUserRequestView<'static>,
@@ -165,6 +173,22 @@ pub type OwnedDeletePersonalSettingsRequestView = ::buffa::view::OwnedView<
 ///Shorthand for `OwnedView<DeletePersonalSettingsResponseView<'static>>`.
 pub type OwnedDeletePersonalSettingsResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::DeletePersonalSettingsResponseView<'static>,
+>;
+///Shorthand for `OwnedView<StartWatchSyncLinkRequestView<'static>>`.
+pub type OwnedStartWatchSyncLinkRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StartWatchSyncLinkRequestView<'static>,
+>;
+///Shorthand for `OwnedView<StartWatchSyncLinkResponseView<'static>>`.
+pub type OwnedStartWatchSyncLinkResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StartWatchSyncLinkResponseView<'static>,
+>;
+///Shorthand for `OwnedView<PollWatchSyncLinkRequestView<'static>>`.
+pub type OwnedPollWatchSyncLinkRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::PollWatchSyncLinkRequestView<'static>,
+>;
+///Shorthand for `OwnedView<PollWatchSyncLinkResponseView<'static>>`.
+pub type OwnedPollWatchSyncLinkResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::PollWatchSyncLinkResponseView<'static>,
 >;
 ///Shorthand for `OwnedView<ListNotificationPreferencesRequestView<'static>>`.
 pub type OwnedListNotificationPreferencesRequestView = ::buffa::view::OwnedView<
@@ -394,6 +418,40 @@ for crate::messages::nama::v1::__buffa::view::SetLibraryAccessResponseView<'_> {
 impl ::connectrpc::Encodable<crate::messages::nama::v1::SetLibraryAccessResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetLibraryAccessResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetMaximumAgeResponse>
+for crate::messages::nama::v1::__buffa::view::SetMaximumAgeResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetMaximumAgeResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetMaximumAgeResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -960,6 +1018,74 @@ for ::buffa::view::OwnedView<
         )
     }
 }
+impl ::connectrpc::Encodable<crate::messages::nama::v1::StartWatchSyncLinkResponse>
+for crate::messages::nama::v1::__buffa::view::StartWatchSyncLinkResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::StartWatchSyncLinkResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::StartWatchSyncLinkResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::PollWatchSyncLinkResponse>
+for crate::messages::nama::v1::__buffa::view::PollWatchSyncLinkResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::PollWatchSyncLinkResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::PollWatchSyncLinkResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
 impl ::connectrpc::Encodable<
     crate::messages::nama::v1::ListNotificationPreferencesResponse,
 >
@@ -1312,6 +1438,12 @@ pub const USER_SERVICE_SET_LIBRARY_ACCESS_SPEC: ::connectrpc::Spec = ::connectrp
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetMaximumAge` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_SET_MAXIMUM_AGE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/SetMaximumAge",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
 /// Static [`Spec`](::connectrpc::Spec) for the `DeleteUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const USER_SERVICE_DELETE_USER_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.UserService/DeleteUser",
@@ -1408,6 +1540,18 @@ pub const USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC: ::connectrpc::Spec = ::con
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `StartWatchSyncLink` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_START_WATCH_SYNC_LINK_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/StartWatchSyncLink",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `PollWatchSyncLink` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_POLL_WATCH_SYNC_LINK_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/PollWatchSyncLink",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `ListNotificationPreferences` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const USER_SERVICE_LIST_NOTIFICATION_PREFERENCES_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.UserService/ListNotificationPreferences",
@@ -1651,6 +1795,34 @@ pub trait UserService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::SetLibraryAccessResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Replaces a User's Maximum Age, from their next request: browsing, search, Home rows, Plugin
+    /// rows, Similar titles, title pages, playback and Requests leave out a title whose Content
+    /// Rating calls for an older age, and one with no Content Rating, or one the Server doesn't know,
+    /// unless they allow unrated titles. A Request search's hit not on the Server has no Content
+    /// Rating, so it counts as unrated. Without `PERMISSION_ADMIN`, the caller may change neither an
+    /// Admin's nor their own. Fails as `SetLibraryAccess` does.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_maximum_age<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SetMaximumAgeRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SetMaximumAgeResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -2066,6 +2238,58 @@ pub trait UserService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
+    /// Starts linking the caller's account at a Watch sync Plugin's tracker, such as Trakt, by device
+    /// code: the caller enters `user_code` at `verification_url`, then polls with `device_code` until
+    /// `PollWatchSyncLink` says how it went. Unlinking is `DeletePersonalSettings`. Fails with
+    /// `REFUSAL_REASON_PLUGIN_NOT_FOUND` for a Plugin that isn't enabled or isn't a Watch sync, and
+    /// with `unavailable` if the Plugin couldn't start.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn start_watch_sync_link<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::StartWatchSyncLinkRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::StartWatchSyncLinkResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Asks a Watch sync Plugin whether the caller entered the code `StartWatchSyncLink` gave. Once
+    /// they did, the Server keeps the tracker's tokens as the caller's secret Personal settings,
+    /// which no response ever holds. Fails as `StartWatchSyncLink` does.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn poll_watch_sync_link<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::PollWatchSyncLinkRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::PollWatchSyncLinkResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
     /// Lists which Request notifications the caller gets on every Notifier, through their Plugin
     /// Connections and Personal settings. Each kind is on until they turn it off.
     /// `NOTIFICATION_KIND_NEW_PENDING` is listed only to a caller with `PERMISSION_MANAGE_REQUESTS`.
@@ -2478,6 +2702,35 @@ impl<S: UserService> UserServiceExt for S {
                 },
             )
             .with_spec(USER_SERVICE_SET_LIBRARY_ACCESS_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "SetMaximumAge",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SetMaximumAgeRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SetMaximumAgeRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_maximum_age(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SetMaximumAgeResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_SET_MAXIMUM_AGE_SPEC)
             .route_view(
                 USER_SERVICE_SERVICE_NAME,
                 "DeleteUser",
@@ -2942,6 +3195,64 @@ impl<S: UserService> UserServiceExt for S {
                 },
             )
             .with_spec(USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "StartWatchSyncLink",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::StartWatchSyncLinkRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::StartWatchSyncLinkRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.start_watch_sync_link(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::StartWatchSyncLinkResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_START_WATCH_SYNC_LINK_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "PollWatchSyncLink",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::PollWatchSyncLinkRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::PollWatchSyncLinkRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.poll_watch_sync_link(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::PollWatchSyncLinkResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_POLL_WATCH_SYNC_LINK_SPEC)
             .route_view_idempotent(
                 USER_SERVICE_SERVICE_NAME,
                 "ListNotificationPreferences",
@@ -3287,6 +3598,12 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .with_spec(USER_SERVICE_SET_LIBRARY_ACCESS_SPEC),
                 )
             }
+            "SetMaximumAge" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_SET_MAXIMUM_AGE_SPEC),
+                )
+            }
             "DeleteUser" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -3381,6 +3698,18 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC),
+                )
+            }
+            "StartWatchSyncLink" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_START_WATCH_SYNC_LINK_SPEC),
+                )
+            }
+            "PollWatchSyncLink" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_POLL_WATCH_SYNC_LINK_SPEC),
                 )
             }
             "ListNotificationPreferences" => {
@@ -3555,6 +3884,28 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::SetLibraryAccessResponse,
+                        >(format)
+                })
+            }
+            "SetMaximumAge" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SetMaximumAgeRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SetMaximumAgeRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SetMaximumAgeRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_maximum_age(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::SetMaximumAgeResponse,
                         >(format)
                 })
             }
@@ -3901,6 +4252,50 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::DeletePersonalSettingsResponse,
+                        >(format)
+                })
+            }
+            "StartWatchSyncLink" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::StartWatchSyncLinkRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::StartWatchSyncLinkRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::StartWatchSyncLinkRequest,
+                    >::from_parts(&req, &body);
+                    svc.start_watch_sync_link(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::StartWatchSyncLinkResponse,
+                        >(format)
+                })
+            }
+            "PollWatchSyncLink" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::PollWatchSyncLinkRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::PollWatchSyncLinkRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::PollWatchSyncLinkRequest,
+                    >::from_parts(&req, &body);
+                    svc.poll_watch_sync_link(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::PollWatchSyncLinkResponse,
                         >(format)
                 })
             }
@@ -4437,6 +4832,51 @@ where
                 &self.transport,
                 &self.config,
                 USER_SERVICE_SET_LIBRARY_ACCESS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetMaximumAge RPC. Sends a request to /nama.v1.UserService/SetMaximumAge.
+    pub async fn set_maximum_age(
+        &self,
+        request: crate::messages::nama::v1::SetMaximumAgeRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetMaximumAgeResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_maximum_age_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetMaximumAge RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_maximum_age_with_options(
+        &self,
+        request: crate::messages::nama::v1::SetMaximumAgeRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetMaximumAgeResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_SET_MAXIMUM_AGE_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,
@@ -5153,6 +5593,96 @@ where
                 &self.transport,
                 &self.config,
                 USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the StartWatchSyncLink RPC. Sends a request to /nama.v1.UserService/StartWatchSyncLink.
+    pub async fn start_watch_sync_link(
+        &self,
+        request: crate::messages::nama::v1::StartWatchSyncLinkRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::StartWatchSyncLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.start_watch_sync_link_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the StartWatchSyncLink RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn start_watch_sync_link_with_options(
+        &self,
+        request: crate::messages::nama::v1::StartWatchSyncLinkRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::StartWatchSyncLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_START_WATCH_SYNC_LINK_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the PollWatchSyncLink RPC. Sends a request to /nama.v1.UserService/PollWatchSyncLink.
+    pub async fn poll_watch_sync_link(
+        &self,
+        request: crate::messages::nama::v1::PollWatchSyncLinkRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::PollWatchSyncLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.poll_watch_sync_link_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the PollWatchSyncLink RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn poll_watch_sync_link_with_options(
+        &self,
+        request: crate::messages::nama::v1::PollWatchSyncLinkRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::PollWatchSyncLinkResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_POLL_WATCH_SYNC_LINK_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

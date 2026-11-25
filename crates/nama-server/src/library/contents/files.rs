@@ -110,6 +110,22 @@ impl Contents {
             .await
     }
 
+    /// The Content Rating of each Item of the Version `version`'s file, an Episode's its Show's,
+    /// `None` for one without, or not Matched.
+    pub(crate) async fn version_content_ratings(
+        &self,
+        version: i64,
+    ) -> Result<Vec<Option<String>>, sqlx::Error> {
+        sqlx::query_scalar!(
+            "SELECT item_matches.content_rating FROM library_items
+             LEFT JOIN item_matches ON item_matches.item_id = library_items.id
+             WHERE library_items.file_id = ?",
+            version
+        )
+        .fetch_all(self.db.reader())
+        .await
+    }
+
     /// The other Versions, by path, in the Library of the Version `version`, of any Movie or
     /// Episode it is Matched to: each holds an Item of the same kind Matched to one of its ids.
     pub(crate) async fn other_versions(&self, version: i64) -> Result<Vec<Stored>, sqlx::Error> {

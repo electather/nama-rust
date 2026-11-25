@@ -19,7 +19,17 @@ pub(super) struct Claims {
     /// Whom it is for: in a sign-in token, the id of the Linked Server that may take it.
     #[serde(default)]
     pub(super) aud: String,
+    /// Its own id, in a token the web app at the Hub trades for a Device, which is taken once.
+    #[serde(default)]
+    pub(super) jti: Option<String>,
     exp: u64,
+}
+
+impl Claims {
+    /// The last second it passes, in seconds since the Unix epoch.
+    pub(super) const fn passes_until(&self) -> u64 {
+        self.exp.saturating_add(LEEWAY_SECS)
+    }
 }
 
 /// Why a token didn't pass.
@@ -82,7 +92,7 @@ pub(super) fn verify(key_set: &[u8], token: &str, now: u64) -> Result<Claims, Re
     let claims: Claims = decoded(claims)
         .and_then(|claims| serde_json::from_slice(&claims).ok())
         .ok_or(Rejected::Invalid("its claims aren't JSON"))?;
-    if claims.exp.saturating_add(LEEWAY_SECS) < now {
+    if claims.passes_until() < now {
         return Err(Rejected::Invalid("it expired"));
     }
     Ok(claims)

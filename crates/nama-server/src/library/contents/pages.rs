@@ -49,13 +49,19 @@ impl Contents {
     /// that `listing` keeps, in its order, each by the id it is listed under, and what the page
     /// says of the rest; only the first page counts them. `started` is the User's Watch States of
     /// the Movies, or Episodes, they've started or played: each by an id in its text form, and
-    /// whether it is played.
+    /// whether it is played. With `ratings`, only titles whose Content Rating is one of them, the
+    /// empty string standing for none, are listed.
     #[expect(clippy::too_many_lines, reason = "one query, whose SQL is most of it")]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "`started` and `ratings` are the User's, not part of what a client's listing keeps"
+    )]
     pub(crate) async fn title_page(
         &self,
         library: i64,
         listing: &Listing,
         started: &[(String, bool)],
+        ratings: Option<&[String]>,
         page: &Page<String>,
     ) -> Result<(Vec<ExternalId>, PageResponse), sqlx::Error> {
         let started =
@@ -72,6 +78,7 @@ impl Contents {
             Watched::Started => "started",
             Watched::Played => "played",
         });
+        let ratings = ratings.map(|ratings| serde_json::Value::from(ratings).to_string());
         let (after_key, after_id) = page.after.clone().unzip();
         let limit = page.limit();
         // ponytail: whole-Library read, grouped by `library_titles`.
@@ -107,6 +114,7 @@ impl Contents {
                                           WHEN 'released' THEN coalesce(released, '')
                                           ELSE coalesce(sort_title, '') END AS sort_key
                            FROM (SELECT titles.*, item_matches.sort_title, item_matches.genres,
+                                        item_matches.content_rating,
                                         IIF(titles.kind = 'movie', item_matches.release_date,
                                             item_matches.show_first_air_date) AS released
                                  FROM titles
@@ -118,7 +126,10 @@ impl Contents {
                                                                    FROM json_each(?4))))
                              AND (?5 IS NULL OR CAST(substr(released, 1, 4) AS INTEGER) >= ?5)
                              AND (?6 IS NULL OR CAST(substr(released, 1, 4) AS INTEGER) <= ?6)
-                             AND (?7 IS NULL OR watched = ?7))
+                             AND (?7 IS NULL OR watched = ?7)
+                             AND (?12 IS NULL
+                                  OR coalesce(content_rating, '')
+                                         IN (SELECT value FROM json_each(?12))))
                        SELECT listed_id AS "listed_id!: String", id AS "id!: i64",
                               sort_key AS "sort_key!: String", COUNT(*) OVER () AS "total!: i64"
                        FROM listed
@@ -138,6 +149,7 @@ impl Contents {
                     after_key,
                     after_id,
                     limit,
+                    ratings,
                 )
             };
         }
@@ -155,6 +167,17 @@ impl Contents {
 }
 
 impl Contents {
+    /// Every Content Rating a Match stores, each once.
+    // ponytail: reads every Match; keep a table of the ratings if Libraries get big.
+    pub(crate) async fn content_ratings(&self) -> Result<Vec<String>, sqlx::Error> {
+        sqlx::query_scalar!(
+            r#"SELECT DISTINCT content_rating AS "content_rating!" FROM item_matches
+               WHERE content_rating IS NOT NULL"#
+        )
+        .fetch_all(self.db.reader())
+        .await
+    }
+
     /// The genres of the titles the Library `library` lists, by name: those of the Match each
     /// title shows the metadata of, so every genre keeps a title in a page filtered by it.
     pub(crate) async fn genres(&self, library: i64) -> Result<Vec<String>, sqlx::Error> {

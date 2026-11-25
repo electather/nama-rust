@@ -58,12 +58,13 @@ const MANAGE_LIBRARIES: [&str; 11] = [
 ];
 
 /// Every RPC that manages Users, which needs `PERMISSION_MANAGE_USERS`.
-const MANAGE_USERS: [&str; 12] = [
+const MANAGE_USERS: [&str; 13] = [
     "/nama.v1.UserService/CreateUser",
     "/nama.v1.UserService/CreateUserFromAccount",
     "/nama.v1.UserService/ListUsers",
     "/nama.v1.UserService/SetPermissions",
     "/nama.v1.UserService/SetLibraryAccess",
+    "/nama.v1.UserService/SetMaximumAge",
     "/nama.v1.UserService/DeleteUser",
     "/nama.v1.UserService/ResetPassword",
     "/nama.v1.UserService/GetDefaultPermissions",
@@ -156,7 +157,7 @@ const BROWSE: [&str; 8] = [
 ];
 
 /// Every other unary RPC that needs a session.
-const SIGNED_IN: [&str; 27] = [
+const SIGNED_IN: [&str; 29] = [
     SIGN_OUT,
     "/nama.v1.SignInService/WhoAmI",
     "/nama.v1.SignInService/Reauthenticate",
@@ -181,6 +182,8 @@ const SIGNED_IN: [&str; 27] = [
     "/nama.v1.UserService/ListPersonalSettings",
     "/nama.v1.UserService/UpdatePersonalSettings",
     "/nama.v1.UserService/DeletePersonalSettings",
+    "/nama.v1.UserService/StartWatchSyncLink",
+    "/nama.v1.UserService/PollWatchSyncLink",
     "/nama.v1.UserService/GetUserLink",
     "/nama.v1.UserService/StartUserLink",
     "/nama.v1.UserService/UnlinkUser",

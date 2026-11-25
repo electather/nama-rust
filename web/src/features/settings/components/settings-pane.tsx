@@ -1,6 +1,8 @@
 import { type ComponentType, useRef } from "react";
 
+import { AccountHistoryPane } from "@/features/settings/components/account-history-pane";
 import { AccountPane } from "@/features/settings/components/account-pane";
+import { AccountServersPane } from "@/features/settings/components/account-servers-pane";
 import { AccountSessionsPane } from "@/features/settings/components/account-sessions-pane";
 import { AccountSigninPane } from "@/features/settings/components/account-signin-pane";
 import { BackupsPane } from "@/features/settings/components/backups-pane";
@@ -44,6 +46,8 @@ const panes: Record<Section, ComponentType<{ user: User | undefined }>> = {
   account: AccountPane,
   "account-signin": AccountSigninPane,
   "account-sessions": AccountSessionsPane,
+  "account-servers": AccountServersPane,
+  "account-history": AccountHistoryPane,
 };
 
 /**

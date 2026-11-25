@@ -9,6 +9,7 @@ mod browse;
 mod certificate;
 pub mod config;
 mod connections;
+mod content_ratings;
 pub mod db;
 pub mod diagnostics;
 mod events;

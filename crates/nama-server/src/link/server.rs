@@ -446,9 +446,15 @@ impl ServerLink {
         self.hub.url()
     }
 
-    /// `token`'s claims, checked against the Hub's key set as last kept, so it passes while the
-    /// Hub is unreachable. Only a token naming a key the kept set lacks fetches the set again.
+    /// `token`'s claims, checked as [`ServerLink::checked`] does, failing when it doesn't pass.
     pub(super) async fn verify(&self, token: &str) -> Result<Claims, Failure> {
+        self.checked(token).await?.map_err(rejected)
+    }
+
+    /// `token`'s claims, or why it didn't pass, checked against the Hub's key set as last kept, so
+    /// it passes while the Hub is unreachable. Only a token naming a key the kept set lacks fetches
+    /// the set again, which fails while the Hub is unreachable.
+    async fn checked(&self, token: &str) -> Result<Result<Claims, Rejected>, Failure> {
         let now = u64::try_from(db::now()).unwrap_or_default();
         let kept = sqlx::query_scalar!("SELECT key_set FROM hub_key_set")
             .fetch_optional(self.db.reader())
@@ -456,7 +462,7 @@ impl ServerLink {
         if let Some(key_set) = &kept {
             match token::verify(key_set, token, now) {
                 Err(Rejected::UnknownKey) => {}
-                verified => return verified.map_err(rejected),
+                verified => return Ok(verified),
             }
         }
         let key_set = self.hub.key_set().await?.to_vec();
@@ -474,7 +480,7 @@ impl ServerLink {
                 })
             })
             .await?;
-        token::verify(&key_set, token, now).map_err(rejected)
+        Ok(token::verify(&key_set, token, now))
     }
 
     /// Whom `token`, a sign-in token the Hub signed, names, once its audience is this Server. A
@@ -487,6 +493,56 @@ impl ServerLink {
             self.learn_server_id(kept.credential, claims.aud).await?;
         }
         Ok(claims.sub)
+    }
+
+    /// The id of the User `token` names, a token the Hub signed for the web app at the Hub to trade
+    /// for a Device (ADR 0105), using it up. `None`, logged, when it is for another Server, or
+    /// isn't one the Hub signed, unexpired and unused, since the page's caller chose it.
+    pub(super) async fn hub_token_user(&self, token: &str) -> Result<Option<i64>, Failure> {
+        let claims = match self.checked(token).await? {
+            Ok(claims) => claims,
+            Err(why) => {
+                tracing::info!("{}", rejected(why));
+                return Ok(None);
+            }
+        };
+        let own = self.kept().await?.and_then(|kept| kept.server_id);
+        let passes_until = claims.passes_until();
+        let user = claims.sub.parse().ok();
+        let (Some(jti), Some(user), true) = (claims.jti, user, own == Some(claims.aud)) else {
+            tracing::info!("a Hub token was refused: it isn't for a Device here");
+            return Ok(None);
+        };
+        Ok(self.use_up(jti, passes_until).await?.then_some(user))
+    }
+
+    /// Whether the token `jti` passing until `passes_until` was unused, keeping it as used, and
+    /// forgetting those that no longer pass.
+    async fn use_up(&self, jti: String, passes_until: u64) -> Result<bool, sqlx::Error> {
+        let now = db::now();
+        let passes_until = i64::try_from(passes_until).unwrap_or(i64::MAX);
+        // `checked` read the clock earlier: a token that stopped passing since would find its
+        // first use forgotten by the cleanup below, and pass a second time.
+        if passes_until < now {
+            return Ok(false);
+        }
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!("DELETE FROM hub_tokens_used WHERE expires_at < ?", now)
+                        .execute(&mut **tx)
+                        .await?;
+                    let kept = sqlx::query!(
+                        "INSERT OR IGNORE INTO hub_tokens_used (jti, expires_at) VALUES (?, ?)",
+                        jti,
+                        passes_until
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    Ok(kept.rows_affected() == 1)
+                })
+            })
+            .await
     }
 
     /// Keeps `server_id` as the Server's id at the Hub, for the Link holding `credential`.

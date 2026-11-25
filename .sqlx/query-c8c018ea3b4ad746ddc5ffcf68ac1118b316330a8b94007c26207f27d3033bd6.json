@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT item_matches.content_rating FROM library_items\n             LEFT JOIN item_matches ON item_matches.item_id = library_items.id\n             WHERE library_items.file_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "content_rating",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "content_rating"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "c8c018ea3b4ad746ddc5ffcf68ac1118b316330a8b94007c26207f27d3033bd6"
+}

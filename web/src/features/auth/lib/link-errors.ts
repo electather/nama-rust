@@ -25,6 +25,9 @@ const wording: HubWording = {
   [RefusalReason.SIGN_IN_LINKS_OFF]: () => ({
     form: "This Hub can’t prove emails, so Linking isn’t possible on it. Ask whoever runs it to set up email.",
   }),
+  [RefusalReason.USER_INVITE_NOT_FOUND]: () => ({
+    form: "This User isn’t waiting for you any more.",
+  }),
   [RefusalReason.SIGN_IN_REQUIRED]: () => ({ form: "You’re signed out. Sign in again to Link." }),
   [RefusalReason.RECENT_AUTHENTICATION_REQUIRED]: (param) => ({
     form: `To Link, sign in again: your sign-in is over ${param("recentMinutes")} minutes old.`,

@@ -19,12 +19,12 @@ import "nama/v1/playback.proto";
 // A Device that goes unused for 90 days expires, and its session stops working.
 //
 // Guessing is slowed down: after 10 failed `SignIn`s and `Reauthenticate`s for one name, or 50
-// failed `Setup`s, `SignIn`s, `Reauthenticate`s and `AcceptInvite`s together from one IP address,
-// within 15 minutes, further attempts fail with `resource_exhausted`, without being checked, and a
-// `Retry-After` header gives the seconds to wait. A successful `SignIn` or `Reauthenticate` clears
-// its name's failures. In the same way, after 10 failed `LookUpSignInCode`s and
-// `ApproveSignInCode`s together from one Device within 15 minutes, its further lookups and
-// approvals fail with `resource_exhausted`.
+// failed `Setup`s, `SignIn`s, `Reauthenticate`s, `AcceptInvite`s and `SignInWithHubToken`s
+// together from one IP address, within 15 minutes, further attempts fail with
+// `resource_exhausted`, without being checked, and a `Retry-After` header gives the seconds to
+// wait. A successful `SignIn` or `Reauthenticate` clears its name's failures. In the same way,
+// after 10 failed `LookUpSignInCode`s and `ApproveSignInCode`s together from one Device within 15
+// minutes, its further lookups and approvals fail with `resource_exhausted`.
 //
 // Changes to who can sign in as whom need Recent Authentication: the calling User proved who they
 // are on the calling Device with one of their Sign-in Methods in the last 10 minutes. They are
@@ -143,6 +143,15 @@ service SignInService {
   // `not_found` and `REFUSAL_REASON_USER_NOT_FOUND` if the User was deleted, and like
   // `StartAccountSignIn` otherwise.
   rpc SignInWithAccount(SignInWithAccountRequest) returns (SignInWithAccountResponse);
+  // Signs a new Device in as the User a token from the Hub's `CreateServerToken` names, for the web
+  // app at the Hub (ADR 0105), handing out its session as a bearer token in the response body. It
+  // is listed and revoked as any other Device, and keeps working while the Hub is down. Fails with
+  // `unauthenticated` and `REFUSAL_REASON_HUB_TOKEN_REFUSED` for a token the Hub didn't sign, one
+  // for another Server, expired or used already, which counts toward the limits above; with
+  // `not_found` and `REFUSAL_REASON_USER_NOT_FOUND` if the User was deleted; with
+  // `invalid_argument` if the Device name breaks the rules; and like `StartAccountSignIn` when
+  // the Hub can't be asked for the key it signed with.
+  rpc SignInWithHubToken(SignInWithHubTokenRequest) returns (SignInWithHubTokenResponse);
 }
 
 // How a signed-in Device is given its session.
@@ -218,6 +227,16 @@ message User {
   // `PERMISSION_MANAGE_LIBRARIES` sees every one whatever it holds. Only `UserService.ListUsers`
   // sets it.
   LibraryAccess library_access = 7;
+  // The User's Maximum Age, unset for none. Only `UserService.ListUsers` sets it.
+  MaximumAge maximum_age = 8;
+}
+
+// The highest age a title's Content Rating may call for and still reach a User.
+message MaximumAge {
+  // In years.
+  uint32 age = 1;
+  // Whether a title with no Content Rating, or one the Server doesn't know, reaches them.
+  bool allow_unrated = 2;
 }
 
 // A chosen list of the Libraries a User sees, which never grows by itself as Libraries are added.
@@ -455,5 +474,22 @@ message SignInWithAccountResponse {
   // The Device just signed in.
   Device device = 2;
   // The session token, for `SESSION_DELIVERY_TOKEN` only. Empty for a cookie.
+  string token = 3;
+}
+
+message SignInWithHubTokenRequest {
+  // The token the Hub's `CreateServerToken` signed for this Server.
+  string hub_token = 1;
+  // The signing-in Device's name: up to 64 characters. When it is blank, the Server names the
+  // Device after the browser and OS in its `User-Agent`, such as "Chrome on macOS".
+  string device_name = 2;
+}
+
+message SignInWithHubTokenResponse {
+  // The User signed in as.
+  User user = 1;
+  // The Device just signed in.
+  Device device = 2;
+  // The session token, which the client sends as `Authorization: Bearer <token>`.
   string token = 3;
 }

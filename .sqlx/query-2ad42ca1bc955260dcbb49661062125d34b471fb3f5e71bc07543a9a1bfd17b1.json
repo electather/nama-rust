@@ -1,0 +1,42 @@
+{
+  "db_name": "SQLite",
+  "query": "WITH started (title_id, played) AS MATERIALIZED (\n                           SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]')\n                           FROM json_each(?2)),\n                       items AS (\n                           SELECT library_titles.*,\n                                  (SELECT MAX(started.played) FROM item_match_ids AS own\n                                   JOIN started ON started.title_id = own.namespace || '-' || own.value\n                                   WHERE own.item_id = library_titles.item_id\n                                     AND own.scope = 'title') AS played\n                           FROM (SELECT library_id, item_id, kind, path, season, episode, own_id, listed_id,\n                      ROW_NUMBER() OVER title AS nth, MIN(item_id) OVER title AS title_item,\n                      MIN(added_at) OVER title AS first_added_at,\n                      MAX(added_at) OVER title AS newest_added_at,\n                      IIF(kind = 'movie', MIN(added_at) OVER title, MAX(added_at) OVER title)\n                          AS added_at\n               FROM (SELECT library_files.library_id, library_items.id AS item_id, library_items.kind,\n                      library_files.path, library_items.season, library_items.episode,\n                      library_items.added_at, (SELECT substr(MIN(printf('%05d', coalesce(nullif(instr(\n                         ',' || libraries.title_sources || ',', ',' || candidate.namespace || ','),\n                         0), 99999)) || candidate.namespace || '-' || candidate.value), 6)\n              FROM item_match_ids AS candidate\n              WHERE candidate.item_id = item_matches.item_id AND candidate.scope = 'title') AS own_id, (SELECT substr(MIN(printf('%05d', coalesce(nullif(instr(\n                         ',' || libraries.title_sources || ',', ',' || candidate.namespace || ','),\n                         0), 99999)) || candidate.namespace || '-' || candidate.value), 6)\n              FROM item_match_ids AS candidate\n              WHERE candidate.item_id = item_matches.item_id AND candidate.scope = IIF(library_items.kind = 'movie', 'title', 'show')) AS listed_id\n               FROM item_matches\n               JOIN library_items ON library_items.id = item_matches.item_id\n               JOIN library_files ON library_files.id = library_items.file_id\n               JOIN libraries ON libraries.id = library_files.library_id\n               WHERE item_matches.state = 'matched'\n                 AND library_items.kind = IIF(libraries.kind = 'movies', 'movie', 'episode')\n                 AND own_id IS NOT NULL AND listed_id IS NOT NULL\n                 AND (library_items.kind = 'movie'\n                      OR (library_items.season IS NOT NULL\n                          AND library_items.episode IS NOT NULL)))\n               WINDOW title AS (PARTITION BY library_id, listed_id\n                                ORDER BY season, episode, path\n                                ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)) AS library_titles\n                           WHERE library_titles.library_id = ?1),\n                       titles AS (\n                           SELECT item_id, listed_id, title_item, kind, added_at, nth,\n                                  CASE WHEN TOTAL(played) OVER title = COUNT(*) OVER title\n                                           THEN 'played'\n                                       WHEN COUNT(played) OVER title > 0 THEN 'started'\n                                       ELSE 'not_started' END AS watched\n                           FROM items\n                           WINDOW title AS (PARTITION BY listed_id)),\n                       listed AS (\n                           SELECT listed_id, title_item AS id,\n                                  -- Text for every sort, so one token type holds any key; the\n                                  -- padding orders times as numbers.\n                                  CASE ?3 WHEN 'added' THEN printf('%020d', added_at)\n                                          WHEN 'released' THEN coalesce(released, '')\n                                          ELSE coalesce(sort_title, '') END AS sort_key\n                           FROM (SELECT titles.*, item_matches.sort_title, item_matches.genres,\n                                        item_matches.content_rating,\n                                        IIF(titles.kind = 'movie', item_matches.release_date,\n                                            item_matches.show_first_air_date) AS released\n                                 FROM titles\n                                 JOIN item_matches ON item_matches.item_id = titles.item_id\n                                 WHERE titles.nth = 1) AS shown\n                           WHERE (?4 IS NULL\n                                  OR EXISTS (SELECT 1 FROM json_each(shown.genres) AS genre\n                                             WHERE genre.value IN (SELECT value\n                                                                   FROM json_each(?4))))\n                             AND (?5 IS NULL OR CAST(substr(released, 1, 4) AS INTEGER) >= ?5)\n                             AND (?6 IS NULL OR CAST(substr(released, 1, 4) AS INTEGER) <= ?6)\n                             AND (?7 IS NULL OR watched = ?7)\n                             AND (?12 IS NULL\n                                  OR coalesce(content_rating, '')\n                                         IN (SELECT value FROM json_each(?12))))\n                       SELECT listed_id AS \"listed_id!: String\", id AS \"id!: i64\",\n                              sort_key AS \"sort_key!: String\", COUNT(*) OVER () AS \"total!: i64\"\n                       FROM listed\n                       WHERE ?9 IS NULL\n                          OR (?8 AND (sort_key, id) < (?9, ?10))\n                          OR (NOT ?8 AND (sort_key, id) > (?9, ?10))\n                       ORDER BY IIF(?8, sort_key, NULL) DESC, IIF(?8, id, NULL) DESC, sort_key, id\n                       LIMIT ?11",
+  "describe": {
+    "columns": [
+      {
+        "name": "listed_id!: String",
+        "ordinal": 0,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "id!: i64",
+        "ordinal": 1,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "sort_key!: String",
+        "ordinal": 2,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "total!: i64",
+        "ordinal": 3,
+        "type_info": "Null",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 12
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "2ad42ca1bc955260dcbb49661062125d34b471fb3f5e71bc07543a9a1bfd17b1"
+}

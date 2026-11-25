@@ -112,7 +112,7 @@ async fn page_of(
 ) -> (Vec<i64>, PageResponse) {
     let page = Page::read(asked, b"test").unwrap();
     let (ids, paged) = (fx.contents)
-        .title_page(library, listing, started, &page)
+        .title_page(library, listing, started, None, &page)
         .await
         .unwrap();
     let tmdb = ids.iter().map(|id| id.value().parse().unwrap()).collect();

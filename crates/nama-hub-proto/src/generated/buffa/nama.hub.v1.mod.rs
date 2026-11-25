@@ -136,6 +136,8 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_SERVER_SIGN_IN_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__APPROVE_SERVER_SIGN_IN_REQUEST_JSON_ANY);
         reg.register_json_any(super::__APPROVE_SERVER_SIGN_IN_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__CREATE_SERVER_TOKEN_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__CREATE_SERVER_TOKEN_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__INVITE_USER_REQUEST_JSON_ANY);
         reg.register_json_any(super::__INVITE_USER_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__START_SERVER_SIGN_IN_REQUEST_JSON_ANY);
@@ -581,6 +583,14 @@ pub use self::__buffa::view::ApproveServerSignInRequestOwnedView;
 pub use self::__buffa::view::ApproveServerSignInResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ApproveServerSignInResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateServerTokenRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateServerTokenRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateServerTokenResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::CreateServerTokenResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::InviteUserRequestView;
 #[doc(inline)]

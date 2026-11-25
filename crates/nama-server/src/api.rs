@@ -51,6 +51,7 @@ mod inbox;
 mod jobs;
 mod libraries;
 mod matches;
+mod personal_settings;
 mod playback;
 mod plugins;
 mod requests;
@@ -459,6 +460,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD
         | R::REFUSAL_REASON_WRONG_PASSWORD
         | R::REFUSAL_REASON_WRONG_ACCOUNT
+        | R::REFUSAL_REASON_HUB_TOKEN_REFUSED
         | R::REFUSAL_REASON_SIGNED_OUT => ErrorCode::Unauthenticated,
         R::REFUSAL_REASON_PERMISSION_REQUIRED
         | R::REFUSAL_REASON_WRONG_SETUP_CODE
