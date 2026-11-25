@@ -49,6 +49,12 @@ use super::{
     server_link, unknown_enum_value,
 };
 
+/// The Settings Sections this Server serves, by their `?settings=` words, as
+/// `GetServerInfoResponse.settings_sections` lists them.
+// A new Settings Section goes here too (`web/src/AGENTS.md`).
+const SETTINGS_SECTIONS: &str = "signin devices playback home requests connections libraries \
+    needs-a-match now-playing jobs server users backups default-home server-playback plugins";
+
 /// `nama.v1.ServerService`: facts about this Server, its settings, and the ffmpeg it found.
 pub(super) struct ServerServiceHandler {
     pub(super) name: String,
@@ -119,6 +125,7 @@ impl ServerService for ServerServiceHandler {
             title_logo_widths: images::TITLE_LOGO_WIDTHS.to_vec(),
             exports_diagnostics: self.browser_spans.exports(),
             account_sign_in,
+            settings_sections: SETTINGS_SECTIONS.split(' ').map(str::to_owned).collect(),
             ..Default::default()
         })
     }

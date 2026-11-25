@@ -1,17 +1,15 @@
-import { useRouteContext } from "@tanstack/react-router";
-
 import { PluginJobItem } from "@/features/admin-plugins/components/plugin-job-item";
 import type { PluginJob, PluginSummary } from "@/gen/nama/v1/plugin_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { may } from "@/shared/lib/permissions";
+import { useMay } from "@/shared/hooks/use-may";
 
 /**
  * For an Admin, the Jobs the Plugin declares, enabled or not, each linking to it in Settings' Jobs
  * section, which only Admins open, while the Plugin is enabled. A Plugin with none has no section.
  */
 export function PluginJobs({ summary, jobs }: { summary: PluginSummary; jobs: PluginJob[] }) {
-  const { signedIn } = useRouteContext({ from: "/_member" });
-  if (jobs.length === 0 || !may(signedIn.user, Permission.ADMIN)) {
+  const isAdmin = useMay(Permission.ADMIN);
+  if (jobs.length === 0 || !isAdmin) {
     return null;
   }
   return (

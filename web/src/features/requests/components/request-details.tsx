@@ -1,4 +1,3 @@
-import { useRouteContext } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { DownloadRing } from "@/features/requests/components/download-ring";
@@ -14,6 +13,7 @@ import {
 } from "@/features/requests/lib/request-facts";
 import type { FollowedShow, Request } from "@/gen/nama/v1/request_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
+import { useSignedInUser } from "@/shared/hooks/use-signed-in-user";
 import { may } from "@/shared/lib/permissions";
 
 /**
@@ -28,7 +28,7 @@ export function RequestDetails({
   request: Request | FollowedShow;
   title: ReactNode;
 }) {
-  const { signedIn } = useRouteContext({ from: "/_member" });
+  const you = useSignedInUser();
   const downloads = downloadsOf(request);
   const state =
     downloads.length === 0 ? (
@@ -41,14 +41,11 @@ export function RequestDetails({
       {title}
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
         {state}
-        {aboutRequest(request, signedIn.user?.id)}
+        {aboutRequest(request, you?.id)}
       </p>
       <StoppedDownloads downloads={downloads} />
       <Reason reason={reasonOf(request)} />
-      <FulfillerLink
-        pluginId={failedBy(request)}
-        mayFix={may(signedIn.user, Permission.MANAGE_SETTINGS)}
-      />
+      <FulfillerLink pluginId={failedBy(request)} mayFix={may(you, Permission.MANAGE_SETTINGS)} />
     </div>
   );
 }

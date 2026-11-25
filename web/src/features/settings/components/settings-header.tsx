@@ -27,20 +27,24 @@ const sectionActions: Partial<Record<Section, ComponentType>> = {
 
 /**
  * The top of the pane: where in Settings it is, what acts on the whole pane, such as going back to
- * the default Home, adding a Library or running the open Job, and the button that closes it.
+ * the default Home, adding a Library or running the open Job, and the button that closes it. Unless
+ * `served`, as for a Section the Server in use doesn't serve, nothing acts on the pane: that may
+ * call what the Server lacks.
  */
 export function SettingsHeader({
   titleId,
   section,
+  served,
   onClose,
 }: {
   titleId: string;
   section: Section;
+  served: boolean;
   onClose: () => void;
 }) {
   const plain = <Crumbs current={sectionTitles[section]} />;
   const Opened = openedCrumbs[section];
-  const Action = sectionActions[section];
+  const Action = served ? sectionActions[section] : undefined;
   const crumbs = Opened ? (
     <Suspense fallback={plain}>
       <Opened />
