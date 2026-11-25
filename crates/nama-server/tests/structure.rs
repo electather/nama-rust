@@ -100,7 +100,10 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
     ("src/watchlist", &["watchlist"]),
     ("src/playback/preview_frames", &["preview_frames"]),
     ("src/home_rows/refreshes", &["home_visits"]),
-    ("src/link/server", &["hub_link", "hub_key_set"]),
+    (
+        "src/link/server",
+        &["hub_link", "hub_key_set", "hub_tokens_used"],
+    ),
     ("src/link/users", &["hub_user_links"]),
 ];
 

@@ -343,4 +343,7 @@ enum RefusalReason {
   // `not_found`: the caller's inbox has no notification with the ID, as another User's isn't in
   // theirs. `field` is `id`. Params: `notificationId`.
   REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND = 103;
+  // `unauthenticated`: the Hub didn't sign the token for this Server, or it expired or was used
+  // already. `field` is `hub_token`.
+  REFUSAL_REASON_HUB_TOKEN_REFUSED = 104;
 }

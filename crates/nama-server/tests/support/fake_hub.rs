@@ -1,7 +1,8 @@
 //! An in-process stand-in for the Hub a Server's config names, answering the calls the Kernel
 //! makes as the Server's Link (ADR 0105): its device flow, Unlinking, its Users' Links, Users
 //! created from Accounts, one sign-in with an Account at a time, the Server Addresses, whose public
-//! port it reaches only at [`OPEN_PORT`], the Relay token, and the key set it signs tokens with. It
+//! port it reaches only at [`OPEN_PORT`], the Relay token, and the key set it signs tokens with,
+//! such as those the web app at the Hub trades for a Device ([`FakeHub::signed`]). It
 //! speaks the Connect protocol's unary calls with protobuf bodies, as the Kernel's client does, so
 //! it needs none of the Hub API's other calls.
 
@@ -61,7 +62,7 @@ pub(crate) const SIGN_IN_ID: &str = "sign-in-id";
 pub(crate) const SIGN_IN_CODE: &str = "code";
 
 /// The Server's id at the fake, which the token a newly Linked Server gets names.
-const SERVER_ID: &str = "server";
+pub(crate) const SERVER_ID: &str = "server";
 
 const SIGN_IN_DEVICE_CODE: &str = "sign-in-device-code";
 
@@ -117,6 +118,7 @@ struct State {
 pub(crate) struct FakeHub {
     addr: SocketAddr,
     state: Arc<Mutex<State>>,
+    key: Arc<Ed25519KeyPair>,
     serving: JoinHandle<()>,
 }
 
@@ -186,6 +188,7 @@ impl FakeHub {
         Self {
             addr,
             state,
+            key,
             serving,
         }
     }
@@ -308,6 +311,11 @@ impl FakeHub {
     /// Has every call from now on wait forever.
     pub(crate) fn hang(&self) {
         lock(&self.state).hanging = true;
+    }
+
+    /// `claims` signed as the Hub signs its tokens, such as one for the web app at the Hub to trade.
+    pub(crate) fn signed(&self, claims: &Value) -> String {
+        sign(&self.key, claims)
     }
 
     /// Goes down, as if unreachable.
@@ -614,7 +622,7 @@ fn credential(nth: usize) -> String {
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-fn in_5_minutes() -> u64 {
+pub(crate) fn in_5_minutes() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()

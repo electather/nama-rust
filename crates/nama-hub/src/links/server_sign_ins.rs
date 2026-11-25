@@ -1,7 +1,9 @@
 //! Signing in to a Linked Server with an Account (ADR 0092), as a device flow (ADR 0011): the
 //! Server starts it and polls with a device code, and the Account approves it on the Hub's page,
 //! which sends the person back to the Server. The token the Server collects names the User their
-//! Link is to, so the Server finds them through it (ADR 0014).
+//! Link is to, so the Server finds them through it (ADR 0014). The web app at the Hub skips the
+//! flow: it asks for a token naming the Account's User on a Server, and trades it there for a
+//! Device (ADR 0105).
 
 use std::{fmt, str::FromStr};
 
@@ -10,8 +12,8 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use super::{
-    CODE_LIFETIME_MINS, Error, LinkedServer, Links, TOKEN_LIFETIME_SECS, hash, issued_at,
-    random_token,
+    CODE_LIFETIME_MINS, Error, LinkedServer, LinkedServerId, Links, TOKEN_LIFETIME_SECS, hash,
+    issued_at, random_token,
 };
 use crate::accounts::AccountId;
 
@@ -51,13 +53,18 @@ pub(crate) struct WaitingSignIn {
     pub(crate) user_name: Option<String>,
 }
 
-/// The claims of the token a Server collects for an approved sign-in.
+/// The claims of the token a Server collects for an approved sign-in, or the web app at the Hub
+/// trades there.
 #[derive(Serialize)]
 struct SignInClaims {
     /// The User's id on the Server.
     sub: String,
     /// The Linked Server's id, so no other Server takes it.
     aud: String,
+    /// A random id in the token the web app trades, which passes through the browser, so the
+    /// Server takes it once.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    jti: Option<String>,
     iat: u64,
     exp: u64,
 }
@@ -199,9 +206,36 @@ impl Links {
         Ok(Some(self.keys.sign(&SignInClaims {
             sub: user_id.to_string(),
             aud: server.id.to_string(),
+            jti: None,
             iat,
             exp: iat + TOKEN_LIFETIME_SECS,
         })))
+    }
+
+    /// A token naming `account`'s User on `server`, which the web app at the Hub trades there for
+    /// a Device (ADR 0105). Fails with [`Error::NoUserOnServer`] unless `account` has a User Linked
+    /// on `server`.
+    pub(crate) async fn server_token(
+        &self,
+        account: AccountId,
+        server: LinkedServerId,
+    ) -> Result<String, Error> {
+        let user_id = sqlx::query_scalar!(
+            "SELECT server_user_id FROM user_links WHERE account_id = $1 AND linked_server_id = $2",
+            account.0,
+            server.0,
+        )
+        .fetch_optional(&self.db)
+        .await?
+        .ok_or(Error::NoUserOnServer)?;
+        let iat = issued_at();
+        Ok(self.keys.sign(&SignInClaims {
+            sub: user_id.to_string(),
+            aud: server.to_string(),
+            jti: Some(random_token()?),
+            iat,
+            exp: iat + TOKEN_LIFETIME_SECS,
+        }))
     }
 }
 

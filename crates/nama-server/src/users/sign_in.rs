@@ -93,6 +93,9 @@ pub(crate) enum Error {
         /// The request field it is about, as clients name it.
         field: &'static str,
     },
+    /// The Hub didn't sign the token for this Server, or it expired or was used already.
+    #[error("the Hub's token isn't for this Server, or it expired or was used already")]
+    HubTokenRefused,
     /// The Plugin that links the Server couldn't finish a sign-in with an Account.
     #[error(transparent)]
     Link(#[from] link::Error),
@@ -173,6 +176,27 @@ impl SignIn {
             }
         };
         Ok(self.users.sign_in_as(proved, device, session).await?)
+    }
+
+    /// Signs a new `device` in as the User `hub_token` names, a token the Hub signed for the web
+    /// app at the Hub (ADR 0105), at `now`. A refused token counts as a failed attempt from the
+    /// client IP, as does a Hub that can't be asked for its key set: either may be anyone's token,
+    /// and an unknown key fetches the set again.
+    pub(crate) async fn sign_in_with_hub_token(
+        &self,
+        hub_token: &str,
+        device: NewDevice,
+        now: Instant,
+    ) -> Result<SignedIn, Error> {
+        let device = named(device)?;
+        let attempt = self.limits.admit(device.ip_address, None, now)?;
+        let user =
+            (self.users.linking.hub_token_user(hub_token).await?).ok_or(Error::HubTokenRefused)?;
+        self.limits.succeeded(&attempt);
+        Ok(self
+            .users
+            .sign_in_as(Proved::Account(user), device, None)
+            .await?)
     }
 
     /// Creates a User named `name` with `password` from the Invite whose link carries `token`, and

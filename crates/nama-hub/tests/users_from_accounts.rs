@@ -1,5 +1,6 @@
 //! Users an Admin created from an Account, which it accepts, and signing in to a Linked Server
-//! with an Account (ADR 0092), against a real PostgreSQL.
+//! with an Account (ADR 0092), and the tokens the web app at the Hub trades at a Linked Server for a
+//! Device (ADR 0105), against a real PostgreSQL.
 
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 #[path = "support/hub.rs"]
@@ -17,9 +18,10 @@ use connectrpc::ErrorCode;
 use hub::TestHub;
 use linking::*;
 use nama_hub_proto::nama::hub::v1::{
-    AcceptUserInviteRequest, ApproveServerSignInRequest, GetServerSignInRequest, InviteUserRequest,
-    ListLinkedServersRequest, ListUserInvitesRequest, PollServerSignInRequest, RefusalReason,
-    SetServerAddressesRequest, StartServerSignInRequest, StartServerSignInResponse,
+    AcceptUserInviteRequest, ApproveServerSignInRequest, CreateServerTokenRequest,
+    GetServerSignInRequest, InviteUserRequest, ListLinkedServersRequest, ListUserInvitesRequest,
+    PollServerSignInRequest, RefusalReason, SetServerAddressesRequest, StartServerSignInRequest,
+    StartServerSignInResponse,
 };
 use refused::assert_refused;
 use sqlx::PgPool;
@@ -289,6 +291,59 @@ async fn an_account_signs_in_to_a_server_as_its_user_there(db: PgPool) {
         ErrorCode::NotFound,
         RefusalReason::REFUSAL_REASON_SERVER_SIGN_IN_NOT_FOUND,
     );
+}
+
+/// The token the Account signed in with `token` gets for the Linked Server `linked_server_id`.
+async fn server_token(
+    hub: &TestHub,
+    token: &str,
+    linked_server_id: &str,
+) -> Result<String, connectrpc::ConnectError> {
+    Ok(links(hub, token)
+        .create_server_token(CreateServerTokenRequest {
+            linked_server_id: linked_server_id.to_owned(),
+            ..Default::default()
+        })
+        .await?
+        .into_owned()
+        .token)
+}
+
+#[sqlx::test(migrations = false)]
+async fn an_account_gets_a_server_token_only_for_its_user_on_that_server(db: PgPool) {
+    let (hub, mut inbox) = hub_with_mail(db).await;
+    let ada = create_proven(&hub, &mut inbox, "ada@example.com").await;
+    let bea = create_proven(&hub, &mut inbox, "bea@example.com").await;
+    let server = linked(&hub, &ada, "Ada's").await;
+    linked(&hub, &ada, "Ada's other").await;
+    let user_code = start_user(&hub, &server, 7).await.unwrap();
+    approve_user(&hub, &bea, &user_code).await.unwrap();
+    let servers = links(&hub, &ada)
+        .list_linked_servers(ListLinkedServersRequest::default())
+        .await
+        .unwrap()
+        .into_owned()
+        .servers;
+    let (with_bea, other) = (&servers[0].id, &servers[1].id);
+
+    let token = server_token(&hub, &bea, with_bea).await.unwrap();
+
+    let claims = verified_claims(&hub, &token).await;
+    assert_eq!(claims["sub"], "7");
+    assert_eq!(claims["aud"], with_bea.as_str());
+    let again = verified_claims(&hub, &server_token(&hub, &bea, with_bea).await.unwrap()).await;
+    assert_ne!(claims["jti"], again["jti"], "each token is used once");
+    for (account, linked_server_id) in [
+        (&ada, with_bea.as_str()),
+        (&bea, other),
+        (&bea, "not a uuid"),
+    ] {
+        assert_refused(
+            server_token(&hub, account, linked_server_id).await,
+            ErrorCode::FailedPrecondition,
+            RefusalReason::REFUSAL_REASON_NO_USER_ON_SERVER,
+        );
+    }
 }
 
 #[sqlx::test(migrations = false)]
