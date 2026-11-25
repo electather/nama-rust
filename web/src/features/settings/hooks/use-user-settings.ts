@@ -26,7 +26,8 @@ export function useUserSettings(user: User, you: User | undefined) {
     },
     async ({ permissions, cap, maximumAge, libraryAccess }, changed) => {
       const userId = user.id;
-      // Each control changes one setting, and each setting has an RPC of its own.
+      // Each control changes one setting. Maximum Age and Libraries each have an RPC of their own;
+      // Permissions and the cap share `SetPermissions`.
       if (changed.includes("maximumAge")) {
         await setMaximumAge.mutateAsync({ userId, maximumAge });
       } else if (changed.includes("libraryAccess")) {

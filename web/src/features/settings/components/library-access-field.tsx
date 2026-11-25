@@ -19,7 +19,7 @@ export function LibraryAccessField({
   libraryAccess: LibraryAccess | undefined;
   onChange: (changes: { libraryAccess: LibraryAccess | undefined }) => void;
 }) {
-  // shortcut: lists only the Libraries the editor sees, which is every one for an Admin or a
+  // ponytail: lists only the Libraries the editor sees, which is every one for an Admin or a
   // User with Manage Libraries; upgrade when the Server lists them all for Manage Users (#2323).
   const libraries = useLibraries();
   const choose = (libraryIds: bigint[]) => {
@@ -46,18 +46,22 @@ export function LibraryAccessField({
           { value: CHOSEN, label: "Chosen Libraries" },
         ]}
       />
-      {libraryAccess &&
-        libraries.map(({ id, name }) => (
-          <SwitchRow
-            key={id}
-            label={name}
-            checked={libraryAccess.libraryIds.includes(id)}
-            onChange={(checked) => {
-              const others = libraryAccess.libraryIds.filter((each) => each !== id);
-              choose(checked ? [...others, id] : others);
-            }}
-          />
-        ))}
+      {libraryAccess && (
+        <fieldset>
+          <legend className="sr-only">Chosen Libraries</legend>
+          {libraries.map(({ id, name }) => (
+            <SwitchRow
+              key={id}
+              label={name}
+              checked={libraryAccess.libraryIds.includes(id)}
+              onChange={(checked) => {
+                const others = libraryAccess.libraryIds.filter((each) => each !== id);
+                choose(checked ? [...others, id] : others);
+              }}
+            />
+          ))}
+        </fieldset>
+      )}
     </>
   );
 }

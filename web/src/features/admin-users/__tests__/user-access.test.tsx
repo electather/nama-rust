@@ -75,14 +75,20 @@ describe("an Admin setting a User's Maximum Age", () => {
     ).toBe("true");
   });
 
-  test("is cleared by picking None", async () => {
+  test("is changed, then cleared by picking None, and is gone after reloading", async () => {
     const { alex, server } = keepingAlex();
-    alex.maximumAge = { age: 16, allowUnrated: false };
+    alex.maximumAge = { age: 16, allowUnrated: true };
     await reopenAlex(server);
 
+    pick("Maximum Age", "13");
+    await expect.poll(() => alex.maximumAge).toMatchObject({ age: 13, allowUnrated: true });
+    fireEvent.click(screen.getByRole("switch", { name: "Allow unrated titles" }));
+    await expect.poll(() => alex.maximumAge?.allowUnrated).toBe(false);
     pick("Maximum Age", "None");
-
     await expect.poll(() => alex.maximumAge).toBeUndefined();
+    await reopenAlex(server);
+
+    expect(dropdown("Maximum Age").textContent).toBe("None");
   });
 });
 
@@ -108,13 +114,18 @@ describe("an Admin setting a User's Libraries", () => {
     );
   });
 
-  test("goes back to every Library by picking All Libraries", async () => {
+  test("is changed, then goes back to every Library by picking All Libraries, after reloading too", async () => {
     const { alex, server } = keepingAlex();
     alex.libraryAccess = { libraryIds: [2n] };
     await reopenAlex(server);
 
+    fireEvent.click(screen.getByRole("switch", { name: "Movies" }));
+    await expect.poll(() => alex.libraryAccess?.libraryIds).toStrictEqual([2n, 1n]);
     pick("Libraries", "All Libraries");
-
     await expect.poll(() => alex.libraryAccess).toBeUndefined();
+    await reopenAlex(server);
+
+    expect(dropdown("Libraries").textContent).toBe("All Libraries");
+    expect(screen.queryByRole("switch", { name: "Movies" })).toBeNull();
   });
 });
