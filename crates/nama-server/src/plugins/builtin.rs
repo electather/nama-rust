@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use nama_plugin_api::{Plugin, PluginId};
-use nama_plugin_hub::{Hub, KernelLink};
+use nama_plugin_hub::HubSuggestions;
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_log_events::LogEvents;
 use nama_plugin_tmdb::Tmdb;
@@ -13,12 +13,12 @@ use nama_proto::nama::v1::PluginKind;
 use super::{Registry, drop_flawed_presentation, kept_logo, registry::Described, what_it_says};
 
 /// The Built-in Plugins that stay off until an Admin enables one; every other starts enabled.
-/// The Hub Plugin, since a Server that isn't Linked doesn't enable it (ADR 0094).
-pub(crate) const OFF_UNTIL_ENABLED: [PluginId; 1] = [Hub::ID];
+/// Hub Suggestions, since a Server that isn't Linked has none to give (ADR 0105).
+pub(crate) const OFF_UNTIL_ENABLED: [PluginId; 1] = [HubSuggestions::ID];
 
 fn all() -> Vec<fn() -> Arc<dyn Plugin>> {
     vec![
-        || Arc::new(Hub::default()),
+        || Arc::new(HubSuggestions),
         || Arc::new(LocalAuth),
         || Arc::new(LogEvents),
         || Arc::new(Tmdb::new()),
@@ -29,16 +29,6 @@ fn all() -> Vec<fn() -> Arc<dyn Plugin>> {
 }
 
 impl Registry {
-    /// Has the Hub Plugin, if this registry knows it, call the Hub through `link`, the Kernel's
-    /// Server Link (ADR 0105). Without it, as when the Server's config names no Hub, it won't
-    /// start.
-    pub(crate) fn link_hub(&self, link: &Arc<dyn KernelLink>) {
-        if self.plugin(&Hub::ID).is_some() {
-            let link = Arc::clone(link);
-            self.describe_builtin(move || Arc::new(Hub::through(Arc::clone(&link))));
-        }
-    }
-
     /// A registry that knows every Built-in Plugin and enables none.
     #[must_use]
     pub fn with_builtins() -> Self {

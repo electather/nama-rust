@@ -31,6 +31,10 @@ import "nama/plugin/v1/title_source.proto";
 //   back_up:           BackUpAsked      -> BackedUp       PERMISSION_BACK_UP
 //   list_version_titles: VersionTitlesAsked -> VersionTitles  PERMISSION_READ_LIBRARIES
 //   list_devices:      DevicesAsked     -> Devices        PERMISSION_READ_USERS
+//   list_hub_similar:  SimilarAsked     -> SimilarTitles  PERMISSION_READ_LIBRARIES
+//   list_hub_recommended: HubRecommendedAsked -> HubTitles  PERMISSION_READ_WATCH_STATES
+//   list_hub_trending: HubChartAsked    -> HubTitles      PERMISSION_READ_LIBRARIES
+//   list_hub_most_watchlisted: HubChartAsked -> HubTitles  PERMISSION_READ_LIBRARIES
 //
 // The functions are documented here rather than declared as a service: they are not an Extension
 // Point, and no Manifest names them. They are versioned with `CONTRACT_VERSION`.
@@ -52,9 +56,11 @@ enum Permission {
   // The Plugin's own Store: `store_get`, `store_put` and `store_delete`.
   PERMISSION_STORE = 1;
   // Libraries and their titles: `list_libraries`, `list_titles`, `list_titles_sharing` and
-  // `list_version_titles`.
+  // `list_version_titles`, and what the Hub says of titles: `list_hub_similar`,
+  // `list_hub_trending` and `list_hub_most_watchlisted`.
   PERMISSION_READ_LIBRARIES = 2;
-  // Every User's Watch State: `list_watch_states`.
+  // Every User's Watch State: `list_watch_states`, and what the Hub recommends each User from what
+  // they finished: `list_hub_recommended`.
   PERMISSION_READ_WATCH_STATES = 3;
   // Deleting a title's media files: `delete_media`.
   PERMISSION_DELETE_MEDIA = 4;
@@ -428,4 +434,32 @@ message SharingTitle {
   repeated string genres = 2;
   // Every Role it has, its Cast and then its Crew, each in billing order.
   repeated TitleRole roles = 3;
+}
+
+// What `list_hub_recommended` takes: one User's recommendations from the Hub (ADR 0095).
+message HubRecommendedAsked {
+  int64 user_id = 1;
+  // The namespaces titles are known by, such as `tmdb`, in the order the answer's ids are wanted.
+  repeated string namespaces = 2;
+}
+
+// What `list_hub_trending` and `list_hub_most_watchlisted` take.
+message HubChartAsked {}
+
+// The titles the Hub suggests, in its order: what `list_hub_recommended` answers for the User,
+// `list_hub_trending` the Movies most Accounts finished lately, and `list_hub_most_watchlisted`
+// the titles on most Accounts' Watchlists (ADR 0093). Empty without a Hub, while the Server isn't
+// Linked, or once the Hub forgot it, so the Server loses nothing unlinked (ADR 0002); the Kernel
+// refuses while the Hub is unreachable. `list_hub_similar` answers the same way, in a
+// `SimilarTitles` of the asked kind's titles by one id each.
+message HubTitles {
+  repeated HubTitle titles = 1;
+}
+
+// A title the Hub suggests, by one External ID, whether or not a Library has it.
+message HubTitle {
+  TitleKind kind = 1;
+  TitleId id = 2;
+  // How strongly, from 0.0 to 1.0.
+  float weight = 3;
 }

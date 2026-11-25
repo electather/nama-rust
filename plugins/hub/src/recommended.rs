@@ -1,24 +1,22 @@
-//! The Hub as a Home row source (ADR 0058, 0072): the titles it recommends to each Linked User from
+//! Hub Suggestions as a Home row source (ADR 0058, 0072): the titles it recommends to each Linked User from
 //! their Account's taste vector (ADR 0095), as a "Recommended for you" row and as Featured
 //! suggestions, by External ID with weights. The Kernel stores both with their time to live.
 
 use std::{collections::HashSet, sync::Arc};
 
-use nama_hub_proto::nama::hub::v1::{self as hub, ListRecommendedTitlesRequest};
 use nama_plugin_api::{
     BoxFuture, PluginError,
     automation::{
         Kernel,
-        functions::{ListLibraries, ListTitles},
+        functions::{ListHubRecommended, ListLibraries, ListTitles},
     },
     contract::{
-        FeaturedSuggestion, FeaturedSuggestions, HomeRow, HomeRowTitle, HomeRows, LibrariesAsked,
-        Title, TitleId, TitleKind, TitlesAsked, UserFeaturedAsked, UserRowsAsked,
+        FeaturedSuggestion, FeaturedSuggestions, HomeRow, HomeRowTitle, HomeRows,
+        HubRecommendedAsked, HubTitle, LibrariesAsked, Title, TitleKind, TitlesAsked,
+        UserFeaturedAsked, UserRowsAsked,
     },
     home_row::{HomeRowMethod, HomeRowSource},
 };
-
-use crate::linker::Linker;
 
 /// How long an answer stays fresh: the Hub learns a title was finished only once its play ends,
 /// after the Kernel asked again at its start, so an hour keeps a finished title from lingering.
@@ -30,36 +28,26 @@ const FRESH_FOR_SECONDS: u32 = 60 * 60;
 /// ask the Kernel for the namespaces its titles have if a title source adds another.
 const NAMESPACES: [&str; 3] = ["tmdb", "tvdb", "imdb"];
 
-/// Asks the Hub, as the Linked Server, what to recommend to each of its Users.
-pub(crate) struct Recommended {
-    linker: Arc<Linker>,
-    kernel: Arc<dyn Kernel>,
-}
+/// Asks the Kernel what the Hub recommends to each of the Server's Users.
+pub(crate) struct Recommended(pub(crate) Arc<dyn Kernel>);
 
 impl Recommended {
-    pub(crate) fn new(linker: Arc<Linker>, kernel: Arc<dyn Kernel>) -> Self {
-        Self { linker, kernel }
-    }
-
-    /// The Hub's recommendations for the User `user_id`, each with its kind: none while the Server
-    /// isn't Linked, which isn't a failure.
-    async fn titles(&self, user_id: i64) -> Result<Vec<(TitleKind, TitleId, f32)>, PluginError> {
-        let request = ListRecommendedTitlesRequest {
+    /// The Hub's recommendations for the User `user_id`: none while the Server isn't Linked, which
+    /// isn't a failure.
+    async fn titles(&self, user_id: i64) -> Result<Vec<HubTitle>, PluginError> {
+        let asked = HubRecommendedAsked {
             user_id,
             namespaces: NAMESPACES.map(str::to_owned).to_vec(),
             ..Default::default()
         };
-        let recommended = self.linker.call(|hub| hub.recommended(request)).await?;
-        Ok((recommended.unwrap_or_default().into_iter())
-            .filter_map(recommended_title)
-            .collect())
+        Ok(self.0.ask::<ListHubRecommended>(asked).await?.titles)
     }
 
     async fn rows(&self, user_id: i64) -> Result<HomeRows, PluginError> {
         let titles: Vec<HomeRowTitle> = (self.titles(user_id).await?.into_iter())
-            .map(|(kind, id, _weight)| HomeRowTitle {
-                kind: kind.into(),
-                id: id.into(),
+            .map(|title| HomeRowTitle {
+                kind: title.kind,
+                id: title.id,
                 ..Default::default()
             })
             .collect();
@@ -89,13 +77,15 @@ impl Recommended {
             self.on_server().await?
         };
         let suggestions = (titles.into_iter())
-            .filter(|(kind, id, _weight)| {
-                on_server.contains(&(*kind, id.namespace.clone(), id.value.clone()))
+            .filter(|title| {
+                title.kind.as_known().is_some_and(|kind| {
+                    on_server.contains(&(kind, title.id.namespace.clone(), title.id.value.clone()))
+                })
             })
-            .map(|(kind, id, weight)| FeaturedSuggestion {
-                kind: kind.into(),
-                id: id.into(),
-                weight,
+            .map(|title| FeaturedSuggestion {
+                kind: title.kind,
+                id: title.id,
+                weight: title.weight,
                 ..Default::default()
             })
             .collect();
@@ -114,7 +104,7 @@ impl Recommended {
     /// suggestions; ask the Kernel for the titles by id once that is measured slow.
     async fn on_server(&self) -> Result<HashSet<(TitleKind, String, String)>, PluginError> {
         let libraries = self
-            .kernel
+            .0
             .ask::<ListLibraries>(LibrariesAsked::default())
             .await?;
         let mut on_server = HashSet::new();
@@ -123,7 +113,7 @@ impl Recommended {
                 library_id: library.id,
                 ..Default::default()
             };
-            let titles = self.kernel.ask::<ListTitles>(asked).await?.titles;
+            let titles = self.0.ask::<ListTitles>(asked).await?.titles;
             on_server.extend(titles.into_iter().flat_map(kinded_ids));
         }
         Ok(on_server)
@@ -160,21 +150,4 @@ fn kinded_ids(title: Title) -> impl Iterator<Item = (TitleKind, String, String)>
     };
     ids.into_iter()
         .map(move |id| (kind, id.namespace, id.value))
-}
-
-/// `recommended` as the Kernel takes it, or `None` without an id or a kind, which no title could
-/// match.
-fn recommended_title(recommended: hub::RecommendedTitle) -> Option<(TitleKind, TitleId, f32)> {
-    let kind = match recommended.kind.as_known()? {
-        hub::TitleKind::TITLE_KIND_MOVIE => TitleKind::TITLE_KIND_MOVIE,
-        hub::TitleKind::TITLE_KIND_SHOW => TitleKind::TITLE_KIND_SHOW,
-        hub::TitleKind::TITLE_KIND_UNSPECIFIED => return None,
-    };
-    let id = recommended.id.into_option()?;
-    let id = TitleId {
-        namespace: id.namespace,
-        value: id.value,
-        ..Default::default()
-    };
-    Some((kind, id, recommended.weight))
 }

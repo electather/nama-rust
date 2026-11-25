@@ -1,11 +1,5 @@
-//! Provide: what is left of Linking the Server's Users, once the Kernel has Linked the Server, its
-//! Users and their sync with the Hub (ADR 0011, ADR 0105): nothing yet, until #2222 removes this
-//! Extension Point. The Link types the Kernel answers in live here too. Only a Built-in Plugin
-//! provides it, by registering it:
-//!
-//! ```ignore
-//! registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::new(my_linker));
-//! ```
+//! The Link types the Kernel answers in, as it Links the Server and its Users with the Hub and
+//! syncs them (ADR 0011, ADR 0105).
 
 use std::net::SocketAddr;
 
@@ -89,6 +83,3 @@ pub struct WatchlistEntry {
     /// When it changed, in milliseconds since the Unix epoch.
     pub changed_at_ms: i64,
 }
-
-/// A Provider that Links the Server's Users to an outside service; it has no calls left.
-pub trait ServerLinker: Send + Sync + 'static {}
