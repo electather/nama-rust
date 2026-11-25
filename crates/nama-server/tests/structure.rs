@@ -138,6 +138,7 @@ const ROWS: &[&[&str]] = &[
         "signed_urls",
         "db",
         "page",
+        "content_ratings",
         "config",
         "log_capture",
     ],

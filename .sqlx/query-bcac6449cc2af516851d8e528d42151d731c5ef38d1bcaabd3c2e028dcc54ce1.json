@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT DISTINCT content_rating AS \"content_rating!\" FROM item_matches\n               WHERE content_rating IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "content_rating!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "item_matches",
+            "name": "content_rating"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "bcac6449cc2af516851d8e528d42151d731c5ef38d1bcaabd3c2e028dcc54ce1"
+}

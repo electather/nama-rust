@@ -120,7 +120,7 @@ impl TitlePages {
 
     /// `stored` as `user` sees it, `None` if they can't: they see a Box Set only when a Library
     /// has one of the Movies naming it and they see at least two, counting those it lacks only if
-    /// they may Request Movies. Its Movies come in its title source's order, with the others
+    /// they may Request Movies and their Maximum Age lets unrated titles through. Its Movies come in its title source's order, with the others
     /// naming it placed among them by release date.
     async fn seen(&self, user: &User, stored: StoredBoxSet) -> Result<Option<SeenBoxSet>, Error> {
         let mut ids = stored.listed.clone();
@@ -138,7 +138,8 @@ impl TitlePages {
                 OnServer::Show(_) => None,
             })
             .collect();
-        let may_request = user.permissions.allow(Permission::RequestMovie);
+        let may_request =
+            user.permissions.allow(Permission::RequestMovie) && self.browse.max_age.allows(None);
         let looked_up: HashMap<&str, &ListedMovie> = (stored.looked_up.iter())
             .map(|listed| (listed.listed_as.as_str(), listed))
             .collect();

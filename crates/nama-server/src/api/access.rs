@@ -153,6 +153,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               MANAGE_USERS),
     (proto::USER_SERVICE_SET_PERMISSIONS_SPEC.procedure,          MANAGE_USERS),
     (proto::USER_SERVICE_SET_LIBRARY_ACCESS_SPEC.procedure,       MANAGE_USERS),
+    (proto::USER_SERVICE_SET_MAXIMUM_AGE_SPEC.procedure,          MANAGE_USERS),
     (proto::USER_SERVICE_DELETE_USER_SPEC.procedure,              MANAGE_USERS),
     (proto::USER_SERVICE_LIST_DEVICES_SPEC.procedure,             Access::SignedIn),
     (proto::USER_SERVICE_REVOKE_DEVICE_SPEC.procedure,            Access::SignedIn),

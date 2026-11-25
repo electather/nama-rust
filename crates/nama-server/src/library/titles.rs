@@ -62,6 +62,15 @@ impl Titles {
         })
     }
 
+    /// Only those whose Content Rating `kept` keeps.
+    pub(crate) fn rated(mut self, kept: impl Fn(Option<&str>) -> bool) -> Self {
+        match &mut self {
+            Self::Movies(movies) => movies.retain(|movie| kept(movie.content_rating.as_deref())),
+            Self::Shows(shows) => shows.retain(|show| kept(show.content_rating.as_deref())),
+        }
+        self
+    }
+
     pub(crate) fn movies(self) -> Result<Vec<Movie>, NotFound> {
         match self {
             Self::Movies(movies) => Ok(movies),
@@ -177,6 +186,7 @@ impl OnServer {
             title: movie.title.clone(),
             release_date: movie.release_date.clone(),
             poster: movie.poster.clone(),
+            content_rating: movie.content_rating.clone(),
         })
     }
 
@@ -188,6 +198,7 @@ impl OnServer {
             title: show.title.clone(),
             first_air_date: show.first_air_date.clone(),
             poster: show.poster().cloned(),
+            content_rating: show.content_rating.clone(),
         })
     }
 
@@ -219,6 +230,13 @@ impl OnServer {
         match self {
             Self::Movie(movie) => &movie.ids,
             Self::Show(show) => &show.ids,
+        }
+    }
+
+    pub(crate) fn content_rating(&self) -> Option<&str> {
+        match self {
+            Self::Movie(movie) => movie.content_rating.as_deref(),
+            Self::Show(show) => show.content_rating.as_deref(),
         }
     }
 }

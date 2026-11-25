@@ -218,6 +218,16 @@ message User {
   // `PERMISSION_MANAGE_LIBRARIES` sees every one whatever it holds. Only `UserService.ListUsers`
   // sets it.
   LibraryAccess library_access = 7;
+  // The User's Maximum Age, unset for none. Only `UserService.ListUsers` sets it.
+  MaximumAge maximum_age = 8;
+}
+
+// The highest age a title's Content Rating may call for and still reach a User.
+message MaximumAge {
+  // In years.
+  uint32 age = 1;
+  // Whether a title with no Content Rating, or one the Server doesn't know, reaches them.
+  bool allow_unrated = 2;
 }
 
 // A chosen list of the Libraries a User sees, which never grows by itself as Libraries are added.

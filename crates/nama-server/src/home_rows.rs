@@ -34,13 +34,17 @@ use refreshes::{Refreshes, Scope};
 use rows::Rows;
 
 use crate::{
+    content_ratings::MaximumAge,
     db::{self, Database},
     library::{Contents, ImageRef, Libraries, LibraryError, LibraryKind, OnServer},
     page::{self, Page},
     plugins::{Answer, ExtensionPoints, Failure, without_secrets},
     requests::{Listed, Requests},
     server_settings::HomeRowId,
-    users::{LibraryAccess, User, library_access, personal_settings_of, split_personal_settings},
+    users::{
+        LibraryAccess, User, library_access, maximum_age, personal_settings_of,
+        split_personal_settings,
+    },
 };
 
 /// The most rows of one answer home shows: a Plugin's shared rows, or its rows for one User.
@@ -176,9 +180,10 @@ impl HomeRows {
             .flat_map(|(_, row)| row.titles.iter().cloned())
             .collect();
         let seen = library_access(&self.db, reader.id).await?;
-        let on_server = self.on_server(&titles, &seen).await?;
+        let max_age = maximum_age(&self.db, reader.id).await?;
+        let on_server = self.on_server(&titles, &seen, max_age).await?;
         Ok((served.into_iter())
-            .filter(|(_, row)| !shown(row, &on_server, may_request(reader)).is_empty())
+            .filter(|(_, row)| !shown(row, &on_server, may_request(reader, max_age)).is_empty())
             .collect())
     }
 
@@ -199,11 +204,12 @@ impl HomeRows {
             .stored_row(reader.id, plugin, key)
             .await?;
         let seen = library_access(&self.db, reader.id).await?;
-        let on_server = self.on_server(&row.titles, &seen).await?;
+        let max_age = maximum_age(&self.db, reader.id).await?;
+        let on_server = self.on_server(&row.titles, &seen, max_age).await?;
         // ponytail: pages in memory over at most `MAX_TITLES`, by place in the stored row, so a
         // refresh between two pages can skip or repeat a title. Store the rows' titles as rows
         // of their own if a row ever grows.
-        let shown = shown(&row, &on_server, may_request(reader));
+        let shown = shown(&row, &on_server, may_request(reader, max_age));
         let total = shown.len();
         let mut listed: Vec<_> = (shown.into_iter())
             .filter(|&(place, _)| page.after.is_none_or(|((), after)| place > after))
@@ -302,11 +308,12 @@ impl HomeRows {
     }
 
     /// Those of `titles` that are on the Server, each in the oldest Library `seen` keeps that has
-    /// it, or `None` where only Libraries it doesn't keep have it.
+    /// it, or `None` where only Libraries it doesn't keep have it, or `max_age` keeps it out.
     async fn on_server(
         &self,
         titles: &[Title],
         seen: &LibraryAccess,
+        max_age: MaximumAge,
     ) -> Result<HashMap<Title, Option<OnServer>>, Error> {
         let mut found = HashMap::new();
         if titles.is_empty() {
@@ -325,7 +332,8 @@ impl HomeRows {
                 .collect();
             let on_server = OnServer::find(&self.contents, &libraries, in_libraries, &ids).await?;
             found.extend((on_server.into_iter()).map(|(id, title)| {
-                let shown = seen.sees(title.library()).then_some(title);
+                let shown = (seen.sees(title.library()) && max_age.allows(title.content_rating()))
+                    .then_some(title);
                 (Title(kind, id.to_string()), shown)
             }));
         }
@@ -418,12 +426,16 @@ fn shown(
         .collect()
 }
 
-/// Whether `reader` may Request a title of each kind.
-fn may_request(reader: &User) -> impl Fn(Kind) -> bool {
+/// Whether `reader`, whose Maximum Age is `max_age`, may Request a title of each kind that isn't
+/// on the Server, which counts as unrated: a row stores no Content Rating for one.
+fn may_request(reader: &User, max_age: MaximumAge) -> impl Fn(Kind) -> bool {
     let permissions = reader.permissions;
-    move |kind| match kind {
-        Kind::Movie => permissions.allow(Permission::RequestMovie),
-        Kind::Show => permissions.allow(Permission::RequestTv),
+    move |kind| {
+        max_age.allows(None)
+            && match kind {
+                Kind::Movie => permissions.allow(Permission::RequestMovie),
+                Kind::Show => permissions.allow(Permission::RequestTv),
+            }
     }
 }
 
