@@ -51,6 +51,15 @@ service UserService {
   rpc SetLibraryAccess(SetLibraryAccessRequest) returns (SetLibraryAccessResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Replaces a User's Maximum Age, from their next request: browsing, search, Home rows, Plugin
+  // rows, Similar titles, title pages, playback and Requests leave out a title whose Content
+  // Rating calls for an older age, and one with no Content Rating, or one the Server doesn't know,
+  // unless they allow unrated titles. A Request search's hit not on the Server has no Content
+  // Rating, so it counts as unrated. Without `PERMISSION_ADMIN`, the caller may change neither an
+  // Admin's nor their own. Fails as `SetLibraryAccess` does.
+  rpc SetMaximumAge(SetMaximumAgeRequest) returns (SetMaximumAgeResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
   // Deletes a User with their credentials and signs them out of every Device, so they can't sign
   // in, their sessions stop working at once and their open `EventService.Subscribe` streams end. A
   // Device is signed out only once its last User goes. The caller may delete themselves. Fails
@@ -305,6 +314,15 @@ message SetLibraryAccessRequest {
 }
 
 message SetLibraryAccessResponse {}
+
+message SetMaximumAgeRequest {
+  // The ID of the User whose Maximum Age changes.
+  int64 user_id = 1;
+  // Their Maximum Age, replacing the one they had: unset for none.
+  MaximumAge maximum_age = 2;
+}
+
+message SetMaximumAgeResponse {}
 
 message DeleteUserRequest {
   // The ID of the User to delete.

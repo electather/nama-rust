@@ -28,6 +28,7 @@ mod inbox;
 mod invites;
 mod library_access;
 mod managing;
+mod maximum_age;
 mod names;
 mod notification_preferences;
 mod passwords;
@@ -53,6 +54,7 @@ pub(crate) use invites::Invite;
 pub(crate) use library_access::{LibraryAccess, library_access};
 use managing::{default_permissions, ensure_may_change, ensure_may_grant};
 pub(crate) use managing::{every_user, remote_cap};
+pub(crate) use maximum_age::maximum_age;
 use names::checked_name;
 pub(crate) use names::name_key;
 pub(crate) use notification_preferences::{

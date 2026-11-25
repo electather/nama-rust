@@ -23,18 +23,19 @@ use nama_proto::nama::v1::{
     ResetHomeLayoutResponse, ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest,
     RevokeDeviceResponse, RevokeInviteRequest, RevokeInviteResponse, SetDefaultPermissionsRequest,
     SetDefaultPermissionsResponse, SetHomeLayoutRequest, SetHomeLayoutResponse,
-    SetLibraryAccessRequest, SetLibraryAccessResponse, SetNotificationPreferenceRequest,
-    SetNotificationPreferenceResponse, SetPermissionsRequest, SetPermissionsResponse,
-    StartPluginConnectionRequest, StartPluginConnectionResponse, StartUserLinkRequest,
-    StartUserLinkResponse, StartWatchSyncLinkRequest, StartWatchSyncLinkResponse,
-    UnlinkUserRequest, UnlinkUserResponse, UpdatePersonalSettingsRequest,
-    UpdatePersonalSettingsResponse, UserService, home_layout_row::Row as LayoutRow,
-    home_row::KernelOrPlugin,
+    SetLibraryAccessRequest, SetLibraryAccessResponse, SetMaximumAgeRequest, SetMaximumAgeResponse,
+    SetNotificationPreferenceRequest, SetNotificationPreferenceResponse, SetPermissionsRequest,
+    SetPermissionsResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
+    StartUserLinkRequest, StartUserLinkResponse, StartWatchSyncLinkRequest,
+    StartWatchSyncLinkResponse, UnlinkUserRequest, UnlinkUserResponse,
+    UpdatePersonalSettingsRequest, UpdatePersonalSettingsResponse, UserService,
+    home_layout_row::Row as LayoutRow, home_row::KernelOrPlugin,
 };
 
 use crate::{
     browse::Browse,
     connections::{self, Connections},
+    content_ratings::MaximumAge,
     db::Database,
     home_rows::HomeRows,
     images::PluginLogos,
@@ -137,6 +138,7 @@ impl UserService for UserServiceHandler {
         let users = self.users.list().await.map_err(database_failed)?;
         let caps = self.users.remote_caps().await.map_err(database_failed)?;
         let mut chosen = (self.users.chosen_libraries().await).map_err(database_failed)?;
+        let mut maximum_ages = (self.users.maximum_ages().await).map_err(database_failed)?;
         let cannot_sign_in = (self.users.cannot_sign_in().await).map_err(database_failed)?;
         Response::ok(ListUsersResponse {
             users: (users.into_iter())
@@ -146,6 +148,15 @@ impl UserService for UserServiceHandler {
                         .map(|chosen| proto::LibraryAccess {
                             library_ids: chosen.into_iter().collect(),
                             ..Default::default()
+                        })
+                        .into(),
+                    maximum_age: (maximum_ages.remove(&user.id))
+                        .and_then(|max| {
+                            Some(proto::MaximumAge {
+                                age: max.age?,
+                                allow_unrated: max.allow_unrated,
+                                ..Default::default()
+                            })
                         })
                         .into(),
                     ..user_to_proto(user)
@@ -183,6 +194,24 @@ impl UserService for UserServiceHandler {
             .set_library_access(&caller(&ctx)?.user, request.user_id, access)
             .await?;
         Response::ok(SetLibraryAccessResponse::default())
+    }
+
+    async fn set_maximum_age(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetMaximumAgeRequest>,
+    ) -> ServiceResult<SetMaximumAgeResponse> {
+        let request = request.to_owned_message();
+        let max = (request.maximum_age.into_option()).map_or_else(MaximumAge::default, |max| {
+            MaximumAge {
+                age: Some(max.age),
+                allow_unrated: max.allow_unrated,
+            }
+        });
+        (self.users)
+            .set_maximum_age(&caller(&ctx)?.user, request.user_id, max)
+            .await?;
+        Response::ok(SetMaximumAgeResponse::default())
     }
 
     async fn delete_user(

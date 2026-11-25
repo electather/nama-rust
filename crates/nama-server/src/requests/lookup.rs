@@ -17,11 +17,12 @@ use super::followed::{load_followed, open_followed_show, open_followed_show_by_a
 use super::quality::show_requests;
 use super::{Error, Requests};
 use crate::{
+    content_ratings::MaximumAge,
     library::{
         Candidate, ImageRef, Metadata, SearchQuery, Source, SourceSeason, SourceShow, TitleKind,
         Unanswered, library_with_movie, library_with_show, match_bands, matched_episodes,
     },
-    users::{LibraryAccess, User, library_access},
+    users::{LibraryAccess, User, library_access, maximum_age},
 };
 
 /// A Movie the title source has, and how close it is to being on the Server.
@@ -75,6 +76,7 @@ pub(crate) struct Listed {
     /// The year a Movie was released or a Show first aired.
     pub(crate) year: Option<i32>,
     pub(crate) poster: Option<ImageRef>,
+    pub(crate) content_rating: Option<String>,
 }
 
 /// A Show looked up in the title source, and how close it is to being on the Server.
@@ -95,7 +97,7 @@ pub(crate) struct FoundShow {
 
 impl Requests {
     /// The Movies the title source finds titled like `title`, best fit first, as `viewer`
-    /// sees them: leaving out one only a Library they don't see has.
+    /// sees them: leaving out those [`shown_hit`] doesn't show them.
     pub(crate) async fn search(
         &self,
         viewer: &User,
@@ -103,6 +105,7 @@ impl Requests {
     ) -> Result<Vec<Found<Candidate>>, Error> {
         let candidates = self.find(TitleKind::Movie, title).await?;
         let seen = library_access(&self.db, viewer.id).await?;
+        let max_age = maximum_age(&self.db, viewer.id).await?;
         let mut conn = self.db.reader().acquire().await?;
         let mut found = Vec::with_capacity(candidates.len());
         // ponytail: two queries per Movie found, which a search caps at a page of 20.
@@ -115,7 +118,7 @@ impl Requests {
             let movie = self
                 .look_around(&mut conn, viewer, id, plugin, candidate)
                 .await?;
-            if !hidden(&seen, movie.library) {
+            if shown_hit(&seen, max_age, movie.library) {
                 found.push(movie);
             }
         }
@@ -139,8 +142,9 @@ impl Requests {
     }
 
     /// The Shows the title source finds for a search for `query`, as `viewer` sees them, less any
-    /// with an id in `in_libraries`, ranked as [`Self::search_to_request`] ranks Movies. `None`,
-    /// without asking, when `viewer` may not request Shows.
+    /// with an id in `in_libraries`, ranked as [`Self::search_to_request`] ranks Movies, leaving
+    /// out those [`shown_hit`] doesn't show them. `None`, without asking, when `viewer` may not
+    /// request Shows.
     pub(crate) async fn search_shows_to_request(
         &self,
         viewer: &User,
@@ -152,13 +156,14 @@ impl Requests {
         }
         let hits = self.search_shows(query.to_owned()).await?;
         let seen = library_access(&self.db, viewer.id).await?;
+        let max_age = maximum_age(&self.db, viewer.id).await?;
         let mut conn = self.db.reader().acquire().await?;
         let mut found = Vec::with_capacity(hits.len());
         // ponytail: a few queries per Show found, more with open Season Requests the viewer can't
         // see, and a search caps them at a page of 20.
         for hit in hits {
             let show = self.look_around_show(&mut conn, viewer, hit).await?;
-            if !hidden(&seen, show.library) {
+            if shown_hit(&seen, max_age, show.library) {
                 found.push(show);
             }
         }
@@ -194,7 +199,8 @@ impl Requests {
     }
 
     /// The Show `asked` and each of its Seasons, fetched now, as `viewer` sees them:
-    /// [`Error::NoSuchShow`] if only a Library they don't see has it.
+    /// [`Error::NoSuchShow`] if only a Library they don't see has it, or their Maximum Age keeps it
+    /// from them.
     pub(crate) async fn look_up_show(
         &self,
         viewer: &User,
@@ -202,7 +208,11 @@ impl Requests {
     ) -> Result<FoundShow, Error> {
         let (source, show) = self.show(asked).await?;
         let id = kept_under(asked, &show.ids);
-        if self.hidden_from(viewer, TitleKind::Show, &id).await? {
+        if self.hidden_from(viewer, TitleKind::Show, &id).await?
+            || self
+                .kept_from(viewer, show.content_rating.as_deref())
+                .await?
+        {
             return Err(Error::NoSuchShow(asked.clone()));
         }
         let seasons = self.seasons_from(&source, asked, &show).await?;
@@ -238,6 +248,7 @@ impl Requests {
             year: movie.release_date.as_deref().and_then(year_of),
             title: movie.title,
             poster: movie.poster,
+            content_rating: movie.content_rating,
         })
     }
 
@@ -250,6 +261,7 @@ impl Requests {
             year: show.first_air_date.as_deref().and_then(year_of),
             poster: ImageRef::of(&source.plugin, show.poster.as_ref()),
             title: show.title,
+            content_rating: show.content_rating,
         })
     }
 
@@ -310,13 +322,19 @@ impl Requests {
     }
 
     /// The Movie `asked`, fetched now, as `viewer` sees it: [`Error::NoSuchMovie`] if only a
-    /// Library they don't see has it.
+    /// Library they don't see has it, or their Maximum Age keeps it from them.
     pub(crate) async fn look_up(
         &self,
         viewer: &User,
         asked: &ExternalId,
     ) -> Result<Found<Metadata>, Error> {
         let movie = self.fetch(asked).await?;
+        if self
+            .kept_from(viewer, movie.content_rating.as_deref())
+            .await?
+        {
+            return Err(Error::NoSuchMovie(asked.clone()));
+        }
         let seen = library_access(&self.db, viewer.id).await?;
         let mut conn = self.db.reader().acquire().await?;
         let plugin = movie.plugin.clone();
@@ -435,6 +453,16 @@ impl Requests {
         };
         Ok(hidden(&seen, library))
     }
+
+    /// Whether `viewer`'s Maximum Age keeps from them a title the title source rates `rating`:
+    /// to them there is no such title, neither to look up nor to Request.
+    pub(super) async fn kept_from(
+        &self,
+        viewer: &User,
+        rating: Option<&str>,
+    ) -> Result<bool, sqlx::Error> {
+        Ok(!maximum_age(&self.db, viewer.id).await?.allows(rating))
+    }
 }
 
 /// Whether a title the Library `library` has, if any has it, is one a viewer who sees `seen`
@@ -443,6 +471,16 @@ impl Requests {
 // has is hidden too; ask for the oldest Library they see if Libraries come to share titles.
 fn hidden(seen: &LibraryAccess, library: Option<i64>) -> bool {
     library.is_some_and(|library| !seen.sees(library))
+}
+
+/// Whether a title source's hit, which the Library `library` has if any does, reaches a viewer
+/// who sees `seen` and whose Maximum Age is `max_age`. A hit has no Content Rating, so it counts as
+/// unrated, and one on the Server is left to Browse's search, which knows its stored one.
+fn shown_hit(seen: &LibraryAccess, max_age: MaximumAge, library: Option<i64>) -> bool {
+    if max_age.lets_every_title() {
+        return !hidden(seen, library);
+    }
+    max_age.allows(None) && library.is_none()
 }
 
 /// Whether the Show with any of `ids` has an open Followed Show `viewer` may see.

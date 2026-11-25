@@ -704,6 +704,15 @@ pub struct User {
         LibraryAccess,
         ::buffa::Inline<LibraryAccess>,
     >,
+    /// The User's Maximum Age, unset for none. Only `UserService.ListUsers` sets it.
+    ///
+    /// Field 8: `maximum_age`
+    #[serde(
+        rename = "maximumAge",
+        alias = "maximum_age",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub maximum_age: ::buffa::MessageField<MaximumAge, ::buffa::Inline<MaximumAge>>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -717,6 +726,7 @@ impl ::core::fmt::Debug for User {
             .field("permissions", &self.permissions)
             .field("remote_playback_limit", &self.remote_playback_limit)
             .field("library_access", &self.library_access)
+            .field("maximum_age", &self.maximum_age)
             .finish()
     }
 }
@@ -778,6 +788,14 @@ impl ::buffa::Message for User {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if self.maximum_age.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.maximum_age.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
+                    + inner_size as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -821,6 +839,14 @@ impl ::buffa::Message for User {
                 buf,
             );
             self.library_access.write_to(__cache, buf);
+        }
+        if self.maximum_age.is_set() {
+            ::buffa::types::put_len_delimited_header(
+                8u32,
+                u64::from(__cache.consume_next()),
+                buf,
+            );
+            self.maximum_age.write_to(__cache, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -914,6 +940,17 @@ impl ::buffa::Message for User {
                     ctx,
                 )?;
             }
+            8u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                ::buffa::Message::merge_length_delimited(
+                    self.maximum_age.get_or_insert_default(),
+                    buf,
+                    ctx,
+                )?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -928,6 +965,7 @@ impl ::buffa::Message for User {
         self.permissions.clear();
         self.remote_playback_limit = ::buffa::EnumValue::from(0);
         self.library_access = ::buffa::MessageField::none();
+        self.maximum_age = ::buffa::MessageField::none();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -958,6 +996,160 @@ pub const __USER_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_
     type_url: "type.googleapis.com/nama.v1.User",
     to_json: ::buffa::type_registry::any_to_json::<User>,
     from_json: ::buffa::type_registry::any_from_json::<User>,
+    is_wkt: false,
+};
+/// The highest age a title's Content Rating may call for and still reach a User.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct MaximumAge {
+    /// In years.
+    ///
+    /// Field 1: `age`
+    #[serde(
+        rename = "age",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub age: u32,
+    /// Whether a title with no Content Rating, or one the Server doesn't know, reaches them.
+    ///
+    /// Field 2: `allow_unrated`
+    #[serde(
+        rename = "allowUnrated",
+        alias = "allow_unrated",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub allow_unrated: bool,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for MaximumAge {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("MaximumAge")
+            .field("age", &self.age)
+            .field("allow_unrated", &self.allow_unrated)
+            .finish()
+    }
+}
+impl MaximumAge {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.MaximumAge";
+}
+::buffa::impl_default_instance!(MaximumAge);
+impl ::buffa::MessageName for MaximumAge {
+    const PACKAGE: &'static str = "nama.v1";
+    const NAME: &'static str = "MaximumAge";
+    const FULL_NAME: &'static str = "nama.v1.MaximumAge";
+    const TYPE_URL: &'static str = "type.googleapis.com/nama.v1.MaximumAge";
+}
+impl ::buffa::Message for MaximumAge {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// Accumulates in `u64` (which cannot overflow for in-memory
+    /// data) and saturates to `u32` at return, so a message whose
+    /// encoded size exceeds the 2 GiB protobuf limit yields a value
+    /// above [`::buffa::MAX_MESSAGE_BYTES`] that the encode entry
+    /// points reject, never a silently wrapped size.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u64;
+        if self.age != 0u32 {
+            size += 1u64 + ::buffa::types::uint32_encoded_len(self.age) as u64;
+        }
+        if self.allow_unrated {
+            size += 1u64 + ::buffa::types::BOOL_ENCODED_LEN as u64;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u64;
+        ::buffa::saturate_size(size)
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::EncodeSink,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.age != 0u32 {
+            ::buffa::types::put_uint32_field(1u32, self.age, buf);
+        }
+        if self.allow_unrated {
+            ::buffa::types::put_bool_field(2u32, self.allow_unrated, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        ctx: ::buffa::DecodeContext<'_>,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.age = ::buffa::types::decode_uint32(buf)?;
+            }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::Varint,
+                )?;
+                self.allow_unrated = ::buffa::types::decode_bool(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.age = 0u32;
+        self.allow_unrated = false;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for MaximumAge {
+    const PROTO_FQN: &'static str = "nama.v1.MaximumAge";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for MaximumAge {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __MAXIMUM_AGE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/nama.v1.MaximumAge",
+    to_json: ::buffa::type_registry::any_to_json::<MaximumAge>,
+    from_json: ::buffa::type_registry::any_from_json::<MaximumAge>,
     is_wkt: false,
 };
 /// A chosen list of the Libraries a User sees, which never grows by itself as Libraries are added.

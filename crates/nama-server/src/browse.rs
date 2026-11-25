@@ -5,7 +5,8 @@
 //! `src/library/AGENTS.md`), and attaches the User's [`WatchState`]s and, only to the Movies and
 //! Episodes it answers with, their Versions' Tracks.
 //! It writes only Watch State, for what a reported Version or a marked title stands for (ADR 0013).
-//! A handler reads through [`Browse::seen_by`], which keeps to the Libraries its User sees.
+//! A handler reads through [`Browse::seen_by`], which keeps to the Libraries its User sees and the
+//! titles their Maximum Age lets through.
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -13,6 +14,7 @@ use nama_plugin_api::metadata::{ExternalId, ExternalIds};
 use nama_proto::nama::v1::{PageRequest, PageResponse, SortDirection, UnmatchedItemSort};
 
 use crate::{
+    content_ratings::MaximumAge,
     db::Database,
     library::{
         Contents, Found, Libraries, Library, LibraryEpisode, LibraryError, LibraryKind,
@@ -24,7 +26,7 @@ use crate::{
     playback::{Probe, StoredTracks, Track},
     plugins::ExtensionPoints,
     scanner::read_only_folder,
-    users::{LibraryAccess, library_access},
+    users::{LibraryAccess, library_access, maximum_age},
 };
 
 mod box_sets;
@@ -97,6 +99,8 @@ pub(crate) struct Browse {
     db: Arc<Database>,
     /// The Libraries it reads titles from: every one until [`Self::seen_by`] keeps to a User's.
     seen: LibraryAccess,
+    /// The titles it reads: every one until [`Self::seen_by`] keeps to those a User's lets through.
+    max_age: MaximumAge,
 }
 
 impl Browse {
@@ -109,14 +113,16 @@ impl Browse {
             watch_states: WatchStates::new(Arc::clone(&db), points),
             db,
             seen: LibraryAccess::All,
+            max_age: MaximumAge::default(),
         }
     }
 
     /// This Browse as the User `user` sees it: a Library they don't see is one there isn't, and
-    /// its titles are on no Library.
+    /// its titles, and those their Maximum Age keeps from them, are on no Library.
     pub(crate) async fn seen_by(&self, user: i64) -> Result<Self, sqlx::Error> {
         Ok(Self {
             seen: library_access(&self.db, user).await?,
+            max_age: maximum_age(&self.db, user).await?,
             ..self.clone()
         })
     }
@@ -258,12 +264,15 @@ impl Browse {
         kind: Option<TitleKind>,
         limit: usize,
     ) -> Result<Vec<Found>, sqlx::Error> {
-        let seen = |library| self.seen.sees(library);
+        let seen = |found: &Found| {
+            self.seen.sees(found.library()) && self.max_age.allows(found.content_rating())
+        };
         self.contents.search(query, kind, limit, seen).await
     }
 
     /// The `asked` page of the Unmatched Items of the Library `library`, the one found most
-    /// recently first. Its token holds no path, which a User may not see (ADR 0069).
+    /// recently first: none if its Maximum Age keeps unrated titles out, as an Unmatched Item has
+    /// no Content Rating. Its token holds no path, which a User may not see (ADR 0069).
     pub(crate) async fn unmatched(
         &self,
         library: i64,
@@ -271,6 +280,13 @@ impl Browse {
     ) -> Result<(Vec<Unmatched>, PageResponse), Error> {
         let library = self.library(library).await?;
         let page = Page::read(asked, format!("ListUnmatched {}", library.id).as_bytes())?;
+        if !self.max_age.allows(None) {
+            let none = PageResponse {
+                total_size: page.is_first().then_some(0),
+                ..Default::default()
+            };
+            return Ok((Vec::new(), none));
+        }
         let newest_first = (
             UnmatchedItemSort::UNMATCHED_ITEM_SORT_FOUND,
             SortDirection::SORT_DIRECTION_DESCENDING,
@@ -282,13 +298,17 @@ impl Browse {
     }
 
     /// The Version `version` of the Library `library`, with its Tracks and its first Unmatched
-    /// Item, for playing it. [`NotFound::NoSuchVersion`] unless it holds one.
+    /// Item, for playing it. [`NotFound::NoSuchVersion`] unless it holds one and its Maximum Age
+    /// lets unrated titles through.
     pub(crate) async fn unmatched_version(
         &self,
         library: i64,
         version: i64,
     ) -> Result<(Unmatched, Version), Error> {
         let library = self.library(library).await?;
+        if !self.max_age.allows(None) {
+            return Err(NotFound::NoSuchVersion.into());
+        }
         let unmatched = (self
             .contents
             .unmatched_in_version(library.id, version)
@@ -323,7 +343,8 @@ impl Browse {
     /// Every title of `library`, without Tracks. Every finder reads through here; one answering
     /// with Tracks reads them afterwards, of only what it answers with.
     async fn titles(&self, library: &Library) -> Result<Titles, Error> {
-        Ok(Titles::read(&self.contents, library).await?)
+        let titles = Titles::read(&self.contents, library).await?;
+        Ok(titles.rated(|rating| self.max_age.allows(rating)))
     }
 
     /// The ids of a page of the titles of the `kind` Library `library` that `listing` keeps, as
@@ -355,8 +376,9 @@ impl Browse {
                     .await?
             }
         };
+        let ratings = self.kept_ratings().await?;
         let page = (self.contents)
-            .title_page(library.id, listing, &started, &page)
+            .title_page(library.id, listing, &started, ratings.as_deref(), &page)
             .await?;
         Ok(page)
     }
@@ -385,19 +407,39 @@ impl Browse {
             return Ok(Vec::new());
         }
         let libraries = self.libraries().await?;
-        Ok(OnServer::in_order_of(&self.contents, &libraries, library_kind(kind), ids).await?)
+        let mut found =
+            OnServer::in_order_of(&self.contents, &libraries, library_kind(kind), ids).await?;
+        found.retain(|title| self.max_age.allows(title.content_rating()));
+        Ok(found)
     }
 
-    /// Whether a Library it doesn't see has a title of `kind` that `ids` name: one to show
-    /// nowhere, nor offer to Request, wherever else it was found.
+    /// The stored Content Ratings its Maximum Age lets through, the empty string for none if it
+    /// lets unrated titles through, as [`Contents::title_page`] takes them: `None` for every one.
+    async fn kept_ratings(&self) -> Result<Option<Vec<String>>, sqlx::Error> {
+        if self.max_age.lets_every_title() {
+            return Ok(None);
+        }
+        let mut kept = self.contents.content_ratings().await?;
+        kept.retain(|rating| self.max_age.allows(Some(rating)));
+        if self.max_age.allows(None) {
+            kept.push(String::new());
+        }
+        Ok(Some(kept))
+    }
+
+    /// Whether a Library it doesn't see, or its Maximum Age, hides a title of `kind` that `ids`
+    /// name: one to show nowhere, nor offer to Request, wherever else it was found.
     pub(crate) async fn hides(&self, kind: TitleKind, ids: &[ExternalId]) -> Result<bool, Error> {
-        if self.seen == LibraryAccess::All || ids.is_empty() {
+        let sees_all = self.seen == LibraryAccess::All && self.max_age.lets_every_title();
+        if sees_all || ids.is_empty() {
             return Ok(false);
         }
-        let mut hidden = self.libraries.list().await.map_err(finding_failed)?;
-        hidden.retain(|library| !self.seen.sees(library.id));
-        let found = OnServer::in_order_of(&self.contents, &hidden, library_kind(kind), ids).await?;
-        Ok(!found.is_empty())
+        let libraries = self.libraries.list().await.map_err(finding_failed)?;
+        let found =
+            OnServer::in_order_of(&self.contents, &libraries, library_kind(kind), ids).await?;
+        Ok(found.iter().any(|title| {
+            !self.seen.sees(title.library()) || !self.max_age.allows(title.content_rating())
+        }))
     }
 
     /// Every Library it sees, oldest first.

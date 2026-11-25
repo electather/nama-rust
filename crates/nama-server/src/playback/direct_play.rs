@@ -23,7 +23,7 @@ use crate::{
     db::Database,
     ffmpeg::Ffmpeg,
     library::Contents,
-    users::{Caller, library_access, remote_cap},
+    users::{Caller, library_access, maximum_age, remote_cap},
 };
 
 pub(super) fn direct_play_url(version: i64) -> String {
@@ -108,8 +108,8 @@ async fn serve(
 }
 
 /// Answers 404 to a request under `/media/versions/<id>`, for the Version's file, subtitles,
-/// fonts or Preview frames alike, from a caller who doesn't see the Library of the Version `id`.
-/// Put in front of every router serving there.
+/// fonts or Preview frames alike, from a caller who may not play the Version `id`, as
+/// [`sees_version`] judges. Put in front of every router serving there.
 pub(crate) async fn seen_versions_only(
     State(db): State<Arc<Database>>,
     request: Request,
@@ -124,7 +124,7 @@ pub(crate) async fn seen_versions_only(
             Ok(true) => {}
             Ok(false) => return StatusCode::NOT_FOUND.into_response(),
             Err(err) => {
-                tracing::error!("could not look up which Libraries a User sees: {err}");
+                tracing::error!("could not look up whether a User may play a Version: {err}");
                 return StatusCode::INTERNAL_SERVER_ERROR.into_response();
             }
         }
@@ -132,20 +132,26 @@ pub(crate) async fn seen_versions_only(
     next.run(request).await
 }
 
-/// Whether the User `user` sees the Library of the Version `version`, as they must to play it.
-/// One there is no such Version of is for the caller to refuse.
+/// Whether the User `user` sees the Library of the Version `version`, and their Maximum Age lets
+/// through each title it holds, as they must to play it. One there is no such Version of is for
+/// the caller to refuse.
 pub(super) async fn sees_version(
     db: &Arc<Database>,
     user: i64,
     version: i64,
 ) -> Result<bool, sqlx::Error> {
-    let library = Contents::new(Arc::clone(db))
-        .library_of_version(version)
-        .await?;
-    let Some(library) = library else {
+    let contents = Contents::new(Arc::clone(db));
+    let Some(library) = contents.library_of_version(version).await? else {
         return Ok(true);
     };
-    Ok(library_access(db, user).await?.sees(library))
+    if !library_access(db, user).await?.sees(library) {
+        return Ok(false);
+    }
+    let max_age = maximum_age(db, user).await?;
+    let ratings = contents.version_content_ratings(version).await?;
+    Ok(ratings
+        .iter()
+        .all(|rating| max_age.allows(rating.as_deref())))
 }
 
 /// Serves the Version `id`'s file to keep on the caller's Device as [`serve`] does, but only while
