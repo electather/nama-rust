@@ -13,7 +13,7 @@ use tokio::sync::{Notify, Semaphore};
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 use tracing::Instrument as _;
 
-use super::subtitles;
+use super::{subtitles, transcode_downloads::TranscodeDownloads};
 use crate::{
     db::Database,
     images::{DOWNLOADED_SUBTITLES_DIR, ImageStore, PREVIEW_FRAMES_DIR},
@@ -55,28 +55,36 @@ impl ProbePasses {
     }
 }
 
-/// Deletes what was made of the files of Versions gone: their cached and downloaded subtitles and
-/// their Preview frames.
+/// Deletes what was made of the files of Versions gone: their cached and downloaded subtitles,
+/// their Preview frames and the Transcodes made for Devices to download.
 #[derive(Debug, Clone)]
 pub(crate) struct Leftovers {
     contents: Contents,
     subtitles: subtitles::Cache,
     images: ImageStore,
+    transcode_downloads: TranscodeDownloads,
 }
 
 impl Leftovers {
-    /// Keeps, of what `subtitles` caches and `images` holds, only what's of the files `db` stores.
-    pub(crate) fn new(db: Arc<Database>, subtitles: subtitles::Cache, images: ImageStore) -> Self {
+    /// Keeps, of what `subtitles` caches, `images` holds and `transcode_downloads` makes, only
+    /// what's of the files `db` stores.
+    pub(crate) fn new(
+        db: Arc<Database>,
+        subtitles: subtitles::Cache,
+        images: ImageStore,
+        transcode_downloads: TranscodeDownloads,
+    ) -> Self {
         Self {
             contents: Contents::new(db),
             subtitles,
             images,
+            transcode_downloads,
         }
     }
 
     /// Throws away the subtitles cached for files gone, such as a deleted Library's, or changed
-    /// since they were cached, and deletes the subtitles downloaded for Versions gone and their
-    /// Preview frames, or logs why it couldn't.
+    /// since they were cached, and deletes the subtitles downloaded for Versions gone, their
+    /// Preview frames and the Transcodes made of them to download, or logs why it couldn't.
     pub(crate) async fn clean(&self) {
         // ponytail: reads every stored file, and lists every downloaded subtitle, after each scan;
         // clean only the Library scanned once Libraries get big.
@@ -87,6 +95,8 @@ impl Leftovers {
                 return;
             }
         };
+        let versions = stored.iter().map(|file| file.id).collect();
+        self.transcode_downloads.keep_only(&versions).await;
         if let Err(err) = self.subtitles.keep_only(&stored).await {
             tracing::error!("could not throw away subtitles of files gone or changed: {err}");
         }

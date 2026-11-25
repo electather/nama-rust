@@ -23,7 +23,7 @@ use crate::{
         Metadata,
         fixture::{self, MatchedMovie, tmdb_movie},
     },
-    playback::{Leftovers, RunningPlans, SubtitleCache},
+    playback::{Leftovers, RunningPlans, SubtitleCache, TranscodeDownloads},
     plugin_settings::PluginSettings,
     plugins::Registry,
     requests::{self, Requests},
@@ -48,7 +48,12 @@ pub(super) fn automation(db: &Arc<Database>, data: &Path) -> Arc<Automation> {
         LocalImages::new(Arc::clone(db), images.clone()),
         events.clone(),
         None,
-        Leftovers::new(Arc::clone(db), SubtitleCache::new(data), images),
+        Leftovers::new(
+            Arc::clone(db),
+            SubtitleCache::new(data),
+            images,
+            TranscodeDownloads::for_tests(db, data),
+        ),
         RunningPlans::for_tests(db, events.clone(), data),
         Requests::new(Arc::clone(db), events, points.clone()),
     );

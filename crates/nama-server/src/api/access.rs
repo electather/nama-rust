@@ -223,8 +223,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::JOB_SERVICE_RUN_JOB_SPEC.procedure,                   ADMIN),
 ];
 
-/// Who may request paths under each prefix, which aren't RPCs: downloading a Version's file,
-/// fetching other media, which the media routes share, uploading or removing a title's or a
+/// Who may request paths under each prefix, which aren't RPCs: downloading a Version's file or a
+/// Transcode of it, fetching other media, which the media routes share, uploading or removing a title's or a
 /// Library's Custom Image, and posting the web app's Diagnostics. The first prefix a path starts
 /// with decides.
 const PREFIXES: [(&str, Access); 4] = [

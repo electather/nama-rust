@@ -13,6 +13,13 @@
       "description": "Directory where the Server keeps its database and other state. A relative path counts from\nthe folder the Server starts in.",
       "type": "string"
     },
+    "download_budget_mib": {
+      "default": 20480,
+      "description": "How many MiB of Transcodes made for Devices to download the segment folder may hold at\nonce, made or being made, before a new one is refused until a Device fetches one or one\nexpires. 20 GiB by default.",
+      "format": "uint64",
+      "minimum": 0,
+      "type": "integer"
+    },
     "ffmpeg": {
       "default": null,
       "description": "The ffmpeg to run, such as a container's own. Unset, the default, looks for `ffmpeg` on\n`PATH`. A bare name, such as `jellyfin-ffmpeg`, is looked up on `PATH`, and a path with a\nfolder in it, such as `bin/ffmpeg`, counts from the folder the Server starts in.",

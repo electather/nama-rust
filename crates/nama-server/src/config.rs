@@ -80,6 +80,11 @@ pub struct Config {
     /// Server never calls a Hub and its Settings show no Hub section.
     // ADR 0002, ADR 0105; kept out of the doc comment, which editors show users.
     pub hub_url: Option<String>,
+    /// How many MiB of Transcodes made for Devices to download the segment folder may hold at
+    /// once, made or being made, before a new one is refused until a Device fetches one or one
+    /// expires. 20 GiB by default.
+    // ADR 0107; kept out of the doc comment, which editors show users.
+    pub download_budget_mib: u64,
     /// Where the Server exports Diagnostics: the standard `OTEL_EXPORTER_OTLP_ENDPOINT`, which
     /// `nama-server` sets here once exporting has started, never a key in the file (ADR 0054).
     /// Unset, nothing is exported, and the web app records nothing.
@@ -197,6 +202,7 @@ impl Default for Config {
             relay: None,
             acme_directory: instant_acme::LetsEncrypt::Production.url().to_owned(),
             hub_url: None,
+            download_budget_mib: 20 * 1024,
             otlp_endpoint: None,
             file: PathBuf::from(DEFAULT_FILE),
         }
