@@ -30,6 +30,16 @@ pub(super) async fn tidy_plans(inner: Weak<Inner>, cancel: CancellationToken) {
 }
 
 impl RunningPlans {
+    /// Whether the plan `id` runs for the Device `device`, without marking it asked for. One
+    /// unused for [`STOP_UNUSED_AFTER`] counts as stopped though [`tidy_plans`] hasn't got to it.
+    pub(crate) fn runs_for(&self, id: u64, device: i64) -> bool {
+        let now = db::instant_now();
+        (lock(&self.inner.plans).get(&id)).is_some_and(|plan| {
+            plan.playback.device_id == device
+                && now.duration_since(*lock(&plan.last_used)) < STOP_UNUSED_AFTER
+        })
+    }
+
     /// Stops every plan not asked for in the last `unused_for`, and deletes its files.
     pub(super) async fn stop_unused(&self, unused_for: Duration) {
         let now = db::instant_now();

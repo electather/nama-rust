@@ -17,7 +17,7 @@ The page at the Hub calls each Server's API directly, over the Server's own HTTP
 - The Account token is an HttpOnly cookie on the Hub's origin.
 - The page asks the Hub for a short-lived token for each Server, signed as ADR 0011 describes, and trades it at that Server for a Device with a bearer token. That Server lists the Device, can revoke it, and keeps accepting it while the Hub is down (ADR 0096).
 - A Server answers CORS only for the Hub's origin, which it reads from its own config, never from the request, and only for bearer requests, never with its cookie (ADR 0015).
-- `<img>`, `<video>` and subtitle tracks can't send a bearer token, so a Server gives bearer callers short-lived signed URLs, each for one resource.
+- `<img>`, `<video>` and subtitle tracks can't send a bearer token, so a Server gives bearer callers short-lived signed URLs: an image's for its one path, a Playback Plan's for its one Version and that plan. A plan's HLS segments, subtitles, fonts and Preview frames load under the same signed prefix as its URL, and a player keeps fetching under it for as long as it plays, so that prefix keeps working past its few minutes while the plan runs, and stops when the plan does.
 - Each Server reports its version and capabilities. The page hides what a Server lacks, and a Server below a minimum version shows as "Update this Server", linking to its own web app.
 
 Letting the Hub's origin reach admin RPCs trusts the Hub with nothing new: it can already sign anyone in as any User on any Linked Server.

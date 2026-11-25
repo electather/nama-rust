@@ -27,12 +27,13 @@ use crate::{
         StartedPlan, SubtitleAppearance, SubtitleDownloads, SubtitlePreference, TrackPreferences,
         is_autoplay_on, is_language, limit_to_proto, method_to_proto, reason_to_proto,
         set_autoplay, set_subtitle_background, set_subtitle_size, subtitle_appearance_of,
-        track_to_proto,
+        track_to_proto, viewer_of_caller,
     },
     server_settings::PlaybackLimit,
+    signed_urls::{PlaybackGrant, UrlSigner, Viewer},
 };
 
-use super::{caller, database_failed, refuse, sign_in::client_ip, unknown_enum_value};
+use super::{caller, database_failed, refuse, sign_in::client_ip, unknown_enum_value, url_signer};
 
 /// `nama.v1.PlaybackService`: how each signed-in User's Device plays a Version.
 pub(super) struct PlaybackServiceHandler {
@@ -97,7 +98,12 @@ impl PlaybackService for PlaybackServiceHandler {
         let planned = (self.plans.plan(caller, asked).await)
             .map_err(|err| plan_failed(err, request.version_id))?
             .ok_or_else(version_not_found)?;
-        Response::ok(planned_to_proto(planned, self.downloads.has_source()))
+        let signing = url_signer(&ctx).map(|signer| (signer, viewer_of_caller(caller)));
+        Response::ok(planned_to_proto(
+            planned,
+            self.downloads.has_source(),
+            signing,
+        ))
     }
 
     async fn stop_playback(
@@ -573,7 +579,13 @@ fn method_from_proto(method: EnumValue<proto::PlaybackMethod>) -> Option<Method>
     }
 }
 
-fn planned_to_proto(planned: Planned, can_search_subtitles: bool) -> PlanPlaybackResponse {
+/// `planned` as the API sends it, its URLs signed by `signing`'s signer for its Viewer, if there is
+/// one.
+fn planned_to_proto(
+    planned: Planned,
+    can_search_subtitles: bool,
+    signing: Option<(&UrlSigner, Viewer)>,
+) -> PlanPlaybackResponse {
     let (id, url, plan, playable_versions) = match planned {
         Planned::Started(StartedPlan { id, url, plan }) => (id, url, plan, vec![]),
         // The API's plan id 0 is no plan.
@@ -582,6 +594,17 @@ fn planned_to_proto(planned: Planned, can_search_subtitles: bool) -> PlanPlaybac
             playable_versions,
         } => (0, String::new(), plan, playable_versions),
     };
+    let sign = |unsigned: &String| match signing {
+        Some((signer, viewer)) => {
+            let grant = PlaybackGrant {
+                viewer,
+                version: plan.version,
+                plan: id,
+            };
+            signer.sign_playback(unsigned, grant)
+        }
+        None => unsigned.clone(),
+    };
     // A place past `u32::MAX` is in no file ffprobe reads.
     let place = |place: usize| u32::try_from(place).ok();
     let places = |places: Vec<usize>| places.into_iter().filter_map(place).collect();
@@ -589,7 +612,7 @@ fn planned_to_proto(planned: Planned, can_search_subtitles: bool) -> PlanPlaybac
     let plan = proto::PlaybackPlan {
         id,
         method: method_to_proto(plan.method()).into(),
-        url,
+        url: sign(&url),
         tracks: plan.tracks.iter().map(track_to_proto).collect(),
         reasons: plan.reasons.iter().map(reason_to_proto).collect(),
         playback_limit: limit_to_proto(plan.limit).into(),
@@ -607,9 +630,9 @@ fn planned_to_proto(planned: Planned, can_search_subtitles: bool) -> PlanPlaybac
             .map(|subtitle| proto::PlaybackSubtitle {
                 track: track_to_proto(&subtitle.track).into(),
                 place: place(subtitle.place).unwrap_or_default(),
-                url: subtitle.url.clone(),
+                url: sign(&subtitle.url),
                 format: subtitle.format.into(),
-                font_urls: subtitle.font_urls.clone(),
+                font_urls: subtitle.font_urls.iter().map(sign).collect(),
                 offset_ms: plan.subtitle_offsets.of(subtitle.place, &subtitle.track),
                 ..Default::default()
             })

@@ -34,7 +34,7 @@ use crate::{
     requests::Requests,
     scanner::Scanner,
     server_settings,
-    signed_urls::{UrlSigner, admit},
+    signed_urls::{PlanRuns, UrlSigner, admit},
     sync::Syncing,
     users::{
         Caller, Device, SetupCode, SignIn, Users, cleared_session_cookie, identify_caller,
@@ -200,7 +200,7 @@ pub(crate) fn router(
             plans: Plans::new(
                 probing,
                 abilities,
-                running,
+                running.clone(),
                 settings.playback(),
                 preview_frames,
                 preferences.clone(),
@@ -278,9 +278,10 @@ pub(crate) fn router(
         ))
         .layer(middleware::from_fn(diagnostics::trace_call))
         .layer(Extension(signer.clone()));
+    let plan_runs: PlanRuns = Arc::new(move |plan, device| running.runs_for(plan, device));
     // Outside the routes, since a layer on them runs after routing, too late to rewrite the path.
     axum::Router::new()
-        .fallback_service(middleware::from_fn_with_state(signer, admit).layer(routes))
+        .fallback_service(middleware::from_fn_with_state((signer, plan_runs), admit).layer(routes))
 }
 
 /// Who sent the request `ctx` is for, or `unauthenticated` if it carries no valid session.

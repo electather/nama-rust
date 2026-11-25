@@ -18,7 +18,7 @@ use std::{
 };
 
 use browsing::{ALIEN_1080P, Fixture};
-use connectrpc::client::HttpClient;
+use connectrpc::client::{ClientConfig, HttpClient};
 use http::{Reply, fetch};
 use nama_proto::nama::v1::{
     Container, DeleteMediaRequest, DeviceDecoding, GetLibraryRequest, LibraryKind,
@@ -103,12 +103,17 @@ impl Frames {
 
     /// The Admin's Direct Play of the Version, on a browser that plays H.264 in Matroska.
     async fn plan(&self) -> PlaybackPlan {
+        self.plan_as(self.fx.server.client_config()).await
+    }
+
+    /// [`Self::plan`], asked with the client settings `who`.
+    async fn plan_as(&self, who: ClientConfig) -> PlaybackPlan {
         let device = DeviceDecoding {
             containers: vec![Container::CONTAINER_MATROSKA.into()],
             video_codecs: vec![VideoCodec::VIDEO_CODEC_H264.into()],
             ..Default::default()
         };
-        let planned = (self.playback())
+        let planned = PlaybackServiceClient::new(HttpClient::plaintext(), who)
             .plan_playback(PlanPlaybackRequest {
                 version_id: self.version,
                 device_decoding: device.into(),
@@ -197,6 +202,23 @@ async fn a_sheet_is_served_to_a_signed_in_device_and_refused_without_a_session()
 
     assert_eq!(frames.sheet(0, Some(&ada.token)).await.status, 200);
     assert_eq!(frames.sheet(0, None).await.status, 401);
+}
+
+/// An `<img>` can't send a bearer token, so a bearer caller fetches a sheet after the signed
+/// prefix of its plan's URL, which covers the Version's media (ADR 0105).
+#[tokio::test]
+async fn a_bearer_callers_sheet_loads_under_its_plans_signed_prefix() {
+    let frames = Frames::start(true).await;
+    frames.wait_until_made().await;
+
+    let plan = frames
+        .plan_as(frames.fx.server.bearer_client_config())
+        .await;
+
+    let (prefix, _) = plan.url.split_once("versions/").unwrap();
+    let sheet = format!("{prefix}versions/{}/preview-frames/0.jpg", frames.version);
+    assert_ne!(prefix, "/media/");
+    assert_eq!(fetch(&frames.fx.server, &sheet, None).await.status, 200);
 }
 
 #[tokio::test]
