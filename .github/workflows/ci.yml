@@ -444,8 +444,8 @@ jobs:
       - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
 
-  # The Server with the `web` feature, which embeds the `vp build` output and serves it. Runs
-  # for a web-only PR too.
+  # The Server and the Hub with the `web` feature, which embeds the `vp build` output and serves it.
+  # Runs for a web-only PR too.
   web-test:
     needs: changes
     if: >-

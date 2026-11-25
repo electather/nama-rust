@@ -36,6 +36,17 @@ fn linked_asset(extension: &str) -> &'static str {
         .unwrap()
 }
 
+/// The path of a file with `extension` that `vp build` wrote under `/assets/`, linked or not.
+fn built_asset(extension: &str) -> String {
+    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/assets");
+    let name = fs::read_dir(assets)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .find(|name| Path::new(name).extension().is_some_and(|e| e == extension))
+        .unwrap();
+    format!("/assets/{name}")
+}
+
 #[tokio::test]
 async fn the_app_s_text_is_compressed_for_a_browser_that_accepts_it() {
     let paths = ["/", "/sign-in", linked_asset("js"), linked_asset("css")];
@@ -79,14 +90,7 @@ async fn the_app_is_sent_as_built_to_a_client_that_accepts_no_encoding() {
 
 #[tokio::test]
 async fn a_font_is_sent_as_it_is() {
-    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/assets");
-    let font = fs::read_dir(assets)
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
-        .find(|name| Path::new(name).extension().is_some_and(|e| e == "woff2"))
-        .unwrap();
-
-    let response = get(&format!("/assets/{font}"), &["br, gzip"]).await;
+    let response = get(&built_asset("woff2"), &["br, gzip"]).await;
 
     assert!(!response.headers().contains_key(header::CONTENT_ENCODING));
 }
@@ -109,15 +113,8 @@ async fn hashed_assets_are_cached_for_good_and_the_shell_is_not() {
 /// Chrome the manifest that installs the app.
 #[tokio::test]
 async fn the_app_s_webassembly_and_manifest_are_served_as_such() {
-    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/assets");
-    let wasm = fs::read_dir(assets)
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
-        .find(|name| Path::new(name).extension().is_some_and(|e| e == "wasm"))
-        .unwrap();
-
     for (path, content_type) in [
-        (format!("/assets/{wasm}"), "application/wasm"),
+        (built_asset("wasm"), "application/wasm"),
         (
             "/manifest.webmanifest".to_owned(),
             "application/manifest+json",
