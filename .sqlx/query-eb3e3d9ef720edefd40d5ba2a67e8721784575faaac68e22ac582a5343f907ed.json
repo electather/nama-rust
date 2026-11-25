@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO user_libraries (user_id, library_id)\n         SELECT ?, id FROM libraries WHERE id IN (SELECT value FROM json_each(?))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "eb3e3d9ef720edefd40d5ba2a67e8721784575faaac68e22ac582a5343f907ed"
+}

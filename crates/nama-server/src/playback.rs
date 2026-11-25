@@ -11,10 +11,10 @@
 //! own files there.
 //!
 //! Direct Play serves a Version's file as it is, over plain HTTP at `/media/versions/<id>` (ADR
-//! 0007: media bytes are not RPC), to anyone with a session. A browser's `<video src>` presents
-//! that session in its cookie (ADR 0014). Range requests let a `<video>` seek. Only Versions,
-//! files a scan stored for a Library and Matched, are served, by id, so a client can never name a
-//! path. The subtitles a plan offers are served beside it ([`subtitles`]).
+//! 0007: media bytes are not RPC), to anyone with a session who sees its Library. A browser's
+//! `<video src>` presents that session in its cookie (ADR 0014). Range requests let a `<video>`
+//! seek. Only Versions, files a scan stored for a Library and Matched, are served, by id, so a
+//! client can never name a path. The subtitles a plan offers are served beside it ([`subtitles`]).
 
 mod autoplay;
 mod choices;
@@ -39,7 +39,7 @@ mod track_preferences;
 mod tracks;
 
 pub(crate) use autoplay::{is_on as is_autoplay_on, set as set_autoplay};
-pub(crate) use direct_play::router;
+pub(crate) use direct_play::{router, seen_versions_only};
 pub(crate) use downloads::{Error as DownloadError, SubtitleDownloads};
 pub(crate) use limits::{NAMED_LIMITS, limit_to_proto};
 pub(crate) use made_from_files::{Leftovers, ProbePasses, WholeFileReads};

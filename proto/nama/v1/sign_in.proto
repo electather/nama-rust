@@ -214,6 +214,16 @@ message User {
   // The most a Device of theirs outside the local network is sent, whatever Playback Limit it
   // picks: `PLAYBACK_LIMIT_ORIGINAL` for no cap. Only `UserService.ListUsers` sets it.
   PlaybackLimit remote_playback_limit = 6;
+  // The Libraries the User sees, unset for every one, those added later included. A User with
+  // `PERMISSION_MANAGE_LIBRARIES` sees every one whatever it holds. Only `UserService.ListUsers`
+  // sets it.
+  LibraryAccess library_access = 7;
+}
+
+// A chosen list of the Libraries a User sees, which never grows by itself as Libraries are added.
+message LibraryAccess {
+  // Their IDs. Empty sees none. Deleting a Library takes it off the list.
+  repeated int64 library_ids = 1;
 }
 
 // A client installation signed in to a Server as one or more Users, acting as one of them at a

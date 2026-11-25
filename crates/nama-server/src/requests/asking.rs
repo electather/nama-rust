@@ -25,7 +25,8 @@ use crate::{
     diagnostics::{self, Usage},
     events::event,
     library::{
-        DEFAULT_ORDER, Metadata, SourceSeason, library_with_movie, matched_episodes, primary_id,
+        DEFAULT_ORDER, Metadata, SourceSeason, TitleKind, library_with_movie, matched_episodes,
+        primary_id,
     },
     users::User,
 };
@@ -69,7 +70,8 @@ impl Requests {
     /// Publishes what changed, if anything did.
     ///
     /// Refuses a `chosen` Quality from an `asker` who may not choose one, or that the Movie
-    /// Fulfiller doesn't offer, even when joining.
+    /// Fulfiller doesn't offer, even when joining, and with [`Error::NoSuchMovie`] a Movie only
+    /// a Library `asker` doesn't see has.
     pub(crate) async fn create(
         &self,
         asker: &User,
@@ -77,7 +79,11 @@ impl Requests {
         chosen: Option<i64>,
     ) -> Result<Request, Error> {
         // Refuses before asking TMDB, which may be down or slow; `ask` checks again for a scan
-        // that Matched the Movie meanwhile.
+        // that Matched the Movie meanwhile. One only a Library `asker` doesn't see has is no
+        // Movie to them, as looking it up says.
+        if self.hidden_from(asker, TitleKind::Movie, id).await? {
+            return Err(Error::NoSuchMovie(id.clone()));
+        }
         if self.contents.library_with_movie(id).await?.is_some() {
             return Err(Error::InLibrary(id.clone()));
         }
@@ -97,7 +103,8 @@ impl Requests {
     /// Season order, each as [`Self::create`] asks for a Movie but with
     /// `AUTO_APPROVE_TV` and the Fulfiller for Shows. Asks for none if a Library has any of them:
     /// every aired Episode Matched. New Requests take the Show's Quality if it has one, refusing
-    /// another `chosen` one, else as [`Self::create`] picks one.
+    /// another `chosen` one, else as [`Self::create`] picks one. [`Error::NoSuchShow`] for a Show
+    /// only a Library `asker` doesn't see has.
     pub(crate) async fn create_seasons(
         &self,
         asker: &User,
@@ -105,6 +112,10 @@ impl Requests {
         numbers: &BTreeSet<u32>,
         chosen: Option<i64>,
     ) -> Result<Vec<Request>, Error> {
+        // As looking it up says, a Show only a Library `asker` doesn't see has is none to them.
+        if self.hidden_from(asker, TitleKind::Show, show_id).await? {
+            return Err(Error::NoSuchShow(show_id.clone()));
+        }
         let quality = self.quality::<Shows>(asker, chosen).await?;
         let (source, show) = self.show(show_id).await?;
         let id = kept_under(show_id, &show.ids);

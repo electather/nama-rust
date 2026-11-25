@@ -40,7 +40,7 @@ use crate::{
     plugins::{Answer, ExtensionPoints, Failure, without_secrets},
     requests::{Listed, Requests},
     server_settings::HomeRowId,
-    users::{User, personal_settings_of, split_personal_settings},
+    users::{LibraryAccess, User, library_access, personal_settings_of, split_personal_settings},
 };
 
 /// The most rows of one answer home shows: a Plugin's shared rows, or its rows for one User.
@@ -175,7 +175,8 @@ impl HomeRows {
         let titles: Vec<Title> = (served.iter())
             .flat_map(|(_, row)| row.titles.iter().cloned())
             .collect();
-        let on_server = self.on_server(&titles).await?;
+        let seen = library_access(&self.db, reader.id).await?;
+        let on_server = self.on_server(&titles, &seen).await?;
         Ok((served.into_iter())
             .filter(|(_, row)| !shown(row, &on_server, may_request(reader)).is_empty())
             .collect())
@@ -197,7 +198,8 @@ impl HomeRows {
         let row = Rows(self.clone())
             .stored_row(reader.id, plugin, key)
             .await?;
-        let on_server = self.on_server(&row.titles).await?;
+        let seen = library_access(&self.db, reader.id).await?;
+        let on_server = self.on_server(&row.titles, &seen).await?;
         // ponytail: pages in memory over at most `MAX_TITLES`, by place in the stored row, so a
         // refresh between two pages can skip or repeat a title. Store the rows' titles as rows
         // of their own if a row ever grows.
@@ -299,13 +301,20 @@ impl HomeRows {
             .await
     }
 
-    /// Those of `titles` that are on the Server, each in the oldest Library Matched to it.
-    async fn on_server(&self, titles: &[Title]) -> Result<HashMap<Title, OnServer>, Error> {
+    /// Those of `titles` that are on the Server, each in the oldest Library `seen` keeps that has
+    /// it, or `None` where only Libraries it doesn't keep have it.
+    async fn on_server(
+        &self,
+        titles: &[Title],
+        seen: &LibraryAccess,
+    ) -> Result<HashMap<Title, Option<OnServer>>, Error> {
         let mut found = HashMap::new();
         if titles.is_empty() {
             return Ok(found);
         }
-        let libraries = self.libraries.list().await?;
+        let mut libraries = self.libraries.list().await?;
+        // `find` takes each title from the first Library that has it, so those seen go first.
+        libraries.sort_by_key(|library| !seen.sees(library.id));
         for (kind, in_libraries) in [
             (Kind::Movie, LibraryKind::Movies),
             (Kind::Show, LibraryKind::Shows),
@@ -315,9 +324,10 @@ impl HomeRows {
                 .filter_map(Title::id)
                 .collect();
             let on_server = OnServer::find(&self.contents, &libraries, in_libraries, &ids).await?;
-            found.extend(
-                (on_server.into_iter()).map(|(id, title)| (Title(kind, id.to_string()), title)),
-            );
+            found.extend((on_server.into_iter()).map(|(id, title)| {
+                let shown = seen.sees(title.library()).then_some(title);
+                (Title(kind, id.to_string()), shown)
+            }));
         }
         Ok(found)
     }
@@ -382,12 +392,12 @@ fn answered<R>(answer: Option<Answer<R>>, scope: &Scope, noun: &str) -> Option<R
     }
 }
 
-/// The titles of `row` that `on_server` has, or that are missing and of a kind `may_request`,
-/// each with its place in the row, in its order. A title the row names twice, or by two of its
-/// ids, shows once, at its first place.
+/// The titles of `row` that `on_server` has in a Library the reader sees, or that are missing and
+/// of a kind `may_request`, each with its place in the row, in its order. A title the row names
+/// twice, or by two of its ids, shows once, at its first place.
 fn shown(
     row: &Row,
-    on_server: &HashMap<Title, OnServer>,
+    on_server: &HashMap<Title, Option<OnServer>>,
     may_request: impl Fn(Kind) -> bool,
 ) -> Vec<(i64, RowTitle)> {
     let missing: HashMap<&Title, &Missing> = (row.missing.iter())
@@ -397,9 +407,10 @@ fn shown(
     (row.titles.iter().zip(0..))
         .filter_map(|(title, place)| {
             let shown = match on_server.get(title) {
-                Some(found) => RowTitle::OnServer(found.clone()),
+                Some(Some(found)) => RowTitle::OnServer(found.clone()),
                 None if may_request(title.0) => missing.get(title)?.row_title()?,
-                None => return None,
+                // Only a Library the reader doesn't see has it, or they may not Request it.
+                Some(None) | None => return None,
             };
             Some((place, shown))
         })

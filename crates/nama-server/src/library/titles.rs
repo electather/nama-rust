@@ -199,6 +199,14 @@ impl OnServer {
         }
     }
 
+    /// The Library it is in.
+    pub(crate) const fn library(&self) -> i64 {
+        match self {
+            Self::Movie(movie) => movie.library,
+            Self::Show(show) => show.library,
+        }
+    }
+
     /// When it was released, or first aired, as `YYYY-MM-DD`.
     pub(crate) fn date(&self) -> Option<&str> {
         match self {

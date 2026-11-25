@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT all_libraries AS \"all_libraries: bool\",\n                  permissions AS \"permissions: Permissions\"\n           FROM users WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "all_libraries: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "all_libraries"
+          }
+        }
+      },
+      {
+        "name": "permissions: Permissions",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "permissions"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "5842c5fbd0a556bb08af54564f6332ea28ba2a5c55bf656bd0cb84b124dbae98"
+}
