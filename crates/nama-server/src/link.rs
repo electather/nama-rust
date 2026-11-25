@@ -50,7 +50,10 @@ pub use self::sharing::ShareWithHub;
 pub(crate) use self::sync::{Kind as QueuedKind, waiting as queued_for_hub};
 pub(crate) use self::{
     server::ServerLink,
-    sync::{ViewingEvent, queue_track_preferences, queue_viewing_events, queue_watch_states},
+    sync::{
+        ViewingEvent, queue_track_preferences, queue_viewing_events, queue_watch_states,
+        take_over_viewing_events,
+    },
 };
 use crate::{
     config::Config,

@@ -1,12 +1,15 @@
 use std::sync::Arc;
 
-use nama_hub_proto::nama::hub::v1::{TrackPreferenceChange, UserViewingEvent, WatchStateChange};
+use buffa::Message as _;
+use nama_hub_proto::nama::hub::v1::{
+    RecordViewingEventsRequest, TrackPreferenceChange, UserViewingEvent, WatchStateChange,
+};
 use nama_plugin_api::PluginId;
 use nama_plugin_hub::KernelLink;
 use sqlx::{Connection, SqliteConnection, sqlite::SqliteConnectOptions};
 use tempfile::TempDir;
 
-use super::{Error, delete, get, put, put_within};
+use super::{Error, delete, get, put, put_within, take_over_hub_viewing_events};
 use crate::{
     db::{self, Database},
     link::{self, Link, Linking, ServerLink},
@@ -326,31 +329,51 @@ async fn upgrading_queues_what_the_hub_plugin_had_queued_in_order_and_empties_it
 }
 
 #[tokio::test]
-async fn upgrading_queues_the_viewing_events_the_hub_plugin_had_queued_in_order_and_empties_its_store()
- {
-    // Pages as the Plugin kept them, and an older Plugin's protobuf, which goes unread. User 8 is
-    // gone.
+async fn upgrading_queues_the_viewing_events_the_hub_plugin_had_queued_and_empties_its_store() {
+    // Pages as the Plugin kept them. User 8 is gone.
     let (_dir, db) = upgraded_with_queues(
         HUB_VIEWING_EVENTS,
         r#"INSERT INTO plugin_store (plugin_id, user_id, key, value) VALUES
            ('hub', NULL, 'viewing-event-queue', CAST('{"first":9,"next":11}' AS BLOB)),
            ('hub', NULL, 'viewing-event-queue/10', CAST('[{"userId":"7","key":"c","event":{"externalId":"tmdb-3"}}]' AS BLOB)),
            ('hub', NULL, 'viewing-event-queue/9', CAST('[{"userId":"7","key":"a","event":{"externalId":"tmdb-1","startedAt":"1700000000"}},{"userId":"8","key":"b"}]' AS BLOB)),
-           ('hub', NULL, 'viewing-events', x'0a00'),
            ('hub', NULL, 'similar-cache', CAST('{}' AS BLOB))"#,
     )
     .await;
+    // As a Plugin of v0.2.0 kept them, the request that sends them, which the Kernel takes over as
+    // it starts, once the migrations have run.
+    let unsent = RecordViewingEventsRequest {
+        events: [(7, "z"), (8, "y")]
+            .map(|(user_id, key)| UserViewingEvent {
+                user_id,
+                key: key.to_owned(),
+                ..Default::default()
+            })
+            .into(),
+        ..Default::default()
+    };
+    let hub = PluginId::from_static("hub");
+    (put(
+        &db,
+        &hub,
+        None,
+        "viewing-events".into(),
+        unsent.encode_to_vec(),
+    ))
+    .await
+    .unwrap();
+
+    take_over_hub_viewing_events(&db).await.unwrap();
 
     let events: Vec<UserViewingEvent> = waiting_as(&db, link::QueuedKind::ViewingEvent).await;
     let left: Vec<String> = sqlx::query_scalar("SELECT key FROM plugin_store")
         .fetch_all(db.reader())
         .await
         .unwrap();
-
     let keys: Vec<_> = (events.iter())
         .map(|queued| (queued.user_id, queued.key.as_str()))
         .collect();
-    assert_eq!(keys, [(7, "a"), (7, "c")]);
+    assert_eq!(keys, [(7, "a"), (7, "c"), (7, "z")]);
     assert_eq!(events[0].event.started_at, 1_700_000_000);
     assert_eq!(left, ["similar-cache"]);
 }

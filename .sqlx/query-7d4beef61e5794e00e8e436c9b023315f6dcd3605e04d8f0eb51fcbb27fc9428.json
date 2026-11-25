@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT value FROM plugin_store\n                 WHERE plugin_id = 'hub' AND user_id IS NULL AND key = 'viewing-events'",
+  "describe": {
+    "columns": [
+      {
+        "name": "value",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "plugin_store",
+            "name": "value"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7d4beef61e5794e00e8e436c9b023315f6dcd3605e04d8f0eb51fcbb27fc9428"
+}

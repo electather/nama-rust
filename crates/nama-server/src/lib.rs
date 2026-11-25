@@ -224,6 +224,7 @@ pub fn serve(
     let syncing = sync::Syncing::new(Arc::clone(&db), plugins.extension_points(), users.clone());
     let viewing_events =
         viewing::ViewingEvents::new(Arc::clone(&db), plugins.extension_points(), users.clone());
+    let taking_over = Arc::clone(&db);
     let watch_sync_imports =
         watch_sync::WatchSyncImports::new(Arc::clone(&db), plugins.extension_points());
     let linking = users.linking().clone();
@@ -266,6 +267,10 @@ pub fn serve(
         // before serving, so the sweeps delete no plan's files or upload but an earlier run's.
         load_settings.await;
         fill_sort_titles(&contents).await;
+        // Before the first send to the Hub, so it takes them with the rest.
+        if let Err(err) = automation::take_over_hub_viewing_events(&taking_over).await {
+            tracing::error!("taking over the Hub Plugin's unsent Viewing Events failed: {err}");
+        }
         // Before the scans start, so it sees their Matching finish.
         let scan_follower = syncing.follow_scans(&events);
         // Before serving, so it hears the first look at each Link.

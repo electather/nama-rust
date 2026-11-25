@@ -32,8 +32,8 @@ WHERE plugin_store.plugin_id = 'hub' AND plugin_store.user_id IS NULL
   AND CAST(json_extract(queued.value, '$.userId') AS INTEGER) IN (SELECT id FROM users)
 ORDER BY CAST(substr(plugin_store.key, instr(plugin_store.key, '/') + 1) AS INTEGER), queued.key;
 
--- `viewing-events` is what a Plugin of 22 November 2026 kept, as protobuf SQL can't read; any later
--- Plugin moved it into its pages within five minutes of starting.
+-- `viewing-events`, where the Plugin of v0.2.0 kept them, is protobuf SQL can't read: the Kernel
+-- takes it over as it starts (`take_over_hub_viewing_events`).
 DELETE FROM plugin_store
 WHERE plugin_id = 'hub' AND user_id IS NULL
-  AND (key IN ('viewing-event-queue', 'viewing-events') OR key LIKE 'viewing-event-queue/%');
+  AND (key = 'viewing-event-queue' OR key LIKE 'viewing-event-queue/%');

@@ -75,9 +75,10 @@ impl Plugin for Hub {
         Manifest {
             name: "Hub".to_owned(),
             description:
-                "Adds the titles the Hub finds alike to Similar titles, gives each Linked User a Recommended for you row \
-                          and Featured suggestions from what they finished, and shows Trending \
-                          on Nama and Most watchlisted on Nama rows on home."
+                "Adds the titles the Hub finds alike to Similar titles, gives each Linked \
+                          User a Recommended for you row and Featured suggestions from what they \
+                          finished, and shows Trending on Nama and Most watchlisted on Nama rows \
+                          on home."
                     .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_markdown: "Link the Server under Settings, Server, and enable it. \

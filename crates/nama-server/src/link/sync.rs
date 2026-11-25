@@ -10,10 +10,11 @@
 use std::cmp::Reverse;
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use buffa::Message as _;
 use nama_hub_proto::nama::hub::v1::{
-    DeviceKind as HubDeviceKind, TitleKind, TrackPreferenceChange as PreferenceProto,
-    UserViewingEvent, ViewingEvent as ViewingEventProto, WatchStateChange as WatchStateProto,
-    WatchlistEntry as EntryProto,
+    DeviceKind as HubDeviceKind, RecordViewingEventsRequest, TitleKind,
+    TrackPreferenceChange as PreferenceProto, UserViewingEvent, ViewingEvent as ViewingEventProto,
+    WatchStateChange as WatchStateProto, WatchlistEntry as EntryProto,
 };
 use nama_plugin_api::{
     contract::DeviceKind,
@@ -101,6 +102,29 @@ pub(crate) async fn queue_viewing_events(
         });
     }
     queue(conn, user_id, Kind::ViewingEvent, to_send.into_iter()).await
+}
+
+/// Queues through `conn` the Viewing Events `unsent` holds, the request a Hub Plugin of v0.2.0 kept
+/// them in, which no migration can read; those of Users the Server no longer has are left out.
+pub(crate) async fn take_over_viewing_events(
+    conn: &mut SqliteConnection,
+    unsent: &[u8],
+) -> Result<(), sqlx::Error> {
+    let unsent = RecordViewingEventsRequest::decode_from_slice(unsent)
+        .map_err(|err| sqlx::Error::Decode(err.into()))?;
+    for event in unsent.events {
+        let change =
+            serde_json::to_string(&event).map_err(|err| sqlx::Error::Encode(err.into()))?;
+        sqlx::query!(
+            "INSERT INTO hub_sync_queue (kind, user_id, change) SELECT ?, id, ? FROM users WHERE id = ?",
+            Kind::ViewingEvent,
+            change,
+            event.user_id
+        )
+        .execute(&mut *conn)
+        .await?;
+    }
+    Ok(())
 }
 
 async fn queue(

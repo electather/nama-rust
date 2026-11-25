@@ -7,7 +7,9 @@ mod store;
 #[cfg(test)]
 mod testing;
 
-pub(crate) use store::delete_plugin as delete_plugins_store_entries;
+pub(crate) use store::{
+    delete_plugin as delete_plugins_store_entries, take_over_hub_viewing_events,
+};
 
 use std::{
     collections::{HashMap, HashSet},

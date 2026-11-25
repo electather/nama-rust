@@ -123,7 +123,7 @@ impl ViewingEvents {
                     let playback = ended.playback.into_option().unwrap_or_default();
                     self.ended(playback.plan_id).await;
                 }
-                // shortcut: a play whose start the lag missed goes unrecorded, and one whose end it
+                // ponytail: a play whose start the lag missed goes unrecorded, and one whose end it
                 // missed stays open until the Server restarts; ask the running plans instead if
                 // that ever shows.
                 Ok(_) | Err(RecvError::Lagged(_)) => {}
@@ -225,7 +225,7 @@ impl ViewingEvents {
         let states = self.watch_states.of_titles(Some(user_id), &asked).await?;
         let devices = self.users.device_kinds(&[device_id]).await?;
         let device_kind =
-            (devices.first()).map_or(DeviceKind::DEVICE_KIND_UNSPECIFIED, |device| device.2);
+            (devices.first()).map_or(DeviceKind::DEVICE_KIND_UNSPECIFIED, |&(_, _, kind)| kind);
         Ok((titles.into_iter().zip(states))
             .filter_map(|(title, states)| {
                 let (_, state) = states.into_iter().next()?;
