@@ -396,7 +396,7 @@ impl Contents {
         library: i64,
         only: Option<&[ExternalId]>,
     ) -> Result<Vec<Movie>, sqlx::Error> {
-        let only = listed_ids(only);
+        let only = only.map(ids_json);
         // ponytail: whole-Library read, grouped by `library_titles`.
         macro_rules! select {
             ($ids:literal, ($($titles:tt)+)) => {
@@ -509,7 +509,7 @@ impl Contents {
         library: i64,
         only: Option<&[ExternalId]>,
     ) -> Result<Vec<Show>, sqlx::Error> {
-        let only = listed_ids(only);
+        let only = only.map(ids_json);
         // ponytail: whole-Library read, grouped by `library_titles`.
         macro_rules! select {
             ($ids:literal, ($($titles:tt)+)) => {
@@ -707,12 +707,6 @@ impl Contents {
             .map(|(named, found)| found.unwrap_or_else(|| ExternalIds::from_iter([named.clone()])))
             .collect())
     }
-}
-
-/// `ids` as a JSON array of their text forms, as [`Contents::movies`] and [`Contents::shows`]
-/// take them.
-fn listed_ids(ids: Option<&[ExternalId]>) -> Option<String> {
-    ids.map(ids_json)
 }
 
 /// The genres in the `genres` column's JSON, `json`: none where it's NULL, as for a Match stored
