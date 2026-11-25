@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package nama.v1;
+
+import "nama/v1/inbox.proto";
+
+// Web Push (RFC 8030, 8291 and 8292): the Server pushes each notification stored in a signed-in
+// User's inbox to every push subscription of theirs, through the browser's push service, with no
+// third party of Nama's. A caller manages only their own subscriptions.
+service WebPushService {
+  // The Server's VAPID public key, the `applicationServerKey` a browser subscribes with.
+  rpc GetWebPushKey(GetWebPushKeyRequest) returns (GetWebPushKeyResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  // Pushes the caller's notifications to a browser's push subscription from now on. An endpoint
+  // another User subscribed becomes the caller's, as the browser now holds the caller's session.
+  // Fails with `REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID` for an endpoint that isn't an https
+  // URL or keys that aren't the browser's.
+  rpc SubscribeWebPush(SubscribeWebPushRequest) returns (SubscribeWebPushResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+  // Stops pushing to the caller's subscription at the endpoint. One that isn't theirs is left as
+  // it is.
+  rpc UnsubscribeWebPush(UnsubscribeWebPushRequest) returns (UnsubscribeWebPushResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+}
+
+message GetWebPushKeyRequest {}
+
+message GetWebPushKeyResponse {
+  // The uncompressed P-256 point, 65 bytes.
+  bytes public_key = 1;
+}
+
+message SubscribeWebPushRequest {
+  // `PushSubscription.endpoint`.
+  string endpoint = 1;
+  // `PushSubscription.getKey("p256dh")`: the browser's P-256 public key, 65 bytes.
+  bytes p256dh = 2;
+  // `PushSubscription.getKey("auth")`: the browser's 16-byte authentication secret.
+  bytes auth = 3;
+}
+
+message SubscribeWebPushResponse {}
+
+message UnsubscribeWebPushRequest {
+  // The `endpoint` subscribed.
+  string endpoint = 1;
+}
+
+message UnsubscribeWebPushResponse {}
+
+// What a push carries, decrypted, in the JSON mapping: the notification as `ListInboxNotifications`
+// lists it, which a client words as it words its inbox.
+message WebPushMessage {
+  InboxNotification notification = 1;
+  // Where the web app lists the Requests, unset while the Server has no Server URL or the Request
+  // is gone.
+  optional string link = 2;
+}

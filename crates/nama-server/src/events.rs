@@ -1,7 +1,8 @@
 //! The event bus: the Kernel publishes what happens on it, and it hands each event to every
 //! client subscribed through `EventService.Subscribe` and to every Observer at
 //! [`points::Events`], and each Request event to every [`Notifier`], for its channel and for the
-//! Plugin Connections and Personal settings of the Users told about it, whose inbox it goes in too.
+//! Plugin Connections and Personal settings of the Users told about it, whose inbox it goes in too,
+//! and from there to their browsers by Web Push.
 //!
 //! Publishing never waits for a subscriber. Each subscriber may fall up to [`BUFFERED`] events
 //! behind; past that its oldest unread events are dropped, and it is sent a `Lagged` in their
@@ -19,15 +20,15 @@ use nama_plugin_api::{
     points,
 };
 use nama_proto::nama::v1::{
-    Event, EventType, FollowedShow, Lagged, NotificationKind, Permission, Request, RequestState,
-    SubscribeResponse, event, subscribe_response,
+    Event, EventType, FollowedShow, InboxNotification, Lagged, NotificationKind, Permission,
+    Request, RequestState, SubscribeResponse, event, subscribe_response,
 };
 use tokio::{
     sync::{
         broadcast::{self, error::RecvError},
         mpsc,
     },
-    task::JoinHandle,
+    task::{JoinError, JoinHandle, JoinSet},
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
@@ -36,11 +37,12 @@ use crate::{
     connections,
     db::Database,
     plugins::{self, ExtensionPoints, Failure, ProviderError, without_secrets},
-    server_settings::ServerUrl,
+    server_settings::{ServerUrl, web_push_key},
     users::{
         self, LibraryAccess, User, delete_personal_settings, every_notification_turned_off,
         every_user, personal_settings_recipients, store_in_inbox,
     },
+    web_push::{Pusher, push_to_subscriptions},
 };
 
 /// How many events a subscriber may fall behind before it lags. A scan publishes a batch of up to
@@ -65,11 +67,12 @@ pub(crate) struct EventBus {
     /// Cancelled when the Server shuts down, which ends every subscription.
     closed: CancellationToken,
     /// The one task that stores personal notifications in inboxes, so they are stored in the
-    /// order they were published.
+    /// order they were published, and pushes them to their Users' browsers.
     inboxes: Arc<Mutex<Inboxes>>,
 }
 
-/// The task that stores personal notifications in inboxes, as [`EventBus::publish`] feeds it.
+/// The task that stores personal notifications in inboxes and pushes them, as
+/// [`EventBus::publish`] feeds it.
 #[derive(Debug, Default)]
 enum Inboxes {
     /// Started by the first personal notification, so building an [`EventBus`] needs no runtime.
@@ -162,15 +165,10 @@ impl EventBus {
     /// Plugin Connection to it of each User [`users_to_tell`] picks. The Kernel picks the
     /// recipients so that every Notifier shares the rules (ADR 0021).
     fn tell_notifiers(&self, event: &Event) {
-        let Some((kind, About::Request(request))) = classify(event) else {
+        let Some((_, About::Request(request))) = classify(event) else {
             return;
         };
-        let removed = matches!(
-            kind,
-            EventType::EVENT_TYPE_REQUEST_CANCELLED | EventType::EVENT_TYPE_REQUEST_WITHDRAWN
-        );
-        // A removed Request is no longer in the web app to link to.
-        let request_url = (self.server_url.requests_link()).filter(|_| !removed);
+        let request_url = request_link(&self.server_url, event);
         let Some(notification) = plugins::notification(event, request, request_url) else {
             return;
         };
@@ -196,7 +194,11 @@ impl EventBus {
         if matches!(*inboxes, Inboxes::NotStarted) {
             // Unbounded, as `publish` can't wait; it carries one event per Request change.
             let (sender, receiver) = mpsc::unbounded_channel();
-            let storing = tokio::spawn(store_each_in_inboxes(Arc::clone(&self.db), receiver));
+            let storing = tokio::spawn(store_and_push_each(
+                Arc::clone(&self.db),
+                self.server_url.clone(),
+                receiver,
+            ));
             *inboxes = Inboxes::Storing(sender, storing);
         }
         let Inboxes::Storing(sender, _) = &*inboxes else {
@@ -208,8 +210,8 @@ impl EventBus {
         }
     }
 
-    /// Stores the personal notifications published so far and stops storing any more: once
-    /// nothing publishes, and before the database closes, as the task holds it.
+    /// Stores and pushes the personal notifications published so far and stops taking any more:
+    /// once nothing publishes, and before the database closes, as the task holds it.
     pub(crate) async fn shutdown(&self) {
         let stopped = std::mem::replace(&mut *lock(&self.inboxes), Inboxes::Stopped);
         let Inboxes::Storing(sender, storing) = stopped else {
@@ -396,20 +398,69 @@ async fn deliver(
     }
 }
 
-/// [`store_in_inboxes`] for each event `published` sends, in order, logging each that fails.
-async fn store_each_in_inboxes(db: Arc<Database>, mut published: mpsc::UnboundedReceiver<Event>) {
+/// [`store_in_inboxes`] for each event `published` sends, in order, logging each that fails, then
+/// pushes what it stored to its Users' browsers, linking to the Requests at `server_url`. Each
+/// event's pushes run on their own, so a slow push service holds up no other notification.
+async fn store_and_push_each(
+    db: Arc<Database>,
+    server_url: ServerUrl,
+    mut published: mpsc::UnboundedReceiver<Event>,
+) {
+    let mut pusher = None;
+    let mut pushing = JoinSet::new();
     while let Some(event) = published.recv().await {
-        if let Err(err) = store_in_inboxes(&db, &event).await {
-            error!("could not store a Request notification in the inbox: {err}");
+        let stored = match store_in_inboxes(&db, &event).await {
+            Ok(stored) if !stored.is_empty() => stored,
+            Ok(_) => continue,
+            Err(err) => {
+                error!("could not store a Request notification in the inbox: {err}");
+                continue;
+            }
+        };
+        if pusher.is_none() {
+            pusher = make_pusher(&db).await;
         }
+        if let Some(pusher) = pusher.clone() {
+            let link = request_link(&server_url, &event);
+            let db = Arc::clone(&db);
+            pushing.spawn(async move { push_to_subscriptions(&db, &pusher, stored, link).await });
+        }
+        while let Some(pushed) = pushing.try_join_next() {
+            log_panic(pushed);
+        }
+    }
+    // Before the database closes: a push deletes a subscription that's gone.
+    while let Some(pushed) = pushing.join_next().await {
+        log_panic(pushed);
     }
 }
 
+fn log_panic(pushed: Result<(), JoinError>) {
+    if let Err(err) = pushed {
+        error!("pushing notifications panicked: {err}");
+    }
+}
+
+/// What pushes signed with the Server's VAPID key, or `None`, logged, if it can't be read or made.
+async fn make_pusher(db: &Database) -> Option<Pusher> {
+    let key = (web_push_key(db).await)
+        .inspect_err(|err| {
+            error!("could not read the Server's Web Push key, so none pushed: {err}");
+        })
+        .ok()?;
+    (Pusher::new(key))
+        .inspect_err(|err| error!("could not start Web Push, so none pushed: {err}"))
+        .ok()
+}
+
 /// Stores `event`, if it makes a personal notification, in the inbox of each User
-/// [`users_to_tell`] picks.
-async fn store_in_inboxes(db: &Database, event: &Event) -> Result<(), sqlx::Error> {
+/// [`users_to_tell`] picks, and returns each notification stored with its User.
+async fn store_in_inboxes(
+    db: &Database,
+    event: &Event,
+) -> Result<Vec<(i64, InboxNotification)>, sqlx::Error> {
     let Some((kind, request)) = notification_kind(event) else {
-        return Ok(());
+        return Ok(Vec::new());
     };
     let users = every_user(db).await?;
     let turned_off = match every_notification_turned_off(db).await {
@@ -422,6 +473,19 @@ async fn store_in_inboxes(db: &Database, event: &Event) -> Result<(), sqlx::Erro
     };
     let told = users_to_tell(event, &users, &turned_off);
     store_in_inbox(db, told, kind, request).await
+}
+
+/// Where the web app lists `event`'s Request, at `server_url`, or `None` once the event removed
+/// it, as it's then no longer there to link to.
+fn request_link(server_url: &ServerUrl, event: &Event) -> Option<String> {
+    let removed = matches!(
+        classify(event),
+        Some((
+            EventType::EVENT_TYPE_REQUEST_CANCELLED | EventType::EVENT_TYPE_REQUEST_WITHDRAWN,
+            _
+        ))
+    );
+    server_url.requests_link().filter(|_| !removed)
 }
 
 /// The recipients a Notifier didn't reach, each with its error: a User by id, or the channel.

@@ -96,6 +96,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
     ("src/library/watch_states", &["watch_states"]),
     ("src/users/personal_settings", &["personal_settings"]),
     ("src/users/inbox", &["inbox"]),
+    ("src/web_push/subscriptions", &["push_subscriptions"]),
     ("src/users/library_access", &["user_libraries"]),
     ("src/automation/store", &["plugin_store"]),
     ("src/watchlist", &["watchlist"]),
@@ -131,6 +132,7 @@ const ROWS: &[&[&str]] = &[
     &[
         "images",
         "server_settings",
+        "web_push",
         "ffmpeg",
         "web",
         "port_mapping",
