@@ -2,7 +2,7 @@
 //! code, and the tokens once the User entered it, which are kept as their secret Personal settings
 //! (ADR 0046). The User's client holds the device code between polls, so nothing waits here.
 //!
-//! shortcut: a device code isn't tied to the User who started it, so a User who learned another's
+//! ponytail: a device code isn't tied to the User who started it, so a User who learned another's
 //! could link that account to themself; keep each User's started code here if codes ever leave
 //! the client that asked for them.
 
@@ -11,12 +11,10 @@ use std::sync::Arc;
 use nama_plugin_api::{
     PluginId,
     contract::{LinkStarted, PollLinkAsked, StartLinkAsked},
-    settings::SettingKind,
     watch_sync::WatchSync,
 };
 
-use super::{PluginSettings, personal::declaring};
-use crate::users::{personal_settings_of, replace_personal_settings};
+use super::PluginSettings;
 
 /// Why linking an account at a Watch sync Plugin's tracker failed.
 #[derive(Debug, thiserror::Error)]
@@ -97,30 +95,11 @@ impl PluginSettings {
         if polled.personal_settings.is_empty() {
             return Ok(LinkState::Pending);
         }
-        let manifest = self
-            .get(id)
-            .await?
-            .and_then(|found| declaring(&found.plugin));
-        let declared_secret = |key: &String| {
-            manifest.iter().any(|manifest| {
-                (manifest.personal_settings.fields.iter())
-                    .any(|field| &field.key == key && field.kind == SettingKind::Secret)
-            })
-        };
-        let tokens: Vec<_> = (polled.personal_settings.into_iter())
-            .filter(|(key, _)| declared_secret(key))
-            .collect();
-        if tokens.is_empty() {
+        if !(self.keep_tokens(user, id, polled.personal_settings).await?) {
             // Not pending: the tracker hands its tokens out once, so polling again gets none.
             let reason = "the Plugin's tokens name none of its SECRET Personal settings";
             return Err(LinkError::Failed(reason.to_owned()));
         }
-        let mut stored = personal_settings_of(&self.db, user, id).await?;
-        stored.extend(tokens.into_iter().map(|(key, token)| (key, (token, true))));
-        let rows = (stored.into_iter())
-            .map(|(key, (value, secret))| (key, value, secret))
-            .collect();
-        replace_personal_settings(&self.db, user, id, rows).await?;
         Ok(LinkState::Linked)
     }
 }

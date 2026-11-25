@@ -14,8 +14,8 @@ import {
 
 /**
  * Whether the signed-in User entered the code `started` gave for the Watch sync Plugin
- * `pluginId`, asked as often as the Plugin allows while they haven't; nothing asked before they
- * start. Once linked, the Personal settings are fetched again, as the Server now holds the tokens.
+ * `pluginId`, asked as often as the Plugin allows while they haven't, until a poll fails; nothing
+ * asked before they start. Once linked, the Personal settings are fetched again, as the Server now holds the tokens.
  */
 export function useWatchSyncLinkPoll(
   pluginId: string,
@@ -29,8 +29,12 @@ export function useWatchSyncLinkPoll(
     UserService.method.pollWatchSyncLink,
     started === undefined ? skipToken : { pluginId, deviceCode: started.deviceCode },
     {
+      // A failed poll stops: the tracker may have handed out its tokens once already, so asking
+      // again would only fail again until the User gets a new code.
       refetchInterval: (query) =>
-        query.state.data?.state === WatchSyncLinkState.PENDING ? every : false,
+        query.state.error === null && query.state.data?.state === WatchSyncLinkState.PENDING
+          ? every
+          : false,
       // The code is entered on another site, often in another tab.
       refetchIntervalInBackground: true,
       // Asked first after one interval, as the tracker asks, not as the code shows.

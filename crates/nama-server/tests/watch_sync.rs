@@ -1,5 +1,6 @@
 //! Watch sync through an Installed Plugin: the test Plugin built as a Watch sync, logging each
-//! scrobble it is told with the User's `handle`, and linking an account as soon as it is polled.
+//! scrobble it is told with the User's `handle`, and linking an account once its `approved`
+//! setting names the device code polled.
 
 #[path = "support/browsing.rs"]
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
@@ -19,12 +20,13 @@ mod test_plugin;
 
 use browsing::tmdb_id;
 use connectrpc::client::HttpClient;
-use home_row_plugin::{PLUGIN, set_handle};
+use home_row_plugin::{PLUGIN, set_handle, text};
 use log::Log;
 use nama_proto::nama::v1::{
     DeletePersonalSettingsRequest, LibraryKind, ListPersonalSettingsRequest, PersonalSettings,
-    PollWatchSyncLinkRequest, SetPlayedRequest, StartWatchSyncLinkRequest, UserServiceClient,
-    WatchStateServiceClient, WatchSyncLinkState, set_played_request::Target,
+    PollWatchSyncLinkRequest, SetPlayedRequest, StartWatchSyncLinkRequest,
+    UpdatePluginSettingsRequest, UserServiceClient, WatchStateServiceClient, WatchSyncLinkState,
+    set_played_request::Target,
 };
 use server::{SignedIn, TestServer, tmdb::ALIEN};
 
@@ -122,8 +124,25 @@ fn token_set(listed: &PersonalSettings) -> bool {
     (listed.settings.iter()).any(|setting| setting.key == "token" && setting.secret_set)
 }
 
+/// Has the test Plugin's tracker approve `device_code`, as if its User entered the code there.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn approve(server: &TestServer, device_code: &str) {
+    (server.plugin_service())
+        .update_plugin_settings(UpdatePluginSettingsRequest {
+            id: PLUGIN.to_owned(),
+            settings: std::iter::once(("approved".to_owned(), text(device_code))).collect(),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
-async fn a_user_links_by_device_code_and_never_gets_the_token_back_until_they_unlink() {
+async fn a_user_links_by_device_code_once_approved_and_never_gets_the_token_back_until_they_unlink()
+{
     Log::global();
     let server = TestServer::builder().start().await;
     server.enable_test_plugin("watch-sync").await;
@@ -144,6 +163,9 @@ async fn a_user_links_by_device_code_and_never_gets_the_token_back_until_they_un
         device_code: started.device_code.clone(),
         ..Default::default()
     };
+    let pending = (users.poll_watch_sync_link(poll.clone()).await.unwrap()).into_owned();
+    let before = listed(&users).await;
+    approve(&server, &started.device_code).await;
     let polled = users.poll_watch_sync_link(poll).await.unwrap().into_owned();
     let linked = listed(&users).await;
     let unlink = DeletePersonalSettingsRequest {
@@ -155,6 +177,11 @@ async fn a_user_links_by_device_code_and_never_gets_the_token_back_until_they_un
 
     assert_eq!(started.user_code, "TEST-CODE");
     assert_eq!(started.verification_url, "https://tracker.example/activate");
+    assert_eq!(
+        pending.state,
+        WatchSyncLinkState::WATCH_SYNC_LINK_STATE_PENDING
+    );
+    assert!(!token_set(&before), "{before:?}");
     assert_eq!(
         polled.state,
         WatchSyncLinkState::WATCH_SYNC_LINK_STATE_LINKED

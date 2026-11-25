@@ -13,7 +13,7 @@ const offers = {
   idle: notLinked,
   code: notLinked,
   expired: {
-    says: "The code expired before it was entered. Get a new one to try again.",
+    says: "The code expired or was declined. Get a new one to try again.",
     action: "Get a new code",
   },
 };

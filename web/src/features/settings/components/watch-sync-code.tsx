@@ -30,7 +30,8 @@ export function WatchSyncCode({
       </p>
       <p className="text-2xl font-medium tracking-wide tabular-nums">{started.userCode}</p>
       <p className="text-xs text-muted-foreground">
-        Waiting for it to be entered. It works for {minutes} minutes.
+        Waiting for it to be entered. It works for{" "}
+        {minutes === 1 ? "a minute" : `${minutes} minutes`}.
       </p>
       <div className={ghostHang}>
         <Button variant="ghost" onClick={onCancel}>

@@ -95,11 +95,7 @@ test("an expired code says so plainly and offers a new one", async () => {
   fireEvent.click(trakt.getByRole("button", { name: "Link your account" }));
 
   await expect(
-    trakt.findByText(
-      "The code expired before it was entered. Get a new one to try again.",
-      {},
-      POLLED,
-    ),
+    trakt.findByText("The code expired or was declined. Get a new one to try again.", {}, POLLED),
   ).resolves.toBeDefined();
   expect(trakt.getByRole("button", { name: "Get a new code" })).toBeDefined();
 });
@@ -138,4 +134,25 @@ test("a tracker the Server can't reach is said, and the account stays as it was"
   const said = await screen.findByText("The Server couldn’t reach Trakt. Try again in a moment.");
   expect(said.getAttribute("role")).toBe("alert");
   expect(screen.getByText("Not linked")).toBeDefined();
+});
+
+test("a failed unlink says so, and the account stays linked", async () => {
+  openWithTrakt(
+    {
+      deletePersonalSettings: () => {
+        throw new ConnectError("the database is locked", Code.Internal);
+      },
+    },
+    () => true,
+  );
+
+  const trakt = await card();
+  fireEvent.click(trakt.getByRole("button", { name: "Unlink" }));
+
+  await expect(
+    trakt.findByText(
+      "Couldn’t unlink your Trakt account. Check that the Server is running, then try again.",
+    ),
+  ).resolves.toBeDefined();
+  expect(trakt.getByText("Your account is linked")).toBeDefined();
 });

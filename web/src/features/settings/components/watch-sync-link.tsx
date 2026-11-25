@@ -3,7 +3,7 @@ import { WatchSyncLinkState } from "@/features/settings/components/watch-sync-li
 import { useDeletePersonalSettings } from "@/features/settings/data/use-delete-personal-settings";
 import { useStartWatchSyncLink } from "@/features/settings/data/use-start-watch-sync-link";
 import { useWatchSyncLinkPoll } from "@/features/settings/data/use-watch-sync-link-poll";
-import { linkView } from "@/features/settings/lib/watch-sync-link";
+import { linkFailed, linkView } from "@/features/settings/lib/watch-sync-link";
 import type { PersonalSettings as Personal } from "@/gen/nama/v1/user_pb";
 
 /**
@@ -16,7 +16,7 @@ export function WatchSyncLink({ plugin, headingId }: { plugin: Personal; heading
   const poll = useWatchSyncLinkPoll(plugin.pluginId, start.data);
   const unlink = useDeletePersonalSettings();
   const linked = plugin.settings.some((setting) => setting.secretSet);
-  const failed = [start.error, poll.error, unlink.error].some((error) => error !== null);
+  const failed = linkFailed(start.error ?? poll.error, unlink.error, plugin.name);
   return (
     <div className="flex flex-col gap-3">
       <CardHeading plugin={plugin} id={headingId} />
@@ -38,7 +38,7 @@ export function WatchSyncLink({ plugin, headingId }: { plugin: Personal; heading
         }}
       />
       <p role="alert" className="text-sm text-destructive empty:hidden">
-        {failed ? `The Server couldn’t reach ${plugin.name}. Try again in a moment.` : undefined}
+        {failed}
       </p>
     </div>
   );
