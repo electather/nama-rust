@@ -19,13 +19,10 @@ use hyper_util::{
     rt::TokioExecutor,
 };
 use nama_hub_proto::nama::hub::v1::{
-    GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient,
-    ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
+    LinkedServerServiceClient, ListMostWatchlistedTitlesRequest, ListMostWatchlistedTitlesResponse,
     ListRecommendedTitlesRequest, ListSimilarTitlesRequest, ListSimilarTitlesResponse,
-    ListTrendingTitlesRequest, ListTrendingTitlesResponse, PollServerSignInRequest,
-    RecommendedTitle, RecordViewingEventsRequest, StartServerSignInRequest,
-    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkUserRequest,
-    UserViewingEvent,
+    ListTrendingTitlesRequest, ListTrendingTitlesResponse, RecommendedTitle,
+    RecordViewingEventsRequest, UserViewingEvent,
 };
 use nama_plugin_api::{PluginError, diagnostics_sharer::Signal};
 
@@ -69,11 +66,6 @@ impl Hub {
         })
     }
 
-    /// The address of the Hub's pages, where a person enters a Server's code.
-    pub(crate) fn url(&self) -> &str {
-        &self.url
-    }
-
     /// The Hub's API for the Linked Server whose credential is `credential`. Only the Link holder
     /// has one to give.
     pub(crate) fn linked(&self, credential: &str) -> LinkedHub {
@@ -99,70 +91,6 @@ pub(crate) struct LinkedHub {
 }
 
 impl LinkedHub {
-    /// Starts Linking the User `user_id`, named `name`: `None` if they are Linked already, the
-    /// Hub's one `already_exists`.
-    pub(crate) async fn start_user(
-        self,
-        user_id: i64,
-        name: &str,
-    ) -> Result<Option<StartUserLinkResponse>, PluginError> {
-        let started = (self.client()?)
-            .start_user_link(StartUserLinkRequest {
-                user_id,
-                name: name.to_owned(),
-                ..Default::default()
-            })
-            .await;
-        match started {
-            Ok(started) => Ok(Some(started.into_owned())),
-            Err(err) if err.code == connectrpc::ErrorCode::AlreadyExists => Ok(None),
-            Err(err) => Err(link_dropped(err)),
-        }
-    }
-
-    /// The email of the Account the User `user_id` is Linked to, empty while they aren't.
-    pub(crate) async fn user_account(self, user_id: i64) -> Result<String, PluginError> {
-        let got = (self.client()?)
-            .get_user_link(GetUserLinkRequest {
-                user_id,
-                ..Default::default()
-            })
-            .await
-            .map_err(link_dropped)?;
-        Ok(got.into_owned().account)
-    }
-
-    /// Unlinks the User `user_id`.
-    pub(crate) async fn unlink_user(self, user_id: i64) -> Result<(), PluginError> {
-        (self.client()?)
-            .unlink_user(UnlinkUserRequest {
-                user_id,
-                ..Default::default()
-            })
-            .await
-            .map_err(link_dropped)?;
-        Ok(())
-    }
-
-    /// Asks the Account with `email`, if any, to accept the User `user_id`, named `name`.
-    pub(crate) async fn invite_user(
-        self,
-        user_id: i64,
-        name: &str,
-        email: &str,
-    ) -> Result<(), PluginError> {
-        (self.client()?)
-            .invite_user(InviteUserRequest {
-                user_id,
-                name: name.to_owned(),
-                email: email.to_owned(),
-                ..Default::default()
-            })
-            .await
-            .map_err(link_dropped)?;
-        Ok(())
-    }
-
     /// Records `events`, the Server's Viewing Events.
     pub(crate) async fn record_viewing_events(
         self,
@@ -176,45 +104,6 @@ impl LinkedHub {
             .await
             .map_err(link_dropped)?;
         Ok(())
-    }
-
-    /// Starts a sign-in with an Account to the Server, which the Hub's page sends back to
-    /// `return_url`.
-    pub(crate) async fn start_sign_in(
-        self,
-        return_url: &str,
-    ) -> Result<StartServerSignInResponse, PluginError> {
-        let started = (self.client()?)
-            .start_server_sign_in(StartServerSignInRequest {
-                return_url: return_url.to_owned(),
-                ..Default::default()
-            })
-            .await
-            .map_err(link_dropped)?;
-        Ok(started.into_owned())
-    }
-
-    /// The token naming the User the sign-in polled with `device_code` signs in as, once an
-    /// Account approved it and `code` is the one-time code the Hub sent the person back with;
-    /// `None` before, and for one that expired or was used or a wrong code, the call's one
-    /// `not_found`.
-    pub(crate) async fn poll_sign_in(
-        self,
-        device_code: &str,
-        code: &str,
-    ) -> Result<Option<String>, PluginError> {
-        let polled = (self.client()?)
-            .poll_server_sign_in(PollServerSignInRequest {
-                device_code: device_code.to_owned(),
-                code: code.to_owned(),
-                ..Default::default()
-            })
-            .await;
-        match polled {
-            Ok(polled) => Ok(Some(polled.into_owned().token).filter(|token| !token.is_empty())),
-            Err(err) if err.code == connectrpc::ErrorCode::NotFound => Ok(None),
-            Err(err) => Err(link_dropped(err)),
-        }
     }
 
     /// Posts `batch`, an OTLP/HTTP protobuf export request of `signal`, to the Hub as the Server,

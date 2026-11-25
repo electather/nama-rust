@@ -3,8 +3,8 @@
 //! Addresses it tells the Hub, and the Hub's key set in `hub_key_set`, which the tokens the Hub
 //! signs are checked against. [`ServerLink`] alone reads and writes both tables, and every Hub call
 //! made as the Server goes through [`ServerLink::call`], so one rule decides what a Link the Hub
-//! dropped means. Through it go Linked Users' changes waiting for the Hub, and their pulls and
-//! Watchlist syncs (`sync.rs`).
+//! dropped means. Its Users' Links and signing in with an Account are in `users.rs`, and through it go
+//! Linked Users' changes waiting for the Hub, and their pulls and Watchlist syncs (`sync.rs`).
 
 use std::{
     collections::{HashMap, hash_map::Entry},
@@ -13,6 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use connectrpc::{ConnectError, ErrorCode};
 use nama_plugin_api::{
     BoxFuture, PluginError,
@@ -20,6 +21,7 @@ use nama_plugin_api::{
     server_link::{Link, Reachability, ServerAddresses, WatchlistEntry},
 };
 use nama_plugin_hub::KernelLink;
+use ring::digest;
 use serde::de::DeserializeOwned;
 use sqlx::SqliteConnection;
 use tokio::sync::{Mutex, watch};
@@ -29,6 +31,7 @@ use super::{
     hub::{Failure, Hub, LinkDropped, LinkedHub, Polling},
     sync::{self, Queued},
     token::{self, Claims, Rejected},
+    users::KnownUsers,
 };
 use crate::db::{self, Database};
 
@@ -40,7 +43,7 @@ const RECHECK_EVERY: Duration = Duration::from_mins(30);
 const UNCONFIRMED_ACCOUNT: &str = "an Account the Hub didn't confirm";
 
 /// Why a call only a Linked Server makes wasn't made.
-const NOT_LINKED: &str = "the Server isn't Linked to the Hub";
+pub(super) const NOT_LINKED: &str = "the Server isn't Linked to the Hub";
 
 /// A code the Server shows, waiting for someone to enter it on the Hub.
 struct Waiting {
@@ -52,12 +55,21 @@ struct Waiting {
 }
 
 /// The Link as `hub_link` keeps it.
-struct Kept {
+pub(super) struct Kept {
     /// What the Server presents on every later Hub call (ADR 0098).
     credential: String,
     /// The Account's email, as the Hub's signed token named it; `None` if the token couldn't be
     /// checked when the credential came.
     account: Option<String>,
+    /// The Server's id at the Hub; `None` until a token the Hub signed named it.
+    server_id: Option<String>,
+}
+
+impl Kept {
+    /// Names this Link apart from the Server's earlier ones, without holding its credential.
+    pub(super) fn id(&self) -> String {
+        URL_SAFE_NO_PAD.encode(digest::digest(&digest::SHA256, self.credential.as_bytes()))
+    }
 }
 
 /// The Server Addresses the Hub has.
@@ -82,7 +94,7 @@ impl Reported {
 /// The Server's Link with the Hub at one address.
 pub(crate) struct ServerLink {
     hub: Hub,
-    db: Arc<Database>,
+    pub(super) db: Arc<Database>,
     /// Held across a poll, so two polls never race for the one credential.
     waiting: Mutex<Option<Waiting>>,
     /// Held across telling the Hub, so a report never overtakes another.
@@ -95,6 +107,8 @@ pub(crate) struct ServerLink {
     found: watch::Sender<()>,
     /// Held while the changes waiting are sent, so none goes twice.
     sending: Mutex<()>,
+    /// What is known of each User's Link beyond what `hub_user_links` keeps.
+    pub(super) users: std::sync::Mutex<KnownUsers>,
 }
 
 impl std::fmt::Debug for ServerLink {
@@ -116,6 +130,7 @@ impl ServerLink {
             reachability: std::sync::Mutex::default(),
             found: watch::channel(()).0,
             sending: Mutex::default(),
+            users: std::sync::Mutex::default(),
         })
     }
 
@@ -176,9 +191,9 @@ impl ServerLink {
         }
         // Kept before the token is checked: the Hub has handed it out for good, and a Link whose
         // credential was lost could never be Unlinked.
-        self.keep(&polled.credential, None).await?;
-        let account = self.verify(&polled.token).await?.email;
-        self.keep(&polled.credential, Some(account)).await?;
+        self.keep(&polled.credential, None, None).await?;
+        let claims = self.verify(&polled.token).await?;
+        (self.keep(&polled.credential, Some(claims.email), Some(claims.sub))).await?;
         Ok(None)
     }
 
@@ -219,7 +234,7 @@ impl ServerLink {
     /// Makes `call` to the Hub as the Linked Server: `None` while the Server isn't Linked, and
     /// once the Hub answers it doesn't know the Link any more, which forgets the Link. A Hub that
     /// is unreachable or fails is a failure, and keeps the Link.
-    async fn call<T, Called>(
+    pub(super) async fn call<T, Called>(
         &self,
         call: impl FnOnce(LinkedHub) -> Called,
     ) -> Result<Option<T>, Failure>
@@ -404,15 +419,25 @@ impl ServerLink {
     }
 
     fn showing(&self, code: &Waiting) -> Link {
+        self.waiting_on(code.code.clone())
+    }
+
+    /// The Link that waits for someone to enter `code` on the Hub.
+    pub(super) fn waiting_on(&self, code: String) -> Link {
         Link::Waiting {
-            code: code.code.clone(),
+            code,
             url: self.hub.url().to_owned(),
         }
     }
 
+    /// The address of the Hub's pages.
+    pub(super) fn pages_url(&self) -> &str {
+        self.hub.url()
+    }
+
     /// `token`'s claims, checked against the Hub's key set as last kept, so it passes while the
     /// Hub is unreachable. Only a token naming a key the kept set lacks fetches the set again.
-    async fn verify(&self, token: &str) -> Result<Claims, Failure> {
+    pub(super) async fn verify(&self, token: &str) -> Result<Claims, Failure> {
         let now = u64::try_from(db::now()).unwrap_or_default();
         let kept = sqlx::query_scalar!("SELECT key_set FROM hub_key_set")
             .fetch_optional(self.db.reader())
@@ -441,25 +466,64 @@ impl ServerLink {
         token::verify(&key_set, token, now).map_err(rejected)
     }
 
-    async fn kept(&self) -> Result<Option<Kept>, sqlx::Error> {
-        let kept = sqlx::query!("SELECT credential, account FROM hub_link")
+    /// Whom `token`, a sign-in token the Hub signed, names, once its audience is this Server. A
+    /// Link the Hub Plugin made doesn't know the Server's id: it takes the audience of the first
+    /// such token, which the Hub hands only to the Server it is for, over its Link.
+    pub(super) async fn sign_in_subject(&self, token: &str) -> Result<String, Failure> {
+        let claims = self.verify(token).await?;
+        let kept = self.kept().await?.ok_or(NOT_LINKED)?;
+        if learns_audience(kept.server_id.as_deref(), &claims.aud)? {
+            self.learn_server_id(kept.credential, claims.aud).await?;
+        }
+        Ok(claims.sub)
+    }
+
+    /// Keeps `server_id` as the Server's id at the Hub, for the Link holding `credential`.
+    async fn learn_server_id(&self, credential: String, server_id: String) -> Result<(), Failure> {
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "UPDATE hub_link SET server_id = ? WHERE credential = ? AND server_id IS NULL",
+                        server_id,
+                        credential
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    Ok::<_, sqlx::Error>(())
+                })
+            })
+            .await?;
+        Ok(())
+    }
+
+    pub(super) async fn kept(&self) -> Result<Option<Kept>, sqlx::Error> {
+        let kept = sqlx::query!("SELECT credential, account, server_id FROM hub_link")
             .fetch_optional(self.db.reader())
             .await?;
         Ok(kept.map(|kept| Kept {
             credential: kept.credential,
             account: kept.account,
+            server_id: kept.server_id,
         }))
     }
 
-    async fn keep(&self, credential: &str, account: Option<String>) -> Result<(), sqlx::Error> {
+    async fn keep(
+        &self,
+        credential: &str,
+        account: Option<String>,
+        server_id: Option<String>,
+    ) -> Result<(), sqlx::Error> {
         let credential = credential.to_owned();
         self.db
             .write(move |tx| {
                 Box::pin(async move {
                     sqlx::query!(
-                        "INSERT OR REPLACE INTO hub_link (id, credential, account) VALUES (1, ?, ?)",
+                        "INSERT OR REPLACE INTO hub_link (id, credential, account, server_id)
+                         VALUES (1, ?, ?, ?)",
                         credential,
-                        account
+                        account,
+                        server_id
                     )
                     .execute(&mut **tx)
                     .await?;
@@ -532,8 +596,22 @@ impl KernelLink for ServerLink {
         Box::pin(async { Ok(self.forget_link(credential).await?) })
     }
 
-    fn token_subject<'a>(&'a self, token: &'a str) -> BoxFuture<'a, Result<String, PluginError>> {
-        Box::pin(async { Ok(self.verify(token).await?.sub) })
+    fn user_linked(&self, user_id: i64) -> BoxFuture<'_, Result<bool, PluginError>> {
+        Box::pin(async move {
+            let link = self.user_link(user_id).await?;
+            Ok(matches!(link, Some(Link::Linked { .. })))
+        })
+    }
+}
+
+/// Whether a sign-in token for `audience` is for this Server, whose id at the Hub is `own` once
+/// known: `true` when `audience` is to be kept as its id.
+fn learns_audience(own: Option<&str>, audience: &str) -> Result<bool, &'static str> {
+    match own {
+        Some(own) if own == audience => Ok(false),
+        Some(_) => Err("the Hub's token is for another Server"),
+        None if audience.is_empty() => Err("the Hub's token names no Server"),
+        None => Ok(true),
     }
 }
 

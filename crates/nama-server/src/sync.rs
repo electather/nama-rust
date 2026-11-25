@@ -209,19 +209,19 @@ impl Syncing {
                 Ok(_) => continue,
                 Err(RecvError::Closed) => return,
             }
-            if self.linking.has_linking_plugin() {
+            if self.linking.has_hub() {
                 self.pull_every_user().await;
             }
         }
     }
 
     /// Runs `work` in a task of its own, in `span`, so a slow or unreachable service holds up
-    /// nothing, unless no Plugin links the Server's Users.
+    /// nothing, unless the Server's config names no Hub.
     fn soon<F>(&self, span: Span, work: impl FnOnce(Self) -> F)
     where
         F: Future<Output = ()> + Send + 'static,
     {
-        if self.linking.has_linking_plugin() {
+        if self.linking.has_hub() {
             let span = diagnostics::following_current(span);
             tokio::spawn(work(self.clone()).instrument(span));
         }
