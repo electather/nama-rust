@@ -18,28 +18,31 @@ impl Caller {
         self.linking()
             .similar_titles(&asked)
             .await
-            .map_err(unreachable)
+            .map_err(hub_unreachable)
     }
 
     pub(super) async fn list_hub_recommended(
         self,
         asked: HubRecommendedAsked,
     ) -> Result<HubTitles, KernelRefused> {
-        (self.linking().recommended_titles(asked).await).map_err(unreachable)
+        (self.linking().recommended_titles(asked).await).map_err(hub_unreachable)
     }
 
     pub(super) async fn list_hub_trending(
         self,
         _asked: HubChartAsked,
     ) -> Result<HubTitles, KernelRefused> {
-        self.linking().trending_titles().await.map_err(unreachable)
+        self.linking()
+            .trending_titles()
+            .await
+            .map_err(hub_unreachable)
     }
 
     pub(super) async fn list_hub_most_watchlisted(
         self,
         _asked: HubChartAsked,
     ) -> Result<HubTitles, KernelRefused> {
-        (self.linking().most_watchlisted_titles().await).map_err(unreachable)
+        (self.linking().most_watchlisted_titles().await).map_err(hub_unreachable)
     }
 
     fn linking(&self) -> &Linking {
@@ -48,6 +51,6 @@ impl Caller {
 }
 
 /// The refusal of a Hub call that failed, which `Linking` logged.
-fn unreachable(_failed: link::Error) -> KernelRefused {
+fn hub_unreachable(_failed: link::Error) -> KernelRefused {
     KernelRefused("the Kernel couldn't reach the Hub".to_owned())
 }

@@ -381,6 +381,18 @@ async fn the_most_watchlisted_row_is_in_the_hubs_order_had_or_not() {
 }
 
 #[tokio::test]
+async fn charts_the_hub_has_nothing_for_are_no_rows_so_the_kernel_asks_again_soon() {
+    let script = Script {
+        movies: vec!["603"],
+        ..Default::default()
+    };
+
+    let rows = charts(script).await.unwrap();
+
+    assert_eq!(rows.rows, []);
+}
+
+#[tokio::test]
 async fn the_charts_fail_while_the_hub_is_unreachable() {
     let script = Script {
         hub_unreachable: true,

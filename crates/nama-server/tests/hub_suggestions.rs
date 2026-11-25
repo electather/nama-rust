@@ -11,6 +11,7 @@ mod server;
 
 use std::sync::{Arc, Mutex, PoisonError};
 
+use connectrpc::client::HttpClient;
 use fake_hub::FakeHub;
 use nama_plugin_api::{
     Manifest, Plugin, PluginError, PluginId, Registrar,
@@ -23,6 +24,7 @@ use nama_plugin_api::{
         TitleKind,
     },
 };
+use nama_proto::nama::v1::{GetServerLinkRequest, ServerLink, ServerServiceClient};
 use nama_server::{config::Config, plugins::Registry};
 use server::TestServer;
 
@@ -202,6 +204,14 @@ async fn a_server_the_hub_forgot_gets_no_suggestions() {
     hub.forget_server();
 
     assert_eq!(Answers::of(&kernel).await.counts(), [0; 4]);
+    let settings = ServerServiceClient::new(HttpClient::plaintext(), server.client_config());
+    let link = (settings.get_server_link(GetServerLinkRequest::default()))
+        .await
+        .unwrap()
+        .into_owned()
+        .link;
+    // Forgotten, so the Admin can Link it again at once.
+    assert_eq!(link.into_option(), Some(ServerLink::default()));
 }
 
 #[tokio::test]

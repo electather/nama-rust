@@ -25,17 +25,21 @@ const TTL_SECONDS: u32 = 24 * 60 * 60;
 pub(crate) struct Charts(pub(crate) Arc<dyn Kernel>);
 
 impl Charts {
-    /// The rows, each empty, which home hides, while the Server isn't Linked or until the Hub has
-    /// enough counts.
+    /// The rows: none while the Server isn't Linked or the Hub has no counts yet, and otherwise
+    /// each empty, which home hides, until the Hub has enough of its own.
     async fn rows(&self) -> Result<HomeRows, PluginError> {
-        let trending = self.0.ask::<ListHubTrending>(HubChartAsked::default());
-        let watchlisted = self
-            .0
-            .ask::<ListHubMostWatchlisted>(HubChartAsked::default());
+        let chart = HubChartAsked::default;
+        let trending = self.0.ask::<ListHubTrending>(chart()).await?.titles;
+        let watchlisted = self.0.ask::<ListHubMostWatchlisted>(chart()).await?.titles;
+        // No rows rather than empty ones a day fresh, so the Kernel asks again within 15 minutes,
+        // as the Server may Link meanwhile.
+        if trending.is_empty() && watchlisted.is_empty() {
+            return Ok(HomeRows::default());
+        }
         Ok(HomeRows {
             rows: vec![
-                self.trending(trending.await?.titles).await?,
-                most_watchlisted(watchlisted.await?.titles),
+                self.trending(trending).await?,
+                most_watchlisted(watchlisted),
             ],
             ..Default::default()
         })
