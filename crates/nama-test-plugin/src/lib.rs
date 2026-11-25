@@ -48,8 +48,8 @@ mod exports {
     // one with no schedule, with `recogniser` it recognises files, with
     // `home-rows` it gives Home rows and requests the Store and Read Watch States Permissions, with
     // `subtitle-source` it is a subtitle source that finds nothing, with `similar-source` a
-    // Similar source answering what its `similar` setting says, and with `panic` it panics
-    // instead.
+    // Similar source answering what its `similar` setting says, with `watch-sync` a Watch sync
+    // that logs what it is told, and with `panic` it panics instead.
     #[plugin_fn]
     pub fn manifest() -> FnResult<Buffa<Manifest>> {
         #[expect(
@@ -178,6 +178,11 @@ mod exports {
                 )],
             ]
             .concat(),
+            ..manifest
+        };
+        #[cfg(feature = "watch-sync")]
+        let manifest = Manifest {
+            points: [manifest.points, vec![nama_pdk::point(services::WATCH_SYNC)]].concat(),
             ..manifest
         };
         #[cfg(feature = "contract-0-1")]
@@ -707,4 +712,53 @@ mod similar_source {
     }
 
     nama_pdk::similar_source!(Configured);
+}
+
+#[cfg(feature = "watch-sync")]
+mod watch_sync {
+    use nama_pdk::{
+        ImportAsked, Imported, ScrobbleAsked, Scrobbled, SyncedWatchState, WatchSync,
+        extism_pdk::Error, nama_plugin_proto::nama::plugin::v1::TitleRefKind,
+    };
+
+    /// A Watch sync that logs each change it is told, with the User's `handle`, and imports
+    /// nothing.
+    struct LoggedScrobbles;
+
+    impl WatchSync for LoggedScrobbles {
+        fn scrobble(asked: ScrobbleAsked) -> Result<Scrobbled, Error> {
+            let handle = asked.personal_settings.get(super::exports::HANDLE);
+            let handle = handle.map_or("nobody", String::as_str);
+            for change in &asked.changes {
+                log_scrobbled(handle, change);
+            }
+            Ok(Scrobbled::default())
+        }
+
+        fn import(asked: ImportAsked) -> Result<Imported, Error> {
+            Ok(Imported {
+                cursor: asked.since,
+                ..Imported::default()
+            })
+        }
+    }
+
+    /// Logs `change` as scrobbled for the User with the `handle` `handle`.
+    fn log_scrobbled(handle: &str, change: &SyncedWatchState) {
+        let kind = if change.kind == TitleRefKind::TITLE_REF_KIND_EPISODE {
+            "Episode"
+        } else {
+            "Movie"
+        };
+        let ids: Vec<String> = (change.ids.iter())
+            .map(|id| format!("{}-{}", id.namespace, id.value))
+            .collect();
+        let played = if change.played { "played" } else { "unplayed" };
+        nama_pdk::info!(
+            "test-plugin scrobbled {handle}'s {kind} {} {played}",
+            ids.join(",")
+        );
+    }
+
+    nama_pdk::watch_sync!(LoggedScrobbles);
 }
