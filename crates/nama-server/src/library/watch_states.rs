@@ -323,6 +323,38 @@ impl WatchStates {
         pulled.retain(|(watched, _)| seen.insert(watched.title.clone()));
         self.db
             .write(move |tx| Box::pin(take_each(tx, user, pulled)))
+            .await?;
+        Ok(())
+    }
+
+    /// Takes each of `offline`, changes the User `user`'s Device made to their Watch State while
+    /// offline, in the order they were made, as [`WatchStates::take_pulled`] takes a pulled one:
+    /// only when made after any this Server has of it, and as of when it was made, though one dated
+    /// in the future is taken as made now. Of a title's changes in one second, only the last made
+    /// is taken. One past 90% of its duration is played, as [`WatchStates::report`] has it, and one
+    /// at a duration of zero is left out, since 0 of 0 would forget a played title. Unlike a pulled
+    /// change, each it stores shows the title again in Continue Watching and is queued and told of.
+    /// Returns each change it stored.
+    pub(crate) async fn take_offline(
+        &self,
+        user: i64,
+        mut offline: Vec<(Watched, WatchStateChange)>,
+    ) -> Result<Vec<WatchStateChange>, sqlx::Error> {
+        offline.sort_by_key(|(_, change)| Reverse(change.changed_at_ms));
+        let now = now_ms();
+        let mut seen = HashSet::new();
+        offline.retain_mut(|(watched, change)| {
+            let Some(progress) = Progress::new(change.position_ms, change.duration_ms) else {
+                return false;
+            };
+            change.played |= progress.is_played();
+            change.changed_at_ms = change.changed_at_ms.min(now);
+            // The Server keeps seconds, so a later change in the same second would tie and lose.
+            seen.insert((watched.title.clone(), change.changed_at_ms.div_euclid(1000)))
+        });
+        // Replayed as made, so the last made wins and an earlier played one stays played.
+        offline.reverse();
+        self.write_and_tell(user, move |tx| Box::pin(take_each(tx, user, offline)))
             .await
     }
 
@@ -557,13 +589,14 @@ async fn store(
     Ok(stored.played)
 }
 
-/// Takes each change another Server made, as [`WatchStates::take_pulled`] says.
+/// Takes each change made elsewhere, as [`WatchStates::take_pulled`] says. Returns each it took.
 async fn take_each(
     conn: &mut SqliteConnection,
     user: i64,
-    pulled: Vec<(Watched, WatchStateChange)>,
-) -> Result<(), sqlx::Error> {
-    for (watched, change) in pulled {
+    made_elsewhere: Vec<(Watched, WatchStateChange)>,
+) -> Result<Vec<WatchStateChange>, sqlx::Error> {
+    let mut taken = Vec::new();
+    for (watched, change) in made_elsewhere {
         // The Server keeps seconds, so one made in the same second as its own, as its own pushed
         // and pulled back is, isn't newer.
         let at = change.changed_at_ms.div_euclid(1000);
@@ -581,20 +614,24 @@ async fn take_each(
             continue;
         }
         let progress = Progress::new(change.position_ms, change.duration_ms);
-        match progress {
+        let changed_at_ms = change.changed_at_ms;
+        taken.push(match progress {
             Some(progress) => {
-                store(&mut *conn, user, &watched, progress, change.played, at).await?;
+                let played = store(&mut *conn, user, &watched, progress, change.played, at).await?;
+                watched.changed(played, progress, changed_at_ms)
             }
             None if change.played => {
-                mark_played(&mut *conn, user, kind, title, at).await?;
+                let kept = mark_played(&mut *conn, user, kind, title, at).await?;
+                watched.changed(true, kept, changed_at_ms)
             }
             // Unplayed at 0 of 0: marked unplayed.
             None => {
                 forget(&mut *conn, user, kind, ids).await?;
+                watched.forgotten(changed_at_ms)
             }
-        }
+        });
     }
-    Ok(())
+    Ok(taken)
 }
 
 async fn mark_each(

@@ -345,6 +345,10 @@ pub mod kernel {
             safe fn back_up(request: u64) -> u64;
             safe fn list_version_titles(request: u64) -> u64;
             safe fn list_devices(request: u64) -> u64;
+            safe fn list_hub_similar(request: u64) -> u64;
+            safe fn list_hub_recommended(request: u64) -> u64;
+            safe fn list_hub_trending(request: u64) -> u64;
+            safe fn list_hub_most_watchlisted(request: u64) -> u64;
         }
 
         let import: extern "C" fn(u64) -> u64 = match name {
@@ -366,6 +370,10 @@ pub mod kernel {
             "back_up" => back_up,
             "list_version_titles" => list_version_titles,
             "list_devices" => list_devices,
+            "list_hub_similar" => list_hub_similar,
+            "list_hub_recommended" => list_hub_recommended,
+            "list_hub_trending" => list_hub_trending,
+            "list_hub_most_watchlisted" => list_hub_most_watchlisted,
             _ => return Err(Error::msg(format!("the Kernel has no function {name}"))),
         };
         // Freed when dropped, once the Kernel has read it.

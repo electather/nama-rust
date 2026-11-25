@@ -1,8 +1,8 @@
 //! Every Link call the Server makes, answered in the Kernel's terms: a [`Link`], or an [`Error`]
 //! that tells "nothing to ask" from "it couldn't tell". The Server's own Link, its Users' Links and
 //! signing in with an Account are the Kernel's, with the Hub its config names ([`ServerLink`], ADR
-//! 0105), and so is syncing its Linked Users with the Hub and sending it their Viewing Events. Each
-//! call's bound is named once:
+//! 0105), and so is syncing its Linked Users with the Hub, sending it their Viewing Events and
+//! asking what it suggests for Plugins (`suggestions.rs`). Each call's bound is named once:
 //!
 //! | Calls                                                              | Bound         |
 //! |--------------------------------------------------------------------|---------------|
@@ -10,7 +10,7 @@
 //! | Changes at the service: starting or ending a Link, inviting a User, starting or finishing an Account sign-in, Unlinking a deleted User, publishing a certificate challenge | none |
 //! | Whether a request comes from the web app at the Hub the Server is Linked with: only the Server's own table | none |
 //! | Bulk transfers: a pull or a Watchlist sync                         | [`BULK`]      |
-//! | The Server Addresses tick, a Relay token, sending what waits, sharing Diagnostics, and trading a Hub token for a Device, which fetches only the key set | the Hub client's own (`hub::TIMEOUT`) |
+//! | The Server Addresses tick, a Relay token, sending what waits, sharing Diagnostics, what the Hub suggests, and trading a Hub token for a Device, which fetches only the key set | the Hub client's own (`hub::TIMEOUT`) |
 //!
 //! A change isn't cut: cut mid-way, it could leave the service changed without the Server knowing,
 //! such as an invite sent for a User the Server then deletes. The limit on each call to the service
@@ -18,11 +18,13 @@
 //!
 //! It remembers whose Link the last look found Linked, the Server's and each User's, and tells its
 //! followers ([`Linking::follow`]) when a look finds one Linked that the last didn't; the first
-//! look since the Server started counts.
+//! look since the Server started counts. Apart from that, it tells [`Linking::follow_changes`]'s
+//! followers each time it keeps a Link or forgets one, once for each.
 
 mod hub;
 mod server;
 mod sharing;
+mod suggestions;
 mod sync;
 mod token;
 mod users;
@@ -69,7 +71,7 @@ const PAGE_READ: Duration = Duration::from_secs(10);
 /// pulls.
 const BULK: Duration = Duration::from_mins(1);
 
-/// How many new Links may be told before a follower has heard them.
+/// How many new or changed Links may be told before a follower has heard them.
 const NEW_LINKS_BUFFERED: usize = 64;
 
 /// The Server's own Link with the Hub `config` names, kept in `db`: `None` without one, or, logged,
@@ -101,6 +103,13 @@ pub(crate) enum Whose {
     User(i64),
 }
 
+/// A Link the Server kept, or forgot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LinkChange {
+    Linked(Whose),
+    Unlinked(Whose),
+}
+
 /// Asks the Kernel's Server Link. Cloning it gives another handle to the same.
 #[derive(Debug, Clone)]
 pub(crate) struct Linking {
@@ -130,6 +139,12 @@ impl Linking {
     /// them; never without a Hub.
     pub(crate) fn follow_found(&self) -> watch::Receiver<()> {
         (self.server.as_ref()).map_or_else(|| watch::channel(()).1, |server| server.follow_found())
+    }
+
+    /// Each Link the Server keeps or forgets from now on; never one without a Hub.
+    pub(crate) fn follow_changes(&self) -> broadcast::Receiver<LinkChange> {
+        (self.server.as_ref())
+            .map_or_else(|| broadcast::channel(1).1, |server| server.follow_changes())
     }
 
     /// Whether the Server's config names a Hub, so the Server can Link with it.

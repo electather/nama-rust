@@ -1,10 +1,8 @@
 //! Calling the Hub as the Server's Link needs: its API (`proto/nama/hub/v1/`) for Linking the
 //! Server and its Users, signing in with an Account, the Server Addresses, the certificate
 //! challenge, the Relay token, syncing Linked Users and recording their Viewing Events, what it
-//! accepts of each, its published key set, and its OTLP/HTTP paths taking shared Diagnostics.
-
-// ponytail: the client is copied from the Hub Plugin's `hub.rs`, which keeps its own for the calls
-// it still makes; one goes once the rest of the Plugin's Linking moves here (#2203).
+//! suggests, what it accepts of each, its published key set, and its OTLP/HTTP paths taking shared
+//! Diagnostics.
 
 use std::{error::Error, fmt, net::Ipv4Addr, ops::RangeInclusive, sync::Arc, time::Duration};
 
@@ -24,13 +22,16 @@ use hyper_util::{
 };
 use nama_hub_proto::nama::hub::v1::{
     GetRelayTokenRequest, GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient,
-    PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
-    PullTrackPreferencesRequest, PullWatchStatesRequest, PushTrackPreferencesRequest,
-    PushWatchStatesRequest, RecordViewingEventsRequest, ServerLinkServiceClient,
-    SetCertificateChallengeRequest, SetServerAddressesRequest, StartServerLinkRequest,
-    StartServerLinkResponse, StartServerSignInRequest, StartServerSignInResponse,
-    StartUserLinkRequest, StartUserLinkResponse, SyncWatchlistRequest, TrackPreferenceChange,
+    ListMostWatchlistedTitlesRequest, ListRecommendedTitlesRequest, ListSimilarTitlesRequest,
+    ListTrendingTitlesRequest, PollServerLinkRequest, PollServerLinkResponse,
+    PollServerSignInRequest, PullTrackPreferencesRequest, PullWatchStatesRequest,
+    PushTrackPreferencesRequest, PushWatchStatesRequest, RecommendedTitle,
+    RecordViewingEventsRequest, ServerLinkServiceClient, SetCertificateChallengeRequest,
+    SetServerAddressesRequest, SimilarTitle, StartServerLinkRequest, StartServerLinkResponse,
+    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
+    StartUserLinkResponse, SyncWatchlistRequest, TrackPreferenceChange, TrendingTitle,
     UnlinkServerRequest, UnlinkUserRequest, UserViewingEvent, WatchStateChange, WatchlistEntry,
+    WatchlistedTitle,
 };
 use nama_plugin_api::server_link::{Reachability, ServerAddresses};
 
@@ -506,6 +507,48 @@ impl LinkedHub {
             .await
             .map_err(link_dropped)?;
         Ok(synced.into_owned().entries)
+    }
+
+    /// The titles like the one `request` names.
+    pub(super) async fn similar(
+        self,
+        request: ListSimilarTitlesRequest,
+    ) -> Result<Vec<SimilarTitle>, Failure> {
+        let similar = (self.client()?)
+            .list_similar_titles(request)
+            .await
+            .map_err(link_dropped)?;
+        Ok(similar.into_owned().titles)
+    }
+
+    /// The titles the Hub recommends to the User `request` names.
+    pub(super) async fn recommended(
+        self,
+        request: ListRecommendedTitlesRequest,
+    ) -> Result<Vec<RecommendedTitle>, Failure> {
+        let recommended = (self.client()?)
+            .list_recommended_titles(request)
+            .await
+            .map_err(link_dropped)?;
+        Ok(recommended.into_owned().titles)
+    }
+
+    /// The Movies trending across Nama's Accounts.
+    pub(super) async fn trending(self) -> Result<Vec<TrendingTitle>, Failure> {
+        let trending = (self.client()?)
+            .list_trending_titles(ListTrendingTitlesRequest::default())
+            .await
+            .map_err(link_dropped)?;
+        Ok(trending.into_owned().titles)
+    }
+
+    /// The titles on most of Nama's Accounts' Watchlists.
+    pub(super) async fn most_watchlisted(self) -> Result<Vec<WatchlistedTitle>, Failure> {
+        let watchlisted = (self.client()?)
+            .list_most_watchlisted_titles(ListMostWatchlistedTitlesRequest::default())
+            .await
+            .map_err(link_dropped)?;
+        Ok(watchlisted.into_owned().titles)
     }
 
     fn client(&self) -> Result<LinkedServerServiceClient<Transport>, Failure> {

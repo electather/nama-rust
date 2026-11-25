@@ -6,7 +6,13 @@ use crate::{
     },
 };
 
-use super::what_happened;
+use super::{ANNOUNCE_LINKING, announce_linking, announcement, what_happened};
+use crate::{
+    nama_plugin_proto::nama::plugin::v1::{
+        ServerLinked, ServerUnlinked, SettingKind, UserLinked, UserUnlinked, setting_value::Value,
+    },
+    testing::{Kernel, with},
+};
 
 fn requester(user_id: i64, name: &str) -> Requester {
     Requester {
@@ -167,5 +173,73 @@ fn a_request_deleting_cancelled_names_who_deleted_it() {
     assert_eq!(
         posted.as_deref(),
         Some("Grace deleted Dune (2021), so its Request was cancelled.")
+    );
+}
+
+/// What [`announcement`] tells of `event`, a Link changing, with the Admin's setting `on`.
+fn announced(event: impl Into<event::Event>, on: &str) -> Option<String> {
+    let notification = Notification {
+        event: Event {
+            event: Some(event.into()),
+            ..Event::default()
+        }
+        .into(),
+        ..Notification::default()
+    };
+    let mut kernel = Kernel::new().setting(ANNOUNCE_LINKING, on);
+    with(&mut kernel, || announcement(&notification)).unwrap()
+}
+
+#[test]
+fn each_link_changing_is_announced_while_the_admin_leaves_it_on() {
+    let linked = UserLinked {
+        user_id: 3,
+        name: "Grace".to_owned(),
+        ..UserLinked::default()
+    };
+    let unlinked = UserUnlinked {
+        user_id: 3,
+        name: "Grace".to_owned(),
+        ..UserUnlinked::default()
+    };
+
+    assert_eq!(
+        announced(ServerLinked::default(), "true").as_deref(),
+        Some("The Server was Linked to the Hub.")
+    );
+    assert_eq!(
+        announced(ServerUnlinked::default(), "true").as_deref(),
+        Some("The Server was Unlinked from the Hub.")
+    );
+    assert_eq!(
+        announced(linked.clone(), "true").as_deref(),
+        Some("Grace was Linked to an Account.")
+    );
+    assert_eq!(
+        announced(unlinked, "true").as_deref(),
+        Some("Grace was Unlinked from their Account.")
+    );
+    assert_eq!(announced(linked, "false"), None);
+}
+
+#[test]
+fn a_link_changing_is_no_request_news() {
+    let posted = notify(Some(ServerLinked::default().into()), Request::default());
+
+    assert_eq!(posted, None);
+}
+
+#[test]
+fn announcing_linking_is_a_bool_setting_on_by_default() {
+    let field = announce_linking();
+
+    assert_eq!(field.key, ANNOUNCE_LINKING);
+    assert_eq!(field.kind, SettingKind::SETTING_KIND_BOOL);
+    assert_eq!(
+        field
+            .default_value
+            .as_option()
+            .and_then(|value| value.value.clone()),
+        Some(Value::BoolValue(true))
     );
 }

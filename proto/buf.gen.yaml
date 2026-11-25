@@ -1,8 +1,7 @@
 # Regenerates the checked-in Rust code in crates/nama-proto/src/generated/ (the client API),
 # crates/nama-plugin-proto/src/generated/ (the Plugin contract) and
 # crates/nama-hub-proto/src/generated/ (the Hub API), the web app's TypeScript client in
-# web/src/gen/, which also calls the Hub API at the Hub (ADR 0105), and the Hub web app's in
-# web/hub/src/gen/.
+# web/src/gen/, which also calls the Hub API at the Hub (ADR 0105).
 # Run from this directory: `buf generate`. Installing the plugins is described in
 # crates/nama-proto/README.md.
 version: v2
@@ -37,7 +36,7 @@ plugins:
     strategy: all
     types: [nama.plugin.v1]
   # The Hub API's messages, service traits and clients, in a crate of their own, which the Hub
-  # serves and the Hub Plugin calls.
+  # serves and the Server calls.
   - local: protoc-gen-buffa
     out: ../crates/nama-hub-proto/src/generated/buffa
     opt: [views=true, json=true]
@@ -62,8 +61,3 @@ plugins:
     out: ../web/src/gen
     opt: [target=ts, erasable_syntax=true]
     exclude_types: [nama.plugin.v1]
-  # The Hub web app's, for the Hub API only.
-  - local: ../web/node_modules/.bin/protoc-gen-es
-    out: ../web/hub/src/gen
-    opt: [target=ts, erasable_syntax=true]
-    types: [nama.hub.v1]

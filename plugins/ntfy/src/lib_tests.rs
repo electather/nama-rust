@@ -2,7 +2,7 @@ use nama_pdk::{
     Notification, Notifier, Recipient, RecipientGone, Response,
     nama_plugin_proto::nama::plugin::v1::{
         Event, PersonalSettingsCheck, Request, RequestState, RequestStateChanged, RequestedMovie,
-        SettingKind, UserRecipient, setting_value::Value,
+        SettingKind, UserLinked, UserRecipient, setting_value::Value,
     },
     testing::{Kernel, Sent, with},
 };
@@ -78,6 +78,41 @@ fn a_message_goes_to_each_users_own_topic_with_their_own_access_token_if_set() {
     let authorization = |sent: &Sent| sent.request.headers.get("Authorization").cloned();
     assert_eq!(authorization(ada).as_deref(), Some("Bearer tk_ada"));
     assert_eq!(authorization(ben), None);
+}
+
+/// Grace Linked to an Account, as the Kernel tells an Admin.
+fn grace_linked() -> Notification {
+    Notification {
+        event: Event {
+            event: Some(
+                UserLinked {
+                    user_id: 3,
+                    name: "Grace".to_owned(),
+                    ..UserLinked::default()
+                }
+                .into(),
+            ),
+            ..Event::default()
+        }
+        .into(),
+        ..Notification::default()
+    }
+}
+
+#[test]
+fn an_admin_is_told_of_linking_unless_they_turned_announcing_it_off() {
+    let mut on = ntfy(200, "{}").setting("announce_linking", "true");
+    let mut off = ntfy(200, "{}").setting("announce_linking", "false");
+    let ada = || user(&[("topic", "ada-topic")]);
+
+    with(&mut on, || Ntfy::deliver(grace_linked(), ada())).unwrap();
+    with(&mut off, || Ntfy::deliver(grace_linked(), ada())).unwrap();
+
+    let [sent] = on.sent() else {
+        panic!("ntfy was sent {} requests, not one", on.sent().len());
+    };
+    assert_eq!(sent.body, b"Grace was Linked to an Account.");
+    assert_eq!(off.sent(), []);
 }
 
 #[test]
@@ -164,7 +199,7 @@ fn a_missing_topic_is_refused_naming_the_setting() {
 }
 
 #[test]
-fn manifest_declares_the_ntfy_server_defaulting_to_ntfy_sh() {
+fn manifest_declares_the_ntfy_server_defaulting_to_ntfy_sh_and_announcing_linking() {
     let settings = manifest().settings;
     let settings: Vec<_> = settings
         .iter()
@@ -180,10 +215,17 @@ fn manifest_declares_the_ntfy_server_defaulting_to_ntfy_sh() {
 
     assert_eq!(
         settings,
-        [(
-            "server_url",
-            Some(SettingKind::SETTING_KIND_URL),
-            Some(Value::TextValue("https://ntfy.sh".to_owned())),
-        )]
+        [
+            (
+                "server_url",
+                Some(SettingKind::SETTING_KIND_URL),
+                Some(Value::TextValue("https://ntfy.sh".to_owned())),
+            ),
+            (
+                "announce_linking",
+                Some(SettingKind::SETTING_KIND_BOOL),
+                Some(Value::BoolValue(true)),
+            ),
+        ]
     );
 }

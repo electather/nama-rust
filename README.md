@@ -19,7 +19,7 @@ A self-hosted media server and request manager, with an optional central Hub for
 | [`crates/nama-structure`](crates/nama-structure) | The structure checks the Server's and the Hub's tests run on their own files (ADR 0099) |
 | [`crates/nama-test-report`](crates/nama-test-report) | CI tooling: records test results and reports flaky and slow tests |
 | [`plugins/`](plugins) | Built-in Plugins, the Installed Plugins the Server bundles, and the libraries they share |
-| [`web/`](web) | The web app the Server serves, the Hub's web app, and nama-ui, the design system they share (ADR 0101) |
+| [`web/`](web) | The web app the Server and the Hub serve, and nama-ui, its design system (ADR 0101, 0105) |
 | [`docker/`](docker) | The Server's Docker image |
 | [`proto/`](proto) | The Protobuf API schema |
 
@@ -90,7 +90,7 @@ An Admin sees which ffmpeg the Server found, and its version, in Settings' Serve
 
 A Server logs to stdout and sends nothing anywhere else unless its admin says so (ADR 0054). To see where its time goes, set `OTEL_EXPORTER_OTLP_ENDPOINT` to an OpenTelemetry Collector's OTLP/HTTP address, such as `http://otel-collector:4318`. The Server then also exports its logs, and a trace for each API call, Scan, probe, image resize and ffmpeg launch, with a span for each SQL query and Plugin call in it. Spans carry ids, counts and durations, never titles, file paths or names; the logs are those on stdout. The standard `OTEL_*` variables configure the rest, such as `OTEL_SERVICE_NAME` and `OTEL_TRACES_SAMPLER`. The Server exports over plain HTTP only, so an HTTPS backend needs a Collector in front of it. The web app then records its own spans too, for each API call, page change and playback start, and sends them through its Server, which forwards them to the same endpoint; with the variable unset, the web app doesn't even download the code that records them.
 
-An admin can also share with Nama's developers, under Sharing in Settings' Server section, both off by default: Diagnostics, the Server's spans and the few log lines a reviewed list in `crates/nama-server/src/diagnostics.rs` names, and, separately, Usage Analytics, named events such as a Request made or playback started. They go to the Hub through the Hub Plugin while the Server is Linked, never carrying titles, file paths, names or addresses, and the Hub forwards them unchanged to the developers' backend. With neither on, nothing is sent.
+An admin can also share with Nama's developers, under Sharing in Settings' Server section, both off by default: Diagnostics, the Server's spans and the few log lines a reviewed list in `crates/nama-server/src/diagnostics.rs` names, and, separately, Usage Analytics, named events such as a Request made or playback started. The Kernel sends them to the Hub while the Server is Linked, never carrying titles, file paths, names or addresses, and the Hub forwards them unchanged to the developers' backend. With neither on, nothing is sent.
 
 ### Finding a slow request
 
@@ -131,7 +131,7 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo clippy --workspace --locked -- -D warnings
 cargo clippy $(.github/scripts/wasm-packages.sh) --target wasm32-unknown-unknown --locked -- -D warnings
 cargo clippy -p nama-server --features web --all-targets --locked -- -D warnings   # after `vp -C web build`
-cargo clippy -p nama-hub --features web --all-targets --locked -- -D warnings      # after `vp -C web/hub build`
+cargo clippy -p nama-hub --features web --all-targets --locked -- -D warnings      # after `vp -C web build`
 cargo nextest run --workspace --locked
 cargo test --workspace --doc --locked
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
@@ -148,7 +148,7 @@ Building the Server builds the Plugins it bundles for wasm32 (`crates/nama-serve
 
 CI also checks that the generated code and the sqlx query data are current. If you change `proto/`, see [`crates/nama-proto/README.md`](crates/nama-proto/README.md). If you change a query or a migration, see [`crates/nama-server/README.md`](crates/nama-server/README.md), or the Hub's [`crates/nama-hub/README.md`](crates/nama-hub/README.md).
 
-Its jobs run side by side on GitHub-hosted runners: `lint`, `rust-check`, `test` (split in two, on Linux for a PR and also on macOS and Windows on main), the web app's checks in `web` ([`web/README.md`](web/README.md), "Checks"), `web-test`, which builds the web app, lints the Server with `web` on and runs `cargo nextest run -p nama-server --features web --test web` against it, then builds the Hub's, lints the Hub with `web` on and runs its `web::` unit tests, and `hub`, which runs the Hub's tests against PostgreSQL in a service container, which only Linux runners have, so `test` leaves the Hub out. On a PR, path filters skip the side it doesn't touch: a web-only PR skips the Rust checks and the workspace tests, a Rust-only one the web checks, and one that touches neither, such as docs or Markdown no check reads, runs nothing. A push to main runs everything. A PR merges into main only once `ci-ok` passes, which waits for all the others and passes when none failed.
+Its jobs run side by side on GitHub-hosted runners: `lint`, `rust-check`, `test` (split in two, on Linux for a PR and also on macOS and Windows on main), the web app's checks in `web` ([`web/README.md`](web/README.md), "Checks"), `web-test`, which builds the web app, lints the Server with `web` on and runs `cargo nextest run -p nama-server --features web --test web` against it, then lints the Hub with `web` on and runs its `web::` unit tests, and `hub`, which runs the Hub's tests against PostgreSQL in a service container, which only Linux runners have, so `test` leaves the Hub out. On a PR, path filters skip the side it doesn't touch: a web-only PR skips the Rust checks and the workspace tests, a Rust-only one the web checks, and one that touches neither, such as docs or Markdown no check reads, runs nothing. A push to main runs everything. A PR merges into main only once `ci-ok` passes, which waits for all the others and passes when none failed.
 
 ### Flaky and slow tests
 

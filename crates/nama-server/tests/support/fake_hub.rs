@@ -133,6 +133,8 @@ struct State {
 
 #[path = "fake_hub_account.rs"]
 mod account;
+#[path = "fake_hub_suggestions.rs"]
+mod suggestions;
 pub(crate) use account::Account;
 use account::{
     pull_track_preferences, pull_watch_states, push_track_preferences, push_watch_states,
@@ -246,6 +248,7 @@ impl FakeHub {
                 unary(&state, &key, record_viewing_events),
             )
             .route("/otlp/v1/{signal}", otlp(&state));
+        let app = suggestions::routes(app, &state, &key);
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let serving = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });

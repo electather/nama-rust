@@ -91,5 +91,25 @@ pub mod event {
                 super::super::super::super::__buffa::view::PlaybackChangedView<'a>,
             >,
         ),
+        ServerLinked(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::ServerLinkedView<'a>,
+            >,
+        ),
+        ServerUnlinked(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::ServerUnlinkedView<'a>,
+            >,
+        ),
+        UserLinked(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::UserLinkedView<'a>,
+            >,
+        ),
+        UserUnlinked(
+            ::buffa::alloc::boxed::Box<
+                super::super::super::super::__buffa::view::UserUnlinkedView<'a>,
+            >,
+        ),
     }
 }

@@ -225,30 +225,3 @@ fn production_code_builds_users_only_at_startup() {
         .collect();
     assert!(problems.is_empty(), "\n{}", problems.join("\n"));
 }
-
-/// The files besides `src/link.rs` that may name the Plugin that links the Server, each with why.
-const MAY_NAME_THE_SERVER_LINKER: &[(&str, &str)] = &[(
-    "src/api/plugins/points.rs",
-    "the Plugins page lists every Extension Point a Plugin may serve",
-)];
-
-#[test]
-fn only_the_link_module_calls_the_plugin_that_links_the_server() {
-    let problems: Vec<String> = rust_files(Path::new(env!("CARGO_MANIFEST_DIR")))
-        .iter()
-        .filter(|file| file.path.starts_with("src/") && file.path != "src/link.rs")
-        .filter(|file| {
-            !MAY_NAME_THE_SERVER_LINKER
-                .iter()
-                .any(|(path, _)| file.path == *path)
-        })
-        .filter(|file| file.text.contains("ServerLinker"))
-        .map(|file| {
-            format!(
-                "{}: names the ServerLinker: ask through `Linking` in src/link.rs (AGENTS.md)",
-                file.path
-            )
-        })
-        .collect();
-    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
-}

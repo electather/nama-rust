@@ -152,6 +152,10 @@ pub mod __buffa {
         reg.register_json_any(super::__TITLES_SHARING_ASKED_JSON_ANY);
         reg.register_json_any(super::__SHARING_TITLES_JSON_ANY);
         reg.register_json_any(super::__SHARING_TITLE_JSON_ANY);
+        reg.register_json_any(super::__HUB_RECOMMENDED_ASKED_JSON_ANY);
+        reg.register_json_any(super::__HUB_CHART_ASKED_JSON_ANY);
+        reg.register_json_any(super::__HUB_TITLES_JSON_ANY);
+        reg.register_json_any(super::__HUB_TITLE_JSON_ANY);
         reg.register_json_any(super::__BLOB_TO_PUT_JSON_ANY);
         reg.register_json_any(super::__BLOB_PUT_JSON_ANY);
         reg.register_json_any(super::__BLOB_KEY_JSON_ANY);
@@ -184,6 +188,10 @@ pub mod __buffa {
         reg.register_json_any(super::__PLAYBACK_STARTED_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_ENDED_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_CHANGED_JSON_ANY);
+        reg.register_json_any(super::__SERVER_LINKED_JSON_ANY);
+        reg.register_json_any(super::__SERVER_UNLINKED_JSON_ANY);
+        reg.register_json_any(super::__USER_LINKED_JSON_ANY);
+        reg.register_json_any(super::__USER_UNLINKED_JSON_ANY);
         reg.register_json_any(super::__PLAYBACK_JSON_ANY);
         reg.register_json_any(super::__FULFILLED_JSON_ANY);
         reg.register_json_any(super::__PROGRESS_ASKED_JSON_ANY);
@@ -560,6 +568,22 @@ pub use self::__buffa::view::SharingTitleView;
 #[doc(inline)]
 pub use self::__buffa::view::SharingTitleOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::HubRecommendedAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::HubRecommendedAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HubChartAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::HubChartAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HubTitlesView;
+#[doc(inline)]
+pub use self::__buffa::view::HubTitlesOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::HubTitleView;
+#[doc(inline)]
+pub use self::__buffa::view::HubTitleOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::BlobToPutView;
 #[doc(inline)]
 pub use self::__buffa::view::BlobToPutOwnedView;
@@ -687,6 +711,22 @@ pub use self::__buffa::view::PlaybackEndedOwnedView;
 pub use self::__buffa::view::PlaybackChangedView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackChangedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ServerLinkedView;
+#[doc(inline)]
+pub use self::__buffa::view::ServerLinkedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ServerUnlinkedView;
+#[doc(inline)]
+pub use self::__buffa::view::ServerUnlinkedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserLinkedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserLinkedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserUnlinkedView;
+#[doc(inline)]
+pub use self::__buffa::view::UserUnlinkedOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::PlaybackView;
 #[doc(inline)]

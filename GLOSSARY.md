@@ -197,7 +197,7 @@ A Provider that hands Approved Requests to an outside service, such as Sonarr or
 _Avoid_: downloader, *arr, client
 
 **Notifier**:
-A Provider that delivers notifications about Requests to people through an outside service, such as Telegram. The Server decides who is told what; the Notifier only delivers.
+A Provider that delivers notifications about Requests, and about the Server and its Users being Linked and Unlinked, to people through an outside service, such as Telegram. The Server decides who is told what; the Notifier only delivers.
 _Avoid_: notification agent, channel, alerter
 
 **Connector**:

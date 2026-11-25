@@ -15,7 +15,7 @@ It reads its config from environment variables only:
 | `NAMA_HUB_RESEND_API_KEY` | The [Resend](https://resend.com) API key it sends mail with, such as Sign-in Links. Unset by default, so it sends none and its sign-in page doesn't offer Sign-in Links, and no Account can prove its email (ADR 0100). While developing, use `NAMA_HUB_LOG_MAIL` instead. |
 | `NAMA_HUB_LOG_MAIL` | `true` writes each email, such as a Sign-in Link, to its log instead of sending it, for developing without Resend. Off by default. It needs a `NAMA_HUB_PUBLIC_URL` on `localhost` or a loopback address, so a real deploy can't use it, and refuses a Resend key; it needs no `NAMA_HUB_MAIL_FROM`. |
 | `NAMA_HUB_MAIL_FROM` | The address its mail comes from, such as `Nama Hub <hub@example.com>`, on a domain verified with Resend. Required with a Resend key. |
-| `NAMA_HUB_PUBLIC_URL` | Its address as people reach it, such as `https://hub.example.com`, which the links in its mail lead to. Required with a Resend key or `NAMA_HUB_LOG_MAIL`: it never takes the address from a request. Passkeys belong to its host, so changing the host strands every passkey, and without it the Hub offers none. While developing, it's the address `vp -C hub dev` serves, such as `http://localhost:5173`: browsers allow passkeys over plain HTTP only on `localhost`. |
+| `NAMA_HUB_PUBLIC_URL` | Its address as people reach it, such as `https://hub.example.com`, which the links in its mail lead to. Required with a Resend key or `NAMA_HUB_LOG_MAIL`: it never takes the address from a request. Passkeys belong to its host, so changing the host strands every passkey, and without it the Hub offers none. While developing, it's the address `NAMA_HUB_URL=http://localhost:7981 vp dev` in `web/` serves, such as `http://localhost:5173`: browsers allow passkeys over plain HTTP only on `localhost`. |
 | `NAMA_HUB_CLOUDFLARE_API_TOKEN` | The [Cloudflare](https://cloudflare.com) API token it writes each Linked Server's names with, allowed to edit the DNS of the zone below (ADR 0104). Unset by default, so it names no Server. |
 | `NAMA_HUB_CLOUDFLARE_ZONE_ID` | The id of the Cloudflare zone it names Linked Servers in. Required with a Cloudflare token. |
 | `NAMA_HUB_SERVER_NAMES_ZONE` | That zone's domain, used for nothing but Server names, such as `namadirect.net` (ADR 0057). Required with a Cloudflare token. |
@@ -24,7 +24,7 @@ It reads its config from environment variables only:
 
 Each release, prereleases aside, is also a Docker image for amd64 and arm64, `ghcr.io/electather/nama-hub`, with the Server's version; it listens on 7981 as user 1000.
 
-With the `web` feature, which releases turn on, it also serves its web pages, the Hub web app in `web/hub/` (`web/README.md`): build them first with `vp -C hub build` in `web/`. Without it, it serves only the API, and `vp -C hub dev` in `web/` serves the pages against it.
+With the `web` feature, which releases turn on, it also serves the web app, the same build a Server serves, which finds on startup that it runs at the Hub (ADR 0105): build it first with `vp build` in `web/`. Without it, it serves only the API, and `NAMA_HUB_URL=http://localhost:7981 vp dev` in `web/` serves the web app against it (`web/README.md`, "Running against a Server").
 
 At startup it applies every migration the database hasn't had, in one transaction. Set `OTEL_EXPORTER_OTLP_ENDPOINT` to export its traces and logs, as on the Server (root `README.md`, "Diagnostics").
 
@@ -39,7 +39,7 @@ SQLX_OFFLINE=true cargo run -p nama-hub
 
 `SQLX_OFFLINE=true` has sqlx's macros check queries against `.sqlx/`: otherwise `sqlx.toml` has them check against `NAMA_HUB_DATABASE_URL`'s database, which the Hub migrates only once it is built.
 
-A Server Links to it itself once its `hub_url` config, or `NAMA_HUB_URL`, names it, such as `NAMA_HUB_URL=http://localhost:7981 cargo run -p nama-server`. Linking needs an Account whose email a Sign-in Link proved (ADR 0100). Without Resend, start the Hub with `NAMA_HUB_LOG_MAIL=true` and `NAMA_HUB_PUBLIC_URL` set to where its pages are, `http://localhost:7981` with the `web` feature or `vp -C hub dev`'s address without it: the sign-in page then offers Sign-in Links, and asking for one writes the link to the Hub's log, to open from there.
+A Server Links to it itself once its `hub_url` config, or `NAMA_HUB_URL`, names it, such as `NAMA_HUB_URL=http://localhost:7981 cargo run -p nama-server`. Linking needs an Account whose email a Sign-in Link proved (ADR 0100). Without Resend, start the Hub with `NAMA_HUB_LOG_MAIL=true` and `NAMA_HUB_PUBLIC_URL` set to where its pages are, `http://localhost:7981` with the `web` feature or `vp dev`'s address without it: the sign-in page then offers Sign-in Links, and asking for one writes the link to the Hub's log, to open from there.
 
 ## Importing Wikidata
 

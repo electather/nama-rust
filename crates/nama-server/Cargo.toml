@@ -36,7 +36,7 @@ figment = { version = "0.10", features = ["env", "toml"] }
 futures-util = { version = "0.3", default-features = false, features = ["std"] }
 getrandom = "0.4"
 glob = "0.3"
-# Calls the Hub (`link/hub.rs`), as the Hub Plugin does: ring and the OS's root certificates.
+# Calls the Hub (`link/hub.rs`): ring and the OS's root certificates.
 http = "1"
 http-body-util = "0.1"
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "tls12", "ring", "native-tokio"] }

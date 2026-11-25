@@ -129,6 +129,7 @@ macro_rules! __extism_log_is_closed {
 
 /// What a notification says happened, in the Glossary's words, or `None` for what isn't told.
 pub use notification_text::what_happened;
+pub use notification_text::{ANNOUNCE_LINKING, announce_linking, announcement};
 
 use ::extism_pdk::{Error, FromBytesOwned, HttpRequest, ToBytes};
 use buffa::{Inline, MessageField};
