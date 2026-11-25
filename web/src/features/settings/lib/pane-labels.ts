@@ -6,6 +6,11 @@ export const signinLabels = {
   password: { label: "Current password", hint: "Confirm it’s you." },
   newPassword: { label: "New password", hint: "At least 8 characters.", words: "change" },
   confirm: { label: "Confirm new password" },
+  switchPin: {
+    label: "New Switch PIN",
+    hint: "4 to 6 digits asked for before switching to you from another User. It never signs you in.",
+    words: "pin lock switch user picker",
+  },
 } satisfies Record<string, SettingText>;
 
 /** What each of the Devices section's groups says, in its order. */

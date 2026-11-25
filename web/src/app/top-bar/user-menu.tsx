@@ -1,4 +1,4 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
@@ -10,9 +10,13 @@ import {
 import { useSignOut } from "@/app/data/use-sign-out";
 import { sectionSearch } from "@/features/settings/lib/sections";
 
-/** The signed-in User's menu, behind their initial: their Settings, and signing out. */
+/**
+ * The signed-in User's menu, behind their initial: switching to another of this Device's Users,
+ * their Settings, and signing out.
+ */
 export function UserMenu({ userName }: { userName: string }) {
   const navigate = useNavigate();
+  const here = useLocation({ select: (location) => location.href });
   const signOut = useSignOut();
   return (
     <DropdownMenu>
@@ -33,6 +37,13 @@ export function UserMenu({ userName }: { userName: string }) {
       <DropdownMenuContent>
         <DropdownMenuItem
           onClick={() => {
+            void navigate({ to: "/switch-user", search: { redirect: here } });
+          }}
+        >
+          Switch User
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
             // A history entry of its own, so Back closes Settings.
             void navigate({
               to: ".",
@@ -45,7 +56,7 @@ export function UserMenu({ userName }: { userName: string }) {
         <DropdownMenuItem
           disabled={signOut.isPending}
           onClick={() => {
-            signOut.mutate({});
+            signOut.mutate();
           }}
         >
           Sign out

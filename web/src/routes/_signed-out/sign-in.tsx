@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { pathOnThisServer } from "@/features/auth/lib/path-on-this-server";
-import { hubInfo, isSetupRequired, isSignedInHere } from "@/shared/hooks/access";
+import { hubInfo, isSetupRequired, isSignedInAlready } from "@/shared/hooks/access";
 
 // Every way to sign in: its pages share `redirect`, where signing in goes.
 export const Route = createFileRoute("/_signed-out/sign-in")({
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/_signed-out/sign-in")({
       throw redirect({ to: "/setup" });
     }
     // Going back to a sign-in page once signed in goes on to where signing in went.
-    if (await isSignedInHere(context)) {
+    if (await isSignedInAlready(context, search.redirect)) {
       throw redirect({ href: search.redirect ?? "/", replace: true });
     }
     // At the Hub, an Account signs in; at a Server, a User (ADR 0105).
