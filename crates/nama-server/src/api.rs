@@ -114,7 +114,11 @@ pub(crate) fn router(
     let media =
         crate::playback::router(running.clone(), &db, Arc::clone(&ffmpeg), subtitles, reads)
             .merge(running_router(running.clone()))
-            .merge(preview_frames_router(preview_frames.clone()));
+            .merge(preview_frames_router(preview_frames.clone()))
+            .layer(middleware::from_fn_with_state(
+                Arc::clone(&db),
+                crate::playback::seen_versions_only,
+            ));
     let images = ImageSources {
         custom_images: custom_images.clone(),
         local_images: local_images.clone(),
@@ -224,6 +228,7 @@ pub(crate) fn router(
             title_sources: TitleSources::new(plugins.clone()),
             plugins: plugins.clone(),
             plugin_settings: plugin_settings.clone(),
+            db: Arc::clone(&db),
         }))
         .add_service(Arc::new(events::EventServiceHandler {
             events,
@@ -418,6 +423,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_NAME_LENGTH
         | R::REFUSAL_REASON_NAME_CHARACTER
         | R::REFUSAL_REASON_PASSWORD_REJECTED
+        | R::REFUSAL_REASON_SWITCH_PIN_INVALID
         | R::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE
         | R::REFUSAL_REASON_FOLDER_NOT_FOUND
         | R::REFUSAL_REASON_FOLDER_NOT_READABLE
@@ -451,6 +457,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SIGNED_OUT => ErrorCode::Unauthenticated,
         R::REFUSAL_REASON_PERMISSION_REQUIRED
         | R::REFUSAL_REASON_WRONG_SETUP_CODE
+        | R::REFUSAL_REASON_WRONG_SWITCH_PIN
         | R::REFUSAL_REASON_QUALITY_NOT_ALLOWED => ErrorCode::PermissionDenied,
         R::REFUSAL_REASON_TOO_MANY_ATTEMPTS
         | R::REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS

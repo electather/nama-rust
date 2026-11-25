@@ -1,7 +1,6 @@
 //! The Hub Plugin (ADR 0094): the Built-in Plugin through which a Linked Server does what is
-//! Hub-facing but the Link itself, which the Kernel keeps (ADR 0105, [`KernelLink`]). It sends the
-//! Hub the Diagnostics and Usage Analytics the Admin shares (ADR 0054). The Watch State, Subtitle
-//! and Audio Preferences and Watchlists of the Users the Kernel Linked to Accounts sync with the
+//! Hub-facing but the Link itself and sharing Diagnostics, which the Kernel does (ADR 0105,
+//! [`KernelLink`]). The Watch State, Subtitle and Audio Preferences and Watchlists of the Users the Kernel Linked to Accounts sync with the
 //! Hub (ADR 0092), and each play of theirs goes to the Hub as a Viewing Event (ADR 0093).
 //! Once Linked, it is also a Similar source answering the titles the Hub finds alike (ADR 0084,
 //! 0095), a Home row source giving each Linked User the titles the Hub recommends from what
@@ -20,7 +19,6 @@ use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     automation::Permission,
     contract::{FeaturedSuggestions, HomeRows, SharedRowsAsked, UserFeaturedAsked, UserRowsAsked},
-    diagnostics_sharer::DiagnosticsSharer,
     home_row::{HomeRowMethod, HomeRowSource},
     job::JobRunner,
     points::{Events, TrackPreferenceChanged, WatchStatesChanged},
@@ -95,8 +93,7 @@ impl Plugin for Hub {
         Manifest {
             name: "Hub".to_owned(),
             description: "Syncs Linked Users' Watch State, Subtitle and Audio Preferences and \
-                          Watchlists with Nama's Hub and sends it what they play, sends it the Diagnostics \
-                          and Usage Analytics you share in Settings, adds the titles the Hub \
+                          Watchlists with Nama's Hub and sends it what they play, adds the titles the Hub \
                           finds alike to Similar titles, gives each Linked User a Recommended \
                           for you row and Featured suggestions from what they finished, and \
                           shows Trending on Nama and Most watchlisted on Nama rows on home."
@@ -116,7 +113,6 @@ impl Plugin for Hub {
                 .to_owned(),
             extension_points: vec![
                 PointKey::provide::<dyn ServerLinker>(),
-                PointKey::provide::<dyn DiagnosticsSharer>(),
                 PointKey::observe::<WatchStatesChanged>(),
                 PointKey::observe::<TrackPreferenceChanged>(),
                 PointKey::observe::<Events>(),
@@ -150,9 +146,7 @@ impl Plugin for Hub {
             charts: Charts::new(Arc::clone(&linker), kernel),
         });
         let viewing = ViewingEvents::new(Arc::clone(&linker));
-        let sharer: Arc<dyn DiagnosticsSharer> = Arc::<Linker>::clone(&linker);
         registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::<Linker>::clone(&linker));
-        registrar.provide::<dyn DiagnosticsSharer>(Priority::DEFAULT, sharer);
         registrar.observe::<WatchStatesChanged>(WatchStateSync(Arc::clone(&linker)));
         registrar.observe::<TrackPreferenceChanged>(TrackPreferenceSync(Arc::clone(&linker)));
         registrar.observe::<Events>(viewing.clone());

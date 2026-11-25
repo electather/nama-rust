@@ -28,14 +28,17 @@ import "nama/v1/playback.proto";
 //
 // Changes to who can sign in as whom need Recent Authentication: the calling User proved who they
 // are on the calling Device with one of their Sign-in Methods in the last 10 minutes. They are
-// `ApproveSignInCode` and `UserService`'s `ChangePassword`, `ResetPassword`, `SetPermissions`,
-// `SetDefaultPermissions` and `DeleteUser`.
+// `ApproveSignInCode`, `SetSwitchPin`, `ClearSwitchPin` and `UserService`'s `ChangePassword`,
+// `ResetPassword`, `SetPermissions`, `SetDefaultPermissions` and `DeleteUser`.
 // Signing in with `Setup` or `SignIn` gives the User Recent Authentication on the Device; signing
 // in with a Sign-in Code or an Account doesn't, since that Device proved nothing itself: whoever
 // approved, on another Device or on the Hub, may not hold it. Nor does switching to a User, which
 // clears what they had on that Device. Without it, those calls fail with
 // `failed_precondition` and the `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` Refusal before
 // anything in the request is checked. `Reauthenticate` gives it back.
+//
+// A User may set a Switch PIN, which `SwitchUser` asks for before switching to them (ADR 0106). It
+// is never a Sign-in Method: no sign-in and no `Reauthenticate` accepts it.
 service SignInService {
   // Creates the first Admin, a User with `PERMISSION_ADMIN`, on a fresh Server and signs the
   // calling Device in as them. Needs the Setup Code the Server printed to its log. Fails with
@@ -62,8 +65,22 @@ service SignInService {
   // Authentication on it until they prove who they are again, and the open
   // `EventService.Subscribe` streams of the User it acted as end. Fails with `not_found` and
   // `REFUSAL_REASON_USER_NOT_FOUND` for a User not signed in to it, and with `unauthenticated`
-  // without a valid session.
+  // without a valid session. For a User with a Switch PIN, it fails with `invalid_argument` and
+  // `REFUSAL_REASON_FIELD_REQUIRED` without one, and with `permission_denied` and
+  // `REFUSAL_REASON_WRONG_SWITCH_PIN` for a wrong one. The fifth wrong one in a row for that User
+  // on the Device signs them out of it, and further calls fail like those for a User not signed in
+  // to it. Wrong ones don't expire with time; a right one, or that sign-out, starts the count
+  // again.
   rpc SwitchUser(SwitchUserRequest) returns (SwitchUserResponse);
+  // Sets or changes the calling User's Switch PIN. Fails with `invalid_argument` and
+  // `REFUSAL_REASON_SWITCH_PIN_INVALID` unless it is 4 to 6 digits.
+  rpc SetSwitchPin(SetSwitchPinRequest) returns (SetSwitchPinResponse);
+  // Clears a User's Switch PIN, so switching to them needs none. Clearing another User's needs
+  // `PERMISSION_MANAGE_USERS`, without which it fails with `not_found` and
+  // `REFUSAL_REASON_USER_NOT_FOUND` as for a User who doesn't exist, and an Admin's needs
+  // `PERMISSION_ADMIN`, without which it fails with `permission_denied` and
+  // `REFUSAL_REASON_PERMISSION_REQUIRED`. Clearing one that isn't set succeeds.
+  rpc ClearSwitchPin(ClearSwitchPinRequest) returns (ClearSwitchPinResponse);
   // Gives the calling Device Recent Authentication, once its User proves who they are again: with
   // their password, or with their Account approving a sign-in started with `StartAccountSignIn`,
   // the one way for a User created from an Account. The Device keeps its session: no new token or
@@ -206,6 +223,16 @@ message User {
   // The most a Device of theirs outside the local network is sent, whatever Playback Limit it
   // picks: `PLAYBACK_LIMIT_ORIGINAL` for no cap. Only `UserService.ListUsers` sets it.
   PlaybackLimit remote_playback_limit = 6;
+  // The Libraries the User sees, unset for every one, those added later included. A User with
+  // `PERMISSION_MANAGE_LIBRARIES` sees every one whatever it holds. Only `UserService.ListUsers`
+  // sets it.
+  LibraryAccess library_access = 7;
+}
+
+// A chosen list of the Libraries a User sees, which never grows by itself as Libraries are added.
+message LibraryAccess {
+  // Their IDs. Empty sees none. Deleting a Library takes it off the list.
+  repeated int64 library_ids = 1;
 }
 
 // A client installation signed in to a Server as one or more Users, acting as one of them at a
@@ -286,9 +313,25 @@ message WhoAmIResponse {
 message SwitchUserRequest {
   // The User to act as, one of `WhoAmIResponse.device_users`.
   int64 user_id = 1;
+  // Their Switch PIN, needed only if they set one.
+  string switch_pin = 2;
 }
 
 message SwitchUserResponse {}
+
+message SetSwitchPinRequest {
+  // The new Switch PIN: 4 to 6 digits.
+  string switch_pin = 1;
+}
+
+message SetSwitchPinResponse {}
+
+message ClearSwitchPinRequest {
+  // Whose Switch PIN to clear. Unset means the caller's own.
+  optional int64 user_id = 1;
+}
+
+message ClearSwitchPinResponse {}
 
 message ReauthenticateRequest {
   // How the User proves who they are, with one of their Sign-in Methods. Must be set.

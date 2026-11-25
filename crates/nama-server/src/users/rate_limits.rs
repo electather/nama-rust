@@ -6,6 +6,9 @@
 //!
 //! Counts live in memory only. They expire as the window slides past them and a restart forgets
 //! them, so nobody is ever locked out for good.
+//!
+//! Also counting wrong Switch PINs in a row for one User on one Device, which don't expire with
+//! time: the fifth signs the User out of the Device (ADR 0106).
 
 use std::{
     collections::{HashMap, VecDeque},
@@ -172,6 +175,57 @@ impl SignInCodeStartLimits {
         }
         starts.record(ip, now);
         Ok(())
+    }
+}
+
+/// How many wrong Switch PINs in a row for one User on one Device sign them out of it (ADR 0106).
+pub(super) const WRONG_SWITCH_PINS: u32 = 5;
+
+/// The wrong Switch PINs in a row, by Device and User.
+#[derive(Debug, Default)]
+pub(super) struct SwitchPinTries {
+    wrong: Mutex<HashMap<(i64, i64), u32>>,
+}
+
+/// A try at a Switch PIN let through, counted as wrong until [`SwitchPinTries::forget`] forgets it.
+#[derive(Debug)]
+pub(super) struct SwitchPinTry {
+    /// How many wrong ones in a row it makes, itself included.
+    pub(super) in_a_row: u32,
+}
+
+impl SwitchPinTries {
+    /// Lets a try at the Switch PIN of the User `user` on the Device `device` through and counts
+    /// it as wrong, unless the tries before it used them all up, as a burst of them would.
+    pub(super) fn admit(&self, device: i64, user: i64) -> Option<SwitchPinTry> {
+        let mut wrong = self.lock();
+        let in_a_row = wrong.entry((device, user)).or_default();
+        if *in_a_row >= WRONG_SWITCH_PINS {
+            return None;
+        }
+        *in_a_row += 1;
+        Some(SwitchPinTry {
+            in_a_row: *in_a_row,
+        })
+    }
+
+    /// Takes back one try [`SwitchPinTries::admit`] counted for the User `user` on the Device
+    /// `device`, which failed before it could be checked.
+    pub(super) fn uncount(&self, device: i64, user: i64) {
+        if let Some(in_a_row) = self.lock().get_mut(&(device, user)) {
+            *in_a_row = in_a_row.saturating_sub(1);
+        }
+    }
+
+    /// Starts the count for the User `user` on the Device `device` again: a right Switch PIN, or
+    /// the sign-out the last wrong one caused.
+    pub(super) fn forget(&self, device: i64, user: i64) {
+        self.lock().remove(&(device, user));
+    }
+
+    fn lock(&self) -> MutexGuard<'_, HashMap<(i64, i64), u32>> {
+        // As for `SignInLimits`: every change leaves the counts consistent.
+        self.wrong.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 

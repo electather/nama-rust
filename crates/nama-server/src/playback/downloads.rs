@@ -17,6 +17,7 @@ use nama_plugin_api::{
 
 use super::{
     Sidecar, Sidecars, Track,
+    direct_play::sees_version,
     sidecars::{codec_of, names_language, subtitle},
 };
 use crate::{
@@ -45,6 +46,7 @@ pub(crate) enum Error {
 /// Searches the subtitle sources and keeps the subtitles Users download from them.
 #[derive(Debug, Clone)]
 pub(crate) struct SubtitleDownloads {
+    db: Arc<Database>,
     contents: Contents,
     sidecars: Sidecars,
     points: ExtensionPoints,
@@ -54,6 +56,7 @@ pub(crate) struct SubtitleDownloads {
 impl SubtitleDownloads {
     pub(crate) fn new(db: &Arc<Database>, points: ExtensionPoints, images: ImageStore) -> Self {
         Self {
+            db: Arc::clone(db),
             contents: Contents::new(Arc::clone(db)),
             sidecars: Sidecars::new(Arc::clone(db)),
             points,
@@ -67,19 +70,24 @@ impl SubtitleDownloads {
     }
 
     /// What every enabled subtitle source finds for the Version `version` in `languages`, BCP 47
-    /// tags, each found by the Plugin whose source it is, each source's best first. A source that
-    /// fails is left out.
+    /// tags, as the User `user` asks, each found by the Plugin whose source it is, each source's
+    /// best first. A source that fails is left out.
     ///
     /// # Errors
     ///
-    /// [`Error::NoSource`] if none is enabled or every one failed, and as the variants say.
+    /// [`Error::NoSuchVersion`] for one in a Library `user` doesn't see, [`Error::NoSource`] if
+    /// no source is enabled or every one failed, and as the other variants say.
     pub(crate) async fn search(
         &self,
+        user: i64,
         version: i64,
         languages: Vec<String>,
     ) -> Result<Vec<(PluginId, SubtitleResult)>, Error> {
         if let Some(unknown) = languages.iter().find(|tag| !names_language(tag)) {
             return Err(Error::UnknownLanguage(unknown.clone()));
+        }
+        if !sees_version(&self.db, user, version).await? {
+            return Err(Error::NoSuchVersion);
         }
         let search = self.search_for(version, languages).await?;
         let sources = self.points.providers::<dyn SubtitleSource>();
@@ -150,15 +158,17 @@ impl SubtitleDownloads {
         })
     }
 
-    /// Downloads `found` from the Plugin `plugin`'s subtitle source and keeps it as the Version
-    /// `version`'s last Track, unless it's kept already.
+    /// Downloads `found` from the Plugin `plugin`'s subtitle source, as the User `user` asks, and
+    /// keeps it as the Version `version`'s last Track, unless it's kept already.
     ///
     /// # Errors
     ///
-    /// [`Error::NoSource`] if the Plugin isn't an enabled subtitle source, or its download fails,
-    /// isn't a subtitle or is over 20 MiB, and as the other variants say.
+    /// [`Error::NoSuchVersion`] for one in a Library `user` doesn't see, [`Error::NoSource`] if
+    /// the Plugin isn't an enabled subtitle source, or its download fails, isn't a subtitle or is
+    /// over 20 MiB, and as the other variants say.
     pub(crate) async fn download(
         &self,
+        user: i64,
         version: i64,
         plugin: &PluginId,
         found: SubtitleResult,
@@ -166,7 +176,9 @@ impl SubtitleDownloads {
         if !names_language(&found.language) {
             return Err(Error::UnknownLanguage(found.language));
         }
-        if self.contents.version_file(version).await?.is_none() {
+        if !sees_version(&self.db, user, version).await?
+            || self.contents.version_file(version).await?.is_none()
+        {
             return Err(Error::NoSuchVersion);
         }
         let file = self.fetch(plugin, found.id).await?;

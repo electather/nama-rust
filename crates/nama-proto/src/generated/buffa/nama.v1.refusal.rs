@@ -311,9 +311,16 @@ pub enum RefusalReason {
     /// `not_found`: the caller's inbox has no notification with the ID, as another User's isn't in
     /// theirs. `field` is `id`. Params: `notificationId`.
     REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND = 103i32,
+    /// `permission_denied`: the Switch PIN isn't the User's. After 5 wrong ones in a row on a Device,
+    /// the User is signed out of it, and only signing in to it again brings them back. `field` is
+    /// `switch_pin`. Params: `triesLeft`, 0 once the User was signed out of the Device.
+    REFUSAL_REASON_WRONG_SWITCH_PIN = 104i32,
+    /// `invalid_argument`: a Switch PIN must be 4 to 6 digits. `field` is `switch_pin`. Params:
+    /// `minLength`, `maxLength`, in digits.
+    REFUSAL_REASON_SWITCH_PIN_INVALID = 105i32,
     /// `unauthenticated`: the Hub didn't sign the token for this Server, or it expired or was used
     /// already. `field` is `hub_token`.
-    REFUSAL_REASON_HUB_TOKEN_REFUSED = 104i32,
+    REFUSAL_REASON_HUB_TOKEN_REFUSED = 106i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -619,6 +626,12 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const InboxNotificationNotFound: Self = Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_WRONG_SWITCH_PIN`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const WrongSwitchPin: Self = Self::REFUSAL_REASON_WRONG_SWITCH_PIN;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_SWITCH_PIN_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const SwitchPinInvalid: Self = Self::REFUSAL_REASON_SWITCH_PIN_INVALID;
     ///Idiomatic alias for [`Self::REFUSAL_REASON_HUB_TOKEN_REFUSED`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const HubTokenRefused: Self = Self::REFUSAL_REASON_HUB_TOKEN_REFUSED;
@@ -942,7 +955,11 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND,
                 )
             }
-            104i32 => {
+            104i32 => ::core::option::Option::Some(Self::REFUSAL_REASON_WRONG_SWITCH_PIN),
+            105i32 => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SWITCH_PIN_INVALID)
+            }
+            106i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_HUB_TOKEN_REFUSED)
             }
             _ => ::core::option::Option::None,
@@ -1147,6 +1164,10 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_PERSON_NOT_FOUND => "REFUSAL_REASON_PERSON_NOT_FOUND",
             Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND => {
                 "REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND"
+            }
+            Self::REFUSAL_REASON_WRONG_SWITCH_PIN => "REFUSAL_REASON_WRONG_SWITCH_PIN",
+            Self::REFUSAL_REASON_SWITCH_PIN_INVALID => {
+                "REFUSAL_REASON_SWITCH_PIN_INVALID"
             }
             Self::REFUSAL_REASON_HUB_TOKEN_REFUSED => "REFUSAL_REASON_HUB_TOKEN_REFUSED",
         }
@@ -1486,6 +1507,12 @@ impl ::buffa::Enumeration for RefusalReason {
                     Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND,
                 )
             }
+            "REFUSAL_REASON_WRONG_SWITCH_PIN" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_WRONG_SWITCH_PIN)
+            }
+            "REFUSAL_REASON_SWITCH_PIN_INVALID" => {
+                ::core::option::Option::Some(Self::REFUSAL_REASON_SWITCH_PIN_INVALID)
+            }
             "REFUSAL_REASON_HUB_TOKEN_REFUSED" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_HUB_TOKEN_REFUSED)
             }
@@ -1595,6 +1622,8 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_LAST_SIGN_IN_METHOD,
             Self::REFUSAL_REASON_PERSON_NOT_FOUND,
             Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND,
+            Self::REFUSAL_REASON_WRONG_SWITCH_PIN,
+            Self::REFUSAL_REASON_SWITCH_PIN_INVALID,
             Self::REFUSAL_REASON_HUB_TOKEN_REFUSED,
         ]
     }

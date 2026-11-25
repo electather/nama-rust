@@ -38,6 +38,22 @@ pub type OwnedSwitchUserRequestView = ::buffa::view::OwnedView<
 pub type OwnedSwitchUserResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SwitchUserResponseView<'static>,
 >;
+///Shorthand for `OwnedView<SetSwitchPinRequestView<'static>>`.
+pub type OwnedSetSwitchPinRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetSwitchPinRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetSwitchPinResponseView<'static>>`.
+pub type OwnedSetSwitchPinResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetSwitchPinResponseView<'static>,
+>;
+///Shorthand for `OwnedView<ClearSwitchPinRequestView<'static>>`.
+pub type OwnedClearSwitchPinRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ClearSwitchPinRequestView<'static>,
+>;
+///Shorthand for `OwnedView<ClearSwitchPinResponseView<'static>>`.
+pub type OwnedClearSwitchPinResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ClearSwitchPinResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<ReauthenticateRequestView<'static>>`.
 pub type OwnedReauthenticateRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::ReauthenticateRequestView<'static>,
@@ -258,6 +274,74 @@ for crate::messages::nama::v1::__buffa::view::SwitchUserResponseView<'_> {
 impl ::connectrpc::Encodable<crate::messages::nama::v1::SwitchUserResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SwitchUserResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetSwitchPinResponse>
+for crate::messages::nama::v1::__buffa::view::SetSwitchPinResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetSwitchPinResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetSwitchPinResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ClearSwitchPinResponse>
+for crate::messages::nama::v1::__buffa::view::ClearSwitchPinResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::ClearSwitchPinResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::ClearSwitchPinResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -618,6 +702,18 @@ pub const SIGN_IN_SERVICE_SWITCH_USER_SPEC: ::connectrpc::Spec = ::connectrpc::S
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetSwitchPin` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SIGN_IN_SERVICE_SET_SWITCH_PIN_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.SignInService/SetSwitchPin",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the `ClearSwitchPin` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const SIGN_IN_SERVICE_CLEAR_SWITCH_PIN_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.SignInService/ClearSwitchPin",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
 /// Static [`Spec`](::connectrpc::Spec) for the `Reauthenticate` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const SIGN_IN_SERVICE_REAUTHENTICATE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.SignInService/Reauthenticate",
@@ -696,14 +792,17 @@ pub const SIGN_IN_SERVICE_SIGN_IN_WITH_HUB_TOKEN_SPEC: ::connectrpc::Spec = ::co
 ///
 /// Changes to who can sign in as whom need Recent Authentication: the calling User proved who they
 /// are on the calling Device with one of their Sign-in Methods in the last 10 minutes. They are
-/// `ApproveSignInCode` and `UserService`'s `ChangePassword`, `ResetPassword`, `SetPermissions`,
-/// `SetDefaultPermissions` and `DeleteUser`.
+/// `ApproveSignInCode`, `SetSwitchPin`, `ClearSwitchPin` and `UserService`'s `ChangePassword`,
+/// `ResetPassword`, `SetPermissions`, `SetDefaultPermissions` and `DeleteUser`.
 /// Signing in with `Setup` or `SignIn` gives the User Recent Authentication on the Device; signing
 /// in with a Sign-in Code or an Account doesn't, since that Device proved nothing itself: whoever
 /// approved, on another Device or on the Hub, may not hold it. Nor does switching to a User, which
 /// clears what they had on that Device. Without it, those calls fail with
 /// `failed_precondition` and the `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` Refusal before
 /// anything in the request is checked. `Reauthenticate` gives it back.
+///
+/// A User may set a Switch PIN, which `SwitchUser` asks for before switching to them (ADR 0106). It
+/// is never a Sign-in Method: no sign-in and no `Reauthenticate` accepts it.
 ///
 /// # Implementing handlers
 ///
@@ -861,7 +960,12 @@ pub trait SignInService: Send + Sync + 'static {
     /// Authentication on it until they prove who they are again, and the open
     /// `EventService.Subscribe` streams of the User it acted as end. Fails with `not_found` and
     /// `REFUSAL_REASON_USER_NOT_FOUND` for a User not signed in to it, and with `unauthenticated`
-    /// without a valid session.
+    /// without a valid session. For a User with a Switch PIN, it fails with `invalid_argument` and
+    /// `REFUSAL_REASON_FIELD_REQUIRED` without one, and with `permission_denied` and
+    /// `REFUSAL_REASON_WRONG_SWITCH_PIN` for a wrong one. The fifth wrong one in a row for that User
+    /// on the Device signs them out of it, and further calls fail like those for a User not signed in
+    /// to it. Wrong ones don't expire with time; a right one, or that sign-out, starts the count
+    /// again.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -881,6 +985,57 @@ pub trait SignInService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::messages::nama::v1::SwitchUserResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Sets or changes the calling User's Switch PIN. Fails with `invalid_argument` and
+    /// `REFUSAL_REASON_SWITCH_PIN_INVALID` unless it is 4 to 6 digits.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_switch_pin<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SetSwitchPinRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SetSwitchPinResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Clears a User's Switch PIN, so switching to them needs none. Clearing another User's needs
+    /// `PERMISSION_MANAGE_USERS`, without which it fails with `not_found` and
+    /// `REFUSAL_REASON_USER_NOT_FOUND` as for a User who doesn't exist, and an Admin's needs
+    /// `PERMISSION_ADMIN`, without which it fails with `permission_denied` and
+    /// `REFUSAL_REASON_PERMISSION_REQUIRED`. Clearing one that isn't set succeeds.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn clear_switch_pin<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::ClearSwitchPinRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::ClearSwitchPinResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -1314,6 +1469,64 @@ impl<S: SignInService> SignInServiceExt for S {
             .with_spec(SIGN_IN_SERVICE_SWITCH_USER_SPEC)
             .route_view(
                 SIGN_IN_SERVICE_SERVICE_NAME,
+                "SetSwitchPin",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SetSwitchPinRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SetSwitchPinRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_switch_pin(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SetSwitchPinResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SIGN_IN_SERVICE_SET_SWITCH_PIN_SPEC)
+            .route_view(
+                SIGN_IN_SERVICE_SERVICE_NAME,
+                "ClearSwitchPin",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::ClearSwitchPinRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::ClearSwitchPinRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.clear_switch_pin(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::ClearSwitchPinResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(SIGN_IN_SERVICE_CLEAR_SWITCH_PIN_SPEC)
+            .route_view(
+                SIGN_IN_SERVICE_SERVICE_NAME,
                 "Reauthenticate",
                 {
                     let svc = ::std::sync::Arc::clone(&self);
@@ -1657,6 +1870,18 @@ impl<T: SignInService> ::connectrpc::Dispatcher for SignInServiceServer<T> {
                         .with_spec(SIGN_IN_SERVICE_SWITCH_USER_SPEC),
                 )
             }
+            "SetSwitchPin" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SIGN_IN_SERVICE_SET_SWITCH_PIN_SPEC),
+                )
+            }
+            "ClearSwitchPin" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(SIGN_IN_SERVICE_CLEAR_SWITCH_PIN_SPEC),
+                )
+            }
             "Reauthenticate" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -1824,6 +2049,50 @@ impl<T: SignInService> ::connectrpc::Dispatcher for SignInServiceServer<T> {
                     svc.switch_user(ctx, req)
                         .await?
                         .encode::<crate::messages::nama::v1::SwitchUserResponse>(format)
+                })
+            }
+            "SetSwitchPin" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SetSwitchPinRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SetSwitchPinRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SetSwitchPinRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_switch_pin(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::SetSwitchPinResponse,
+                        >(format)
+                })
+            }
+            "ClearSwitchPin" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::ClearSwitchPinRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::ClearSwitchPinRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::ClearSwitchPinRequest,
+                    >::from_parts(&req, &body);
+                    svc.clear_switch_pin(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::ClearSwitchPinResponse,
+                        >(format)
                 })
             }
             "Reauthenticate" => {
@@ -2338,6 +2607,96 @@ where
                 &self.transport,
                 &self.config,
                 SIGN_IN_SERVICE_SWITCH_USER_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetSwitchPin RPC. Sends a request to /nama.v1.SignInService/SetSwitchPin.
+    pub async fn set_switch_pin(
+        &self,
+        request: crate::messages::nama::v1::SetSwitchPinRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetSwitchPinResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_switch_pin_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetSwitchPin RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_switch_pin_with_options(
+        &self,
+        request: crate::messages::nama::v1::SetSwitchPinRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetSwitchPinResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SIGN_IN_SERVICE_SET_SWITCH_PIN_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ClearSwitchPin RPC. Sends a request to /nama.v1.SignInService/ClearSwitchPin.
+    pub async fn clear_switch_pin(
+        &self,
+        request: crate::messages::nama::v1::ClearSwitchPinRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ClearSwitchPinResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.clear_switch_pin_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ClearSwitchPin RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn clear_switch_pin_with_options(
+        &self,
+        request: crate::messages::nama::v1::ClearSwitchPinRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::ClearSwitchPinResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                SIGN_IN_SERVICE_CLEAR_SWITCH_PIN_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

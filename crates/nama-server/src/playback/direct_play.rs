@@ -10,6 +10,7 @@ use axum::{
         StatusCode,
         header::{ETAG, IF_RANGE, LAST_MODIFIED, RANGE},
     },
+    middleware::Next,
     response::{IntoResponse, Response},
     routing::get,
 };
@@ -22,7 +23,7 @@ use crate::{
     db::Database,
     ffmpeg::Ffmpeg,
     library::Contents,
-    users::{Caller, remote_cap},
+    users::{Caller, library_access, remote_cap},
 };
 
 pub(super) fn direct_play_url(version: i64) -> String {
@@ -104,6 +105,47 @@ async fn serve(
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
+}
+
+/// Answers 404 to a request under `/media/versions/<id>`, for the Version's file, subtitles,
+/// fonts or Preview frames alike, from a caller who doesn't see the Library of the Version `id`.
+/// Put in front of every router serving there.
+pub(crate) async fn seen_versions_only(
+    State(db): State<Arc<Database>>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let version = (request.uri().path().strip_prefix("/media/versions/"))
+        .and_then(|rest| rest.split('/').next())
+        .and_then(|id| id.parse().ok());
+    let user = (request.extensions().get::<Caller>()).map(|caller| caller.user.id);
+    if let (Some(version), Some(user)) = (version, user) {
+        match sees_version(&db, user, version).await {
+            Ok(true) => {}
+            Ok(false) => return StatusCode::NOT_FOUND.into_response(),
+            Err(err) => {
+                tracing::error!("could not look up which Libraries a User sees: {err}");
+                return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+            }
+        }
+    }
+    next.run(request).await
+}
+
+/// Whether the User `user` sees the Library of the Version `version`, as they must to play it.
+/// One there is no such Version of is for the caller to refuse.
+pub(super) async fn sees_version(
+    db: &Arc<Database>,
+    user: i64,
+    version: i64,
+) -> Result<bool, sqlx::Error> {
+    let library = Contents::new(Arc::clone(db))
+        .library_of_version(version)
+        .await?;
+    let Some(library) = library else {
+        return Ok(true);
+    };
+    Ok(library_access(db, user).await?.sees(library))
 }
 
 /// Serves the Version `id`'s file to keep on the caller's Device as [`serve`] does, but only while

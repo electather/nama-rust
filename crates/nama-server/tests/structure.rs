@@ -96,6 +96,7 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
     ("src/library/watch_states", &["watch_states"]),
     ("src/users/personal_settings", &["personal_settings"]),
     ("src/users/inbox", &["inbox"]),
+    ("src/users/library_access", &["user_libraries"]),
     ("src/automation/store", &["plugin_store"]),
     ("src/watchlist", &["watchlist"]),
     ("src/playback/preview_frames", &["preview_frames"]),

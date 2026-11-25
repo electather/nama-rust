@@ -21,8 +21,8 @@ service LibraryService {
   // `failed_precondition` and `REFUSAL_REASON_FOLDER_OVERLAPS` if a folder is inside, or holds, a
   // folder of another Library.
   rpc CreateLibrary(CreateLibraryRequest) returns (CreateLibraryResponse);
-  // Lists every Library on the Server, oldest first. Any signed-in User may list them, to browse,
-  // but only one with `PERMISSION_MANAGE_LIBRARIES` gets their folders.
+  // Lists every Library the caller sees (`User.library_access`), oldest first. Any signed-in User
+  // may list them, to browse, but only one with `PERMISSION_MANAGE_LIBRARIES` gets their folders.
   rpc ListLibraries(ListLibrariesRequest) returns (ListLibrariesResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }

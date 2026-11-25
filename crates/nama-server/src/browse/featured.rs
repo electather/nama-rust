@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use nama_plugin_api::metadata::ExternalId;
 
 use super::{
-    Browse, Episode, Error, Movie, Show, Started, Titles, episode_ids, finding_failed, movie_ids,
+    Browse, Episode, Error, Movie, Show, Started, Titles, episode_ids, movie_ids,
     watching::{WatchedEpisode, is_aired, show_entry},
     with_tracks,
 };
@@ -119,7 +119,7 @@ impl Browse {
                 }
             })
             .collect();
-        for library in self.libraries.list().await.map_err(finding_failed)? {
+        for library in self.libraries().await? {
             // ponytail: whole-Library read, a second one after Continue Watching's.
             let titles: Vec<Title> = match self.titles(&library).await? {
                 Titles::Movies(movies) => movies.into_iter().map(Title::Movie).collect(),

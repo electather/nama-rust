@@ -11,18 +11,15 @@ use std::{
 };
 
 use clap::{Parser, Subcommand};
-use nama_plugin_api::{
-    diagnostics_sharer::Signal,
-    points::{ServerStarted, ServerStartedEvent},
-};
+use nama_plugin_api::points::{ServerStarted, ServerStartedEvent};
 use nama_server::{
-    backup,
+    ShareWithHub, backup,
     config::{self, Config},
     db::{self, Database},
-    diagnostics,
+    diagnostics::{self, Signal},
     ffmpeg::Ffmpeg,
     plugin_settings::PluginSettings,
-    plugins::{Registry, ShareThroughPlugins},
+    plugins::Registry,
     relay,
     users::{SetupCode, Users},
 };
@@ -32,7 +29,7 @@ use opentelemetry_sdk::{
     logs::SdkLoggerProvider,
     trace::{BatchSpanProcessor, SdkTracerProvider},
 };
-use tokio::{net::TcpListener, runtime::Handle, task};
+use tokio::{net::TcpListener, task};
 use tracing::{Subscriber, error, info, warn};
 use tracing_subscriber::{
     EnvFilter, Layer,
@@ -92,7 +89,7 @@ enum BackupCommand {
 async fn main() -> ExitCode {
     let args = Args::parse();
     // The traces exporter's client; the logs exporter's is made from it.
-    let sharing = ShareThroughPlugins::new(Signal::Traces, Handle::current());
+    let sharing = ShareWithHub::new(Signal::Traces);
     let exporting = init_tracing(&sharing);
     diagnostics::share_panics();
     let to_admin = exporting.as_ref().is_some_and(Exporting::to_admin);
@@ -109,11 +106,7 @@ async fn main() -> ExitCode {
 
 /// Runs the Server until it is told to stop. `exporting` says whether Diagnostics are exported to
 /// the admin's endpoint; what they share goes out through `sharing`.
-async fn run(
-    config_file: Option<&Path>,
-    exporting: bool,
-    sharing: &ShareThroughPlugins,
-) -> ExitCode {
+async fn run(config_file: Option<&Path>, exporting: bool, sharing: &ShareWithHub) -> ExitCode {
     let Some(mut config) = load_config(config_file) else {
         return ExitCode::FAILURE;
     };
@@ -172,17 +165,17 @@ async fn run(
         }
     }
 
-    let points = plugins.extension_points();
-    points.notify::<ServerStarted>(ServerStartedEvent {
-        name: config.name.clone(),
-        version: env!("CARGO_PKG_VERSION").to_owned(),
-    });
+    plugins
+        .extension_points()
+        .notify::<ServerStarted>(ServerStartedEvent {
+            name: config.name.clone(),
+            version: env!("CARGO_PKG_VERSION").to_owned(),
+        });
 
     let shutdown = async {
         shutdown.await;
         info!("shutting down");
     };
-    sharing.serve(Some(points)).await;
     let served = nama_server::serve(
         listener,
         &config,
@@ -190,10 +183,10 @@ async fn run(
         plugins,
         setup_code,
         ffmpeg,
+        sharing.clone(),
         shutdown,
     )
     .await;
-    sharing.serve(None).await;
     // Serving has finished, so this is the last handle and the database can close cleanly.
     close(db).await;
     if let Err(err) = served {
@@ -380,7 +373,7 @@ async fn close(db: Arc<Database>) {
 /// Logs to stdout at `info`, or at whatever `RUST_LOG` asks for, and, only if
 /// [`OTLP_ENDPOINT`] is set, exports traces and logs there too. Shares what the admin shares
 /// through `sharing`. Returns what exports, to flush at shutdown.
-fn init_tracing(sharing: &ShareThroughPlugins) -> Option<Exporting> {
+fn init_tracing(sharing: &ShareWithHub) -> Option<Exporting> {
     // Extism logs an Installed Plugin's error or panic, and the lines it writes through Extism's
     // own log functions, as they are, which may quote a secret setting; the Server logs both
     // itself with secrets blanked (ADR 0061).
@@ -432,7 +425,7 @@ struct Exporting {
 
 impl Exporting {
     /// Exports to [`OTLP_ENDPOINT`] if `to_admin`, and what the admin shares through `sharing`.
-    fn start(to_admin: bool, sharing: &ShareThroughPlugins) -> Result<Self, ExporterBuildError> {
+    fn start(to_admin: bool, sharing: &ShareWithHub) -> Result<Self, ExporterBuildError> {
         diagnostics::use_ring_for_tls();
         let shared_spans = SpanExporter::builder()
             .with_http()

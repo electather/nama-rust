@@ -31,7 +31,6 @@ use nama_plugin_api::{
         SimilarAsked, SimilarTitle, SimilarTitles, TitleKind, TitlesAsked, UserFeaturedAsked,
         UserRowsAsked,
     },
-    diagnostics_sharer::{DiagnosticsSharer, Signal},
     home_row::{HomeRowMethod, HomeRowSource},
     job::RunJob,
     points::{
@@ -143,46 +142,6 @@ fn answered(similar: &SimilarTitles) -> Vec<(&str, &str, f32)> {
             )
         })
         .collect()
-}
-
-/// The Plugin's sharer, enabled against `hub` with the Store in `kernel`.
-fn sharer(hub: &FakeHub, kernel: &Arc<dyn Kernel>) -> Arc<dyn DiagnosticsSharer> {
-    provided(hub, kernel)
-}
-
-#[tokio::test]
-async fn a_linked_server_sends_each_shared_batch_to_the_hub_unchanged_with_its_credential() {
-    let hub = FakeHub::start().await;
-    let kernel = store();
-    hub.link_server();
-
-    let sharer = sharer(&hub, &kernel);
-    sharer
-        .share(Signal::Traces, b"spans".to_vec())
-        .await
-        .unwrap();
-    sharer.share(Signal::Logs, b"lines".to_vec()).await.unwrap();
-
-    assert_eq!(
-        hub.shared(),
-        [
-            ("traces".to_owned(), b"spans".to_vec()),
-            ("logs".to_owned(), b"lines".to_vec())
-        ]
-    );
-}
-
-#[tokio::test]
-async fn a_server_that_isnt_linked_sends_nothing() {
-    let hub = FakeHub::start().await;
-    let kernel = store();
-
-    sharer(&hub, &kernel)
-        .share(Signal::Traces, b"spans".to_vec())
-        .await
-        .unwrap();
-
-    assert_eq!(hub.shared(), []);
 }
 
 #[test]

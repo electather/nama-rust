@@ -1,10 +1,10 @@
 //! An in-process stand-in for the Hub a Server's config names, answering the calls the Kernel
 //! makes as the Server's Link (ADR 0105): its device flow, Unlinking, its Users' Links, Users
 //! created from Accounts, one sign-in with an Account at a time, the Server Addresses, whose public
-//! port it reaches only at [`OPEN_PORT`], the Relay token, and the key set it signs tokens with,
-//! such as those the web app at the Hub trades for a Device ([`FakeHub::signed`]). It
-//! speaks the Connect protocol's unary calls with protobuf bodies, as the Kernel's client does, so
-//! it needs none of the Hub API's other calls.
+//! port it reaches only at [`OPEN_PORT`], the Relay token, the key set it signs tokens with, such as
+//! those the web app at the Hub trades for a Device ([`FakeHub::signed`]), and the OTLP/HTTP paths
+//! taking shared Diagnostics. It speaks the Connect protocol's unary calls with protobuf bodies, as
+//! the Kernel's client does, so it needs none of the Hub API's other calls.
 
 use std::{
     collections::HashMap,
@@ -17,7 +17,8 @@ use std::{
 use axum::{
     Router,
     body::Bytes,
-    http::{HeaderMap, header::CONTENT_TYPE},
+    extract::Path,
+    http::{HeaderMap, StatusCode, header::CONTENT_TYPE},
     response::{IntoResponse as _, Response},
     routing::{MethodRouter, get, post},
 };
@@ -92,6 +93,10 @@ struct State {
     credentials: usize,
     /// Each set of Server Addresses the Server reported, in order.
     told: Vec<SetServerAddressesRequest>,
+    /// Each batch of shared Diagnostics, with the signal its path named, in order.
+    shared: Vec<(String, Bytes)>,
+    /// How many posts reached the OTLP paths, the refused and the unanswered too.
+    otlp_posts: usize,
     /// Whether every call waits forever, as a Hub slow to time out.
     hanging: bool,
     /// The name each User waiting on a code started Linking as, by id.
@@ -181,7 +186,8 @@ impl FakeHub {
             .route(
                 &format!("{linked}/PollServerSignIn"),
                 unary(&state, &key, poll_sign_in),
-            );
+            )
+            .route("/otlp/v1/{signal}", otlp(&state));
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let serving = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
@@ -308,6 +314,17 @@ impl FakeHub {
         lock(&self.state).told.last().cloned()
     }
 
+    /// Each batch of shared Diagnostics the fake took, with the signal its path named.
+    pub(crate) fn shared(&self) -> Vec<(String, Bytes)> {
+        lock(&self.state).shared.clone()
+    }
+
+    /// How many posts reached the OTLP paths, whether the fake took, refused or never answered
+    /// them.
+    pub(crate) fn otlp_posts(&self) -> usize {
+        lock(&self.state).otlp_posts
+    }
+
     /// Has every call from now on wait forever.
     pub(crate) fn hang(&self) {
         lock(&self.state).hanging = true;
@@ -375,10 +392,7 @@ where
 {
     let (state, key) = (Arc::clone(state), Arc::clone(key));
     post(async move |headers: HeaderMap, body: Bytes| -> Response {
-        let hanging = lock(&state).hanging;
-        if hanging {
-            future::pending::<()>().await;
-        }
+        hang_if_asked(&state).await;
         let answered = Req::decode_from_slice(&body)
             .map_err(|_unreadable| ConnectError::invalid_argument("not a request"))
             .and_then(|request| answer(&mut lock(&state), &headers, &request, &key));
@@ -396,6 +410,32 @@ where
                 .into_response(),
         }
     })
+}
+
+/// Takes a batch of shared Diagnostics from the Linked Server, as the Hub forwards it, and refuses
+/// anyone else.
+fn otlp(state: &Arc<Mutex<State>>) -> MethodRouter {
+    let state = Arc::clone(state);
+    post(
+        async move |Path(signal): Path<String>, headers: HeaderMap, batch: Bytes| {
+            lock(&state).otlp_posts += 1;
+            hang_if_asked(&state).await;
+            let mut state = lock(&state);
+            if caller(&state, &headers).is_err() {
+                return StatusCode::UNAUTHORIZED;
+            }
+            state.shared.push((signal, batch));
+            StatusCode::OK
+        },
+    )
+}
+
+/// Never returns while [`FakeHub::hang`] has been called.
+async fn hang_if_asked(state: &Mutex<State>) {
+    let hanging = lock(state).hanging;
+    if hanging {
+        future::pending::<()>().await;
+    }
 }
 
 #[expect(
