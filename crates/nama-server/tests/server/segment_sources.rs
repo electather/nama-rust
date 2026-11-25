@@ -380,7 +380,7 @@ EOF
     async fn a_version_missing_a_kind_is_asked_again_only_after_30_days_and_only_for_it() {
         let (bin, source) = (tempfile::tempdir().unwrap(), Scripted::default());
         source.answer(vec![result(SEGMENT_KIND_CREDITS, 3_000_000, None)]);
-        let fx = listing_the_source(TestServer::builder().moves_clock(), &source, bin.path()).await;
+        let fx = listing_the_source(TestServer::builder(), &source, bin.path()).await;
         let (missing_recap, _) = add_and_wait_for_segments(&fx, ALIEN_720P).await;
         source.answer(vec![
             result(SEGMENT_KIND_RECAP, 60_000, Some(120_000)),

@@ -56,7 +56,7 @@ fn movies(page: &ListContinueWatchingResponse) -> Vec<Option<&ExternalId>> {
 /// A Library of Alien, Heat and Dune, started in that order, then Heat again two seconds later:
 /// Heat is the most recent by time, Dune by row, and Alien by neither.
 async fn three_started_movies() -> Fixture {
-    let builder = TestServer::builder().moves_clock();
+    let builder = TestServer::builder();
     let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_MOVIES, builder).await;
     fx.write(ALIEN_1080P, b"video");
     fx.write("Heat (1995) {tmdb-949}/Heat (1995).mkv", b"video");

@@ -164,8 +164,7 @@ async fn moving_the_position_alone_does_not_ask_the_plugin_again() {
 
 #[tokio::test]
 async fn another_users_rows_and_the_shared_rows_are_not_asked_again() {
-    // Alone among this binary's Servers, so no other test's Plugin logs the shared rows meanwhile.
-    let fx = with_plugin_reading_watch_states(TestServer::builder().moves_clock()).await;
+    let fx = with_plugin_reading_watch_states(TestServer::builder()).await;
     let dee = user(&fx.server, "dee").await;
     let eve = user(&fx.server, "eve").await;
     open_home_until_asked(&dee, "dee", 1).await;
@@ -195,7 +194,7 @@ async fn a_plugin_not_granted_read_watch_states_is_not_asked_again() {
 
 #[tokio::test]
 async fn an_answer_to_a_refresh_running_as_the_title_was_started_is_not_kept_as_fresh() {
-    let fx = with_plugin_reading_watch_states(TestServer::builder().moves_clock()).await;
+    let fx = with_plugin_reading_watch_states(TestServer::builder()).await;
     // The test Plugin answers the handle `waits` only once the clock moves a minute.
     let waits = user(&fx.server, "waits").await;
     open_home(&waits).await;

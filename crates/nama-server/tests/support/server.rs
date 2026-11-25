@@ -35,7 +35,7 @@ use nama_proto::nama::v1::{
 };
 use nama_server::{ShareWithHub, db::Database, users::SetupCode};
 use tempfile::TempDir;
-use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard, oneshot};
+use tokio::sync::oneshot;
 
 pub(crate) use builder::Builder;
 use fulfiller::FakeFulfiller;
@@ -59,22 +59,6 @@ pub(crate) struct TestServer {
     fulfiller: Option<FakeFulfiller>,
     _stop: oneshot::Sender<()>,
     data_dir: TempDir,
-    clock: ClockGuard,
-}
-
-/// What [`Builder::moves_clock`] holds alone: see "One clock" in `crates/nama-server/AGENTS.md`.
-/// Trap: tokio's `RwLock` is fair, so a test that holds a shared guard and starts a second
-/// `TestServer` while a writer waits deadlocks.
-static CLOCK: RwLock<()> = RwLock::const_new(());
-
-/// A [`TestServer`]'s hold on [`CLOCK`], for as long as the Server lives.
-enum ClockGuard {
-    Shared {
-        _held: RwLockReadGuard<'static, ()>,
-    },
-    Exclusive {
-        _held: RwLockWriteGuard<'static, ()>,
-    },
 }
 
 /// A User signed in on a Device named Phone. Holds a session token, so it skips `Debug`.
@@ -207,17 +191,12 @@ impl TestServer {
     /// Moves the Server's clock, and so every Plugin's, ahead by `by`, as for a test that ages a
     /// Watch State. The Admin's session lasts `DEVICE_LIFETIME`, 90 days, so stay under it, and do
     /// what needs Recent Authentication before advancing, or sign in again. The clock is
-    /// process-wide, so this Server must hold it alone, and starts on the real clock: see "One
-    /// clock" in `crates/nama-server/AGENTS.md`.
-    ///
-    /// # Panics
-    ///
-    /// If the builder didn't call [`Builder::moves_clock`].
+    /// process-wide: see "One clock" in `crates/nama-server/AGENTS.md`.
+    #[expect(
+        clippy::unused_self,
+        reason = "a test moves its Server's clock, though the clock is the process's"
+    )]
     pub(crate) fn advance_clock(&self, by: Duration) {
-        assert!(
-            matches!(self.clock, ClockGuard::Exclusive { .. }),
-            "build a Server whose test moves the clock with `Builder::moves_clock()`"
-        );
         nama_server::db::advance_clock(by);
     }
 

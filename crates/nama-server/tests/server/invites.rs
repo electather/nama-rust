@@ -207,7 +207,7 @@ async fn an_invite_works_once() {
 
 #[tokio::test]
 async fn an_invite_stops_working_7_days_after_it_was_made() {
-    let server = start(TestServer::builder().moves_clock()).await;
+    let server = start(TestServer::builder()).await;
     let admin = users(server.client_config());
     let early = create_invite(&admin, "", &[]).await.unwrap();
     let late = create_invite(&admin, "", &[]).await.unwrap();

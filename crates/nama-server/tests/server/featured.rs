@@ -106,7 +106,7 @@ fn titles(featured: &[FeaturedTitle]) -> Vec<&str> {
 
 #[tokio::test]
 async fn with_nothing_started_and_nothing_added_in_14_days_it_lists_nothing() {
-    let fx = Fixture::alien_on(TestServer::builder().moves_clock()).await;
+    let fx = Fixture::alien_on(TestServer::builder()).await;
     let just_added = featured(fx.server.client_config()).await;
 
     fx.server.advance_clock(FIFTEEN_DAYS);
@@ -186,7 +186,7 @@ async fn a_show_nobody_started_plays_its_first_episode_and_counts_no_specials() 
 
 #[tokio::test]
 async fn a_title_another_user_started_is_not_listed_for_the_caller() {
-    let fx = Fixture::alien_on(TestServer::builder().moves_clock()).await;
+    let fx = Fixture::alien_on(TestServer::builder()).await;
     let grace = fx.server.user_with_default_permissions("Grace").await;
     fx.server.advance_clock(FIFTEEN_DAYS);
 
@@ -224,7 +224,7 @@ async fn a_plugins_suggestions_rank_by_weight_among_the_kernels_for_their_user_a
     let fx = library_of(
         LibraryKind::LIBRARY_KIND_MOVIES,
         &files,
-        TestServer::builder().moves_clock(),
+        TestServer::builder(),
     )
     .await;
     let ada = fx.server.user_with_default_permissions("Ada").await;
@@ -254,7 +254,7 @@ async fn disabling_the_plugin_drops_its_suggestions() {
     let fx = library_of(
         LibraryKind::LIBRARY_KIND_MOVIES,
         &files,
-        TestServer::builder().moves_clock(),
+        TestServer::builder(),
     )
     .await;
     fx.server.install_test_plugin("home-rows").await;
@@ -277,7 +277,7 @@ async fn starting_a_title_lists_a_plugin_reading_watch_states_old_suggestions_as
     let fx = library_of(
         LibraryKind::LIBRARY_KIND_MOVIES,
         &files,
-        TestServer::builder().moves_clock(),
+        TestServer::builder(),
     )
     .await;
     fx.server.install_test_plugin("home-rows").await;

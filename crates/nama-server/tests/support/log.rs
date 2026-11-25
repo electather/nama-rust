@@ -10,7 +10,7 @@ use tracing_subscriber::layer::SubscriberExt as _;
 
 use super::server::WAIT;
 
-/// Everything the Server logs, to this test binary's one global subscriber: a thread-local one
+/// Everything the Server logs, to the test process's one global subscriber: a thread-local one
 /// wouldn't see what Observers log on the runtime's other threads.
 #[derive(Clone, Default)]
 pub(crate) struct Log(Arc<Mutex<Vec<u8>>>);
@@ -21,6 +21,8 @@ impl Log {
         reason = "a test helper fails its test by panicking"
     )]
     pub(crate) fn global() -> &'static Self {
+        // Kept with one test per process: a test calls this before its Server logs and again to
+        // read the log, and installing a second global subscriber fails.
         static LOG: OnceLock<Log> = OnceLock::new();
         LOG.get_or_init(|| {
             let log = Self::default();
