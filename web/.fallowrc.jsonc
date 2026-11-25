@@ -63,6 +63,7 @@
       { "name": "admin-home", "patterns": ["src/features/admin-home/**"] },
       { "name": "admin-users", "patterns": ["src/features/admin-users/**"] },
       { "name": "requests", "patterns": ["src/features/requests/**"] },
+      { "name": "inbox", "patterns": ["src/features/inbox/**"] },
       { "name": "action-bar", "patterns": ["src/features/action-bar/**"] },
       { "name": "invites", "patterns": ["src/features/invites/**"] },
       { "name": "settings", "patterns": ["src/features/settings/**"] },
@@ -143,6 +144,11 @@
         "allow": ["requests", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
+        "from": "inbox",
+        // A notification opens Settings at the User's Requests.
+        "allow": ["inbox", "settings", "shared-components", "shared-hooks", "shared-lib"],
+      },
+      {
         "from": "action-bar",
         // Its Settings and Admin pages open Settings at a section.
         "allow": ["action-bar", "settings", "shared-components", "shared-hooks", "shared-lib"],
@@ -191,6 +197,7 @@
         "allow": [
           "app",
           "action-bar",
+          "inbox",
           "player",
           "settings",
           "shared-components",

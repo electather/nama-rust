@@ -4,11 +4,12 @@ import { LibrariesMenu } from "@/app/top-bar/libraries-menu";
 import { SearchButton } from "@/app/top-bar/search-button";
 import { TopBarLinks } from "@/app/top-bar/top-bar-links";
 import { UserMenu } from "@/app/top-bar/user-menu";
+import { InboxMenu } from "@/features/inbox/components/inbox-menu";
 import { Logo } from "@/shared/components/logo";
 
 /**
  * The top bar's one row: the mark and the links, or on a phone the Libraries menu, at its start;
- * search and your menu at its end.
+ * search, your notifications and your menu at its end.
  */
 export function TopBarRow({ userName, onSearch }: { userName: string; onSearch: () => void }) {
   return (
@@ -24,6 +25,7 @@ export function TopBarRow({ userName, onSearch }: { userName: string; onSearch: 
       <LibrariesMenu />
       <span className="flex-1" />
       <SearchButton onSearch={onSearch} />
+      <InboxMenu />
       <UserMenu userName={userName} />
     </div>
   );

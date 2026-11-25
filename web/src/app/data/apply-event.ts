@@ -1,6 +1,7 @@
 import { createConnectQueryKey } from "@connectrpc/connect-query";
 import type { InfiniteData } from "@tanstack/react-query";
 
+import { inboxKey } from "@/features/inbox/data/inbox-key";
 import type { Event, SubscribeResponse } from "@/gen/nama/v1/event_pb";
 import { LibraryService } from "@/gen/nama/v1/library_pb";
 import type { ListUnmatchedItemsResponse } from "@/gen/nama/v1/match_pb";
@@ -144,12 +145,13 @@ const requestEvents = new Set<Event["event"]["case"]>([
 
 /**
  * Refetches the Requests when a Request or Followed Show opens, gains or loses a Requester, changes
- * state or goes, or a Request's downloads move.
+ * state or goes, or a Request's downloads move, and the inbox, as the Server notifies of some of these.
  */
 function refreshRequests({ event }: Event, { queryClient, transport }: RouterContext) {
   if (requestEvents.has(event.case)) {
     void queryClient.invalidateQueries({ queryKey: requestsKey(transport) });
     void queryClient.invalidateQueries({ queryKey: searchKey(transport) });
+    void queryClient.invalidateQueries({ queryKey: inboxKey(transport) });
   }
 }
 

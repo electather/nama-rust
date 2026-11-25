@@ -15,6 +15,7 @@ import {
   type SubscribeResponse,
   SubscribeResponseSchema,
 } from "@/gen/nama/v1/event_pb";
+import { InboxService } from "@/gen/nama/v1/inbox_pb";
 import { LibraryService, type LibrarySchema } from "@/gen/nama/v1/library_pb";
 import { PlaybackService, SubtitleBackground, SubtitleSize } from "@/gen/nama/v1/playback_pb";
 import { PluginService } from "@/gen/nama/v1/plugin_pb";
@@ -130,6 +131,12 @@ export function fakeServer(
     router.service(PluginService, { listPlugins: () => ({}) });
     // A test's own `PlaybackService` in `more` replaces this.
     router.service(PlaybackService, { ...defaultPlayback, ...state.playbackService });
+    // Every signed-in page's bell counts the inbox, empty here. A test's own `InboxService` in
+    // `more` replaces this.
+    router.service(InboxService, {
+      countUnreadInboxNotifications: () => ({}),
+      listInboxNotifications: () => ({}),
+    });
     // Every signed-in page follows the Server's Events.
     router.service(EventService, { subscribe: () => state.events ?? new ReadableStream() });
     more(router);
