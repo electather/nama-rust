@@ -743,3 +743,21 @@ async fn an_offline_change_past_90_percent_is_played_as_reported_progress_is() {
     let state = movie_state(&watch_states, user, alien_id()).await.unwrap();
     assert!(state.played);
 }
+
+#[tokio::test]
+async fn a_newer_offline_change_shows_a_hidden_movie_again_in_continue_watching() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user) = watch_states(&data).await;
+    let stored = made_elsewhere(1_000, false, 120);
+    (watch_states.take_offline(user, vec![(alien_by_both_ids(), stored)]))
+        .await
+        .unwrap();
+    watch_states.hide(user, vec![alien()], true).await.unwrap();
+
+    let newer = made_elsewhere(1_500, false, 60);
+    (watch_states.take_offline(user, vec![(alien_by_both_ids(), newer)]))
+        .await
+        .unwrap();
+
+    assert_eq!(hidden(&watch_states, user).await, [false]);
+}

@@ -174,8 +174,8 @@ impl Browse {
         Ok(())
     }
 
-    /// Each of `changes` to a Movie or Episode a Library has under any of its ids, with it as the
-    /// oldest Library that has that id knows it.
+    /// Each of `changes` beside the Movie or Episode it changes, as the oldest Library that has it
+    /// under any of its ids knows it. One no Library has is left out.
     async fn found_here(
         &self,
         changes: Vec<WatchStateChange>,
