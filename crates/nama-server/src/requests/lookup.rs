@@ -76,6 +76,7 @@ pub(crate) struct Listed {
     /// The year a Movie was released or a Show first aired.
     pub(crate) year: Option<i32>,
     pub(crate) poster: Option<ImageRef>,
+    pub(crate) content_rating: Option<String>,
 }
 
 /// A Show looked up in the title source, and how close it is to being on the Server.
@@ -247,6 +248,7 @@ impl Requests {
             year: movie.release_date.as_deref().and_then(year_of),
             title: movie.title,
             poster: movie.poster,
+            content_rating: movie.content_rating,
         })
     }
 
@@ -259,6 +261,7 @@ impl Requests {
             year: show.first_air_date.as_deref().and_then(year_of),
             poster: ImageRef::of(&source.plugin, show.poster.as_ref()),
             title: show.title,
+            content_rating: show.content_rating,
         })
     }
 

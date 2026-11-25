@@ -1559,8 +1559,8 @@ export const UserService: GenService<{
    * Replaces a User's Maximum Age, from their next request: browsing, search, Home rows, Plugin
    * rows, Similar titles, title pages, playback and Requests leave out a title whose Content
    * Rating calls for an older age, and one with no Content Rating, or one the Server doesn't know,
-   * unless they allow unrated titles. A title not on the Server, such as a Request search's or a
-   * Plugin row's, counts as unrated. Without `PERMISSION_ADMIN`, the caller may change neither an
+   * unless they allow unrated titles. A Request search's hit not on the Server has no Content
+   * Rating, so it counts as unrated. Without `PERMISSION_ADMIN`, the caller may change neither an
    * Admin's nor their own. Fails as `SetLibraryAccess` does.
    *
    * @generated from rpc nama.v1.UserService.SetMaximumAge

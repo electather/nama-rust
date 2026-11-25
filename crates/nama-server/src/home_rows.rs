@@ -76,6 +76,9 @@ struct Missing {
     year: Option<i32>,
     /// The Plugin whose title source serves the poster, and its path there.
     poster: Option<(String, String)>,
+    /// None for a row stored before it was kept, which counts as unrated.
+    #[serde(default)]
+    content_rating: Option<String>,
 }
 
 /// A title a row shows a reader.
@@ -401,12 +404,12 @@ fn answered<R>(answer: Option<Answer<R>>, scope: &Scope, noun: &str) -> Option<R
 }
 
 /// The titles of `row` that `on_server` has in a Library the reader sees, or that are missing and
-/// of a kind `may_request`, each with its place in the row, in its order. A title the row names
+/// `may_request` lets through, each with its place in the row, in its order. A title the row names
 /// twice, or by two of its ids, shows once, at its first place.
 fn shown(
     row: &Row,
     on_server: &HashMap<Title, Option<OnServer>>,
-    may_request: impl Fn(Kind) -> bool,
+    may_request: impl Fn(&Missing) -> bool,
 ) -> Vec<(i64, RowTitle)> {
     let missing: HashMap<&Title, &Missing> = (row.missing.iter())
         .map(|missing| (&missing.title, missing))
@@ -416,9 +419,11 @@ fn shown(
         .filter_map(|(title, place)| {
             let shown = match on_server.get(title) {
                 Some(Some(found)) => RowTitle::OnServer(found.clone()),
-                None if may_request(title.0) => missing.get(title)?.row_title()?,
-                // Only a Library the reader doesn't see has it, or they may not Request it.
-                Some(None) | None => return None,
+                None => (missing.get(title))
+                    .filter(|missing| may_request(missing))?
+                    .row_title()?,
+                // Only a Library the reader doesn't see has it, or their Maximum Age keeps it out.
+                Some(None) => return None,
             };
             Some((place, shown))
         })
@@ -426,13 +431,12 @@ fn shown(
         .collect()
 }
 
-/// Whether `reader`, whose Maximum Age is `max_age`, may Request a title of each kind that isn't
-/// on the Server, which counts as unrated: a row stores no Content Rating for one.
-fn may_request(reader: &User, max_age: MaximumAge) -> impl Fn(Kind) -> bool {
+/// Whether `reader`, whose Maximum Age is `max_age`, may Request a missing title.
+fn may_request(reader: &User, max_age: MaximumAge) -> impl Fn(&Missing) -> bool {
     let permissions = reader.permissions;
-    move |kind| {
-        max_age.allows(None)
-            && match kind {
+    move |missing| {
+        max_age.allows(missing.content_rating.as_deref())
+            && match missing.title.0 {
                 Kind::Movie => permissions.allow(Permission::RequestMovie),
                 Kind::Show => permissions.allow(Permission::RequestTv),
             }
@@ -478,6 +482,7 @@ impl Missing {
             name: listed.title,
             year: listed.year,
             poster: (listed.poster).map(|poster| (poster.plugin.as_str().to_owned(), poster.path)),
+            content_rating: listed.content_rating,
         }
     }
 
@@ -491,6 +496,7 @@ impl Missing {
                 plugin: PluginId::from(plugin),
                 path,
             }),
+            content_rating: self.content_rating.clone(),
         };
         Some(match self.title.0 {
             Kind::Movie => RowTitle::MissingMovie(listed, None),

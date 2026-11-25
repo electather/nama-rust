@@ -233,6 +233,7 @@ impl OnServer {
         }
     }
 
+    /// Its Content Rating, as its Match stores it.
     pub(crate) fn content_rating(&self) -> Option<&str> {
         match self {
             Self::Movie(movie) => movie.content_rating.as_deref(),

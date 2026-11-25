@@ -24,11 +24,12 @@ use connectrpc::{
 };
 use http::fetch;
 use nama_proto::nama::v1::{
-    BrowseServiceClient, CreateRequestRequest, ExternalId, GetMovieRequest, GetShowRequest,
-    HomeRowTitle, LibraryKind, ListEpisodesRequest, ListHomeRowTitlesRequest, ListMoviesRequest,
-    ListShowsRequest, ListUsersRequest, LookUpMovieRequest, MaximumAge, Permission,
-    PlanPlaybackRequest, PlaybackServiceClient, RefusalReason, RequestServiceClient,
-    SetMaximumAgeRequest, UserServiceClient, home_row_title::MovieOrShow,
+    BrowseServiceClient, CreateRequestRequest, DeleteLibraryRequest, ExternalId, GetMovieRequest,
+    GetShowRequest, HomeRowTitle, LibraryKind, LibraryServiceClient, ListEpisodesRequest,
+    ListHomeRowTitlesRequest, ListMoviesRequest, ListShowsRequest, ListUsersRequest,
+    LookUpMovieRequest, MaximumAge, Permission, PlanPlaybackRequest, PlaybackServiceClient,
+    RefusalReason, RequestServiceClient, SetMaximumAgeRequest, UserServiceClient,
+    home_row_title::MovieOrShow,
 };
 use refused::{assert_refused, refusal_of};
 use server::{
@@ -302,8 +303,15 @@ async fn similar_titles_leave_out_unrated_ones_for_a_capped_user() {
 }
 
 #[tokio::test]
-async fn a_plugin_row_leaves_out_titles_over_the_age_and_missing_ones_unless_unrated_pass() {
+async fn a_plugin_row_judges_titles_on_the_server_and_missing_alike_by_their_rating() {
     let fx = Fixture::start().await;
+    // Without Dark on the Server, the row offers it as missing, rated as the title source rates it.
+    let libraries = LibraryServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
+    let deleted = libraries.delete_library(DeleteLibraryRequest {
+        id: fx.shows.id,
+        ..Default::default()
+    });
+    deleted.await.unwrap();
     fx.server.enable_test_plugin("home-rows").await;
     let admin = fx.server.client_config();
     let started = Instant::now();
@@ -319,7 +327,7 @@ async fn a_plugin_row_leaves_out_titles_over_the_age_and_missing_ones_unless_unr
 
     assert_eq!(
         seventeen,
-        [format!("Movie {ALIEN}"), format!("Show {DARK}")]
+        [format!("Movie {ALIEN}"), format!("missing Show {DARK}")]
     );
     assert_eq!(
         thirteen_or_unrated,
