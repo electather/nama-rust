@@ -81,7 +81,7 @@ async fn a_hub_token_signs_in_a_device_its_user_lists_revokes_and_keeps_while_th
 }
 
 #[tokio::test]
-async fn a_hub_token_for_another_server_expired_unnamed_or_used_twice_is_refused() {
+async fn a_hub_token_for_another_server_expired_unnamed_used_twice_or_forged_is_refused() {
     let (server, hub) = FakeHub::linked_server().await;
     let grace = server.user_with_default_permissions("Grace").await.id;
     let token = |aud: &str, exp: u64, jti: Option<&str>| {
@@ -89,12 +89,18 @@ async fn a_hub_token_for_another_server_expired_unnamed_or_used_twice_is_refused
     };
     let once = token(SERVER_ID, in_5_minutes(), Some("once"));
     trade(&server, &once).await.unwrap();
+    // Unused claims under another token's signature, so only the signature refuses it.
+    let unused = token(SERVER_ID, in_5_minutes(), Some("forged"));
+    let (unused_claims, _) = unused.rsplit_once('.').unwrap();
+    let (_, once_signature) = once.rsplit_once('.').unwrap();
+    let forged = format!("{unused_claims}.{once_signature}");
 
     for refused in [
         once,
         token("another server", in_5_minutes(), Some("other")),
         token(SERVER_ID, in_5_minutes() - 3600, Some("expired")),
         token(SERVER_ID, in_5_minutes(), None),
+        forged,
     ] {
         assert_refused(
             trade(&server, &refused).await,

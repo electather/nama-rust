@@ -413,6 +413,11 @@ impl ServerLink {
     async fn use_up(&self, jti: String, passes_until: u64) -> Result<bool, sqlx::Error> {
         let now = db::now();
         let passes_until = i64::try_from(passes_until).unwrap_or(i64::MAX);
+        // `checked` read the clock earlier: a token that stopped passing since would find its
+        // first use forgotten by the cleanup below, and pass a second time.
+        if passes_until < now {
+            return Ok(false);
+        }
         self.db
             .write(move |tx| {
                 Box::pin(async move {
