@@ -34,7 +34,7 @@ pub mod nama {
 /// It covers the Manifest, the messages the services share and what the Kernel gives a Plugin;
 /// each service has a version of its own, in [`SERVICES`]. It is not this crate's version;
 /// `AGENTS.md` says when it changes.
-pub const CONTRACT_VERSION: &str = "0.6.12";
+pub const CONTRACT_VERSION: &str = "0.6.13";
 
 /// The full names of the `nama.plugin.v1` services, the Extension Points an Installed Plugin can
 /// serve, as a Manifest's `Point.service` names them.
@@ -161,6 +161,10 @@ kernel_functions! {
     BackUp = "back_up": BackUpAsked -> BackedUp, PERMISSION_BACK_UP;
     ListVersionTitles = "list_version_titles": VersionTitlesAsked -> VersionTitles, PERMISSION_READ_LIBRARIES;
     ListDevices = "list_devices": DevicesAsked -> Devices, PERMISSION_READ_USERS;
+    ListHubSimilar = "list_hub_similar": SimilarAsked -> SimilarTitles, PERMISSION_READ_LIBRARIES;
+    ListHubRecommended = "list_hub_recommended": HubRecommendedAsked -> HubTitles, PERMISSION_READ_WATCH_STATES;
+    ListHubTrending = "list_hub_trending": HubChartAsked -> HubTitles, PERMISSION_READ_LIBRARIES;
+    ListHubMostWatchlisted = "list_hub_most_watchlisted": HubChartAsked -> HubTitles, PERMISSION_READ_LIBRARIES;
 }
 
 /// The largest object a blob store holds, in bytes: the Kernel never puts a larger one, and a

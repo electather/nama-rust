@@ -13,12 +13,12 @@ use figment::{
     providers::{Format, Serialized, Toml},
 };
 use nama_plugin_api::{
-    BoxFuture, Plugin, PluginError, PluginId, Registrar, Registration,
+    BoxFuture, Plugin, PluginId, Registrar, Registration,
     auth::Authenticator,
     automation::{Kernel, KernelRefused, Permission},
     settings::{SettingValue, Settings},
 };
-use nama_plugin_hub::{Hub, KernelLink};
+use nama_plugin_hub::HubSuggestions;
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_log_events::LogEvents;
 use nama_plugin_test_choices::TestChoices;
@@ -72,8 +72,8 @@ async fn every_builtin_plugin_but_the_hubs_is_enabled_by_default_once_it_has_the
     let without_settings = started("").await;
     let with_settings = started("[plugins.tmdb]\napi_key = \"secret\"").await;
 
-    // TMDB can't run without an API key, and a Server isn't Linked until an Admin enables the Hub
-    // Plugin (ADR 0094).
+    // TMDB can't run without an API key, and Hub Suggestions stays off until an Admin enables it
+    // (ADR 0105).
     assert_eq!(
         without_settings,
         [
@@ -94,13 +94,11 @@ async fn every_builtin_plugin_but_the_hubs_is_enabled_by_default_once_it_has_the
 }
 
 #[tokio::test]
-async fn the_hub_plugin_stays_off_across_restarts_until_an_admin_enables_it() {
+async fn hub_suggestions_stays_off_across_restarts_until_an_admin_enables_it() {
     let data_dir = tempfile::tempdir().unwrap();
     let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
     let config = Config {
         data_dir: data_dir.path().to_owned(),
-        // So nothing but its stored state could keep it off.
-        hub_url: Some("http://hub.invalid".to_owned()),
         ..Config::default()
     };
     let first = PluginSettings::start(Arc::clone(&db), Registry::with_builtins(), &config)
@@ -112,7 +110,62 @@ async fn the_hub_plugin_stays_off_across_restarts_until_an_admin_enables_it() {
         .await
         .unwrap();
 
-    assert!(!restarted.registry().enabled().contains(&Hub::ID));
+    assert!(!restarted.registry().enabled().contains(&HubSuggestions::ID));
+}
+
+#[tokio::test]
+async fn hub_suggestions_an_admin_enabled_stays_enabled_across_restarts_without_a_hub() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    let config = Config {
+        data_dir: data_dir.path().to_owned(),
+        ..Config::default()
+    };
+    let first = PluginSettings::start(Arc::clone(&db), Registry::with_builtins(), &config)
+        .await
+        .unwrap();
+    first.enable(&HubSuggestions::ID).await.unwrap();
+    drop(first);
+
+    let restarted = PluginSettings::start(db, Registry::with_builtins(), &config)
+        .await
+        .unwrap();
+
+    assert!(restarted.registry().enabled().contains(&HubSuggestions::ID));
+}
+
+#[tokio::test]
+async fn an_admin_who_had_the_hub_plugin_enabled_has_hub_suggestions_enabled_after_the_upgrade() {
+    let data_dir = tempfile::tempdir().unwrap();
+    let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
+    drop(start(&db, data_dir.path(), "").await);
+    // The row the Hub Plugin left: enabled, holding only the Read Libraries it requested.
+    let held = serde_json::to_string(&[Permission::PERMISSION_READ_LIBRARIES]).unwrap();
+    db.write(move |tx| {
+        Box::pin(async move {
+            sqlx::query(
+                "UPDATE plugin_settings SET enabled = 1, granted_permissions = ? \
+                 WHERE plugin_id = 'hub'",
+            )
+            .bind(held)
+            .execute(&mut **tx)
+            .await
+        })
+    })
+    .await
+    .unwrap();
+
+    let upgraded = start(&db, data_dir.path(), "").await;
+
+    assert!(upgraded.registry().enabled().contains(&HubSuggestions::ID));
+    let hub_suggestions = upgraded.get(&HubSuggestions::ID).await.unwrap().unwrap();
+    assert_eq!(
+        hub_suggestions.granted,
+        HashSet::from([
+            Permission::PERMISSION_READ_LIBRARIES,
+            Permission::PERMISSION_READ_WATCH_STATES,
+        ])
+    );
 }
 
 #[tokio::test]
@@ -177,14 +230,14 @@ fn a_plugin_that_isnt_running_may_be_disabled_only_while_another_provides_an_aut
 #[test]
 fn each_builtin_plugin_registers_at_exactly_the_extension_points_its_manifest_names() {
     let plugins: [Arc<dyn Plugin>; 6] = [
-        Arc::new(Hub::through(Arc::new(Uncalled))),
+        Arc::new(HubSuggestions),
         Arc::new(LocalAuth),
         Arc::new(LogEvents),
         Arc::new(TestChoices),
         Arc::new(Tmdb::new()),
         Arc::new(Upkeep),
     ];
-    // Upkeep and the Hub Plugin need the Kernel's functions to register, though none is called
+    // Upkeep and Hub Suggestions need the Kernel's functions to register, though none is called
     // here.
     let refusing = |_: &str, _: Vec<u8>| -> BoxFuture<'static, Result<Vec<u8>, KernelRefused>> {
         Box::pin(async { Err(KernelRefused("not called".to_owned())) })
@@ -215,24 +268,6 @@ fn each_builtin_plugin_registers_at_exactly_the_extension_points_its_manifest_na
             .map(Registration::point)
             .collect();
         assert_eq!(registered, manifest.extension_points, "{}", manifest.id);
-    }
-}
-
-/// The Kernel's Link with a Hub never called, for the Hub Plugin to register with.
-#[derive(Debug)]
-struct Uncalled;
-
-impl KernelLink for Uncalled {
-    fn hub_url(&self) -> &'static str {
-        "http://hub.invalid"
-    }
-
-    fn credential(&self) -> BoxFuture<'_, Result<Option<String>, PluginError>> {
-        Box::pin(async { Ok(None) })
-    }
-
-    fn forget<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<(), PluginError>> {
-        Box::pin(async { Ok(()) })
     }
 }
 
@@ -293,9 +328,6 @@ fn plugin_crates_depend_only_on_the_workspace_crates_they_may() {
         let installed_or_shared = installed || shared(package);
         let allowed: &[&str] = if installed_or_shared {
             &pdk_and_shared
-        } else if package["name"] == "nama-plugin-hub" {
-            // It calls the Hub, through the Hub API's stubs (ADR 0094).
-            &["nama-plugin-api", "nama-hub-proto"]
         } else {
             &["nama-plugin-api"]
         };

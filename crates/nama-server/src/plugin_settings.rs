@@ -15,7 +15,6 @@ use nama_plugin_api::{
     automation::Permission,
     settings::{SettingValue, SettingsError},
 };
-use nama_plugin_hub::KernelLink;
 use nama_proto::nama::v1::PluginKind;
 use thiserror::Error;
 use tokio::{
@@ -28,7 +27,6 @@ use tracing::{Instrument as _, error, info, warn};
 use crate::{
     config::{Config, InvalidPluginTable, PluginConfig},
     db::Database,
-    link,
     plugins::{
         CheckError, EnableError, ExtensionPoints, LastProvider, Listed, ListedJob, LoadedInstalled,
         Registry, list_jobs, log_not_enabled, read_installed,
@@ -214,8 +212,7 @@ impl PluginSettings {
     /// knows, and enables each one stored as enabled, with its stored settings. On the first start
     /// nothing is stored yet, so it uses `config`'s `[plugins.*]` tables, and imports them once
     /// the Plugins have started. Each Built-in Plugin is granted the Plugin Permissions it requests,
-    /// and saved with them in place of those stored, since it is compiled in (ADR 0079). The Hub
-    /// Plugin calls the Hub `config` names through the Kernel's Server Link (ADR 0105).
+    /// and saved with them in place of those stored, since it is compiled in (ADR 0079).
     ///
     /// A Plugin that fails to enable, such as one missing a required setting, is logged and left
     /// off.
@@ -230,10 +227,6 @@ impl PluginSettings {
         registry: Registry,
         config: &Config,
     ) -> Result<Self, StartError> {
-        if let Some(link) = link::server_link(config, &db) {
-            let link: Arc<dyn KernelLink> = link;
-            registry.link_hub(&link);
-        }
         let stored = stored(&db).await.map_err(StartError::Read)?;
         let mut grants = grants(&db).await.map_err(StartError::Read)?;
         let builtin_grants = builtin_grants(&registry, &grants);

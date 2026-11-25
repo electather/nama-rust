@@ -5,7 +5,6 @@ use nama_hub_proto::nama::hub::v1::{
     RecordViewingEventsRequest, TrackPreferenceChange, UserViewingEvent, WatchStateChange,
 };
 use nama_plugin_api::PluginId;
-use nama_plugin_hub::KernelLink;
 use sqlx::{Connection, SqliteConnection, sqlite::SqliteConnectOptions};
 use tempfile::TempDir;
 
@@ -226,7 +225,7 @@ async fn upgrading_hands_the_kernel_the_links_the_hub_plugin_kept_but_those_it_i
     let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
     // Nothing listens there: the kept Link is read without asking the Hub.
     let server = Arc::new(ServerLink::new("http://127.0.0.1:1", Arc::clone(&db)).unwrap());
-    let credential = KernelLink::credential(server.as_ref()).await.unwrap();
+    let credential = server.credential().await;
     let linking = Linking::new(Some(server));
     let grace = linking.is_user_linked(1).await.unwrap();
     let hedy = linking.is_user_linked(2).await.unwrap();

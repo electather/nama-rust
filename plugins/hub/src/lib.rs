@@ -1,79 +1,40 @@
-//! The Hub Plugin (ADR 0094): the Built-in Plugin through which a Linked Server does what is
-//! Hub-facing but the Link itself and sharing Diagnostics, which the Kernel does (ADR 0105,
-//! [`KernelLink`]), and the sync of Watch State, Preferences and Watchlists and sending Viewing
-//! Events, which the Kernel does too.
-//! Once Linked, it is a Similar source answering the titles the Hub finds alike (ADR 0084,
-//! 0095), a Home row source giving each Linked User the titles the Hub recommends from what
-//! their Account finished, as a row and as Featured suggestions (ADR 0072), and sharing Home rows
-//! of the Movies trending and the titles most watchlisted across Nama's Accounts (ADR 0058, 0093).
+//! Hub Suggestions (ADR 0105): the Built-in Plugin that turns what the Hub suggests to a Linked
+//! Server into Similar titles, the titles its vectors from Wikidata's facts find alike (ADR 0084,
+//! 0095), a Recommended for you row and Featured suggestions for each Linked User from what their
+//! Account finished (ADR 0072), and shared Home rows of the Movies trending and the titles most
+//! watchlisted across Nama's Accounts (ADR 0058, 0093). It asks through the Kernel's `list_hub_*`
+//! functions, which answer nothing while the Server isn't Linked, so it needs no Hub of its own.
 
 mod charts;
-mod hub;
-mod linker;
 mod recommended;
 mod similar;
 
-use std::{fmt, sync::Arc};
+use std::sync::Arc;
 
 use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     automation::Permission,
     contract::{FeaturedSuggestions, HomeRows, SharedRowsAsked, UserFeaturedAsked, UserRowsAsked},
     home_row::{HomeRowMethod, HomeRowSource},
-    server_link::ServerLinker,
     similar_source::SimilarSource,
 };
 
-use crate::{
-    charts::Charts, hub::Hub as HubApi, linker::Linker, recommended::Recommended, similar::Similar,
-};
-
-/// The Server's Link with the Hub, which the Kernel keeps (ADR 0105): the Plugin calls the Hub as
-/// the Linked Server with its credential.
-// ponytail: a Rust handle the Server hands its Built-in Plugin, not the Plugin contract, as it goes
-// with the rest of this Plugin's Linking once the Kernel does it all (#2203).
-pub trait KernelLink: fmt::Debug + Send + Sync + 'static {
-    /// The Hub's address, such as `https://hub.example`.
-    fn hub_url(&self) -> &str;
-
-    /// The credential the Linked Server presents to the Hub, `None` while it isn't Linked.
-    ///
-    /// # Errors
-    ///
-    /// When the Kernel couldn't read it.
-    fn credential(&self) -> BoxFuture<'_, Result<Option<String>, PluginError>>;
-
-    /// Forgets the Link holding `credential`, which the Hub answered it doesn't know any more,
-    /// so the Server can Link again. A Link made since stays.
-    ///
-    /// # Errors
-    ///
-    /// When the Kernel couldn't forget it.
-    fn forget<'a>(&'a self, credential: &'a str) -> BoxFuture<'a, Result<(), PluginError>>;
-}
+use crate::{charts::Charts, recommended::Recommended, similar::Similar};
 
 /// The Plugin.
 #[derive(Debug, Default)]
-pub struct Hub {
-    /// The Kernel's Link with the Hub, `None` when the Server's config names no Hub.
-    link: Option<Arc<dyn KernelLink>>,
-}
+pub struct HubSuggestions;
 
-impl Hub {
-    /// The Plugin's id.
+impl HubSuggestions {
+    /// The Plugin's id: the Hub Plugin's, which it was, so an upgrade keeps it enabled with its
+    /// grants, stored Similar titles and Home layouts naming its rows.
     pub const ID: PluginId = PluginId::from_static("hub");
-
-    /// The Plugin, calling the Hub through `link`, the Kernel's.
-    #[must_use]
-    pub fn through(link: Arc<dyn KernelLink>) -> Self {
-        Self { link: Some(link) }
-    }
 }
 
-impl Plugin for Hub {
+impl Plugin for HubSuggestions {
     fn manifest(&self) -> Manifest {
         Manifest {
-            name: "Hub".to_owned(),
+            name: "Hub Suggestions".to_owned(),
             description:
                 "Adds the titles the Hub finds alike to Similar titles, gives each Linked \
                           User a Recommended for you row and Featured suggestions from what they \
@@ -81,9 +42,12 @@ impl Plugin for Hub {
                           on home."
                     .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
-            setup_markdown: "Link the Server under Settings, Server, and enable it. \
+            setup_markdown: "Link the Server under Settings, Server, and enable it; until the \
+                             Server is Linked it suggests nothing. \
                              Read Libraries tells it which of the titles the Hub suggests the \
-                             Server has. \
+                             Server has, and Read Watch States lets it ask for each User's \
+                             recommendations, which the Hub makes from what their Account \
+                             finished. \
                              Home's Trending on Nama row shows the Movies on the Server most \
                              Accounts finished this week and last, once at least 20 did, so it \
                              stays hidden until enough have. Most watchlisted on Nama shows the \
@@ -91,30 +55,27 @@ impl Plugin for Hub {
                              Accounts have each, and offers those the Server lacks as Requests."
                 .to_owned(),
             extension_points: vec![
-                PointKey::provide::<dyn ServerLinker>(),
                 PointKey::provide::<dyn SimilarSource>(),
                 PointKey::provide::<dyn HomeRowSource>(),
             ],
             logo_svg: Some(include_str!("../logo.svg").to_owned()),
-            permissions: vec![Permission::PERMISSION_READ_LIBRARIES],
+            permissions: vec![
+                Permission::PERMISSION_READ_LIBRARIES,
+                Permission::PERMISSION_READ_WATCH_STATES,
+            ],
             ..Manifest::new(Self::ID)
         }
     }
 
     fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
-        let link = (self.link.clone())
-            .ok_or("the Server's config names no Hub, so the Plugin has none to call")?;
         let kernel = registrar
             .kernel()
-            .ok_or("the Kernel handed the Hub Plugin none of its functions")?;
-        let hub = HubApi::new(link.hub_url())?;
-        let linker = Arc::new(Linker::new(hub, link));
-        let similar: Arc<dyn SimilarSource> = Arc::new(Similar(Arc::clone(&linker)));
+            .ok_or("the Kernel handed Hub Suggestions none of its functions")?;
+        let similar: Arc<dyn SimilarSource> = Arc::new(Similar(Arc::clone(&kernel)));
         let rows: Arc<dyn HomeRowSource> = Arc::new(Rows {
-            recommended: Recommended::new(Arc::clone(&linker), Arc::clone(&kernel)),
-            charts: Charts::new(Arc::clone(&linker), kernel),
+            recommended: Recommended(Arc::clone(&kernel)),
+            charts: Charts(kernel),
         });
-        registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::<Linker>::clone(&linker));
         registrar.provide::<dyn SimilarSource>(Priority::DEFAULT, similar);
         registrar.provide::<dyn HomeRowSource>(Priority::DEFAULT, rows);
         Ok(())
@@ -154,9 +115,6 @@ impl HomeRowSource for Rows {
         true
     }
 }
-
-#[cfg(test)]
-mod fake_hub;
 
 #[cfg(test)]
 #[path = "lib_tests.rs"]

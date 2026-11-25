@@ -16,7 +16,6 @@ use nama_plugin_api::{
     recogniser::Recogniser,
     search_source::SearchSource,
     segment_source::SegmentSource,
-    server_link::ServerLinker,
     similar_source::SimilarSource,
     subtitle_source::SubtitleSource,
     watch_sync::WatchSync,
@@ -63,7 +62,7 @@ pub(super) fn extension_points_to_proto(
 }
 
 /// Each Extension Point this API names, by its key, in the order its enum lists them.
-pub(super) fn public_points() -> [(PointKey, proto::ExtensionPoint); 18] {
+pub(super) fn public_points() -> [(PointKey, proto::ExtensionPoint); 17] {
     use proto::ExtensionPoint as Public;
     [
         (
@@ -129,10 +128,6 @@ pub(super) fn public_points() -> [(PointKey, proto::ExtensionPoint); 18] {
         (
             PointKey::provide::<dyn SimilarSource>(),
             Public::EXTENSION_POINT_SIMILAR_SOURCE,
-        ),
-        (
-            PointKey::provide::<dyn ServerLinker>(),
-            Public::EXTENSION_POINT_SERVER_LINKER,
         ),
         (
             PointKey::provide::<dyn WatchSync>(),

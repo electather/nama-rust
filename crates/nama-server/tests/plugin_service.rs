@@ -284,7 +284,7 @@ async fn every_builtin_and_bundled_plugin_is_listed_with_whether_it_is_enabled()
     assert_eq!(Vec::from_iter(kinds), expected);
     assert!(listed.summaries.iter().all(|p| !p.version.is_empty()));
     assert!(plugin(&listed, "local-auth").enabled);
-    // TMDB needs an API key, the Hub Plugin an Admin, and an Installed Plugin starts disabled.
+    // TMDB needs an API key, Hub Suggestions an Admin, and an Installed Plugin starts disabled.
     assert!(!plugin(&listed, "tmdb").enabled && !plugin(&listed, "hub").enabled);
     for id in &bundled {
         assert!(!plugin(&listed, id).enabled, "{id}");
