@@ -1,27 +1,19 @@
 //! `AccountService`: creating an Account, and signing it in, with its password or a Sign-in Link,
 //! and out, against a real PostgreSQL.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/hub.rs"]
-mod hub;
-#[path = "support/mail.rs"]
-mod mail;
-#[path = "support/refused.rs"]
-mod refused;
-
+use crate::support::hub::TestHub;
+use crate::support::mail::{Inbox, fake_mail};
+use crate::support::refused::assert_refused;
 use connectrpc::{
     ConnectError, ErrorCode,
     client::{HttpClient, UnaryResponse},
 };
-use hub::TestHub;
-use mail::{Inbox, fake_mail};
 use nama_hub_proto::nama::hub::v1::{
     AccountServiceClient, CreateAccountRequest, GetAccountRequest, GetHubInfoRequest,
     GetSignInLinkRequest, GetSignInLinkResponse, HubServiceClient, RefusalReason,
     SendSignInLinkRequest, SetPasswordRequest, SignInRequest, SignInWithLinkRequest,
     SignInWithLinkResponse, SignOutRequest,
 };
-use refused::assert_refused;
 use sqlx::PgPool;
 
 const PASSWORD: &str = "correct horse battery";

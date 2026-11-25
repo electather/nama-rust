@@ -2,19 +2,11 @@
 //! and turning pooling off, the titles the Hub recommends from them, and what's trending, against
 //! a real PostgreSQL.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/hub.rs"]
-mod hub;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/mail.rs"]
-mod mail;
-#[path = "support/refused.rs"]
-mod refused;
-
+use crate::support::hub::TestHub;
+use crate::support::mail::{Inbox, fake_mail};
+use crate::support::refused::assert_refused;
 use axum::http::HeaderMap;
 use connectrpc::{ErrorCode, client::HttpClient};
-use hub::TestHub;
-use mail::{Inbox, fake_mail};
 use nama_hub::{db, titles};
 use nama_hub_proto::nama::hub::v1::{
     AccountServiceClient, ApproveServerLinkRequest, ApproveUserLinkRequest, CreateAccountRequest,
@@ -25,7 +17,6 @@ use nama_hub_proto::nama::hub::v1::{
     SignInWithLinkRequest, StartServerLinkRequest, StartUserLinkRequest, TitleKind,
     UserViewingEvent, ViewingEvent, ViewingEventServiceClient,
 };
-use refused::assert_refused;
 use sqlx::PgPool;
 
 fn accounts(hub: &TestHub) -> AccountServiceClient<HttpClient> {
@@ -445,7 +436,7 @@ async fn each_service_refuses_a_caller_of_the_kind_it_doesnt_serve(db: PgPool) {
 )]
 async fn ada_watching_known_titles(db: PgPool) -> (TestHub, Inbox, String, String) {
     db::migrate(&db).await.unwrap();
-    titles::import(&db, &include_bytes!("fixtures/wikidata-dump.json")[..])
+    titles::import(&db, &include_bytes!("../fixtures/wikidata-dump.json")[..])
         .await
         .unwrap();
     titles::train(&db, &[]).await.unwrap();

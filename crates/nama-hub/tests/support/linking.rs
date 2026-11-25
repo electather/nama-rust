@@ -18,7 +18,7 @@ use ring::signature::{ED25519, UnparsedPublicKey};
 use serde_json::Value;
 use sqlx::PgPool;
 
-use crate::{
+use super::{
     hub::TestHub,
     mail::{Inbox, fake_mail},
 };

@@ -1,25 +1,13 @@
 //! A Linked Server reporting its Server Addresses, the Hub probing its public port, and an
 //! Account listing them, against a real PostgreSQL.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/hub.rs"]
-mod hub;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/linking.rs"]
-mod linking;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/mail.rs"]
-mod mail;
-#[path = "support/refused.rs"]
-mod refused;
-
+use crate::support::hub::TestHub;
+use crate::support::linking::*;
+use crate::support::refused::assert_refused;
 use connectrpc::ErrorCode;
-use hub::TestHub;
-use linking::*;
 use nama_hub_proto::nama::hub::v1::{
     ListLinkedServersRequest, RefusalReason, SetServerAddressesRequest, SetServerAddressesResponse,
 };
-use refused::assert_refused;
 use sqlx::PgPool;
 
 /// Reports `url` and `lan_addresses` as the Server Addresses of the Server presenting `credential`.

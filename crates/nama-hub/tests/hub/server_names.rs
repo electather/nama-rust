@@ -1,27 +1,15 @@
 //! A Linked Server's names in the Server-names zone, which the Hub writes as the Server reports
 //! its addresses and removes as it Unlinks (ADR 0104), against a real PostgreSQL.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/hub.rs"]
-mod hub;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/linking.rs"]
-mod linking;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/mail.rs"]
-mod mail;
-#[path = "support/refused.rs"]
-mod refused;
-
+use crate::support::hub::{TestHub, ZONE};
+use crate::support::linking::*;
+use crate::support::refused::assert_refused;
 use connectrpc::{ConnectError, ErrorCode};
-use hub::{TestHub, ZONE};
-use linking::*;
 use nama_hub::dns::Record;
 use nama_hub_proto::nama::hub::v1::{
     GetRelayTokenRequest, ListLinkedServersRequest, RefusalReason, SetCertificateChallengeRequest,
     SetServerAddressesRequest, UnlinkServerRequest,
 };
-use refused::assert_refused;
 use sqlx::PgPool;
 
 /// Reports `lan_addresses` and `public_port` as the Server Addresses of the Server presenting

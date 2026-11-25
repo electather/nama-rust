@@ -12,7 +12,7 @@ use ring::{
 };
 use sha2::{Digest as _, Sha256};
 
-use crate::hub::PUBLIC_URL;
+use super::hub::PUBLIC_URL;
 
 /// A P-256 `SubjectPublicKeyInfo` up to its uncompressed point.
 const P256_SPKI_PREFIX: [u8; 26] = [

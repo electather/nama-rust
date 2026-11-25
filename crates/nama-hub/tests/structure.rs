@@ -16,6 +16,8 @@ fn the_hub_keeps_its_structure() {
         allowed_upward: ALLOWED_UPWARD,
         surface_exceptions: SURFACE_EXCEPTIONS,
         confined_crates: CONFINED_CRATES,
+        // Every other integration test is a module of `tests/hub/` (`AGENTS.md`).
+        separate_programs: Some(&["structure"]),
         must_find: MustFind {
             nested_folder: "tests/support",
             area_module: Some(("accounts", "sessions")),

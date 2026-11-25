@@ -19,6 +19,7 @@ fn the_server_keeps_its_structure() {
         allowed_upward: ALLOWED_UPWARD,
         surface_exceptions: SURFACE_EXCEPTIONS,
         confined_crates: &[],
+        separate_programs: None,
         must_find: MustFind {
             nested_folder: "src/playback/choices",
             area_module: Some(("library", "contents")),

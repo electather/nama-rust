@@ -1,26 +1,14 @@
 //! `AccountService`'s sessions: listing where an Account is signed in, and signing out one or all
 //! of the others, against a real PostgreSQL.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/hub.rs"]
-mod hub;
-#[expect(dead_code, reason = "this binary uses only some of the helpers")]
-#[path = "support/linking.rs"]
-mod linking;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/mail.rs"]
-mod mail;
-#[path = "support/refused.rs"]
-mod refused;
-
+use crate::support::hub::TestHub;
+use crate::support::linking::{accounts, create, session_token};
+use crate::support::refused::assert_refused;
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
-use hub::TestHub;
-use linking::{accounts, create, session_token};
 use nama_hub_proto::nama::hub::v1::{
     AccountServiceClient, GetAccountRequest, ListSessionsRequest, RefusalReason, SignInRequest,
     SignOutOtherSessionsRequest, SignOutSessionRequest,
 };
-use refused::assert_refused;
 use sqlx::PgPool;
 
 const FIREFOX_ON_LINUX: &str =

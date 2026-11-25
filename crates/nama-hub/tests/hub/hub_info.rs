@@ -1,14 +1,10 @@
 //! `HubService.GetHubInfo`, the Hub's health check, against a real PostgreSQL.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/hub.rs"]
-mod hub;
-
+use crate::support::hub::TestHub;
 use connectrpc::{
     ErrorCode, SpecOrigin,
     client::{CallOptions, HttpClient, call_unary_get},
 };
-use hub::TestHub;
 use nama_hub_proto::nama::hub::v1::{
     __buffa::view::GetHubInfoResponseView, GetHubInfoRequest, HUB_SERVICE_GET_HUB_INFO_SPEC,
     HubServiceClient,

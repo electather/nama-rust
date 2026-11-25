@@ -61,8 +61,10 @@ The dump is over 100 GiB compressed, so an import takes hours; it streams, holdi
 The tests need that PostgreSQL. `#[sqlx::test]` reads `DATABASE_URL`, and makes a database of its own for each test. `SQLX_OFFLINE=true` builds them from `.sqlx/`, as CI does by leaving `NAMA_HUB_DATABASE_URL` unset: with it exported as above, the macros would check against that database, which may not be migrated yet:
 
 ```sh
-SQLX_OFFLINE=true DATABASE_URL=$NAMA_HUB_DATABASE_URL cargo test -p nama-hub
+SQLX_OFFLINE=true DATABASE_URL=$NAMA_HUB_DATABASE_URL cargo nextest run -p nama-hub
 ```
+
+They run under nextest only, as the root `README.md` says. The integration tests are one test program, `hub`, with a module per area, so run one area's with a filter, such as `cargo nextest run -p nama-hub --test hub -E 'test(/^accounts::/)'`. Only `tests/structure.rs` is a program of its own.
 
 ## Adding a migration
 
