@@ -73,7 +73,7 @@ describe("the notification inbox", () => {
     const items = await screen.findAllByRole("menuitem", { name: /^(?!Mark all read)/u });
     expect(items.map((item) => item.textContent)).toStrictEqual([
       "Unread: Arrival is Available",
-      "Severance Season 2 is approved",
+      "Severance Season 2 is Approved",
     ]);
   });
 
@@ -81,7 +81,7 @@ describe("the notification inbox", () => {
     openWithInbox([{ ...approved }]);
 
     fireEvent.click(await screen.findByRole("button", { name: "Notifications" }));
-    await screen.findByRole("menuitem", { name: "Severance Season 2 is approved" });
+    await screen.findByRole("menuitem", { name: "Severance Season 2 is Approved" });
 
     expect(screen.getByRole("button", { name: "Notifications" }).textContent).toBe("");
   });

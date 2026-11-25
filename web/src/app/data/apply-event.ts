@@ -24,6 +24,7 @@ export function applyEvent({ message }: SubscribeResponse, context: RouterContex
     refreshBrowsing(message.value, context);
     refreshLibrary(message.value, context);
     refreshRequests(message.value, context);
+    refreshInbox(message.value, context);
     refreshPlays(message.value, context);
     recordAdminStop(message.value, context);
   } else if (message.case === "lagged") {
@@ -145,12 +146,25 @@ const requestEvents = new Set<Event["event"]["case"]>([
 
 /**
  * Refetches the Requests when a Request or Followed Show opens, gains or loses a Requester, changes
- * state or goes, or a Request's downloads move, and the inbox, as the Server notifies of some of these.
+ * state or goes, or a Request's downloads move.
  */
 function refreshRequests({ event }: Event, { queryClient, transport }: RouterContext) {
   if (requestEvents.has(event.case)) {
     void queryClient.invalidateQueries({ queryKey: requestsKey(transport) });
     void queryClient.invalidateQueries({ queryKey: searchKey(transport) });
+  }
+}
+
+/**
+ * Recounts the inbox on the Request events a notification comes with: a new Pending Request, a
+ * change of state and a cancelling. Not on download progress, which ticks about once a minute.
+ */
+function refreshInbox({ event }: Event, { queryClient, transport }: RouterContext) {
+  if (
+    event.case === "requestCreated" ||
+    event.case === "requestStateChanged" ||
+    event.case === "requestCancelled"
+  ) {
     void queryClient.invalidateQueries({ queryKey: inboxKey(transport) });
   }
 }
