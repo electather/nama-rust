@@ -67,7 +67,7 @@ pub(super) async fn deliver(
         Ok(connected) => {
             recipients.extend(connections_to_tell(audience, connected, &turned_off));
         }
-        Err(err) => error!(%plugin, "could not read whom to message about a Request: {err}"),
+        Err(err) => error!(%plugin, "could not read whose Plugin Connections to tell: {err}"),
     }
     let mut secrets = HashMap::new();
     match personal_settings_recipients(&db, &plugin).await {
@@ -174,7 +174,8 @@ fn personal_to_tell(
 }
 
 impl Audience {
-    /// The IDs of those of `users` told, but for those `turned_off` lists with the kind told.
+    /// The IDs of those of `users` told: for a Request event, but those `turned_off` lists with
+    /// its kind; for a Link changing, every Admin, as no kind turns that off.
     pub(super) fn pick(&self, users: &[User], turned_off: &[(i64, NotificationKind)]) -> Vec<i64> {
         match self {
             Self::Request(event) => users_to_tell(event, users, turned_off),

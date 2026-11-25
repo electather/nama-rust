@@ -1,6 +1,7 @@
 //! The ntfy Installed Plugin: publishes the Requests the Server tells a User about, and the Links
-//! it tells an Admin about, to the ntfy topic that User set in their Personal settings (ADR 0046), on ntfy.sh or an ntfy server the
-//! Admin names. The Server builds it for wasm32 and bundles it in its binary.
+//! it tells an Admin about, to the ntfy topic that User set in their Personal settings (ADR
+//! 0046), on ntfy.sh or an ntfy server the Admin names. The Server builds it for wasm32 and
+//! bundles it in its binary.
 
 use nama_pdk::{
     Manifest, SettingField, SettingKind,

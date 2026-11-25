@@ -690,7 +690,7 @@ impl KernelLink for ServerLink {
         Box::pin(async { Ok(self.kept().await?.map(|kept| kept.credential)) })
     }
 
-    // shortcut: the Hub Plugin's own `ServerLink`, made in `plugin_settings.rs`, has no follower,
+    // ponytail: the Hub Plugin's own `ServerLink`, made in `plugin_settings.rs`, has no follower,
     // so a Link the Hub dropped that only a Hub Suggestions call finds is never announced
     // Unlinked; it goes once Hub Suggestions call the Hub through the Kernel's Link (#2222).
     fn forget<'a>(&'a self, credential: &'a str) -> BoxFuture<'a, Result<(), PluginError>> {

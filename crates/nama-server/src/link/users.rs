@@ -182,10 +182,8 @@ impl ServerLink {
     ) -> Result<(), Failure> {
         let linked = !account.is_empty();
         let changed = if linked {
-            let newly = self.keep_account(user_id, kept.id(), account.to_owned());
-            newly
-                .await?
-                .then_some(LinkChange::Linked(Whose::User(user_id)))
+            let newly_linked = (self.keep_account(user_id, kept.id(), account.to_owned())).await?;
+            newly_linked.then_some(LinkChange::Linked(Whose::User(user_id)))
         } else {
             let was_linked = self.forget_account(user_id, kept.id()).await?;
             was_linked.then_some(LinkChange::Unlinked(Whose::User(user_id)))

@@ -1,7 +1,6 @@
 //! The Discord Installed Plugin: posts the Requests the Server tells a User about, and the Links
 //! it tells an Admin about, to the Discord webhook that User set in their Personal settings (ADR
-//! 0046). The Server builds it for wasm32
-//! and bundles it in its binary.
+//! 0046). The Server builds it for wasm32 and bundles it in its binary.
 
 use nama_pdk::{
     Manifest, SettingField, SettingKind, services, setting_default, setting_field, setting_value,
