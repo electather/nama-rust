@@ -8,7 +8,7 @@ use nama_proto::nama::v1::{EventType, ItemMatched, subscribe_response};
 use super::testing::{Fixture, Outcome, episode, hinted, matched, movie};
 use crate::{
     events::{Filter, event},
-    library::{Decided, UnmatchedReason},
+    library::{Decided, ItemKind, UnmatchedReason},
 };
 
 #[tokio::test]
@@ -189,6 +189,30 @@ async fn a_newer_name_parser_matches_an_item_by_its_tvdb_id_hint() {
     media.scan(shows).await;
 
     assert_eq!(media.outcomes(shows).await, [matched(1_388_538, "Secrets")]);
+}
+
+#[tokio::test]
+async fn an_episode_is_listed_with_its_shows_genre_ids() {
+    let media = Fixture::new().await;
+    let shows = &media.shows;
+    let path = "Dark (2017)/Season 01/Dark - S01E01.mkv";
+    shows.write(path, &[episode("Dark", 2017, 1, 1)]).await;
+    media.scan(shows).await;
+
+    let listed = (media.contents)
+        .titles_page(shows.id, ItemKind::Episode, None, None)
+        .await
+        .unwrap();
+
+    let [secrets] = listed.as_slice() else {
+        panic!("{listed:?}");
+    };
+    assert_eq!(secrets.genres, ["Crime", "Drama", "Mystery"]);
+    assert_eq!(
+        secrets.genre_ids,
+        [80, 18, 9648].map(ExternalId::tmdb),
+        "each of the Show's genres' TMDB id"
+    );
 }
 
 #[tokio::test]

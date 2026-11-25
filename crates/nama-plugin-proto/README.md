@@ -119,7 +119,7 @@ The contract crates, `nama-plugin-proto`, `nama-pdk` and `nama-plugin-api`, move
   `CONTRACT_VERSION` 0.6.11: `VersionTitles` adds `show_ids`, each Episode's Show's id in the place of its title, picked as `Title.show_id` is, and unset for a Movie. A Plugin built before skips it.
   `watch_sync.proto` adds `WatchSyncService` 1.0.0, a Watch sync whose required `scrobble` and `import` exports follow each User's Watch State to an outside tracker and bring its changes back.
   `WatchSyncService` 2.0.0 adds the required `start_link` and `poll_link` exports, with `StartLinkAsked`, `LinkStarted`, `PollLinkAsked` and `LinkPolled`, through which a User links their account by device code. A Plugin built against 1.0 lacks them, so the Server refuses it.
-  `TitleSourceService` 1.10.0 adds `genre_ids` to `Movie` and `Show`: each of `genres`' id in the source, in the same order, kept only when every genre has one. `CONTRACT_VERSION` 0.6.12: `Title` adds `genre_ids`, so a Plugin can match a genre by id whatever language the source named it in. A Plugin built before gives and skips them.
+  `TitleSourceService` 1.10.0 adds `genre_ids` to `Movie` and `Show`: each of `genres`' id in the source, in the same order, kept only when every genre has one. `CONTRACT_VERSION` 0.6.12: `Title` adds `genre_ids`, so a Plugin can match a genre by id whatever language the source named it in. A title source built before gives none, and a Plugin built before skips them.
 
 - **0.2.0**: `TitleSourceService` 1.1.0 adds `Manifest.title_lookup_namespaces`, the `unsupported_id` answers and the `Artwork` rpc with `ArtworkAsked`, `ArtworkAnswer`, `Artwork` and `ArtworkKind`. `NotifierService` 1.1.0 adds `UserRecipient`, and the Manifest adds `personal_settings`.
 
