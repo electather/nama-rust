@@ -15,10 +15,10 @@
   "workspaces": { "settings": { "ui": { "includeEntryExports": true } } },
   // Run by `buf generate` in proto/, never imported.
   "ignoreDependencies": ["@bufbuild/protoc-gen-es"],
-  // The web app's passkey code is ported from the Hub web app, which keeps its copy until #2228
-  // deletes it, and the two may share nothing (ADR 0101, ADR 0105).
+  // The web app's passkey and Invite code is ported from the Hub web app, which keeps its copy
+  // until #2228 deletes it, and the two may share nothing (ADR 0101, ADR 0105).
   "duplicates": {
-    "ignoredClones": ["dup:40bab1b1:2", "dup:54669a8f:2", "dup:b067cea5:2"],
+    "ignoredClones": ["dup:40bab1b1:2", "dup:54669a8f:2", "dup:b067cea5:2", "dup:d2a77138:2"],
   },
   // web/AGENTS.md, "File size". Fallow sets limits by glob, not by zone.
   "health": {

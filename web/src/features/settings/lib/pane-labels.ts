@@ -31,6 +31,22 @@ export const accountSessionLabels = {
   sessions: { label: "Where you’re signed in", words: "sign out everywhere else" },
 } satisfies Record<string, SettingText>;
 
+/** What each of the Account's Servers section's groups says, at the Hub. */
+export const accountServerLabels = {
+  servers: { label: "Your Servers", words: "open" },
+  users: { label: "Your Users", words: "unlink" },
+} satisfies Record<string, SettingText>;
+
+/** What each of the Account's Viewing History section's rows says, at the Hub. */
+export const accountHistoryLabels = {
+  pooling: {
+    label: "Count your finished Movies and Watchlists",
+    hint: "Each Movie your Linked Users finish adds one to how many Accounts finished it, and each pair of Movies, which recommendations learn from. The counts hold nothing that leads back to you, and none is used until 20 Accounts are in it. The titles on your Linked Users’ Watchlists count toward Nama’s most watchlisted the same way. Turning this off takes your Watchlists back out and stops new counts, but the Movies already counted can’t be taken out.",
+    words: "pooled counts recommendations",
+  },
+  plays: { label: "What your Linked Users played", words: "viewing events delete export json" },
+} satisfies Record<string, SettingText>;
+
 /** What each of the Users section's groups says, in its order, past the Users themselves. */
 export const userLabels = {
   create: { label: "Create a User", words: "add new account" },
