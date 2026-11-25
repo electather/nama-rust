@@ -8,7 +8,8 @@
 const SERVER_ERROR = /Internal Server Error|Bad Gateway|Service Unavailable|Gateway Time-?out|HTTP 50[0234]|returned error: 50[0234]/i;
 const NETWORK_ERROR = new RegExp([
   "i/o timeout", "dial tcp", "connection reset by peer", "connection refused", "TLS handshake timeout",
-  "unexpected EOF", "Could not resolve host", "Failed to connect to github\\.com", "RPC failed", "early EOF",
+  "net/http: request canceled", "Operation timed out", "unexpected EOF", "Could not resolve host",
+  "Failed to connect to github\\.com", "RPC failed", "early EOF",
   "remote unpack failed", "index-pack failed", "the remote end hung up unexpectedly",
 ].join("|"), "i");
 
@@ -59,6 +60,15 @@ if (import.meta.main) {
     "docker: Error response from daemon: dial tcp 10.0.0.1:443: i/o timeout\n")), "docker's network is infra");
   assert.ok(!githubUnavailable(failed("git push origin x",
     "error: failed to push some refs\n ! [rejected] x -> x (non-fast-forward)\n")), "a rejected push is the issue's own");
+  assert.ok(githubUnavailable(failed("gh run list --workflow CI --commit ee762f2 --event pull_request --json databaseId",
+    `couldn't fetch workflows for o/r: Get "https://api.github.com/repos/o/r/actions/workflows?page=1&per_page=100": dial tcp 20.26.156.210:443: i/o timeout\n`)));
+  assert.ok(githubUnavailable(failed("git fetch origin main",
+    "fatal: unable to access 'https://github.com/o/r.git/': Could not resolve host: github.com\n")));
+  assert.ok(githubUnavailable(failed("gh pr view 12",
+    'Post "https://api.github.com/graphql": net/http: request canceled (Client.Timeout exceeded while awaiting headers)\n')));
+  assert.ok(!githubUnavailable(new Error("API Error: Connection error. read: connection reset by peer")),
+    "a Claude API network error is infra");
+  assert.ok(!githubUnavailable(failed("gh api repos/o/r/pulls/99999", "gh: Not Found (HTTP 404)\n")), "a gh 404 is real");
 
   assert.ok(githubBadCredentials(failed("gh issue view 2210 --json title,state,author,labels,parent",
     "HTTP 401: Bad credentials (https://api.github.com/graphql)\nTry authenticating with:  gh auth refresh -h github.com\n")));
