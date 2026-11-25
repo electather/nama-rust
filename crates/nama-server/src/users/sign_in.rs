@@ -380,6 +380,7 @@ impl SignIn {
         user: i64,
         switch_pin: &str,
     ) -> Result<(), Error> {
+        // Read before counting: a User not on the Device, or with no Switch PIN, is no guess.
         if let Some(stored) = self.users.switch_pin_on(device, user).await? {
             self.check_switch_pin(device, user, switch_pin, stored)
                 .await?;
@@ -407,9 +408,11 @@ impl SignIn {
         }
         let tries_left = WRONG_SWITCH_PINS - tried.in_a_row;
         if tries_left == 0 {
-            // First, so a failed sign-out can't leave the count full and switching locked.
+            // The full count refuses other tries until the sign-out lands, and is forgotten even
+            // if it fails, so it can't leave switching locked.
+            let signed_out = self.users.sign_out_of(device, user).await;
             self.switch_pin_tries.forget(device, user);
-            self.users.sign_out_of(device, user).await?;
+            signed_out?;
         }
         Err(Error::WrongSwitchPin { tries_left })
     }

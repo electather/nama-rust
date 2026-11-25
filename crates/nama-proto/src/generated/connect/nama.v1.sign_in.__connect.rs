@@ -744,8 +744,8 @@ pub const SIGN_IN_SERVICE_SIGN_IN_WITH_ACCOUNT_SPEC: ::connectrpc::Spec = ::conn
 ///
 /// Changes to who can sign in as whom need Recent Authentication: the calling User proved who they
 /// are on the calling Device with one of their Sign-in Methods in the last 10 minutes. They are
-/// `ApproveSignInCode`, `SetSwitchPin`, `ClearSwitchPin` and `UserService`'s `ChangePassword`, `ResetPassword`, `SetPermissions`,
-/// `SetDefaultPermissions` and `DeleteUser`.
+/// `ApproveSignInCode`, `SetSwitchPin`, `ClearSwitchPin` and `UserService`'s `ChangePassword`,
+/// `ResetPassword`, `SetPermissions`, `SetDefaultPermissions` and `DeleteUser`.
 /// Signing in with `Setup` or `SignIn` gives the User Recent Authentication on the Device; signing
 /// in with a Sign-in Code or an Account doesn't, since that Device proved nothing itself: whoever
 /// approved, on another Device or on the Hub, may not hold it. Nor does switching to a User, which
@@ -916,7 +916,8 @@ pub trait SignInService: Send + Sync + 'static {
     /// `REFUSAL_REASON_FIELD_REQUIRED` without one, and with `permission_denied` and
     /// `REFUSAL_REASON_WRONG_SWITCH_PIN` for a wrong one. The fifth wrong one in a row for that User
     /// on the Device signs them out of it, and further calls fail like those for a User not signed in
-    /// to it. Wrong ones don't expire with time; a right one, or that sign-out, starts the count again.
+    /// to it. Wrong ones don't expire with time; a right one, or that sign-out, starts the count
+    /// again.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

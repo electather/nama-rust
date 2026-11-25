@@ -39,7 +39,7 @@ use nama_forwarded::RequestSource;
 
 use super::{
     caller, calling_device, database_failed, refuse, server_link, signed_out, unknown_enum_value,
-    users::{device_to_proto, user_to_proto, whose},
+    users::{device_to_proto, user_asked_about, user_to_proto},
 };
 
 /// `nama.v1.SignInService`: signing Devices in, and saying who is signed in.
@@ -187,7 +187,7 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, ClearSwitchPinRequest>,
     ) -> ServiceResult<ClearSwitchPinResponse> {
         let caller = caller(&ctx)?;
-        let user = whose(caller, request.user_id)?;
+        let user = user_asked_about(caller, request.user_id)?;
         self.users.clear_switch_pin(&caller.user, user).await?;
         Response::ok(ClearSwitchPinResponse::default())
     }

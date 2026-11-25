@@ -59,7 +59,7 @@ use super::{
 /// `nama.v1.UserService`: managing the Server's Users, their Devices and Plugin Connections. Needs
 /// `PERMISSION_MANAGE_USERS`, which [`require_access`](super::require_access) enforces, but for
 /// the self-service RPCs `access::ACCESS` opens to any session, which check for themselves with
-/// [`whose`] or act only on the caller.
+/// [`user_asked_about`] or act only on the caller.
 pub(super) struct UserServiceHandler {
     pub(super) users: Users,
     pub(super) connections: Connections,
@@ -175,7 +175,7 @@ impl UserService for UserServiceHandler {
         request: ServiceRequest<'_, ListDevicesRequest>,
     ) -> ServiceResult<ListDevicesResponse> {
         let caller = caller(&ctx)?;
-        let owner = whose(caller, request.user_id)?;
+        let owner = user_asked_about(caller, request.user_id)?;
         let devices = self
             .users
             .devices(owner)
@@ -201,7 +201,7 @@ impl UserService for UserServiceHandler {
         request: ServiceRequest<'_, RevokeDeviceRequest>,
     ) -> ServiceResult<RevokeDeviceResponse> {
         let caller = caller(&ctx)?;
-        let owner = whose(caller, request.user_id)?;
+        let owner = user_asked_about(caller, request.user_id)?;
         self.users
             .revoke(&caller.user, owner, request.device_id)
             .await?;
@@ -648,7 +648,7 @@ fn seen_row_to_proto(row: KernelOrPlugin, shown: bool) -> HomeLayoutRow {
 /// The User `caller` asks about with `user_id`, such as whose Devices to list: their own if it's
 /// unset. Only a User who manages Users may ask about another User. Anyone else who does gets
 /// `not_found`, as for a User who doesn't exist, so they can't learn which IDs do.
-pub(super) fn whose(caller: &Caller, user_id: Option<i64>) -> Result<i64, ConnectError> {
+pub(super) fn user_asked_about(caller: &Caller, user_id: Option<i64>) -> Result<i64, ConnectError> {
     match user_id {
         None => Ok(caller.user.id),
         Some(id)
