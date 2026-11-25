@@ -226,9 +226,10 @@ impl PlaybackService for PlaybackServiceHandler {
 
     async fn search_subtitles(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, SearchSubtitlesRequest>,
     ) -> ServiceResult<SearchSubtitlesResponse> {
+        let user = caller(&ctx)?.user.id;
         let request = request.to_owned_message();
         if request.languages.is_empty() {
             let refused = refuse(
@@ -238,7 +239,7 @@ impl PlaybackService for PlaybackServiceHandler {
             return Err(refused.field("languages").into());
         }
         let found = (self.downloads)
-            .search(request.version_id, request.languages)
+            .search(user, request.version_id, request.languages)
             .await
             .map_err(|err| subtitles_failed(err, "languages"))?;
         let subtitles = (found.into_iter())
@@ -275,9 +276,10 @@ impl PlaybackService for PlaybackServiceHandler {
 
     async fn download_subtitle(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, DownloadSubtitleRequest>,
     ) -> ServiceResult<DownloadSubtitleResponse> {
+        let user = caller(&ctx)?.user.id;
         let request = request.to_owned_message();
         let Some(subtitle) = request.subtitle.into_option() else {
             let refused = refuse(
@@ -294,7 +296,7 @@ impl PlaybackService for PlaybackServiceHandler {
             ..Default::default()
         };
         (self.downloads)
-            .download(request.version_id, &subtitle.plugin_id.into(), found)
+            .download(user, request.version_id, &subtitle.plugin_id.into(), found)
             .await
             .map_err(|err| subtitles_failed(err, "subtitle.language"))?;
         Response::ok(DownloadSubtitleResponse::default())

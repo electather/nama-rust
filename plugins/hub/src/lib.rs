@@ -1,7 +1,8 @@
 //! The Hub Plugin (ADR 0094): the Built-in Plugin through which a Linked Server does what is
-//! Hub-facing but the Link itself, which the Kernel keeps (ADR 0105, [`KernelLink`]). It sends the
-//! Hub the Diagnostics and Usage Analytics the Admin shares (ADR 0054), and each play of the Users
-//! the Kernel Linked to Accounts goes to the Hub as a Viewing Event (ADR 0093).
+//! Hub-facing but the Link itself and sharing Diagnostics, which the Kernel does (ADR 0105,
+//! [`KernelLink`]), and the sync of Watch State, Preferences and Watchlists, which the Kernel does
+//! too. Each play of the Users the Kernel Linked to Accounts goes to the Hub as a Viewing Event
+//! (ADR 0093).
 //! Once Linked, it is also a Similar source answering the titles the Hub finds alike (ADR 0084,
 //! 0095), a Home row source giving each Linked User the titles the Hub recommends from what
 //! their Account finished, as a row and as Featured suggestions (ADR 0072), and sharing Home rows
@@ -19,7 +20,6 @@ use nama_plugin_api::{
     BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
     automation::Permission,
     contract::{FeaturedSuggestions, HomeRows, SharedRowsAsked, UserFeaturedAsked, UserRowsAsked},
-    diagnostics_sharer::DiagnosticsSharer,
     home_row::{HomeRowMethod, HomeRowSource},
     job::JobRunner,
     points::Events,
@@ -91,12 +91,12 @@ impl Plugin for Hub {
     fn manifest(&self) -> Manifest {
         Manifest {
             name: "Hub".to_owned(),
-            description: "Sends the Hub what Linked Users play and the Diagnostics and Usage \
-                          Analytics you share in Settings, adds the titles the Hub finds alike \
+            description:
+                "Sends the Hub what Linked Users play, adds the titles the Hub finds alike \
                           to Similar titles, gives each Linked User a Recommended for you row \
                           and Featured suggestions from what they finished, and shows Trending \
                           on Nama and Most watchlisted on Nama rows on home."
-                .to_owned(),
+                    .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
             setup_markdown: "Link the Server under Settings, Server, and enable it. Each play \
                              of a Matched title by a User Linked to their own Account goes to the \
@@ -112,7 +112,6 @@ impl Plugin for Hub {
                 .to_owned(),
             extension_points: vec![
                 PointKey::provide::<dyn ServerLinker>(),
-                PointKey::provide::<dyn DiagnosticsSharer>(),
                 PointKey::observe::<Events>(),
                 PointKey::provide::<dyn JobRunner>(),
                 PointKey::provide::<dyn SimilarSource>(),
@@ -144,9 +143,7 @@ impl Plugin for Hub {
             charts: Charts::new(Arc::clone(&linker), kernel),
         });
         let viewing = ViewingEvents::new(Arc::clone(&linker));
-        let sharer: Arc<dyn DiagnosticsSharer> = Arc::<Linker>::clone(&linker);
         registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::<Linker>::clone(&linker));
-        registrar.provide::<dyn DiagnosticsSharer>(Priority::DEFAULT, sharer);
         registrar.observe::<Events>(viewing.clone());
         let jobs: Arc<dyn JobRunner> = Arc::new(Jobs { viewing });
         registrar.provide::<dyn JobRunner>(Priority::DEFAULT, jobs);

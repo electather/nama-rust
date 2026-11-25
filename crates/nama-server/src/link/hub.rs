@@ -1,7 +1,7 @@
 //! Calling the Hub as the Server's Link needs: its API (`proto/nama/hub/v1/`) for Linking the
 //! Server and its Users, signing in with an Account, the Server Addresses, the certificate
-//! challenge, the Relay token and syncing Linked Users, what it accepts of each, and its
-//! published key set.
+//! challenge, the Relay token and syncing Linked Users, what it accepts of each, its published key
+//! set, and its OTLP/HTTP paths taking shared Diagnostics.
 
 // ponytail: the client is copied from the Hub Plugin's `hub.rs`, which keeps its own for the calls
 // it still makes; one goes once the rest of the Plugin's Linking moves here (#2203).
@@ -12,7 +12,10 @@ use bytes::Bytes;
 use connectrpc::client::{
     ClientBody, ClientConfig, ClientTransport as _, ServiceTransport, full_body,
 };
-use http::{Request, StatusCode};
+use http::{
+    Request, StatusCode,
+    header::{AUTHORIZATION, CONTENT_TYPE},
+};
 use http_body_util::{BodyExt as _, Limited};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use hyper_util::{
@@ -30,6 +33,8 @@ use nama_hub_proto::nama::hub::v1::{
     UnlinkUserRequest, WatchStateChange, WatchlistEntry,
 };
 use nama_plugin_api::server_link::{Reachability, ServerAddresses};
+
+use crate::diagnostics::{OTLP_PROTOBUF, Signal};
 
 /// Why a call to the Hub failed, in words for the log.
 pub(super) type Failure = Box<dyn Error + Send + Sync>;
@@ -268,6 +273,22 @@ impl LinkedHub {
             .await
             .map_err(link_dropped)?;
         Ok(got.into_owned().token)
+    }
+
+    /// Posts `batch`, an OTLP/HTTP protobuf export request of `signal`, for the Hub to forward to
+    /// Nama's developers (ADR 0054).
+    pub(super) async fn share(self, signal: Signal, batch: Bytes) -> Result<(), Failure> {
+        let request = Request::post(format!("{}/otlp/{}", self.hub.url, signal.path()))
+            .header(CONTENT_TYPE, OTLP_PROTOBUF)
+            .header(AUTHORIZATION, format!("Bearer {}", self.credential))
+            .body(full_body(batch))?;
+        let status = tokio::time::timeout(TIMEOUT, self.hub.transport.send(request))
+            .await??
+            .status();
+        if !status.is_success() {
+            return Err(format!("the Hub answered {status} for shared Diagnostics").into());
+        }
+        Ok(())
     }
 
     /// Starts Linking the User `user_id`, named `name`: `None` if they are Linked already, the

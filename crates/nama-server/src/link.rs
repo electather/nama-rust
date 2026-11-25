@@ -9,7 +9,7 @@
 //! | Changes at the service: starting or ending a Link, inviting a User, starting or finishing an Account sign-in, Unlinking a deleted User, publishing a certificate challenge | none |
 //! | Whether a request comes from the web app at the Hub the Server is Linked with: only the Server's own table | none |
 //! | Bulk transfers: a pull or a Watchlist sync                         | [`BULK`]      |
-//! | The Server Addresses tick, a Relay token, sending what waits        | the Hub client's own (`hub::TIMEOUT`) |
+//! | The Server Addresses tick, a Relay token, sending what waits, and sharing Diagnostics | the Hub client's own (`hub::TIMEOUT`) |
 //!
 //! A change isn't cut: cut mid-way, it could leave the service changed without the Server knowing,
 //! such as an invite sent for a User the Server then deletes. The limit on each call to the service
@@ -21,6 +21,7 @@
 
 mod hub;
 mod server;
+mod sharing;
 mod sync;
 mod token;
 mod users;
@@ -32,14 +33,16 @@ use std::{
     time::Duration,
 };
 
+use bytes::Bytes;
 pub(crate) use nama_plugin_api::server_link::Link;
 use nama_plugin_api::{
     points::{TrackPreference, WatchStateChange},
     server_link::{AccountSignIn, ServerAddresses, WatchlistEntry},
 };
 use tokio::sync::{broadcast, watch};
-use tracing::Instrument as _;
+use tracing::{Instrument as _, instrument::WithSubscriber as _, subscriber::NoSubscriber};
 
+pub use self::sharing::ShareWithHub;
 /// What waits for the Hub, for the upgrade test that hands it the Hub Plugin's queues, which only
 /// the Plugin Store's tests may write.
 #[cfg(test)]
@@ -48,7 +51,11 @@ pub(crate) use self::{
     server::ServerLink,
     sync::{queue_track_preferences, queue_watch_states},
 };
-use crate::{config::Config, db::Database, diagnostics};
+use crate::{
+    config::Config,
+    db::Database,
+    diagnostics::{self, Signal},
+};
 
 /// How long a page waits for the Server's Link or a User's, so Server info and the Users list
 /// answer even when the Hub or the Plugin doesn't.
@@ -290,6 +297,20 @@ impl Linking {
         let _: Result<(), Error> = self
             .ask_hub(async |server| server.report(addresses).await)
             .await;
+    }
+
+    /// Sends `batch`, an OTLP/HTTP protobuf export request of `signal`, to the Hub for Nama's
+    /// developers (ADR 0054). Without a Hub, while not Linked, or once it fails, it is dropped,
+    /// never retried.
+    pub(crate) async fn share_diagnostics(&self, signal: Signal, batch: Bytes) {
+        let shared = self.ask_hub(async |server| server.share(signal, batch).await);
+        // Traced, sharing would record spans of its own that the next batch would share, and so on
+        // for as long as the Server runs.
+        let answer = shared.with_subscriber(NoSubscriber::default()).await;
+        // A failure shows in the Server's status: otherwise the backend reads it as a quiet spell.
+        if matches!(answer, Err(Error::Failed)) {
+            diagnostics::share_refused();
+        }
     }
 
     /// What `call` gets from the Kernel's Link with the Hub. Its failure, such as the Hub being

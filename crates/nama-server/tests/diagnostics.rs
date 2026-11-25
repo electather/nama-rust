@@ -1,7 +1,11 @@
 //! The spans a ConnectRPC call is traced in, as an in-memory exporter receives them through the
 //! Server's own Diagnostics layer, and the web app's spans the Server forwards to its collector and,
-//! while the admin shares Diagnostics, to the enabled `DiagnosticsSharer` (ADR 0054).
+//! while the admin shares Diagnostics, to the Hub the Server is Linked with (ADR 0054, ADR 0105),
+//! as are the batches the Server's own exporters post.
 
+#[expect(dead_code, reason = "this binary uses only some of the fixture")]
+#[path = "support/fake_hub.rs"]
+mod fake_hub;
 #[path = "support/http.rs"]
 #[expect(dead_code, reason = "this binary uses only some of the helpers")]
 mod http;
@@ -10,26 +14,23 @@ mod http;
 mod server;
 
 use std::{
-    future,
     sync::{Arc, Mutex, OnceLock, PoisonError},
     time::{Duration, Instant},
 };
 
 use axum::{Router, body::Bytes, extract::State, http::HeaderMap, routing::post};
 use connectrpc::{ConnectError, client::HttpClient};
+use fake_hub::FakeHub;
 use http::{Reply, send};
 use http_body_util::Full;
 use hyper::{Method, Request};
-use nama_plugin_api::{
-    BoxFuture, Manifest, Plugin, PluginError, PluginId, PointKey, Priority, Registrar,
-    diagnostics_sharer::{DiagnosticsSharer, Signal},
-};
 use nama_proto::nama::v1::{
     GetServerInfoRequest, ServerServiceClient, ServerSettings, SessionDelivery, SignInRequest,
     SignInResponse, SignInServiceClient, UpdateServerSettingsRequest,
 };
-use nama_server::{config::Config, plugins::Registry};
+use nama_server::{config::Config, diagnostics::Signal};
 use opentelemetry::trace::{SpanId, Status, TraceId};
+use opentelemetry_http::HttpClient as _;
 use opentelemetry_sdk::trace::{InMemorySpanExporter, SdkTracerProvider, SpanData};
 use server::{PASSWORD, TestServer, WAIT};
 use tokio::{net::TcpListener, task::JoinHandle};
@@ -346,89 +347,79 @@ async fn a_device_posting_more_than_60_times_a_minute_is_refused_and_others_are_
     assert_eq!(collector.received().len(), 61);
 }
 
-/// What the web app's exporter sends: OTLP/HTTP's protobuf encoding, the one a
-/// [`DiagnosticsSharer`] takes.
+/// What the web app's exporter sends: OTLP/HTTP's protobuf encoding, the one the Hub takes.
 const OTLP_PROTOBUF: &str = "application/x-protobuf";
 
-/// Each batch a [`RecordingSharer`] was handed, with its signal.
-type Shared = Arc<Mutex<Vec<(Signal, Vec<u8>)>>>;
-
-/// A Plugin standing in for the Hub Plugin, recording each batch it is handed to share.
-#[derive(Clone, Default)]
-struct RecordingSharer {
-    shared: Shared,
-    /// Never answers, as a Hub that has stopped responding.
-    stuck: bool,
-}
-
-impl RecordingSharer {
-    /// The batches handed to it so far.
-    fn shared(&self) -> Vec<(Signal, Vec<u8>)> {
-        self.shared
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
-    }
-
-    /// The batches handed to it, once there are `count`, since the Server shares in the background.
-    async fn shared_once(&self, count: usize) -> Vec<(Signal, Vec<u8>)> {
-        let started = Instant::now();
-        loop {
-            let shared = self.shared();
-            if shared.len() >= count {
-                return shared;
-            }
-            assert!(
-                started.elapsed() < WAIT,
-                "only {} batches shared",
-                shared.len()
-            );
-            tokio::time::sleep(Duration::from_millis(20)).await;
+/// The batches `hub` took, once there are `count`, since the Server shares the web app's in the
+/// background.
+async fn shared_once(hub: &FakeHub, count: usize) -> Vec<(String, Bytes)> {
+    let started = Instant::now();
+    loop {
+        let shared = hub.shared();
+        if shared.len() >= count {
+            return shared;
         }
+        assert!(
+            started.elapsed() < WAIT,
+            "only {} batches shared",
+            shared.len()
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }
 
-impl Plugin for RecordingSharer {
-    fn manifest(&self) -> Manifest {
-        Manifest {
-            extension_points: vec![PointKey::provide::<dyn DiagnosticsSharer>()],
-            ..Manifest::new(PluginId::from_static("sharer"))
-        }
-    }
-
-    fn register(&self, registrar: &mut Registrar) -> Result<(), PluginError> {
-        registrar.provide::<dyn DiagnosticsSharer>(Priority::DEFAULT, Arc::new(self.clone()));
-        Ok(())
-    }
+/// A Server Linked with `hub`, exporting its Diagnostics to `collector` if there is one.
+async fn linked_to(hub: &FakeHub, collector: Option<&FakeCollector>) -> TestServer {
+    let server = TestServer::builder()
+        .config(Config {
+            otlp_endpoint: collector.map(|collector| collector.endpoint.clone()),
+            ..hub.config()
+        })
+        .start()
+        .await;
+    hub.link(&server).await;
+    server
 }
 
-impl DiagnosticsSharer for RecordingSharer {
-    fn share(&self, signal: Signal, batch: Vec<u8>) -> BoxFuture<'_, Result<(), PluginError>> {
-        (self.shared.lock().unwrap_or_else(PoisonError::into_inner)).push((signal, batch));
-        if self.stuck {
-            Box::pin(future::pending())
-        } else {
-            Box::pin(future::ready(Ok(())))
-        }
-    }
-}
-
-/// A Server with `sharer` enabled, exporting its Diagnostics to `collector` if there is one.
+/// Has the Server's own exporter of `signal` post `batch`, answering once it was shared or dropped.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn with_sharer(sharer: &RecordingSharer, collector: Option<&FakeCollector>) -> TestServer {
-    let plugins = Registry::new();
-    plugins.enable(Arc::new(sharer.clone())).unwrap();
-    TestServer::builder()
-        .plugins(plugins)
-        .config(Config {
-            otlp_endpoint: collector.map(|collector| collector.endpoint.clone()),
-            ..Config::default()
-        })
-        .start()
-        .await
+async fn export_own(server: &TestServer, signal: Signal, batch: &'static [u8]) {
+    let request = Request::post("http://collector.invalid")
+        .header("content-type", OTLP_PROTOBUF)
+        .body(Bytes::from_static(batch))
+        .unwrap();
+    let exporter = server.sharing.for_signal(signal);
+    exporter.send_bytes(request).await.unwrap();
+}
+
+#[tokio::test]
+async fn the_server_s_own_traces_and_logs_reach_the_hub_unchanged_as_the_linked_server() {
+    let hub = FakeHub::start().await;
+    let server = linked_to(&hub, None).await;
+
+    export_own(&server, Signal::Traces, b"spans").await;
+    export_own(&server, Signal::Logs, b"lines").await;
+
+    assert_eq!(
+        hub.shared(),
+        [
+            ("traces".to_owned(), Bytes::from_static(b"spans")),
+            ("logs".to_owned(), Bytes::from_static(b"lines")),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_server_that_isn_t_linked_sends_the_hub_nothing() {
+    let hub = FakeHub::start().await;
+    let server = TestServer::builder().config(hub.config()).start().await;
+
+    export_own(&server, Signal::Traces, b"spans").await;
+
+    assert_eq!(hub.otlp_posts(), 0);
 }
 
 /// Turns sharing Diagnostics on or off, as the admin does in Settings.
@@ -466,9 +457,9 @@ async fn post_protobuf(server: &TestServer, token: &str, body: Vec<u8>) -> Reply
 }
 
 #[tokio::test]
-async fn while_sharing_without_an_endpoint_a_device_s_spans_reach_the_sharer_unchanged() {
-    let sharer = RecordingSharer::default();
-    let server = with_sharer(&sharer, None).await;
+async fn while_sharing_without_an_endpoint_a_device_s_spans_reach_the_hub_unchanged() {
+    let hub = FakeHub::start().await;
+    let server = linked_to(&hub, None).await;
     let spans = b"\x0a\x00 spans".to_vec();
 
     set_sharing_diagnostics(&server, true).await;
@@ -477,13 +468,16 @@ async fn while_sharing_without_an_endpoint_a_device_s_spans_reach_the_sharer_unc
 
     assert!(exported);
     assert_eq!(reply.status, 200);
-    assert_eq!(sharer.shared_once(1).await, [(Signal::Traces, spans)]);
+    assert_eq!(
+        shared_once(&hub, 1).await,
+        [("traces".to_owned(), Bytes::from(spans))]
+    );
 }
 
 #[tokio::test]
 async fn turning_sharing_off_again_ends_it_without_a_restart() {
-    let sharer = RecordingSharer::default();
-    let server = with_sharer(&sharer, None).await;
+    let hub = FakeHub::start().await;
+    let server = linked_to(&hub, None).await;
 
     set_sharing_diagnostics(&server, true).await;
     set_sharing_diagnostics(&server, false).await;
@@ -492,14 +486,14 @@ async fn turning_sharing_off_again_ends_it_without_a_restart() {
 
     assert!(!exported);
     assert_eq!(reply.status, 404);
-    assert_eq!(sharer.shared(), []);
+    assert_eq!(hub.shared(), []);
 }
 
 #[tokio::test]
-async fn with_an_endpoint_spans_reach_the_sharer_only_while_sharing_and_the_collector_always() {
+async fn with_an_endpoint_spans_reach_the_hub_only_while_sharing_and_the_collector_always() {
     let collector = FakeCollector::start().await;
-    let sharer = RecordingSharer::default();
-    let server = with_sharer(&sharer, Some(&collector)).await;
+    let hub = FakeHub::start().await;
+    let server = linked_to(&hub, Some(&collector)).await;
 
     let before = post_protobuf(&server, &server.admin_token, b"before".to_vec()).await;
     set_sharing_diagnostics(&server, true).await;
@@ -513,15 +507,15 @@ async fn with_an_endpoint_spans_reach_the_sharer_only_while_sharing_and_the_coll
         .collect();
     assert_eq!(received, [&b"before"[..], b"during"]);
     assert_eq!(
-        sharer.shared_once(1).await,
-        [(Signal::Traces, b"during".to_vec())]
+        shared_once(&hub, 1).await,
+        [("traces".to_owned(), Bytes::from_static(b"during"))]
     );
 }
 
 #[tokio::test]
 async fn the_shared_path_refuses_a_body_over_256_kib_and_a_device_posting_too_often() {
-    let sharer = RecordingSharer::default();
-    let server = with_sharer(&sharer, None).await;
+    let hub = FakeHub::start().await;
+    let server = linked_to(&hub, None).await;
     set_sharing_diagnostics(&server, true).await;
 
     let too_big = post_protobuf(&server, &server.admin_token, vec![0; 256 * 1024 + 1]).await;
@@ -533,35 +527,42 @@ async fn the_shared_path_refuses_a_body_over_256_kib_and_a_device_posting_too_of
 
     assert_eq!(too_big.status, 413);
     assert_eq!(refused.status, 429);
-    assert_eq!(sharer.shared_once(60).await.len(), 60);
+    assert_eq!(shared_once(&hub, 60).await.len(), 60);
 }
 
 #[tokio::test]
-async fn a_sharer_that_never_answers_holds_neither_the_post_nor_the_collector() {
+async fn a_hub_that_never_answers_holds_neither_the_post_nor_the_collector() {
     let collector = FakeCollector::start().await;
-    let sharer = RecordingSharer {
-        stuck: true,
-        ..RecordingSharer::default()
-    };
-    let server = with_sharer(&sharer, Some(&collector)).await;
+    let hub = FakeHub::start().await;
+    let server = linked_to(&hub, Some(&collector)).await;
     set_sharing_diagnostics(&server, true).await;
+    hub.hang();
 
     let post = post_protobuf(&server, &server.admin_token, b"spans".to_vec());
     let reply = tokio::time::timeout(Duration::from_secs(2), post).await;
 
     assert_eq!(reply.map(|reply| reply.status).ok(), Some(200));
     assert_eq!(collector.received().len(), 1);
-    assert_eq!(sharer.shared_once(1).await.len(), 1);
+    posted_once(&hub).await;
+}
+
+/// Waits until the Server has posted to `hub`'s OTLP paths, since it shares in the background.
+async fn posted_once(hub: &FakeHub) {
+    let started = Instant::now();
+    while hub.otlp_posts() == 0 {
+        assert!(started.elapsed() < WAIT, "nothing posted to the Hub");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
 }
 
 #[tokio::test]
 async fn while_only_sharing_a_batch_that_isn_t_protobuf_is_refused_and_not_shared() {
-    let sharer = RecordingSharer::default();
-    let server = with_sharer(&sharer, None).await;
+    let hub = FakeHub::start().await;
+    let server = linked_to(&hub, None).await;
     set_sharing_diagnostics(&server, true).await;
 
     let reply = post_traces(&server, Some(&server.admin_token), b"{}".to_vec()).await;
 
     assert_eq!(reply.status, 415);
-    assert_eq!(sharer.shared(), []);
+    assert_eq!(hub.shared(), []);
 }

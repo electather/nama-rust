@@ -14,12 +14,11 @@ use axum::{
     http::{HeaderMap, HeaderValue, StatusCode, header::CONTENT_TYPE},
     routing::post,
 };
-use nama_plugin_api::diagnostics_sharer::Signal;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use crate::{
-    diagnostics::use_ring_for_tls,
-    plugins::{ExtensionPoints, share_diagnostics},
+    diagnostics::{OTLP_PROTOBUF, Signal, use_ring_for_tls},
+    link::Linking,
     server_settings::Settings,
     users::Caller,
 };
@@ -35,9 +34,6 @@ const POSTS_WINDOW: Duration = Duration::from_mins(1);
 
 /// How long the collector has to take a post before it fails, so a stuck one holds no request.
 const FORWARD_TIMEOUT: Duration = Duration::from_secs(10);
-
-/// The only encoding a `DiagnosticsSharer` takes, as the Hub forwards what it is handed as it.
-const OTLP_PROTOBUF: &str = "application/x-protobuf";
 
 /// Routes `/diagnostics/v1/traces` to `spans`. `PREFIXES` in `access.rs` lets only signed-in
 /// Devices post.
@@ -69,8 +65,8 @@ pub(crate) struct BrowserSpans {
     client: reqwest::Client,
     /// Read on every post, since the admin may turn sharing Diagnostics on or off at any time.
     settings: Settings,
-    points: ExtensionPoints,
-    /// The shares in flight, which hold the Extension Points, and so the database, until they end.
+    linking: Linking,
+    /// The shares in flight, which hold the Link, and so the database, until they end.
     shares: TaskTracker,
     stop_sharing: CancellationToken,
     /// When each Device's current window started, and how many posts it has made in it.
@@ -78,9 +74,9 @@ pub(crate) struct BrowserSpans {
 }
 
 impl BrowserSpans {
-    /// Forwards to the OTLP `endpoint`'s traces path, if any, and to the sharer among `points`
+    /// Forwards to the OTLP `endpoint`'s traces path, if any, and to the Hub through `linking`
     /// while `settings` share Diagnostics.
-    pub(crate) fn new(endpoint: Option<&str>, settings: Settings, points: ExtensionPoints) -> Self {
+    pub(crate) fn new(endpoint: Option<&str>, settings: Settings, linking: Linking) -> Self {
         // ponytail: ignores `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS`,
         // which the Server's own exporter reads; read them once a collector needs a key.
         let collector =
@@ -90,7 +86,7 @@ impl BrowserSpans {
             collector,
             client: reqwest::Client::new(),
             settings,
-            points,
+            linking,
             shares: TaskTracker::new(),
             stop_sharing: CancellationToken::new(),
             posts: Arc::default(),
@@ -137,17 +133,17 @@ impl BrowserSpans {
         self.settings.now().sharing.diagnostics
     }
 
-    /// Hands `batch` to the sharer in the background: the Hub may take longer than the web's
+    /// Sends `batch` to the Hub in the background: the Hub may take longer than the web's
     /// exporter waits, and a post it gave up on would never reach the collector.
     fn share(&self, batch: Bytes) {
-        let points = self.points.clone();
-        let shared = async move { share_diagnostics(&points, Signal::Traces, batch).await };
+        let linking = self.linking.clone();
+        let shared = async move { linking.share_diagnostics(Signal::Traces, batch).await };
         self.shares
             .spawn(self.stop_sharing.clone().run_until_cancelled_owned(shared));
     }
 
-    /// Cancels the shares in flight and waits until each has ended: before the Plugins shut down,
-    /// as a share holds their Extension Points.
+    /// Cancels the shares in flight and waits until each has ended: before the Plugins shut down
+    /// and the database closes, as a share holds the Link.
     pub(crate) async fn shutdown(&self) {
         self.stop_sharing.cancel();
         self.shares.close();

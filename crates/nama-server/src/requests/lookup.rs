@@ -21,7 +21,7 @@ use crate::{
         Candidate, ImageRef, Metadata, SearchQuery, Source, SourceSeason, SourceShow, TitleKind,
         Unanswered, library_with_movie, library_with_show, match_bands, matched_episodes,
     },
-    users::User,
+    users::{LibraryAccess, User, library_access},
 };
 
 /// A Movie the title source has, and how close it is to being on the Server.
@@ -95,13 +95,14 @@ pub(crate) struct FoundShow {
 
 impl Requests {
     /// The Movies the title source finds titled like `title`, best fit first, as `viewer`
-    /// sees them.
+    /// sees them: leaving out one only a Library they don't see has.
     pub(crate) async fn search(
         &self,
         viewer: &User,
         title: String,
     ) -> Result<Vec<Found<Candidate>>, Error> {
         let candidates = self.find(TitleKind::Movie, title).await?;
+        let seen = library_access(&self.db, viewer.id).await?;
         let mut conn = self.db.reader().acquire().await?;
         let mut found = Vec::with_capacity(candidates.len());
         // ponytail: two queries per Movie found, which a search caps at a page of 20.
@@ -114,7 +115,9 @@ impl Requests {
             let movie = self
                 .look_around(&mut conn, viewer, id, plugin, candidate)
                 .await?;
-            found.push(movie);
+            if !hidden(&seen, movie.library) {
+                found.push(movie);
+            }
         }
         Ok(found)
     }
@@ -148,12 +151,16 @@ impl Requests {
             return Ok(None);
         }
         let hits = self.search_shows(query.to_owned()).await?;
+        let seen = library_access(&self.db, viewer.id).await?;
         let mut conn = self.db.reader().acquire().await?;
         let mut found = Vec::with_capacity(hits.len());
         // ponytail: a few queries per Show found, more with open Season Requests the viewer can't
         // see, and a search caps them at a page of 20.
         for hit in hits {
-            found.push(self.look_around_show(&mut conn, viewer, hit).await?);
+            let show = self.look_around_show(&mut conn, viewer, hit).await?;
+            if !hidden(&seen, show.library) {
+                found.push(show);
+            }
         }
         Ok(Some(ranked(found, in_libraries, query, show_standing)))
     }
@@ -186,7 +193,8 @@ impl Requests {
             .collect())
     }
 
-    /// The Show `asked` and each of its Seasons, fetched now, as `viewer` sees them.
+    /// The Show `asked` and each of its Seasons, fetched now, as `viewer` sees them:
+    /// [`Error::NoSuchShow`] if only a Library they don't see has it.
     pub(crate) async fn look_up_show(
         &self,
         viewer: &User,
@@ -194,7 +202,11 @@ impl Requests {
     ) -> Result<FoundShow, Error> {
         let (source, show) = self.show(asked).await?;
         let id = kept_under(asked, &show.ids);
+        if self.hidden_from(viewer, TitleKind::Show, &id).await? {
+            return Err(Error::NoSuchShow(asked.clone()));
+        }
         let seasons = self.seasons_from(&source, asked, &show).await?;
+        // Taken after asking the title source, so no pooled reader waits on a Plugin.
         let mut conn = self.db.reader().acquire().await?;
         let seasons = self
             .look_around_seasons(&mut conn, viewer, &id, seasons)
@@ -297,19 +309,25 @@ impl Requests {
         Ok(seasons)
     }
 
-    /// The Movie `asked`, fetched now, as `viewer` sees it.
+    /// The Movie `asked`, fetched now, as `viewer` sees it: [`Error::NoSuchMovie`] if only a
+    /// Library they don't see has it.
     pub(crate) async fn look_up(
         &self,
         viewer: &User,
         asked: &ExternalId,
     ) -> Result<Found<Metadata>, Error> {
         let movie = self.fetch(asked).await?;
+        let seen = library_access(&self.db, viewer.id).await?;
         let mut conn = self.db.reader().acquire().await?;
         let plugin = movie.plugin.clone();
         let id = kept_under(asked, &movie.ids);
-        self.look_around(&mut conn, viewer, id, plugin, movie)
-            .await
-            .map_err(Error::from)
+        let found = self
+            .look_around(&mut conn, viewer, id, plugin, movie)
+            .await?;
+        if hidden(&seen, found.library) {
+            return Err(Error::NoSuchMovie(asked.clone()));
+        }
+        Ok(found)
     }
 
     /// The Movie `id` from the title source keeping titles under its namespace, else the first one
@@ -400,6 +418,31 @@ impl Requests {
         }
         Ok(found)
     }
+
+    /// Whether only a Library `viewer` doesn't see has the title of `kind` known by `id`: to them
+    /// there is no such title, neither to look up nor to Request.
+    pub(super) async fn hidden_from(
+        &self,
+        viewer: &User,
+        kind: TitleKind,
+        id: &ExternalId,
+    ) -> Result<bool, sqlx::Error> {
+        let seen = library_access(&self.db, viewer.id).await?;
+        let mut conn = self.db.reader().acquire().await?;
+        let library = match kind {
+            TitleKind::Movie => library_with_movie(&mut conn, id).await?,
+            TitleKind::Show => library_with_show(&mut conn, id).await?,
+        };
+        Ok(hidden(&seen, library))
+    }
+}
+
+/// Whether a title the Library `library` has, if any has it, is one a viewer who sees `seen`
+/// doesn't: neither shown to them nor theirs to Request.
+// ponytail: `library` is the oldest Library with the title, so one a newer Library they see also
+// has is hidden too; ask for the oldest Library they see if Libraries come to share titles.
+fn hidden(seen: &LibraryAccess, library: Option<i64>) -> bool {
+    library.is_some_and(|library| !seen.sees(library))
 }
 
 /// Whether the Show with any of `ids` has an open Followed Show `viewer` may see.

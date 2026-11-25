@@ -1,6 +1,5 @@
-//! Calling the Hub as the Linked Server, whose Link the Kernel keeps (ADR 0105), and through it
-//! sharing what the Admin chooses with Nama's developers (ADR 0054). Every Hub call made as the
-//! Server goes through [`Linker::call`], so one rule decides what a Link the Hub dropped means.
+//! Calling the Hub as the Linked Server, whose Link the Kernel keeps (ADR 0105). Every Hub call
+//! made as the Server goes through [`Linker::call`], so one rule decides what a Link the Hub dropped means.
 //! Their plays as Viewing Events are in `viewing.rs`, and wait for the Hub in a queue, in `queue.rs`.
 
 pub(crate) mod queue;
@@ -12,7 +11,6 @@ use nama_plugin_api::{
     BoxFuture, PluginError,
     automation::Kernel,
     contract::StoreKey,
-    diagnostics_sharer::{DiagnosticsSharer, Signal},
     job::{JobRunner, RunJob},
     server_link::ServerLinker,
 };
@@ -79,21 +77,9 @@ impl Linker {
     pub(crate) async fn user_linked(&self, user_id: i64) -> Result<bool, PluginError> {
         self.link.user_linked(user_id).await
     }
-
-    /// Sends `batch` to the Hub as the Linked Server, or drops it while not Linked.
-    async fn share_batch(&self, signal: Signal, batch: Vec<u8>) -> Result<(), PluginError> {
-        self.call(|hub| hub.share(signal, batch)).await?;
-        Ok(())
-    }
 }
 
 impl ServerLinker for Linker {}
-
-impl DiagnosticsSharer for Linker {
-    fn share(&self, signal: Signal, batch: Vec<u8>) -> BoxFuture<'_, Result<(), PluginError>> {
-        Box::pin(self.share_batch(signal, batch))
-    }
-}
 
 fn store_key(key: &str) -> StoreKey {
     StoreKey {
