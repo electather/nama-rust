@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM hub_sync_queue",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "249c854dfea176f230ad328e69a699d8b7f83782fb22422fca6d215808d23110"
+}
