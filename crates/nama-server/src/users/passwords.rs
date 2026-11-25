@@ -153,9 +153,9 @@ impl Users {
         }
         // The Kernel hashes it, not the Authenticator, whose password rules would refuse 4 digits:
         // a Switch PIN is no Sign-in Method (ADR 0106).
-        let pin = switch_pin.to_owned();
+        let switch_pin = switch_pin.to_owned();
         let credential = blocking(move || {
-            (Argon2::default().hash_password(pin.as_bytes())).map(|hash| hash.to_string())
+            (Argon2::default().hash_password(switch_pin.as_bytes())).map(|hash| hash.to_string())
         })
         .await
         .map_err(switch_pin_hashing_failed)?
@@ -310,10 +310,10 @@ pub(super) async fn is_switch_pin(
     switch_pin: &str,
     credential: String,
 ) -> Result<bool, Error> {
-    let pin = switch_pin.to_owned();
+    let switch_pin = switch_pin.to_owned();
     blocking(move || {
         let credential = PasswordHash::new(&credential).map_err(switch_pin_hashing_failed)?;
-        match Argon2::default().verify_password(pin.as_bytes(), &credential) {
+        match Argon2::default().verify_password(switch_pin.as_bytes(), &credential) {
             Ok(()) => Ok(true),
             Err(argon2::password_hash::Error::PasswordInvalid) => Ok(false),
             Err(err) => Err(switch_pin_hashing_failed(err)),

@@ -86,8 +86,9 @@ impl Users {
 
     /// Makes the Device `device` act as the User `user`, one of those signed in to it, failing with
     /// [`Error::NoSuchUser`] for any other. Clears `user`'s Recent Authentication on it, and ends
-    /// what it opened as the User it acted as, as [`Users::signed_out`] says.
-    pub(crate) async fn switch(&self, device: i64, user: i64) -> Result<(), Error> {
+    /// what it opened as the User it acted as, as [`Users::signed_out`] says. Only
+    /// [`SignIn::switch`](super::SignIn::switch) calls it, once the Switch PIN checks out.
+    pub(super) async fn switch(&self, device: i64, user: i64) -> Result<(), Error> {
         self.write_signing_out(move |tx| Box::pin(async move { switch(tx, device, user).await }))
             .await
             .map(drop)
