@@ -172,7 +172,8 @@
       },
       {
         "from": "title",
-        "allow": ["title", "shared-components", "shared-hooks", "shared-lib"],
+        // At the Hub, Play reaches the Account's other Servers as their Libraries' list does.
+        "allow": ["title", "servers", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "player",
