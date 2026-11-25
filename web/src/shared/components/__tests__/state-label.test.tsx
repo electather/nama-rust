@@ -20,7 +20,11 @@ test.each([false, true])(
   },
 );
 
-test("a destructive pill keeps the 15% red tint off Popover", () => {
+test("a destructive pill is red on the 15% red tint", () => {
   render(<StateLabel tone="destructive" label="Failed" Icon={CircleX} />);
-  expect(screen.getByText("Failed").classList.contains("bg-destructive/15")).toBe(true);
+  const pill = screen.getByText("Failed");
+  expect({
+    "bg-destructive/15": pill.classList.contains("bg-destructive/15"),
+    "text-destructive": pill.classList.contains("text-destructive"),
+  }).toStrictEqual({ "bg-destructive/15": true, "text-destructive": true });
 });
