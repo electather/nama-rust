@@ -11,7 +11,7 @@ Load the `rust-best-practices` skill and write to it. Read a chapter in its `ref
 
 ## Check
 
-Run `cargo fmt --all`, then every command in the root `README.md` "Checks", until all pass. Where a tool isn't installed (the sandcastle image has no `cargo nextest`, `cargo machete` or `cargo deny`), run `cargo test --workspace` in place of nextest and leave the other two to CI.
+Run `cargo fmt --all`, then every command in the root `README.md` "Checks", until all pass. Integration tests run under nextest only, and doctests on `cargo test --workspace --doc`. Where `cargo nextest` isn't installed (the sandcastle image has none), install it with `cargo install --locked cargo-nextest`, never fall back to `cargo test` for them. Where `cargo machete` or `cargo deny` isn't, leave it to CI.
 
 ## Review
 

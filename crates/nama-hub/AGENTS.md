@@ -27,4 +27,5 @@
 ### Tests
 
 - **One fixture.** Tests in `tests/` start the Hub with `TestHub` in `tests/support/hub.rs`, on the database `#[sqlx::test]` makes. Setup goes through the API, and shared helpers never write the database.
+- **A new integration test is a module of `tests/hub/`**, never a top-level file in `tests/`: each top-level test file links the whole Hub again. `tests/structure.rs` fails on one it doesn't list.
 - **Titles come in through the import code**, from a small Wikidata dump fixture, never by writing their rows.

@@ -1,31 +1,17 @@
 //! `AccountService`'s passkeys: adding, naming and removing them, signing in with one, and how
 //! Sign-in Links bear on them (ADR 0100), against a real PostgreSQL.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/hub.rs"]
-mod hub;
-#[expect(dead_code, reason = "this binary uses only some of the helpers")]
-#[path = "support/linking.rs"]
-mod linking;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/mail.rs"]
-mod mail;
-#[path = "support/passkey.rs"]
-mod passkey;
-#[path = "support/refused.rs"]
-mod refused;
-
+use crate::support::hub::TestHub;
+use crate::support::linking::{accounts, create, create_proven, hub_with_mail, session_token};
+use crate::support::mail::Inbox;
+use crate::support::passkey::Passkey;
+use crate::support::refused::assert_refused;
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
-use hub::TestHub;
-use linking::{accounts, create, create_proven, hub_with_mail, session_token};
-use mail::Inbox;
 use nama_hub_proto::nama::hub::v1::{
     self as proto, AccountServiceClient, GetAccountRequest, ListPasskeysRequest, RefusalReason,
     RemovePasskeyRequest, SendSignInLinkRequest, SignInWithLinkRequest, StartAddingPasskeyRequest,
     StartPasskeySignInRequest,
 };
-use passkey::Passkey;
-use refused::assert_refused;
 use sqlx::PgPool;
 
 /// The Hub's pages' Account, signed in with the session `token`.

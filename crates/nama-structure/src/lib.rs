@@ -40,6 +40,9 @@ pub struct Structure {
     pub surface_exceptions: &'static [Exception],
     /// The crates only one area's files under `src/` may name.
     pub confined_crates: &'static [Confined],
+    /// The top-level `tests/*.rs` files, by name without `.rs`, that build their own test
+    /// program; any other top-level test file fails. `None` leaves them unchecked.
+    pub separate_programs: Option<&'static [&'static str]>,
     /// What the walks must find.
     pub must_find: MustFind,
 }
@@ -78,6 +81,10 @@ impl Structure {
         problems.extend(named_path_problems(root, self.must_find.named_paths));
         problems.extend(self.row_placement_problems(&files));
         problems.extend(stray_test_problems(&files, self.must_find.nested_folder));
+        if let Some(separate) = self.separate_programs {
+            let paths: Vec<&str> = files.iter().map(|file| file.path.as_str()).collect();
+            problems.extend(stray_programs(&paths, separate));
+        }
         problems.extend(self.upward_call_problems(&files));
         problems.extend(surfaces::deep_reach_problems(
             &files,
@@ -522,6 +529,22 @@ fn stray_test_problems(files: &[SourceFile], nested_folder: &str) -> Vec<String>
         "found no src/lib.rs or {nested_folder}/: the walk is checking nothing"
     );
     stray_tests(&paths, &folders)
+}
+
+/// A problem for each top-level test file among `paths`, crate-relative, not named in `separate`.
+/// Cargo builds each one as its own program, which links the whole package again.
+fn stray_programs(paths: &[&str], separate: &[&str]) -> Vec<String> {
+    paths
+        .iter()
+        .filter_map(|path| path.strip_prefix("tests/")?.strip_suffix(".rs"))
+        .filter(|name| !name.contains('/') && !separate.contains(name))
+        .map(|name| {
+            format!(
+                "tests/{name}.rs is its own test program, which links the whole package again: \
+                 make it a module of the package's merged test program"
+            )
+        })
+        .collect()
 }
 
 /// Each line of a file under `src/` outside its area that names one of `confined`, a crate only

@@ -1,26 +1,14 @@
 //! `AccountService.DeleteAccount`: an Account deleting itself, and what its Linked Servers see
 //! after, against a real PostgreSQL.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/hub.rs"]
-mod hub;
-#[expect(dead_code, reason = "this binary uses only some of the helpers")]
-#[path = "support/linking.rs"]
-mod linking;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/mail.rs"]
-mod mail;
-#[path = "support/refused.rs"]
-mod refused;
-
+use crate::support::hub::TestHub;
+use crate::support::linking::*;
+use crate::support::refused::assert_refused;
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
-use hub::TestHub;
-use linking::*;
 use nama_hub_proto::nama::hub::v1::{
     AccountServiceClient, DeleteAccountRequest, GetAccountRequest, GetUserLinkRequest,
     RefusalReason, SetServerAddressesRequest,
 };
-use refused::assert_refused;
 use sqlx::PgPool;
 
 /// The Hub's pages' Account, signed in with the session `token`.

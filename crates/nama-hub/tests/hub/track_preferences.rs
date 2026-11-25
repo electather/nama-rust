@@ -1,26 +1,14 @@
 //! Linked Servers pushing and pulling their Users' Subtitle and Audio Preferences, against a real
 //! PostgreSQL.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/hub.rs"]
-mod hub;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/linking.rs"]
-mod linking;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/mail.rs"]
-mod mail;
-#[path = "support/refused.rs"]
-mod refused;
-
+use crate::support::hub::TestHub;
+use crate::support::linking::*;
+use crate::support::refused::assert_refused;
 use connectrpc::{ConnectError, ErrorCode};
-use hub::TestHub;
-use linking::*;
 use nama_hub_proto::nama::hub::v1::{
     PullTrackPreferencesRequest, PushTrackPreferencesRequest, RefusalReason, TitleKind,
     TrackPreferenceChange,
 };
-use refused::assert_refused;
 use sqlx::PgPool;
 
 /// The User `user_id`'s Subtitle Preference for Alien, subtitles in `language`, changed at

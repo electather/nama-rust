@@ -10,7 +10,7 @@ use sqlx::PgPool;
 /// Three films and two series with External IDs, and two people. The Matrix and its sequel share
 /// cast, directors, writers, genres, franchise and country; Alien shares one genre and the country
 /// with them, and one series shares their director.
-const DUMP: &[u8] = include_bytes!("fixtures/wikidata-dump.json");
+const DUMP: &[u8] = include_bytes!("../fixtures/wikidata-dump.json");
 
 /// The fixture's first title, now with another TMDB id, and nothing else.
 const NEXT_DUMP: &[u8] = br#"[

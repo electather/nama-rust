@@ -2,27 +2,16 @@
 //! Linking a Linked Server's Users to Accounts, pushing and pulling their Watch State, and syncing
 //! their Watchlists and reading the most watchlisted, against a real PostgreSQL.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/hub.rs"]
-mod hub;
-#[path = "support/linking.rs"]
-mod linking;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/mail.rs"]
-mod mail;
-#[path = "support/refused.rs"]
-mod refused;
-
+use crate::support::hub::TestHub;
+use crate::support::linking::*;
+use crate::support::refused::assert_refused;
 use connectrpc::ErrorCode;
-use hub::TestHub;
-use linking::*;
 use nama_hub::titles;
 use nama_hub_proto::nama::hub::v1::{
     ExternalId, ListMostWatchlistedTitlesRequest, ListSimilarTitlesRequest, PullWatchStatesRequest,
     PushWatchStatesRequest, RefusalReason, StartServerLinkRequest, StartServerLinkResponse,
     SyncWatchlistRequest, TitleKind, UnlinkServerRequest, WatchStateChange, WatchlistEntry,
 };
-use refused::assert_refused;
 use sqlx::PgPool;
 
 #[sqlx::test(migrations = false)]
@@ -421,7 +410,7 @@ async fn push(
 #[sqlx::test(migrations = false)]
 async fn a_linked_server_gets_the_titles_like_one_it_names(db: PgPool) {
     let (hub, mut inbox) = hub_with_mail(db.clone()).await;
-    titles::import(&db, &include_bytes!("fixtures/wikidata-dump.json")[..])
+    titles::import(&db, &include_bytes!("../fixtures/wikidata-dump.json")[..])
         .await
         .unwrap();
     nama_hub::train_vectors(&db).await.unwrap();

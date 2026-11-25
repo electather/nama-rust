@@ -1,6 +1,7 @@
 use super::{
     SourceFile, confined_crate_problems, gone_from_rows, is_test_file, named_paths,
-    placement_problems, problem, sql_tables, stray_tests, unchecked_queries, unsorted_ceilings,
+    placement_problems, problem, sql_tables, stray_programs, stray_tests, unchecked_queries,
+    unsorted_ceilings,
 };
 
 #[test]
@@ -147,5 +148,28 @@ use ::proto::Message;",
             "src/accounts.rs:3: names proto outside api (why)",
             "src/lib.rs:1: names proto outside api (why)",
         ]
+    );
+}
+
+#[test]
+fn stray_programs_names_an_unlisted_top_level_test_file() {
+    let paths = [
+        "src/lib.rs",
+        "tests/structure.rs",
+        "tests/accounts.rs",
+        "tests/hub/main.rs",
+        "tests/hub/accounts.rs",
+        "tests/support/mod.rs",
+    ];
+    assert_eq!(
+        stray_programs(&paths, &["structure"]),
+        [
+            "tests/accounts.rs is its own test program, which links the whole package again: \
+             make it a module of the package's merged test program"
+        ]
+    );
+    assert_eq!(
+        stray_programs(&paths[..2], &["structure"]),
+        Vec::<String>::new()
     );
 }

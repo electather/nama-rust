@@ -1,20 +1,10 @@
 //! What a Linked Server shares: its OTLP/HTTP batches reach the backend naming it, against a real
 //! PostgreSQL.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/hub.rs"]
-mod hub;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/linking.rs"]
-mod linking;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/mail.rs"]
-mod mail;
-
+use crate::support::hub::TestHub;
+use crate::support::linking::{create_proven, hub_with_mail, linked};
 use axum::{body::Bytes, http::StatusCode};
 use connectrpc::client::{ClientTransport as _, HttpClient, full_body};
-use hub::TestHub;
-use linking::{create_proven, hub_with_mail, linked};
 use nama_hub::diagnostics::Signal;
 use opentelemetry_proto::tonic::{
     collector::{logs::v1::ExportLogsServiceRequest, trace::v1::ExportTraceServiceRequest},
