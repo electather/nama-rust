@@ -24,6 +24,8 @@ mod http;
 mod keyframes;
 #[path = "playback/now_playing.rs"]
 mod now_playing;
+#[path = "playback/offline_downloads.rs"]
+mod offline_downloads;
 // The fake ffmpeg and ffprobe are shell scripts.
 #[cfg(unix)]
 #[path = "playback/other_versions.rs"]

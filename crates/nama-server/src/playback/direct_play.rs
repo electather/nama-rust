@@ -30,10 +30,11 @@ pub(super) fn direct_play_url(version: i64) -> String {
     format!("/media/versions/{version}")
 }
 
-/// Serves `GET /media/versions/<id>` with the file of the Version `id` in `db`, and 404 if
-/// there is none, marking the caller's Direct Plays of it in `running` asked for as the request
-/// arrives and with each part of the file sent, and the subtitles plans offer, found in `db`, read
-/// with `ffmpeg`, a Version's text ones in a background pass on `reads`, and cached in `cache`.
+/// Serves `GET /media/versions/<id>`, and `GET /media/downloads/<id>` as [`download`] says, with
+/// the file of the Version `id` in `db`, and 404 if there is none, marking the caller's Direct
+/// Plays of it in `running` asked for as the request arrives and with each part of the file sent,
+/// and the subtitles plans offer, found in `db`, read with `ffmpeg`, a Version's text ones in a
+/// background pass on `reads`, and cached in `cache`.
 /// A caller off the local network whose User has a cap for remote playback gets 403 unless their
 /// Device has a plan, made off the local network, that Direct Plays the Version.
 /// Whether the caller has a session is up to the layers the router is put behind.
@@ -47,6 +48,7 @@ pub(crate) fn router(
     let subtitles = subtitles::router(subtitles::Subtitles::new(db, ffmpeg, cache, reads));
     Router::new()
         .route("/media/versions/{id}", get(serve))
+        .route("/media/downloads/{id}", get(download))
         .with_state((Contents::new(Arc::clone(db)), running, Arc::clone(db)))
         .merge(subtitles)
 }
@@ -62,13 +64,9 @@ async fn serve(
     let client = (request.extensions().get::<RequestSource>()).map(|source| source.client_ip);
     let planned_under_remote_cap =
         device.is_some_and(|device| running.ask_direct_plays(id, device));
-    let path = match contents.version_file(id).await {
-        Ok(Some((path, _))) => path,
-        Ok(None) => return StatusCode::NOT_FOUND.into_response(),
-        Err(err) => {
-            tracing::error!("could not look up the Version {id}: {err}");
-            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-        }
+    let path = match version_file(&contents, id).await {
+        Ok(path) => path,
+        Err(status) => return status.into_response(),
     };
     // A plan made off the local network applied the cap where it could, so one running lets the
     // file through, even past the cap for a picture of unknown size (ADR 0031, #2134). One made
@@ -148,6 +146,43 @@ pub(super) async fn sees_version(
         return Ok(true);
     };
     Ok(library_access(db, user).await?.sees(library))
+}
+
+/// Serves the Version `id`'s file to keep on the caller's Device as [`serve`] does, but only while
+/// that Device has a plan Direct Playing it, so it plays offline as it would now; 409 otherwise
+/// (#1422). Whether the caller may download is up to the layers the router is put behind.
+async fn download(
+    State((contents, running, db)): State<(Contents, RunningPlans, Arc<Database>)>,
+    Path(id): Path<i64>,
+    request: Request,
+) -> Response {
+    let device = request
+        .extensions()
+        .get::<Caller>()
+        .map(|caller| caller.device.id);
+    if device.is_some_and(|device| running.has_direct_play(id, device)) {
+        return serve(State((contents, running, db)), Path(id), request).await;
+    }
+    match version_file(&contents, id).await {
+        Ok(_) => (
+            StatusCode::CONFLICT,
+            "only a Version the Device has a Direct Play plan for downloads",
+        )
+            .into_response(),
+        Err(status) => status.into_response(),
+    }
+}
+
+/// Where the Version `id`'s file is, or the 404 or 500 to answer with instead.
+async fn version_file(contents: &Contents, id: i64) -> Result<String, StatusCode> {
+    match contents.version_file(id).await {
+        Ok(Some((path, _))) => Ok(path),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(err) => {
+            tracing::error!("could not look up the Version {id}: {err}");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 /// Whether the User `user`, asking from `client`, is off the local network with a cap for remote
