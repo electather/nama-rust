@@ -6,12 +6,19 @@ use connectrpc::ConnectError;
 use nama_proto::nama::v1::{self as proto, Permission, RefusalReason};
 
 use super::{refuse, sign_in_required};
-use crate::{db::now, diagnostics, users::Caller};
+use crate::{
+    db::now,
+    diagnostics,
+    signed_urls::SignedUrl,
+    users::{Caller, Device},
+};
 
 /// Who may call an RPC or fetch media.
 #[derive(Clone, Copy)]
 enum Access {
     Anyone,
+    /// A signed-in Device, whether or not it acts as one of its Users (ADR 0106).
+    Device,
     SignedIn,
     /// A signed-in User whose Permissions pass a check for this one.
     Needs(Permission),
@@ -45,10 +52,6 @@ const DELETE_MEDIA: Access = Access::Needs(Permission::DeleteMedia);
 const DOWNLOAD_SUBTITLES: Access = Access::Needs(Permission::DownloadSubtitles);
 
 /// Downloading a Version's file, or one re-encoded as for a Transcode, for offline playback.
-#[expect(
-    dead_code,
-    reason = "no download endpoint (#2195, #2198) checks it yet"
-)]
 const DOWNLOAD: Access = Access::Needs(Permission::Download);
 
 /// Who may call each RPC, by path; one missing here is refused to everyone (see AGENTS.md, "New
@@ -76,8 +79,11 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SERVER_SERVICE_UNLINK_SERVER_SPEC.procedure,          MANAGE_SETTINGS),
     (proto::SIGN_IN_SERVICE_SETUP_SPEC.procedure,                 Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_IN_SPEC.procedure,               Access::Anyone),
-    (proto::SIGN_IN_SERVICE_SIGN_OUT_SPEC.procedure,              Access::SignedIn),
-    (proto::SIGN_IN_SERVICE_WHO_AM_I_SPEC.procedure,              Access::SignedIn),
+    (proto::SIGN_IN_SERVICE_SIGN_OUT_SPEC.procedure,              Access::Device),
+    (proto::SIGN_IN_SERVICE_WHO_AM_I_SPEC.procedure,              Access::Device),
+    (proto::SIGN_IN_SERVICE_SWITCH_USER_SPEC.procedure,           Access::Device),
+    (proto::SIGN_IN_SERVICE_SET_SWITCH_PIN_SPEC.procedure,        Access::SignedIn),
+    (proto::SIGN_IN_SERVICE_CLEAR_SWITCH_PIN_SPEC.procedure,      Access::SignedIn),
     (proto::SIGN_IN_SERVICE_REAUTHENTICATE_SPEC.procedure,        Access::SignedIn),
     (proto::SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC.procedure,    Access::Anyone),
     (proto::SIGN_IN_SERVICE_LOOK_UP_SIGN_IN_CODE_SPEC.procedure,  Access::SignedIn),
@@ -149,6 +155,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_CREATE_USER_FROM_ACCOUNT_SPEC.procedure, MANAGE_USERS),
     (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               MANAGE_USERS),
     (proto::USER_SERVICE_SET_PERMISSIONS_SPEC.procedure,          MANAGE_USERS),
+    (proto::USER_SERVICE_SET_LIBRARY_ACCESS_SPEC.procedure,       MANAGE_USERS),
     (proto::USER_SERVICE_DELETE_USER_SPEC.procedure,              MANAGE_USERS),
     (proto::USER_SERVICE_LIST_DEVICES_SPEC.procedure,             Access::SignedIn),
     (proto::USER_SERVICE_REVOKE_DEVICE_SPEC.procedure,            Access::SignedIn),
@@ -212,10 +219,12 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::JOB_SERVICE_RUN_JOB_SPEC.procedure,                   ADMIN),
 ];
 
-/// Who may request paths under each prefix, which aren't RPCs: fetching media, which the media
-/// routes share, uploading or removing a title's or a Library's Custom Image, and
-/// posting the web app's Diagnostics. The first prefix a path starts with decides.
-const PREFIXES: [(&str, Access); 3] = [
+/// Who may request paths under each prefix, which aren't RPCs: downloading a Version's file,
+/// fetching other media, which the media routes share, uploading or removing a title's or a
+/// Library's Custom Image, and posting the web app's Diagnostics. The first prefix a path starts
+/// with decides.
+const PREFIXES: [(&str, Access); 4] = [
+    ("/media/downloads/", DOWNLOAD),
     ("/media/", Access::SignedIn),
     ("/diagnostics/", Access::SignedIn),
     ("/custom-images/", MANAGE_LIBRARIES),
@@ -235,10 +244,12 @@ impl Access {
             .map(|&(_, access)| access)
     }
 
-    /// Why `caller`, or nobody, may not make a call that needs this access, if they may not.
-    fn check(self, caller: Option<&Caller>) -> Result<(), ConnectError> {
+    /// Why `caller`, or nobody, may not make a call that needs this access from `device`, if they
+    /// may not.
+    fn check(self, device: Option<&Device>, caller: Option<&Caller>) -> Result<(), ConnectError> {
         match (self, caller) {
-            (Self::Anyone, _) | (Self::SignedIn, Some(_)) => Ok(()),
+            (Self::Device, _) if device.is_some() => Ok(()),
+            (Self::Anyone, _) | (Self::SignedIn | Self::Device, Some(_)) => Ok(()),
             (_, None) => Err(sign_in_required()),
             (Self::Needs(needed), Some(caller)) if caller.user.permissions.allow(needed) => Ok(()),
             (Self::Needs(needed), Some(_)) => Err(permission_required(needed)),
@@ -261,7 +272,7 @@ pub(super) fn permission_required(needed: Permission) -> ConnectError {
 /// Authentication on top of their [`Access`] (ADR 0014, and see AGENTS.md). A list of its own, not
 /// an `Access` variant: `SetPermissions` needs a Permission as well, `ChangePassword` only a
 /// session.
-const NEEDS_RECENT_AUTHENTICATION: [&str; 11] = [
+const NEEDS_RECENT_AUTHENTICATION: [&str; 13] = [
     proto::USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_SET_PERMISSIONS_SPEC.procedure,
@@ -269,6 +280,9 @@ const NEEDS_RECENT_AUTHENTICATION: [&str; 11] = [
     proto::USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC.procedure,
     proto::USER_SERVICE_DELETE_USER_SPEC.procedure,
     proto::SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC.procedure,
+    // Whoever holds a Device left as its User mustn't set or clear their Switch PIN (ADR 0106).
+    proto::SIGN_IN_SERVICE_SET_SWITCH_PIN_SPEC.procedure,
+    proto::SIGN_IN_SERVICE_CLEAR_SWITCH_PIN_SPEC.procedure,
     // Deleting can't be undone, so someone at an unlocked Device mustn't do it unasked (ADR 0038).
     proto::LIBRARY_SERVICE_DELETE_MEDIA_SPEC.procedure,
     // Linking hands the Server to an Account, and Unlinking takes it back (ADR 0011).
@@ -294,13 +308,18 @@ fn check_recent_authentication(path: &str, caller: Option<&Caller>) -> Result<()
 }
 
 /// Refuses `request`, before any handler sees it, unless the caller
-/// [`identify_caller`](crate::users::identify_caller) found may.
+/// [`identify_caller`](crate::users::identify_caller) found may, or its URL was signed.
 pub(super) async fn require_access(request: Request, next: Next) -> axum::response::Response {
+    let device = request.extensions().get::<Device>();
+    // Its signature, which `admit` checked, names this one path, so it needs no session.
+    if request.extensions().get::<SignedUrl>().is_some() {
+        return next.run(request).await;
+    }
     let caller = request.extensions().get::<Caller>();
     let path = request.uri().path();
     let allowed = Access::of(path)
         .ok_or_else(|| unlisted(path))
-        .and_then(|access| access.check(caller))
+        .and_then(|access| access.check(device, caller))
         .and_then(|()| check_recent_authentication(path, caller));
     match allowed {
         Ok(()) => next.run(request).await,

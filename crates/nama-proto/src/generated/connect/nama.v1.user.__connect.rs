@@ -30,6 +30,14 @@ pub type OwnedSetPermissionsRequestView = ::buffa::view::OwnedView<
 pub type OwnedSetPermissionsResponseView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetPermissionsResponseView<'static>,
 >;
+///Shorthand for `OwnedView<SetLibraryAccessRequestView<'static>>`.
+pub type OwnedSetLibraryAccessRequestView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetLibraryAccessRequestView<'static>,
+>;
+///Shorthand for `OwnedView<SetLibraryAccessResponseView<'static>>`.
+pub type OwnedSetLibraryAccessResponseView = ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetLibraryAccessResponseView<'static>,
+>;
 ///Shorthand for `OwnedView<DeleteUserRequestView<'static>>`.
 pub type OwnedDeleteUserRequestView = ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::DeleteUserRequestView<'static>,
@@ -352,6 +360,40 @@ for crate::messages::nama::v1::__buffa::view::SetPermissionsResponseView<'_> {
 impl ::connectrpc::Encodable<crate::messages::nama::v1::SetPermissionsResponse>
 for ::buffa::view::OwnedView<
     crate::messages::nama::v1::__buffa::view::SetPermissionsResponseView<'static>,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self.reborrow(), codec)
+    }
+    /// An `OwnedView` still holds the buffer it was decoded from, so
+    /// its large fields can be handed to the response body by
+    /// reference count instead of copied. The bare view impl above
+    /// cannot do this: it has borrows but no buffer to name.
+    fn encode_segments(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::connectrpc::EncodedBody, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body_segments(
+            self.reborrow(),
+            self.bytes(),
+            codec,
+        )
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetLibraryAccessResponse>
+for crate::messages::nama::v1::__buffa::view::SetLibraryAccessResponseView<'_> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<crate::messages::nama::v1::SetLibraryAccessResponse>
+for ::buffa::view::OwnedView<
+    crate::messages::nama::v1::__buffa::view::SetLibraryAccessResponseView<'static>,
 > {
     fn encode(
         &self,
@@ -1264,6 +1306,12 @@ pub const USER_SERVICE_SET_PERMISSIONS_SPEC: ::connectrpc::Spec = ::connectrpc::
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
+/// Static [`Spec`](::connectrpc::Spec) for the `SetLibraryAccess` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
+pub const USER_SERVICE_SET_LIBRARY_ACCESS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/nama.v1.UserService/SetLibraryAccess",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Idempotent);
 /// Static [`Spec`](::connectrpc::Spec) for the `DeleteUser` RPC, as seen by the server; the generated client passes it with [`origin`](::connectrpc::Spec::origin) `Client` (compare across sides with [`Spec::same_method`](::connectrpc::Spec::same_method)).
 pub const USER_SERVICE_DELETE_USER_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/nama.v1.UserService/DeleteUser",
@@ -1579,11 +1627,38 @@ pub trait UserService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Deletes a User with their Devices and credentials, so they can't sign in, their sessions stop
-    /// working at once and their open `EventService.Subscribe` streams end. The caller may delete
-    /// themselves, which signs out the calling Device too. Fails with `not_found` if no User has the
-    /// ID, so a retry after a delete that went through gets `not_found`, and `failed_precondition` if
-    /// it would leave no User with `PERMISSION_ADMIN`.
+    /// Replaces which Libraries a User sees, from their next request: browsing, search, Home rows,
+    /// Plugin rows, Similar titles, title pages, playback and Requests leave out the titles of any
+    /// other. Without `PERMISSION_ADMIN`, the caller may change neither an Admin's nor their own, so
+    /// a User can't lift their own. Fails with `not_found` if no User has the ID, and
+    /// `permission_denied` for an Admin's or the caller's own without `PERMISSION_ADMIN`.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    ///
+    /// `request` is borrowed from the request body and is valid for the
+    /// duration of the call; message fields are read directly on it
+    /// (zero-copy). The response cannot borrow from `request` — use
+    /// `.to_owned_message()` (or copy the specific fields) for anything
+    /// returned, stored, or moved into `tokio::spawn`.
+    fn set_library_access<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: ::connectrpc::ServiceRequest<
+            '_,
+            crate::messages::nama::v1::SetLibraryAccessRequest,
+        >,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::messages::nama::v1::SetLibraryAccessResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Deletes a User with their credentials and signs them out of every Device, so they can't sign
+    /// in, their sessions stop working at once and their open `EventService.Subscribe` streams end. A
+    /// Device is signed out only once its last User goes. The caller may delete themselves. Fails
+    /// with `not_found` if no User has the ID, so a retry after a delete that went through gets
+    /// `not_found`, and `failed_precondition` if it would leave no User with `PERMISSION_ADMIN`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -1606,7 +1681,8 @@ pub trait UserService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Lists a User's Devices that haven't expired, oldest first. Any signed-in User may list their
+    /// Lists the Devices a User is signed in to that haven't expired, oldest first, whichever User
+    /// each acts as. Any signed-in User may list their
     /// own; another User's needs `PERMISSION_MANAGE_USERS`. Fails with `not_found` if the User doesn't
     /// exist, or isn't the caller and the caller lacks that Permission, so they can't learn which IDs
     /// exist.
@@ -1632,10 +1708,12 @@ pub trait UserService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Revokes one of a User's Devices, so its session stops working at once and its open
-    /// `EventService.Subscribe` streams end. Revoking the calling Device signs it out, as `SignOut`
-    /// does. Who may revoke whose Devices is as for `ListDevices`, and fails the same way; it also
-    /// fails with `not_found` if the Device isn't that User's.
+    /// Signs a User out of one of their Devices, so it no longer acts as them and their open
+    /// `EventService.Subscribe` streams on it end. Its other Users stay signed in, and it acts as none
+    /// of them if it acted as this one; revoking its last User signs it out, as `SignOut` does, which
+    /// for the calling Device clears a cookie session's cookie. Who may revoke whose Devices is as for
+    /// `ListDevices`, and fails the same way; it also fails with `not_found` if the User isn't signed
+    /// in to the Device.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -2371,6 +2449,35 @@ impl<S: UserService> UserServiceExt for S {
                 },
             )
             .with_spec(USER_SERVICE_SET_PERMISSIONS_SPEC)
+            .route_view(
+                USER_SERVICE_SERVICE_NAME,
+                "SetLibraryAccess",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |
+                        ctx,
+                        req: ::buffa::view::OwnedView<
+                            crate::messages::nama::v1::__buffa::view::SetLibraryAccessRequestView<
+                                'static,
+                            >,
+                        >,
+                        format|
+                    {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            let sreq = ::connectrpc::ServiceRequest::<
+                                crate::messages::nama::v1::SetLibraryAccessRequest,
+                            >::from_parts(req.reborrow(), req.bytes());
+                            svc.set_library_access(ctx, sreq)
+                                .await?
+                                .encode::<
+                                    crate::messages::nama::v1::SetLibraryAccessResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(USER_SERVICE_SET_LIBRARY_ACCESS_SPEC)
             .route_view(
                 USER_SERVICE_SERVICE_NAME,
                 "DeleteUser",
@@ -3174,6 +3281,12 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .with_spec(USER_SERVICE_SET_PERMISSIONS_SPEC),
                 )
             }
+            "SetLibraryAccess" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(USER_SERVICE_SET_LIBRARY_ACCESS_SPEC),
+                )
+            }
             "DeleteUser" => {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
@@ -3420,6 +3533,28 @@ impl<T: UserService> ::connectrpc::Dispatcher for UserServiceServer<T> {
                         .await?
                         .encode::<
                             crate::messages::nama::v1::SetPermissionsResponse,
+                        >(format)
+                })
+            }
+            "SetLibraryAccess" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let body = ::connectrpc::dispatcher::codegen::request_proto_bytes::<
+                        crate::messages::nama::v1::SetLibraryAccessRequest,
+                    >(request.encoded()?, format)?;
+                    let req: crate::messages::nama::v1::__buffa::view::SetLibraryAccessRequestView<
+                        '_,
+                    > = ::connectrpc::dispatcher::codegen::decode_borrowed_request_view(
+                        &body,
+                        ctx.decode_options(),
+                    )?;
+                    let req = ::connectrpc::ServiceRequest::<
+                        crate::messages::nama::v1::SetLibraryAccessRequest,
+                    >::from_parts(&req, &body);
+                    svc.set_library_access(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::messages::nama::v1::SetLibraryAccessResponse,
                         >(format)
                 })
             }
@@ -4257,6 +4392,51 @@ where
                 &self.transport,
                 &self.config,
                 USER_SERVICE_SET_PERMISSIONS_SPEC
+                    .with_origin(::connectrpc::SpecOrigin::Client),
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the SetLibraryAccess RPC. Sends a request to /nama.v1.UserService/SetLibraryAccess.
+    pub async fn set_library_access(
+        &self,
+        request: crate::messages::nama::v1::SetLibraryAccessRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetLibraryAccessResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.set_library_access_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the SetLibraryAccess RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn set_library_access_with_options(
+        &self,
+        request: crate::messages::nama::v1::SetLibraryAccessRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::messages::nama::v1::__buffa::view::SetLibraryAccessResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                USER_SERVICE_SET_LIBRARY_ACCESS_SPEC
                     .with_origin(::connectrpc::SpecOrigin::Client),
                 request,
                 options,

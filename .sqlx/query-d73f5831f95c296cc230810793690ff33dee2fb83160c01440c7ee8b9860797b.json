@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT credential, account, server_id FROM hub_link",
+  "describe": {
+    "columns": [
+      {
+        "name": "credential",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "hub_link",
+            "name": "credential"
+          }
+        }
+      },
+      {
+        "name": "account",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "hub_link",
+            "name": "account"
+          }
+        }
+      },
+      {
+        "name": "server_id",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "hub_link",
+            "name": "server_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "d73f5831f95c296cc230810793690ff33dee2fb83160c01440c7ee8b9860797b"
+}

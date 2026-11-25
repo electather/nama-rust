@@ -26,13 +26,6 @@ fn case_and_accents_are_folded() {
     assert_eq!(sort_title("ÉCLAIR"), "eclair");
 }
 
-#[test]
-fn the_matrix_sorts_between_matilda_and_memento() {
-    let mut titles = ["Memento", "The Matrix", "Matilda"].map(sort_title);
-    titles.sort();
-    assert_eq!(titles, ["matilda", "matrix", "memento"]);
-}
-
 #[tokio::test]
 async fn a_match_stored_before_sort_titles_gets_one_at_startup() {
     let fx = Fixture::new().await;

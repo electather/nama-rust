@@ -9,9 +9,9 @@ use std::{
     fmt::{self, Write as _},
     sync::{
         Mutex, OnceLock, PoisonError,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 
 use axum::{extract::Request, middleware::Next, response::Response};
@@ -23,22 +23,21 @@ use nama_plugin_api::PluginId;
 use opentelemetry::{
     Context as OtelContext, KeyValue,
     propagation::TextMapPropagator as _,
-    trace::{Span as _, SpanKind, Status, Tracer as _, TracerProvider as _},
+    trace::{Status, TracerProvider as _},
 };
 use opentelemetry_http::HeaderExtractor;
 use opentelemetry_sdk::{
     Resource,
     error::OTelSdkResult,
     propagation::TraceContextPropagator,
-    trace::{SdkTracer, SdkTracerProvider, Span as SdkSpan, SpanData, SpanProcessor},
+    trace::{SdkTracerProvider, Span as SdkSpan, SpanData, SpanProcessor},
 };
 use tracing::{
-    Dispatch, Event, Instrument as _, Level, Span, Subscriber,
-    dispatcher::WeakDispatch,
+    Event, Instrument as _, Level, Span, Subscriber,
     field::{Field, Visit},
     span::{Attributes, Id},
 };
-use tracing_opentelemetry::{OpenTelemetrySpanExt as _, SetParentError, get_otel_context};
+use tracing_opentelemetry::{OpenTelemetrySpanExt as _, SetParentError};
 use tracing_subscriber::{
     EnvFilter, Layer,
     filter::{FilterExt as _, LevelFilter, dynamic_filter_fn, filter_fn},
@@ -46,7 +45,10 @@ use tracing_subscriber::{
     registry::LookupSpan,
 };
 
+use self::sql_spans::SqlSpans;
 use crate::db;
+
+mod sql_spans;
 
 /// The target sqlx logs each query it ran under, once it has run.
 const SQL_TARGET: &str = "sqlx::query";
@@ -210,6 +212,29 @@ pub fn use_ring_for_tls() {
     let _: Result<(), _> = rustls::crypto::ring::default_provider().install_default();
 }
 
+/// The only encoding shared Diagnostics take, as the Hub forwards what it is handed as it.
+pub(crate) const OTLP_PROTOBUF: &str = "application/x-protobuf";
+
+/// Which OTLP signal a shared batch holds, as its OTLP/HTTP path names it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Signal {
+    /// Spans.
+    Traces,
+    /// Log records: the shared log lines and Usage Analytics.
+    Logs,
+}
+
+impl Signal {
+    /// Its path under an OTLP/HTTP endpoint.
+    #[must_use]
+    pub const fn path(self) -> &'static str {
+        match self {
+            Self::Traces => "v1/traces",
+            Self::Logs => "v1/logs",
+        }
+    }
+}
+
 /// What an admin shares with Nama's developers (ADR 0054): neither, by default.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Sharing {
@@ -257,14 +282,45 @@ impl SharingSwitches {
 /// The target Usage Analytics are recorded under, which stdout leaves out.
 pub const USAGE_TARGET: &str = "nama::usage";
 
-/// The log lines shared with Diagnostics, by their call site's `name:`
-/// (`crates/nama-server/AGENTS.md`).
-const SHARED_LINES: [&str; 2] = [
-    // `db.rs`
-    "database write panicked",
-    // `playback/running/run.rs`
-    "hardware acceleration failed partway",
-];
+/// Batches the Plugin sharing Diagnostics failed to send since they were last taken, such as those
+/// the Hub refused for being over a Server's limit: otherwise the backend reads them as a quiet
+/// spell.
+static SHARES_REFUSED: AtomicU64 = AtomicU64::new(0);
+
+/// Counts a batch the Plugin sharing Diagnostics failed to send.
+pub(crate) fn share_refused() {
+    SHARES_REFUSED.fetch_add(1, Ordering::Relaxed);
+}
+
+/// The batches counted by [`share_refused`] since this was last called.
+pub(crate) fn take_shares_refused() -> u64 {
+    SHARES_REFUSED.swap(0, Ordering::Relaxed)
+}
+
+/// Shares where the Server panics from now on, after reporting the panic as before. Only where:
+/// what a panic says may quote a path or a title.
+pub fn share_panics() {
+    let report = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic| {
+        report(panic);
+        let at = panic.location().map(|at| {
+            let file = from_crate(at.file());
+            format!("{file}:{}", at.line())
+        });
+        tracing::error!(name: "panicked", shared = true, at, "panicked");
+    }));
+}
+
+/// `file` from its crate's folder on, such as `tokio-1.47.0/src/task.rs`. A dependency's is
+/// absolute, naming the home folder of whoever built the Server.
+fn from_crate(file: &str) -> String {
+    let parts: Vec<&str> = file.split('/').collect();
+    let start = parts.iter().rposition(|part| *part == "src").map_or_else(
+        || parts.len().saturating_sub(1),
+        |src| src.saturating_sub(1),
+    );
+    parts.get(start..).unwrap_or_default().join("/")
+}
 
 /// The Usage Analytics the Server records (`crates/nama-server/AGENTS.md`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -288,8 +344,8 @@ pub(crate) fn record(usage: Usage) {
     }
 }
 
-/// What of the Server's logs is shared: the lines on the shared list while `switches` share
-/// Diagnostics, and Usage Analytics while they share those.
+/// What of the Server's logs is shared: the lines logged with `shared = true` while `switches`
+/// share Diagnostics (`crates/nama-server/AGENTS.md`), and Usage Analytics while they share those.
 #[must_use]
 pub fn shared_logs_filter<S>(switches: &'static SharingSwitches) -> impl Filter<S> {
     dynamic_filter_fn(move |metadata, _| {
@@ -298,7 +354,8 @@ pub fn shared_logs_filter<S>(switches: &'static SharingSwitches) -> impl Filter<
         } else {
             switches.diagnostics()
                 && metadata.is_event()
-                && SHARED_LINES.contains(&metadata.name())
+                // A field's name is in the call site's static metadata, so its value is never read.
+                && metadata.fields().field("shared").is_some()
         }
     })
     // Every shared line is `info` or above, so `debug` lines stay as cheap as stdout makes them.
@@ -362,7 +419,34 @@ pub fn shared_resource() -> Resource {
     Resource::builder_empty()
         .with_service_name(env!("CARGO_PKG_NAME"))
         .with_attribute(KeyValue::new("service.version", env!("CARGO_PKG_VERSION")))
+        .with_attribute(KeyValue::new("os.type", os_type()))
+        .with_attribute(KeyValue::new("host.arch", host_arch()))
+        .with_attribute(KeyValue::new("nama.container", in_container()))
         .build()
+}
+
+/// The OS, as OpenTelemetry's `os.type` names it.
+fn os_type() -> &'static str {
+    match env::consts::OS {
+        "macos" => "darwin",
+        os => os,
+    }
+}
+
+/// The CPU architecture, as OpenTelemetry's `host.arch` names it.
+fn host_arch() -> &'static str {
+    match env::consts::ARCH {
+        "x86_64" => "amd64",
+        "aarch64" => "arm64",
+        arch => arch,
+    }
+}
+
+/// Whether the Server runs in a container, by the file Docker or Podman leaves at its root.
+fn in_container() -> bool {
+    ["/.dockerenv", "/run/.containerenv"]
+        .iter()
+        .any(|marker| std::path::Path::new(marker).exists())
 }
 
 /// What is exported to the admin's endpoint: `info`, or whatever `RUST_LOG` asks for, never
@@ -444,6 +528,22 @@ pub(crate) fn failed(span: &Span, kind: &'static str) {
     span.set_attribute("error.type", kind);
 }
 
+/// Marks `span` failed with the name of `E`, the type of the error it failed with. The type names
+/// no data, unlike the error's message, which may quote a path or a title.
+pub(crate) fn failed_with<E>(_err: &E, span: &Span) {
+    // ponytail: the type, not the variant; give an error a `kind()` once one type hides too much.
+    failed(span, std::any::type_name::<E>());
+}
+
+/// `result`, marking the current span failed if it is an error, for a function run in a span of
+/// its own, such as one `#[tracing::instrument]` makes.
+pub(crate) fn outcome<T, E>(result: Result<T, E>) -> Result<T, E> {
+    if let Err(err) = &result {
+        failed_with(err, &Span::current());
+    }
+    result
+}
+
 /// Marks a ConnectRPC call's span failed when its handler fails, with the error's code.
 pub(crate) struct RecordFailures;
 
@@ -471,84 +571,6 @@ impl Interceptor for RecordFailures {
         mark_if_failed(span.as_ref(), called.as_ref().err());
         called
     }
-}
-
-/// Turns each query sqlx logs into a span, a child of the span that ran it: sqlx records none of
-/// its own, only an event once the query has run, saying how long it took.
-struct SqlSpans {
-    tracer: SdkTracer,
-    /// The subscriber this is part of, to find the exported span a query ran in.
-    dispatch: OnceLock<WeakDispatch>,
-}
-
-impl<S> Layer<S> for SqlSpans
-where
-    S: Subscriber + for<'span> LookupSpan<'span>,
-{
-    fn on_register_dispatch(&self, subscriber: &Dispatch) {
-        // A subscriber is registered once; a second registration would be the same one.
-        let _: Result<(), WeakDispatch> = self.dispatch.set(subscriber.downgrade());
-    }
-
-    fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
-        let mut query = Query::default();
-        event.record(&mut query);
-        let dispatch = self.dispatch.get().and_then(WeakDispatch::upgrade);
-        let parent = ctx
-            .current_span()
-            .id()
-            .zip(dispatch)
-            .and_then(|(id, dispatch)| get_otel_context(id, &dispatch))
-            .unwrap_or_default();
-        // Real time, not `db::now`: the exception to "One clock" in `crates/nama-server/AGENTS.md`.
-        let ended = SystemTime::now();
-        self.tracer
-            .span_builder(query.summary)
-            .with_kind(SpanKind::Client)
-            .with_start_time(ended.checked_sub(query.elapsed).unwrap_or(ended))
-            .with_attributes([
-                KeyValue::new("db.system.name", "sqlite"),
-                KeyValue::new("db.response.returned_rows", query.rows_returned),
-                KeyValue::new("db.response.affected_rows", query.rows_affected),
-            ])
-            .start_with_context(&self.tracer, &parent)
-            .end_with_timestamp(ended);
-    }
-}
-
-/// What sqlx logs of a query that has run. Its summary is the statement's first words, which hold
-/// no values: every query binds them.
-#[derive(Default)]
-struct Query {
-    summary: String,
-    rows_returned: i64,
-    rows_affected: i64,
-    elapsed: Duration,
-}
-
-impl Visit for Query {
-    fn record_str(&mut self, field: &Field, value: &str) {
-        if field.name() == "summary" {
-            value.clone_into(&mut self.summary);
-        }
-    }
-
-    fn record_u64(&mut self, field: &Field, value: u64) {
-        let value = i64::try_from(value).unwrap_or(i64::MAX);
-        match field.name() {
-            "rows_returned" => self.rows_returned = value,
-            "rows_affected" => self.rows_affected = value,
-            _ => {}
-        }
-    }
-
-    fn record_f64(&mut self, field: &Field, value: f64) {
-        if field.name() == "elapsed_secs" {
-            self.elapsed = Duration::try_from_secs_f64(value).unwrap_or_default();
-        }
-    }
-
-    fn record_debug(&mut self, _field: &Field, _value: &dyn fmt::Debug) {}
 }
 
 /// See [`plugin_lines_layer`].
@@ -693,5 +715,5 @@ impl Visit for LineFields {
 }
 
 #[cfg(test)]
-#[path = "diagnostics_tests.rs"]
+#[path = "diagnostics/diagnostics_tests.rs"]
 mod tests;

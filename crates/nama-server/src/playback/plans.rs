@@ -8,6 +8,7 @@ use super::{
     PreviewFrames, Probing, RunningPlans, StartError, StartedPlan, SubtitlePreference, Track,
     TrackKind, TrackPreferenceError, TrackPreferences, audio_asked, build,
     codecs::is_audio,
+    direct_play::sees_version,
     on_local_network, playable_versions,
     probing::{self, ProbeError},
     subtitle_offsets, too_busy_to_play,
@@ -138,8 +139,9 @@ impl Plans {
     /// choice to the Server, and starts it if it plays. It probes the Version first unless its
     /// Tracks are current. A Remux whose keyframes can't be listed, or a plan whose ffmpeg stops
     /// before writing anything, is planned again without its method, until one plays or none is
-    /// left. `None` if there is no such Version, and [`StartError::Busy`] if only a Transcode would
-    /// play it and the Server is running as many as it may.
+    /// left. `None` if there is no such Version, or it is in a Library the User doesn't see, and
+    /// [`StartError::Busy`] if only a Transcode would play it and the Server is running as many as
+    /// it may.
     pub(crate) async fn plan(
         &self,
         caller: &Caller,
@@ -147,6 +149,9 @@ impl Plans {
     ) -> Result<Option<Planned>, StartError> {
         let (user, version, start_ms) = (caller.user.id, asked.version, asked.start_ms);
         let first = asked.is_first();
+        if !sees_version(&self.db, user, version).await? {
+            return Ok(None);
+        }
         // Read before anything starts, so a failed read leaves no Remux or Transcode running that
         // no Device was told about.
         let segments = segments_of(&self.db, version).await?;

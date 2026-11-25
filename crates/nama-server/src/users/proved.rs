@@ -9,7 +9,7 @@ use crate::db::now;
 pub(crate) enum Proved {
     /// `user`, with their Sign-in Method `method`.
     Method { user: User, method: i64 },
-    /// The User of the Device that approved a Sign-in Code.
+    /// The User a Device acted as when it approved a Sign-in Code.
     Code(ApprovingDevice),
     /// The User by this id, whose Account the Hub vouches signed in (ADR 0092). Their Link isn't
     /// a Sign-in Method the Kernel keeps (ADR 0014), so there is none to name.
@@ -55,7 +55,7 @@ async fn ensure_method_exists(
     }
 }
 
-/// The User of `approving`, failing if they were deleted or it signed out or expired.
+/// The User of `approving`, failing if they were deleted, signed out of it, or it expired.
 async fn approving_user(
     conn: &mut SqliteConnection,
     approving: ApprovingDevice,
@@ -64,7 +64,8 @@ async fn approving_user(
     let row = sqlx::query!(
         r#"SELECT u.id AS "id!", u.display_username AS name,
                   u.permissions AS "permissions: Permissions", u.created_at,
-                  EXISTS (SELECT 1 FROM devices WHERE id = ? AND user_id = u.id AND expires_at > ?)
+                  EXISTS (SELECT 1 FROM device_users du JOIN devices d ON d.id = du.device_id
+                          WHERE du.device_id = ? AND du.user_id = u.id AND d.expires_at > ?)
                       AS "signed_in!: bool"
            FROM users u WHERE u.id = ?"#,
         approving.device_id,

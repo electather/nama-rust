@@ -6,7 +6,7 @@
 // - main: watches main's CI and files a main-red issue when it fails, then builds it in a lane of its own.
 // Run from the repo root: `npm --prefix .sandcastle run factory`  (the script cd's back to the root)
 import { execFile, execFileSync, spawn, spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, hostname } from "node:os";
 import { setTimeout as sleep } from "node:timers/promises";
 import { inspect, parseEnv, promisify } from "node:util";
@@ -17,9 +17,10 @@ import { blockedReason } from "./blocked.ts";
 import { failedJobs, mainAction, mainVerdict, mergeStep, prVerdict } from "./merge.ts";
 import { blockedCounts } from "./priority.ts";
 import { slotPool } from "./slots.ts";
+import { HOLD_MS, heldBy, STARVED, type StaleRecord } from "./starve.ts";
 import { recorder, type Outcome, type Stage, type Waiting } from "./status.ts";
 import { sweepLeftovers } from "./sweep.ts";
-import { githubServerError } from "./transient.ts";
+import { githubBadCredentials, githubUnavailable } from "./transient.ts";
 
 const MAX_ISSUES = Number(process.env.MAX_ISSUES ?? 60); // issues started per run; MAX_ISSUES=1 → one issue, then stop
 const MAX_PARALLEL = Number(process.env.MAX_PARALLEL ?? 2); // issues built at once
@@ -139,6 +140,24 @@ function noteRateLimit() {
 const ghWait = async () => {
   while (Date.now() < ghResetsAt) await sleep(60_000);
 };
+
+// A loop's listing that GitHub fails with a 5xx, a network failure or a one-off 401 (see transient.ts) is one missed pass, not a
+// crash: one such 401 stopped the babysit loop for the rest of a run, so three new PRs sat unbabysat and the run
+// exited 1 into the supervisor's hour-long wait. LIST_RETRIES failures in a row, such as a token that's really
+// revoked, still crash the run as before.
+const LIST_RETRIES = 5;
+function listingRetries(what: string) {
+  let failures = 0;
+  return {
+    ok: () => { failures = 0; },
+    // Whether the loop tries again on its next pass (a minute away), rather than crashing.
+    retry(e: unknown): boolean {
+      if (!(githubUnavailable(e) || githubBadCredentials(e)) || ++failures > LIST_RETRIES) return false;
+      log(`↻ ${what} failed (${failures}/${LIST_RETRIES} in a row), trying again next pass: ${oneLine(e)}`);
+      return true;
+    },
+  };
+}
 
 // The sandboxes share OrbStack's one VM, which runs out of memory when they peak together. Every 30s a sandbox
 // over MEM_LOG_GIB (default 4) logs its biggest processes to mem.log, so the command behind a spike has a name.
@@ -384,7 +403,7 @@ function readyIssues(prs = openPrs()): { ready: Issue[]; waiting: Waiting[] } {
   return { ready, waiting };
 }
 
-type Job = { pr: string; issue: Issue; box?: Box };
+type Job = { pr: string; issue: Issue; box?: Box; heldFor?: number };
 // PRs to see through to merge: open, not a draft, opened by ME from a branch of this repo (a fork's PR would run
 // its code in a sandbox, then merge), closing an open issue by a trustedAuthor that carries READY.
 function babysittable(prs = openPrs()): Job[] {
@@ -615,6 +634,83 @@ function resendPush(branch: string, sha: string) {
   return commit;
 }
 
+// Starved PRs (see starve.ts): one record per PR, written only by the run babysitting it and read by every run here.
+const STALE_DIR = `${cacheRoot}/stale`;
+mkdirSync(STALE_DIR, { recursive: true });
+const staleFile = (pr: string | number) => `${STALE_DIR}/${pr}.json`;
+function staleRecord(pr: string | number): StaleRecord {
+  try {
+    return JSON.parse(readFileSync(staleFile(pr), "utf8"));
+  } catch {
+    return { stale: 0 };
+  }
+}
+// Renamed into place, so another run never reads it half-written.
+function saveStale(pr: string, r: StaleRecord) {
+  writeFileSync(`${staleFile(pr)}.tmp`, JSON.stringify(r));
+  renameSync(`${staleFile(pr)}.tmp`, staleFile(pr));
+}
+const staleRecords = () => new Map(readdirSync(STALE_DIR).filter((f) => f.endsWith(".json"))
+  .map((f) => [Number(f.slice(0, -5)), staleRecord(f.slice(0, -5))] as const));
+// Merged and closed PRs' records.
+function pruneStale(prs: OpenPr[]) {
+  const open = new Set(prs.map((p) => p.number));
+  for (const pr of staleRecords().keys()) if (!open.has(pr)) rmSync(staleFile(pr), { force: true });
+}
+// A starved PR waiting on CI holds other merges, through its own merge. Its first held run starts the clock.
+function hold(job: Job) {
+  const r = staleRecord(job.pr);
+  if (r.stale < STARVED || r.pid === process.pid) return;
+  const since = r.since ?? Date.now();
+  if (Date.now() - since >= HOLD_MS) {
+    log(`#${job.issue.number} PR #${job.pr} is starved, but its hold on other merges is spent`);
+    return;
+  }
+  saveStale(job.pr, { ...r, since, pid: process.pid });
+  log(`#${job.issue.number} PR #${job.pr} went stale ${r.stale} times: other merges here hold for its CI run, until ${new Date(since + HOLD_MS).toTimeString().slice(0, 5)} at the latest`);
+}
+function unhold(job: Job, why: string) {
+  const r = staleRecord(job.pr);
+  if (r.pid === undefined) return;
+  saveStale(job.pr, { ...r, pid: undefined });
+  log(`#${job.issue.number} PR #${job.pr} no longer holds other merges: ${why}`);
+}
+function wentStale(job: Job) {
+  unhold(job, "it went stale");
+  const r = staleRecord(job.pr);
+  saveStale(job.pr, { ...r, stale: r.stale + 1 });
+}
+// A held PR's auto-merge is off, or GitHub would merge it the moment its ci-ok passes.
+function checkHold(job: Job) {
+  const by = heldBy(Number(job.pr), staleRecords(), Date.now(), alive);
+  if (by === job.heldFor) return by;
+  if (by !== undefined) {
+    disarm(job.issue);
+    log(`#${job.issue.number} PR #${job.pr} holds its merge for starved PR #${by}`);
+  } else {
+    if (!ok("gh", "pr", "merge", job.pr, "--auto", "--squash")) log(`#${job.issue.number} couldn't turn auto-merge back on`);
+    log(`#${job.issue.number} PR #${job.pr} stops holding for starved PR #${job.heldFor}`);
+  }
+  job.heldFor = by;
+  return by;
+}
+// Before `serially`, not inside it: the starved PR's own merge queues there, behind a held one.
+async function waitWhileHeld(job: Job) {
+  const signal = aborts.get(job.issue.number)?.signal;
+  while (checkHold(job) !== undefined) {
+    await sleep(60_000);
+    signal?.throwIfAborted();
+  }
+}
+// A starved PR whose run already has a failed job won't merge from that run, so others stop holding now.
+function unholdIfRed(job: Job, run: string) {
+  if (staleRecord(job.pr).pid !== process.pid) return;
+  try {
+    const jobs = JSON.parse(gh("run", "view", run, "--json", "jobs", "--jq", "[.jobs[] | {name, conclusion}]"));
+    if (failedJobs(jobs).length) unhold(job, "its CI run has a failed job");
+  } catch {} // runs in a timer, where a throw would end the process; the next poll asks again
+}
+
 // Waits for the whole CI workflow run on the PR's head. `gh pr checks --watch` isn't enough: a job behind
 // `needs` (every job after `changes`) has no check until it starts, so it can pass early.
 // "stale": another PR merged and this one now conflicts with main, so it can't merge.
@@ -633,6 +729,7 @@ async function waitForChecks(job: Job): Promise<"pass" | "fail" | "stale"> {
     if (i > 0) await sleep(10_000);
     signal?.throwIfAborted();
     if (stale()) return "stale"; // a conflicting PR gets no run at all
+    checkHold(job);
     if (i === 30) sha = resendPush(branchOf(issue), sha);
     run = gh("run", "list", "--workflow", "CI", "--commit", sha, "--event", "pull_request",
       "--json", "databaseId", "--jq", ".[0].databaseId // empty");
@@ -652,6 +749,10 @@ async function waitForChecks(job: Job): Promise<"pass" | "fail" | "stale"> {
     const poll = setInterval(() => {
       if (signal?.aborted) watch.kill();
       else if (stale()) { wasStale = true; watch.kill(); }
+      else {
+        checkHold(job);
+        unholdIfRed(job, run);
+      }
     }, 60_000);
     await new Promise((resolve) => watch.on("close", resolve));
     clearInterval(poll);
@@ -722,13 +823,16 @@ async function waitForGreenMain(job: Job) {
 async function greenCi(job: Job) {
   let fixed = false;
   for (;;) {
+    hold(job);
     const result = await waitForChecks(job);
     log(`#${job.issue.number} CI ${result}`);
-    if (result === "pass") return;
+    if (result === "pass") return; // a starved PR holds on until its merge (babysit unholds it)
     if (result === "stale") {
+      wentStale(job);
       await rebase(job);
       continue;
     }
+    unhold(job, "its CI failed"); // a red PR mustn't hold the others
     if (!job.issue.mainFix && mainRed()) {
       await waitForGreenMain(job);
       const head = `origin/${branchOf(job.issue)}`;
@@ -754,6 +858,7 @@ async function mergePr(job: Job) {
   for (;;) {
     fetchOrigin();
     if (!conflicts(head)) break;
+    wentStale(job);
     await rebase(job);
     await greenCi(job);
   }
@@ -772,8 +877,10 @@ async function babysit(job: Job): Promise<Outcome> {
   try {
     stage(job.issue, "ci");
     await greenCi(job);
+    await waitWhileHeld(job);
     await serially(() => mergePr(job));
   } finally {
+    unhold(job, "its babysit ended");
     await job.box?.close();
   }
   ok("git", "branch", "-D", branchOf(job.issue)); // squash-merged; the local branch, if any, is dead weight
@@ -1030,6 +1137,7 @@ async function overUsage(): Promise<boolean> {
 // The implement loop: starts an issue whenever a slot is free (see slotPool). Started issues finish in the background.
 async function dispatch() {
   const running = new Set<Promise<void>>();
+  const picking = listingRetries("picking the next issue");
   for (;;) {
     await ghWait();
     await slots.acquire();
@@ -1042,9 +1150,10 @@ async function dispatch() {
     if (!(await overUsage()) && !(agentsBusy() > slowCap())) {
       try {
         issue = pickNext();
+        picking.ok();
       } catch (e) {
         if (rateLimited(e)) noteRateLimit(); // a wait (issue stays "wait")
-        else {
+        else if (!picking.retry(e)) { // a retry is a wait too
           // e.g. git or gh failing for everyone (network, auth, an Xcode licence prompt): a crash, not the end of
           // the run. In-flight issues finish and release their claims; nothing new starts.
           const why = `picking the next issue failed: ${oneLine(e)}`;
@@ -1081,6 +1190,7 @@ let implementDone = false;
 let mainDone = false; // the main loop may still open a PR until then
 async function babysitLoop() {
   const running = new Set<Promise<void>>();
+  const listing = listingRetries("listing PRs to babysit");
   for (;;) {
     if (stopping()) break; // its PRs in flight finish here; the rest are the newer run's
     await ghWait();
@@ -1089,9 +1199,15 @@ async function babysitLoop() {
     try {
       prs = openPrs();
       jobs = babysittable(prs);
+      pruneStale(prs);
+      listing.ok();
     } catch (e) {
       if (rateLimited(e)) {
         noteRateLimit();
+        continue;
+      }
+      if (listing.retry(e)) {
+        await sleep(60_000);
         continue;
       }
       const why = `listing PRs to babysit failed: ${oneLine(e)}`;
@@ -1134,6 +1250,7 @@ async function babysitLoop() {
 async function triageLoop() {
   if (!TRIAGING) return;
   const running = new Set<Promise<void>>();
+  const listing = listingRetries("listing issues to triage");
   for (;;) {
     await ghWait();
     await triageSlots.acquire(); // released by track
@@ -1146,10 +1263,16 @@ async function triageLoop() {
     if (!(await overUsage()) && !(agentsBusy() > slowCap())) {
       try {
         issue = triageable().find((i) => !triaged.has(i.number));
+        listing.ok();
       } catch (e) {
         if (rateLimited(e)) {
           noteRateLimit();
           triageSlots.release();
+          continue;
+        }
+        if (listing.retry(e)) {
+          triageSlots.release();
+          await sleep(60_000);
           continue;
         }
         const why = `listing issues to triage failed: ${oneLine(e)}`;
@@ -1350,7 +1473,7 @@ async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Pro
       log(`⏸ #${issue.number} ${why}: taken again after the reset`);
       outcome = "interrupted";
       finish(issue, outcome, why);
-    } else if (oneIssueTimedOut(e) || githubServerError(e)) {
+    } else if (oneIssueTimedOut(e) || githubUnavailable(e)) {
       // `taken` keeps it out of this run; the next run builds or babysits it again.
       const why = `crashed at ${stageOf.get(issue.number)?.stage ?? "start"}: ${oneLine(e)}`;
       appendFileSync(`${LOGS}/crash-issue-${issue.number}.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);

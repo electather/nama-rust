@@ -16,6 +16,9 @@ pub(super) struct Claims {
     /// Its Account's email, in the token a newly Linked Server gets.
     #[serde(default)]
     pub(super) email: String,
+    /// Whom it is for: in a sign-in token, the id of the Linked Server that may take it.
+    #[serde(default)]
+    pub(super) aud: String,
     exp: u64,
 }
 

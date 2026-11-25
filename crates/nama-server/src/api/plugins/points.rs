@@ -7,7 +7,6 @@ use nama_plugin_api::{
     auth::Authenticator,
     blob_store::BlobStore,
     connector::Connector,
-    diagnostics_sharer::DiagnosticsSharer,
     fulfiller::{Fulfiller, Movies, Shows},
     home_row::HomeRowSource,
     job::JobRunner,
@@ -20,6 +19,7 @@ use nama_plugin_api::{
     server_link::ServerLinker,
     similar_source::SimilarSource,
     subtitle_source::SubtitleSource,
+    watch_sync::WatchSync,
 };
 use nama_proto::nama::v1 as proto;
 
@@ -135,8 +135,8 @@ pub(super) fn public_points() -> [(PointKey, proto::ExtensionPoint); 18] {
             Public::EXTENSION_POINT_SERVER_LINKER,
         ),
         (
-            PointKey::provide::<dyn DiagnosticsSharer>(),
-            Public::EXTENSION_POINT_DIAGNOSTICS_SHARER,
+            PointKey::provide::<dyn WatchSync>(),
+            Public::EXTENSION_POINT_WATCH_SYNC,
         ),
     ]
 }

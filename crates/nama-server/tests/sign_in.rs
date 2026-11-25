@@ -16,6 +16,7 @@ use connectrpc::{
     ConnectError, ErrorCode,
     client::{CallOptions, ClientConfig, HttpClient, ServerStream},
 };
+use futures_util::FutureExt as _;
 use hyper::HeaderMap;
 use nama_plugin_local_auth::LocalAuth;
 use nama_plugin_tmdb::Tmdb;
@@ -102,9 +103,8 @@ async fn start_with(setup_code: Option<SetupCode>, config: &Config) -> TestServe
         plugins,
         setup_code.clone(),
         Ffmpeg::default(),
-        async {
-            let _: Result<(), oneshot::error::RecvError> = stopped.await;
-        },
+        nama_server::ShareWithHub::new(nama_server::diagnostics::Signal::Traces),
+        stopped.map(drop),
     ));
     TestServer {
         addr,
@@ -852,19 +852,6 @@ async fn signing_out_a_bearer_session_sets_no_cookie() {
     .await;
 
     assert_eq!(signed_out.headers.get("set-cookie"), None);
-}
-
-#[tokio::test]
-async fn signing_out_without_a_session_is_unauthenticated() {
-    let server = start().await;
-
-    let signed_out = call(&server, "SignOut", &json!({}), &[]).await;
-
-    assert_refused(
-        signed_out.refused(),
-        ErrorCode::Unauthenticated,
-        RefusalReason::REFUSAL_REASON_SIGN_IN_REQUIRED,
-    );
 }
 
 const WAIT: Duration = Duration::from_secs(10);

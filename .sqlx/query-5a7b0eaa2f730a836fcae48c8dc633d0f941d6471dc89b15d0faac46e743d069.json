@@ -1,0 +1,69 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT u.id AS \"id!\", u.display_username AS name,\n                  u.permissions AS \"permissions: Permissions\", u.created_at,\n                  EXISTS (SELECT 1 FROM device_users du JOIN devices d ON d.id = du.device_id\n                          WHERE du.device_id = ? AND du.user_id = u.id AND d.expires_at > ?)\n                      AS \"signed_in!: bool\"\n           FROM users u WHERE u.id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "display_username"
+          }
+        }
+      },
+      {
+        "name": "permissions: Permissions",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "permissions"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "signed_in!: bool",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "5a7b0eaa2f730a836fcae48c8dc633d0f941d6471dc89b15d0faac46e743d069"
+}

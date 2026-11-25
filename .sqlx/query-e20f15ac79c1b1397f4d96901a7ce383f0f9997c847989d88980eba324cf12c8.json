@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT device_id AS \"device_id!\" FROM device_users WHERE user_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "device_id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "device_users",
+            "name": "device_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e20f15ac79c1b1397f4d96901a7ce383f0f9997c847989d88980eba324cf12c8"
+}

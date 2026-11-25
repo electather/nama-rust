@@ -54,6 +54,7 @@ mod services;
 mod similar_source;
 mod subtitle_source;
 mod title_source;
+mod watch_sync;
 
 #[cfg(test)]
 #[path = "wasm/calls_tests.rs"]

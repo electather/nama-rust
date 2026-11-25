@@ -154,8 +154,8 @@ struct OnHardware {
 
 /// The Transcodes running, as a Transcode cap counts them.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(super) struct RunningTranscodes {
-    pub(super) all: u32,
+pub(crate) struct RunningTranscodes {
+    pub(crate) all: u32,
     /// Those that work the CPU hard, which the default cap counts.
     pub(super) cpu_bound: u32,
 }
@@ -270,7 +270,7 @@ impl RunningPlans {
     // ponytail: the plan isn't kept until after probing, the folder, spawning ffmpeg and up to
     // `START_WAIT` waiting for its first file, so Devices planning in that window can pass the cap
     // together until Transcodes end; reserve room under the plans' lock if that ever matters.
-    pub(super) fn running_transcodes(&self) -> RunningTranscodes {
+    pub(crate) fn running_transcodes(&self) -> RunningTranscodes {
         let plans = lock(&self.inner.plans);
         let transcodes: Vec<_> = (plans.values())
             .filter_map(|plan| {
@@ -583,15 +583,16 @@ impl RunningPlans {
     /// cap.
     pub(crate) fn ask_direct_plays(&self, version: i64, device: i64) -> bool {
         let plans = lock(&self.inner.plans);
-        let direct_plays = plans.values().filter(|plan| {
-            plan.hls.is_none()
-                && plan.playback.version_id == version
-                && plan.playback.device_id == device
-        });
+        let direct_plays = (plans.values()).filter(|plan| plan.direct_plays(version, device));
         direct_plays.fold(false, |any_kept, plan| {
             *lock(&plan.last_used) = db::instant_now();
             any_kept || plan.planned_under_remote_cap
         })
+    }
+
+    /// Whether the Device `device` has a plan that Direct Plays the Version `version`.
+    pub(super) fn has_direct_play(&self, version: i64, device: i64) -> bool {
+        (lock(&self.inner.plans).values()).any(|plan| plan.direct_plays(version, device))
     }
 
     /// `file`, the parts of the Version `version`'s file being sent to the Device `device`, which
@@ -750,6 +751,11 @@ impl Plan {
 
     fn fell_back(&self) -> bool {
         self.hls.as_ref().is_some_and(|hls| hls.fell_back())
+    }
+
+    fn direct_plays(&self, version: i64, device: i64) -> bool {
+        let playback = &self.playback;
+        self.hls.is_none() && playback.version_id == version && playback.device_id == device
     }
 }
 

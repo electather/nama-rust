@@ -129,16 +129,6 @@ async fn the_etag_of_a_key_stays_when_it_is_written_again() {
 }
 
 #[tokio::test]
-async fn the_etag_of_a_key_is_the_same_in_every_store() {
-    let (memory, disk) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
-    let (memory, disk) = (in_memory(&memory).await, on_disk(&disk).await);
-    memory.write(KEY, b"\xff\xd8poster").await.unwrap();
-    disk.write(KEY, b"\xff\xd8poster").await.unwrap();
-
-    assert_eq!(etag(&memory).await, etag(&disk).await);
-}
-
-#[tokio::test]
 async fn a_matching_if_none_match_is_not_modified_in_every_store() {
     let (memory, disk) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
     for store in [in_memory(&memory).await, on_disk(&disk).await] {

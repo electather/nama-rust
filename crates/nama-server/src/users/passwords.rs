@@ -1,7 +1,14 @@
-//! Setting and checking Users' passwords through the enabled Authenticator.
+//! Setting and checking Users' passwords through the enabled Authenticator, and their Switch PINs.
 
-use std::sync::{Arc, LazyLock};
+use std::{
+    ops::RangeInclusive,
+    sync::{Arc, LazyLock},
+};
 
+use argon2::{
+    Argon2,
+    password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash},
+};
 use nama_plugin_api::{
     PluginError, PluginId,
     auth::{Authenticator, PasswordError},
@@ -11,8 +18,11 @@ use tokio::sync::Semaphore;
 use tracing::Span;
 
 use super::{
-    Caller, Error, Permissions, User, Users, managing::ensure_may_change, name_key,
-    rate_limits::Attempt, user_exists,
+    Caller, Error, Permissions, User, Users,
+    managing::ensure_may_change,
+    name_key,
+    rate_limits::{Attempt, SwitchPinTry},
+    user_exists,
 };
 use crate::{
     db::now,
@@ -27,6 +37,9 @@ const PASSWORD_METHOD_NAME: &str = "Password";
 /// bound on the 1 GiB machines #725 targets. 4 is about 78 MiB at peak. Calls past it wait their
 /// turn.
 const CONCURRENT_HASHES: usize = 4;
+
+/// How many digits a Switch PIN has (ADR 0106).
+pub(crate) const SWITCH_PIN_LENGTH: RangeInclusive<usize> = 4..=6;
 
 static HASHING: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(CONCURRENT_HASHES));
 
@@ -44,9 +57,9 @@ pub(super) struct StoredPassword {
 }
 
 impl Users {
-    /// Changes the password of `caller`'s User to `new`, and signs every other Device of theirs
-    /// out. `caller`'s own Device stays signed in. Recent Authentication stands in for the current
-    /// password: the access layer checked it.
+    /// Changes the password of `caller`'s User to `new`, and signs them out of every other Device
+    /// they are signed in to. `caller`'s own Device keeps them. Recent Authentication stands in for
+    /// the current password: the access layer checked it.
     pub(crate) async fn change_password(&self, caller: &Caller, new: &str) -> Result<(), Error> {
         let credential = self.hash_password("new_password", new).await?;
         let (user, kept) = (caller.user.id, caller.device.id);
@@ -79,16 +92,16 @@ impl Users {
         }
     }
 
-    /// Gives the Device `device` Recent Authentication, failing with [`Error::SignedOut`] if it
-    /// was signed out meanwhile.
-    pub(crate) async fn record_authentication(&self, device: i64) -> Result<(), Error> {
+    /// Gives the User `user` Recent Authentication on the Device `device`, failing with
+    /// [`Error::SignedOut`] if they were signed out of it meanwhile.
+    pub(crate) async fn record_authentication(&self, device: i64, user: i64) -> Result<(), Error> {
         self.db
-            .write(move |tx| Box::pin(async move { record_authentication(tx, device).await }))
+            .write(move |tx| Box::pin(async move { record_authentication(tx, device, user).await }))
             .await
     }
 
     /// Sets the password of the User `user` to `new`, as `by` asks, without their current one,
-    /// adding it if they have none, and signs every Device of theirs out, unless
+    /// adding it if they have none, and signs them out of every Device, unless
     /// [`ensure_may_change`] refuses.
     pub(crate) async fn reset_password(
         &self,
@@ -128,6 +141,49 @@ impl Users {
             (Some((user, _)), Some(method)) => Ok((user, method)),
             _ => Err(Error::WrongNameOrPassword),
         }
+    }
+
+    /// Sets the Switch PIN of the User `user` to `switch_pin`, failing with
+    /// [`Error::SwitchPinInvalid`] unless it is 4 to 6 digits.
+    pub(crate) async fn set_switch_pin(&self, user: i64, switch_pin: &str) -> Result<(), Error> {
+        if !SWITCH_PIN_LENGTH.contains(&switch_pin.len())
+            || !switch_pin.bytes().all(|byte| byte.is_ascii_digit())
+        {
+            return Err(Error::SwitchPinInvalid);
+        }
+        // The Kernel hashes it, not the Authenticator, whose password rules would refuse 4 digits:
+        // a Switch PIN is no Sign-in Method (ADR 0106).
+        let switch_pin = switch_pin.to_owned();
+        let credential = blocking(move || {
+            (Argon2::default().hash_password(switch_pin.as_bytes())).map(|hash| hash.to_string())
+        })
+        .await
+        .map_err(switch_pin_hashing_failed)?
+        .map_err(switch_pin_hashing_failed)?;
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "INSERT INTO switch_pins (user_id, credential) VALUES (?, ?)
+                         ON CONFLICT (user_id) DO UPDATE SET credential = excluded.credential",
+                        user,
+                        credential
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    Ok(())
+                })
+            })
+            .await
+    }
+
+    /// Clears the Switch PIN of the User `user`, as `by` asks, unless [`ensure_may_change`]
+    /// refuses. Fails with [`Error::NoSuchUser`] if there is no such User.
+    pub(crate) async fn clear_switch_pin(&self, by: &User, user: i64) -> Result<(), Error> {
+        let by = by.clone();
+        self.db
+            .write(move |tx| Box::pin(async move { clear_switch_pin(tx, &by, user).await }))
+            .await
     }
 
     /// Has the first enabled Authenticator turn `password`, given as the request field `field`,
@@ -245,6 +301,44 @@ impl Users {
     }
 }
 
+/// Whether `switch_pin` is the one `credential`, a Switch PIN's stored hash, was made from.
+///
+/// `_admitted` is a try `SwitchPinTries::admit` let through: see "Guessable requests go through
+/// `SignIn`" in `crates/nama-server/src/users/AGENTS.md`.
+pub(super) async fn is_switch_pin(
+    _admitted: &SwitchPinTry,
+    switch_pin: &str,
+    credential: String,
+) -> Result<bool, Error> {
+    let switch_pin = switch_pin.to_owned();
+    blocking(move || {
+        let credential = PasswordHash::new(&credential).map_err(switch_pin_hashing_failed)?;
+        match Argon2::default().verify_password(switch_pin.as_bytes(), &credential) {
+            Ok(()) => Ok(true),
+            Err(argon2::password_hash::Error::PasswordInvalid) => Ok(false),
+            Err(err) => Err(switch_pin_hashing_failed(err)),
+        }
+    })
+    .await
+    .map_err(switch_pin_hashing_failed)?
+}
+
+fn switch_pin_hashing_failed(err: impl std::fmt::Display) -> Error {
+    Error::SwitchPinHashing(err.to_string())
+}
+
+/// Clears the Switch PIN of the User `user`, as [`Users::clear_switch_pin`] does.
+async fn clear_switch_pin(conn: &mut SqliteConnection, by: &User, user: i64) -> Result<(), Error> {
+    if !user_exists(conn, user).await? {
+        return Err(Error::NoSuchUser);
+    }
+    ensure_may_change(conn, by, user).await?;
+    sqlx::query!("DELETE FROM switch_pins WHERE user_id = ?", user)
+        .execute(conn)
+        .await?;
+    Ok(())
+}
+
 /// Has `authenticator` check `password` against `credential`, which is meant to be slow, where
 /// blocking is fine.
 async fn verify_where_blocking_is_fine(
@@ -305,15 +399,19 @@ impl ProviderError<Hashing> for PasswordError {
     }
 }
 
-/// Records that the Device `device` proved who it is just now, failing if it was signed out
-/// meanwhile.
-async fn record_authentication(conn: &mut SqliteConnection, device: i64) -> Result<(), Error> {
+/// Records that the User `user` proved who they are on the Device `device` just now, failing if
+/// they were signed out of it meanwhile.
+async fn record_authentication(
+    conn: &mut SqliteConnection,
+    device: i64,
+    user: i64,
+) -> Result<(), Error> {
     let now = now();
     let updated = sqlx::query!(
-        "UPDATE devices SET authenticated_at = ?, updated_at = ? WHERE id = ?",
+        "UPDATE device_users SET authenticated_at = ? WHERE device_id = ? AND user_id = ?",
         now,
-        now,
-        device
+        device,
+        user
     )
     .execute(conn)
     .await?;
@@ -323,11 +421,12 @@ async fn record_authentication(conn: &mut SqliteConnection, device: i64) -> Resu
     Ok(())
 }
 
-/// Makes `credential` the User `user`'s password, as [`set_password`] does, and signs out every
-/// Device of theirs but `kept`, returning the ids of those signed out.
+/// Makes `credential` the User `user`'s password, as [`set_password`] does, and signs them out of
+/// every Device but `kept`, returning the ids of those they were signed out of.
 ///
-/// Fails if `kept` was signed out meanwhile, such as by another password change, so a change never
-/// succeeds for a Device that is no longer signed in, nor overwrites the one that signed it out.
+/// Fails if they were signed out of `kept` meanwhile, such as by another password change, so a
+/// change never succeeds for a Device they are no longer signed in to, nor overwrites the one that
+/// signed them out.
 async fn set_password_signing_others_out(
     conn: &mut SqliteConnection,
     user: i64,
@@ -335,8 +434,10 @@ async fn set_password_signing_others_out(
     kept: i64,
 ) -> Result<Vec<i64>, Error> {
     let still_signed_in = sqlx::query_scalar!(
-        r#"SELECT EXISTS (SELECT 1 FROM devices WHERE id = ?) AS "exists!: bool""#,
-        kept
+        r#"SELECT EXISTS (SELECT 1 FROM device_users WHERE device_id = ? AND user_id = ?)
+               AS "exists!: bool""#,
+        kept,
+        user
     )
     .fetch_one(&mut *conn)
     .await?;
@@ -345,7 +446,8 @@ async fn set_password_signing_others_out(
     }
     set_password(conn, user, credential).await?;
     let signed_out = sqlx::query_scalar!(
-        r#"DELETE FROM devices WHERE user_id = ? AND id != ? RETURNING id AS "id!""#,
+        r#"DELETE FROM device_users WHERE user_id = ? AND device_id != ?
+           RETURNING device_id AS "device_id!""#,
         user,
         kept
     )
@@ -354,8 +456,8 @@ async fn set_password_signing_others_out(
     Ok(signed_out)
 }
 
-/// Makes `credential` the User `user`'s password, as [`set_password`] does, and signs out every
-/// Device of theirs, returning their ids. Fails if there is no such User.
+/// Makes `credential` the User `user`'s password, as [`set_password`] does, and signs them out of
+/// every Device, returning those Devices' ids. Fails if there is no such User.
 async fn set_password_signing_all_out(
     conn: &mut SqliteConnection,
     user: i64,
@@ -366,7 +468,7 @@ async fn set_password_signing_all_out(
     }
     set_password(conn, user, credential).await?;
     let signed_out = sqlx::query_scalar!(
-        r#"DELETE FROM devices WHERE user_id = ? RETURNING id AS "id!""#,
+        r#"DELETE FROM device_users WHERE user_id = ? RETURNING device_id AS "device_id!""#,
         user
     )
     .fetch_all(conn)

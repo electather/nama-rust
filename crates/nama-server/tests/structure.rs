@@ -38,7 +38,7 @@ const CEILINGS: &[(&str, usize)] = &[
     ("tests/playback.rs", 2600),
     ("tests/plugin_service.rs", 1100),
     ("tests/plugins.rs", 900),
-    ("tests/requests.rs", 4200),
+    ("tests/requests.rs", 4100),
     ("tests/sign_in.rs", 1400),
     ("tests/users.rs", 1200),
 ];
@@ -97,11 +97,13 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
     ("src/users/personal_settings", &["personal_settings"]),
     ("src/users/inbox", &["inbox"]),
     ("src/web_push/subscriptions", &["push_subscriptions"]),
+    ("src/users/library_access", &["user_libraries"]),
     ("src/automation/store", &["plugin_store"]),
     ("src/watchlist", &["watchlist"]),
     ("src/playback/preview_frames", &["preview_frames"]),
     ("src/home_rows/refreshes", &["home_visits"]),
     ("src/link/server", &["hub_link", "hub_key_set"]),
+    ("src/link/users", &["hub_user_links"]),
 ];
 
 /// The Server's modules in rows of who may call whom, highest row first (ADR 0051). A module may
@@ -111,8 +113,8 @@ const OWNED_TABLES: &[(&str, &[&str])] = &[
 // private helpers (`stored.rs`, `put_back.rs`, `running.rs`) and its one rule, "One owner for
 // Plugin changes", stays in the crate's AGENTS.md.
 const ROWS: &[&[&str]] = &[
-    &["api", "automation"],
-    &["sync", "browse", "scanner", "plugin_settings"],
+    &["api", "automation", "status"],
+    &["sync", "watch_sync", "browse", "scanner", "plugin_settings"],
     &["home_rows", "requests", "playback", "matching", "watchlist"],
     &["library"],
     &[
@@ -135,6 +137,7 @@ const ROWS: &[&[&str]] = &[
         "port_mapping",
         "tls",
         "diagnostics",
+        "signed_urls",
         "db",
         "page",
         "config",

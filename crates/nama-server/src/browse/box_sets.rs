@@ -48,9 +48,10 @@ impl TitlePages {
     /// The Box Set `id` as `user` sees it, with each missing Movie's open Request they may see.
     /// [`NotFound::NoSuchBoxSet`] if they can't see it.
     pub(crate) async fn box_set(&self, user: &User, id: &ExternalId) -> Result<SeenBoxSet, Error> {
+        let seen_by = self.seen_by(user).await?;
         let stored = self.browse.contents.box_set(id).await?;
         let seen = match stored {
-            Some(stored) => self.seen(user, stored).await?,
+            Some(stored) => seen_by.seen(user, stored).await?,
             None => None,
         };
         let SeenBoxSet { box_set, movies } = seen.ok_or(NotFound::NoSuchBoxSet)?;
@@ -79,7 +80,8 @@ impl TitlePages {
         library: i64,
         asked: &PageRequest,
     ) -> Result<(Vec<StoredBoxSet>, PageResponse), Error> {
-        let library = self.browse.library(library).await?;
+        let this = self.seen_by(user).await?;
+        let library = this.browse.library(library).await?;
         if library.kind != LibraryKind::Movies {
             return Err(NotFound::WrongKind {
                 wanted: LibraryKind::Movies,
@@ -96,7 +98,7 @@ impl TitlePages {
             let Some(stored) = self.browse.contents.box_set(&id).await? else {
                 continue;
             };
-            if let Some(shown) = self.seen(user, stored).await? {
+            if let Some(shown) = this.seen(user, stored).await? {
                 seen.push(shown.box_set);
             }
         }

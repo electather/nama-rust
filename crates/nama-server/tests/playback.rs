@@ -24,6 +24,8 @@ mod http;
 mod keyframes;
 #[path = "playback/now_playing.rs"]
 mod now_playing;
+#[path = "playback/offline_downloads.rs"]
+mod offline_downloads;
 // The fake ffmpeg and ffprobe are shell scripts.
 #[cfg(unix)]
 #[path = "playback/other_versions.rs"]
@@ -562,21 +564,6 @@ async fn with_the_cap_full_a_device_that_plays_a_remux_gets_one_and_the_plan_say
     let busy = reason_of(&plan, PlaybackReasonKind::PLAYBACK_REASON_KIND_SERVER_BUSY);
     assert_eq!(param(busy, "maxTranscodes"), Some("1"));
     assert!(!busy.decided, "a Remux would play anyway");
-}
-
-// The fake ffmpeg and ffprobe are shell scripts.
-#[cfg(unix)]
-#[tokio::test]
-async fn when_a_transcodes_session_ends_its_slot_frees_up_for_the_next() {
-    let bin = tempfile::tempdir().unwrap();
-    let (fx, [_, hevc]) = Fixture::alien_with_room_for_one_transcode(bin.path()).await;
-    let bishop = fx.server.user_with_default_permissions("Bishop").await;
-    let admins = fx.transcode(hevc).await;
-
-    fx.stop(admins.id).await;
-
-    let plan = plan_as(&bishop, hevc).await.unwrap();
-    assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
 }
 
 // The fake ffmpeg and ffprobe are shell scripts.

@@ -76,9 +76,9 @@ fn a_title_a_row_names_by_two_of_its_ids_shows_once_at_its_first_place() {
         Title(Kind::Movie, "tmdb-1".to_owned()),
         Title(Kind::Movie, "tmdb-603".to_owned()),
     ];
-    let on_server: HashMap<Title, OnServer> = [
-        (titles[0].clone(), OnServer::Movie(matrix.clone())),
-        (titles[2].clone(), OnServer::Movie(matrix)),
+    let on_server: HashMap<Title, Option<OnServer>> = [
+        (titles[0].clone(), Some(OnServer::Movie(matrix.clone()))),
+        (titles[2].clone(), Some(OnServer::Movie(matrix))),
     ]
     .into_iter()
     .collect();

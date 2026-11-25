@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT d.id AS \"id!\", d.name, d.created_at, d.last_seen_at, du.authenticated_at\n               FROM device_users du JOIN devices d ON d.id = du.device_id\n               WHERE du.user_id = ? AND d.expires_at > ? ORDER BY d.id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "devices",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "devices",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "created_at",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "devices",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "last_seen_at",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "devices",
+            "name": "last_seen_at"
+          }
+        }
+      },
+      {
+        "name": "authenticated_at",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "device_users",
+            "name": "authenticated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "42f481f724dc49fa55e1f954772871931e9e67bc330fde18f2f8a62a4f9914a2"
+}

@@ -2,12 +2,13 @@
 
 use std::{net::SocketAddr, sync::Arc};
 
-use axum::{http::header::SET_COOKIE, middleware};
+use axum::{Extension, http::header::SET_COOKIE, middleware};
 use buffa::{EnumValue, MessageName};
 use connectrpc::{ConnectError, ErrorCode, ErrorDetail, RequestContext, Response};
 use nama_forwarded::identify_source;
 use nama_plugin_api::metadata::ExternalId;
 use nama_proto::nama::v1::{self as proto, Refusal, RefusalReason};
+use tower::Layer as _;
 
 use crate::{
     backup::Backups,
@@ -21,8 +22,9 @@ use crate::{
     home_rows::HomeRows,
     images::{ImageStore, PluginLogos, plugin_logos_router},
     library::{
-        Artwork, Contents, CustomImages, ImageSources, Libraries, LocalImages, SimilarSources,
-        TitleKind, TitleSources, artwork_router, custom_images_router, local_images_router,
+        Artwork, Contents, CustomImages, ImageSources, Libraries, LocalImages, ShownImages,
+        SimilarSources, TitleKind, TitleSources, artwork_router, custom_images_router,
+        local_images_router,
     },
     playback::{
         Plans, PreviewFrames, Probing, RunningPlans, SubtitleCache, SubtitleDownloads,
@@ -32,9 +34,10 @@ use crate::{
     requests::Requests,
     scanner::Scanner,
     server_settings,
+    signed_urls::{UrlSigner, admit},
     sync::Syncing,
     users::{
-        Caller, SetupCode, SignIn, Users, cleared_session_cookie, identify_caller,
+        Caller, Device, SetupCode, SignIn, Users, cleared_session_cookie, identify_caller,
         in_session_cookie,
     },
 };
@@ -43,6 +46,7 @@ mod access;
 mod browse;
 mod browser_spans;
 mod events;
+mod hub_cors;
 mod inbox;
 mod jobs;
 mod libraries;
@@ -100,6 +104,7 @@ pub(crate) fn router(
     ffmpeg: Arc<Ffmpeg>,
 ) -> axum::Router {
     let plugins = plugin_settings.extension_points();
+    let signer = UrlSigner::new();
     let image_settings = settings.images();
     let local_images = LocalImages::new(Arc::clone(&db), image_store.clone());
     let artwork_router = artwork_router(
@@ -110,7 +115,11 @@ pub(crate) fn router(
     let media =
         crate::playback::router(running.clone(), &db, Arc::clone(&ffmpeg), subtitles, reads)
             .merge(running_router(running.clone()))
-            .merge(preview_frames_router(preview_frames.clone()));
+            .merge(preview_frames_router(preview_frames.clone()))
+            .layer(middleware::from_fn_with_state(
+                Arc::clone(&db),
+                crate::playback::seen_versions_only,
+            ));
     let images = ImageSources {
         custom_images: custom_images.clone(),
         local_images: local_images.clone(),
@@ -146,6 +155,7 @@ pub(crate) fn router(
         }))
         .add_service(Arc::new(sign_in::SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),
+            users: users.clone(),
             linking: users.linking().clone(),
             syncing: syncing.clone(),
             server_url: settings.server_url(),
@@ -222,6 +232,7 @@ pub(crate) fn router(
             title_sources: TitleSources::new(plugins.clone()),
             plugins: plugins.clone(),
             plugin_settings: plugin_settings.clone(),
+            db: Arc::clone(&db),
         }))
         .add_service(Arc::new(events::EventServiceHandler {
             events,
@@ -241,7 +252,8 @@ pub(crate) fn router(
         }))
         .into_axum_service()
         .with_interceptor(RecordFailures);
-    axum::Router::new()
+    let linking = users.linking().clone();
+    let routes = axum::Router::new()
         .fallback_service(rpcs)
         .merge(artwork_router)
         .merge(custom_images_router(
@@ -259,7 +271,15 @@ pub(crate) fn router(
             Arc::from(config.trusted_proxies.as_slice()),
             identify_source,
         ))
+        .layer(middleware::from_fn_with_state(
+            linking,
+            hub_cors::allow_linked_hub,
+        ))
         .layer(middleware::from_fn(diagnostics::trace_call))
+        .layer(Extension(signer.clone()));
+    // Outside the routes, since a layer on them runs after routing, too late to rewrite the path.
+    axum::Router::new()
+        .fallback_service(middleware::from_fn_with_state(signer, admit).layer(routes))
 }
 
 /// Who sent the request `ctx` is for, or `unauthenticated` if it carries no valid session.
@@ -267,6 +287,30 @@ fn caller(ctx: &RequestContext) -> Result<&Caller, ConnectError> {
     ctx.extensions()
         .get::<Caller>()
         .ok_or_else(sign_in_required)
+}
+
+/// The signed-in Device making the call, whether or not it acts as one of its Users.
+fn calling_device(ctx: &RequestContext) -> Result<&Device, ConnectError> {
+    ctx.extensions()
+        .get::<Device>()
+        .ok_or_else(sign_in_required)
+}
+
+/// What the response to `ctx` shows of images, with its URLs as [`url_signer`] writes them.
+async fn shown_images(
+    images: &ImageSources,
+    ctx: &RequestContext,
+) -> Result<ShownImages, ConnectError> {
+    images.shown(url_signer(ctx)).await.map_err(database_failed)
+}
+
+/// What signs the media URLs in the response to `ctx`: for a bearer caller, whose `<img>` can't send
+/// its token (ADR 0105), and none for a cookie caller, whose URLs stay as they are.
+fn url_signer(ctx: &RequestContext) -> Option<&UrlSigner> {
+    let extensions = ctx.extensions();
+    let bearer =
+        extensions.get::<Caller>().is_some() && !in_session_cookie(ctx.headers(), extensions);
+    extensions.get::<UrlSigner>().filter(|_| bearer)
 }
 
 /// The Connect error for a call that needs a signed-in Device, made without one.
@@ -383,6 +427,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_NAME_LENGTH
         | R::REFUSAL_REASON_NAME_CHARACTER
         | R::REFUSAL_REASON_PASSWORD_REJECTED
+        | R::REFUSAL_REASON_SWITCH_PIN_INVALID
         | R::REFUSAL_REASON_FOLDER_NOT_ABSOLUTE
         | R::REFUSAL_REASON_FOLDER_NOT_FOUND
         | R::REFUSAL_REASON_FOLDER_NOT_READABLE
@@ -416,6 +461,7 @@ const fn refusal_code(reason: RefusalReason) -> ErrorCode {
         | R::REFUSAL_REASON_SIGNED_OUT => ErrorCode::Unauthenticated,
         R::REFUSAL_REASON_PERMISSION_REQUIRED
         | R::REFUSAL_REASON_WRONG_SETUP_CODE
+        | R::REFUSAL_REASON_WRONG_SWITCH_PIN
         | R::REFUSAL_REASON_QUALITY_NOT_ALLOWED => ErrorCode::PermissionDenied,
         R::REFUSAL_REASON_TOO_MANY_ATTEMPTS
         | R::REFUSAL_REASON_TOO_MANY_PENDING_SIGN_INS

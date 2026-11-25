@@ -12,7 +12,11 @@ use super::{
     self as users, ApprovingDevice, Caller, NewDevice, Proved, SignedIn, Users,
     codes::SetupCode,
     device_names,
-    rate_limits::{Blocked, SignInCodeLimits, SignInCodeStartLimits, SignInLimits},
+    passwords::is_switch_pin,
+    rate_limits::{
+        Blocked, SignInCodeLimits, SignInCodeStartLimits, SignInLimits, SwitchPinTries,
+        WRONG_SWITCH_PINS,
+    },
     sign_in_codes::{self, Delivery, Poll, SignInCodes, Started},
 };
 use crate::link;
@@ -30,6 +34,7 @@ pub(crate) struct SignIn {
     code_limits: SignInCodeLimits,
     /// The recent Sign-in Code starts, which keep one client IP from filling `codes`.
     code_start_limits: SignInCodeStartLimits,
+    switch_pin_tries: SwitchPinTries,
 }
 
 /// Who a Device claims to be, and what proves it, when it signs in or reauthenticates. Not `Debug`,
@@ -93,6 +98,18 @@ pub(crate) enum Error {
         /// The request field it is about, as clients name it.
         field: &'static str,
     },
+    /// Switching to a User with a Switch PIN gave none.
+    #[error("that User has a Switch PIN; enter it")]
+    SwitchPinMissing,
+    /// The Switch PIN isn't the User's. After [`WRONG_SWITCH_PINS`] in a row, that User was
+    /// signed out of the Device.
+    #[error(
+        "the Switch PIN is wrong; too many wrong ones in a row sign that User out of this Device"
+    )]
+    WrongSwitchPin {
+        /// How many more wrong ones would sign the User out, 0 once they were.
+        tries_left: u32,
+    },
     /// The Plugin that links the Server couldn't finish a sign-in with an Account.
     #[error(transparent)]
     Link(#[from] link::Error),
@@ -109,6 +126,7 @@ impl SignIn {
             codes: SignInCodes::default(),
             code_limits: SignInCodeLimits::default(),
             code_start_limits: SignInCodeStartLimits::default(),
+            switch_pin_tries: SwitchPinTries::default(),
         }
     }
 
@@ -149,12 +167,14 @@ impl SignIn {
             .await?)
     }
 
-    /// Signs `device` in as whoever `proof` proves it is, at `now`. An Account's proof isn't
-    /// counted: the Hub checked who it is, and its handle is a secret.
+    /// Signs `device` in as whoever `proof` proves it is, at `now`, adding them to it if it holds
+    /// the `session` of a Device already signed in. An Account's proof isn't counted: the Hub
+    /// checked who it is, and its handle is a secret.
     pub(crate) async fn sign_in(
         &self,
         proof: Proof,
         device: NewDevice,
+        session: Option<&str>,
         now: Instant,
     ) -> Result<SignedIn, Error> {
         // Input checks run before `admit`, so a mistake in them is never counted as a guess.
@@ -170,7 +190,7 @@ impl SignIn {
                 Proved::Account(self.approved(&handle, &code, "handle").await?)
             }
         };
-        Ok(self.users.sign_in_as(proved, device).await?)
+        Ok(self.users.sign_in_as(proved, device, session).await?)
     }
 
     /// Creates a User named `name` with `password` from the Invite whose link carries `token`, and
@@ -240,13 +260,19 @@ impl SignIn {
     }
 
     /// Where the Sign-in Code polled with `handle` at `now` has got to, signing the polling Device
-    /// in from `ip_address` with `user_agent` if the code was approved. That uses the code up, so
-    /// the poll's request source is a value its caller must have read already.
+    /// in from `ip_address` with `user_agent` if the code was approved, as [`SignIn::sign_in`]
+    /// does with its `session`. That uses the code up, so the poll's request source is a value its
+    /// caller must have read already.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "each is its own fact about the poll, and a struct would only rename them"
+    )]
     pub(crate) async fn poll_code(
         &self,
         handle: &str,
         ip_address: IpAddr,
         user_agent: Option<String>,
+        session: Option<&str>,
         now: Instant,
     ) -> Result<Polled, Error> {
         let (approving, device_name, delivery) = match self.codes.poll(handle, now)? {
@@ -265,7 +291,7 @@ impl SignIn {
         };
         let signed_in = self
             .users
-            .sign_in_as(Proved::Code(approving), device)
+            .sign_in_as(Proved::Code(approving), device, session)
             .await?;
         Ok(Polled::SignedIn {
             signed_in,
@@ -289,12 +315,12 @@ impl SignIn {
         Ok(used?)
     }
 
-    /// Gives `caller`'s Device Recent Authentication if `proof` proves it is their User, as asked
-    /// from `ip` at `now`. A missing proof is refused with [`Error::ProofMissing`] and a Device
-    /// found signed out once the proof checked out with [`users::Error::SignedOut`]; neither is a
-    /// guess. A proof of another User is refused like a wrong password, or as
-    /// [`Error::WrongAccount`]. The Hub is asked about an Account's only once the attempt is let
-    /// through, and its failure counts as a guess.
+    /// Gives `caller`'s User Recent Authentication on their Device if `proof` proves who they are,
+    /// as asked from `ip` at `now`. A missing proof is refused with [`Error::ProofMissing`] and a
+    /// User found signed out of the Device once the proof checked out with
+    /// [`users::Error::SignedOut`]; neither is a guess. A proof of another User is refused like a
+    /// wrong password, or as [`Error::WrongAccount`]. The Hub is asked about an Account's only once
+    /// the attempt is let through, and its failure counts as a guess.
     pub(crate) async fn reauthenticate(
         &self,
         caller: &Caller,
@@ -326,7 +352,10 @@ impl SignIn {
         }
         // Before recording, so a Device found signed out after the proof checked out isn't a guess.
         self.limits.succeeded(&attempt);
-        Ok(self.users.record_authentication(caller.device.id).await?)
+        Ok(self
+            .users
+            .record_authentication(caller.device.id, caller.user.id)
+            .await?)
     }
 
     /// The id of the User whose Account approved the sign-in with an Account `handle` stands for,
@@ -341,7 +370,61 @@ impl SignIn {
             .ok_or(Error::AccountSignInNotFound { field })
     }
 
-    /// Signs the Device `device` out, so its session stops working.
+    /// Makes the Device `device` act as the User `user`, one of those signed in to it, once
+    /// `switch_pin` is theirs, if they set one (ADR 0106). The last of [`WRONG_SWITCH_PINS`] wrong
+    /// ones in a row signs them out of the Device instead. A missing one is no guess.
+    pub(crate) async fn switch(
+        &self,
+        device: i64,
+        user: i64,
+        switch_pin: &str,
+    ) -> Result<(), Error> {
+        // Read before counting: a User not on the Device, or with no Switch PIN, is no guess.
+        if let Some(stored) = self.users.switch_pin_on(device, user).await? {
+            self.check_switch_pin(device, user, switch_pin, stored)
+                .await?;
+        }
+        Ok(self.users.switch(device, user).await?)
+    }
+
+    /// Fails unless `switch_pin` is the one `stored` hashes, the Switch PIN of the User `user`,
+    /// counting it toward signing them out of the Device `device` as [`SignIn::switch`] says.
+    async fn check_switch_pin(
+        &self,
+        device: i64,
+        user: i64,
+        switch_pin: &str,
+        stored: String,
+    ) -> Result<(), Error> {
+        if switch_pin.is_empty() {
+            return Err(Error::SwitchPinMissing);
+        }
+        let tried = (self.switch_pin_tries.admit(device, user))
+            .ok_or(Error::WrongSwitchPin { tries_left: 0 })?;
+        match is_switch_pin(&tried, switch_pin, stored).await {
+            Ok(true) => {
+                self.switch_pin_tries.forget(device, user);
+                return Ok(());
+            }
+            Ok(false) => {}
+            // A Server failure is no guess, and left counted, five of them would lock switching.
+            Err(err) => {
+                self.switch_pin_tries.uncount(device, user);
+                return Err(err.into());
+            }
+        }
+        let tries_left = WRONG_SWITCH_PINS - tried.in_a_row;
+        if tries_left == 0 {
+            // The full count refuses other tries until the sign-out lands, and is forgotten even
+            // if it fails, so it can't leave switching locked.
+            let signed_out = self.users.sign_out_of(device, user).await;
+            self.switch_pin_tries.forget(device, user);
+            signed_out?;
+        }
+        Err(Error::WrongSwitchPin { tries_left })
+    }
+
+    /// Signs the Device `device` out, with every User on it, so its session stops working.
     pub(crate) async fn sign_out(&self, device: i64) -> Result<(), sqlx::Error> {
         self.users.sign_out(device).await
     }

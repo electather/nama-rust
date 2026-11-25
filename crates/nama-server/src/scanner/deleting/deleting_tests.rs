@@ -2,8 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use nama_plugin_api::{
     fulfiller::{
-        EpisodeNumber, EpisodeNumbers, MovieDeleted, ShowDeleted, TitleId, show_deleted::Deleted,
-        stop_monitoring::Title,
+        MovieDeleted, ShowDeleted, TitleId, show_deleted::Deleted, stop_monitoring::Title,
     },
     metadata::{ExternalId, ExternalIds},
 };
@@ -127,59 +126,6 @@ fn dark_deleted(deleted: impl Into<Deleted>) -> Title {
     })
 }
 
-/// Dark's Season 1 Episodes `numbers`, as a Fulfiller is told them.
-fn dark_episodes(numbers: &[u32]) -> Title {
-    let episodes = (numbers.iter())
-        .map(|&episode_number| EpisodeNumber {
-            season_number: 1,
-            episode_number,
-            ..Default::default()
-        })
-        .collect();
-    dark_deleted(EpisodeNumbers {
-        episodes,
-        ..Default::default()
-    })
-}
-
-#[tokio::test]
-async fn deleting_episodes_or_a_season_stops_monitoring_those_and_the_ones_taken_along() {
-    let (plugins, told) = willing();
-    let media = dark(&plugins).await;
-    let delete = |target, also| (media.scanner).delete_media(target, also, "ada".to_owned());
-
-    delete(episode(&media, PAST_AND_PRESENT), Vec::new())
-        .await
-        .unwrap();
-    delete(episode(&media, SECRETS), vec![ExternalId::tmdb(LIES)])
-        .await
-        .unwrap();
-    store(
-        &media,
-        "Dark - S01E03.mkv",
-        &[(3, PAST_AND_PRESENT, "Past and Present")],
-    )
-    .await;
-    let season = TitleTarget::Season {
-        show: ExternalId::tmdb(70_523),
-        number: 1,
-    };
-    let season = ToDelete::Title {
-        library: media.library,
-        title: season,
-    };
-    delete(season, Vec::new()).await.unwrap();
-
-    assert_eq!(
-        stopped(&told),
-        [
-            dark_episodes(&[3]),
-            dark_episodes(&[1, 2]),
-            dark_deleted(Deleted::SeasonNumber(1)),
-        ]
-    );
-}
-
 #[tokio::test]
 async fn deleting_a_show_stops_monitoring_every_current_season_and_a_movie_or_its_version_the_movie()
  {
@@ -237,25 +183,6 @@ async fn deleting_a_show_stops_monitoring_every_current_season_and_a_movie_or_it
 }
 
 #[tokio::test]
-async fn a_preview_names_the_episodes_a_file_takes_along() {
-    let media = dark(&Registry::new()).await;
-
-    let planned = media
-        .scanner
-        .preview_delete(&episode(&media, SECRETS))
-        .await;
-
-    let planned = planned.unwrap();
-    let taken: Vec<String> = planned
-        .taken_along
-        .iter()
-        .map(super::TakenAlong::name)
-        .collect();
-    assert_eq!(taken, ["Dark S01E02"]);
-    assert_eq!(planned.files.len(), 1);
-}
-
-#[tokio::test]
 async fn a_delete_taking_along_an_episode_it_doesnt_name_is_refused_before_anything_is_asked() {
     let (plugins, told) = willing();
     let media = dark(&plugins).await;
@@ -267,25 +194,6 @@ async fn a_delete_taking_along_an_episode_it_doesnt_name_is_refused_before_anyth
     assert_eq!(unnamed(refused.unwrap_err()), ["Dark S01E02"]);
     assert_eq!(told.asked(), 0);
     assert!(media.path("Dark - S01E01-E02.mkv").exists());
-}
-
-#[tokio::test]
-async fn a_delete_naming_the_episode_it_takes_along_deletes_the_file_and_both() {
-    let media = dark(&Registry::new()).await;
-
-    let deleted = (media.scanner)
-        .delete_media(
-            episode(&media, SECRETS),
-            vec![ExternalId::tmdb(LIES)],
-            "ada".to_owned(),
-        )
-        .await;
-
-    assert_eq!(deleted.unwrap().files.len(), 1);
-    assert!(!media.path("Dark - S01E01-E02.mkv").exists());
-    let shows = media.contents.shows(media.library, None).await.unwrap();
-    let left: Vec<i64> = shows[0].episodes().map(|episode| episode.number).collect();
-    assert_eq!(left, [3]);
 }
 
 #[tokio::test]

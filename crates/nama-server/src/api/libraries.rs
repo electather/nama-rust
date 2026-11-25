@@ -3,6 +3,7 @@
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
+    sync::Arc,
 };
 
 use buffa::EnumValue;
@@ -19,6 +20,7 @@ use nama_proto::nama::v1::{
 };
 
 use crate::{
+    db::Database,
     library::{
         Contents, FolderProblem, ImageSources, LastScan, Libraries, Library, LibraryError,
         LibraryKind, NewestBackdrop, Order, ShownImages, TitleSources, TitleTarget as Target,
@@ -26,18 +28,20 @@ use crate::{
     plugin_settings::PluginSettings,
     plugins::ExtensionPoints,
     scanner::{self, Deleted, Scanner, TakenAlong, ToDelete},
+    signed_urls::signed_by,
+    users::library_access,
 };
 
 use super::{
     Refused,
     browse::{Fields, not_found},
     caller, database_failed, external_id_from_proto, external_id_to_proto, proto_number, refuse,
-    required_id, title_kind_from_proto, unknown_enum_value,
+    required_id, shown_images, title_kind_from_proto, unknown_enum_value, url_signer,
 };
 
 /// `nama.v1.LibraryService`: managing the Server's Libraries. Needs `PERMISSION_MANAGE_LIBRARIES`,
-/// which [`require_access`](super::require_access) enforces, except listing them, which any
-/// signed-in User may do to browse, and deleting media, which needs `PERMISSION_DELETE_MEDIA`.
+/// which [`require_access`](super::require_access) enforces, except listing those they see, which
+/// any signed-in User may do to browse, and deleting media, which needs `PERMISSION_DELETE_MEDIA`.
 pub(super) struct LibraryServiceHandler {
     /// Only reads (see AGENTS.md, "One path for Library changes").
     pub(super) libraries: Libraries,
@@ -51,6 +55,8 @@ pub(super) struct LibraryServiceHandler {
     pub(super) plugins: ExtensionPoints,
     /// Says what each title source keeps.
     pub(super) plugin_settings: PluginSettings,
+    /// Says which Libraries the caller sees.
+    pub(super) db: Arc<Database>,
 }
 
 /// What each Library is shown by: see [`ShownImages::of_library`].
@@ -62,10 +68,10 @@ struct Backdrops {
 impl LibraryServiceHandler {
     // ponytail: reads every Library's newest Backdrop and every Custom Image, even for one
     // Library; both are one row per Library or upload. Query by Library if that ever grows.
-    async fn backdrops(&self) -> Result<Backdrops, ConnectError> {
+    async fn backdrops(&self, ctx: &RequestContext) -> Result<Backdrops, ConnectError> {
         Ok(Backdrops {
             newest: (self.contents.newest_backdrops().await).map_err(database_failed)?,
-            images: self.images.shown().await.map_err(database_failed)?,
+            images: shown_images(&self.images, ctx).await?,
         })
     }
 }
@@ -78,7 +84,7 @@ impl LibraryServiceHandler {
 impl LibraryService for LibraryServiceHandler {
     async fn create_library(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, CreateLibraryRequest>,
     ) -> ServiceResult<CreateLibraryResponse> {
         let request = request.to_owned_message();
@@ -93,7 +99,7 @@ impl LibraryService for LibraryServiceHandler {
             .create_library(request.name, kind, request.folders, order)
             .await
             .map_err(changing_failed(["recogniser_ids", "segment_source_ids"]))?;
-        let backdrops = self.backdrops().await?;
+        let backdrops = self.backdrops(&ctx).await?;
         Response::ok(CreateLibraryResponse {
             library: library_to_proto(library, &backdrops).into(),
             ..Default::default()
@@ -107,12 +113,13 @@ impl LibraryService for LibraryServiceHandler {
     ) -> ServiceResult<ListLibrariesResponse> {
         // Disk paths are for those who manage Libraries (see AGENTS.md), and so is Library upkeep
         // such as the last Scan, as #1125 decided.
-        let manages_libraries = caller(&ctx)?
-            .user
-            .permissions
-            .allow(Permission::ManageLibraries);
-        let libraries = self.libraries.list().await?;
-        let backdrops = self.backdrops().await?;
+        let user = &caller(&ctx)?.user;
+        let manages_libraries = user.permissions.allow(Permission::ManageLibraries);
+        let seen = library_access(&self.db, user.id).await;
+        let seen = seen.map_err(database_failed)?;
+        let mut libraries = self.libraries.list().await?;
+        libraries.retain(|library| seen.sees(library.id));
+        let backdrops = self.backdrops(&ctx).await?;
         Response::ok(ListLibrariesResponse {
             libraries: libraries
                 .into_iter()
@@ -136,11 +143,11 @@ impl LibraryService for LibraryServiceHandler {
 
     async fn get_library(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, GetLibraryRequest>,
     ) -> ServiceResult<GetLibraryResponse> {
         let library = self.libraries.get(request.id).await?;
-        let backdrops = self.backdrops().await?;
+        let backdrops = self.backdrops(&ctx).await?;
         Response::ok(GetLibraryResponse {
             library: library_to_proto(library, &backdrops).into(),
             ..Default::default()
@@ -149,7 +156,7 @@ impl LibraryService for LibraryServiceHandler {
 
     async fn update_library(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, UpdateLibraryRequest>,
     ) -> ServiceResult<UpdateLibraryResponse> {
         let request = request.to_owned_message();
@@ -166,7 +173,7 @@ impl LibraryService for LibraryServiceHandler {
                 "recogniser_order",
                 "segment_source_order",
             ]))?;
-        let backdrops = self.backdrops().await?;
+        let backdrops = self.backdrops(&ctx).await?;
         Response::ok(UpdateLibraryResponse {
             library: library_to_proto(library, &backdrops).into(),
             ..Default::default()
@@ -237,16 +244,21 @@ impl LibraryService for LibraryServiceHandler {
 
     async fn list_artwork(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, ListArtworkRequest>,
     ) -> ServiceResult<ListArtworkResponse> {
         let request = request.to_owned_message();
         let kind = title_kind_from_proto(request.kind)?;
         let id = required_id(request.id.into_option(), "id", "title")?;
         let listed = self.images.artwork.listed(kind, &id, request.season).await;
+        let signed = |urls: Vec<String>| {
+            (urls.into_iter())
+                .map(|url| signed_by(url_signer(&ctx), url))
+                .collect()
+        };
         Response::ok(ListArtworkResponse {
-            poster_urls: listed.posters,
-            backdrop_urls: listed.backdrops,
+            poster_urls: signed(listed.posters),
+            backdrop_urls: signed(listed.backdrops),
             ..Default::default()
         })
     }

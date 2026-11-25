@@ -12,7 +12,7 @@ import type { Message, UnknownEnum } from "@bufbuild/protobuf";
  * Describes the file nama/v1/sign_in.proto.
  */
 export const file_nama_v1_sign_in: GenFile = /*@__PURE__*/
-  fileDesc("ChVuYW1hL3YxL3NpZ25faW4ucHJvdG8SB25hbWEudjEioQEKBFVzZXISCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRISCgpjcmVhdGVkX2F0GAQgASgDEigKC3Blcm1pc3Npb25zGAUgAygOMhMubmFtYS52MS5QZXJtaXNzaW9uEjUKFXJlbW90ZV9wbGF5YmFja19saW1pdBgGIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdEoECAMQBFIEcm9sZSJgCgZEZXZpY2USCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRISCgpjcmVhdGVkX2F0GAMgASgDEhQKDGxhc3Rfc2Vlbl9hdBgEIAEoAxISCgppc19jdXJyZW50GAUgASgIIoMBCgxTZXR1cFJlcXVlc3QSEgoKc2V0dXBfY29kZRgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHBhc3N3b3JkGAMgASgJEhMKC2RldmljZV9uYW1lGAQgASgJEioKCGRlbGl2ZXJ5GAUgASgOMhgubmFtYS52MS5TZXNzaW9uRGVsaXZlcnkiXAoNU2V0dXBSZXNwb25zZRIbCgR1c2VyGAEgASgLMg0ubmFtYS52MS5Vc2VyEh8KBmRldmljZRgCIAEoCzIPLm5hbWEudjEuRGV2aWNlEg0KBXRva2VuGAMgASgJInAKDVNpZ25JblJlcXVlc3QSDAoEbmFtZRgBIAEoCRIQCghwYXNzd29yZBgCIAEoCRITCgtkZXZpY2VfbmFtZRgDIAEoCRIqCghkZWxpdmVyeRgEIAEoDjIYLm5hbWEudjEuU2Vzc2lvbkRlbGl2ZXJ5Il0KDlNpZ25JblJlc3BvbnNlEhsKBHVzZXIYASABKAsyDS5uYW1hLnYxLlVzZXISHwoGZGV2aWNlGAIgASgLMg8ubmFtYS52MS5EZXZpY2USDQoFdG9rZW4YAyABKAkiEAoOU2lnbk91dFJlcXVlc3QiEQoPU2lnbk91dFJlc3BvbnNlIg8KDVdob0FtSVJlcXVlc3QiTgoOV2hvQW1JUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLm5hbWEudjEuVXNlchIfCgZkZXZpY2UYAiABKAsyDy5uYW1hLnYxLkRldmljZSJ0ChVSZWF1dGhlbnRpY2F0ZVJlcXVlc3QSEgoIcGFzc3dvcmQYASABKAlIABIgChZhY2NvdW50X3NpZ25faW5faGFuZGxlGAIgASgJSAASHAoUYWNjb3VudF9zaWduX2luX2NvZGUYAyABKAlCBwoFcHJvb2YiGAoWUmVhdXRoZW50aWNhdGVSZXNwb25zZSJZChZTdGFydFNpZ25JbkNvZGVSZXF1ZXN0EhMKC2RldmljZV9uYW1lGAEgASgJEioKCGRlbGl2ZXJ5GAIgASgOMhgubmFtYS52MS5TZXNzaW9uRGVsaXZlcnkiNwoXU3RhcnRTaWduSW5Db2RlUmVzcG9uc2USDAoEY29kZRgBIAEoCRIOCgZoYW5kbGUYAiABKAkiJwoXTG9va1VwU2lnbkluQ29kZVJlcXVlc3QSDAoEY29kZRgBIAEoCSIvChhMb29rVXBTaWduSW5Db2RlUmVzcG9uc2USEwoLZGV2aWNlX25hbWUYASABKAkiKAoYQXBwcm92ZVNpZ25JbkNvZGVSZXF1ZXN0EgwKBGNvZGUYASABKAkiGwoZQXBwcm92ZVNpZ25JbkNvZGVSZXNwb25zZSKFAQoTQWNjZXB0SW52aXRlUmVxdWVzdBINCgV0b2tlbhgBIAEoCRIMCgRuYW1lGAIgASgJEhAKCHBhc3N3b3JkGAMgASgJEhMKC2RldmljZV9uYW1lGAQgASgJEioKCGRlbGl2ZXJ5GAUgASgOMhgubmFtYS52MS5TZXNzaW9uRGVsaXZlcnkiYwoUQWNjZXB0SW52aXRlUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLm5hbWEudjEuVXNlchIfCgZkZXZpY2UYAiABKAsyDy5uYW1hLnYxLkRldmljZRINCgV0b2tlbhgDIAEoCSInChVQb2xsU2lnbkluQ29kZVJlcXVlc3QSDgoGaGFuZGxlGAEgASgJIpABChZQb2xsU2lnbkluQ29kZVJlc3BvbnNlEikKBnN0YXR1cxgBIAEoDjIZLm5hbWEudjEuU2lnbkluQ29kZVN0YXR1cxIbCgR1c2VyGAIgASgLMg0ubmFtYS52MS5Vc2VyEh8KBmRldmljZRgDIAEoCzIPLm5hbWEudjEuRGV2aWNlEg0KBXRva2VuGAQgASgJIi8KGVN0YXJ0QWNjb3VudFNpZ25JblJlcXVlc3QSEgoKcmV0dXJuX3VybBgBIAEoCSI5ChpTdGFydEFjY291bnRTaWduSW5SZXNwb25zZRILCgN1cmwYASABKAkSDgoGaGFuZGxlGAIgASgJInkKGFNpZ25JbldpdGhBY2NvdW50UmVxdWVzdBIOCgZoYW5kbGUYASABKAkSEwoLZGV2aWNlX25hbWUYAiABKAkSKgoIZGVsaXZlcnkYAyABKA4yGC5uYW1hLnYxLlNlc3Npb25EZWxpdmVyeRIMCgRjb2RlGAQgASgJImgKGVNpZ25JbldpdGhBY2NvdW50UmVzcG9uc2USGwoEdXNlchgBIAEoCzINLm5hbWEudjEuVXNlchIfCgZkZXZpY2UYAiABKAsyDy5uYW1hLnYxLkRldmljZRINCgV0b2tlbhgDIAEoCSpsCg9TZXNzaW9uRGVsaXZlcnkSIAocU0VTU0lPTl9ERUxJVkVSWV9VTlNQRUNJRklFRBAAEhsKF1NFU1NJT05fREVMSVZFUllfQ09PS0lFEAESGgoWU0VTU0lPTl9ERUxJVkVSWV9UT0tFThACKoMECgpQZXJtaXNzaW9uEhoKFlBFUk1JU1NJT05fVU5TUEVDSUZJRUQQABIUChBQRVJNSVNTSU9OX0FETUlOEAESGwoXUEVSTUlTU0lPTl9NQU5BR0VfVVNFUlMQAhIfChtQRVJNSVNTSU9OX01BTkFHRV9MSUJSQVJJRVMQAxIeChpQRVJNSVNTSU9OX01BTkFHRV9TRVRUSU5HUxAEEh4KGlBFUk1JU1NJT05fTUFOQUdFX1JFUVVFU1RTEAUSFgoSUEVSTUlTU0lPTl9SRVFVRVNUEAYSHAoYUEVSTUlTU0lPTl9SRVFVRVNUX01PVklFEAcSGQoVUEVSTUlTU0lPTl9SRVFVRVNUX1RWEAgSGwoXUEVSTUlTU0lPTl9BVVRPX0FQUFJPVkUQCRIhCh1QRVJNSVNTSU9OX0FVVE9fQVBQUk9WRV9NT1ZJRRAKEh4KGlBFUk1JU1NJT05fQVVUT19BUFBST1ZFX1RWEAsSHAoYUEVSTUlTU0lPTl9WSUVXX1JFUVVFU1RTEAwSHQoZUEVSTUlTU0lPTl9DSE9PU0VfUVVBTElUWRANEhsKF1BFUk1JU1NJT05fREVMRVRFX01FRElBEA4SIQodUEVSTUlTU0lPTl9ET1dOTE9BRF9TVUJUSVRMRVMQDxIXChNQRVJNSVNTSU9OX0RPV05MT0FEEBAqnAEKEFNpZ25JbkNvZGVTdGF0dXMSIwofU0lHTl9JTl9DT0RFX1NUQVRVU19VTlNQRUNJRklFRBAAEh8KG1NJR05fSU5fQ09ERV9TVEFUVVNfV0FJVElORxABEh8KG1NJR05fSU5fQ09ERV9TVEFUVVNfRVhQSVJFRBACEiEKHVNJR05fSU5fQ09ERV9TVEFUVVNfU0lHTkVEX0lOEAMyuQcKDVNpZ25JblNlcnZpY2USNgoFU2V0dXASFS5uYW1hLnYxLlNldHVwUmVxdWVzdBoWLm5hbWEudjEuU2V0dXBSZXNwb25zZRI5CgZTaWduSW4SFi5uYW1hLnYxLlNpZ25JblJlcXVlc3QaFy5uYW1hLnYxLlNpZ25JblJlc3BvbnNlEjwKB1NpZ25PdXQSFy5uYW1hLnYxLlNpZ25PdXRSZXF1ZXN0GhgubmFtYS52MS5TaWduT3V0UmVzcG9uc2USPgoGV2hvQW1JEhYubmFtYS52MS5XaG9BbUlSZXF1ZXN0GhcubmFtYS52MS5XaG9BbUlSZXNwb25zZSIDkAIBElEKDlJlYXV0aGVudGljYXRlEh4ubmFtYS52MS5SZWF1dGhlbnRpY2F0ZVJlcXVlc3QaHy5uYW1hLnYxLlJlYXV0aGVudGljYXRlUmVzcG9uc2USVAoPU3RhcnRTaWduSW5Db2RlEh8ubmFtYS52MS5TdGFydFNpZ25JbkNvZGVSZXF1ZXN0GiAubmFtYS52MS5TdGFydFNpZ25JbkNvZGVSZXNwb25zZRJXChBMb29rVXBTaWduSW5Db2RlEiAubmFtYS52MS5Mb29rVXBTaWduSW5Db2RlUmVxdWVzdBohLm5hbWEudjEuTG9va1VwU2lnbkluQ29kZVJlc3BvbnNlEloKEUFwcHJvdmVTaWduSW5Db2RlEiEubmFtYS52MS5BcHByb3ZlU2lnbkluQ29kZVJlcXVlc3QaIi5uYW1hLnYxLkFwcHJvdmVTaWduSW5Db2RlUmVzcG9uc2USUQoOUG9sbFNpZ25JbkNvZGUSHi5uYW1hLnYxLlBvbGxTaWduSW5Db2RlUmVxdWVzdBofLm5hbWEudjEuUG9sbFNpZ25JbkNvZGVSZXNwb25zZRJLCgxBY2NlcHRJbnZpdGUSHC5uYW1hLnYxLkFjY2VwdEludml0ZVJlcXVlc3QaHS5uYW1hLnYxLkFjY2VwdEludml0ZVJlc3BvbnNlEl0KElN0YXJ0QWNjb3VudFNpZ25JbhIiLm5hbWEudjEuU3RhcnRBY2NvdW50U2lnbkluUmVxdWVzdBojLm5hbWEudjEuU3RhcnRBY2NvdW50U2lnbkluUmVzcG9uc2USWgoRU2lnbkluV2l0aEFjY291bnQSIS5uYW1hLnYxLlNpZ25JbldpdGhBY2NvdW50UmVxdWVzdBoiLm5hbWEudjEuU2lnbkluV2l0aEFjY291bnRSZXNwb25zZWIGcHJvdG8z", [file_nama_v1_playback]);
+  fileDesc("ChVuYW1hL3YxL3NpZ25faW4ucHJvdG8SB25hbWEudjEi0QEKBFVzZXISCgoCaWQYASABKAMSDAoEbmFtZRgCIAEoCRISCgpjcmVhdGVkX2F0GAQgASgDEigKC3Blcm1pc3Npb25zGAUgAygOMhMubmFtYS52MS5QZXJtaXNzaW9uEjUKFXJlbW90ZV9wbGF5YmFja19saW1pdBgGIAEoDjIWLm5hbWEudjEuUGxheWJhY2tMaW1pdBIuCg5saWJyYXJ5X2FjY2VzcxgHIAEoCzIWLm5hbWEudjEuTGlicmFyeUFjY2Vzc0oECAMQBFIEcm9sZSIkCg1MaWJyYXJ5QWNjZXNzEhMKC2xpYnJhcnlfaWRzGAEgAygDImAKBkRldmljZRIKCgJpZBgBIAEoAxIMCgRuYW1lGAIgASgJEhIKCmNyZWF0ZWRfYXQYAyABKAMSFAoMbGFzdF9zZWVuX2F0GAQgASgDEhIKCmlzX2N1cnJlbnQYBSABKAgigwEKDFNldHVwUmVxdWVzdBISCgpzZXR1cF9jb2RlGAEgASgJEgwKBG5hbWUYAiABKAkSEAoIcGFzc3dvcmQYAyABKAkSEwoLZGV2aWNlX25hbWUYBCABKAkSKgoIZGVsaXZlcnkYBSABKA4yGC5uYW1hLnYxLlNlc3Npb25EZWxpdmVyeSJcCg1TZXR1cFJlc3BvbnNlEhsKBHVzZXIYASABKAsyDS5uYW1hLnYxLlVzZXISHwoGZGV2aWNlGAIgASgLMg8ubmFtYS52MS5EZXZpY2USDQoFdG9rZW4YAyABKAkicAoNU2lnbkluUmVxdWVzdBIMCgRuYW1lGAEgASgJEhAKCHBhc3N3b3JkGAIgASgJEhMKC2RldmljZV9uYW1lGAMgASgJEioKCGRlbGl2ZXJ5GAQgASgOMhgubmFtYS52MS5TZXNzaW9uRGVsaXZlcnkiXQoOU2lnbkluUmVzcG9uc2USGwoEdXNlchgBIAEoCzINLm5hbWEudjEuVXNlchIfCgZkZXZpY2UYAiABKAsyDy5uYW1hLnYxLkRldmljZRINCgV0b2tlbhgDIAEoCSIQCg5TaWduT3V0UmVxdWVzdCIRCg9TaWduT3V0UmVzcG9uc2UiDwoNV2hvQW1JUmVxdWVzdCJzCg5XaG9BbUlSZXNwb25zZRIbCgR1c2VyGAEgASgLMg0ubmFtYS52MS5Vc2VyEh8KBmRldmljZRgCIAEoCzIPLm5hbWEudjEuRGV2aWNlEiMKDGRldmljZV91c2VycxgDIAMoCzINLm5hbWEudjEuVXNlciI4ChFTd2l0Y2hVc2VyUmVxdWVzdBIPCgd1c2VyX2lkGAEgASgDEhIKCnN3aXRjaF9waW4YAiABKAkiFAoSU3dpdGNoVXNlclJlc3BvbnNlIikKE1NldFN3aXRjaFBpblJlcXVlc3QSEgoKc3dpdGNoX3BpbhgBIAEoCSIWChRTZXRTd2l0Y2hQaW5SZXNwb25zZSI5ChVDbGVhclN3aXRjaFBpblJlcXVlc3QSFAoHdXNlcl9pZBgBIAEoA0gAiAEBQgoKCF91c2VyX2lkIhgKFkNsZWFyU3dpdGNoUGluUmVzcG9uc2UidAoVUmVhdXRoZW50aWNhdGVSZXF1ZXN0EhIKCHBhc3N3b3JkGAEgASgJSAASIAoWYWNjb3VudF9zaWduX2luX2hhbmRsZRgCIAEoCUgAEhwKFGFjY291bnRfc2lnbl9pbl9jb2RlGAMgASgJQgcKBXByb29mIhgKFlJlYXV0aGVudGljYXRlUmVzcG9uc2UiWQoWU3RhcnRTaWduSW5Db2RlUmVxdWVzdBITCgtkZXZpY2VfbmFtZRgBIAEoCRIqCghkZWxpdmVyeRgCIAEoDjIYLm5hbWEudjEuU2Vzc2lvbkRlbGl2ZXJ5IjcKF1N0YXJ0U2lnbkluQ29kZVJlc3BvbnNlEgwKBGNvZGUYASABKAkSDgoGaGFuZGxlGAIgASgJIicKF0xvb2tVcFNpZ25JbkNvZGVSZXF1ZXN0EgwKBGNvZGUYASABKAkiLwoYTG9va1VwU2lnbkluQ29kZVJlc3BvbnNlEhMKC2RldmljZV9uYW1lGAEgASgJIigKGEFwcHJvdmVTaWduSW5Db2RlUmVxdWVzdBIMCgRjb2RlGAEgASgJIhsKGUFwcHJvdmVTaWduSW5Db2RlUmVzcG9uc2UihQEKE0FjY2VwdEludml0ZVJlcXVlc3QSDQoFdG9rZW4YASABKAkSDAoEbmFtZRgCIAEoCRIQCghwYXNzd29yZBgDIAEoCRITCgtkZXZpY2VfbmFtZRgEIAEoCRIqCghkZWxpdmVyeRgFIAEoDjIYLm5hbWEudjEuU2Vzc2lvbkRlbGl2ZXJ5ImMKFEFjY2VwdEludml0ZVJlc3BvbnNlEhsKBHVzZXIYASABKAsyDS5uYW1hLnYxLlVzZXISHwoGZGV2aWNlGAIgASgLMg8ubmFtYS52MS5EZXZpY2USDQoFdG9rZW4YAyABKAkiJwoVUG9sbFNpZ25JbkNvZGVSZXF1ZXN0Eg4KBmhhbmRsZRgBIAEoCSKQAQoWUG9sbFNpZ25JbkNvZGVSZXNwb25zZRIpCgZzdGF0dXMYASABKA4yGS5uYW1hLnYxLlNpZ25JbkNvZGVTdGF0dXMSGwoEdXNlchgCIAEoCzINLm5hbWEudjEuVXNlchIfCgZkZXZpY2UYAyABKAsyDy5uYW1hLnYxLkRldmljZRINCgV0b2tlbhgEIAEoCSIvChlTdGFydEFjY291bnRTaWduSW5SZXF1ZXN0EhIKCnJldHVybl91cmwYASABKAkiOQoaU3RhcnRBY2NvdW50U2lnbkluUmVzcG9uc2USCwoDdXJsGAEgASgJEg4KBmhhbmRsZRgCIAEoCSJ5ChhTaWduSW5XaXRoQWNjb3VudFJlcXVlc3QSDgoGaGFuZGxlGAEgASgJEhMKC2RldmljZV9uYW1lGAIgASgJEioKCGRlbGl2ZXJ5GAMgASgOMhgubmFtYS52MS5TZXNzaW9uRGVsaXZlcnkSDAoEY29kZRgEIAEoCSJoChlTaWduSW5XaXRoQWNjb3VudFJlc3BvbnNlEhsKBHVzZXIYASABKAsyDS5uYW1hLnYxLlVzZXISHwoGZGV2aWNlGAIgASgLMg8ubmFtYS52MS5EZXZpY2USDQoFdG9rZW4YAyABKAkqbAoPU2Vzc2lvbkRlbGl2ZXJ5EiAKHFNFU1NJT05fREVMSVZFUllfVU5TUEVDSUZJRUQQABIbChdTRVNTSU9OX0RFTElWRVJZX0NPT0tJRRABEhoKFlNFU1NJT05fREVMSVZFUllfVE9LRU4QAiqDBAoKUGVybWlzc2lvbhIaChZQRVJNSVNTSU9OX1VOU1BFQ0lGSUVEEAASFAoQUEVSTUlTU0lPTl9BRE1JThABEhsKF1BFUk1JU1NJT05fTUFOQUdFX1VTRVJTEAISHwobUEVSTUlTU0lPTl9NQU5BR0VfTElCUkFSSUVTEAMSHgoaUEVSTUlTU0lPTl9NQU5BR0VfU0VUVElOR1MQBBIeChpQRVJNSVNTSU9OX01BTkFHRV9SRVFVRVNUUxAFEhYKElBFUk1JU1NJT05fUkVRVUVTVBAGEhwKGFBFUk1JU1NJT05fUkVRVUVTVF9NT1ZJRRAHEhkKFVBFUk1JU1NJT05fUkVRVUVTVF9UVhAIEhsKF1BFUk1JU1NJT05fQVVUT19BUFBST1ZFEAkSIQodUEVSTUlTU0lPTl9BVVRPX0FQUFJPVkVfTU9WSUUQChIeChpQRVJNSVNTSU9OX0FVVE9fQVBQUk9WRV9UVhALEhwKGFBFUk1JU1NJT05fVklFV19SRVFVRVNUUxAMEh0KGVBFUk1JU1NJT05fQ0hPT1NFX1FVQUxJVFkQDRIbChdQRVJNSVNTSU9OX0RFTEVURV9NRURJQRAOEiEKHVBFUk1JU1NJT05fRE9XTkxPQURfU1VCVElUTEVTEA8SFwoTUEVSTUlTU0lPTl9ET1dOTE9BRBAQKpwBChBTaWduSW5Db2RlU3RhdHVzEiMKH1NJR05fSU5fQ09ERV9TVEFUVVNfVU5TUEVDSUZJRUQQABIfChtTSUdOX0lOX0NPREVfU1RBVFVTX1dBSVRJTkcQARIfChtTSUdOX0lOX0NPREVfU1RBVFVTX0VYUElSRUQQAhIhCh1TSUdOX0lOX0NPREVfU1RBVFVTX1NJR05FRF9JThADMqAJCg1TaWduSW5TZXJ2aWNlEjYKBVNldHVwEhUubmFtYS52MS5TZXR1cFJlcXVlc3QaFi5uYW1hLnYxLlNldHVwUmVzcG9uc2USOQoGU2lnbkluEhYubmFtYS52MS5TaWduSW5SZXF1ZXN0GhcubmFtYS52MS5TaWduSW5SZXNwb25zZRI8CgdTaWduT3V0EhcubmFtYS52MS5TaWduT3V0UmVxdWVzdBoYLm5hbWEudjEuU2lnbk91dFJlc3BvbnNlEj4KBldob0FtSRIWLm5hbWEudjEuV2hvQW1JUmVxdWVzdBoXLm5hbWEudjEuV2hvQW1JUmVzcG9uc2UiA5ACARJFCgpTd2l0Y2hVc2VyEhoubmFtYS52MS5Td2l0Y2hVc2VyUmVxdWVzdBobLm5hbWEudjEuU3dpdGNoVXNlclJlc3BvbnNlEksKDFNldFN3aXRjaFBpbhIcLm5hbWEudjEuU2V0U3dpdGNoUGluUmVxdWVzdBodLm5hbWEudjEuU2V0U3dpdGNoUGluUmVzcG9uc2USUQoOQ2xlYXJTd2l0Y2hQaW4SHi5uYW1hLnYxLkNsZWFyU3dpdGNoUGluUmVxdWVzdBofLm5hbWEudjEuQ2xlYXJTd2l0Y2hQaW5SZXNwb25zZRJRCg5SZWF1dGhlbnRpY2F0ZRIeLm5hbWEudjEuUmVhdXRoZW50aWNhdGVSZXF1ZXN0Gh8ubmFtYS52MS5SZWF1dGhlbnRpY2F0ZVJlc3BvbnNlElQKD1N0YXJ0U2lnbkluQ29kZRIfLm5hbWEudjEuU3RhcnRTaWduSW5Db2RlUmVxdWVzdBogLm5hbWEudjEuU3RhcnRTaWduSW5Db2RlUmVzcG9uc2USVwoQTG9va1VwU2lnbkluQ29kZRIgLm5hbWEudjEuTG9va1VwU2lnbkluQ29kZVJlcXVlc3QaIS5uYW1hLnYxLkxvb2tVcFNpZ25JbkNvZGVSZXNwb25zZRJaChFBcHByb3ZlU2lnbkluQ29kZRIhLm5hbWEudjEuQXBwcm92ZVNpZ25JbkNvZGVSZXF1ZXN0GiIubmFtYS52MS5BcHByb3ZlU2lnbkluQ29kZVJlc3BvbnNlElEKDlBvbGxTaWduSW5Db2RlEh4ubmFtYS52MS5Qb2xsU2lnbkluQ29kZVJlcXVlc3QaHy5uYW1hLnYxLlBvbGxTaWduSW5Db2RlUmVzcG9uc2USSwoMQWNjZXB0SW52aXRlEhwubmFtYS52MS5BY2NlcHRJbnZpdGVSZXF1ZXN0Gh0ubmFtYS52MS5BY2NlcHRJbnZpdGVSZXNwb25zZRJdChJTdGFydEFjY291bnRTaWduSW4SIi5uYW1hLnYxLlN0YXJ0QWNjb3VudFNpZ25JblJlcXVlc3QaIy5uYW1hLnYxLlN0YXJ0QWNjb3VudFNpZ25JblJlc3BvbnNlEloKEVNpZ25JbldpdGhBY2NvdW50EiEubmFtYS52MS5TaWduSW5XaXRoQWNjb3VudFJlcXVlc3QaIi5uYW1hLnYxLlNpZ25JbldpdGhBY2NvdW50UmVzcG9uc2ViBnByb3RvMw", [file_nama_v1_playback]);
 
 /**
  * A person's identity on one Server.
@@ -55,6 +55,15 @@ export type User = Message<"nama.v1.User"> & {
    * @generated from field: nama.v1.PlaybackLimit remote_playback_limit = 6;
    */
   remotePlaybackLimit: PlaybackLimit;
+
+  /**
+   * The Libraries the User sees, unset for every one, those added later included. A User with
+   * `PERMISSION_MANAGE_LIBRARIES` sees every one whatever it holds. Only `UserService.ListUsers`
+   * sets it.
+   *
+   * @generated from field: nama.v1.LibraryAccess library_access = 7;
+   */
+  libraryAccess?: LibraryAccess | undefined;
 };
 
 /**
@@ -65,7 +74,29 @@ export const UserSchema: GenMessage<User> = /*@__PURE__*/
   messageDesc(file_nama_v1_sign_in, 0);
 
 /**
- * A client installation signed in to a Server as a User.
+ * A chosen list of the Libraries a User sees, which never grows by itself as Libraries are added.
+ *
+ * @generated from message nama.v1.LibraryAccess
+ */
+export type LibraryAccess = Message<"nama.v1.LibraryAccess"> & {
+  /**
+   * Their IDs. Empty sees none. Deleting a Library takes it off the list.
+   *
+   * @generated from field: repeated int64 library_ids = 1;
+   */
+  libraryIds: bigint[];
+};
+
+/**
+ * Describes the message nama.v1.LibraryAccess.
+ * Use `create(LibraryAccessSchema)` to create a new message.
+ */
+export const LibraryAccessSchema: GenMessage<LibraryAccess> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 1);
+
+/**
+ * A client installation signed in to a Server as one or more Users, acting as one of them at a
+ * time.
  *
  * @generated from message nama.v1.Device
  */
@@ -112,7 +143,7 @@ export type Device = Message<"nama.v1.Device"> & {
  * Use `create(DeviceSchema)` to create a new message.
  */
 export const DeviceSchema: GenMessage<Device> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 1);
+  messageDesc(file_nama_v1_sign_in, 2);
 
 /**
  * @generated from message nama.v1.SetupRequest
@@ -160,7 +191,7 @@ export type SetupRequest = Message<"nama.v1.SetupRequest"> & {
  * Use `create(SetupRequestSchema)` to create a new message.
  */
 export const SetupRequestSchema: GenMessage<SetupRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 2);
+  messageDesc(file_nama_v1_sign_in, 3);
 
 /**
  * @generated from message nama.v1.SetupResponse
@@ -193,7 +224,7 @@ export type SetupResponse = Message<"nama.v1.SetupResponse"> & {
  * Use `create(SetupResponseSchema)` to create a new message.
  */
 export const SetupResponseSchema: GenMessage<SetupResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 3);
+  messageDesc(file_nama_v1_sign_in, 4);
 
 /**
  * @generated from message nama.v1.SignInRequest
@@ -234,7 +265,7 @@ export type SignInRequest = Message<"nama.v1.SignInRequest"> & {
  * Use `create(SignInRequestSchema)` to create a new message.
  */
 export const SignInRequestSchema: GenMessage<SignInRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 4);
+  messageDesc(file_nama_v1_sign_in, 5);
 
 /**
  * @generated from message nama.v1.SignInResponse
@@ -267,7 +298,7 @@ export type SignInResponse = Message<"nama.v1.SignInResponse"> & {
  * Use `create(SignInResponseSchema)` to create a new message.
  */
 export const SignInResponseSchema: GenMessage<SignInResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 5);
+  messageDesc(file_nama_v1_sign_in, 6);
 
 /**
  * @generated from message nama.v1.SignOutRequest
@@ -280,7 +311,7 @@ export type SignOutRequest = Message<"nama.v1.SignOutRequest"> & {
  * Use `create(SignOutRequestSchema)` to create a new message.
  */
 export const SignOutRequestSchema: GenMessage<SignOutRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 6);
+  messageDesc(file_nama_v1_sign_in, 7);
 
 /**
  * @generated from message nama.v1.SignOutResponse
@@ -293,7 +324,7 @@ export type SignOutResponse = Message<"nama.v1.SignOutResponse"> & {
  * Use `create(SignOutResponseSchema)` to create a new message.
  */
 export const SignOutResponseSchema: GenMessage<SignOutResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 7);
+  messageDesc(file_nama_v1_sign_in, 8);
 
 /**
  * @generated from message nama.v1.WhoAmIRequest
@@ -306,13 +337,15 @@ export type WhoAmIRequest = Message<"nama.v1.WhoAmIRequest"> & {
  * Use `create(WhoAmIRequestSchema)` to create a new message.
  */
 export const WhoAmIRequestSchema: GenMessage<WhoAmIRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 8);
+  messageDesc(file_nama_v1_sign_in, 9);
 
 /**
  * @generated from message nama.v1.WhoAmIResponse
  */
 export type WhoAmIResponse = Message<"nama.v1.WhoAmIResponse"> & {
   /**
+   * The User the Device acts as. Unset while it acts as none of its Users.
+   *
    * @generated from field: nama.v1.User user = 1;
    */
   user?: User | undefined;
@@ -321,6 +354,14 @@ export type WhoAmIResponse = Message<"nama.v1.WhoAmIResponse"> & {
    * @generated from field: nama.v1.Device device = 2;
    */
   device?: Device | undefined;
+
+  /**
+   * The Users signed in to the Device, the one it acts as among them, oldest User first. Only
+   * their `id` and `name` are set.
+   *
+   * @generated from field: repeated nama.v1.User device_users = 3;
+   */
+  deviceUsers: User[];
 };
 
 /**
@@ -328,7 +369,110 @@ export type WhoAmIResponse = Message<"nama.v1.WhoAmIResponse"> & {
  * Use `create(WhoAmIResponseSchema)` to create a new message.
  */
 export const WhoAmIResponseSchema: GenMessage<WhoAmIResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 9);
+  messageDesc(file_nama_v1_sign_in, 10);
+
+/**
+ * @generated from message nama.v1.SwitchUserRequest
+ */
+export type SwitchUserRequest = Message<"nama.v1.SwitchUserRequest"> & {
+  /**
+   * The User to act as, one of `WhoAmIResponse.device_users`.
+   *
+   * @generated from field: int64 user_id = 1;
+   */
+  userId: bigint;
+
+  /**
+   * Their Switch PIN, needed only if they set one.
+   *
+   * @generated from field: string switch_pin = 2;
+   */
+  switchPin: string;
+};
+
+/**
+ * Describes the message nama.v1.SwitchUserRequest.
+ * Use `create(SwitchUserRequestSchema)` to create a new message.
+ */
+export const SwitchUserRequestSchema: GenMessage<SwitchUserRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 11);
+
+/**
+ * @generated from message nama.v1.SwitchUserResponse
+ */
+export type SwitchUserResponse = Message<"nama.v1.SwitchUserResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.SwitchUserResponse.
+ * Use `create(SwitchUserResponseSchema)` to create a new message.
+ */
+export const SwitchUserResponseSchema: GenMessage<SwitchUserResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 12);
+
+/**
+ * @generated from message nama.v1.SetSwitchPinRequest
+ */
+export type SetSwitchPinRequest = Message<"nama.v1.SetSwitchPinRequest"> & {
+  /**
+   * The new Switch PIN: 4 to 6 digits.
+   *
+   * @generated from field: string switch_pin = 1;
+   */
+  switchPin: string;
+};
+
+/**
+ * Describes the message nama.v1.SetSwitchPinRequest.
+ * Use `create(SetSwitchPinRequestSchema)` to create a new message.
+ */
+export const SetSwitchPinRequestSchema: GenMessage<SetSwitchPinRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 13);
+
+/**
+ * @generated from message nama.v1.SetSwitchPinResponse
+ */
+export type SetSwitchPinResponse = Message<"nama.v1.SetSwitchPinResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.SetSwitchPinResponse.
+ * Use `create(SetSwitchPinResponseSchema)` to create a new message.
+ */
+export const SetSwitchPinResponseSchema: GenMessage<SetSwitchPinResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 14);
+
+/**
+ * @generated from message nama.v1.ClearSwitchPinRequest
+ */
+export type ClearSwitchPinRequest = Message<"nama.v1.ClearSwitchPinRequest"> & {
+  /**
+   * Whose Switch PIN to clear. Unset means the caller's own.
+   *
+   * @generated from field: optional int64 user_id = 1;
+   */
+  userId?: bigint | undefined;
+};
+
+/**
+ * Describes the message nama.v1.ClearSwitchPinRequest.
+ * Use `create(ClearSwitchPinRequestSchema)` to create a new message.
+ */
+export const ClearSwitchPinRequestSchema: GenMessage<ClearSwitchPinRequest> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 15);
+
+/**
+ * @generated from message nama.v1.ClearSwitchPinResponse
+ */
+export type ClearSwitchPinResponse = Message<"nama.v1.ClearSwitchPinResponse"> & {
+};
+
+/**
+ * Describes the message nama.v1.ClearSwitchPinResponse.
+ * Use `create(ClearSwitchPinResponseSchema)` to create a new message.
+ */
+export const ClearSwitchPinResponseSchema: GenMessage<ClearSwitchPinResponse> = /*@__PURE__*/
+  messageDesc(file_nama_v1_sign_in, 16);
 
 /**
  * @generated from message nama.v1.ReauthenticateRequest
@@ -372,7 +516,7 @@ export type ReauthenticateRequest = Message<"nama.v1.ReauthenticateRequest"> & {
  * Use `create(ReauthenticateRequestSchema)` to create a new message.
  */
 export const ReauthenticateRequestSchema: GenMessage<ReauthenticateRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 10);
+  messageDesc(file_nama_v1_sign_in, 17);
 
 /**
  * @generated from message nama.v1.ReauthenticateResponse
@@ -385,7 +529,7 @@ export type ReauthenticateResponse = Message<"nama.v1.ReauthenticateResponse"> &
  * Use `create(ReauthenticateResponseSchema)` to create a new message.
  */
 export const ReauthenticateResponseSchema: GenMessage<ReauthenticateResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 11);
+  messageDesc(file_nama_v1_sign_in, 18);
 
 /**
  * @generated from message nama.v1.StartSignInCodeRequest
@@ -412,7 +556,7 @@ export type StartSignInCodeRequest = Message<"nama.v1.StartSignInCodeRequest"> &
  * Use `create(StartSignInCodeRequestSchema)` to create a new message.
  */
 export const StartSignInCodeRequestSchema: GenMessage<StartSignInCodeRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 12);
+  messageDesc(file_nama_v1_sign_in, 19);
 
 /**
  * @generated from message nama.v1.StartSignInCodeResponse
@@ -439,7 +583,7 @@ export type StartSignInCodeResponse = Message<"nama.v1.StartSignInCodeResponse">
  * Use `create(StartSignInCodeResponseSchema)` to create a new message.
  */
 export const StartSignInCodeResponseSchema: GenMessage<StartSignInCodeResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 13);
+  messageDesc(file_nama_v1_sign_in, 20);
 
 /**
  * @generated from message nama.v1.LookUpSignInCodeRequest
@@ -458,7 +602,7 @@ export type LookUpSignInCodeRequest = Message<"nama.v1.LookUpSignInCodeRequest">
  * Use `create(LookUpSignInCodeRequestSchema)` to create a new message.
  */
 export const LookUpSignInCodeRequestSchema: GenMessage<LookUpSignInCodeRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 14);
+  messageDesc(file_nama_v1_sign_in, 21);
 
 /**
  * @generated from message nama.v1.LookUpSignInCodeResponse
@@ -477,7 +621,7 @@ export type LookUpSignInCodeResponse = Message<"nama.v1.LookUpSignInCodeResponse
  * Use `create(LookUpSignInCodeResponseSchema)` to create a new message.
  */
 export const LookUpSignInCodeResponseSchema: GenMessage<LookUpSignInCodeResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 15);
+  messageDesc(file_nama_v1_sign_in, 22);
 
 /**
  * @generated from message nama.v1.ApproveSignInCodeRequest
@@ -496,7 +640,7 @@ export type ApproveSignInCodeRequest = Message<"nama.v1.ApproveSignInCodeRequest
  * Use `create(ApproveSignInCodeRequestSchema)` to create a new message.
  */
 export const ApproveSignInCodeRequestSchema: GenMessage<ApproveSignInCodeRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 16);
+  messageDesc(file_nama_v1_sign_in, 23);
 
 /**
  * @generated from message nama.v1.ApproveSignInCodeResponse
@@ -509,7 +653,7 @@ export type ApproveSignInCodeResponse = Message<"nama.v1.ApproveSignInCodeRespon
  * Use `create(ApproveSignInCodeResponseSchema)` to create a new message.
  */
 export const ApproveSignInCodeResponseSchema: GenMessage<ApproveSignInCodeResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 17);
+  messageDesc(file_nama_v1_sign_in, 24);
 
 /**
  * @generated from message nama.v1.AcceptInviteRequest
@@ -557,7 +701,7 @@ export type AcceptInviteRequest = Message<"nama.v1.AcceptInviteRequest"> & {
  * Use `create(AcceptInviteRequestSchema)` to create a new message.
  */
 export const AcceptInviteRequestSchema: GenMessage<AcceptInviteRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 18);
+  messageDesc(file_nama_v1_sign_in, 25);
 
 /**
  * @generated from message nama.v1.AcceptInviteResponse
@@ -590,7 +734,7 @@ export type AcceptInviteResponse = Message<"nama.v1.AcceptInviteResponse"> & {
  * Use `create(AcceptInviteResponseSchema)` to create a new message.
  */
 export const AcceptInviteResponseSchema: GenMessage<AcceptInviteResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 19);
+  messageDesc(file_nama_v1_sign_in, 26);
 
 /**
  * @generated from message nama.v1.PollSignInCodeRequest
@@ -609,7 +753,7 @@ export type PollSignInCodeRequest = Message<"nama.v1.PollSignInCodeRequest"> & {
  * Use `create(PollSignInCodeRequestSchema)` to create a new message.
  */
 export const PollSignInCodeRequestSchema: GenMessage<PollSignInCodeRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 20);
+  messageDesc(file_nama_v1_sign_in, 27);
 
 /**
  * @generated from message nama.v1.PollSignInCodeResponse
@@ -647,7 +791,7 @@ export type PollSignInCodeResponse = Message<"nama.v1.PollSignInCodeResponse"> &
  * Use `create(PollSignInCodeResponseSchema)` to create a new message.
  */
 export const PollSignInCodeResponseSchema: GenMessage<PollSignInCodeResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 21);
+  messageDesc(file_nama_v1_sign_in, 28);
 
 /**
  * @generated from message nama.v1.StartAccountSignInRequest
@@ -668,7 +812,7 @@ export type StartAccountSignInRequest = Message<"nama.v1.StartAccountSignInReque
  * Use `create(StartAccountSignInRequestSchema)` to create a new message.
  */
 export const StartAccountSignInRequestSchema: GenMessage<StartAccountSignInRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 22);
+  messageDesc(file_nama_v1_sign_in, 29);
 
 /**
  * @generated from message nama.v1.StartAccountSignInResponse
@@ -695,7 +839,7 @@ export type StartAccountSignInResponse = Message<"nama.v1.StartAccountSignInResp
  * Use `create(StartAccountSignInResponseSchema)` to create a new message.
  */
 export const StartAccountSignInResponseSchema: GenMessage<StartAccountSignInResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 23);
+  messageDesc(file_nama_v1_sign_in, 30);
 
 /**
  * @generated from message nama.v1.SignInWithAccountRequest
@@ -736,7 +880,7 @@ export type SignInWithAccountRequest = Message<"nama.v1.SignInWithAccountRequest
  * Use `create(SignInWithAccountRequestSchema)` to create a new message.
  */
 export const SignInWithAccountRequestSchema: GenMessage<SignInWithAccountRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 24);
+  messageDesc(file_nama_v1_sign_in, 31);
 
 /**
  * @generated from message nama.v1.SignInWithAccountResponse
@@ -769,7 +913,7 @@ export type SignInWithAccountResponse = Message<"nama.v1.SignInWithAccountRespon
  * Use `create(SignInWithAccountResponseSchema)` to create a new message.
  */
 export const SignInWithAccountResponseSchema: GenMessage<SignInWithAccountResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 25);
+  messageDesc(file_nama_v1_sign_in, 32);
 
 /**
  * How a signed-in Device is given its session.
@@ -1005,8 +1149,14 @@ export const SignInCodeStatusSchema: GenEnum<SignInCodeStatus> = /*@__PURE__*/
  * Signing Devices in to a Server as Users, and finding out who is signed in (ADR 0014).
  *
  * A signed-in Device holds a session: a cookie for browsers, or a bearer token (`Authorization:
- * Bearer <token>`) for other clients. Either one identifies the same User and Device on every
- * request.
+ * Bearer <token>`) for other clients. Either one identifies the same Device on every request.
+ *
+ * A Device may be signed in as several Users, and acts as one of them at a time (ADR 0106): every
+ * request is made as that User. A Device that sends its session with `SignIn`, `PollSignInCode` or
+ * `SignInWithAccount` has the User added to it, keeps its session, and acts as them. It switches
+ * between its Users with `SwitchUser`. Once the User it acts as is signed out of it and others
+ * stay, it acts as none of them: until it switches, only `SignOut`, `WhoAmI` and `SwitchUser`
+ * accept its session, and other calls fail as they do without one.
  *
  * A Device that goes unused for 90 days expires, and its session stops working.
  *
@@ -1018,15 +1168,19 @@ export const SignInCodeStatusSchema: GenEnum<SignInCodeStatus> = /*@__PURE__*/
  * `ApproveSignInCode`s together from one Device within 15 minutes, its further lookups and
  * approvals fail with `resource_exhausted`.
  *
- * Changes to who can sign in as whom need Recent Authentication: the calling Device proved who it
- * is with one of its User's Sign-in Methods in the last 10 minutes. They are `ApproveSignInCode`
- * and `UserService`'s `ChangePassword`, `ResetPassword`, `SetPermissions`,
- * `SetDefaultPermissions` and `DeleteUser`.
- * Signing in with `Setup` or `SignIn` gives a Device Recent Authentication; signing in with a
- * Sign-in Code or an Account doesn't, since that Device proved nothing itself: whoever approved,
- * on another Device or on the Hub, may not hold it. Without it, those calls fail with
+ * Changes to who can sign in as whom need Recent Authentication: the calling User proved who they
+ * are on the calling Device with one of their Sign-in Methods in the last 10 minutes. They are
+ * `ApproveSignInCode`, `SetSwitchPin`, `ClearSwitchPin` and `UserService`'s `ChangePassword`,
+ * `ResetPassword`, `SetPermissions`, `SetDefaultPermissions` and `DeleteUser`.
+ * Signing in with `Setup` or `SignIn` gives the User Recent Authentication on the Device; signing
+ * in with a Sign-in Code or an Account doesn't, since that Device proved nothing itself: whoever
+ * approved, on another Device or on the Hub, may not hold it. Nor does switching to a User, which
+ * clears what they had on that Device. Without it, those calls fail with
  * `failed_precondition` and the `REFUSAL_REASON_RECENT_AUTHENTICATION_REQUIRED` Refusal before
  * anything in the request is checked. `Reauthenticate` gives it back.
+ *
+ * A User may set a Switch PIN, which `SwitchUser` asks for before switching to them (ADR 0106). It
+ * is never a Sign-in Method: no sign-in and no `Reauthenticate` accepts it.
  *
  * @generated from service nama.v1.SignInService
  */
@@ -1045,7 +1199,8 @@ export const SignInService: GenService<{
     output: typeof SetupResponseSchema;
   },
   /**
-   * Signs the calling Device in as an existing User, found by name ignoring case. Fails with
+   * Signs the calling Device in as an existing User, found by name ignoring case, adding them to it
+   * if it is already signed in, as above. Fails with
    * `unauthenticated` if the name or the password is wrong, without saying which, and with
    * `invalid_argument` if the Device name breaks the rules.
    *
@@ -1057,9 +1212,10 @@ export const SignInService: GenService<{
     output: typeof SignInResponseSchema;
   },
   /**
-   * Signs the calling Device out by deleting it: its session stops working at once, its open
-   * `EventService.Subscribe` streams end, and a cookie session's cookie is cleared. Fails with
-   * `unauthenticated` without a valid session.
+   * Signs the calling Device out, with every User signed in to it: its session stops working at
+   * once, its open `EventService.Subscribe` streams end, and a cookie session's cookie is cleared.
+   * `UserService.RevokeDevice` signs out one User of it. Fails with `unauthenticated` without a
+   * valid session.
    *
    * @generated from rpc nama.v1.SignInService.SignOut
    */
@@ -1069,7 +1225,8 @@ export const SignInService: GenService<{
     output: typeof SignOutResponseSchema;
   },
   /**
-   * Returns the calling User and Device, or fails with `unauthenticated` without a valid session.
+   * Returns the calling Device, the User it acts as and the Users signed in to it, or fails with
+   * `unauthenticated` without a valid session.
    *
    * @generated from rpc nama.v1.SignInService.WhoAmI
    */
@@ -1077,6 +1234,51 @@ export const SignInService: GenService<{
     methodKind: "unary";
     input: typeof WhoAmIRequestSchema;
     output: typeof WhoAmIResponseSchema;
+  },
+  /**
+   * Makes the calling Device act as another of the Users signed in to it, without a sign-in. It
+   * stays as them across restarts until it switches again. The switched-to User has no Recent
+   * Authentication on it until they prove who they are again, and the open
+   * `EventService.Subscribe` streams of the User it acted as end. Fails with `not_found` and
+   * `REFUSAL_REASON_USER_NOT_FOUND` for a User not signed in to it, and with `unauthenticated`
+   * without a valid session. For a User with a Switch PIN, it fails with `invalid_argument` and
+   * `REFUSAL_REASON_FIELD_REQUIRED` without one, and with `permission_denied` and
+   * `REFUSAL_REASON_WRONG_SWITCH_PIN` for a wrong one. The fifth wrong one in a row for that User
+   * on the Device signs them out of it, and further calls fail like those for a User not signed in
+   * to it. Wrong ones don't expire with time; a right one, or that sign-out, starts the count
+   * again.
+   *
+   * @generated from rpc nama.v1.SignInService.SwitchUser
+   */
+  switchUser: {
+    methodKind: "unary";
+    input: typeof SwitchUserRequestSchema;
+    output: typeof SwitchUserResponseSchema;
+  },
+  /**
+   * Sets or changes the calling User's Switch PIN. Fails with `invalid_argument` and
+   * `REFUSAL_REASON_SWITCH_PIN_INVALID` unless it is 4 to 6 digits.
+   *
+   * @generated from rpc nama.v1.SignInService.SetSwitchPin
+   */
+  setSwitchPin: {
+    methodKind: "unary";
+    input: typeof SetSwitchPinRequestSchema;
+    output: typeof SetSwitchPinResponseSchema;
+  },
+  /**
+   * Clears a User's Switch PIN, so switching to them needs none. Clearing another User's needs
+   * `PERMISSION_MANAGE_USERS`, without which it fails with `not_found` and
+   * `REFUSAL_REASON_USER_NOT_FOUND` as for a User who doesn't exist, and an Admin's needs
+   * `PERMISSION_ADMIN`, without which it fails with `permission_denied` and
+   * `REFUSAL_REASON_PERMISSION_REQUIRED`. Clearing one that isn't set succeeds.
+   *
+   * @generated from rpc nama.v1.SignInService.ClearSwitchPin
+   */
+  clearSwitchPin: {
+    methodKind: "unary";
+    input: typeof ClearSwitchPinRequestSchema;
+    output: typeof ClearSwitchPinResponseSchema;
   },
   /**
    * Gives the calling Device Recent Authentication, once its User proves who they are again: with
@@ -1124,8 +1326,8 @@ export const SignInService: GenService<{
     output: typeof LookUpSignInCodeResponseSchema;
   },
   /**
-   * Approves a Sign-in Code, so the Device that shows it signs in as the calling User. Fails like
-   * `LookUpSignInCode`.
+   * Approves a Sign-in Code, so the Device that shows it signs in as the calling User, or adds
+   * them to it if it polls with its session. Fails like `LookUpSignInCode`.
    *
    * @generated from rpc nama.v1.SignInService.ApproveSignInCode
    */
@@ -1136,12 +1338,12 @@ export const SignInService: GenService<{
   },
   /**
    * Says whether the sign-in a poll handle stands for is still waiting for approval, expired, or
-   * signed in. Signed in hands out the new Device's session, once, the way `SignIn` does: after
+   * signed in. Signed in hands out the Device's session, once, the way `SignIn` does: after
    * that, and for a handle the Server never gave out or has forgotten, it fails with `not_found`.
    * Once the code is approved, it fails with `unauthenticated` and `REFUSAL_REASON_SIGNED_OUT` if
-   * the approving Device has since signed out or expired, and with `not_found` and
-   * `REFUSAL_REASON_USER_NOT_FOUND` if the approving User has since been deleted. Either uses the
-   * code up: start again for a new one.
+   * the approving User has since been signed out of the approving Device, or it expired, and with
+   * `not_found` and `REFUSAL_REASON_USER_NOT_FOUND` if the approving User has since been deleted.
+   * Either uses the code up: start again for a new one.
    *
    * @generated from rpc nama.v1.SignInService.PollSignInCode
    */

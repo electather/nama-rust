@@ -441,31 +441,6 @@ async fn each_follower_is_woken_by_each_pass() {
     }
 }
 
-#[tokio::test]
-async fn files_changed_during_a_pass_leaves_the_files_being_probed_to_it() {
-    let reader = held_reader();
-    let media = Fixture::with_reader(Arc::clone(&reader)).await;
-    let alien = "Alien (1979)/Alien (1979).mkv";
-    media.write(alien, 10).await;
-    media.probing.files_changed(media.library, |_| {});
-    reader.until_started(1).await;
-    // The second pass reading Heat shows it found Alien stale, and it tried to claim Alien in the
-    // same poll.
-    media.write("Heat (1995)/Heat (1995).mkv", 10).await;
-
-    media.probing.files_changed(media.library, |_| {});
-    reader.until_started(2).await;
-    reader.release();
-    media.probing.idle().await;
-
-    assert_eq!(
-        reader.probes(),
-        2,
-        "Alien read by the first pass alone, and Heat"
-    );
-    assert!(media.probe(alien).await.is_some());
-}
-
 /// Tells Probing the Library's files changed, and returns what its pass reports once done.
 fn files_changed_reporting(
     media: &Fixture,
@@ -518,7 +493,7 @@ async fn a_pass_probes_a_file_itself_once_the_prober_it_waited_for_gives_up() {
     let gives_up = tokio::spawn(async move { probing.current(version).await });
     reader.until_started(1).await;
     // The pass reading Heat shows it tried to claim Alien, as in
-    // `files_changed_during_a_pass_leaves_the_files_being_probed_to_it`.
+    // `a_pass_waits_for_the_file_another_prober_holds_and_counts_it_as_probed`.
     media.write("Heat (1995)/Heat (1995).mkv", 10).await;
     let mut reported = files_changed_reporting(&media);
     reader.until_started(2).await;

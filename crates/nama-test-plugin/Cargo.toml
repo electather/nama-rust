@@ -49,6 +49,9 @@ subtitle-source = []
 # Builds the Plugin naming the Similar source Extension Point; its `similar` setting says which
 # titles it answers about every title, or makes it fail or loop.
 similar-source = []
+# Builds the Plugin naming the Watch sync Extension Point; its `scrobble` logs each change with the
+# User's `handle`, and its `import` brings nothing.
+watch-sync = []
 
 [dependencies]
 # Extism's own HTTP, which `nama_pdk::extism_pdk` closes, so the Kernel's refusal of a host

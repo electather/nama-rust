@@ -17,7 +17,6 @@ pub mod auth;
 pub mod automation;
 pub mod blob_store;
 pub mod connector;
-pub mod diagnostics_sharer;
 pub mod fulfiller;
 pub mod home_row;
 mod ids;
@@ -32,6 +31,7 @@ pub mod server_link;
 pub mod settings;
 pub mod similar_source;
 pub mod subtitle_source;
+pub mod watch_sync;
 
 /// The Plugin contract's messages (ADR 0041), which the Extension Points take and return, so a
 /// Built-in Plugin sees the same types an Installed one does.

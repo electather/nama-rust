@@ -24,9 +24,10 @@ use crate::{
     plugins::{CheckError, EnableError, Listed},
     requests::{QUALITY_PROFILE, QUALITY_PROFILE_FIELD, QualitiesInvalid},
     server_settings,
+    signed_urls::{UrlSigner, signed_by},
 };
 
-use super::{database_failed, refuse};
+use super::{database_failed, refuse, url_signer};
 
 mod points;
 
@@ -53,7 +54,7 @@ pub(super) struct PluginServiceHandler {
 impl PluginService for PluginServiceHandler {
     async fn list_plugins(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         _request: ServiceRequest<'_, ListPluginsRequest>,
     ) -> ServiceResult<ListPluginsResponse> {
         let listed = self.plugin_settings.list().await.map_err(list_failed)?;
@@ -68,7 +69,7 @@ impl PluginService for PluginServiceHandler {
             granted,
         } in listed
         {
-            let logo_url = logo_url(&self.plugin_logos, &plugin).await;
+            let logo_url = logo_url(&self.plugin_logos, &plugin, url_signer(&ctx)).await;
             summaries.push(plugin_summary_to_proto(
                 plugin,
                 stored.settings,
@@ -84,20 +85,20 @@ impl PluginService for PluginServiceHandler {
 
     async fn get_plugin(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, GetPluginRequest>,
     ) -> ServiceResult<GetPluginResponse> {
         // Doesn't read `plugins/` again as listing does: the details page opens from the list.
         let stored = self.known(&PluginId::from(request.id.to_owned())).await?;
         Response::ok(GetPluginResponse {
-            plugin: self.plugin_with_logo(stored).await?.into(),
+            plugin: self.plugin_with_logo(stored, &ctx).await?.into(),
             ..Default::default()
         })
     }
 
     async fn update_plugin_settings(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, UpdatePluginSettingsRequest>,
     ) -> ServiceResult<UpdatePluginSettingsResponse> {
         let request = request.to_owned_message();
@@ -112,7 +113,7 @@ impl PluginService for PluginServiceHandler {
             .await
             .map_err(change_refused)?;
         Response::ok(UpdatePluginSettingsResponse {
-            plugin: self.plugin_with_logo(stored).await?.into(),
+            plugin: self.plugin_with_logo(stored, &ctx).await?.into(),
             ..Default::default()
         })
     }
@@ -233,9 +234,14 @@ impl PluginServiceHandler {
             .ok_or_else(|| plugin_not_found(id))
     }
 
-    /// `stored` as `Plugin`, with its logo and each of its Extension Points whose last call failed.
-    async fn plugin_with_logo(&self, stored: StoredPlugin) -> Result<proto::Plugin, ConnectError> {
-        let logo_url = logo_url(&self.plugin_logos, &stored.plugin).await;
+    /// `stored` as `Plugin`, with its logo as `ctx`'s caller gets it and each of its Extension
+    /// Points whose last call failed.
+    async fn plugin_with_logo(
+        &self,
+        stored: StoredPlugin,
+        ctx: &RequestContext,
+    ) -> Result<proto::Plugin, ConnectError> {
+        let logo_url = logo_url(&self.plugin_logos, &stored.plugin, url_signer(ctx)).await;
         let failures = failures(&self.plugin_settings.extension_points(), &stored.plugin.id);
         Ok(proto::Plugin {
             failures,
@@ -250,22 +256,26 @@ impl PluginServiceHandler {
 }
 
 /// Where clients fetch `plugin`'s logo, its Manifest's, which is stored in `plugin_logos` first if
-/// it isn't. Empty if it has none, or if the store fails, which is logged: the Plugin is still
-/// listed.
-pub(super) async fn logo_url(plugin_logos: &PluginLogos, plugin: &Listed) -> String {
+/// it isn't, signed by `signer` if there is one. Empty if it has none, or if the store fails, which
+/// is logged: the Plugin is still listed.
+pub(super) async fn logo_url(
+    plugin_logos: &PluginLogos,
+    plugin: &Listed,
+    signer: Option<&UrlSigner>,
+) -> String {
     let manifest_logo = plugin
         .manifest
         .as_ref()
         .ok()
         .and_then(|it| it.logo_svg.as_deref());
     match manifest_logo {
-        Some(svg) => plugin_logos
-            .stored_url(&plugin.id, svg)
-            .await
-            .unwrap_or_else(|err| {
+        Some(svg) => plugin_logos.stored_url(&plugin.id, svg).await.map_or_else(
+            |err| {
                 tracing::error!(plugin = %plugin.id, "could not store the Plugin's logo: {err}");
                 String::new()
-            }),
+            },
+            |url| signed_by(signer, url),
+        ),
         None => String::new(),
     }
 }

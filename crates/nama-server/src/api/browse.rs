@@ -37,6 +37,7 @@ use crate::{
 use super::{
     ImageSources, caller, database_failed, external_id_to_proto, proto_number, required_id,
     search::{movie_hits, show_hits},
+    shown_images,
 };
 
 mod box_sets;
@@ -66,6 +67,11 @@ pub(super) struct BrowseServiceHandler {
     /// Holds the Watchlists that say whether a Movie or Show is on the caller's, and each User's
     /// Home layout.
     pub(super) db: Arc<Database>,
+}
+
+/// `browse` as the User `user` sees it: see [`Browse::seen_by`].
+pub(super) async fn seen_by(browse: &Browse, user: i64) -> Result<Browse, ConnectError> {
+    browse.seen_by(user).await.map_err(database_failed)
 }
 
 impl BrowseServiceHandler {
@@ -110,11 +116,11 @@ impl BrowseService for BrowseServiceHandler {
             sort,
             request.direction.as_known(),
         );
-        let page = (self.browse)
+        let page = (seen_by(&self.browse, user).await?)
             .movie_page(user, request.library_id, &listing, &request.page)
             .await;
         let (movies, page) = page.map_err(refused(Fields::LIBRARY))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         Response::ok(ListMoviesResponse {
             movies: movies
                 .into_iter()
@@ -138,7 +144,7 @@ impl BrowseService for BrowseServiceHandler {
             title: "movie_id",
             ..Fields::LIBRARY
         }))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         let (cast, crew) = roles_to_proto(page.roles, stored_by(&page.movie.plugin, &images));
         Response::ok(GetMovieResponse {
             similar: movie_hits(page.similar, &images),
@@ -180,11 +186,11 @@ impl BrowseService for BrowseServiceHandler {
             sort,
             request.direction.as_known(),
         );
-        let page = (self.browse)
+        let page = (seen_by(&self.browse, user).await?)
             .show_page(user, request.library_id, &listing, &request.page)
             .await;
         let (shows, page) = page.map_err(refused(Fields::LIBRARY))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         Response::ok(ListShowsResponse {
             shows: shows
                 .into_iter()
@@ -197,10 +203,11 @@ impl BrowseService for BrowseServiceHandler {
 
     async fn list_genres(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, ListGenresRequest>,
     ) -> ServiceResult<ListGenresResponse> {
-        let genres = self.browse.genres(request.library_id).await;
+        let browse = seen_by(&self.browse, caller(&ctx)?.user.id).await?;
+        let genres = browse.genres(request.library_id).await;
         Response::ok(ListGenresResponse {
             genres: genres.map_err(refused(Fields::LIBRARY))?,
             ..Default::default()
@@ -221,7 +228,7 @@ impl BrowseService for BrowseServiceHandler {
             ..Fields::LIBRARY
         }))?;
         let show = page.show;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         // Without a Plugin it has no Episodes, so no Roles to show headshots of.
         let plugin = show.plugin().unwrap_or_default();
         let (cast, crew) = roles_to_proto(page.roles, stored_by(plugin, &images));
@@ -263,8 +270,7 @@ impl BrowseService for BrowseServiceHandler {
         let request = request.to_owned_message();
         let season = request.season_number.map(i64::from);
         let show = required_id(request.show_id.into_option(), "show_id", "Show")?;
-        let episodes = self
-            .browse
+        let episodes = (seen_by(&self.browse, user).await?)
             .episodes(user, request.library_id, &show, season)
             .await
             .map_err(refused(Fields {
@@ -272,7 +278,7 @@ impl BrowseService for BrowseServiceHandler {
                 season: "season_number",
                 ..Fields::LIBRARY
             }))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         Response::ok(ListEpisodesResponse {
             episodes: episodes
                 .into_iter()
@@ -291,11 +297,13 @@ impl BrowseService for BrowseServiceHandler {
         let request = request.to_owned_message();
         let show = required_id(request.show_id.into_option(), "show_id", "Show")?;
         let numbers = (request.season_number.into(), request.episode_number.into());
-        let next = (self.browse)
+        let next = (seen_by(&self.browse, user).await?)
             .episode_after(user, request.library_id, &show, numbers)
             .await;
         Response::ok(GetNextEpisodeResponse {
-            next: episode_beside_to_proto(next, &self.images).await?.into(),
+            next: episode_beside_to_proto(next, &self.images, &ctx)
+                .await?
+                .into(),
             ..Default::default()
         })
     }
@@ -309,11 +317,11 @@ impl BrowseService for BrowseServiceHandler {
         let request = request.to_owned_message();
         let show = required_id(request.show_id.into_option(), "show_id", "Show")?;
         let numbers = (request.season_number.into(), request.episode_number.into());
-        let previous = (self.browse)
+        let previous = (seen_by(&self.browse, user).await?)
             .episode_before(user, request.library_id, &show, numbers)
             .await;
         Response::ok(GetPreviousEpisodeResponse {
-            previous: episode_beside_to_proto(previous, &self.images)
+            previous: episode_beside_to_proto(previous, &self.images, &ctx)
                 .await?
                 .into(),
             ..Default::default()
@@ -327,9 +335,10 @@ impl BrowseService for BrowseServiceHandler {
     ) -> ServiceResult<ListContinueWatchingResponse> {
         let user = caller(&ctx)?.user.id;
         let asked = request.to_owned_message().page;
-        let listed = self.browse.continue_watching(user, &asked).await;
+        let browse = seen_by(&self.browse, user).await?;
+        let listed = browse.continue_watching(user, &asked).await;
         let (started, page) = listed.map_err(refused(Fields::NONE))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         let mut entries = Vec::with_capacity(started.len());
         // ponytail: one query per entry, on a page of at most 100; ask for the page's at once if
         // Continue Watching gets slow.
@@ -361,9 +370,10 @@ impl BrowseService for BrowseServiceHandler {
         }
         let suggested = self.home_rows.featured(user).await;
         let suggested = suggested.map_err(home_rows_refused)?;
-        let featured = self.browse.featured(user, &suggested).await;
+        let browse = seen_by(&self.browse, user).await?;
+        let featured = browse.featured(user, &suggested).await;
         let featured = featured.map_err(refused(Fields::NONE))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         let mut titles = Vec::with_capacity(featured.len());
         // ponytail: one query per title, as Continue Watching asks; Featured lists a handful.
         for title in featured {
@@ -414,7 +424,7 @@ impl BrowseService for BrowseServiceHandler {
             .titles(reader, &plugin, &request.key, &request.page)
             .await;
         let (titles, page) = listed.map_err(home_rows_refused)?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         Response::ok(ListHomeRowTitlesResponse {
             titles: (titles.into_iter())
                 .map(|title| row_title_to_proto(title, &images))
@@ -442,19 +452,19 @@ impl BrowseService for BrowseServiceHandler {
 
     async fn get_person(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, GetPersonRequest>,
     ) -> ServiceResult<GetPersonResponse> {
-        people::get_person(self, request.to_owned_message()).await
+        people::get_person(self, &ctx, request.to_owned_message()).await
     }
 
     async fn list_unmatched(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, ListUnmatchedRequest>,
     ) -> ServiceResult<ListUnmatchedResponse> {
         let request = request.to_owned_message();
-        let listed = (self.browse)
+        let listed = (seen_by(&self.browse, caller(&ctx)?.user.id).await?)
             .unmatched(request.library_id, &request.page)
             .await;
         let (unmatched, page) = listed.map_err(refused(Fields::LIBRARY))?;
@@ -467,10 +477,10 @@ impl BrowseService for BrowseServiceHandler {
 
     async fn get_unmatched_version(
         &self,
-        _ctx: RequestContext,
+        ctx: RequestContext,
         request: ServiceRequest<'_, GetUnmatchedVersionRequest>,
     ) -> ServiceResult<GetUnmatchedVersionResponse> {
-        let found = (self.browse)
+        let found = (seen_by(&self.browse, caller(&ctx)?.user.id).await?)
             .unmatched_version(request.library_id, request.version_id)
             .await;
         let (unmatched, version) = found.map_err(refused(Fields {

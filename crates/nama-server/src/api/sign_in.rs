@@ -16,12 +16,14 @@ use connectrpc::{
 };
 use nama_proto::nama::v1::{
     AcceptInviteRequest, AcceptInviteResponse, ApproveSignInCodeRequest, ApproveSignInCodeResponse,
-    LookUpSignInCodeRequest, LookUpSignInCodeResponse, PollSignInCodeRequest,
-    PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse, RefusalReason,
-    SessionDelivery, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse,
-    SignInService, SignInWithAccountRequest, SignInWithAccountResponse, SignOutRequest,
-    SignOutResponse, StartAccountSignInRequest, StartAccountSignInResponse, StartSignInCodeRequest,
-    StartSignInCodeResponse, WhoAmIRequest, WhoAmIResponse, reauthenticate_request::Proof,
+    ClearSwitchPinRequest, ClearSwitchPinResponse, LookUpSignInCodeRequest,
+    LookUpSignInCodeResponse, PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest,
+    ReauthenticateResponse, RefusalReason, SessionDelivery, SetSwitchPinRequest,
+    SetSwitchPinResponse, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest,
+    SignInResponse, SignInService, SignInWithAccountRequest, SignInWithAccountResponse,
+    SignOutRequest, SignOutResponse, StartAccountSignInRequest, StartAccountSignInResponse,
+    StartSignInCodeRequest, StartSignInCodeResponse, SwitchUserRequest, SwitchUserResponse,
+    User as ProtoUser, WhoAmIRequest, WhoAmIResponse, reauthenticate_request::Proof,
 };
 
 use crate::{
@@ -30,19 +32,21 @@ use crate::{
     sync::Syncing,
     users::{
         self, Blocked, Caller, Delivery, NewDevice, Polled, SignIn, SignInCodeError, SignInError,
-        SignedIn, session_cookie,
+        SignedIn, Users, session_cookie, session_token,
     },
 };
 use nama_forwarded::RequestSource;
 
 use super::{
-    caller, database_failed, refuse, server_link, signed_out, unknown_enum_value,
-    users::{device_to_proto, user_to_proto},
+    caller, calling_device, database_failed, refuse, server_link, signed_out, unknown_enum_value,
+    users::{device_to_proto, user_asked_about, user_to_proto},
 };
 
 /// `nama.v1.SignInService`: signing Devices in, and saying who is signed in.
 pub(super) struct SignInServiceHandler {
     pub(super) sign_in: SignIn,
+    /// Lists a Device's Users and sets their Switch PINs.
+    pub(super) users: Users,
     /// Starts a User signing in with their Account.
     pub(super) linking: Linking,
     /// Told of each sign-in.
@@ -100,7 +104,10 @@ impl SignInService for SignInServiceHandler {
             password: request.password,
         };
         let device = new_device(request.device_name, &ctx)?;
-        let signed_in = self.sign_in.sign_in(proof, device, Instant::now()).await?;
+        let session = session_token(ctx.headers(), ctx.extensions());
+        let signed_in = (self.sign_in)
+            .sign_in(proof, device, session, Instant::now())
+            .await?;
         Ok(
             self.hand_out_session(signed_in, delivery, &ctx, |caller, token| SignInResponse {
                 user: user_to_proto(caller.user).into(),
@@ -116,7 +123,7 @@ impl SignInService for SignInServiceHandler {
         ctx: RequestContext,
         _request: ServiceRequest<'_, SignOutRequest>,
     ) -> ServiceResult<SignOutResponse> {
-        let device = caller(&ctx)?.device.id;
+        let device = calling_device(&ctx)?.id;
         self.sign_in
             .sign_out(device)
             .await
@@ -124,19 +131,65 @@ impl SignInService for SignInServiceHandler {
         Ok(signed_out(SignOutResponse::default(), &ctx))
     }
 
-    fn who_am_i<'a>(
-        &'a self,
+    async fn who_am_i(
+        &self,
         ctx: RequestContext,
         _request: ServiceRequest<'_, WhoAmIRequest>,
-    ) -> impl Future<Output = ServiceResult<impl Encodable<WhoAmIResponse> + Send + use<'a>>> + Send
-    {
-        future::ready(caller(&ctx).and_then(|caller| {
-            Response::ok(WhoAmIResponse {
-                user: user_to_proto(caller.user.clone()).into(),
-                device: device_to_proto(caller.device.clone(), true).into(),
+    ) -> ServiceResult<WhoAmIResponse> {
+        let device = calling_device(&ctx)?;
+        let device_users = (self.users.users_on(device.id).await)
+            .map_err(database_failed)?
+            .into_iter()
+            .map(|user| ProtoUser {
+                id: user.id,
+                name: user.name,
                 ..Default::default()
             })
-        }))
+            .collect();
+        Response::ok(WhoAmIResponse {
+            user: caller(&ctx)
+                .ok()
+                .map(|caller| user_to_proto(caller.user.clone()))
+                .into(),
+            device: device_to_proto(device.clone(), true).into(),
+            device_users,
+            ..Default::default()
+        })
+    }
+
+    async fn switch_user(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SwitchUserRequest>,
+    ) -> ServiceResult<SwitchUserResponse> {
+        let device = calling_device(&ctx)?.id;
+        let request = request.to_owned_message();
+        (self.sign_in)
+            .switch(device, request.user_id, &request.switch_pin)
+            .await?;
+        Response::ok(SwitchUserResponse::default())
+    }
+
+    async fn set_switch_pin(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetSwitchPinRequest>,
+    ) -> ServiceResult<SetSwitchPinResponse> {
+        let user = caller(&ctx)?.user.id;
+        let request = request.to_owned_message();
+        self.users.set_switch_pin(user, &request.switch_pin).await?;
+        Response::ok(SetSwitchPinResponse::default())
+    }
+
+    async fn clear_switch_pin(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ClearSwitchPinRequest>,
+    ) -> ServiceResult<ClearSwitchPinResponse> {
+        let caller = caller(&ctx)?;
+        let user = user_asked_about(caller, request.user_id)?;
+        self.users.clear_switch_pin(&caller.user, user).await?;
+        Response::ok(ClearSwitchPinResponse::default())
     }
 
     async fn reauthenticate(
@@ -231,6 +284,7 @@ impl SignInService for SignInServiceHandler {
                 request.handle,
                 ip_address,
                 user_agent(ctx.headers()),
+                session_token(ctx.headers(), ctx.extensions()),
                 Instant::now(),
             )
             .await?;
@@ -311,7 +365,10 @@ impl SignInService for SignInServiceHandler {
             handle: request.handle,
             code: request.code,
         };
-        let signed_in = self.sign_in.sign_in(proof, device, Instant::now()).await?;
+        let session = session_token(ctx.headers(), ctx.extensions());
+        let signed_in = (self.sign_in)
+            .sign_in(proof, device, session, Instant::now())
+            .await?;
         Ok(
             self.hand_out_session(signed_in, delivery, &ctx, |caller, token| {
                 SignInWithAccountResponse {
@@ -470,6 +527,19 @@ impl From<SignInError> for ConnectError {
                 err.to_string(),
             )
             .field(field)
+            .into(),
+            err @ SignInError::SwitchPinMissing => refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                err.to_string(),
+            )
+            .field("switch_pin")
+            .into(),
+            ref err @ SignInError::WrongSwitchPin { tries_left } => refuse(
+                RefusalReason::REFUSAL_REASON_WRONG_SWITCH_PIN,
+                err.to_string(),
+            )
+            .field("switch_pin")
+            .param("triesLeft", &tries_left)
             .into(),
             SignInError::Link(err) => server_link::account_sign_in_failed(err),
         }

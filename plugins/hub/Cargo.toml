@@ -12,9 +12,7 @@ repository.workspace = true
 base64 = "0.23"
 # The Viewing Events the Hub hasn't had yet are kept as the request that sends them.
 buffa = "0.9.2"
-bytes = "1"
 connectrpc = "0.9.1"
-http = "1"
 # ring, not rustls's default aws-lc-rs (OpenSSL license), and the OS's root certificates, as the
 # TMDB Plugin does: deny.toml allows neither of the others.
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "tls12", "ring", "native-tokio"] }

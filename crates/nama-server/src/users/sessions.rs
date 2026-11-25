@@ -1,5 +1,6 @@
 //! Sessions over HTTP (ADR 0014, ADR 0015): one layer in front of every route turns a session
-//! cookie or a bearer token into the [`Caller`], and how a cookie session is handed out.
+//! cookie or a bearer token into its [`Device`] and the [`Caller`], and how a cookie session is
+//! handed out.
 //!
 //! The layer only says who is calling. Whether a call needs a session is decided after it, by the
 //! API's access layer.
@@ -11,7 +12,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-use super::{Caller, DEVICE_LIFETIME, Users};
+use super::{Caller, DEVICE_LIFETIME, Device, Users};
 use nama_forwarded::RequestSource;
 
 const COOKIE_NAME: &str = "nama_session";
@@ -21,7 +22,8 @@ const COOKIE_NAME: &str = "nama_session";
 /// (cookie tossing). That domain isn't on the Public Suffix List yet (ADR 0057).
 const HTTPS_COOKIE_NAME: &str = "__Host-nama_session";
 
-/// Adds the [`Caller`] to `request`'s extensions if it carries a valid session, as
+/// Adds the [`Device`] to `request`'s extensions if it carries a valid session, and the
+/// [`Caller`] too while that Device acts as one of its Users (ADR 0106), as
 /// `Authorization: Bearer <token>` or in the session cookie. When that use pushes back the Device's
 /// expiry, a session cookie's is pushed back too, unless the response sets the cookie itself.
 pub(crate) async fn identify_caller(
@@ -42,7 +44,13 @@ pub(crate) async fn identify_caller(
     };
     let refreshed_cookie = (session.refreshed && presented.in_cookie)
         .then(|| session_cookie(presented.token, request.extensions()));
-    request.extensions_mut().insert::<Caller>(session.caller);
+    if let Some(user) = session.user {
+        request.extensions_mut().insert(Caller {
+            user,
+            device: session.device.clone(),
+        });
+    }
+    request.extensions_mut().insert::<Device>(session.device);
     let mut response = next.run(request).await;
     if let Some(cookie) = refreshed_cookie.and_then(|cookie| HeaderValue::try_from(cookie).ok())
         && !response.headers().contains_key(header::SET_COOKIE)
@@ -91,6 +99,12 @@ fn cookie_name(request: &Extensions) -> &'static str {
 
 pub(crate) fn in_session_cookie(headers: &HeaderMap, request: &Extensions) -> bool {
     presented_token(headers, request).is_some_and(|presented| presented.in_cookie)
+}
+
+/// The session token a request with `headers` and `request`'s extensions carries, valid or not,
+/// so a sign-in adds its User to the Device holding it (ADR 0106).
+pub(crate) fn session_token<'a>(headers: &'a HeaderMap, request: &Extensions) -> Option<&'a str> {
+    presented_token(headers, request).map(|presented| presented.token)
 }
 
 struct PresentedToken<'a> {

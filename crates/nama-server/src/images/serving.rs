@@ -18,6 +18,7 @@ use tower_http::services::ServeFile;
 use tracing::Instrument as _;
 
 use super::{Copied, Format, ImageStore, RESIZED_DIR, Resize, SVG, resized, row_key, version_of};
+use crate::diagnostics;
 
 impl ImageStore {
     /// The image at `key` as the answer to `request`, sent as `content_type`: 404 if none is
@@ -182,6 +183,7 @@ impl ImageStore {
         };
         let (folder, cache) = (self.copies_path(key), self.dir.join(RESIZED_DIR));
         let named = format!("{key:?}");
+        let span = tracing::info_span!("resize image", image.width = resize.width);
         let resized = self
             .resizer
             .run(move || {
@@ -198,10 +200,7 @@ impl ImageStore {
                 }
                 copied.map_err(|err| format!("could not resize {named}: {err}"))
             })
-            .instrument(tracing::info_span!(
-                "resize image",
-                image.width = resize.width
-            ))
+            .instrument(span.clone())
             .await;
         // The thread having stopped, or a resize having panicked, is one more failed resize.
         let copied = resized
@@ -220,6 +219,7 @@ impl ImageStore {
             }
             Ok(Copied::Unneeded) => None,
             Err(err) => {
+                diagnostics::failed(&span, "resize failed");
                 tracing::warn!("{err}, so it is sent as it is");
                 None
             }

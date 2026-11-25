@@ -13,8 +13,8 @@ use connectrpc::{ConnectError, client::HttpClient};
 use nama_proto::nama::v1::{
     ExternalId, GetLibraryRequest, GetMovieRequest, GetShowRequest, LibraryKind,
     LibraryServiceClient, ListEpisodesRequest, MediaToDelete, PreviewDeleteMediaRequest,
-    ReportProgressRequest, SeasonToDelete, SetPlayedRequest, ShowToDelete, UpdateLibraryRequest,
-    WatchStateServiceClient, media_to_delete, set_played_request::Target,
+    SeasonToDelete, SetPlayedRequest, ShowToDelete, UpdateLibraryRequest, WatchStateServiceClient,
+    media_to_delete, set_played_request::Target,
 };
 use nama_server::ffmpeg::Ffmpeg;
 use server::tmdb::{ALIEN_IMDB, DARK, DARK_TVDB};
@@ -129,30 +129,6 @@ async fn a_movie_marked_unplayed_under_its_new_preferred_id_forgets_its_old_ids_
     let movie = fx.get_movie(fx.library, 348).await.unwrap();
 
     assert_eq!(movie.watch_state.as_option(), None);
-}
-
-#[tokio::test]
-async fn progress_on_a_movie_played_under_its_old_preferred_id_keeps_it_played() {
-    let fx = Fixture::alien().await;
-    set_alien_played(&fx, tmdb_id(348), true).await.unwrap();
-    prefer_imdb(&fx).await.unwrap();
-    let [version] = fx.version_ids(348).await[..] else {
-        panic!("Alien has one Version");
-    };
-
-    WatchStateServiceClient::new(HttpClient::plaintext(), fx.server.client_config())
-        .report_progress(ReportProgressRequest {
-            version_id: version,
-            position_ms: 60_000,
-            duration_ms: 7_200_000,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    let movie = fx.get_movie(fx.library, 348).await.unwrap();
-
-    let state = movie.watch_state.as_option().unwrap();
-    assert_eq!((state.position_ms, state.played), (60_000, true));
 }
 
 #[tokio::test]

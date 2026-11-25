@@ -4,6 +4,7 @@ mod api;
 mod automation;
 pub mod backup;
 pub use library::{Artwork, ArtworkError};
+pub use link::ShareWithHub;
 mod browse;
 mod certificate;
 pub mod config;
@@ -29,9 +30,12 @@ mod requests;
 mod scanner;
 mod server_addresses;
 mod server_settings;
+mod signed_urls;
+mod status;
 mod sync;
 mod tls;
 pub mod users;
+mod watch_sync;
 mod watchlist;
 #[cfg(feature = "web")]
 mod web;
@@ -85,13 +89,16 @@ use crate::{
 /// The Hub [`Config::hub_url`] names, if any, is told the Server's Server Addresses every minute
 /// and as soon as the Server URL is saved, and while the Server is Linked with it, it keeps its
 /// port open on the router with UPnP or NAT-PMP, unless [`Config::forwarded_port`] names the one
-/// the Admin forwarded. The enabled Plugin that links its Users, if any, is asked for each User's
-/// Watch State on their other Servers after each scan.
+/// the Admin forwarded. The enabled Plugin that syncs its Linked Users, if any, is asked for each
+/// User's Watch State on their other Servers after each scan.
 ///
 /// While the Server is Linked and the Hub names it, the Server gets a certificate for its names
 /// from [`Config::acme_directory`] and keeps it renewed, and its public name is its Server URL
 /// while the Admin sets none (ADR 0057). With [`Config::relay`], it keeps connections waiting at
 /// that Relay with a token the Hub signs, and serves the clients they carry.
+///
+/// While the Admin shares Diagnostics, what the Server's exporters post through `sharing`, and the
+/// web app's spans, go to that Hub while the Server is Linked with it (ADR 0054).
 ///
 /// `Setup` and `SignIn` are rate limited by the client's IP address. That is the peer's, or through
 /// the Relay the one the Relay names, unless the peer is in [`Config::trusted_proxies`], whose
@@ -120,6 +127,7 @@ pub fn serve(
     plugins: PluginSettings,
     setup_code: Option<SetupCode>,
     ffmpeg: Ffmpeg,
+    sharing: ShareWithHub,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> impl Future<Output = io::Result<()>> + Send + 'static {
     let points = plugins.extension_points();
@@ -171,7 +179,7 @@ pub fn serve(
     let browser_spans = api::BrowserSpans::new(
         config.otlp_endpoint.as_deref(),
         settings.clone(),
-        points.clone(),
+        users.linking().clone(),
     );
     let custom_images = CustomImages::new(Arc::clone(&db), images.clone());
     let local_images = LocalImages::new(Arc::clone(&db), images.clone());
@@ -201,11 +209,21 @@ pub fn serve(
         Backups::new(&config.data_dir, &config.file, settings.clone()),
     );
     let abilities = Abilities::new(Arc::clone(&ffmpeg));
+    let status = status::Sources {
+        db: Arc::clone(&db),
+        contents: contents.clone(),
+        ffmpeg: Arc::clone(&ffmpeg),
+        abilities: abilities.clone(),
+        running: running.clone(),
+        data_dir: config.data_dir.clone(),
+    };
     let server_url = settings.server_url();
     let url_saves = settings.url_saves();
     // `listen` differs from the bound address only when it asks for port 0.
     let listening = listener.local_addr().unwrap_or(config.listen);
     let syncing = sync::Syncing::new(Arc::clone(&db), plugins.extension_points(), users.clone());
+    let watch_sync_imports =
+        watch_sync::WatchSyncImports::new(Arc::clone(&db), plugins.extension_points());
     let linking = users.linking().clone();
     let (forwarded_port, relay) = (config.forwarded_port, config.relay);
     let certificate = certificate::Certificate::default();
@@ -241,6 +259,7 @@ pub fn serve(
     #[cfg(feature = "web")]
     let app = app.layer(axum::middleware::from_fn(web::serve));
     async move {
+        sharing.serve(Some(linking.clone())).await;
         log_jobs_time_zone();
         // Before anything can publish an event, so that no notification misses its link, and
         // before serving, so the sweeps delete no plan's files or upload but an earlier run's.
@@ -251,6 +270,7 @@ pub fn serve(
         let scan_follower = syncing.follow_scans(&events);
         // Before serving, so it hears the first look at each Link.
         let link_follower = syncing.follow_links();
+        let importing_watch_states = watch_sync_imports.start();
         scanner.start_all().await;
         preview_frames.start();
         text_passes.start();
@@ -284,6 +304,7 @@ pub fn serve(
             forwarded_port,
             relay,
         );
+        let recording_status = status::keep_recording(status);
         let closing = events.clone();
         let served = tls::serve(listener, relayed, app, Arc::new(certificate), async move {
             shutdown.await;
@@ -291,6 +312,9 @@ pub fn serve(
             closing.close();
         })
         .await;
+        // Awaited, so its database handle is gone before the database closes.
+        recording_status.abort();
+        let _: Result<(), _> = recording_status.await;
         // First, so their ffmpeg doesn't start on a Version as the plans stop.
         preview_frames.shutdown().await;
         text_passes.shutdown().await;
@@ -307,8 +331,11 @@ pub fn serve(
         // Before the Plugin settings, which save a Plugin that crashes as it is asked about progress.
         requests.shutdown().await;
         home_rows.shutdown().await;
-        // Before the Plugin settings, as a share in flight holds the Extension Points.
+        // Before the Plugins stop and the database closes, as a share in flight holds the Link.
         browser_spans.shutdown().await;
+        // The same for the Server's own shares, and so the caller's handle on the database is the
+        // last once this ends: the exporters sharing through `sharing` outlive serving.
+        sharing.serve(None).await;
         // Telling the Hub again at the next start loses nothing.
         telling_addresses.abort();
         renewing.abort();
@@ -319,6 +346,8 @@ pub fn serve(
         // The next start's scans pull and sync again, and its first looks push each Link again.
         scan_follower.abort();
         link_follower.abort();
+        // Each import runs in its Plugin's scope, which shutting the Plugins down joins.
+        importing_watch_states.abort();
         plugins.shutdown().await;
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
         drop(automation);

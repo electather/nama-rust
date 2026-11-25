@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE device_users SET authenticated_at = 0 WHERE device_id = ? AND user_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "4778ed76cb9c1f487fcb26ca8617251b14e4b3d8321bda232adc03bf5e8293c4"
+}

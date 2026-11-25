@@ -24,8 +24,8 @@ use crate::{
     plugins::{ExtensionPoints, ProviderError, without_secrets},
     server_settings::{ServerUrl, web_push_key},
     users::{
-        Permissions, User, list_inbox, personal_settings_of, replace_personal_settings,
-        set_notification_preference,
+        LibraryAccess, Permissions, User, list_inbox, personal_settings_of,
+        replace_personal_settings, set_notification_preference,
     },
     web_push::{assert_valid_vapid, browser, push_service, subscribe as subscribe_web_push},
 };
@@ -142,7 +142,7 @@ fn each_viewer_gets_the_events_and_paths_their_permissions_let_them_see() {
     ];
 
     for (subscriber, expected) in table {
-        let viewer = Viewer::of(&subscriber);
+        let viewer = Viewer::of(&subscriber, LibraryAccess::All);
         let got = [&with_path, &requested, &followed, &played]
             .map(|published| viewer.sees(published.clone()));
         assert_eq!(
@@ -152,6 +152,25 @@ fn each_viewer_gets_the_events_and_paths_their_permissions_let_them_see() {
             subscriber.id
         );
     }
+}
+
+#[test]
+fn a_viewer_gets_library_events_only_about_the_libraries_they_see() {
+    let added = |library_id: i64| {
+        event(LibraryItemAdded {
+            library_id,
+            item_id: 1,
+            ..Default::default()
+        })
+    };
+    let viewer = Viewer::of(
+        &user(1, Permissions::ADMIN),
+        LibraryAccess::Only(std::iter::once(1).collect()),
+    );
+
+    assert_eq!(viewer.sees(added(1)), Some(added(1)));
+    assert_eq!(viewer.sees(added(2)), None);
+    assert_eq!(viewer.sees(playback_of(1)), Some(playback_of(1)));
 }
 
 #[test]

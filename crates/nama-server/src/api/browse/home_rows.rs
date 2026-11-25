@@ -32,15 +32,16 @@ pub(in crate::api) async fn home_rows_of(
         HomeRowId::ContinueWatching,
         KernelOrPlugin::Kernel(continue_watching.into()),
     );
+    let seen = super::seen_by(browse, reader.id).await?;
     let recently_added =
-        (recently_added_rows(browse).await?.into_iter()).map(|(id, row)| (id, row.into()));
+        (recently_added_rows(&seen).await?.into_iter()).map(|(id, row)| (id, row.into()));
     Ok(std::iter::once(continue_watching)
         .chain(recently_added)
         .chain(plugin_rows)
         .collect())
 }
 
-/// Each Library's Recently Added row, oldest Library first: every User may browse each one.
+/// Each Recently Added row of a Library `browse` sees, oldest Library first.
 pub(in crate::api) async fn recently_added_rows(
     browse: &Browse,
 ) -> Result<Vec<(HomeRowId, proto::RecentlyAddedHomeRow)>, ConnectError> {

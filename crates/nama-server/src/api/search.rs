@@ -30,10 +30,10 @@ use crate::{
 };
 
 use super::{
-    browse::{Fields, headshot_url, refused},
+    browse::{Fields, headshot_url, refused, seen_by},
     caller, database_failed, external_id_to_proto, proto_number, refuse,
     requests::{searched_show_to_proto, searched_to_proto},
-    title_kind_from_proto,
+    shown_images, title_kind_from_proto,
 };
 
 /// How many results a batch holds when the request doesn't say.
@@ -69,11 +69,15 @@ impl SearchService for SearchServiceHandler {
             .ok()
             .filter(|&limit| limit > 0)
             .map_or(DEFAULT_LIMIT, |limit| limit.min(MAX_LIMIT));
-        let found = self.browse.search(query, kind, limit).await;
+        let seen = Self {
+            browse: seen_by(&self.browse, viewer.id).await?,
+            ..self.clone()
+        };
+        let found = seen.browse.search(query, kind, limit).await;
         let found = found.map_err(database_failed)?;
-        let people = self.browse.people_named(query, kind).await;
+        let people = seen.browse.people_named(query, kind).await;
         let people = people.map_err(refused(Fields::NONE))?;
-        let images = self.images.shown().await.map_err(database_failed)?;
+        let images = shown_images(&self.images, &ctx).await?;
         let sent = Sent {
             movies: library_ids(&found, TitleKind::Movie),
             shows: library_ids(&found, TitleKind::Show),
@@ -100,8 +104,7 @@ impl SearchService for SearchServiceHandler {
         // source's without waiting for the Search sources asked beside it. The work is polled with
         // the stream rather than spawned, so a client that leaves stops the sources being asked.
         let (parts, received) = mpsc::unbounded_channel();
-        let handler = self.clone();
-        let sending = async move { handler.after_library(searched, sent, images, &parts).await };
+        let sending = async move { seen.after_library(searched, sent, images, &parts).await };
         let sending =
             stream::once(sending.instrument(Span::current())).filter_map(|()| future::ready(None));
         let received = stream::unfold(received, |mut received| async move {
@@ -326,7 +329,7 @@ impl<'a> SourceBatches<'a> {
     /// `title`, which the Search source `plugin` found by `ids`, as the viewer sees it, with every
     /// id it is known by: Available in the oldest Library with any of `ids`, shown as the Library
     /// has it, or else as [`Requests::unavailable`] tells, shown as the source gave it. `None` if
-    /// the viewer may neither watch nor request it.
+    /// the viewer may neither watch nor request it, as for one only a Library they don't see has.
     async fn hit(
         &self,
         plugin: &PluginId,
@@ -341,6 +344,11 @@ impl<'a> SourceBatches<'a> {
             };
             ids.extend(known.iter().chain([id.clone()]));
             return Ok(Some((available_hit(on_server, self.images), ids)));
+        }
+        // As a Plugin's Home row does, rather than offer it to Request.
+        let hidden = self.handler.browse.hides(title.kind, &ids).await;
+        if hidden.map_err(refused(Fields::NONE))? {
+            return Ok(None);
         }
         let requestable = match title.kind {
             TitleKind::Movie => &self.movie_namespaces,

@@ -39,8 +39,8 @@ use crate::{
     plugins::{self, ExtensionPoints, Failure, ProviderError, without_secrets},
     server_settings::{ServerUrl, web_push_key},
     users::{
-        self, User, delete_personal_settings, every_notification_turned_off, every_user,
-        personal_settings_recipients, store_in_inbox,
+        self, LibraryAccess, User, delete_personal_settings, every_notification_turned_off,
+        every_user, personal_settings_recipients, store_in_inbox,
     },
     web_push::{Pusher, push_to_subscriptions},
 };
@@ -92,10 +92,13 @@ pub(crate) struct Filter {
     pub(crate) libraries: Vec<i64>,
 }
 
-/// Which events a subscriber may see, and what of them, from their Permissions. Only this module
-/// decides that (see the crate's `AGENTS.md`, "One owner for who sees an Event").
+/// Which events a subscriber may see, and what of them, from their Permissions and the Libraries
+/// they see. Only this module decides that (see the crate's `AGENTS.md`, "One owner for who sees
+/// an Event").
 #[derive(Debug)]
 struct Viewer {
+    /// Only Library events about these Libraries.
+    libraries: LibraryAccess,
     /// Only Request and Followed Show events about those this User is a Requester of; `None` means
     /// every one's.
     requester: Option<i64>,
@@ -229,17 +232,19 @@ impl EventBus {
         self.sender.subscribe()
     }
 
-    /// The events published from now on that `user` may see and `filter` lets through, as `user`
-    /// may see them, with a `Lagged` wherever the subscriber fell too far behind. Ends when the bus
-    /// is closed.
+    /// The events published from now on that `user`, who sees `libraries`, may see and `filter`
+    /// lets through, as `user` may see them, with a `Lagged` wherever the subscriber fell too far
+    /// behind. Ends when the bus is closed.
     pub(crate) fn subscribe(
         &self,
         user: &User,
+        libraries: LibraryAccess,
         filter: Filter,
     ) -> impl Stream<Item = SubscribeResponse> + Send + use<> {
         let receiver = self.sender.subscribe();
-        // Fixed for the stream's life: `api::events` ends it when its User's Permissions change.
-        let viewer = Viewer::of(user);
+        // Fixed for the stream's life: `api::events` ends it when its User's Permissions or
+        // Library access change.
+        let viewer = Viewer::of(user, libraries);
         stream::unfold(
             (receiver, viewer, filter),
             |(mut receiver, viewer, filter)| async move {
@@ -266,7 +271,7 @@ impl EventBus {
             permissions: users::Permissions::ADMIN,
             created_at: 0,
         };
-        self.subscribe(&admin, filter)
+        self.subscribe(&admin, LibraryAccess::All, filter)
     }
 
     /// Ends every subscription, as the Server shuts down, so none holds up the shutdown.
@@ -651,8 +656,9 @@ fn classify(event: &Event) -> Option<(EventType, About<'_>)> {
 }
 
 impl Viewer {
-    fn of(user: &User) -> Self {
+    fn of(user: &User, libraries: LibraryAccess) -> Self {
         Self {
+            libraries,
             requester: user.whose_requests(),
             player: user.whose_playing(),
             sees_paths: user.permissions.allow(Permission::ManageLibraries),
@@ -660,12 +666,12 @@ impl Viewer {
     }
 
     /// `event` as this viewer may see it, or `None` if they may not see it at all. A Library event
-    /// reaches everyone, as `ListLibraries` lists every Library, but with the path of a file left
-    /// out for those who may not see `folders` there.
+    /// reaches those who see its Library, as `ListLibraries` lists it to them, but with the path
+    /// of a file left out for those who may not see `folders` there.
     fn sees(&self, mut event: Event) -> Option<Event> {
         let (_, about) = classify(&event)?;
         let visible = match about {
-            About::Library(_) => true,
+            About::Library(library) => self.libraries.sees(library),
             About::Request(request) => users::may_see(self.requester, &request.requesters),
             About::FollowedShow(followed) => users::may_see(self.requester, &followed.requesters),
             About::Player(user) => self.player.is_none_or(|player| player == user),

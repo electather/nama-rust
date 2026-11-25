@@ -1,6 +1,6 @@
 //! Diagnostics and Usage Analytics that Linked Servers share with Nama's developers (ADR 0054):
-//! each Server may send only so much a minute, and what it sends goes on unchanged to the backend
-//! the Hub's config names. The backend is a true external, so a trait with the OTLP adapter here
+//! each Server may send only so much a minute, and what it sends goes on to the backend the Hub's
+//! config names, changed only to name the Server. The backend is a true external, so a trait with the OTLP adapter here
 //! and a fake in the tests (ADR 0099).
 
 use std::{
@@ -13,6 +13,12 @@ use std::{
 };
 
 use axum::body::Bytes;
+use opentelemetry_proto::tonic::{
+    collector::{logs::v1::ExportLogsServiceRequest, trace::v1::ExportTraceServiceRequest},
+    common::v1::{AnyValue, KeyValue, any_value::Value},
+    resource::v1::Resource,
+};
+use prost::Message as _;
 use reqwest::{
     StatusCode,
     header::{CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue, InvalidHeaderName},
@@ -35,7 +41,7 @@ const FORWARD_TIMEOUT: Duration = Duration::from_secs(10);
 pub enum Signal {
     /// Spans.
     Traces,
-    /// Log records: a Server's allow-listed log lines and its Usage Analytics.
+    /// Log records: a Server's shared log lines and its Usage Analytics.
     Logs,
 }
 
@@ -50,13 +56,59 @@ impl Signal {
     }
 }
 
+/// The resource attribute naming the Linked Server a batch came from, so the backend can tell one
+/// Server's trouble from everyone's.
+const INSTANCE_ID: &str = "service.instance.id";
+
+/// `batch`, an OTLP/HTTP protobuf export request of `signal`, with every resource in it naming
+/// `server` as its [`INSTANCE_ID`], in place of any the Server set, so no Server passes for another.
+///
+/// # Errors
+///
+/// When `batch` isn't an export request of `signal`.
+pub(crate) fn naming(
+    server: LinkedServerId,
+    signal: Signal,
+    batch: &[u8],
+) -> Result<Bytes, prost::DecodeError> {
+    let id = KeyValue {
+        key: INSTANCE_ID.to_owned(),
+        value: Some(AnyValue {
+            value: Some(Value::StringValue(server.to_string())),
+        }),
+        ..Default::default()
+    };
+    let name = |resource: &mut Option<Resource>| {
+        let attributes = &mut resource.get_or_insert_default().attributes;
+        attributes.retain(|attribute| attribute.key != INSTANCE_ID);
+        attributes.push(id.clone());
+    };
+    let named = match signal {
+        Signal::Traces => {
+            let mut request = ExportTraceServiceRequest::decode(batch)?;
+            for spans in &mut request.resource_spans {
+                name(&mut spans.resource);
+            }
+            request.encode_to_vec()
+        }
+        Signal::Logs => {
+            let mut request = ExportLogsServiceRequest::decode(batch)?;
+            for logs in &mut request.resource_logs {
+                name(&mut logs.resource);
+            }
+            request.encode_to_vec()
+        }
+    };
+    Ok(named.into())
+}
+
 /// A batch on its way to the backend.
 pub type Forwarding<'a> = Pin<Box<dyn Future<Output = Result<(), BackendError>> + Send + 'a>>;
 
 /// Where shared Diagnostics go, such as an OpenTelemetry Collector or a vendor's OTLP endpoint.
 pub trait Backend: Send + Sync {
-    /// Forwards `batch`, an OTLP/HTTP protobuf export request of `signal`, unchanged and once: a
-    /// failure is the caller's to log, never retried.
+    /// Forwards `batch`, an OTLP/HTTP protobuf export request of `signal`, once: a failure is the
+    /// caller's to log, never retried.
     fn forward(&self, signal: Signal, batch: Bytes) -> Forwarding<'_>;
 }
 

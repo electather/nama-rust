@@ -1,15 +1,16 @@
 //! Every Link call the Server makes, answered in the Kernel's terms: a [`Link`], or an [`Error`]
-//! that tells "nothing to ask" from "it couldn't tell". The Server's own Link is the Kernel's,
-//! with the Hub its config names ([`ServerLink`], ADR 0105); its Users' Links, signing in with an
-//! Account and syncing go to the enabled Plugin that links the Server, such as the Hub Plugin (ADR
+//! that tells "nothing to ask" from "it couldn't tell". The Server's own Link, its Users' Links and
+//! signing in with an Account are the Kernel's, with the Hub its config names ([`ServerLink`], ADR
+//! 0105); syncing goes to the enabled Plugin that links the Server, such as the Hub Plugin (ADR
 //! 0011, ADR 0094), speaking only the Plugin contract. Each call's bound is named once:
 //!
 //! | Calls                                                              | Bound         |
 //! |--------------------------------------------------------------------|---------------|
 //! | Reads a page needs: the Server's Link, a User's Link               | [`PAGE_READ`] |
 //! | Changes at the service: starting or ending a Link, inviting a User, starting or finishing an Account sign-in, Unlinking a deleted User, publishing a certificate challenge | none |
+//! | Whether a request comes from the web app at the Hub the Server is Linked with: only the Server's own table | none |
 //! | Bulk transfers                                                     | [`BULK`]      |
-//! | The Server Addresses tick, and a Relay token                       | the Hub client's own (`hub::TIMEOUT`) |
+//! | The Server Addresses tick, a Relay token, and sharing Diagnostics  | the Hub client's own (`hub::TIMEOUT`) |
 //!
 //! A change isn't cut: cut mid-way, it could leave the service changed without the Server knowing,
 //! such as an invite sent for a User the Server then deletes. The limit on each call to the service
@@ -21,7 +22,9 @@
 
 mod hub;
 mod server;
+mod sharing;
 mod token;
+mod users;
 
 use std::{
     collections::HashSet,
@@ -30,6 +33,7 @@ use std::{
     time::Duration,
 };
 
+use bytes::Bytes;
 pub(crate) use nama_plugin_api::server_link::Link;
 use nama_plugin_api::{
     PluginError,
@@ -37,10 +41,16 @@ use nama_plugin_api::{
     server_link::{AccountSignIn, ServerAddresses, ServerLinker, WatchlistEntry},
 };
 use tokio::sync::{broadcast, watch};
-use tracing::Instrument as _;
+use tracing::{Instrument as _, instrument::WithSubscriber as _, subscriber::NoSubscriber};
 
 pub(crate) use self::server::ServerLink;
-use crate::{config::Config, db::Database, diagnostics, plugins::ExtensionPoints};
+pub use self::sharing::ShareWithHub;
+use crate::{
+    config::Config,
+    db::Database,
+    diagnostics::{self, Signal},
+    plugins::ExtensionPoints,
+};
 
 /// How long a page waits for the Server's Link or a User's, so Server info and the Users list
 /// answer even when the Hub or the Plugin doesn't.
@@ -69,12 +79,9 @@ pub(crate) enum Error {
     /// The Server's config names no Hub, so it has no Link of its own (ADR 0002).
     #[error("the Server's config names no Hub")]
     NoHub,
-    /// No enabled Plugin links the Server.
-    #[error("no enabled Plugin links the Server")]
-    NoLinkingPlugin,
-    /// It couldn't tell: it failed, as with its service unreachable, or a page stopped waiting on
-    /// it. The Server's log or the Plugin's page says why.
-    #[error("Linking failed; the Server's log or the Plugin's page says why")]
+    /// It couldn't tell: it failed, as with the Hub unreachable, or a page stopped waiting on it.
+    /// The Server's log says why.
+    #[error("Linking failed; the Server's log says why")]
     Failed,
 }
 
@@ -129,6 +136,15 @@ impl Linking {
         self.server.is_some()
     }
 
+    /// Whether `origin` is that of the Hub the Server is Linked with, whose web app may call the
+    /// Server from the browser (ADR 0105).
+    pub(crate) async fn is_linked_hub_origin(&self, origin: &str) -> bool {
+        match &self.server {
+            Some(server) => server.is_linked_hub_origin(origin).await,
+            None => false,
+        }
+    }
+
     /// The Server's Link.
     pub(crate) async fn server_link(&self) -> Result<Link, Error> {
         Ok(self.look(Whose::Server).await?.unwrap_or(Link::NotLinked))
@@ -141,7 +157,7 @@ impl Linking {
     }
 
     /// The User `user_id`'s Link, or `None` while they can't Link, before the Server is Linked.
-    /// Asking is how the Plugin learns of an Unlink made on the service, such as by deleting the
+    /// Asking is how the Server learns of an Unlink made on the Hub, such as by deleting the
     /// Account (ADR 0099).
     pub(crate) async fn user_link(&self, user_id: i64) -> Result<Option<Link>, Error> {
         self.look(Whose::User(user_id)).await
@@ -156,7 +172,7 @@ impl Linking {
                     (linking.ask_hub(async |server| server.link().await).await).map(Some)
                 }
                 Whose::User(user_id) => {
-                    (linking.ask(async |linker| linker.user_link(user_id).await)).await
+                    (linking.ask_hub(async |server| server.user_link(user_id).await)).await
                 }
             };
             if let Ok(link) = &link {
@@ -218,7 +234,7 @@ impl Linking {
         user_name: &str,
     ) -> Result<Link, Error> {
         let link = self
-            .ask(async |linker| linker.start_user_link(user_id, user_name).await)
+            .ask_hub(async |server| server.start_user(user_id, user_name).await)
             .await?;
         self.saw(Whose::User(user_id), Some(&link));
         Ok(link)
@@ -226,7 +242,7 @@ impl Linking {
 
     /// Unlinks the User `user_id`, or forgets the code they wait on.
     pub(crate) async fn unlink_user(&self, user_id: i64) -> Result<(), Error> {
-        (self.ask(async |linker| linker.unlink_user(user_id).await)).await?;
+        (self.ask_hub(async |server| server.unlink_user(user_id).await)).await?;
         self.saw(Whose::User(user_id), None);
         Ok(())
     }
@@ -239,7 +255,7 @@ impl Linking {
         user_name: &str,
         email: &str,
     ) -> Result<(), Error> {
-        self.ask(async |linker| linker.invite_user(user_id, user_name, email).await)
+        self.ask_hub(async |server| server.invite(user_id, user_name, email).await)
             .await
     }
 
@@ -248,7 +264,7 @@ impl Linking {
         &self,
         return_url: &str,
     ) -> Result<AccountSignIn, Error> {
-        self.ask(async |linker| linker.start_account_sign_in(return_url).await)
+        self.ask_hub(async |server| server.start_sign_in(return_url).await)
             .await
     }
 
@@ -260,7 +276,7 @@ impl Linking {
         handle: &str,
         code: &str,
     ) -> Result<Option<i64>, Error> {
-        self.ask(async |linker| linker.finish_account_sign_in(handle, code).await)
+        self.ask_hub(async |server| server.finish_sign_in(handle, code).await)
             .await
     }
 
@@ -286,7 +302,21 @@ impl Linking {
             .await;
     }
 
-    /// What `call` gets from the Server's own Link. Its failure, such as the Hub being
+    /// Sends `batch`, an OTLP/HTTP protobuf export request of `signal`, to the Hub for Nama's
+    /// developers (ADR 0054). Without a Hub, while not Linked, or once it fails, it is dropped,
+    /// never retried.
+    pub(crate) async fn share_diagnostics(&self, signal: Signal, batch: Bytes) {
+        let shared = self.ask_hub(async |server| server.share(signal, batch).await);
+        // Traced, sharing would record spans of its own that the next batch would share, and so on
+        // for as long as the Server runs.
+        let answer = shared.with_subscriber(NoSubscriber::default()).await;
+        // A failure shows in the Server's status: otherwise the backend reads it as a quiet spell.
+        if matches!(answer, Err(Error::Failed)) {
+            diagnostics::share_refused();
+        }
+    }
+
+    /// What `call` gets from the Kernel's Link with the Hub. Its failure, such as the Hub being
     /// unreachable, is logged.
     async fn ask_hub<'a, R, F>(&'a self, call: impl FnOnce(&'a ServerLink) -> F) -> Result<R, Error>
     where
@@ -294,7 +324,7 @@ impl Linking {
     {
         let server = self.server.as_deref().ok_or(Error::NoHub)?;
         call(server).await.map_err(|failure| {
-            tracing::warn!("Linking the Server failed: {failure}");
+            tracing::warn!("Linking failed: {failure}");
             Error::Failed
         })
     }
@@ -306,22 +336,15 @@ impl Linking {
     pub(crate) fn unlink_deleted_user(&self, user_id: i64) {
         // A User created later may get the id again.
         self.saw(Whose::User(user_id), None);
-        let points = self.points.clone();
+        let Some(server) = self.server.clone() else {
+            return;
+        };
         let unlinking = async move {
-            let unlinked = points
-                .ask_first::<dyn ServerLinker, _, _, _, _>(async |linker| {
-                    linker.unlink_user(user_id).await
-                })
-                .await;
-            if let Some(answer) = unlinked
-                && answer.result.is_err()
-            {
-                // Ids only: `ask_first` already puts the failure's message on the Plugin's page.
-                // The User may never have Linked, so this says only that the service wasn't told.
+            if let Err(failure) = server.unlink_user(user_id).await {
+                // The User may never have Linked, so this says only that the Hub wasn't told.
                 tracing::warn!(
-                    plugin = %answer.plugin,
                     user = user_id,
-                    "could not tell the service a User was deleted"
+                    "could not tell the Hub a User was deleted: {failure}"
                 );
             }
         };
@@ -329,22 +352,6 @@ impl Linking {
             tracing::info_span!(parent: None, "unlink_deleted_user"),
         );
         tokio::spawn(unlinking.instrument(span));
-    }
-
-    /// What `call` gets from the enabled Plugin that links the Server. Its failure, such as the
-    /// service being unreachable, is logged.
-    async fn ask<R, F>(&self, call: impl Fn(Arc<dyn ServerLinker>) -> F) -> Result<R, Error>
-    where
-        F: Future<Output = Result<R, PluginError>>,
-    {
-        let answer = (self.points)
-            .ask_first::<dyn ServerLinker, _, _, _, _>(call)
-            .await
-            .ok_or(Error::NoLinkingPlugin)?;
-        answer.result.map_err(|failure| {
-            tracing::warn!(plugin = %answer.plugin, "Linking failed: {}", failure.message);
-            Error::Failed
-        })
     }
 
     /// The Watch State the service keeps of the User `user_id` from every Server they use.

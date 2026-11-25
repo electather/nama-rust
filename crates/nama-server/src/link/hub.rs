@@ -1,5 +1,7 @@
-//! Calling the Hub as the Server's Link needs: its API (`proto/nama/hub/v1/`) for Linking, the
-//! Server Addresses, the certificate challenge and the Relay token, and its published key set.
+//! Calling the Hub as the Server's Link needs: its API (`proto/nama/hub/v1/`) for Linking the
+//! Server and its Users, signing in with an Account, the Server Addresses, the certificate
+//! challenge and the Relay token, its published key set, and its OTLP/HTTP paths taking shared
+//! Diagnostics.
 
 // ponytail: the client is copied from the Hub Plugin's `hub.rs`, which keeps its own for the calls
 // it still makes; one goes once the rest of the Plugin's Linking moves here (#2203).
@@ -10,7 +12,10 @@ use bytes::Bytes;
 use connectrpc::client::{
     ClientBody, ClientConfig, ClientTransport as _, ServiceTransport, full_body,
 };
-use http::{Request, StatusCode};
+use http::{
+    Request, StatusCode,
+    header::{AUTHORIZATION, CONTENT_TYPE},
+};
 use http_body_util::{BodyExt as _, Limited};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use hyper_util::{
@@ -18,11 +23,16 @@ use hyper_util::{
     rt::TokioExecutor,
 };
 use nama_hub_proto::nama::hub::v1::{
-    GetRelayTokenRequest, LinkedServerServiceClient, PollServerLinkRequest, PollServerLinkResponse,
+    GetRelayTokenRequest, GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient,
+    PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
     ServerLinkServiceClient, SetCertificateChallengeRequest, SetServerAddressesRequest,
-    StartServerLinkRequest, StartServerLinkResponse, UnlinkServerRequest,
+    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
+    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest,
+    UnlinkUserRequest,
 };
 use nama_plugin_api::server_link::{Reachability, ServerAddresses};
+
+use crate::diagnostics::{OTLP_PROTOBUF, Signal};
 
 /// Why a call to the Hub failed, in words for the log.
 pub(super) type Failure = Box<dyn Error + Send + Sync>;
@@ -38,6 +48,8 @@ type Transport = ServiceTransport<Client<HttpsConnector<HttpConnector>, ClientBo
 #[derive(Clone)]
 pub(super) struct Hub {
     url: String,
+    /// The origin of [`Self::url`] as a browser sends it, `None` for a URL with no such origin.
+    origin: Option<String>,
     transport: Transport,
 }
 
@@ -72,8 +84,14 @@ impl Hub {
         http.set_local_address(Some(Ipv4Addr::UNSPECIFIED.into()));
         let connector = builder.https_or_http().enable_http1().wrap_connector(http);
         let client = Client::builder(TokioExecutor::new()).build(connector);
+        // Opaque, it would read `null`, which any sandboxed page can send as its origin.
+        let origin = (url::Url::parse(&url).ok())
+            .map(|url| url.origin())
+            .filter(url::Origin::is_tuple)
+            .map(|origin| origin.ascii_serialization());
         Ok(Self {
             url,
+            origin,
             transport: ServiceTransport::new(client),
         })
     }
@@ -81,6 +99,11 @@ impl Hub {
     /// The address of the Hub's pages, where a person enters a Server's code.
     pub(super) fn url(&self) -> &str {
         &self.url
+    }
+
+    /// The origin the Hub serves its web app from, such as `https://hub.example`.
+    pub(super) fn origin(&self) -> Option<&str> {
+        self.origin.as_deref()
     }
 
     /// The Hub's API for the Linked Server whose credential is `credential`.
@@ -216,6 +239,125 @@ impl LinkedHub {
             .await
             .map_err(link_dropped)?;
         Ok(got.into_owned().token)
+    }
+
+    /// Posts `batch`, an OTLP/HTTP protobuf export request of `signal`, for the Hub to forward to
+    /// Nama's developers (ADR 0054).
+    pub(super) async fn share(self, signal: Signal, batch: Bytes) -> Result<(), Failure> {
+        let request = Request::post(format!("{}/otlp/{}", self.hub.url, signal.path()))
+            .header(CONTENT_TYPE, OTLP_PROTOBUF)
+            .header(AUTHORIZATION, format!("Bearer {}", self.credential))
+            .body(full_body(batch))?;
+        let status = tokio::time::timeout(TIMEOUT, self.hub.transport.send(request))
+            .await??
+            .status();
+        if !status.is_success() {
+            return Err(format!("the Hub answered {status} for shared Diagnostics").into());
+        }
+        Ok(())
+    }
+
+    /// Starts Linking the User `user_id`, named `name`: `None` if they are Linked already, the
+    /// Hub's one `already_exists`.
+    pub(super) async fn start_user(
+        self,
+        user_id: i64,
+        name: &str,
+    ) -> Result<Option<StartUserLinkResponse>, Failure> {
+        let started = (self.client()?)
+            .start_user_link(StartUserLinkRequest {
+                user_id,
+                name: name.to_owned(),
+                ..Default::default()
+            })
+            .await;
+        match started {
+            Ok(started) => Ok(Some(started.into_owned())),
+            Err(err) if err.code == connectrpc::ErrorCode::AlreadyExists => Ok(None),
+            Err(err) => Err(link_dropped(err)),
+        }
+    }
+
+    /// The email of the Account the User `user_id` is Linked to, empty while they aren't.
+    pub(super) async fn user_account(self, user_id: i64) -> Result<String, Failure> {
+        let got = (self.client()?)
+            .get_user_link(GetUserLinkRequest {
+                user_id,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(got.into_owned().account)
+    }
+
+    /// Unlinks the User `user_id`.
+    pub(super) async fn unlink_user(self, user_id: i64) -> Result<(), Failure> {
+        (self.client()?)
+            .unlink_user(UnlinkUserRequest {
+                user_id,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(())
+    }
+
+    /// Asks the Account with `email`, if any, to accept the User `user_id`, named `name`.
+    pub(super) async fn invite_user(
+        self,
+        user_id: i64,
+        name: &str,
+        email: &str,
+    ) -> Result<(), Failure> {
+        (self.client()?)
+            .invite_user(InviteUserRequest {
+                user_id,
+                name: name.to_owned(),
+                email: email.to_owned(),
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(())
+    }
+
+    /// Starts a sign-in with an Account to the Server, which the Hub's page sends back to
+    /// `return_url`.
+    pub(super) async fn start_sign_in(
+        self,
+        return_url: &str,
+    ) -> Result<StartServerSignInResponse, Failure> {
+        let started = (self.client()?)
+            .start_server_sign_in(StartServerSignInRequest {
+                return_url: return_url.to_owned(),
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(started.into_owned())
+    }
+
+    /// The token naming the User the sign-in polled with `device_code` signs in as, once an
+    /// Account approved it and `code` is the one-time code the Hub sent the person back with;
+    /// `None` before, and for one that expired or was used or a wrong code, the call's one
+    /// `not_found`.
+    pub(super) async fn poll_sign_in(
+        self,
+        device_code: &str,
+        code: &str,
+    ) -> Result<Option<String>, Failure> {
+        let polled = (self.client()?)
+            .poll_server_sign_in(PollServerSignInRequest {
+                device_code: device_code.to_owned(),
+                code: code.to_owned(),
+                ..Default::default()
+            })
+            .await;
+        match polled {
+            Ok(polled) => Ok(Some(polled.into_owned().token).filter(|token| !token.is_empty())),
+            Err(err) if err.code == connectrpc::ErrorCode::NotFound => Ok(None),
+            Err(err) => Err(link_dropped(err)),
+        }
     }
 
     fn client(&self) -> Result<LinkedServerServiceClient<Transport>, Failure> {

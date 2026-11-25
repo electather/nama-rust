@@ -8,6 +8,7 @@ import {
   Fingerprint,
   KeyRound,
   Link,
+  RefreshCw,
   Rows3,
   Send,
   ScanSearch,
@@ -116,6 +117,12 @@ export const points: Partial<Record<ExtensionPoint, Shown & { means: string }>> 
     Icon: Send,
     means:
       "Sends Nama’s developers the Diagnostics and Usage Analytics you share in Settings’ Server section.",
+  },
+  [ExtensionPoint.WATCH_SYNC]: {
+    label: "Watch sync",
+    Icon: RefreshCw,
+    means:
+      "Follows each User’s Watch State to an outside tracker, such as Trakt, and brings changes made there back, for those who link their account in their Personal settings.",
   },
 };
 
