@@ -155,15 +155,39 @@ impl Browse {
         if pulled.is_empty() {
             return Ok(());
         }
+        let taken = self.found_here(pulled).await?;
+        Ok(self.watch_states.take_pulled(user, taken).await?)
+    }
+
+    /// Takes `offline`, the changes the User `user`'s Device made to their Watch State while
+    /// offline, of each Movie or Episode a Library has under any of its ids, in the oldest Library
+    /// that has it, where it is newer than this Server's own (see
+    /// [`crate::library::WatchStates::take_offline`]). One no Library has is left out. Tells
+    /// `WatchStatesChanged` Observers of each change it stored.
+    pub(crate) async fn take_offline(
+        &self,
+        user: i64,
+        offline: Vec<WatchStateChange>,
+    ) -> Result<(), Error> {
+        let taken = self.found_here(offline).await?;
+        self.watch_states.take_offline(user, taken).await?;
+        Ok(())
+    }
+
+    /// Each of `changes` to a Movie or Episode a Library has under any of its ids, with it as the
+    /// oldest Library that has that id knows it.
+    async fn found_here(
+        &self,
+        changes: Vec<WatchStateChange>,
+    ) -> Result<Vec<(WatchedTitle, WatchStateChange)>, Error> {
         let here = self.watched_here().await?;
-        let taken = (pulled.into_iter())
+        Ok((changes.into_iter())
             .filter_map(|change| {
                 let found =
                     (change.ids.iter()).find_map(|id| here.get(&(change.episode, id.clone())))?;
                 Some((found.clone(), change))
             })
-            .collect();
-        Ok(self.watch_states.take_pulled(user, taken).await?)
+            .collect())
     }
 
     /// Every Watch State of the User `user`, as Plugins are told of changes: each known by every

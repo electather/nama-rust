@@ -226,6 +226,9 @@ pub mod __buffa {
         reg.register_json_any(super::__WATCH_STATE_JSON_ANY);
         reg.register_json_any(super::__REPORT_PROGRESS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__REPORT_PROGRESS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__REPORT_OFFLINE_WATCH_STATE_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__OFFLINE_WATCH_STATE_CHANGE_JSON_ANY);
+        reg.register_json_any(super::__REPORT_OFFLINE_WATCH_STATE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_PLAYED_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SHOW_SEASON_JSON_ANY);
         reg.register_json_any(super::__SET_PLAYED_RESPONSE_JSON_ANY);
@@ -1146,6 +1149,18 @@ pub use self::__buffa::view::ReportProgressRequestOwnedView;
 pub use self::__buffa::view::ReportProgressResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::ReportProgressResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReportOfflineWatchStateRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ReportOfflineWatchStateRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::OfflineWatchStateChangeView;
+#[doc(inline)]
+pub use self::__buffa::view::OfflineWatchStateChangeOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ReportOfflineWatchStateResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ReportOfflineWatchStateResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::SetPlayedRequestView;
 #[doc(inline)]

@@ -29,6 +29,19 @@ async fn watch_states(data: &tempfile::TempDir) -> (WatchStates, i64) {
     (watch_states, user)
 }
 
+/// Watch States as [`watch_states`] gives, whose Observers' news the test hears.
+async fn heard_watch_states(
+    data: &tempfile::TempDir,
+) -> (WatchStates, i64, mpsc::UnboundedReceiver<WatchStateChanges>) {
+    let (heard, hearing) = mpsc::unbounded_channel();
+    let plugins = Registry::new();
+    plugins.enable(Arc::new(Hears(heard))).unwrap();
+    let db = Arc::new(Database::open(data.path()).await.unwrap());
+    let watch_states = WatchStates::new(db, plugins.extension_points());
+    let user = another_user(&watch_states, "Ada").await;
+    (watch_states, user, hearing)
+}
+
 /// A Plugin that hands each Watch State change it's told of to the test.
 #[derive(Clone)]
 struct Hears(mpsc::UnboundedSender<WatchStateChanges>);
@@ -449,9 +462,9 @@ async fn each_write_returns_the_watch_state_it_left_under_every_id_preferred_fir
     );
 }
 
-/// Another Server's change to Alien: at `position_ms` of 2000, or played, made `secs_ago`
-/// seconds ago, which may be negative.
-fn pulled(position_ms: u64, played: bool, secs_ago: i64) -> WatchStateChange {
+/// A change to Alien made on another Server, or offline on a Device: at `position_ms` of 2000, or
+/// played, made `secs_ago` seconds ago, which may be negative.
+fn made_elsewhere(position_ms: u64, played: bool, secs_ago: i64) -> WatchStateChange {
     WatchStateChange {
         episode: false,
         ids: vec![alien_imdb().to_string()],
@@ -479,7 +492,7 @@ async fn a_pulled_change_is_taken_only_when_newer_than_the_servers_own_under_any
     .await
     .unwrap();
 
-    let older = pulled(500, false, 60);
+    let older = made_elsewhere(500, false, 60);
     (watch_states.take_pulled(user, vec![(alien_by_both_ids(), older)]))
         .await
         .unwrap();
@@ -489,7 +502,7 @@ async fn a_pulled_change_is_taken_only_when_newer_than_the_servers_own_under_any
     assert_eq!(own.position_ms, 1_000);
     assert_eq!(movie_state(&watch_states, user, alien_id()).await, None);
 
-    let newer = pulled(1_500, false, -60);
+    let newer = made_elsewhere(1_500, false, -60);
     (watch_states.take_pulled(user, vec![(alien_by_both_ids(), newer.clone())]))
         .await
         .unwrap();
@@ -505,7 +518,7 @@ async fn a_pulled_change_marked_played_on_another_server_stays_played_here() {
     let data = tempfile::tempdir().unwrap();
     let (watch_states, user) = watch_states(&data).await;
 
-    let played = pulled(0, true, 60);
+    let played = made_elsewhere(0, true, 60);
     (watch_states.take_pulled(user, vec![(alien_by_both_ids(), played)]))
         .await
         .unwrap();
@@ -524,7 +537,7 @@ async fn a_newer_pulled_change_marking_it_unplayed_forgets_it_under_every_id() {
         .await
         .unwrap();
 
-    let unplayed = pulled(0, false, -60);
+    let unplayed = made_elsewhere(0, false, -60);
     (watch_states.take_pulled(user, vec![(alien_by_both_ids(), unplayed)]))
         .await
         .unwrap();
@@ -536,10 +549,10 @@ async fn a_newer_pulled_change_marking_it_unplayed_forgets_it_under_every_id() {
 async fn of_a_titles_pulled_changes_under_several_ids_only_the_newest_is_taken_in_any_order() {
     let data = tempfile::tempdir().unwrap();
     let (watch_states, user) = watch_states(&data).await;
-    let played_earlier = pulled(0, true, 120);
+    let played_earlier = made_elsewhere(0, true, 120);
     let unplayed_later = WatchStateChange {
         ids: vec![alien_id().to_string()],
-        ..pulled(0, false, 60)
+        ..made_elsewhere(0, false, 60)
     };
 
     for pulled in [
@@ -560,12 +573,7 @@ async fn of_a_titles_pulled_changes_under_several_ids_only_the_newest_is_taken_i
 #[tokio::test]
 async fn a_change_whose_caller_stops_waiting_is_still_stored_and_told() {
     let data = tempfile::tempdir().unwrap();
-    let (heard, mut hearing) = mpsc::unbounded_channel();
-    let plugins = Registry::new();
-    plugins.enable(Arc::new(Hears(heard))).unwrap();
-    let db = Arc::new(Database::open(data.path()).await.unwrap());
-    let watch_states = WatchStates::new(db, plugins.extension_points());
-    let user = another_user(&watch_states, "Ada").await;
+    let (watch_states, user, mut hearing) = heard_watch_states(&data).await;
 
     // Polled once, which sends the write on its way, then dropped, as when a client hangs up
     // (ADR 0029).
@@ -581,4 +589,129 @@ async fn a_change_whose_caller_stops_waiting_is_still_stored_and_told() {
     assert_eq!((told.user_id, told.changes[0].played), (user, true));
     let stored = movie_state(&watch_states, user, alien_id()).await;
     assert!(stored.is_some_and(|state| state.played));
+}
+
+/// Where Alien stands for `user`: its position and when it last changed, in milliseconds.
+async fn alien_at(watch_states: &WatchStates, user: i64) -> (i64, i64) {
+    let state = movie_state(watch_states, user, alien_id()).await.unwrap();
+    (state.position_ms, state.updated_at * 1000)
+}
+
+#[tokio::test]
+async fn an_offline_change_is_stored_with_its_own_time_only_when_newer_than_the_stored_one() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user) = watch_states(&data).await;
+    let stored = made_elsewhere(1_000, false, 120);
+    (watch_states.take_offline(user, vec![(alien_by_both_ids(), stored.clone())]))
+        .await
+        .unwrap();
+    let stored_at = alien_at(&watch_states, user).await;
+
+    let older = made_elsewhere(500, false, 180);
+    let same_second = WatchStateChange {
+        changed_at_ms: stored_at.1 + 999,
+        ..made_elsewhere(700, false, 0)
+    };
+    let newer = made_elsewhere(1_500, false, 60);
+    for ignored in [older, same_second] {
+        (watch_states.take_offline(user, vec![(alien_by_both_ids(), ignored)]))
+            .await
+            .unwrap();
+        assert_eq!(alien_at(&watch_states, user).await, stored_at);
+    }
+    (watch_states.take_offline(user, vec![(alien_by_both_ids(), newer.clone())]))
+        .await
+        .unwrap();
+
+    assert_eq!(stored_at, (1_000, stored.changed_at_ms));
+    assert_eq!(
+        alien_at(&watch_states, user).await,
+        (1_500, newer.changed_at_ms)
+    );
+}
+
+#[tokio::test]
+async fn a_newer_offline_change_to_a_played_movie_keeps_it_played() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user) = watch_states(&data).await;
+    let played = made_elsewhere(1_950, true, 120);
+    let rewound = made_elsewhere(500, false, 60);
+
+    for change in [played, rewound] {
+        (watch_states.take_offline(user, vec![(alien_by_both_ids(), change)]))
+            .await
+            .unwrap();
+    }
+
+    let state = movie_state(&watch_states, user, alien_id()).await.unwrap();
+    assert_eq!((state.played, state.position_ms), (true, 500));
+}
+
+#[tokio::test]
+async fn observers_hear_each_offline_change_stored_and_none_ignored() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user, mut hearing) = heard_watch_states(&data).await;
+    let mut hear = async || {
+        let told = tokio::time::timeout(Duration::from_secs(5), hearing.recv()).await;
+        told.expect("no Observer was told").unwrap().changes
+    };
+    let stored = made_elsewhere(1_000, false, 120);
+    let older = made_elsewhere(500, false, 180);
+    let newer = made_elsewhere(1_500, false, 60);
+
+    (watch_states.take_offline(user, vec![(alien_by_both_ids(), stored)]))
+        .await
+        .unwrap();
+    let told_stored = hear().await;
+    let ignored = (watch_states.take_offline(user, vec![(alien_by_both_ids(), older)]))
+        .await
+        .unwrap();
+    (watch_states.take_offline(user, vec![(alien_by_both_ids(), newer.clone())]))
+        .await
+        .unwrap();
+    let told_newer = hear().await;
+
+    assert_eq!(told_stored.len(), 1);
+    assert_eq!(ignored, []);
+    let [told] = told_newer.as_slice() else {
+        panic!("{told_newer:?}")
+    };
+    assert_eq!(told.ids, ["tmdb-348", "imdb-tt0078748"]);
+    assert_eq!(
+        (told.position_ms, told.changed_at_ms),
+        (1_500, newer.changed_at_ms)
+    );
+}
+
+#[tokio::test]
+async fn an_offline_change_dated_in_the_future_is_taken_as_made_now() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user) = watch_states(&data).await;
+    let from_the_future = made_elsewhere(1_500, false, -3_600);
+
+    let taken = (watch_states.take_offline(user, vec![(alien_by_both_ids(), from_the_future)]))
+        .await
+        .unwrap();
+
+    let after = db::now_ms();
+    assert!(taken[0].changed_at_ms <= after, "{taken:?} after {after}");
+    assert!(alien_at(&watch_states, user).await.1 <= after);
+}
+
+#[tokio::test]
+async fn offline_changes_sent_out_of_order_are_taken_in_the_order_they_were_made() {
+    let data = tempfile::tempdir().unwrap();
+    let (watch_states, user) = watch_states(&data).await;
+    let played = made_elsewhere(1_950, true, 120);
+    let rewound = made_elsewhere(500, false, 60);
+
+    let sent = [rewound.clone(), played].map(|change| (alien_by_both_ids(), change));
+    let taken = watch_states.take_offline(user, sent.into()).await.unwrap();
+
+    assert_eq!(taken.len(), 2);
+    let state = movie_state(&watch_states, user, alien_id()).await.unwrap();
+    assert_eq!(
+        (state.played, state.position_ms, state.updated_at * 1000),
+        (true, 500, rewound.changed_at_ms)
+    );
 }
