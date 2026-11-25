@@ -2755,6 +2755,7 @@ dependencies = [
 name = "nama-server"
 version = "0.2.0"
 dependencies = [
+ "argon2",
  "axum",
  "base64 0.23.1",
  "buffa",

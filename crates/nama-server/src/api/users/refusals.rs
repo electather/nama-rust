@@ -30,6 +30,10 @@ impl From<users::Error> for ConnectError {
             users::Error::PasswordRejected { field, .. } => {
                 refuse(R::REFUSAL_REASON_PASSWORD_REJECTED, message).field(field)
             }
+            users::Error::SwitchPinInvalid => refuse(R::REFUSAL_REASON_SWITCH_PIN_INVALID, message)
+                .field("switch_pin")
+                .param("minLength", users::SWITCH_PIN_LENGTH.start())
+                .param("maxLength", users::SWITCH_PIN_LENGTH.end()),
             // Only creating a User or setting up the first one takes a name to check.
             users::Error::NameTaken => {
                 refuse(R::REFUSAL_REASON_USER_NAME_TAKEN, message).field("name")
@@ -79,6 +83,7 @@ impl From<users::Error> for ConnectError {
             }
             users::Error::NoAuthenticator
             | users::Error::Authenticator(_)
+            | users::Error::SwitchPinHashing(_)
             | users::Error::Random(_) => {
                 tracing::error!("a change to the Users failed: {err}");
                 return Self::internal("the Server failed");
