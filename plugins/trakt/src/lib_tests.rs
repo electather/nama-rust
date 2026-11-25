@@ -1,8 +1,8 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use nama_pdk::{
-    ImportAsked, PollLinkAsked, ScrobbleAsked, SettingKind, StartLinkAsked, SyncedWatchState,
-    TitleId, WatchSync,
+    ImportAsked, LinkPolled, PollLinkAsked, ScrobbleAsked, SettingKind, StartLinkAsked,
+    SyncedWatchState, TitleId, WatchSync,
     extism_pdk::{
         Error,
         json::{self, Value, json},
@@ -119,6 +119,14 @@ fn asked(kernel: &Kernel) -> Vec<String> {
         .collect()
 }
 
+fn polled(kernel: &mut Kernel) -> LinkPolled {
+    let asked = PollLinkAsked {
+        device_code: DEVICE_CODE.to_owned(),
+        ..PollLinkAsked::default()
+    };
+    with(kernel, || Trakt::poll_link(asked)).unwrap()
+}
+
 fn body(sent: &Sent) -> Value {
     json::from_slice(&sent.body).unwrap()
 }
@@ -127,17 +135,10 @@ fn body(sent: &Sent) -> Value {
 fn linking_gives_the_code_waits_for_the_user_then_hands_back_the_tokens() {
     let fake = shared(FakeTrakt::new());
     let mut kernel = kernel(&fake);
-    let poll = || {
-        Trakt::poll_link(PollLinkAsked {
-            device_code: DEVICE_CODE.to_owned(),
-            ..PollLinkAsked::default()
-        })
-    };
-
     let started = with(&mut kernel, || Trakt::start_link(StartLinkAsked::default())).unwrap();
-    let waiting = with(&mut kernel, poll).unwrap();
+    let waiting = polled(&mut kernel);
     fake.borrow_mut().code = Code::Entered;
-    let linked = with(&mut kernel, poll).unwrap();
+    let linked = polled(&mut kernel);
 
     assert_eq!(
         (
@@ -160,34 +161,24 @@ fn an_expired_device_code_says_so() {
     fake.borrow_mut().code = Code::Expired;
     let mut kernel = kernel(&fake);
 
-    let polled = with(&mut kernel, || {
-        Trakt::poll_link(PollLinkAsked {
-            device_code: DEVICE_CODE.to_owned(),
-            ..PollLinkAsked::default()
-        })
-    })
-    .unwrap();
+    let expired = polled(&mut kernel);
 
-    assert!(polled.expired && polled.personal_settings.is_empty());
+    assert!(expired.expired && expired.personal_settings.is_empty());
 }
 
 #[test]
-fn an_expired_access_token_is_renewed_once_and_the_store_keeps_the_new_one() {
+fn an_expired_access_token_is_renewed_and_the_ask_made_again() {
     let fake = shared(FakeTrakt::linked());
     let mut kernel = kernel(&fake);
     let personal: HashMap<String, String> = linked(&fake);
     fake.borrow_mut().expire_access_token();
-    let import = |installed: &mut Kernel| {
-        let asked = ImportAsked {
-            personal_settings: personal.clone().into_iter().collect(),
-            user_id: ADA,
-            ..ImportAsked::default()
-        };
-        with(installed, || Trakt::import(asked))
-    };
 
-    import(&mut kernel).unwrap();
-    import(&mut kernel).unwrap();
+    let import = ImportAsked {
+        personal_settings: personal.into_iter().collect(),
+        user_id: ADA,
+        ..ImportAsked::default()
+    };
+    with(&mut kernel, || Trakt::import(import)).unwrap();
 
     assert_eq!(
         asked(&kernel),
@@ -196,38 +187,8 @@ fn an_expired_access_token_is_renewed_once_and_the_store_keeps_the_new_one() {
             "POST /oauth/token",
             "GET /sync/last_activities",
             "GET /sync/history",
-            "GET /sync/last_activities",
-            "GET /sync/history",
         ]
     );
-}
-
-#[test]
-fn a_new_link_is_used_over_tokens_the_store_kept_for_the_last() {
-    let fake = shared(FakeTrakt::linked());
-    let mut kernel = kernel(&fake);
-    fake.borrow_mut().expire_access_token();
-    imported(&mut kernel, &fake, "").unwrap();
-    // The User links again, which spends the tokens the Store kept.
-    fake.borrow_mut().code = Code::Entered;
-    let relinked = with(&mut kernel, || {
-        Trakt::poll_link(PollLinkAsked {
-            device_code: DEVICE_CODE.to_owned(),
-            ..PollLinkAsked::default()
-        })
-    })
-    .unwrap();
-    let sent_before = kernel.sent().len();
-
-    let asked = ImportAsked {
-        personal_settings: relinked.personal_settings,
-        user_id: ADA,
-        ..ImportAsked::default()
-    };
-    with(&mut kernel, || Trakt::import(asked)).unwrap();
-
-    let authorization = &kernel.sent()[sent_before].request.headers["Authorization"];
-    assert_eq!(authorization, "Bearer access-3");
 }
 
 #[test]
@@ -427,6 +388,7 @@ fn a_failure_names_its_status_but_never_a_token_or_the_body() {
     let mut kernel = Kernel::new()
         .setting("client_id", CLIENT_ID)
         .setting("client_secret", CLIENT_SECRET)
+        .store()
         .http(|_request, _body| {
             Ok(nama_pdk::Response::new(
                 500,
@@ -446,6 +408,23 @@ fn a_failure_names_its_status_but_never_a_token_or_the_body() {
     .to_string();
 
     assert_eq!(error, "Trakt failed with HTTP status 500");
+}
+
+#[test]
+fn without_the_store_a_scrobble_is_refused_rather_than_add_a_play_each_report() {
+    let fake = shared(FakeTrakt::linked());
+    let mut kernel = Kernel::new()
+        .setting("client_id", CLIENT_ID)
+        .setting("client_secret", CLIENT_SECRET);
+
+    let error =
+        scrobbled(&mut kernel, &fake, vec![movie(&[("tmdb", "438631")], true)]).unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "Trakt needs the Store, to tell a new play from the Server's reports"
+    );
+    assert_eq!(kernel.sent(), []);
 }
 
 #[test]

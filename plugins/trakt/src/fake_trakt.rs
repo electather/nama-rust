@@ -26,6 +26,7 @@ pub(super) enum Code {
     Waiting,
     /// The User entered it, so polling it links their account.
     Entered,
+    /// It ran out before the User entered it.
     Expired,
 }
 
