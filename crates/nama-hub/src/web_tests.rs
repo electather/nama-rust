@@ -38,12 +38,7 @@ fn linked_asset(extension: &str) -> &'static str {
 
 #[tokio::test]
 async fn the_app_s_text_is_compressed_for_a_browser_that_accepts_it() {
-    let paths = [
-        "/",
-        "/accounts/sign-in",
-        linked_asset("js"),
-        linked_asset("css"),
-    ];
+    let paths = ["/", "/sign-in", linked_asset("js"), linked_asset("css")];
     for encoding in ["br", "gzip"] {
         for path in paths {
             let response = get(path, &[encoding]).await;
@@ -84,7 +79,7 @@ async fn the_app_is_sent_as_built_to_a_client_that_accepts_no_encoding() {
 
 #[tokio::test]
 async fn a_font_is_sent_as_it_is() {
-    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/hub/dist/assets");
+    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/assets");
     let font = fs::read_dir(assets)
         .unwrap()
         .map(|entry| entry.unwrap().file_name().into_string().unwrap())
@@ -108,4 +103,32 @@ async fn hashed_assets_are_cached_for_good_and_the_shell_is_not() {
         "public, max-age=31536000, immutable"
     );
     assert!(!shell_response.headers().contains_key(header::CACHE_CONTROL));
+}
+
+/// `WebAssembly.instantiateStreaming` refuses the ASS renderer's wasm under any other type, and
+/// Chrome the manifest that installs the app.
+#[tokio::test]
+async fn the_app_s_webassembly_and_manifest_are_served_as_such() {
+    let assets = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/dist/assets");
+    let wasm = fs::read_dir(assets)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .find(|name| Path::new(name).extension().is_some_and(|e| e == "wasm"))
+        .unwrap();
+
+    for (path, content_type) in [
+        (format!("/assets/{wasm}"), "application/wasm"),
+        (
+            "/manifest.webmanifest".to_owned(),
+            "application/manifest+json",
+        ),
+    ] {
+        let response = get(&path, &[]).await;
+
+        assert_eq!(
+            response.headers()[header::CONTENT_TYPE],
+            content_type,
+            "{path}"
+        );
+    }
 }
