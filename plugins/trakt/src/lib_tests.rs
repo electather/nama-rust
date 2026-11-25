@@ -298,6 +298,40 @@ fn a_title_marked_unplayed_leaves_the_history_and_a_later_play_is_added_again() 
 }
 
 #[test]
+fn a_failed_removal_still_keeps_the_play_added_beside_it() {
+    let fake = shared(FakeTrakt::linked());
+    let answering = Rc::clone(&fake);
+    let mut kernel = Kernel::new()
+        .setting("client_id", CLIENT_ID)
+        .setting("client_secret", CLIENT_SECRET)
+        .store()
+        .http(move |request, body| {
+            if request.url.ends_with("/sync/history/remove") {
+                return Ok(nama_pdk::Response::new(500, ""));
+            }
+            Ok(answering.borrow_mut().answer(request, body))
+        });
+    let dune = &[("tmdb", "438631")];
+    let reported_again = SyncedWatchState {
+        changed_at_ms: EVENING_MS + 10_000,
+        ..movie(dune, true)
+    };
+
+    let failed = scrobbled(
+        &mut kernel,
+        &fake,
+        vec![movie(dune, true), movie(&[("tmdb", "329865")], false)],
+    );
+    scrobbled(&mut kernel, &fake, vec![reported_again]).unwrap();
+
+    assert!(failed.is_err());
+    assert_eq!(
+        asked(&kernel),
+        ["POST /sync/history", "POST /sync/history/remove"]
+    );
+}
+
+#[test]
 fn the_first_import_brings_the_whole_history_page_by_page_and_later_ones_what_changed_since() {
     let fake = shared(FakeTrakt::linked());
     let mut kernel = kernel(&fake);

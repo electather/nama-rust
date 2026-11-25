@@ -119,19 +119,22 @@ impl WatchSync for Trakt {
         let mut plays = Plays::kept(asked.user_id)?;
         let (mut watched, mut unwatched) = (History::default(), History::default());
         for change in &asked.changes {
-            // The contract's mark of a title marked unplayed; any other unplayed change is a
+            // The contract marks a title unplayed at 0 of 0; any other unplayed change is a
             // position report.
-            let forgotten = !change.played && change.position_ms == 0 && change.duration_ms == 0;
+            let marked_unplayed =
+                !change.played && change.position_ms == 0 && change.duration_ms == 0;
             if change.played && plays.is_new(change) {
                 watched.add(change, rfc3339(change.changed_at_ms));
-            } else if forgotten {
+            } else if marked_unplayed {
                 plays.forget(change);
                 unwatched.add(change, None);
             }
         }
         account.post_history("/sync/history", &watched)?;
-        account.post_history("/sync/history/remove", &unwatched)?;
+        // Kept before removing, so a failed removal doesn't make the next report add the plays
+        // just added again.
         plays.keep(asked.user_id)?;
+        account.post_history("/sync/history/remove", &unwatched)?;
         Ok(Scrobbled::default())
     }
 
@@ -259,7 +262,7 @@ impl Account {
     }
 
     /// Trades the refresh token for new tokens, for the rest of the call.
-    // shortcut: the renewed tokens die with the call, as the contract can't hand them back for the
+    // ponytail: the renewed tokens die with the call, as the contract can't hand them back for the
     // Kernel to keep (ADR 0046), so the next renewal offers a spent refresh token and the User
     // links again; keep them once #2308 adds that.
     fn refresh(&mut self) -> Result<(), Error> {
