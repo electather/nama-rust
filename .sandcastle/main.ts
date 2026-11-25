@@ -20,7 +20,7 @@ import { slotPool } from "./slots.ts";
 import { HOLD_MS, heldBy, STARVED, type StaleRecord } from "./starve.ts";
 import { recorder, type Outcome, type Stage, type Waiting } from "./status.ts";
 import { sweepLeftovers } from "./sweep.ts";
-import { githubBadCredentials, githubServerError } from "./transient.ts";
+import { githubBadCredentials, githubUnavailable } from "./transient.ts";
 
 const MAX_ISSUES = Number(process.env.MAX_ISSUES ?? 60); // issues started per run; MAX_ISSUES=1 → one issue, then stop
 const MAX_PARALLEL = Number(process.env.MAX_PARALLEL ?? 2); // issues built at once
@@ -141,7 +141,7 @@ const ghWait = async () => {
   while (Date.now() < ghResetsAt) await sleep(60_000);
 };
 
-// A loop's listing that GitHub fails with a 5xx or a one-off 401 (see transient.ts) is one missed pass, not a
+// A loop's listing that GitHub fails with a 5xx, a network failure or a one-off 401 (see transient.ts) is one missed pass, not a
 // crash: one such 401 stopped the babysit loop for the rest of a run, so three new PRs sat unbabysat and the run
 // exited 1 into the supervisor's hour-long wait. LIST_RETRIES failures in a row, such as a token that's really
 // revoked, still crash the run as before.
@@ -152,7 +152,7 @@ function listingRetries(what: string) {
     ok: () => { failures = 0; },
     // Whether the loop tries again on its next pass (a minute away), rather than crashing.
     retry(e: unknown): boolean {
-      if (!(githubServerError(e) || githubBadCredentials(e)) || ++failures > LIST_RETRIES) return false;
+      if (!(githubUnavailable(e) || githubBadCredentials(e)) || ++failures > LIST_RETRIES) return false;
       log(`↻ ${what} failed (${failures}/${LIST_RETRIES} in a row), trying again next pass: ${oneLine(e)}`);
       return true;
     },
@@ -1473,7 +1473,7 @@ async function track(issue: Issue, loop: Loop, claimRef: string, work: () => Pro
       log(`⏸ #${issue.number} ${why}: taken again after the reset`);
       outcome = "interrupted";
       finish(issue, outcome, why);
-    } else if (oneIssueTimedOut(e) || githubServerError(e)) {
+    } else if (oneIssueTimedOut(e) || githubUnavailable(e)) {
       // `taken` keeps it out of this run; the next run builds or babysits it again.
       const why = `crashed at ${stageOf.get(issue.number)?.stage ?? "start"}: ${oneLine(e)}`;
       appendFileSync(`${LOGS}/crash-issue-${issue.number}.log`, `${new Date().toISOString()} ${RUN}\n${inspect(e)}\n\n`);
