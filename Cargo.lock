@@ -2708,6 +2708,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nama-plugin-trakt"
+version = "0.1.0"
+dependencies = [
+ "jiff",
+ "nama-pdk",
+ "serde",
+]
+
+[[package]]
 name = "nama-plugin-tvdb"
 version = "0.1.0"
 dependencies = [
