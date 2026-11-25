@@ -23,15 +23,16 @@ use nama_plugin_api::{
     search_source::SearchSource,
 };
 use nama_proto::nama::v1::{
-    Hits, Permission, RequestServiceClient, SearchRequest, SearchResponse, SearchServiceClient,
-    TitleKind, TitleStatus, hit, search_response::Part,
+    Hits, LibraryAccess, Permission, RequestServiceClient, SearchRequest, SearchResponse,
+    SearchServiceClient, SetLibraryAccessRequest, TitleKind, TitleStatus, UserServiceClient, hit,
+    search_response::Part,
 };
 use nama_server::plugins::Registry;
 use server::{
     TestServer,
     requests::Requester,
     search::search,
-    tmdb::{ALIEN_IMDB, DUNE, HEAT, THE_OFFICE},
+    tmdb::{ALIEN, ALIEN_IMDB, DUNE, HEAT, THE_OFFICE},
 };
 
 /// Aliens, which the fake TMDB finds for "Alien".
@@ -237,6 +238,42 @@ async fn a_search_sources_titles_are_available_requested_or_not_on_this_server_b
     assert_eq!(movies[2].id.namespace, "tmdb");
     assert_eq!(movies[2].id.value, DUNE.to_string());
     assert!(done.failed_search_sources.is_empty(), "{done:?}");
+}
+
+#[tokio::test]
+async fn a_search_sources_title_only_a_hidden_library_has_is_neither_shown_nor_requestable() {
+    let dreams = FakeSource::new(
+        "dreams",
+        Answer::Titles(vec![
+            movie(&[("tmdb", &ALIEN.to_string())], "Alien, by its meaning"),
+            movie(&[("tmdb", &DUNE.to_string())], "Dune, by its meaning"),
+        ]),
+    );
+    let fx = start(&[&dreams]).await;
+    let ada = fx.server.user("Ada", &[Permission::RequestMovie]).await;
+    let users = UserServiceClient::new(HttpClient::plaintext(), fx.server.client_config());
+    let no_library = SetLibraryAccessRequest {
+        user_id: ada.id,
+        library_access: LibraryAccess::default().into(),
+        ..Default::default()
+    };
+    users.set_library_access(no_library).await.unwrap();
+
+    let parts = search(
+        &ada.client_config(),
+        NO_TITLE_MATCHES,
+        TitleKind::TITLE_KIND_MOVIE,
+    )
+    .await
+    .unwrap();
+
+    let [_, _, Part::Hits(from_dreams), Part::Done(_)] = &parts[..] else {
+        panic!("the Libraries', the title source's, the Search source's, then Done: {parts:?}");
+    };
+    assert_eq!(
+        titles_and_statuses(from_dreams),
+        [("Dune, by its meaning", NOT_ON_THIS_SERVER.into())]
+    );
 }
 
 #[tokio::test]

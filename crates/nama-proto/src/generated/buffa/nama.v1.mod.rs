@@ -413,6 +413,7 @@ pub mod __buffa {
         reg.register_json_any(super::__HOME_LAYOUT_JSON_ANY);
         reg.register_json_any(super::__HOME_LAYOUT_ROW_JSON_ANY);
         reg.register_json_any(super::__USER_JSON_ANY);
+        reg.register_json_any(super::__LIBRARY_ACCESS_JSON_ANY);
         reg.register_json_any(super::__DEVICE_JSON_ANY);
         reg.register_json_any(super::__SETUP_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SETUP_RESPONSE_JSON_ANY);
@@ -455,6 +456,8 @@ pub mod __buffa {
         reg.register_json_any(super::__LIST_USERS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SET_PERMISSIONS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SET_PERMISSIONS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_LIBRARY_ACCESS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_LIBRARY_ACCESS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__DELETE_USER_REQUEST_JSON_ANY);
         reg.register_json_any(super::__DELETE_USER_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_DEVICES_REQUEST_JSON_ANY);
@@ -1862,6 +1865,10 @@ pub use self::__buffa::view::UserView;
 #[doc(inline)]
 pub use self::__buffa::view::UserOwnedView;
 #[doc(inline)]
+pub use self::__buffa::view::LibraryAccessView;
+#[doc(inline)]
+pub use self::__buffa::view::LibraryAccessOwnedView;
+#[doc(inline)]
 pub use self::__buffa::view::DeviceView;
 #[doc(inline)]
 pub use self::__buffa::view::DeviceOwnedView;
@@ -2029,6 +2036,14 @@ pub use self::__buffa::view::SetPermissionsRequestOwnedView;
 pub use self::__buffa::view::SetPermissionsResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SetPermissionsResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetLibraryAccessRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetLibraryAccessRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetLibraryAccessResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetLibraryAccessResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::DeleteUserRequestView;
 #[doc(inline)]
