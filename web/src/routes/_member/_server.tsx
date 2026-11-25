@@ -1,9 +1,9 @@
 import { TransportProvider } from "@connectrpc/connect-query";
-import { Outlet, createFileRoute, retainSearchParams } from "@tanstack/react-router";
+import { createFileRoute, notFound, retainSearchParams } from "@tanstack/react-router";
 
+import { ServerLayout } from "@/app/server-layout";
 import { serverToBrowse } from "@/features/servers/data/server-to-browse";
 import { idParam } from "@/features/settings/lib/sections";
-import { ConfirmItsYou } from "@/shared/components/confirm-its-you/confirm-its-you";
 
 interface ServerSearch {
   server?: string | undefined;
@@ -20,10 +20,14 @@ export const Route = createFileRoute("/_member/_server")({
   search: { middlewares: [retainSearchParams(["server"])] },
   beforeLoad: ({ context, search }) => {
     const { account } = context;
-    if (account && search.server !== undefined) {
-      return serverToBrowse({ ...context, account }, search.server);
+    if (!account) {
+      return {};
     }
-    return {};
+    // The Hub has no content of its own to show on a Server's page.
+    if (search.server === undefined) {
+      throw notFound();
+    }
+    return serverToBrowse({ ...context, account }, search.server);
   },
   component: ServerPages,
 });
@@ -32,14 +36,7 @@ function ServerPages() {
   const { transport, account } = Route.useRouteContext();
   return (
     <TransportProvider transport={transport}>
-      {/* A Server's own pages have theirs in `MemberLayout`; the Hub's have none. */}
-      {account ? (
-        <ConfirmItsYou>
-          <Outlet />
-        </ConfirmItsYou>
-      ) : (
-        <Outlet />
-      )}
+      <ServerLayout atHub={account !== null} />
     </TransportProvider>
   );
 }

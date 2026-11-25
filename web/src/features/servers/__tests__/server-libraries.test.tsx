@@ -21,6 +21,7 @@ afterEach(() => {
   cleanup();
   localStorage.clear();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 const basement = create(LinkedServerSchema, {
@@ -194,4 +195,31 @@ test("coming back to the Hub signs in to a Server with the session it kept, not 
   const again = await serverNamed("Cabin");
   await expect(again.findByRole("link", { name: "Films" })).resolves.toBeDefined();
   expect(served.trades).toStrictEqual(["hub-token-cabin"]);
+});
+
+test("on the Hub's HTTPS page, a Server with only a plain-HTTP address links to its own web app", async () => {
+  vi.spyOn(globalThis.location, "protocol", "get").mockReturnValue("https:");
+  const lan = create(LinkedServerSchema, {
+    id: "lan",
+    name: "Lan",
+    addresses: ["http://192.168.1.20:8096"],
+  });
+  openHub({}, [lan]);
+
+  const lanItem = await serverNamed("Lan");
+  const open = await lanItem.findByRole("link", { name: "Open this Server" });
+  expect(open.getAttribute("href")).toBe("http://192.168.1.20:8096");
+});
+
+test("signing the Account out forgets its sessions on its Servers", async () => {
+  const served: Served = { trades: [] };
+  const at = { "https://cabin.example": fakeServerAt("https://cabin.example", "0.3.0", served) };
+  openHub(at, [cabin]);
+  const cabinItem = await serverNamed("Cabin");
+  await cabinItem.findByRole("link", { name: "Films" });
+
+  fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+
+  await screen.findByRole("heading", { name: "Sign in to the Hub" });
+  expect(localStorage.getItem("nama:server-session:v1:0192-ada:cabin")).toBeNull();
 });

@@ -3,6 +3,7 @@ import { callUnaryMethod } from "@connectrpc/connect-query";
 import { queryOptions } from "@tanstack/react-query";
 
 import { isBelowMinimumVersion } from "@/features/servers/lib/minimum-version";
+import { serverSessionKey } from "@/features/servers/lib/server-sessions";
 import { type LinkedServer, LinkService } from "@/gen/nama/hub/v1/link_pb";
 import { RefusalReason, RefusalSchema } from "@/gen/nama/hub/v1/refusal_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
@@ -14,10 +15,16 @@ import type { ServerAt } from "@/shared/lib/server";
 /** What the page at the Hub can do with one of the Account's Servers. */
 type ServerReach =
   | { kind: "signed-in"; transport: Transport; signedIn: WhoAmIResponse }
-  /** The Server is older than the page needs, so it opens in its own web app. */
-  | { kind: "outdated" }
+  /** The page can't browse the Server, so it opens in its own web app instead. */
+  | { kind: "opens-alone"; why: OpensAloneWhy }
   /** The Account owns the Server but has no User on it, so there's nothing to browse. */
   | { kind: "no-user" };
+
+/**
+ * Why a Server opens in its own web app: it's older than the page needs, or it has no HTTPS
+ * address the page may call.
+ */
+export type OpensAloneWhy = "outdated" | "plain-http";
 
 /** What the page at the Hub `hub` needs to reach one of the signed-in Account's Servers. */
 export interface ServerToReach {
@@ -53,13 +60,13 @@ async function reachServer(reach: ServerToReach): Promise<ServerReach> {
     throw new ConnectError("the Server has no address", Code.Unavailable);
   }
   const open = reach.serverAt(origin, []);
-  if (await isOutdated(open, origin)) {
-    return { kind: "outdated" };
+  const why = await whyItOpensAlone(open, origin);
+  if (why !== undefined) {
+    return { kind: "opens-alone", why };
   }
-  // The Account is in the key, so another Account signed in here later never gets its session.
-  const storageKey = `nama:server-session:v1:${reach.accountId}:${reach.server.id}`;
+  const storageKey = serverSessionKey(reach.accountId, reach.server.id);
   const signInWith = async (token: string) => {
-    const signedIn = await signedInWith(reach.serverAt(origin, [bearer(token)]));
+    const signedIn = await whoIsSignedInAt(reach.serverAt(origin, [bearer(token)]));
     return signedIn;
   };
   // A Device revoked on the Server, or a session it forgot, is traded for a new one.
@@ -72,6 +79,16 @@ async function reachServer(reach: ServerToReach): Promise<ServerReach> {
       return signedIn;
     }))
   );
+}
+
+/** Why the Server `open` reaches at `origin` opens in its own web app, if it does. */
+async function whyItOpensAlone(open: Transport, origin: string) {
+  // A browser blocks an HTTPS page's calls to plain HTTP, until the Server has a certificate
+  // (ADR 0057, 0105).
+  if (origin.startsWith("http:") && globalThis.location.protocol === "https:") {
+    return "plain-http";
+  }
+  return (await isOutdated(open, origin)) ? "outdated" : undefined;
 }
 
 /**
@@ -151,7 +168,7 @@ async function tokenFromHub(hub: Transport, linkedServerId: string) {
 }
 
 /** Who `transport` is signed in as, or `null` when the Server refuses its session. */
-async function signedInWith(transport: Transport) {
+async function whoIsSignedInAt(transport: Transport) {
   try {
     const signedIn = await callUnaryMethod(transport, SignInService.method.whoAmI, {});
     return { kind: "signed-in", transport, signedIn } as const;
