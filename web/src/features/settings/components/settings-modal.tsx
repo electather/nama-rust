@@ -1,16 +1,10 @@
 import { type KeyboardEvent, useId, useLayoutEffect, useRef } from "react";
 
-import { SettingsHeader } from "@/features/settings/components/settings-header";
-import { SettingsPane } from "@/features/settings/components/settings-pane";
-import { SettingsSide } from "@/features/settings/components/settings-side";
+import { HubSettings } from "@/features/settings/components/hub-settings";
+import { SettingsBody } from "@/features/settings/components/settings-body";
 import { useCloseSettings } from "@/features/settings/hooks/use-close-settings";
 import { phoneWidth } from "@/features/settings/lib/phone-width";
-import {
-  type Section,
-  groupsFor,
-  openSection,
-  sectionTitles,
-} from "@/features/settings/lib/sections";
+import { type Section, groupsFor } from "@/features/settings/lib/sections";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 
 /** A field of another kind, such as a checkbox, loses nothing to Escape. */
@@ -44,9 +38,9 @@ function keepTypedText(event: KeyboardEvent<HTMLDialogElement>) {
 }
 
 /**
- * Settings, over the page it was opened on: the sections `user` may open, or `atHub` the Account's,
- * beside the pane of the one `section` asks for. It opens as it mounts, and its owner unmounts it
- * once the address stops asking for it.
+ * Settings, over the page it was opened on: the sections `user` may open, or `atHub` the Account's
+ * and those of the Server it picks, beside the pane of the one `section` asks for. It opens as it
+ * mounts, and its owner unmounts it once the address stops asking for it.
  */
 export function SettingsModal({
   section,
@@ -60,8 +54,7 @@ export function SettingsModal({
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const close = useCloseSettings();
-  const groups = groupsFor(user, atHub);
-  const shown = openSection(groups, section);
+  const header = { titleId, onClose: close };
   // A layout effect, so its cleanup closes the dialog while it's still in the page: only then does
   // the browser hand focus back to what opened Settings.
   useLayoutEffect(() => {
@@ -102,15 +95,16 @@ export function SettingsModal({
       }}
       className="group/settings inset-0 m-auto size-auto max-h-none max-w-none flex-col overflow-hidden overscroll-contain bg-background text-foreground shadow-lg outline-none text-sm-dense backdrop:overflow-hidden backdrop:overscroll-contain backdrop:bg-scrim open:flex md:inset-4 md:max-h-125 md:max-w-175 md:flex-row md:rounded-lg md:border lg:max-w-200 xl:max-h-9/10 xl:max-w-5xl"
     >
-      {/* Each page's `PageTitle` gives the tab way to this while Settings is open. */}
-      <title>{`Settings: ${sectionTitles[shown]} – Nama`}</title>
-      <SettingsSide groups={groups} section={shown} user={user} />
-      {/* Wider, the sections run the full height beside the title and the pane. A phone drops
-          this box so its title can sit over the strip of sections. */}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col max-md:contents">
-        <SettingsHeader titleId={titleId} section={shown} onClose={close} />
-        <SettingsPane key={shown} section={shown} user={user} />
-      </div>
+      {atHub ? (
+        <HubSettings section={section} header={header} />
+      ) : (
+        <SettingsBody
+          groups={groupsFor(user, false)}
+          section={section}
+          user={user}
+          header={header}
+        />
+      )}
     </dialog>
   );
 }

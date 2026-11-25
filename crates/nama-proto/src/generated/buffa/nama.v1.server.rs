@@ -2465,6 +2465,18 @@ pub struct GetServerInfoResponse {
         deserialize_with = "::buffa::json_helpers::null_as_default"
     )]
     pub title_logo_widths: ::buffa::alloc::vec::Vec<u32>,
+    /// The Settings Sections this Server serves, each by the word the web app's `?settings=` opens it
+    /// with, such as `libraries`. The web app at the Hub, which may be newer than the Server, says to
+    /// update the Server for a Section it doesn't list (ADR 0105).
+    ///
+    /// Field 11: `settings_sections`
+    #[serde(
+        rename = "settingsSections",
+        alias = "settings_sections",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub settings_sections: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -2481,6 +2493,7 @@ impl ::core::fmt::Debug for GetServerInfoResponse {
             .field("poster_widths", &self.poster_widths)
             .field("backdrop_widths", &self.backdrop_widths)
             .field("title_logo_widths", &self.title_logo_widths)
+            .field("settings_sections", &self.settings_sections)
             .finish()
     }
 }
@@ -2558,6 +2571,9 @@ impl ::buffa::Message for GetServerInfoResponse {
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
         }
+        for v in &self.settings_sections {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -2626,6 +2642,9 @@ impl ::buffa::Message for GetServerInfoResponse {
             for &v in &self.title_logo_widths {
                 ::buffa::types::encode_uint32(v, buf);
             }
+        }
+        for v in &self.settings_sections {
+            ::buffa::types::put_string_field(11u32, v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -2835,6 +2854,17 @@ impl ::buffa::Message for GetServerInfoResponse {
                     );
                 }
             }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::decode_string(buf)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                self.settings_sections.push(__elem);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, ctx)?);
@@ -2852,6 +2882,7 @@ impl ::buffa::Message for GetServerInfoResponse {
         self.poster_widths.clear();
         self.backdrop_widths.clear();
         self.title_logo_widths.clear();
+        self.settings_sections.clear();
         self.__buffa_unknown_fields.clear();
     }
 }

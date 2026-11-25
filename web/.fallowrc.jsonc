@@ -152,9 +152,10 @@
       {
         "from": "settings",
         // Its Plugins, Default Home and Users panes render the admin features' parts (Users also renders Invites'); its Backups pane renders Backups' parts,
-        // and each Backup's row says when it was written as a Job's Run does. Its Libraries, Needs a Match, Now Playing and Jobs panes render those features' parts. Its Devices pane signs in another Device with the Sign-in Code parts of `/code`. Its Requests pane lists the User's Requests.
+        // and each Backup's row says when it was written as a Job's Run does. Its Libraries, Needs a Match, Now Playing and Jobs panes render those features' parts. Its Devices pane signs in another Device with the Sign-in Code parts of `/code`. Its Requests pane lists the User's Requests. At the Hub, it reaches the Servers it picks from as their Libraries' list does.
         "allow": [
           "settings",
+          "servers",
           "requests",
           "admin-plugins",
           "admin-home",
