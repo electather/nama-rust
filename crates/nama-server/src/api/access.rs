@@ -311,7 +311,8 @@ fn check_recent_authentication(path: &str, caller: Option<&Caller>) -> Result<()
 /// [`identify_caller`](crate::users::identify_caller) found may, or its URL was signed.
 pub(super) async fn require_access(request: Request, next: Next) -> axum::response::Response {
     let device = request.extensions().get::<Device>();
-    // Its signature, which `admit` checked, names this one path, so it needs no session.
+    // Its signature, which `admit` checked, names this path, or the Version or plan it is under,
+    // so it needs no session.
     if request.extensions().get::<SignedUrl>().is_some() {
         return next.run(request).await;
     }

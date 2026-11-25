@@ -11,9 +11,9 @@
 //! own files there.
 //!
 //! Direct Play serves a Version's file as it is, over plain HTTP at `/media/versions/<id>` (ADR
-//! 0007: media bytes are not RPC), to anyone with a session who sees its Library. A browser's
-//! `<video src>` presents that session in its cookie (ADR 0014). Range requests let a `<video>`
-//! seek. Only Versions, files a scan stored for a Library and Matched, are served, by id, so a
+//! 0007: media bytes are not RPC), to anyone with a session, or a URL signed for them, who sees its
+//! Library. A browser's `<video src>` presents that session in its cookie (ADR 0014), or a bearer
+//! caller's signed URL in its path (ADR 0105). Range requests let a `<video>` seek. Only Versions, files a scan stored for a Library and Matched, are served, by id, so a
 //! client can never name a path. The subtitles a plan offers are served beside it ([`subtitles`]).
 
 mod autoplay;

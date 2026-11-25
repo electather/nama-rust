@@ -23,6 +23,7 @@ use crate::{
     db::Database,
     ffmpeg::Ffmpeg,
     library::Contents,
+    signed_urls::Viewer,
     users::{Caller, library_access, remote_cap},
 };
 
@@ -58,9 +59,9 @@ async fn serve(
     Path(id): Path<i64>,
     request: Request,
 ) -> Response {
-    let caller = request.extensions().get::<Caller>();
-    let user = caller.map(|caller| caller.user.id);
-    let device = caller.map(|caller| caller.device.id);
+    let viewer = viewer_of(&request);
+    let user = viewer.map(|viewer| viewer.user);
+    let device = viewer.map(|viewer| viewer.device);
     let client = (request.extensions().get::<RequestSource>()).map(|source| source.client_ip);
     let planned_under_remote_cap =
         device.is_some_and(|device| running.ask_direct_plays(id, device));
@@ -118,7 +119,7 @@ pub(crate) async fn seen_versions_only(
     let version = (request.uri().path().strip_prefix("/media/versions/"))
         .and_then(|rest| rest.split('/').next())
         .and_then(|id| id.parse().ok());
-    let user = (request.extensions().get::<Caller>()).map(|caller| caller.user.id);
+    let user = viewer_of(&request).map(|viewer| viewer.user);
     if let (Some(version), Some(user)) = (version, user) {
         match sees_version(&db, user, version).await {
             Ok(true) => {}
@@ -130,6 +131,17 @@ pub(crate) async fn seen_versions_only(
         }
     }
     next.run(request).await
+}
+
+/// Who a media request is for: its session's User and Device, or else those its signed URL was
+/// signed for.
+pub(super) fn viewer_of(request: &Request) -> Option<Viewer> {
+    let extensions = request.extensions();
+    let session = (extensions.get::<Caller>()).map(|caller| Viewer {
+        user: caller.user.id,
+        device: caller.device.id,
+    });
+    session.or_else(|| extensions.get::<Viewer>().copied())
 }
 
 /// Whether the User `user` sees the Library of the Version `version`, as they must to play it.
