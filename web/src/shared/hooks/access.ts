@@ -6,7 +6,7 @@ import { redirect } from "@tanstack/react-router";
 import { AccountService } from "@/gen/nama/hub/v1/account_pb";
 import { HubService } from "@/gen/nama/hub/v1/hub_pb";
 import { ServerService } from "@/gen/nama/v1/server_pb";
-import { SignInService } from "@/gen/nama/v1/sign_in_pb";
+import { SignInService, type WhoAmIResponse } from "@/gen/nama/v1/sign_in_pb";
 import { serverKey } from "@/shared/hooks/server-key";
 import { isCode } from "@/shared/lib/connect-errors";
 
@@ -47,8 +47,32 @@ export async function whoIsSignedIn({ queryClient, transport }: RouterContext) {
   return signedIn;
 }
 
-/** Whether anyone is signed in where the app runs: an Account at the Hub, else a Server's User. */
-export async function isSignedInHere(context: RouterContext) {
+/**
+ * `signedIn`, the answer to who is signed in on this Device, once it acts as one of its Users.
+ * Signed out, it sends the visitor to sign in; acting as none of its Users, as once the one it
+ * acted as is signed out of it and others stay, to the User picker (ADR 0106). Either goes on to
+ * `href`.
+ */
+export function actingUserOrRedirect(signedIn: WhoAmIResponse | null, href: string) {
+  if (!signedIn) {
+    throw redirect({ to: "/sign-in", search: { redirect: href } });
+  }
+  if (!signedIn.user) {
+    throw redirect({ to: "/switch-user", search: { redirect: href } });
+  }
+  return signedIn;
+}
+
+/**
+ * Whether a sign-in page skips signing in and goes straight on to `goesTo`: once anyone is signed
+ * in, unless it goes on to the User picker, as signing in to add a User to this Device does
+ * (ADR 0106).
+ */
+export async function skipsSignIn(context: RouterContext, goesTo: string | undefined) {
+  if (goesTo?.startsWith("/switch-user") === true) {
+    return false;
+  }
+  // An Account at the Hub, else a Server's User.
   const signedIn = (await isAtHub(context))
     ? await signedInAccount(context)
     : await whoIsSignedIn(context);
