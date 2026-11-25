@@ -22,6 +22,16 @@ service WatchStateService {
   rpc ReportProgress(ReportProgressRequest) returns (ReportProgressResponse) {
     option idempotency_level = IDEMPOTENT;
   }
+  // Sends back the changes the caller's Device made to their Watch State while offline, as when
+  // playing a downloaded file, once it reconnects. Each is stored, as of when the Device made it,
+  // only if made after the Watch State the Server has of that Movie or Episode under any of its
+  // ids, so the change made last wins whichever Device made it; one made in the same second as the
+  // Server's is left. One dated in the future is taken as made now. One once played stays played.
+  // A change to a Movie or Episode no Library has is left out. Fails with `invalid_argument` if a
+  // change names no Movie or Episode, or its duration is zero.
+  rpc ReportOfflineWatchState(ReportOfflineWatchStateRequest) returns (ReportOfflineWatchStateResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
   // Marks a Movie, an Episode, or every Episode of a Season or a Show that is Matched in a
   // Library, played or unplayed for the caller, without playing it. Marking played leaves the
   // position alone. Marking unplayed clears the Watch State, position and all, so it starts from
@@ -65,6 +75,32 @@ message ReportProgressRequest {
 }
 
 message ReportProgressResponse {}
+
+message ReportOfflineWatchStateRequest {
+  // The changes, in any order.
+  repeated OfflineWatchStateChange changes = 1;
+}
+
+// A change a Device made to its User's Watch State of a Movie or Episode while offline.
+message OfflineWatchStateChange {
+  // What changed, identified as browsing identifies it.
+  oneof title {
+    // A Movie, by its id as `ListMovies` gave it.
+    ExternalId movie_id = 1;
+    // An Episode, by its id as `ListEpisodes` gave it.
+    ExternalId episode_id = 2;
+  }
+  // How far in, in milliseconds. A position past the duration is taken as the end.
+  uint64 position_ms = 3;
+  // How long it is, in milliseconds. Must not be zero.
+  uint64 duration_ms = 4;
+  // Whether it is played: its position passed 90% of its duration, or it was marked played.
+  bool played = 5;
+  // When the Device made the change, in milliseconds since the Unix epoch.
+  int64 changed_at_ms = 6;
+}
+
+message ReportOfflineWatchStateResponse {}
 
 message SetPlayedRequest {
   // The Library the Movie, Episode, Season or Show is in.
