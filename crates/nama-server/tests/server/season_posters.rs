@@ -1,18 +1,7 @@
 //! Picking a Season's Poster from its title sources' artwork, over a real socket with the TMDB
 //! Plugin enabled against a fake TMDB.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/browsing.rs"]
-mod browsing;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/custom_images.rs"]
-mod custom_images;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/http.rs"]
-mod http;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{browsing, http, server};
 
 use std::fs;
 

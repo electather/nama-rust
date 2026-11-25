@@ -1,14 +1,7 @@
 //! Continue Watching a page at a time (ADR 0055), over a real socket with the TMDB Plugin enabled
 //! against a fake TMDB.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/browsing.rs"]
-mod browsing;
-#[path = "support/refused.rs"]
-mod refused;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{browsing, refused, server};
 
 use std::time::Duration;
 

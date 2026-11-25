@@ -1,14 +1,7 @@
 //! Watch State a Device made offline, sent back once it reconnects, over a real socket with the
 //! TMDB Plugin enabled against a fake TMDB.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/browsing.rs"]
-mod browsing;
-#[path = "support/refused.rs"]
-mod refused;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{browsing, refused, server};
 
 use std::time::{SystemTime, UNIX_EPOCH};
 

@@ -2,16 +2,7 @@
 //! an in-process fake S3 bucket: switching to it from local disk copies the originals across, it
 //! then keeps every new original, and a bucket that refuses writes is never switched to.
 
-#[path = "support/fake_s3.rs"]
-mod fake_s3;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/http.rs"]
-mod http;
-#[path = "support/refused.rs"]
-mod refused;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{fake_s3, http, refused, server};
 
 use std::{collections::BTreeMap, fs, io::Cursor, path::Path, time::Duration};
 

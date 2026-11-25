@@ -1,12 +1,7 @@
 //! A Library's Movie or Show named by any of its ids, not only the one browsing gives it
 //! (ADR 0042), through `BrowseService` and `WatchStateService`, with a fake TMDB.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/browsing.rs"]
-mod browsing;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{browsing, server};
 
 use browsing::{Fixture, tmdb_id};
 use connectrpc::{ConnectError, client::HttpClient};

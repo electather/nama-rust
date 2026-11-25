@@ -1,8 +1,7 @@
 //! Runs the real `nama-server` binary.
 #![cfg(unix)]
 
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
+use crate::support::test_plugin;
 
 use std::{
     io::{self, BufRead, BufReader, Read, Write},

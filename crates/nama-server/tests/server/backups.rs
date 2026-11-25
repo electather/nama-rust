@@ -1,11 +1,7 @@
 //! The Backups section's RPCs: listing the Backup folder and saving where Backups go and how many
 //! are kept. Who may call them is in `access.rs`.
 
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::{refused, server};
 
 use std::{
     fs::{self, File},

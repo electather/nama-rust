@@ -1,7 +1,7 @@
 //! Which folders under `plugins/` the Server bundles, by the rule in `plugins/AGENTS.md`.
 //!
-//! std only: `build.rs` and `tests/plugin_service.rs` include this file too, so every item here is
-//! one each of them uses.
+//! std only: `build.rs` and `tests/server/plugin_service.rs` include this file too, so every item
+//! here is one each of them uses.
 
 use std::{fs, io, path::Path};
 

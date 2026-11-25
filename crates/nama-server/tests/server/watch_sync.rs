@@ -2,21 +2,7 @@
 //! scrobble it is told with the User's `handle`, and linking an account once its `approved`
 //! setting names the device code polled.
 
-#[path = "support/browsing.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod browsing;
-#[path = "support/home_row_plugin.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod home_row_plugin;
-#[path = "support/installed_test_plugin.rs"]
-mod installed_test_plugin;
-#[path = "support/log.rs"]
-mod log;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
+use crate::support::{browsing, home_row_plugin, log, server};
 
 use browsing::tmdb_id;
 use connectrpc::client::HttpClient;

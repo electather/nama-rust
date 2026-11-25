@@ -4,19 +4,7 @@
 //! with the test Plugin as a second Similar source. A title source of this file's own has a Movie
 //! for every id, for a Library with more Movies than a row holds.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/browsing.rs"]
-mod browsing;
-#[expect(dead_code, reason = "this binary uses only some of the helpers")]
-#[path = "support/home_row_plugin.rs"]
-mod home_row_plugin;
-#[path = "support/installed_test_plugin.rs"]
-mod installed_test_plugin;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
+use crate::support::{browsing, home_row_plugin, server};
 
 use std::{collections::HashMap, future, sync::Arc};
 

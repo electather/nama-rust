@@ -1,15 +1,6 @@
 //! Subtitle sources over the API (ADR 0067): the test Plugin built as a subtitle source.
 
-#[path = "support/browsing.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod browsing;
-#[path = "support/installed_test_plugin.rs"]
-mod installed_test_plugin;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
+use crate::support::{browsing, server};
 
 use browsing::Fixture;
 use buffa::EnumValue;

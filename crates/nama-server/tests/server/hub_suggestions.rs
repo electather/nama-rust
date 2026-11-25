@@ -2,12 +2,7 @@
 //! here an in-process fake, suggests to the Linked Server, in the Plugin contract's terms, and
 //! nothing on a Server that isn't Linked (ADR 0002).
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/fake_hub.rs"]
-mod fake_hub;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{fake_hub, server};
 
 use std::sync::{Arc, Mutex, PoisonError};
 

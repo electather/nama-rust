@@ -2,17 +2,7 @@
 //! kept in a cache with a size limit, or sent as stored where they can't or needn't be resized,
 //! over a real socket.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/browsing.rs"]
-mod browsing;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/custom_images.rs"]
-mod custom_images;
-#[path = "support/http.rs"]
-mod http;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{browsing, http, server};
 
 use std::{
     fs::{self, File, FileTimes},

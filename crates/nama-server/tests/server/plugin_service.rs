@@ -2,13 +2,10 @@
 //! value, and changing a Plugin's settings and enabling and disabling it without a restart, over a
 //! real socket and against a real SQLite database.
 
-#[path = "../src/plugins/wasm/bundling.rs"]
+#[path = "../../src/plugins/wasm/bundling.rs"]
 mod bundling;
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+
+use crate::support::{refused, server};
 
 use std::{collections::BTreeMap, path::Path, sync::Arc};
 

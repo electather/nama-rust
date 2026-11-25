@@ -2,15 +2,7 @@
 //! CORS for the Hub its config names, for bearer requests only, never with its session cookie
 //! (ADR 0015, ADR 0105).
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/fake_hub.rs"]
-mod fake_hub;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/http.rs"]
-mod http;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{fake_hub, http, server};
 
 use fake_hub::FakeHub;
 use http::{Reply, send};

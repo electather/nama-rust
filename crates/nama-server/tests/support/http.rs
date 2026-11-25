@@ -1,6 +1,6 @@
 //! Plain HTTP requests to a test Server, as a browser makes them for media.
 
-use crate::server::TestServer;
+use super::server::TestServer;
 
 /// A response, as [`fetch`] reads it.
 pub(crate) struct Reply {

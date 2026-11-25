@@ -14,7 +14,7 @@ use nama_plugin_api::{
 };
 use nama_server::{db::Database, plugin_settings::PluginSettings, plugins::Registry};
 
-use crate::{Fake, config, open, registry};
+use super::{Fake, config, open, registry};
 
 const STORE: Permission = Permission::PERMISSION_STORE;
 const READ_LIBRARIES: Permission = Permission::PERMISSION_READ_LIBRARIES;

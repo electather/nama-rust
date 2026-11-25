@@ -3,14 +3,7 @@
 //! Collection, whose name and listed Movies a test may change, and Batman in a Batman Collection
 //! whose sequel no Library has; Heat is in none.
 
-#[expect(dead_code, reason = "this binary uses only some of the helpers")]
-#[path = "support/http.rs"]
-mod http;
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::{http, refused, server};
 
 use std::{
     collections::HashMap,
@@ -142,7 +135,7 @@ impl TitleSource for Series {
         let image = (asked.path == POSTER).then(|| Image {
             content_type: "image/jpeg".to_owned(),
             bytes: include_bytes!(
-                "../../../plugins/tmdb/fixtures/images/AmR3JG1VQVxU8TfAvljUhfSFUOx.jpg"
+                "../../../../plugins/tmdb/fixtures/images/AmR3JG1VQVxU8TfAvljUhfSFUOx.jpg"
             )
             .to_vec(),
             ..Default::default()

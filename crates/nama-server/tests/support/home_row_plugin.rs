@@ -7,7 +7,7 @@ use nama_proto::nama::v1::{
     UpdatePersonalSettingsRequest, UserServiceClient, setting_value::Value,
 };
 
-use crate::server::{SignedIn, TestServer};
+use super::server::{SignedIn, TestServer};
 
 /// The test Plugin's id.
 pub(crate) const PLUGIN: &str = "test-plugin";

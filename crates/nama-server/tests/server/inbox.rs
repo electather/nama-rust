@@ -1,11 +1,7 @@
 //! Each User's inbox: every Request notification the Server tells them is kept there, whether or
 //! not a Notifier reaches them, and each User reads and marks only their own.
 
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::{refused, server};
 
 use std::time::{Duration, Instant};
 

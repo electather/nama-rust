@@ -1,14 +1,7 @@
 //! Live updates through the generated `EventService` client, over a real socket, and what
 //! Observers are told.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/browsing.rs"]
-mod browsing;
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::{browsing, refused, server};
 
 use std::{
     fmt::Debug,

@@ -2,17 +2,7 @@
 //! added to it (ADR 0036), as `ListLibraries` and `GetLibrary` give it, over a real socket with
 //! the TMDB Plugin enabled against a fake TMDB.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/browsing.rs"]
-mod browsing;
-#[path = "support/custom_images.rs"]
-mod custom_images;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/http.rs"]
-mod http;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{browsing, custom_images, http, server};
 
 use browsing::Fixture;
 use connectrpc::client::HttpClient;

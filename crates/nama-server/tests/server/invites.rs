@@ -2,11 +2,7 @@
 //! accepting one, through the generated clients, over a real socket and against a real SQLite
 //! database.
 
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::{refused, server};
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 

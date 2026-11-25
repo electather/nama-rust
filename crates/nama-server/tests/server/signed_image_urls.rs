@@ -2,18 +2,7 @@
 //! with no cookie or header, each for its one image and for a few minutes, while a cookie caller's
 //! stay as they are.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/browsing.rs"]
-mod browsing;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/custom_images.rs"]
-mod custom_images;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/http.rs"]
-mod http;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{browsing, custom_images, http, server};
 
 use std::time::Duration;
 
@@ -51,7 +40,7 @@ impl Fixture {
     }
 
     /// The status of a `GET` for `url` with no cookie or header.
-    async fn status(&self, url: &str) -> u16 {
+    async fn image_status(&self, url: &str) -> u16 {
         fetch(&self.server, url, None).await.status
     }
 }
@@ -63,7 +52,7 @@ async fn a_bearer_callers_poster_and_backdrop_load_with_no_session() {
     let movie = fx.alien_as_bearer().await;
 
     for url in [movie.poster_url.unwrap(), movie.backdrop_url.unwrap()] {
-        assert_eq!(fx.status(&url).await, 200, "{url}");
+        assert_eq!(fx.image_status(&url).await, 200, "{url}");
     }
 }
 
@@ -85,8 +74,8 @@ async fn a_bearer_callers_custom_image_and_image_beside_the_media_load_with_no_s
     let (poster, backdrop) = (movie.poster_url.unwrap(), movie.backdrop_url.unwrap());
     assert!(poster.contains("/custom-images/"), "{poster}");
     assert!(backdrop.contains("/local-images/"), "{backdrop}");
-    assert_eq!(fx.status(&poster).await, 200);
-    assert_eq!(fx.status(&backdrop).await, 200);
+    assert_eq!(fx.image_status(&poster).await, 200);
+    assert_eq!(fx.image_status(&backdrop).await, 200);
 }
 
 #[tokio::test]
@@ -115,7 +104,7 @@ async fn a_signed_url_loads_only_its_own_image() {
     let backdrop_with_posters_signature = format!("{posters_signature}/artwork/{backdrops_image}");
 
     assert_ne!(backdrop_with_posters_signature, backdrop);
-    assert_eq!(fx.status(&backdrop_with_posters_signature).await, 401);
+    assert_eq!(fx.image_status(&backdrop_with_posters_signature).await, 401);
 }
 
 #[tokio::test]
@@ -124,9 +113,9 @@ async fn a_signed_url_loads_for_a_few_minutes_and_not_once_it_expires() {
     let poster = fx.alien_as_bearer().await.poster_url.unwrap();
 
     fx.server.advance_clock(Duration::from_mins(4));
-    let within = fx.status(&poster).await;
+    let within = fx.image_status(&poster).await;
     fx.server.advance_clock(Duration::from_mins(7));
-    let after = fx.status(&poster).await;
+    let after = fx.image_status(&poster).await;
 
     assert_eq!((within, after), (200, 401));
 }
@@ -137,8 +126,8 @@ async fn a_signed_url_passes_on_the_width_it_asks_for() {
     fx.server.set_image_settings(true, None).await;
     let poster = fx.alien_as_bearer().await.poster_url.unwrap();
 
-    let listed = fx.status(&format!("{poster}?width=320")).await;
-    let unlisted = fx.status(&format!("{poster}?width=321")).await;
+    let listed = fx.image_status(&format!("{poster}?width=320")).await;
+    let unlisted = fx.image_status(&format!("{poster}?width=321")).await;
 
     // Only a width on the list is served while resizing is on.
     assert_eq!((listed, unlisted), (200, 400));
@@ -160,7 +149,7 @@ async fn a_bearer_caller_picks_a_poster_by_the_signed_url_the_artwork_list_gave_
         .iter()
         .find(|url| url.ends_with("2xcXrPA5kHJu8a7BxRnwV4tz0ws.jpg"))
         .unwrap();
-    assert_eq!(fx.status(second).await, 200);
+    assert_eq!(fx.image_status(second).await, 200);
 
     let picked: String = url::form_urlencoded::byte_serialize(second.as_bytes()).collect();
     let poster = format!("/custom-images/movie/tmdb-{ALIEN}/poster?artwork={picked}");

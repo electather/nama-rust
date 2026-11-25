@@ -9,7 +9,7 @@ use nama_plugin_api::{Manifest, Plugin, PluginError, Registrar};
 use nama_server::plugin_settings::PluginSettings;
 use tempfile::TempDir;
 
-use crate::{Fake, config, open, registry};
+use super::{Fake, config, open, registry};
 
 /// What one test shares with its [`Flaky`] Plugin: how many more times making it panics, and the
 /// greeting its last enable handed it.

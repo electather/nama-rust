@@ -2,17 +2,7 @@
 //! generated `PlaybackService` client: who may, and how a download plays and goes with its
 //! Version.
 
-#[path = "support/browsing.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod browsing;
-#[path = "support/http.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod http;
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::{browsing, http, refused, server};
 
 use std::{
     fs,

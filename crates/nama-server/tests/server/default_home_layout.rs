@@ -2,27 +2,7 @@
 //! every User's Home follows the default's order and leaves out what it, or the User, hides, the
 //! test Plugin built as a Home row source giving the rows.
 
-#[path = "support/home_layouts.rs"]
-#[expect(
-    dead_code,
-    reason = "this binary uses only some of the Home layout helpers"
-)]
-mod home_layouts;
-#[path = "support/home_row_plugin.rs"]
-mod home_row_plugin;
-#[path = "support/installed_test_plugin.rs"]
-#[expect(
-    dead_code,
-    reason = "this binary enables the test Plugin itself, after its settings"
-)]
-mod installed_test_plugin;
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
+use crate::support::{home_layouts, home_row_plugin, refused, server};
 
 use connectrpc::ErrorCode;
 use home_layouts::{

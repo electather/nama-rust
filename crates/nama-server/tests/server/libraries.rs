@@ -1,10 +1,6 @@
 //! Managing Libraries through the generated `LibraryService` client, over a real socket.
 
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::{refused, server};
 
 use std::{
     path::{Path, PathBuf},

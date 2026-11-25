@@ -1,11 +1,7 @@
 //! Looking a Movie or Show up by its id through the generated `RequestService` client, over a
 //! real socket, with the TMDB Plugin enabled against a fake TMDB.
 
-#[path = "support/refused.rs"]
-mod refused;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{refused, server};
 
 use connectrpc::{
     ErrorCode,

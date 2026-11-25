@@ -2,15 +2,7 @@
 //! Admin sets, and a scan asks those about a file the name parser can't read, and Matches what
 //! they propose as it would a parsed name.
 
-#[path = "support/installed_test_plugin.rs"]
-mod installed_test_plugin;
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
+use crate::support::{refused, server};
 
 use std::{io::Cursor, sync::Arc};
 

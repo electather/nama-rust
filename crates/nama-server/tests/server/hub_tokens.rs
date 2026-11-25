@@ -1,14 +1,7 @@
 //! The web app at the Hub trading a token the Hub signed for one of the Account's Users here for a
 //! Device with a bearer token (ADR 0105), here signed by an in-process fake Hub.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/fake_hub.rs"]
-mod fake_hub;
-#[path = "support/refused.rs"]
-mod refused;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{fake_hub, refused, server};
 
 use connectrpc::{ConnectError, ErrorCode, client::HttpClient};
 use fake_hub::{FakeHub, SERVER_ID, in_5_minutes};

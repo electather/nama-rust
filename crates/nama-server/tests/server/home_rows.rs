@@ -2,26 +2,7 @@
 //! Plugin built as a Home row source, refreshed in the background, its rows showing the titles on
 //! the Server and those missing from it to Request.
 
-#[path = "support/home_row_plugin.rs"]
-mod home_row_plugin;
-#[path = "support/http.rs"]
-#[expect(dead_code, reason = "this binary reads only a response's status")]
-mod http;
-#[path = "support/installed_test_plugin.rs"]
-#[expect(
-    dead_code,
-    reason = "this binary enables the test Plugin itself, after its settings"
-)]
-mod installed_test_plugin;
-#[path = "support/log.rs"]
-mod log;
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
+use crate::support::{home_row_plugin, http, log, refused, server, test_plugin};
 
 use std::{
     path::Path,

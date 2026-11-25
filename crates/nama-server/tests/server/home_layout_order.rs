@@ -1,25 +1,7 @@
 //! Each User's own order of their Home rows over the default Home layout (ADR 0077): their
 //! first reorder copies the default's order, which from then on no longer moves their rows.
 
-#[path = "support/home_layouts.rs"]
-#[expect(
-    dead_code,
-    reason = "this binary uses only some of the Home layout helpers"
-)]
-mod home_layouts;
-#[path = "support/home_row_plugin.rs"]
-mod home_row_plugin;
-#[path = "support/installed_test_plugin.rs"]
-#[expect(
-    dead_code,
-    reason = "this binary enables the test Plugin itself, after its settings"
-)]
-mod installed_test_plugin;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
+use crate::support::{home_layouts, home_row_plugin};
 
 use home_layouts::{
     continue_watching, get_own, layout, recently_added, reorder, rows, serving_rows, set_default,

@@ -1,9 +1,7 @@
 //! A Plugin's setup text, links and licence: what its Manifest gives, less what the Server drops,
 //! reaches `GetPlugin`, over a real socket.
 
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::server;
 
 use std::sync::Arc;
 

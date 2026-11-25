@@ -1,14 +1,7 @@
 //! Fixing a Matched Movie's or Show's Match by hand, as its page does, through the generated
 //! `MatchService` client, over a real socket, with the TMDB Plugin enabled against a fake TMDB.
 
-#[path = "support/browsing.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod browsing;
-#[path = "support/refused.rs"]
-mod refused;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{browsing, refused, server};
 
 use std::{sync::Arc, time::Duration};
 

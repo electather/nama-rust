@@ -1,12 +1,7 @@
 //! What Plugins hear of the Server and its Users being Linked and Unlinked (ADR 0105): each change
 //! is an Event Observers are told, and a notification each Notifier is handed for its channel.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/fake_hub.rs"]
-mod fake_hub;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{fake_hub, server};
 
 use std::{
     sync::{Arc, Mutex, MutexGuard, PoisonError},

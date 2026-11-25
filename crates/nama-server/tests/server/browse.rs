@@ -2,21 +2,11 @@
 //! that `WatchStateService` reports or marks and browsing shows, over a real socket, with the TMDB
 //! Plugin enabled against a fake TMDB.
 
-#[path = "support/browsing.rs"]
-mod browsing;
-#[path = "support/http.rs"]
-mod http;
-#[path = "browse/next_episode.rs"]
 mod next_episode;
-#[path = "browse/people.rs"]
 mod people;
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "browse/roles.rs"]
 mod roles;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+
+use crate::support::{browsing, http, refused, server};
 
 use std::{collections::BTreeSet, fs, slice, time::Duration};
 

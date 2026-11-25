@@ -1,13 +1,6 @@
 //! Deleting a User tells the Hub to Unlink them, without waiting for it (ADR 0011, ADR 0105).
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/fake_hub.rs"]
-mod fake_hub;
-#[path = "support/log.rs"]
-mod log;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{fake_hub, log, server};
 
 use connectrpc::{
     ConnectError,

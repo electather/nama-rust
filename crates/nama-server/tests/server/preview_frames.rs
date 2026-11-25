@@ -1,15 +1,7 @@
 //! Preview frames (ADR 0076): made in the background after probing, sent on the Playback Plan,
 //! served as sheets to a signed-in Device, and deleted with their Version.
 
-#[path = "support/browsing.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod browsing;
-#[path = "support/http.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod http;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::{browsing, http, server};
 
 use std::{
     fs,

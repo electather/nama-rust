@@ -1,13 +1,7 @@
 //! A Plugin's logo: always its Manifest's, cleaned and served by URL (ADR 0037), over a real
 //! socket.
 
-#[path = "support/http.rs"]
-mod http;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
+use crate::support::{http, server, test_plugin};
 
 use std::io::Cursor;
 

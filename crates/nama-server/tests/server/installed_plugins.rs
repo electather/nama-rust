@@ -2,15 +2,7 @@
 //! `<data_dir>/plugins/`, enabled and disabled without a restart, shown with why if refused,
 //! reaching only the hosts they are allowed, and disabled when they keep crashing.
 
-#[path = "support/log.rs"]
-mod log;
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
+use crate::support::{log, refused, server, test_plugin};
 
 use std::{
     path::Path,

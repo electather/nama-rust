@@ -1,17 +1,7 @@
 //! Jobs: the Kernel runs each Job of an enabled Plugin on its schedule, one Run at a time per Job
 //! (ADR 0079).
 
-#[path = "support/installed_test_plugin.rs"]
-mod installed_test_plugin;
-#[path = "support/log.rs"]
-mod log;
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
+use crate::support::{log, refused, server};
 
 use std::time::Duration;
 

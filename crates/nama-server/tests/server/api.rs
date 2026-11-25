@@ -1,10 +1,6 @@
 //! Calls the Server's API over a real socket, the way clients will.
 
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::{refused, server};
 
 use std::net::SocketAddr;
 

@@ -1,11 +1,7 @@
 //! Web Push: the Server's VAPID public key, which never changes, and each signed-in User's own
 //! push subscriptions, which must be a browser's.
 
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::{refused, server};
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use connectrpc::{ErrorCode, client::HttpClient};

@@ -5,8 +5,7 @@
     reason = "test helpers and test Plugins panic to fail a test or to test panic containment"
 )]
 
-#[path = "support/log.rs"]
-mod log;
+use crate::support::log;
 
 use std::{collections::BTreeMap, error::Error, fmt, sync::Arc, time::Duration};
 
@@ -24,11 +23,6 @@ use nama_server::plugins::{
 use tokio::sync::mpsc::{self, error::TryRecvError};
 
 const WAIT: Duration = Duration::from_secs(5);
-
-/// Stands in for `support/server.rs`, whose `WAIT` is the longest `log` waits.
-mod server {
-    pub(crate) const WAIT: std::time::Duration = super::WAIT;
-}
 
 /// A test Plugin whose `register` is the given closure.
 struct TestPlugin<F> {

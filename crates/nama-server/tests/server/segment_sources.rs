@@ -2,14 +2,7 @@
 //! order the Admin sets, and the Server asks them in the background after probing for the kinds of
 //! Segment a Version's Chapter names didn't give, which its Playback Plans then send.
 
-#[path = "support/browsing.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod browsing;
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::{refused, server};
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -246,7 +239,7 @@ mod plans {
     use nama_server::ffmpeg::{Ffmpeg, fake::script};
 
     use super::*;
-    use crate::{
+    use crate::support::{
         browsing::{ALIEN_1080P, ALIEN_2160P, Fixture},
         server::{WAIT, tmdb::ALIEN},
     };

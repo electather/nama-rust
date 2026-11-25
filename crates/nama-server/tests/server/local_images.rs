@@ -3,21 +3,7 @@
 //! Backdrop, below a Custom Image (#732, #1016), over a real socket with the TMDB Plugin enabled
 //! against a fake TMDB.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/browsing.rs"]
-mod browsing;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/custom_images.rs"]
-mod custom_images;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/http.rs"]
-mod http;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/log.rs"]
-mod log;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{browsing, custom_images, http, log, server};
 
 use std::fs;
 
@@ -60,7 +46,7 @@ impl Fixture {
         self.served(&movie.unwrap().poster_url.unwrap()).await
     }
 
-    fn delete(&self, relative: &str) {
+    fn delete_file(&self, relative: &str) {
         fs::remove_file(self.folder.join(relative)).unwrap();
     }
 
@@ -118,7 +104,7 @@ async fn deleting_the_image_beside_the_file_brings_the_downloaded_poster_back_at
     fx.scan_and_match().await;
     let (with_file, _) = fx.alien_images().await;
 
-    fx.delete("Alien (1979)/poster.jpg");
+    fx.delete_file("Alien (1979)/poster.jpg");
     fx.scan_and_match().await;
 
     assert_eq!(with_file, beside);
@@ -208,7 +194,7 @@ async fn deleting_the_first_added_items_poster_shows_the_next_items_at_the_next_
     fx.write("A second/poster.jpg", &second);
     fx.scan_and_match().await;
 
-    fx.delete("Alien (1979)/poster.jpg");
+    fx.delete_file("Alien (1979)/poster.jpg");
     fx.scan_and_match().await;
 
     assert_eq!(fx.alien_images().await.0, second);
@@ -222,7 +208,7 @@ async fn an_image_deleted_while_its_copy_was_gone_brings_the_downloaded_poster_b
     fx.scan_and_match().await;
 
     fs::remove_dir_all(fx.server.data_dir().join("local-images")).unwrap();
-    fx.delete("Alien (1979)/poster.jpg");
+    fx.delete_file("Alien (1979)/poster.jpg");
     fx.scan_and_match().await;
 
     assert_eq!(fx.alien_images().await, downloaded);
@@ -310,7 +296,7 @@ async fn deleting_the_poster_in_a_shows_folder_brings_the_downloaded_one_back_at
     fx.scan_and_match().await;
     let (with_file, _) = fx.dark_images().await;
 
-    fx.delete("Dark (2017)/poster.jpg");
+    fx.delete_file("Dark (2017)/poster.jpg");
     fx.scan_and_match().await;
 
     assert_eq!(with_file, beside);

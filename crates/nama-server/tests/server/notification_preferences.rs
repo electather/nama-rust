@@ -1,11 +1,7 @@
 //! Each User turning kinds of Request notification on and off for themself: every kind on for a
 //! new User, and new Pending offered only to one with `PERMISSION_MANAGE_REQUESTS`.
 
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::{refused, server};
 
 use buffa::EnumValue;
 use connectrpc::{ErrorCode, client::HttpClient};

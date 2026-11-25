@@ -2,21 +2,7 @@
 //! Kernel's suggestions and the test Plugin's, over a real socket with the TMDB Plugin enabled
 //! against a fake TMDB.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/browsing.rs"]
-mod browsing;
-#[path = "support/home_row_plugin.rs"]
-mod home_row_plugin;
-#[path = "support/installed_test_plugin.rs"]
-#[expect(dead_code, reason = "this binary only installs the test Plugin")]
-mod installed_test_plugin;
-#[path = "support/log.rs"]
-mod log;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
+use crate::support::{browsing, home_row_plugin, log, server};
 
 use std::time::{Duration, Instant};
 

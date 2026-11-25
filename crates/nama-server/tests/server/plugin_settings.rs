@@ -2,26 +2,14 @@
 //! `[plugins.*]` tables on the first start) and changing them in ADR 0028's order, with fake
 //! Plugins and no HTTP; the submodules save settings over the API.
 
-#[path = "plugin_settings/builtin_grants.rs"]
 mod builtin_grants;
-#[path = "plugin_settings/choices.rs"]
 mod choices;
-#[path = "plugin_settings/clearing.rs"]
 mod clearing;
-#[path = "plugin_settings/flaky.rs"]
 mod flaky;
-#[path = "plugin_settings/integer_bounds.rs"]
 mod integer_bounds;
-#[path = "plugin_settings/library_ids.rs"]
 mod library_ids;
-#[path = "support/log.rs"]
-#[expect(dead_code, reason = "the harness's `wait_for` has no use here")]
-mod log;
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+
+use crate::support::{log, server};
 
 use std::{
     collections::{BTreeMap, HashMap},

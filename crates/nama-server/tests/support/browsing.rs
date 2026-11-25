@@ -10,7 +10,7 @@ use nama_proto::nama::v1::{
 };
 use nama_server::ffmpeg::Ffmpeg;
 
-use crate::server::{Builder, Library, TestServer};
+use super::server::{Builder, Library, TestServer};
 
 /// TMDB Matches both to Alien.
 pub(crate) const ALIEN_1080P: &str = "Alien (1979)/Alien (1979) - 1080p.mkv";

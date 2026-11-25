@@ -2,15 +2,7 @@
 //! (ADR 0046): a secret's value never sent back, a required one refused blank, and nobody, an
 //! Admin included, seeing another User's values.
 
-#[path = "support/installed_test_plugin.rs"]
-mod installed_test_plugin;
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
+use crate::support::{refused, server};
 
 use std::collections::HashMap;
 

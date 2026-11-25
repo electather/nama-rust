@@ -396,7 +396,8 @@ jobs:
           cargo nextest run --workspace --exclude nama-hub $EXCLUDED --locked
           -E 'test(=plugin_settings::had::tests::while_the_server_holds_a_plugin_it_refused_every_plugin_it_had_stays_had)'
       # The `ci` profile (.config/nextest.toml) retries, kills hung tests and writes a JUnit
-      # report. `count` deals each binary's tests out in turn, so its slow ones land on both shards.
+      # report. `count` deals each binary's tests out in turn, so its slow ones land on both shards:
+      # the Server's integration tests are one binary, `server`, whose tests split evenly too.
       # $EXCLUDED is unquoted so it splits into arguments. The Hub's tests need PostgreSQL in a
       # service container, which only Linux runners have, so `hub` runs them.
       - run: >-

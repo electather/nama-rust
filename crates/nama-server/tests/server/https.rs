@@ -2,12 +2,7 @@
 //! served on the port it listens on beside plain HTTP, which the LAN keeps using, and through the
 //! Relay it dials out to, and its public name as its Server URL while the Admin sets none.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/fake_hub.rs"]
-mod fake_hub;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{fake_hub, server};
 
 use std::{io, net::SocketAddr, num::NonZeroU16, sync::Arc, time::Duration};
 

@@ -1,54 +1,30 @@
 //! Playing Versions through the generated `PlaybackService` client, and serving them and their
 //! subtitles, over a real socket, with the TMDB Plugin enabled against a fake TMDB.
 
-#[path = "support/browsing.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod browsing;
-#[path = "playback/burn_in.rs"]
 mod burn_in;
-#[path = "playback/chapters.rs"]
 mod chapters;
-#[path = "playback/compression.rs"]
 mod compression;
 // The fake ffprobe is a shell script.
 #[cfg(unix)]
-#[path = "playback/direct_play.rs"]
 mod direct_play;
-#[path = "playback/failing_ffmpeg.rs"]
 mod failing_ffmpeg;
-#[path = "support/http.rs"]
-mod http;
 // The fake ffmpeg and ffprobe are shell scripts.
 #[cfg(unix)]
-#[path = "playback/keyframes.rs"]
 mod keyframes;
-#[path = "playback/now_playing.rs"]
 mod now_playing;
-#[path = "playback/offline_downloads.rs"]
 mod offline_downloads;
 // The fake ffmpeg and ffprobe are shell scripts.
 #[cfg(unix)]
-#[path = "playback/other_versions.rs"]
 mod other_versions;
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "playback/remote_caps.rs"]
 mod remote_caps;
-#[path = "playback/resumed_ranges.rs"]
 mod resumed_ranges;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
-#[path = "playback/sidecars.rs"]
 mod sidecars;
-#[path = "playback/signed_urls.rs"]
 mod signed_urls;
-#[path = "playback/subtitle_offsets.rs"]
 mod subtitle_offsets;
-#[path = "playback/subtitle_pass.rs"]
 mod subtitle_pass;
-#[path = "playback/transcode_downloads.rs"]
 mod transcode_downloads;
+
+use crate::support::{browsing, http, refused, server};
 
 use std::{
     fs,
@@ -1960,13 +1936,13 @@ impl Fixture {
         fx.write(DARK_S01E01, b"video");
         fx.write(DARK_S02E01, b"video");
         fx.items = fx.scan_and_match().await;
-        let first = fx.dark_version(1).await;
-        let second = fx.dark_version(2).await;
+        let first = fx.dark_season_version(1).await;
+        let second = fx.dark_season_version(2).await;
         (fx, [first, second])
     }
 
     /// The Version of the first Episode of Dark's Season `season`.
-    async fn dark_version(&self, season: u32) -> i64 {
+    async fn dark_season_version(&self, season: u32) -> i64 {
         let episodes = (self.browse)
             .list_episodes(ListEpisodesRequest {
                 library_id: self.library,

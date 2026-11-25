@@ -1,12 +1,7 @@
 //! Search sources adding batches to `SearchService.Search` (ADR 0083), over a real socket with
 //! the TMDB Plugin enabled against a fake TMDB, and fake Search sources of this file's own.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/browsing.rs"]
-mod browsing;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{browsing, server};
 
 use std::{
     future,

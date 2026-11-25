@@ -1,19 +1,7 @@
 //! Deleting media through `LibraryService.PreviewDeleteMedia` and `DeleteMedia`, over a real
 //! socket, against Libraries over temporary folders with real files and TMDB on against a fake.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/browsing.rs"]
-mod browsing;
-#[expect(dead_code, reason = "this binary reads only the status")]
-#[path = "support/http.rs"]
-mod http;
-#[path = "support/log.rs"]
-mod log;
-#[path = "support/refused.rs"]
-mod refused;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{browsing, http, log, refused, server};
 
 use std::fs;
 #[cfg(unix)]
@@ -150,11 +138,11 @@ impl Fixture {
     }
 
     /// A Shows Library holding Dark's three files and a sidecar, scanned and Matched.
-    async fn dark() -> Self {
+    async fn dark_files() -> Self {
         Self::dark_on(TestServer::builder()).await
     }
 
-    /// [`Self::dark`] on a Server `builder` starts.
+    /// [`Self::dark_files`] on a Server `builder` starts.
     async fn dark_on(builder: Builder) -> Self {
         let fx = Self::start_on(LibraryKind::LIBRARY_KIND_SHOWS, builder).await;
         fx.write(DARK_S01E01_E02, b"two episodes");
@@ -197,7 +185,7 @@ impl Fixture {
     }
 
     /// The id of the Version of Dark's Season 1 with the file name `file_name`.
-    async fn dark_version(&self, file_name: &str) -> i64 {
+    async fn season_1_version(&self, file_name: &str) -> i64 {
         let episodes = self.list_dark(1).await.unwrap();
         let mut versions = episodes.into_iter().flat_map(|e| e.versions);
         versions.find(|v| v.file_name == file_name).unwrap().id
@@ -258,7 +246,7 @@ impl Fixture {
 
     /// The Admin's Playback Plan for the Version `id`, on a browser that plays H.264 and AAC in
     /// MP4.
-    async fn plan(&self, id: i64) -> PlaybackPlan {
+    async fn admin_plan(&self, id: i64) -> PlaybackPlan {
         let device = DeviceDecoding {
             containers: vec![Container::CONTAINER_MP4.into()],
             video_codecs: vec![VideoCodec::VIDEO_CODEC_H264.into()],
@@ -671,7 +659,7 @@ fn listed(title: &str, files: &[&str]) -> (String, Vec<String>) {
 
 #[tokio::test]
 async fn deleting_an_episode_deletes_every_version_and_the_episodes_only_its_files_hold() {
-    let fx = Fixture::dark().await;
+    let fx = Fixture::dark_files().await;
 
     let preview = fx
         .preview(episode(fx.library, SECRETS, None))
@@ -704,7 +692,7 @@ async fn deleting_an_episode_deletes_every_version_and_the_episodes_only_its_fil
 
 #[tokio::test]
 async fn deleting_an_episode_that_takes_along_one_it_doesnt_name_is_refused_naming_it() {
-    let fx = Fixture::dark().await;
+    let fx = Fixture::dark_files().await;
 
     let refused = assert_refused(
         fx.delete(episode(fx.library, LIES, None)).await,
@@ -723,7 +711,7 @@ async fn deleting_an_episode_that_takes_along_one_it_doesnt_name_is_refused_nami
 #[tokio::test]
 async fn deleting_an_episode_in_a_two_episode_file_deletes_the_file_and_the_preview_names_the_other()
  {
-    let fx = Fixture::dark().await;
+    let fx = Fixture::dark_files().await;
 
     let preview = fx.preview(episode(fx.library, LIES, None)).await.unwrap();
     (fx.delete_also(episode(fx.library, LIES, None), &[SECRETS]))
@@ -748,8 +736,8 @@ async fn deleting_an_episode_in_a_two_episode_file_deletes_the_file_and_the_prev
 
 #[tokio::test]
 async fn deleting_one_version_of_an_episode_with_two_leaves_the_other() {
-    let fx = Fixture::dark().await;
-    let own = fx.dark_version("Dark - S01E01.mkv").await;
+    let fx = Fixture::dark_files().await;
+    let own = fx.season_1_version("Dark - S01E01.mkv").await;
 
     let preview = fx
         .preview(episode(fx.library, SECRETS, Some(own)))
@@ -773,7 +761,7 @@ async fn deleting_one_version_of_an_episode_with_two_leaves_the_other() {
 
 #[tokio::test]
 async fn deleting_a_season_deletes_each_of_its_files_once_and_leaves_other_seasons() {
-    let fx = Fixture::dark().await;
+    let fx = Fixture::dark_files().await;
 
     let preview = fx.preview(season(fx.library, DARK, 1)).await.unwrap();
     fx.delete(season(fx.library, DARK, 1)).await.unwrap();
@@ -796,7 +784,7 @@ async fn deleting_a_season_deletes_each_of_its_files_once_and_leaves_other_seaso
 
 #[tokio::test]
 async fn deleting_a_show_deletes_every_season_and_a_subscriber_is_told_of_each_item() {
-    let fx = Fixture::dark().await;
+    let fx = Fixture::dark_files().await;
     let about = SubscribeRequest {
         library_ids: vec![fx.library],
         ..Default::default()
@@ -863,7 +851,7 @@ fn dark_episodes(numbers: &[(u32, u32)]) -> ShowDeleted {
 #[tokio::test]
 async fn deleting_episodes_or_a_season_has_the_shows_fulfiller_stop_monitoring_just_those() {
     let fx = Fixture::dark_on(TestServer::builder().shows_fulfiller(&[])).await;
-    let own = fx.dark_version("Dark - S01E01.mkv").await;
+    let own = fx.season_1_version("Dark - S01E01.mkv").await;
 
     fx.delete(episode(fx.library, SECRETS, Some(own)))
         .await
@@ -888,12 +876,12 @@ async fn deleting_episodes_or_a_season_has_the_shows_fulfiller_stop_monitoring_j
 #[tokio::test]
 async fn a_show_side_target_that_isnt_there_or_is_in_a_movies_library_is_refused_naming_its_field()
 {
-    let fx = Fixture::dark().await;
+    let fx = Fixture::dark_files().await;
     let movies = fx
         .server
         .create_library(LibraryKind::LIBRARY_KIND_MOVIES, &[])
         .await;
-    let other = fx.dark_version("Dark - S01E01.mkv").await;
+    let other = fx.season_1_version("Dark - S01E01.mkv").await;
 
     for (reason, field, refused) in [
         (
@@ -989,7 +977,7 @@ async fn deleting_a_version_being_transcoded_ends_its_plan_which_the_preview_cou
     fx.write(ALIEN_2160P, b"video");
     fx.scan_and_match().await;
     let alien = fx.version_ids(ALIEN).await[0];
-    let plan = fx.plan(alien).await;
+    let plan = fx.admin_plan(alien).await;
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_TRANSCODE);
     let ended = [EventType::EVENT_TYPE_PLAYBACK_ENDED];
     let mut subscription = subscribe(&fx.server.client_config(), &ended).await;
@@ -1050,7 +1038,7 @@ async fn a_direct_play_of_a_deleted_version_gets_no_more_of_its_file() {
     fx.write(DUNE_VIDEO, &vec![0; BIGGER_THAN_SOCKET_BUFFERS]);
     fx.scan_and_match().await;
     let dune = fx.version_ids(DUNE).await[0];
-    let plan = fx.plan(dune).await;
+    let plan = fx.admin_plan(dune).await;
     assert_eq!(plan.method, PlaybackMethod::PLAYBACK_METHOD_DIRECT_PLAY);
     let stream = tokio::net::TcpStream::connect(fx.server.addr)
         .await

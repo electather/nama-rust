@@ -1,11 +1,6 @@
 //! The Watchlist (ADR 0056), over a real socket with the TMDB Plugin enabled against a fake TMDB.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/browsing.rs"]
-mod browsing;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{browsing, server};
 
 use browsing::{ALIEN_1080P, tmdb_id};
 use connectrpc::client::{ClientConfig, HttpClient};

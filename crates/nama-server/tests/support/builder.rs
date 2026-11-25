@@ -90,9 +90,11 @@ impl Builder {
         let clock = if self.moves_clock {
             let guard = CLOCK.write().await;
             nama_server::db::reset_clock();
-            ClockGuard::Exclusive(guard)
+            ClockGuard::Exclusive { _held: guard }
         } else {
-            ClockGuard::Shared(CLOCK.read().await)
+            ClockGuard::Shared {
+                _held: CLOCK.read().await,
+            }
         };
         self.serve(tempfile::tempdir().unwrap(), None, clock).await
     }
@@ -151,7 +153,6 @@ impl Builder {
             ..config
         };
         let db = Arc::new(Database::open(data_dir.path()).await.unwrap());
-        let registry = plugins.clone();
         let plugins = PluginSettings::start(Arc::clone(&db), plugins, &config)
             .await
             .unwrap();
@@ -181,7 +182,6 @@ impl Builder {
             admin_token,
             sharing,
             db,
-            plugins: registry,
             tmdb,
             fulfiller,
             _stop: stop,

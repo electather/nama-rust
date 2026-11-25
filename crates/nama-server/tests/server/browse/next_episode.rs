@@ -24,7 +24,7 @@ const DARK_EPISODES: [(Numbered, i64); 5] = [
 impl Fixture {
     /// Starts a Server with a Shows Library holding `episodes` of Dark, each in a file of its own,
     /// scanned and Matched.
-    async fn dark_episodes(episodes: &[Numbered]) -> Self {
+    async fn with_dark_episodes(episodes: &[Numbered]) -> Self {
         let mut fx = Self::start(LibraryKind::LIBRARY_KIND_SHOWS).await;
         for (season, number) in episodes {
             let path =
@@ -36,7 +36,7 @@ impl Fixture {
     }
 
     /// Marks each of `episodes` of Dark played for the Admin.
-    async fn play(&self, episodes: &[Numbered]) {
+    async fn play_episodes(&self, episodes: &[Numbered]) {
         let admin = self.admin();
         for numbered in episodes {
             let (_, tmdb) = (DARK_EPISODES.iter())
@@ -95,8 +95,8 @@ impl Fixture {
 
 #[tokio::test]
 async fn the_next_episode_is_the_one_after_with_its_versions_and_watch_state() {
-    let fx = Fixture::dark_episodes(&[(1, 1), (1, 2), (1, 3)]).await;
-    fx.play(&[(1, 1), (1, 2)]).await;
+    let fx = Fixture::with_dark_episodes(&[(1, 1), (1, 2), (1, 3)]).await;
+    fx.play_episodes(&[(1, 1), (1, 2)]).await;
     let third = fx.dark_version(1, "Dark - S01E03.mkv").await;
     fx.admin().report(third, MINUTE, AN_HOUR).await.unwrap();
 
@@ -113,23 +113,23 @@ async fn the_next_episode_is_the_one_after_with_its_versions_and_watch_state() {
 
 #[tokio::test]
 async fn after_a_seasons_last_episode_comes_the_next_seasons_first() {
-    let fx = Fixture::dark_episodes(&[(1, 2), (1, 3), (2, 1)]).await;
+    let fx = Fixture::with_dark_episodes(&[(1, 2), (1, 3), (2, 1)]).await;
 
     assert_eq!(fx.numbers_after((1, 3)).await, Some((2, 1)));
 }
 
 #[tokio::test]
 async fn a_played_episode_is_skipped() {
-    let fx = Fixture::dark_episodes(&[(1, 2), (1, 3), (2, 1)]).await;
-    fx.play(&[(1, 3)]).await;
+    let fx = Fixture::with_dark_episodes(&[(1, 2), (1, 3), (2, 1)]).await;
+    fx.play_episodes(&[(1, 3)]).await;
 
     assert_eq!(fx.numbers_after((1, 2)).await, Some((2, 1)));
 }
 
 #[tokio::test]
 async fn nothing_is_next_once_every_later_episode_is_played_or_there_is_none() {
-    let fx = Fixture::dark_episodes(&[(1, 1), (1, 2), (1, 3), (2, 1)]).await;
-    fx.play(&[(1, 3), (2, 1)]).await;
+    let fx = Fixture::with_dark_episodes(&[(1, 1), (1, 2), (1, 3), (2, 1)]).await;
+    fx.play_episodes(&[(1, 3), (2, 1)]).await;
 
     assert_eq!(
         fx.numbers_after((1, 2)).await,
@@ -141,7 +141,7 @@ async fn nothing_is_next_once_every_later_episode_is_played_or_there_is_none() {
 
 #[tokio::test]
 async fn a_special_is_never_next_and_nothing_follows_one() {
-    let fx = Fixture::dark_episodes(&[(0, 1), (1, 1), (1, 2), (1, 3)]).await;
+    let fx = Fixture::with_dark_episodes(&[(0, 1), (1, 1), (1, 2), (1, 3)]).await;
 
     assert_eq!(
         fx.numbers_after((1, 3)).await,
@@ -157,14 +157,14 @@ async fn a_special_is_never_next_and_nothing_follows_one() {
 
 #[tokio::test]
 async fn an_episode_the_library_lacks_is_never_next() {
-    let fx = Fixture::dark_episodes(&[(1, 1), (1, 3)]).await;
+    let fx = Fixture::with_dark_episodes(&[(1, 1), (1, 3)]).await;
 
     assert_eq!(fx.numbers_after((1, 1)).await, Some((1, 3)));
 }
 
 #[tokio::test]
 async fn an_unknown_season_or_episode_is_not_found() {
-    let fx = Fixture::dark_episodes(&[(1, 1), (1, 3)]).await;
+    let fx = Fixture::with_dark_episodes(&[(1, 1), (1, 3)]).await;
 
     for (season, episode) in [
         (fx.next_after((3, 1)).await, fx.next_after((1, 2)).await),
@@ -187,8 +187,8 @@ async fn an_unknown_season_or_episode_is_not_found() {
 
 #[tokio::test]
 async fn before_a_seasons_first_episode_comes_the_last_of_the_season_before_played_or_not() {
-    let fx = Fixture::dark_episodes(&[(1, 2), (1, 3), (2, 1)]).await;
-    fx.play(&[(1, 3)]).await;
+    let fx = Fixture::with_dark_episodes(&[(1, 2), (1, 3), (2, 1)]).await;
+    fx.play_episodes(&[(1, 3)]).await;
 
     let previous = fx.previous_to((2, 1)).await.unwrap().unwrap();
 
@@ -202,7 +202,7 @@ async fn before_a_seasons_first_episode_comes_the_last_of_the_season_before_play
 
 #[tokio::test]
 async fn nothing_is_before_a_shows_first_episode_or_a_special() {
-    let fx = Fixture::dark_episodes(&[(0, 1), (1, 1), (1, 2)]).await;
+    let fx = Fixture::with_dark_episodes(&[(0, 1), (1, 1), (1, 2)]).await;
 
     assert_eq!(
         fx.numbers_before((1, 1)).await,
@@ -218,7 +218,7 @@ async fn nothing_is_before_a_shows_first_episode_or_a_special() {
 
 #[tokio::test]
 async fn an_episode_the_library_lacks_is_never_previous() {
-    let fx = Fixture::dark_episodes(&[(1, 1), (1, 3)]).await;
+    let fx = Fixture::with_dark_episodes(&[(1, 1), (1, 3)]).await;
 
     assert_eq!(fx.numbers_before((1, 3)).await, Some((1, 1)));
 }

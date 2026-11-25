@@ -1,17 +1,7 @@
 //! Posters and backdrops: downloaded when a Match is made, fetched from the title source if
 //! someone asks first, and kept in the Server's image store while a Match stores them.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/browsing.rs"]
-mod browsing;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/http.rs"]
-mod http;
-#[path = "support/kept_artwork.rs"]
-mod kept_artwork;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{browsing, http, kept_artwork, server};
 
 use std::{fs, path::Path, sync::Arc};
 

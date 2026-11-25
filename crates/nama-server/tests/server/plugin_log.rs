@@ -1,18 +1,6 @@
 //! A Plugin's recent Plugin Log lines, as an Admin reads them on its Plugins page (ADR 0061).
 
-#[path = "support/installed_test_plugin.rs"]
-mod installed_test_plugin;
-#[path = "support/log.rs"]
-#[expect(
-    dead_code,
-    reason = "only installing its subscriber, which keeps Plugin Log lines"
-)]
-mod log;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
+use crate::support::{log, server};
 
 use std::{
     sync::Arc,

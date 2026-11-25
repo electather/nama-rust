@@ -12,7 +12,7 @@ use nama_proto::nama::v1::{
     UserServiceClient, home_layout_row, home_row::KernelOrPlugin,
 };
 
-use crate::{
+use super::{
     home_row_plugin::{PLUGIN, enable},
     server::{SignedIn, TestServer, WAIT},
 };

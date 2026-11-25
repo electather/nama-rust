@@ -3,9 +3,7 @@
 //! Blade Runner and Prometheus, which no Library has; Event Horizon shares Alien's genres alone,
 //! and Heat shares nothing with them.
 
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::server;
 
 use std::{future, sync::Arc, time::Duration};
 

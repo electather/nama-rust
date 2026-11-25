@@ -2,14 +2,7 @@
 //! the textless one, over a real socket with the TMDB Plugin enabled against a fake TMDB and a
 //! title source of this file's own that lists an English Backdrop.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/http.rs"]
-mod http;
-#[path = "support/kept_artwork.rs"]
-mod kept_artwork;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{http, kept_artwork, server};
 
 use std::{future, io::Cursor, sync::Arc};
 

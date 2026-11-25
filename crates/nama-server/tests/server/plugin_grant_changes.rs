@@ -1,9 +1,7 @@
 //! Changing a running Plugin's grants over the API leaves what runs and what is stored agreeing,
 //! even when the Plugin won't enable with the new grants (ADR 0028, 0049).
 
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::server;
 
 use std::sync::{
     Arc, Mutex, PoisonError,

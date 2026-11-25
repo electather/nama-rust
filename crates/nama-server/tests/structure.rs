@@ -19,7 +19,8 @@ fn the_server_keeps_its_structure() {
         allowed_upward: ALLOWED_UPWARD,
         surface_exceptions: SURFACE_EXCEPTIONS,
         confined_crates: &[],
-        separate_programs: None,
+        // Every other integration test is a module of `tests/server/` (`AGENTS.md`).
+        separate_programs: Some(&["structure", "upload_memory", "web"]),
         must_find: MustFind {
             nested_folder: "src/playback/choices",
             area_module: Some(("library", "contents")),
@@ -32,16 +33,16 @@ fn the_server_keeps_its_structure() {
 
 /// Today's files over 800 lines, sorted by path, each with the ceiling it stays at or under.
 const CEILINGS: &[(&str, usize)] = &[
-    ("tests/access.rs", 900),
-    ("tests/api.rs", 900),
-    ("tests/browse.rs", 1700),
-    ("tests/delete_media.rs", 1300),
-    ("tests/playback.rs", 2600),
-    ("tests/plugin_service.rs", 1100),
-    ("tests/plugins.rs", 900),
-    ("tests/requests.rs", 4100),
-    ("tests/sign_in.rs", 1400),
-    ("tests/users.rs", 1200),
+    ("tests/server/access.rs", 900),
+    ("tests/server/api.rs", 900),
+    ("tests/server/browse.rs", 1700),
+    ("tests/server/delete_media.rs", 1300),
+    ("tests/server/playback.rs", 2600),
+    ("tests/server/plugin_service.rs", 1100),
+    ("tests/server/plugins.rs", 900),
+    ("tests/server/requests.rs", 4100),
+    ("tests/server/sign_in.rs", 1400),
+    ("tests/server/users.rs", 1200),
 ];
 
 /// The tables a "One owner" rule in `AGENTS.md` names, each with its owner's path without `.rs`.

@@ -1,8 +1,6 @@
 //! Each User turning off playing the next Episode by itself, for themself alone.
 
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::server;
 
 use connectrpc::client::HttpClient;
 use nama_proto::nama::v1::{GetAutoplayRequest, PlaybackServiceClient, SetAutoplayRequest};

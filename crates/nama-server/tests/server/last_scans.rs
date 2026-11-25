@@ -1,9 +1,7 @@
 //! A Library's last finished Scan, as `GetLibrary` and `ListLibraries` give it (#1125), over a
 //! real socket.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::server;
 
 use std::{
     fs,

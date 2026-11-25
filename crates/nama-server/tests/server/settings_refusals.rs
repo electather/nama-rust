@@ -1,11 +1,7 @@
 //! Settings updates the Server refuses whole: one without its `settings` message, and one naming
 //! an enum value the Server doesn't know. Nothing is stored either way.
 
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::{refused, server};
 
 use buffa::EnumValue;
 use connectrpc::{ErrorCode, client::HttpClient};

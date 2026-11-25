@@ -2,18 +2,7 @@
 //! an Admin chose, everywhere the Server hands out titles, over a real socket with the fake TMDB,
 //! whose Similar source answers Alien's as Aliens and Heat.
 
-#[path = "support/http.rs"]
-#[expect(dead_code, reason = "this binary reads only a response's status")]
-mod http;
-#[path = "support/installed_test_plugin.rs"]
-mod installed_test_plugin;
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
+use crate::support::{http, refused, server};
 
 use std::time::{Duration, Instant};
 

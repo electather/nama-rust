@@ -15,7 +15,7 @@ use nama_proto::nama::v1::{
 };
 use nama_server::plugins::Registry;
 
-use crate::{refused::assert_refused, server::TestServer};
+use crate::support::{refused::assert_refused, server::TestServer};
 
 /// The Built-in Plugin `rater`, with the Choices setting `ratings` offering G, PG and PG-13, and,
 /// if `checks`, a settings check offering only R for it.

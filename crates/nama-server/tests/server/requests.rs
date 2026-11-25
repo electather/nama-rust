@@ -1,24 +1,7 @@
 //! Requesting Movies and Seasons through the generated `RequestService` client, over a real
 //! socket, with the TMDB Plugin enabled against a fake TMDB.
 
-#[expect(dead_code, reason = "these tests fetch only whole files")]
-#[path = "support/http.rs"]
-mod http;
-#[path = "support/installed_test_plugin.rs"]
-#[expect(
-    dead_code,
-    reason = "this binary enables the test Plugin itself, after its settings"
-)]
-mod installed_test_plugin;
-#[path = "support/log.rs"]
-mod log;
-#[path = "support/refused.rs"]
-mod refused;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
-#[path = "support/test_plugin.rs"]
-mod test_plugin;
+use crate::support::{http, log, refused, server};
 
 use std::{
     collections::BTreeMap,

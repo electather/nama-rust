@@ -1,14 +1,7 @@
 //! Fixing Matches by hand through the generated `MatchService` client, over a real socket, with
 //! the TMDB Plugin enabled against a fake TMDB.
 
-#[path = "support/browsing.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod browsing;
-#[path = "support/refused.rs"]
-mod refused;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{browsing, refused, server};
 
 use std::{collections::HashMap, fs, path::Path};
 
@@ -687,7 +680,8 @@ async fn an_episode_not_matched_yet_is_listed_with_its_season_and_number() {
     );
 }
 
-/// `listed` with no `version_id`s, which `tests/unmatched_items.rs` checks against the files.
+/// `listed` with no `version_id`s, which `unmatched_items.rs` beside this file checks against the
+/// files.
 fn without_versions(listed: Vec<UnmatchedItem>) -> Vec<UnmatchedItem> {
     (listed.into_iter())
         .map(|item| UnmatchedItem {

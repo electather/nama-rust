@@ -7,7 +7,7 @@ use nama_proto::nama::v1::{
     UpdatePluginSettingsRequest, UpdatePluginSettingsResponse, setting_value::Value,
 };
 
-use crate::{refused::assert_refused, server::TestServer};
+use crate::support::{refused::assert_refused, server::TestServer};
 
 /// Sets the Cleanup's `days` to `days`, as the Admin.
 async fn set_days(

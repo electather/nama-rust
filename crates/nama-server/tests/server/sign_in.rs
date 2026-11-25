@@ -1,8 +1,7 @@
 //! Creating the first Admin with the Setup Code, signing Devices in and out, and finding out who
 //! is signed in, over a real socket and against a real SQLite database.
 
-#[path = "support/refused.rs"]
-mod refused;
+use crate::support::refused;
 
 use std::{
     io,

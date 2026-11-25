@@ -2,11 +2,7 @@
 //! there (ADR 0021), through an in-process chat Plugin: Users connecting and disconnecting, and
 //! who is told about each Request event.
 
-#[path = "support/log.rs"]
-mod log;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{log, server};
 
 use std::{
     collections::{HashMap, HashSet},

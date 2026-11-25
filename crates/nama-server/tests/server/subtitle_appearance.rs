@@ -1,11 +1,7 @@
 //! Each User's Subtitle Appearance: kept on the Server for themself alone, so it follows them to
 //! every Device.
 
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::{refused, server};
 
 use buffa::EnumValue;
 use connectrpc::{ErrorCode, client::HttpClient};

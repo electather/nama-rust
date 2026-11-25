@@ -5,14 +5,7 @@
 //! from Accounts, signing in with an Account, and the Admin who can always sign in without the Hub
 //! (ADR 0092), all with no Plugin enabled.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/fake_hub.rs"]
-mod fake_hub;
-#[path = "support/refused.rs"]
-mod refused;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{fake_hub, refused, server};
 
 use std::{num::NonZeroU16, time::Duration};
 

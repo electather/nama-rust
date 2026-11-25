@@ -3,15 +3,7 @@
 //! while the admin shares Diagnostics, to the Hub the Server is Linked with (ADR 0054, ADR 0105),
 //! as are the batches the Server's own exporters post.
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/fake_hub.rs"]
-mod fake_hub;
-#[path = "support/http.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the helpers")]
-mod http;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::{fake_hub, http, server};
 
 use std::{
     sync::{Arc, Mutex, OnceLock, PoisonError},

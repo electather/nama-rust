@@ -3,15 +3,7 @@
 //! a fake whose one Account two Servers share, which Links every User but those its test names.
 //! Their plays go to it as Viewing Events (ADR 0093).
 
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/browsing.rs"]
-mod browsing;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/fake_hub.rs"]
-mod fake_hub;
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-#[path = "support/server.rs"]
-mod server;
+use crate::support::{browsing, fake_hub, server};
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 

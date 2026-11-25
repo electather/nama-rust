@@ -1,11 +1,7 @@
 //! Where the stored images live: local disk by default, and the Admin's switch to another store
 //! with `SwitchImageStore` (ADR 0052), over a real socket.
 
-#[path = "support/refused.rs"]
-mod refused;
-#[path = "support/server.rs"]
-#[expect(dead_code, reason = "this binary uses only some of the fixture")]
-mod server;
+use crate::support::{refused, server};
 
 use connectrpc::{ConnectError, ErrorCode, client::ClientConfig, client::HttpClient};
 use nama_proto::nama::v1::{
