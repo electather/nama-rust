@@ -1,0 +1,19 @@
+[package]
+name = "nama-plugin-simkl"
+version = "0.1.0"
+description = "Installed Plugin syncing each User's Watch State with their own Simkl account, bundled in the Server"
+license = "AGPL-3.0-only"
+edition.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+jiff = { version = "1.0", default-features = false, features = ["std"] }
+nama-pdk = { version = "0.3.0", path = "../../crates/nama-pdk" }
+serde = { version = "1", features = ["derive"] }
+
+[lints]
+workspace = true
