@@ -46,6 +46,44 @@ impl Users {
         .await
     }
 
+    /// The stored hash of the Switch PIN of the User `user`, if they set one, failing with
+    /// [`Error::NoSuchUser`] unless they are signed in to the Device `device`.
+    pub(super) async fn switch_pin_on(
+        &self,
+        device: i64,
+        user: i64,
+    ) -> Result<Option<String>, Error> {
+        sqlx::query_scalar!(
+            r#"SELECT p.credential AS "credential?"
+               FROM device_users du LEFT JOIN switch_pins p ON p.user_id = du.user_id
+               WHERE du.device_id = ? AND du.user_id = ?"#,
+            device,
+            user
+        )
+        .fetch_optional(self.db.reader())
+        .await?
+        .ok_or(Error::NoSuchUser)
+    }
+
+    /// Signs the User `user` out of the Device `device`, as too many wrong Switch PINs do, leaving
+    /// its other Users signed in.
+    pub(super) async fn sign_out_of(&self, device: i64, user: i64) -> Result<(), Error> {
+        self.write_signing_out(move |tx| {
+            Box::pin(async move {
+                sqlx::query!(
+                    "DELETE FROM device_users WHERE device_id = ? AND user_id = ?",
+                    device,
+                    user
+                )
+                .execute(&mut **tx)
+                .await?;
+                Ok(vec![device])
+            })
+        })
+        .await
+        .map(drop)
+    }
+
     /// Makes the Device `device` act as the User `user`, one of those signed in to it, failing with
     /// [`Error::NoSuchUser`] for any other. Clears `user`'s Recent Authentication on it, and ends
     /// what it opened as the User it acted as, as [`Users::signed_out`] says.

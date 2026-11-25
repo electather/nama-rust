@@ -57,6 +57,7 @@ pub(crate) use notification_preferences::{
     every_turned_off as every_notification_turned_off, of as notification_preferences_of,
     set as set_notification_preference,
 };
+pub(crate) use passwords::SWITCH_PIN_LENGTH;
 use passwords::{Credential, set_password};
 pub(crate) use permissions::Permissions;
 pub(crate) use personal_settings::{
@@ -292,6 +293,12 @@ pub enum Error {
     /// No enabled Plugin provides an Authenticator.
     #[error("no Authenticator is enabled")]
     NoAuthenticator,
+    /// A Switch PIN isn't 4 to 6 digits.
+    #[error("a Switch PIN is 4 to 6 digits")]
+    SwitchPinInvalid,
+    /// Hashing a Switch PIN, or checking one, failed or panicked.
+    #[error("hashing a Switch PIN failed: {0}")]
+    SwitchPinHashing(String),
     /// The Authenticator failed, or panicked, making a credential.
     #[error("the Authenticator failed: {0}")]
     Authenticator(String),

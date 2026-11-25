@@ -12,7 +12,11 @@ use super::{
     self as users, ApprovingDevice, Caller, NewDevice, Proved, SignedIn, Users,
     codes::SetupCode,
     device_names,
-    rate_limits::{Blocked, SignInCodeLimits, SignInCodeStartLimits, SignInLimits},
+    passwords::is_switch_pin,
+    rate_limits::{
+        Blocked, SignInCodeLimits, SignInCodeStartLimits, SignInLimits, SwitchPinTries,
+        WRONG_SWITCH_PINS,
+    },
     sign_in_codes::{self, Delivery, Poll, SignInCodes, Started},
 };
 use crate::link;
@@ -30,6 +34,7 @@ pub(crate) struct SignIn {
     code_limits: SignInCodeLimits,
     /// The recent Sign-in Code starts, which keep one client IP from filling `codes`.
     code_start_limits: SignInCodeStartLimits,
+    switch_pin_tries: SwitchPinTries,
 }
 
 /// Who a Device claims to be, and what proves it, when it signs in or reauthenticates. Not `Debug`,
@@ -93,6 +98,19 @@ pub(crate) enum Error {
         /// The request field it is about, as clients name it.
         field: &'static str,
     },
+    /// Switching to a User with a Switch PIN gave none.
+    #[error("that User has a Switch PIN; enter it")]
+    SwitchPinMissing,
+    /// The Switch PIN isn't the User's. After [`WRONG_SWITCH_PINS`] in a row, that User was
+    /// signed out of the Device.
+    #[error(
+        "the Switch PIN is wrong; after {WRONG_SWITCH_PINS} wrong ones in a row, that User is \
+         signed out of this Device"
+    )]
+    WrongSwitchPin {
+        /// How many more wrong ones would sign the User out, 0 once they were.
+        tries_left: u32,
+    },
     /// The Plugin that links the Server couldn't finish a sign-in with an Account.
     #[error(transparent)]
     Link(#[from] link::Error),
@@ -109,6 +127,7 @@ impl SignIn {
             codes: SignInCodes::default(),
             code_limits: SignInCodeLimits::default(),
             code_start_limits: SignInCodeStartLimits::default(),
+            switch_pin_tries: SwitchPinTries::default(),
         }
     }
 
@@ -350,6 +369,49 @@ impl SignIn {
             .finish_account_sign_in(handle, code)
             .await?)
             .ok_or(Error::AccountSignInNotFound { field })
+    }
+
+    /// Makes the Device `device` act as the User `user`, one of those signed in to it, once
+    /// `switch_pin` is theirs, if they set one (ADR 0106). The last of [`WRONG_SWITCH_PINS`] wrong
+    /// ones in a row signs them out of the Device instead. A missing one is no guess.
+    pub(crate) async fn switch(
+        &self,
+        device: i64,
+        user: i64,
+        switch_pin: &str,
+    ) -> Result<(), Error> {
+        if let Some(stored) = self.users.switch_pin_on(device, user).await? {
+            self.check_switch_pin(device, user, switch_pin, stored)
+                .await?;
+        }
+        Ok(self.users.switch(device, user).await?)
+    }
+
+    /// Fails unless `switch_pin` is the one `stored` hashes, the Switch PIN of the User `user`,
+    /// counting it toward signing them out of the Device `device` as [`SignIn::switch`] says.
+    async fn check_switch_pin(
+        &self,
+        device: i64,
+        user: i64,
+        switch_pin: &str,
+        stored: String,
+    ) -> Result<(), Error> {
+        if switch_pin.is_empty() {
+            return Err(Error::SwitchPinMissing);
+        }
+        let tried = (self.switch_pin_tries.admit(device, user))
+            .ok_or(Error::WrongSwitchPin { tries_left: 0 })?;
+        if is_switch_pin(&tried, switch_pin, stored).await? {
+            self.switch_pin_tries.forget(device, user);
+            return Ok(());
+        }
+        let tries_left = WRONG_SWITCH_PINS - tried.in_a_row;
+        if tries_left == 0 {
+            // First, so a failed sign-out can't leave the count full and switching locked.
+            self.switch_pin_tries.forget(device, user);
+            self.users.sign_out_of(device, user).await?;
+        }
+        Err(Error::WrongSwitchPin { tries_left })
     }
 
     /// Signs the Device `device` out, with every User on it, so its session stops working.

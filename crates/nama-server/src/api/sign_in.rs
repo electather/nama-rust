@@ -16,13 +16,14 @@ use connectrpc::{
 };
 use nama_proto::nama::v1::{
     AcceptInviteRequest, AcceptInviteResponse, ApproveSignInCodeRequest, ApproveSignInCodeResponse,
-    LookUpSignInCodeRequest, LookUpSignInCodeResponse, PollSignInCodeRequest,
-    PollSignInCodeResponse, ReauthenticateRequest, ReauthenticateResponse, RefusalReason,
-    SessionDelivery, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest, SignInResponse,
-    SignInService, SignInWithAccountRequest, SignInWithAccountResponse, SignOutRequest,
-    SignOutResponse, StartAccountSignInRequest, StartAccountSignInResponse, StartSignInCodeRequest,
-    StartSignInCodeResponse, SwitchUserRequest, SwitchUserResponse, User as ProtoUser,
-    WhoAmIRequest, WhoAmIResponse, reauthenticate_request::Proof,
+    ClearSwitchPinRequest, ClearSwitchPinResponse, LookUpSignInCodeRequest,
+    LookUpSignInCodeResponse, PollSignInCodeRequest, PollSignInCodeResponse, ReauthenticateRequest,
+    ReauthenticateResponse, RefusalReason, SessionDelivery, SetSwitchPinRequest,
+    SetSwitchPinResponse, SetupRequest, SetupResponse, SignInCodeStatus, SignInRequest,
+    SignInResponse, SignInService, SignInWithAccountRequest, SignInWithAccountResponse,
+    SignOutRequest, SignOutResponse, StartAccountSignInRequest, StartAccountSignInResponse,
+    StartSignInCodeRequest, StartSignInCodeResponse, SwitchUserRequest, SwitchUserResponse,
+    User as ProtoUser, WhoAmIRequest, WhoAmIResponse, reauthenticate_request::Proof,
 };
 
 use crate::{
@@ -38,13 +39,13 @@ use nama_forwarded::RequestSource;
 
 use super::{
     caller, calling_device, database_failed, refuse, server_link, signed_out, unknown_enum_value,
-    users::{device_to_proto, user_to_proto},
+    users::{device_to_proto, user_to_proto, whose},
 };
 
 /// `nama.v1.SignInService`: signing Devices in, and saying who is signed in.
 pub(super) struct SignInServiceHandler {
     pub(super) sign_in: SignIn,
-    /// Lists a Device's Users and switches between them.
+    /// Lists a Device's Users and sets their Switch PINs.
     pub(super) users: Users,
     /// Starts a User signing in with their Account.
     pub(super) linking: Linking,
@@ -162,8 +163,33 @@ impl SignInService for SignInServiceHandler {
         request: ServiceRequest<'_, SwitchUserRequest>,
     ) -> ServiceResult<SwitchUserResponse> {
         let device = calling_device(&ctx)?.id;
-        self.users.switch(device, request.user_id).await?;
+        let request = request.to_owned_message();
+        (self.sign_in)
+            .switch(device, request.user_id, &request.switch_pin)
+            .await?;
         Response::ok(SwitchUserResponse::default())
+    }
+
+    async fn set_switch_pin(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetSwitchPinRequest>,
+    ) -> ServiceResult<SetSwitchPinResponse> {
+        let user = caller(&ctx)?.user.id;
+        let request = request.to_owned_message();
+        self.users.set_switch_pin(user, &request.switch_pin).await?;
+        Response::ok(SetSwitchPinResponse::default())
+    }
+
+    async fn clear_switch_pin(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, ClearSwitchPinRequest>,
+    ) -> ServiceResult<ClearSwitchPinResponse> {
+        let caller = caller(&ctx)?;
+        let user = whose(caller, request.user_id)?;
+        self.users.clear_switch_pin(&caller.user, user).await?;
+        Response::ok(ClearSwitchPinResponse::default())
     }
 
     async fn reauthenticate(
@@ -501,6 +527,19 @@ impl From<SignInError> for ConnectError {
                 err.to_string(),
             )
             .field(field)
+            .into(),
+            err @ SignInError::SwitchPinMissing => refuse(
+                RefusalReason::REFUSAL_REASON_FIELD_REQUIRED,
+                err.to_string(),
+            )
+            .field("switch_pin")
+            .into(),
+            ref err @ SignInError::WrongSwitchPin { tries_left } => refuse(
+                RefusalReason::REFUSAL_REASON_WRONG_SWITCH_PIN,
+                err.to_string(),
+            )
+            .field("switch_pin")
+            .param("triesLeft", &tries_left)
             .into(),
             SignInError::Link(err) => server_link::account_sign_in_failed(err),
         }

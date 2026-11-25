@@ -424,6 +424,10 @@ pub mod __buffa {
         reg.register_json_any(super::__WHO_AM_I_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SWITCH_USER_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SWITCH_USER_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SET_SWITCH_PIN_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SET_SWITCH_PIN_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__CLEAR_SWITCH_PIN_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__CLEAR_SWITCH_PIN_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__REAUTHENTICATE_REQUEST_JSON_ANY);
         reg.register_json_any(super::__REAUTHENTICATE_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__START_SIGN_IN_CODE_REQUEST_JSON_ANY);
@@ -1905,6 +1909,22 @@ pub use self::__buffa::view::SwitchUserRequestOwnedView;
 pub use self::__buffa::view::SwitchUserResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SwitchUserResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSwitchPinRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSwitchPinRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSwitchPinResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SetSwitchPinResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ClearSwitchPinRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ClearSwitchPinRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ClearSwitchPinResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::ClearSwitchPinResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::ReauthenticateRequestView;
 #[doc(inline)]

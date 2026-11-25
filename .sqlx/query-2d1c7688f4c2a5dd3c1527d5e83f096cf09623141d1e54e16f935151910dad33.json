@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT p.credential AS \"credential?\"\n               FROM device_users du LEFT JOIN switch_pins p ON p.user_id = du.user_id\n               WHERE du.device_id = ? AND du.user_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "credential?",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "switch_pins",
+            "name": "credential"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "2d1c7688f4c2a5dd3c1527d5e83f096cf09623141d1e54e16f935151910dad33"
+}

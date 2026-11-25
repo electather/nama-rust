@@ -59,7 +59,7 @@ use super::{
 /// `nama.v1.UserService`: managing the Server's Users, their Devices and Plugin Connections. Needs
 /// `PERMISSION_MANAGE_USERS`, which [`require_access`](super::require_access) enforces, but for
 /// the self-service RPCs `access::ACCESS` opens to any session, which check for themselves with
-/// [`devices_owner`] or act only on the caller.
+/// [`whose`] or act only on the caller.
 pub(super) struct UserServiceHandler {
     pub(super) users: Users,
     pub(super) connections: Connections,
@@ -175,13 +175,13 @@ impl UserService for UserServiceHandler {
         request: ServiceRequest<'_, ListDevicesRequest>,
     ) -> ServiceResult<ListDevicesResponse> {
         let caller = caller(&ctx)?;
-        let owner = devices_owner(caller, request.user_id)?;
+        let owner = whose(caller, request.user_id)?;
         let devices = self
             .users
             .devices(owner)
             .await
             .map_err(database_failed)?
-            .ok_or_else(no_such_user)?;
+            .ok_or(users::Error::NoSuchUser)?;
         let current = caller.device.id;
         Response::ok(ListDevicesResponse {
             devices: devices
@@ -201,7 +201,7 @@ impl UserService for UserServiceHandler {
         request: ServiceRequest<'_, RevokeDeviceRequest>,
     ) -> ServiceResult<RevokeDeviceResponse> {
         let caller = caller(&ctx)?;
-        let owner = devices_owner(caller, request.user_id)?;
+        let owner = whose(caller, request.user_id)?;
         self.users
             .revoke(&caller.user, owner, request.device_id)
             .await?;
@@ -645,10 +645,10 @@ fn seen_row_to_proto(row: KernelOrPlugin, shown: bool) -> HomeLayoutRow {
     }
 }
 
-/// The User whose Devices `caller` asks about with `user_id`: their own if it's unset. Only a User
-/// who manages Users may ask about another User's. Anyone else who does gets `not_found`, as for a
-/// User who doesn't exist, so they can't learn which IDs do.
-fn devices_owner(caller: &Caller, user_id: Option<i64>) -> Result<i64, ConnectError> {
+/// The User `caller` asks about with `user_id`, such as whose Devices to list: their own if it's
+/// unset. Only a User who manages Users may ask about another User. Anyone else who does gets
+/// `not_found`, as for a User who doesn't exist, so they can't learn which IDs do.
+pub(super) fn whose(caller: &Caller, user_id: Option<i64>) -> Result<i64, ConnectError> {
     match user_id {
         None => Ok(caller.user.id),
         Some(id)
@@ -656,13 +656,8 @@ fn devices_owner(caller: &Caller, user_id: Option<i64>) -> Result<i64, ConnectEr
         {
             Ok(id)
         }
-        Some(_) => Err(no_such_user()),
+        Some(_) => Err(users::Error::NoSuchUser.into()),
     }
-}
-
-/// The Connect error for the request's `user_id` naming nobody the caller may see.
-fn no_such_user() -> ConnectError {
-    users::Error::NoSuchUser.into()
 }
 
 fn permissions_from_proto(
@@ -741,6 +736,10 @@ impl From<users::Error> for ConnectError {
             users::Error::PasswordRejected { field, .. } => {
                 refuse(R::REFUSAL_REASON_PASSWORD_REJECTED, message).field(field)
             }
+            users::Error::SwitchPinInvalid => refuse(R::REFUSAL_REASON_SWITCH_PIN_INVALID, message)
+                .field("switch_pin")
+                .param("minLength", users::SWITCH_PIN_LENGTH.start())
+                .param("maxLength", users::SWITCH_PIN_LENGTH.end()),
             // Only creating a User or setting up the first one takes a name to check.
             users::Error::NameTaken => {
                 refuse(R::REFUSAL_REASON_USER_NAME_TAKEN, message).field("name")
@@ -790,6 +789,7 @@ impl From<users::Error> for ConnectError {
             }
             users::Error::NoAuthenticator
             | users::Error::Authenticator(_)
+            | users::Error::SwitchPinHashing(_)
             | users::Error::Random(_) => {
                 tracing::error!("a change to the Users failed: {err}");
                 return Self::internal("the Server failed");
