@@ -1,7 +1,5 @@
 //! Live updates: `nama.v1.EventService`.
 
-use std::future;
-
 use buffa::EnumValue;
 use connectrpc::{
     ConnectError, Encodable, RequestContext, Response, ServiceRequest, ServiceResult, ServiceStream,
@@ -14,15 +12,14 @@ use crate::{
     users::Users,
 };
 
-use super::{caller, unknown_enum_value};
+use super::{caller, database_failed, unknown_enum_value};
 
 /// `nama.v1.EventService`: live updates.
-//
-// TODO(M3): once there is per-Library access, only send a caller events about Libraries it may see.
 pub(super) struct EventServiceHandler {
     pub(super) events: EventBus,
-    /// Whose sign-outs end the streams their Devices opened, and whose Permission changes end the
-    /// streams they opened, so a stream never sees what its User no longer may.
+    /// Whose sign-outs end the streams their Devices opened, and whose Permission and Library
+    /// access changes end the streams they opened, so a stream never sees what its User no longer
+    /// may.
     pub(super) users: Users,
 }
 
@@ -35,7 +32,10 @@ impl EventService for EventServiceHandler {
         Output = ServiceResult<ServiceStream<impl Encodable<SubscribeResponse> + Send + use<>>>,
     > + Send {
         let request = request.to_owned_message();
-        let subscribed = caller(&ctx).and_then(|caller| {
+        let caller = caller(&ctx).cloned();
+        let (events, users) = (self.events.clone(), self.users.clone());
+        async move {
+            let caller = caller?;
             let types = request
                 .types
                 .into_iter()
@@ -45,19 +45,19 @@ impl EventService for EventServiceHandler {
                 types,
                 libraries: request.library_ids,
             };
-            let signed_out = self.users.signed_out(caller.device.id, caller.user.id);
-            let permissions_changed = self
-                .users
-                .permissions_changed(caller.user.id, caller.user.permissions);
-            let events = self
-                .events
-                .subscribe(&caller.user, filter)
+            let signed_out = users.signed_out(caller.device.id, caller.user.id);
+            let permissions_changed =
+                users.permissions_changed(caller.user.id, caller.user.permissions);
+            let watched = users.library_access_watched(caller.user.id).await;
+            let (libraries, library_access_changed) = watched.map_err(database_failed)?;
+            let events = events
+                .subscribe(&caller.user, libraries, filter)
                 .take_until(signed_out)
-                .take_until(permissions_changed);
+                .take_until(permissions_changed)
+                .take_until(library_access_changed);
             let stream: ServiceStream<SubscribeResponse> = Box::pin(events.map(Ok));
             Response::ok(stream)
-        });
-        future::ready(subscribed)
+        }
     }
 }
 

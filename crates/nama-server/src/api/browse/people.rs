@@ -3,10 +3,10 @@
 use connectrpc::{RequestContext, Response, ServiceResult};
 use nama_proto::nama::v1::{self as proto, GetPersonRequest, GetPersonResponse, person_role};
 
-use super::{BrowseServiceHandler, Fields, refused};
+use super::{BrowseServiceHandler, Fields, refused, seen_by};
 use crate::{
     api::{
-        required_id,
+        caller, required_id,
         search::{movie_hit, show_hit},
         shown_images,
     },
@@ -20,7 +20,8 @@ pub(super) async fn get_person(
     request: GetPersonRequest,
 ) -> ServiceResult<GetPersonResponse> {
     let id = required_id(request.person_id.into_option(), "person_id", "Person")?;
-    let page = handler.browse.person(&id).await;
+    let browse = seen_by(&handler.browse, caller(ctx)?.user.id).await?;
+    let page = browse.person(&id).await;
     let page = page.map_err(refused(Fields {
         title: "person_id",
         ..Fields::NONE

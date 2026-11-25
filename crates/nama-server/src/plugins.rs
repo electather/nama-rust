@@ -14,7 +14,6 @@ mod registry;
 mod scope;
 #[cfg(test)]
 mod scripted_fulfiller;
-mod sharing;
 mod wasm;
 
 use std::{
@@ -56,8 +55,6 @@ pub use points::ExtensionPoints;
 pub use registry::Registry;
 #[cfg(test)]
 pub(crate) use scripted_fulfiller::{ScriptedFulfiller, Told};
-pub use sharing::ShareThroughPlugins;
-pub(crate) use sharing::share_diagnostics;
 #[cfg(test)]
 pub(crate) use wasm::installed_points;
 pub(crate) use wasm::{Loaded as LoadedInstalled, read as read_installed};

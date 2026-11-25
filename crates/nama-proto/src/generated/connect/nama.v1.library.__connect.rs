@@ -567,8 +567,8 @@ pub trait LibraryService: Send + Sync + 'static {
             > + Send + use<'a, Self>,
         >,
     > + Send;
-    /// Lists every Library on the Server, oldest first. Any signed-in User may list them, to browse,
-    /// but only one with `PERMISSION_MANAGE_LIBRARIES` gets their folders.
+    /// Lists every Library the caller sees (`User.library_access`), oldest first. Any signed-in User
+    /// may list them, to browse, but only one with `PERMISSION_MANAGE_LIBRARIES` gets their folders.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

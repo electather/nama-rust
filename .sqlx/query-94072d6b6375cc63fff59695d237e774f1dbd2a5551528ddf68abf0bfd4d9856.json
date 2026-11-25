@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT users.id AS \"user!\", user_libraries.library_id AS \"library?\"\n               FROM users LEFT JOIN user_libraries ON user_libraries.user_id = users.id\n               WHERE NOT users.all_libraries",
+  "describe": {
+    "columns": [
+      {
+        "name": "user!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "library?",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "user_libraries",
+            "name": "library_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "94072d6b6375cc63fff59695d237e774f1dbd2a5551528ddf68abf0bfd4d9856"
+}

@@ -15,7 +15,7 @@ use crate::{
 };
 
 use super::{
-    browse::{Fields, refused},
+    browse::{Fields, refused, seen_by},
     caller, refuse, required_id,
 };
 
@@ -103,7 +103,8 @@ impl WatchStateService for WatchStateServiceHandler {
             }
             Target::ShowId(id) => show_target(*id)?,
         };
-        let marked = self.browse.mark(user, library, target, played).await;
+        let browse = seen_by(&self.browse, user).await?;
+        let marked = browse.mark(user, library, target, played).await;
         marked.map_err(refused(fields))?;
         Response::ok(SetPlayedResponse::default())
     }
@@ -131,7 +132,8 @@ impl WatchStateService for WatchStateServiceHandler {
             Hide::MovieId(id) => movie_target(*id)?,
             Hide::ShowId(id) => show_target(*id)?,
         };
-        let hid = self.browse.hide(user, library, target, hidden).await;
+        let browse = seen_by(&self.browse, user).await?;
+        let hid = browse.hide(user, library, target, hidden).await;
         hid.map_err(refused(fields))?;
         Response::ok(SetHiddenFromContinueWatchingResponse::default())
     }

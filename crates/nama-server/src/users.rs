@@ -26,6 +26,7 @@ mod expired;
 mod home_layout;
 mod inbox;
 mod invites;
+mod library_access;
 mod managing;
 mod names;
 mod notification_preferences;
@@ -49,14 +50,16 @@ pub(crate) use inbox::{
     store as store_in_inbox, unread as count_unread_in_inbox,
 };
 pub(crate) use invites::Invite;
-pub(crate) use managing::remote_cap;
+pub(crate) use library_access::{LibraryAccess, library_access};
 use managing::{default_permissions, ensure_may_change, ensure_may_grant};
+pub(crate) use managing::{every_user, remote_cap};
 use names::checked_name;
 pub(crate) use names::name_key;
 pub(crate) use notification_preferences::{
     every_turned_off as every_notification_turned_off, of as notification_preferences_of,
     set as set_notification_preference,
 };
+pub(crate) use passwords::SWITCH_PIN_LENGTH;
 use passwords::{Credential, set_password};
 pub(crate) use permissions::Permissions;
 pub(crate) use personal_settings::{
@@ -98,6 +101,11 @@ const SIGN_OUTS_BUFFERED: usize = 64;
 /// seen them. One that falls further behind reads its User's Permissions instead.
 const PERMISSION_CHANGES_BUFFERED: usize = 64;
 
+/// How many Library access changes may happen before a waiter in
+/// [`Users::library_access_watched`] has seen them. One that falls further behind reads its User's
+/// Library access instead.
+const LIBRARY_ACCESS_CHANGES_BUFFERED: usize = 64;
+
 /// The Server's Users, Devices and sessions, kept in its database.
 ///
 /// Cloning a `Users` gives another handle to the same ones.
@@ -109,6 +117,7 @@ pub struct Users {
     linking: Linking,
     sign_outs: broadcast::Sender<i64>,
     permission_changes: broadcast::Sender<i64>,
+    library_access_changes: broadcast::Sender<i64>,
 }
 
 /// A User as clients see it.
@@ -293,6 +302,12 @@ pub enum Error {
     /// No enabled Plugin provides an Authenticator.
     #[error("no Authenticator is enabled")]
     NoAuthenticator,
+    /// A Switch PIN isn't 4 to 6 digits.
+    #[error("a Switch PIN is 4 to 6 digits")]
+    SwitchPinInvalid,
+    /// Hashing a Switch PIN, or checking one, failed or panicked.
+    #[error("hashing a Switch PIN failed: {0}")]
+    SwitchPinHashing(String),
     /// The Authenticator failed, or panicked, making a credential.
     #[error("the Authenticator failed: {0}")]
     Authenticator(String),
@@ -323,15 +338,17 @@ impl Users {
     /// The Users kept in `db`, whose passwords the Authenticator enabled in `plugins` checks.
     ///
     /// A Server builds one and clones it: a second has its own channels, so it neither hears nor
-    /// tells the first about sign-outs and Permission changes (`users/AGENTS.md`).
+    /// tells the first about sign-outs, Permission changes and Library access changes
+    /// (`users/AGENTS.md`).
     #[must_use]
     pub fn new(db: Arc<Database>, plugins: ExtensionPoints) -> Self {
         Self {
             db,
-            linking: Linking::new(plugins.clone(), None),
+            linking: Linking::new(None),
             plugins,
             sign_outs: broadcast::channel(SIGN_OUTS_BUFFERED).0,
             permission_changes: broadcast::channel(PERMISSION_CHANGES_BUFFERED).0,
+            library_access_changes: broadcast::channel(LIBRARY_ACCESS_CHANGES_BUFFERED).0,
         }
     }
 
@@ -339,7 +356,7 @@ impl Users {
     #[must_use]
     pub(crate) fn linking_through(self, server: Option<Arc<ServerLink>>) -> Self {
         Self {
-            linking: Linking::new(self.plugins.clone(), server),
+            linking: Linking::new(server),
             ..self
         }
     }
@@ -660,18 +677,6 @@ impl Users {
 /// What the database keeps of a session token.
 fn hash_token(token: &str) -> [u8; 32] {
     Sha256::digest(token).into()
-}
-
-/// Every User, oldest first, for a task that holds no [`Users`], such as `crate::events`.
-pub(crate) async fn every_user(db: &Database) -> Result<Vec<User>, sqlx::Error> {
-    sqlx::query_as!(
-        User,
-        r#"SELECT id AS "id!", display_username AS name,
-                  permissions AS "permissions: Permissions", created_at
-           FROM users ORDER BY id"#
-    )
-    .fetch_all(db.reader())
-    .await
 }
 
 async fn any_user(conn: &mut SqliteConnection) -> Result<bool, sqlx::Error> {

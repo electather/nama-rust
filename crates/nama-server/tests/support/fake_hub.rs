@@ -1,11 +1,14 @@
 //! An in-process stand-in for the Hub a Server's config names, answering the calls the Kernel
 //! makes as the Server's Link (ADR 0105): its device flow, Unlinking, its Users' Links, Users
 //! created from Accounts, one sign-in with an Account at a time, the Server Addresses, whose public
-//! port it reaches only at [`OPEN_PORT`], the Relay token, and the key set it signs tokens with. It
-//! speaks the Connect protocol's unary calls with protobuf bodies, as the Kernel's client does, so
-//! it needs none of the Hub API's other calls.
+//! port it reaches only at [`OPEN_PORT`], the Relay token, the key set it signs tokens with, the
+//! OTLP/HTTP paths taking shared Diagnostics, and syncing Users' Watch State, Track Preferences and
+//! Watchlists, all as one [`Account`]'s, which a fake for another Server can share. It speaks the
+//! Connect protocol's unary calls with protobuf bodies, as the Kernel's client does, so it needs
+//! none of the Hub API's other calls.
 
 use std::{
+    any,
     collections::HashMap,
     future,
     net::SocketAddr,
@@ -16,7 +19,8 @@ use std::{
 use axum::{
     Router,
     body::Bytes,
-    http::{HeaderMap, header::CONTENT_TYPE},
+    extract::Path,
+    http::{HeaderMap, StatusCode, header::CONTENT_TYPE},
     response::{IntoResponse as _, Response},
     routing::{MethodRouter, get, post},
 };
@@ -91,6 +95,10 @@ struct State {
     credentials: usize,
     /// Each set of Server Addresses the Server reported, in order.
     told: Vec<SetServerAddressesRequest>,
+    /// Each batch of shared Diagnostics, with the signal its path named, in order.
+    shared: Vec<(String, Bytes)>,
+    /// How many posts reached the OTLP paths, the refused and the unanswered too.
+    otlp_posts: usize,
     /// Whether every call waits forever, as a Hub slow to time out.
     hanging: bool,
     /// The name each User waiting on a code started Linking as, by id.
@@ -105,28 +113,59 @@ struct State {
     invited: Option<(i64, String, String)>,
     /// Where the sign-in with an Account the Server last started returns to.
     returns_to: Option<String>,
+    /// Whether every User is Linked to [`EMAIL`]'s Account but those in `unlinked_on_hub`.
+    everyone_linked: bool,
+    /// The Users the Account Unlinked on the Hub, who stay so while `everyone_linked`.
+    unlinked_on_hub: Vec<i64>,
     /// The User an Account approved the sign-in as, until the Server collects it.
     approved: Option<i64>,
     /// Whom the fake signs sign-in tokens for, the Server's id unless a test says otherwise.
     audience: Option<String>,
     /// How often the Server asked for a sign-in's token.
     sign_in_polls: usize,
+    /// Whether every call fails `unavailable`, as a Hub that is down.
+    down: bool,
+    /// The type of each request that failed so.
+    refused: Vec<&'static str>,
+    account: Arc<Mutex<Account>>,
 }
+
+#[path = "fake_hub_account.rs"]
+mod account;
+pub(crate) use account::Account;
+use account::{
+    pull_track_preferences, pull_watch_states, push_track_preferences, push_watch_states,
+    sync_watchlist,
+};
 
 /// The Hub, serving until [`FakeHub::stop`] or its drop.
 pub(crate) struct FakeHub {
     addr: SocketAddr,
     state: Arc<Mutex<State>>,
+    account: Arc<Mutex<Account>>,
     serving: JoinHandle<()>,
 }
 
 impl FakeHub {
+    pub(crate) async fn start() -> Self {
+        Self::keeping(Arc::default()).await
+    }
+
+    /// The Hub as another Server Linked to the same Account sees it, sharing what it syncs.
+    pub(crate) async fn for_another_server(&self) -> Self {
+        Self::keeping(Arc::clone(&self.account)).await
+    }
+
     #[expect(
         clippy::unwrap_used,
-        reason = "a test helper fails its test by panicking"
+        clippy::too_many_lines,
+        reason = "a test helper fails its test by panicking, and lists every call it answers"
     )]
-    pub(crate) async fn start() -> Self {
-        let state: Arc<Mutex<State>> = Arc::default();
+    async fn keeping(account: Arc<Mutex<Account>>) -> Self {
+        let state = Arc::new(Mutex::new(State {
+            account: Arc::clone(&account),
+            ..State::default()
+        }));
         let key = Arc::new(Ed25519KeyPair::from_seed_unchecked(&[7; 32]).unwrap());
         let key_set = json!({ "keys": [{
             "kty": "OKP",
@@ -179,13 +218,35 @@ impl FakeHub {
             .route(
                 &format!("{linked}/PollServerSignIn"),
                 unary(&state, &key, poll_sign_in),
-            );
+            )
+            .route(
+                &format!("{linked}/PushWatchStates"),
+                unary(&state, &key, push_watch_states),
+            )
+            .route(
+                &format!("{linked}/PullWatchStates"),
+                unary(&state, &key, pull_watch_states),
+            )
+            .route(
+                &format!("{linked}/PushTrackPreferences"),
+                unary(&state, &key, push_track_preferences),
+            )
+            .route(
+                &format!("{linked}/PullTrackPreferences"),
+                unary(&state, &key, pull_track_preferences),
+            )
+            .route(
+                &format!("{linked}/SyncWatchlist"),
+                unary(&state, &key, sync_watchlist),
+            )
+            .route("/otlp/v1/{signal}", otlp(&state));
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let serving = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
         Self {
             addr,
             state,
+            account,
             serving,
         }
     }
@@ -242,7 +303,9 @@ impl FakeHub {
 
     /// The Account Unlinks the User `user_id` on the Hub, as deleting it does.
     pub(crate) fn unlink_user_on_hub(&self, user_id: i64) {
-        lock(&self.state).user_accounts.remove(&user_id);
+        let mut state = lock(&self.state);
+        state.user_accounts.remove(&user_id);
+        state.unlinked_on_hub.push(user_id);
     }
 
     /// The name the User `user_id` started Linking as, while their code waits.
@@ -305,9 +368,38 @@ impl FakeHub {
         lock(&self.state).told.last().cloned()
     }
 
+    /// Each batch of shared Diagnostics the fake took, with the signal its path named.
+    pub(crate) fn shared(&self) -> Vec<(String, Bytes)> {
+        lock(&self.state).shared.clone()
+    }
+
+    /// How many posts reached the OTLP paths, whether the fake took, refused or never answered
+    /// them.
+    pub(crate) fn otlp_posts(&self) -> usize {
+        lock(&self.state).otlp_posts
+    }
+
     /// Has every call from now on wait forever.
     pub(crate) fn hang(&self) {
         lock(&self.state).hanging = true;
+    }
+
+    /// What the Account keeps.
+    pub(crate) fn account(&self) -> MutexGuard<'_, Account> {
+        lock(&self.account)
+    }
+
+    /// Fails every call from now on `unavailable`, as a Hub that is down, or answers again.
+    pub(crate) fn set_down(&self, down: bool) {
+        lock(&self.state).down = down;
+    }
+
+    /// How many calls of `request`, such as `PushWatchStatesRequest`, failed while it was down.
+    pub(crate) fn refused(&self, request: &str) -> usize {
+        let state = lock(&self.state);
+        (state.refused.iter())
+            .filter(|refused| refused.ends_with(request))
+            .count()
     }
 
     /// Goes down, as if unreachable.
@@ -322,6 +414,14 @@ impl FakeHub {
         let server = TestServer::builder().config(hub.config()).start().await;
         hub.link(&server).await;
         (server, hub)
+    }
+
+    /// [`FakeHub::link`], and every User of `server` Linked to the Account too, but those the
+    /// Account later Unlinks.
+    pub(crate) async fn link_with_users(&self, server: &TestServer) {
+        // First, as the Server asks about its Users the moment it is Linked.
+        lock(&self.state).everyone_linked = true;
+        self.link(server).await;
     }
 
     /// Links `server` to [`EMAIL`]'s Account, as its Admin does in Settings.
@@ -367,13 +467,22 @@ where
 {
     let (state, key) = (Arc::clone(state), Arc::clone(key));
     post(async move |headers: HeaderMap, body: Bytes| -> Response {
-        let hanging = lock(&state).hanging;
-        if hanging {
-            future::pending::<()>().await;
-        }
+        hang_if_asked(&state).await;
+        let down = {
+            let mut state = lock(&state);
+            if state.down {
+                state.refused.push(any::type_name::<Req>());
+            }
+            state.down
+        };
         let answered = Req::decode_from_slice(&body)
             .map_err(|_unreadable| ConnectError::invalid_argument("not a request"))
-            .and_then(|request| answer(&mut lock(&state), &headers, &request, &key));
+            .and_then(|request| {
+                if down {
+                    return Err(ConnectError::unavailable("the Hub is down"));
+                }
+                answer(&mut lock(&state), &headers, &request, &key)
+            });
         match answered {
             Ok(response) => (
                 [(CONTENT_TYPE, "application/proto")],
@@ -388,6 +497,32 @@ where
                 .into_response(),
         }
     })
+}
+
+/// Takes a batch of shared Diagnostics from the Linked Server, as the Hub forwards it, and refuses
+/// anyone else.
+fn otlp(state: &Arc<Mutex<State>>) -> MethodRouter {
+    let state = Arc::clone(state);
+    post(
+        async move |Path(signal): Path<String>, headers: HeaderMap, batch: Bytes| {
+            lock(&state).otlp_posts += 1;
+            hang_if_asked(&state).await;
+            let mut state = lock(&state);
+            if caller(&state, &headers).is_err() {
+                return StatusCode::UNAUTHORIZED;
+            }
+            state.shared.push((signal, batch));
+            StatusCode::OK
+        },
+    )
+}
+
+/// Never returns while [`FakeHub::hang`] has been called.
+async fn hang_if_asked(state: &Mutex<State>) {
+    let hanging = lock(state).hanging;
+    if hanging {
+        future::pending::<()>().await;
+    }
 }
 
 #[expect(
@@ -501,7 +636,7 @@ fn start_user(
     _: &Ed25519KeyPair,
 ) -> Result<StartUserLinkResponse, ConnectError> {
     caller(state, headers)?;
-    if state.user_accounts.contains_key(&request.user_id) {
+    if user_account(state, request.user_id).is_some() {
         return Err(ConnectError::already_exists("the User is Linked"));
     }
     state
@@ -514,6 +649,14 @@ fn start_user(
     })
 }
 
+/// The email of the Account `user_id` is Linked to, if they are.
+fn user_account(state: &State, user_id: i64) -> Option<String> {
+    (state.user_accounts.get(&user_id).cloned()).or_else(|| {
+        (state.everyone_linked && !state.unlinked_on_hub.contains(&user_id))
+            .then(|| EMAIL.to_owned())
+    })
+}
+
 fn user_link(
     state: &mut State,
     headers: &HeaderMap,
@@ -522,7 +665,7 @@ fn user_link(
 ) -> Result<GetUserLinkResponse, ConnectError> {
     caller(state, headers)?;
     Ok(GetUserLinkResponse {
-        account: (state.user_accounts.get(&request.user_id).cloned()).unwrap_or_default(),
+        account: user_account(state, request.user_id).unwrap_or_default(),
         ..Default::default()
     })
 }
@@ -635,6 +778,6 @@ fn sign(key: &Ed25519KeyPair, claims: &Value) -> String {
     )
 }
 
-fn lock(state: &Mutex<State>) -> MutexGuard<'_, State> {
-    state.lock().unwrap_or_else(PoisonError::into_inner)
+fn lock<T>(locked: &Mutex<T>) -> MutexGuard<'_, T> {
+    locked.lock().unwrap_or_else(PoisonError::into_inner)
 }

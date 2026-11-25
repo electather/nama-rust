@@ -92,6 +92,14 @@ impl TitlePages {
         }
     }
 
+    /// These pages as the User `user` sees them, in only the Libraries they see.
+    pub(super) async fn seen_by(&self, user: &User) -> Result<Self, Error> {
+        Ok(Self {
+            browse: self.browse.seen_by(user.id).await?,
+            ..self.clone()
+        })
+    }
+
     /// The page of the Movie `id` of the Movies Library `library`, as `user` sees it.
     pub(crate) async fn movie(
         &self,
@@ -99,14 +107,15 @@ impl TitlePages {
         library: i64,
         id: &ExternalId,
     ) -> Result<MoviePage, Error> {
-        let (movie, state, read_only_folder) = self.browse.movie(user.id, library, id).await?;
+        let seen = self.seen_by(user).await?;
+        let (movie, state, read_only_folder) = seen.browse.movie(user.id, library, id).await?;
         Ok(MoviePage {
-            on_watchlist: self
+            on_watchlist: seen
                 .on_watchlist(user, TitleKind::Movie, &movie.ids)
                 .await?,
-            similar: self.stored_similar(TitleKind::Movie, &movie.ids).await?,
-            roles: self.browse.contents.movie_roles(&movie).await?,
-            box_set: self.box_set_of(user, &movie).await?,
+            similar: seen.stored_similar(TitleKind::Movie, &movie.ids).await?,
+            roles: seen.browse.contents.movie_roles(&movie).await?,
+            box_set: seen.box_set_of(user, &movie).await?,
             read_only_folder: read_only_folder
                 .filter(|_| user.permissions.allow(Permission::DeleteMedia)),
             movie,
@@ -121,12 +130,13 @@ impl TitlePages {
         library: i64,
         id: &ExternalId,
     ) -> Result<ShowPage, Error> {
-        let show = self.browse.show(library, id).await?;
+        let seen = self.seen_by(user).await?;
+        let show = seen.browse.show(library, id).await?;
         Ok(ShowPage {
-            on_watchlist: self.on_watchlist(user, TitleKind::Show, &show.ids).await?,
-            roles: self.browse.contents.show_roles(&show).await?,
-            aired_episodes: self.browse.contents.aired_episodes(&show).await?,
-            similar: self.stored_similar(TitleKind::Show, &show.ids).await?,
+            on_watchlist: seen.on_watchlist(user, TitleKind::Show, &show.ids).await?,
+            roles: seen.browse.contents.show_roles(&show).await?,
+            aired_episodes: seen.browse.contents.aired_episodes(&show).await?,
+            similar: seen.stored_similar(TitleKind::Show, &show.ids).await?,
             show,
         })
     }
@@ -144,7 +154,7 @@ impl TitlePages {
             .await;
         Ok(FoundPage {
             on_watchlist: self.found_on_watchlist(user, TitleKind::Movie, id).await?,
-            similar: self
+            similar: (self.seen_by(user).await?)
                 .similar_in_libraries(TitleKind::Movie, &answers)
                 .await?,
             found,
@@ -164,7 +174,9 @@ impl TitlePages {
             .await;
         Ok(FoundPage {
             on_watchlist: self.found_on_watchlist(user, TitleKind::Show, id).await?,
-            similar: self.similar_in_libraries(TitleKind::Show, &answers).await?,
+            similar: (self.seen_by(user).await?)
+                .similar_in_libraries(TitleKind::Show, &answers)
+                .await?,
             found,
         })
     }

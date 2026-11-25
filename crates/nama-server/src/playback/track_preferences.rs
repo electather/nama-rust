@@ -7,7 +7,7 @@
 //! none and one pulled under any of them is found, and the User's own at the `user` scope. How
 //! they sync with the User's other Servers: `AGENTS.md` (ADR 0092).
 
-use std::sync::Arc;
+use std::{slice, sync::Arc};
 
 use isolang::Language;
 use nama_plugin_api::{
@@ -23,6 +23,7 @@ use super::tracks::Track;
 use crate::{
     db::{Database, detached, now_ms},
     library::{Contents, MatchedTo},
+    link,
     plugins::ExtensionPoints,
 };
 
@@ -39,7 +40,7 @@ const MOVIE: &str = "movie";
 pub(crate) struct TrackPreferences {
     db: Arc<Database>,
     contents: Contents,
-    /// Told of each Preference kept, such as the Hub Plugin's, which syncs them (ADR 0092).
+    /// Told of each Preference kept.
     points: ExtensionPoints,
 }
 
@@ -487,15 +488,17 @@ enum Overwrite {
     IfNewer,
 }
 
-/// Writes `change` of the User `user`'s Preferences over whatever they had, and returns it as
-/// Observers are told of it.
+/// Writes `change` of the User `user`'s Preferences over whatever they had, queues it for the Hub,
+/// and returns it as Observers are told of it.
 async fn keep_change(
     conn: &mut SqliteConnection,
     user: i64,
     change: Change,
 ) -> Result<TrackPreference, sqlx::Error> {
     write(conn, user, &change, Overwrite::Always).await?;
-    Ok(change.told())
+    let kept = change.told();
+    link::queue_track_preferences(conn, user, slice::from_ref(&kept)).await?;
+    Ok(kept)
 }
 
 /// Writes each of `changes`, pulled, to the User `user`'s `track_preferences` through `conn`.

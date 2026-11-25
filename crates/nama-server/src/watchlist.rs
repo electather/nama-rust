@@ -1,8 +1,7 @@
 //! The Watchlist (ADR 0056): the Movies and Shows each User means to watch, kept by kind and
 //! external id whether or not the Server has them. Only this file reads or writes `watchlist`
-//! (`AGENTS.md`). A title taken off stays as a removal, with when each change was made, so the
-//! enabled Plugin that links the Server syncs it across a Linked User's Servers, the change made
-//! last winning.
+//! (`AGENTS.md`). A title taken off stays as a removal, with when each change was made, so the Hub
+//! syncs it across a Linked User's Servers, the change made last winning.
 
 use nama_plugin_api::{
     metadata::{ExternalId, ExternalIds},
@@ -60,8 +59,8 @@ async fn change(
     .await
 }
 
-/// The User `user`'s whole Watchlist, as the enabled Plugin that links the Server syncs it: each
-/// title by the id it was added under, those taken off included.
+/// The User `user`'s whole Watchlist, as it syncs with the Hub: each title by the id it was added
+/// under, those taken off included.
 pub(crate) async fn entries(db: &Database, user: i64) -> Result<Vec<WatchlistEntry>, sqlx::Error> {
     let rows = sqlx::query!(
         r#"SELECT kind, title_id, removed AS "removed: bool", changed_at_ms
@@ -82,8 +81,8 @@ pub(crate) async fn entries(db: &Database, user: i64) -> Result<Vec<WatchlistEnt
         .collect())
 }
 
-/// Takes each of `synced`, the User `user`'s Watchlist as the enabled Plugin that links the Server
-/// answered it, that changed after anything the Server has of its title.
+/// Takes each of `synced`, the User `user`'s Watchlist as the Hub answered it, that changed after
+/// anything the Server has of its title.
 pub(crate) async fn take_synced(
     db: &Database,
     user: i64,

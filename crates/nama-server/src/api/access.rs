@@ -82,6 +82,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SIGN_IN_SERVICE_SIGN_OUT_SPEC.procedure,              Access::Device),
     (proto::SIGN_IN_SERVICE_WHO_AM_I_SPEC.procedure,              Access::Device),
     (proto::SIGN_IN_SERVICE_SWITCH_USER_SPEC.procedure,           Access::Device),
+    (proto::SIGN_IN_SERVICE_SET_SWITCH_PIN_SPEC.procedure,        Access::SignedIn),
+    (proto::SIGN_IN_SERVICE_CLEAR_SWITCH_PIN_SPEC.procedure,      Access::SignedIn),
     (proto::SIGN_IN_SERVICE_REAUTHENTICATE_SPEC.procedure,        Access::SignedIn),
     (proto::SIGN_IN_SERVICE_START_SIGN_IN_CODE_SPEC.procedure,    Access::Anyone),
     (proto::SIGN_IN_SERVICE_LOOK_UP_SIGN_IN_CODE_SPEC.procedure,  Access::SignedIn),
@@ -150,6 +152,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_CREATE_USER_FROM_ACCOUNT_SPEC.procedure, MANAGE_USERS),
     (proto::USER_SERVICE_LIST_USERS_SPEC.procedure,               MANAGE_USERS),
     (proto::USER_SERVICE_SET_PERMISSIONS_SPEC.procedure,          MANAGE_USERS),
+    (proto::USER_SERVICE_SET_LIBRARY_ACCESS_SPEC.procedure,       MANAGE_USERS),
     (proto::USER_SERVICE_DELETE_USER_SPEC.procedure,              MANAGE_USERS),
     (proto::USER_SERVICE_LIST_DEVICES_SPEC.procedure,             Access::SignedIn),
     (proto::USER_SERVICE_REVOKE_DEVICE_SPEC.procedure,            Access::SignedIn),
@@ -268,7 +271,7 @@ pub(super) fn permission_required(needed: Permission) -> ConnectError {
 /// Authentication on top of their [`Access`] (ADR 0014, and see AGENTS.md). A list of its own, not
 /// an `Access` variant: `SetPermissions` needs a Permission as well, `ChangePassword` only a
 /// session.
-const NEEDS_RECENT_AUTHENTICATION: [&str; 11] = [
+const NEEDS_RECENT_AUTHENTICATION: [&str; 13] = [
     proto::USER_SERVICE_CHANGE_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_RESET_PASSWORD_SPEC.procedure,
     proto::USER_SERVICE_SET_PERMISSIONS_SPEC.procedure,
@@ -276,6 +279,9 @@ const NEEDS_RECENT_AUTHENTICATION: [&str; 11] = [
     proto::USER_SERVICE_SET_DEFAULT_PERMISSIONS_SPEC.procedure,
     proto::USER_SERVICE_DELETE_USER_SPEC.procedure,
     proto::SIGN_IN_SERVICE_APPROVE_SIGN_IN_CODE_SPEC.procedure,
+    // Whoever holds a Device left as its User mustn't set or clear their Switch PIN (ADR 0106).
+    proto::SIGN_IN_SERVICE_SET_SWITCH_PIN_SPEC.procedure,
+    proto::SIGN_IN_SERVICE_CLEAR_SWITCH_PIN_SPEC.procedure,
     // Deleting can't be undone, so someone at an unlocked Device mustn't do it unasked (ADR 0038).
     proto::LIBRARY_SERVICE_DELETE_MEDIA_SPEC.procedure,
     // Linking hands the Server to an Account, and Unlinking takes it back (ADR 0011).

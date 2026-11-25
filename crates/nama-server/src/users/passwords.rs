@@ -1,7 +1,14 @@
-//! Setting and checking Users' passwords through the enabled Authenticator.
+//! Setting and checking Users' passwords through the enabled Authenticator, and their Switch PINs.
 
-use std::sync::{Arc, LazyLock};
+use std::{
+    ops::RangeInclusive,
+    sync::{Arc, LazyLock},
+};
 
+use argon2::{
+    Argon2,
+    password_hash::{PasswordHasher, PasswordVerifier, phc::PasswordHash},
+};
 use nama_plugin_api::{
     PluginError, PluginId,
     auth::{Authenticator, PasswordError},
@@ -11,8 +18,11 @@ use tokio::sync::Semaphore;
 use tracing::Span;
 
 use super::{
-    Caller, Error, Permissions, User, Users, managing::ensure_may_change, name_key,
-    rate_limits::Attempt, user_exists,
+    Caller, Error, Permissions, User, Users,
+    managing::ensure_may_change,
+    name_key,
+    rate_limits::{Attempt, SwitchPinTry},
+    user_exists,
 };
 use crate::{
     db::now,
@@ -27,6 +37,9 @@ const PASSWORD_METHOD_NAME: &str = "Password";
 /// bound on the 1 GiB machines #725 targets. 4 is about 78 MiB at peak. Calls past it wait their
 /// turn.
 const CONCURRENT_HASHES: usize = 4;
+
+/// How many digits a Switch PIN has (ADR 0106).
+pub(crate) const SWITCH_PIN_LENGTH: RangeInclusive<usize> = 4..=6;
 
 static HASHING: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(CONCURRENT_HASHES));
 
@@ -128,6 +141,49 @@ impl Users {
             (Some((user, _)), Some(method)) => Ok((user, method)),
             _ => Err(Error::WrongNameOrPassword),
         }
+    }
+
+    /// Sets the Switch PIN of the User `user` to `switch_pin`, failing with
+    /// [`Error::SwitchPinInvalid`] unless it is 4 to 6 digits.
+    pub(crate) async fn set_switch_pin(&self, user: i64, switch_pin: &str) -> Result<(), Error> {
+        if !SWITCH_PIN_LENGTH.contains(&switch_pin.len())
+            || !switch_pin.bytes().all(|byte| byte.is_ascii_digit())
+        {
+            return Err(Error::SwitchPinInvalid);
+        }
+        // The Kernel hashes it, not the Authenticator, whose password rules would refuse 4 digits:
+        // a Switch PIN is no Sign-in Method (ADR 0106).
+        let switch_pin = switch_pin.to_owned();
+        let credential = blocking(move || {
+            (Argon2::default().hash_password(switch_pin.as_bytes())).map(|hash| hash.to_string())
+        })
+        .await
+        .map_err(switch_pin_hashing_failed)?
+        .map_err(switch_pin_hashing_failed)?;
+        self.db
+            .write(move |tx| {
+                Box::pin(async move {
+                    sqlx::query!(
+                        "INSERT INTO switch_pins (user_id, credential) VALUES (?, ?)
+                         ON CONFLICT (user_id) DO UPDATE SET credential = excluded.credential",
+                        user,
+                        credential
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                    Ok(())
+                })
+            })
+            .await
+    }
+
+    /// Clears the Switch PIN of the User `user`, as `by` asks, unless [`ensure_may_change`]
+    /// refuses. Fails with [`Error::NoSuchUser`] if there is no such User.
+    pub(crate) async fn clear_switch_pin(&self, by: &User, user: i64) -> Result<(), Error> {
+        let by = by.clone();
+        self.db
+            .write(move |tx| Box::pin(async move { clear_switch_pin(tx, &by, user).await }))
+            .await
     }
 
     /// Has the first enabled Authenticator turn `password`, given as the request field `field`,
@@ -243,6 +299,44 @@ impl Users {
             .result
             .map_err(|failure| Error::Authenticator(failure.message))
     }
+}
+
+/// Whether `switch_pin` is the one `credential`, a Switch PIN's stored hash, was made from.
+///
+/// `_admitted` is a try `SwitchPinTries::admit` let through: see "Guessable requests go through
+/// `SignIn`" in `crates/nama-server/src/users/AGENTS.md`.
+pub(super) async fn is_switch_pin(
+    _admitted: &SwitchPinTry,
+    switch_pin: &str,
+    credential: String,
+) -> Result<bool, Error> {
+    let switch_pin = switch_pin.to_owned();
+    blocking(move || {
+        let credential = PasswordHash::new(&credential).map_err(switch_pin_hashing_failed)?;
+        match Argon2::default().verify_password(switch_pin.as_bytes(), &credential) {
+            Ok(()) => Ok(true),
+            Err(argon2::password_hash::Error::PasswordInvalid) => Ok(false),
+            Err(err) => Err(switch_pin_hashing_failed(err)),
+        }
+    })
+    .await
+    .map_err(switch_pin_hashing_failed)?
+}
+
+fn switch_pin_hashing_failed(err: impl std::fmt::Display) -> Error {
+    Error::SwitchPinHashing(err.to_string())
+}
+
+/// Clears the Switch PIN of the User `user`, as [`Users::clear_switch_pin`] does.
+async fn clear_switch_pin(conn: &mut SqliteConnection, by: &User, user: i64) -> Result<(), Error> {
+    if !user_exists(conn, user).await? {
+        return Err(Error::NoSuchUser);
+    }
+    ensure_may_change(conn, by, user).await?;
+    sqlx::query!("DELETE FROM switch_pins WHERE user_id = ?", user)
+        .execute(conn)
+        .await?;
+    Ok(())
 }
 
 /// Has `authenticator` check `password` against `credential`, which is meant to be slow, where

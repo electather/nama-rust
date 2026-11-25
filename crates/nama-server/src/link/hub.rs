@@ -1,17 +1,21 @@
 //! Calling the Hub as the Server's Link needs: its API (`proto/nama/hub/v1/`) for Linking the
 //! Server and its Users, signing in with an Account, the Server Addresses, the certificate
-//! challenge and the Relay token, and its published key set.
+//! challenge, the Relay token and syncing Linked Users, what it accepts of each, its published key
+//! set, and its OTLP/HTTP paths taking shared Diagnostics.
 
 // ponytail: the client is copied from the Hub Plugin's `hub.rs`, which keeps its own for the calls
 // it still makes; one goes once the rest of the Plugin's Linking moves here (#2203).
 
-use std::{error::Error, fmt, net::Ipv4Addr, sync::Arc, time::Duration};
+use std::{error::Error, fmt, net::Ipv4Addr, ops::RangeInclusive, sync::Arc, time::Duration};
 
 use bytes::Bytes;
 use connectrpc::client::{
     ClientBody, ClientConfig, ClientTransport as _, ServiceTransport, full_body,
 };
-use http::{Request, StatusCode};
+use http::{
+    Request, StatusCode,
+    header::{AUTHORIZATION, CONTENT_TYPE},
+};
 use http_body_util::{BodyExt as _, Limited};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use hyper_util::{
@@ -21,12 +25,16 @@ use hyper_util::{
 use nama_hub_proto::nama::hub::v1::{
     GetRelayTokenRequest, GetUserLinkRequest, InviteUserRequest, LinkedServerServiceClient,
     PollServerLinkRequest, PollServerLinkResponse, PollServerSignInRequest,
-    ServerLinkServiceClient, SetCertificateChallengeRequest, SetServerAddressesRequest,
-    StartServerLinkRequest, StartServerLinkResponse, StartServerSignInRequest,
-    StartServerSignInResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkServerRequest,
-    UnlinkUserRequest,
+    PullTrackPreferencesRequest, PullWatchStatesRequest, PushTrackPreferencesRequest,
+    PushWatchStatesRequest, ServerLinkServiceClient, SetCertificateChallengeRequest,
+    SetServerAddressesRequest, StartServerLinkRequest, StartServerLinkResponse,
+    StartServerSignInRequest, StartServerSignInResponse, StartUserLinkRequest,
+    StartUserLinkResponse, SyncWatchlistRequest, TrackPreferenceChange, UnlinkServerRequest,
+    UnlinkUserRequest, WatchStateChange, WatchlistEntry,
 };
 use nama_plugin_api::server_link::{Reachability, ServerAddresses};
+
+use crate::diagnostics::{OTLP_PROTOBUF, Signal};
 
 /// Why a call to the Hub failed, in words for the log.
 pub(super) type Failure = Box<dyn Error + Send + Sync>;
@@ -35,6 +43,38 @@ const TIMEOUT: Duration = Duration::from_secs(20);
 
 /// The most of the key set read, so a misbehaving Hub can't exhaust memory.
 const MAX_KEY_SET_BYTES: usize = 64 * 1024;
+
+/// The most External IDs a `WatchStateChange` carries.
+pub(super) const WATCH_STATE_IDS: usize = 20;
+
+/// The most changes a `PushWatchStatesRequest` or a `PushTrackPreferencesRequest` holds.
+pub(super) const PUSH_CHANGES: usize = 500;
+
+/// The most entries a `SyncWatchlistRequest` holds.
+pub(super) const WATCHLIST_ENTRIES: usize = 5000;
+
+/// The most characters a `TrackPreferenceChange.language` has.
+pub(super) const TRACK_LANGUAGE_CHARS: usize = 100;
+
+/// The most characters a `TrackPreferenceChange.title` has.
+pub(super) const TRACK_TITLE_CHARS: usize = 1000;
+
+/// The characters an External ID has, such as `tmdb-348`.
+const EXTERNAL_ID_CHARS: RangeInclusive<usize> = 1..=100;
+
+/// When a change may say it was made, in milliseconds since the Unix epoch: from 1970 to the end of
+/// 9999.
+const CHANGED_AT_MS: RangeInclusive<i64> = 0..=253_402_300_799_999;
+
+/// Whether the Hub takes `id` as an External ID: past any of these limits it refuses the whole call.
+pub(super) fn takes_external_id(id: &str) -> bool {
+    EXTERNAL_ID_CHARS.contains(&id.chars().count())
+}
+
+/// Whether the Hub takes `changed_at_ms` as when a change was made.
+pub(super) fn takes_changed_at(changed_at_ms: i64) -> bool {
+    CHANGED_AT_MS.contains(&changed_at_ms)
+}
 
 type Transport = ServiceTransport<Client<HttpsConnector<HttpConnector>, ClientBody>>;
 
@@ -235,6 +275,22 @@ impl LinkedHub {
         Ok(got.into_owned().token)
     }
 
+    /// Posts `batch`, an OTLP/HTTP protobuf export request of `signal`, for the Hub to forward to
+    /// Nama's developers (ADR 0054).
+    pub(super) async fn share(self, signal: Signal, batch: Bytes) -> Result<(), Failure> {
+        let request = Request::post(format!("{}/otlp/{}", self.hub.url, signal.path()))
+            .header(CONTENT_TYPE, OTLP_PROTOBUF)
+            .header(AUTHORIZATION, format!("Bearer {}", self.credential))
+            .body(full_body(batch))?;
+        let status = tokio::time::timeout(TIMEOUT, self.hub.transport.send(request))
+            .await??
+            .status();
+        if !status.is_success() {
+            return Err(format!("the Hub answered {status} for shared Diagnostics").into());
+        }
+        Ok(())
+    }
+
     /// Starts Linking the User `user_id`, named `name`: `None` if they are Linked already, the
     /// Hub's one `already_exists`.
     pub(super) async fn start_user(
@@ -336,6 +392,87 @@ impl LinkedHub {
             Err(err) if err.code == connectrpc::ErrorCode::NotFound => Ok(None),
             Err(err) => Err(link_dropped(err)),
         }
+    }
+
+    /// Pushes `changes` to the Watch State of the Accounts the Server's Users are Linked to.
+    pub(super) async fn push_watch_states(
+        self,
+        changes: Vec<WatchStateChange>,
+    ) -> Result<(), Failure> {
+        (self.client()?)
+            .push_watch_states(PushWatchStatesRequest {
+                changes,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(())
+    }
+
+    /// The Watch State of the Account the User `user_id` is Linked to, each title by each id
+    /// apart; empty while they aren't Linked.
+    pub(super) async fn pull_watch_states(
+        self,
+        user_id: i64,
+    ) -> Result<Vec<WatchStateChange>, Failure> {
+        let pulled = (self.client()?)
+            .pull_watch_states(PullWatchStatesRequest {
+                user_id,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(pulled.into_owned().watch_states)
+    }
+
+    /// Merges `changes` to the Track Preferences of the Server's Users into their Accounts'.
+    pub(super) async fn push_track_preferences(
+        self,
+        changes: Vec<TrackPreferenceChange>,
+    ) -> Result<(), Failure> {
+        (self.client()?)
+            .push_track_preferences(PushTrackPreferencesRequest {
+                changes,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(())
+    }
+
+    /// The Track Preferences of the Account the User `user_id` is Linked to; empty while they
+    /// aren't Linked.
+    pub(super) async fn pull_track_preferences(
+        self,
+        user_id: i64,
+    ) -> Result<Vec<TrackPreferenceChange>, Failure> {
+        let pulled = (self.client()?)
+            .pull_track_preferences(PullTrackPreferencesRequest {
+                user_id,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(pulled.into_owned().preferences)
+    }
+
+    /// Merges `entries`, the whole Watchlist of the User `user_id`, into the Account they are
+    /// Linked to, and answers the Account's, each title by each id apart; empty while they aren't
+    /// Linked.
+    pub(super) async fn sync_watchlist(
+        self,
+        user_id: i64,
+        entries: Vec<WatchlistEntry>,
+    ) -> Result<Vec<WatchlistEntry>, Failure> {
+        let synced = (self.client()?)
+            .sync_watchlist(SyncWatchlistRequest {
+                user_id,
+                entries,
+                ..Default::default()
+            })
+            .await
+            .map_err(link_dropped)?;
+        Ok(synced.into_owned().entries)
     }
 
     fn client(&self) -> Result<LinkedServerServiceClient<Transport>, Failure> {

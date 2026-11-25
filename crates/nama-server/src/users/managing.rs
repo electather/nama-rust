@@ -289,3 +289,15 @@ async fn ensure_a_local_admin_left(conn: &mut SqliteConnection) -> Result<(), Er
         Err(Error::LastAdmin)
     }
 }
+
+/// Every User, oldest first, for a task that holds no [`Users`], such as `crate::events`.
+pub(crate) async fn every_user(db: &Database) -> Result<Vec<User>, sqlx::Error> {
+    sqlx::query_as!(
+        User,
+        r#"SELECT id AS "id!", display_username AS name,
+                  permissions AS "permissions: Permissions", created_at
+           FROM users ORDER BY id"#
+    )
+    .fetch_all(db.reader())
+    .await
+}

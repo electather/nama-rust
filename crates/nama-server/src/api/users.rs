@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use buffa::{EnumValue, Enumeration as _};
+use buffa::EnumValue;
 use connectrpc::{ConnectError, RequestContext, Response, ServiceRequest, ServiceResult};
 use nama_plugin_api::PluginId;
 use nama_proto::nama::v1::{
@@ -23,12 +23,13 @@ use nama_proto::nama::v1::{
     ResetHomeLayoutResponse, ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest,
     RevokeDeviceResponse, RevokeInviteRequest, RevokeInviteResponse, SetDefaultPermissionsRequest,
     SetDefaultPermissionsResponse, SetHomeLayoutRequest, SetHomeLayoutResponse,
-    SetNotificationPreferenceRequest, SetNotificationPreferenceResponse, SetPermissionsRequest,
-    SetPermissionsResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
-    StartUserLinkRequest, StartUserLinkResponse, StartWatchSyncLinkRequest,
-    StartWatchSyncLinkResponse, UnlinkUserRequest, UnlinkUserResponse,
-    UpdatePersonalSettingsRequest, UpdatePersonalSettingsResponse, UserService,
-    home_layout_row::Row as LayoutRow, home_row::KernelOrPlugin,
+    SetLibraryAccessRequest, SetLibraryAccessResponse, SetNotificationPreferenceRequest,
+    SetNotificationPreferenceResponse, SetPermissionsRequest, SetPermissionsResponse,
+    StartPluginConnectionRequest, StartPluginConnectionResponse, StartUserLinkRequest,
+    StartUserLinkResponse, StartWatchSyncLinkRequest, StartWatchSyncLinkResponse,
+    UnlinkUserRequest, UnlinkUserResponse, UpdatePersonalSettingsRequest,
+    UpdatePersonalSettingsResponse, UserService, home_layout_row::Row as LayoutRow,
+    home_row::KernelOrPlugin,
 };
 
 use crate::{
@@ -42,13 +43,12 @@ use crate::{
     plugin_settings::PluginSettings,
     server_settings::{ServerUrl, Settings},
     users::{
-        self, AskedHomeLayout, Caller, Permissions, User, UserHomeLayout, Users,
+        self, AskedHomeLayout, Caller, LibraryAccess, Permissions, User, UserHomeLayout, Users,
         notification_preferences_of, set_notification_preference,
     },
 };
 
 use super::{
-    access::permission_required,
     browse::home_rows_of,
     caller, calling_device, database_failed,
     personal_settings::{self, personal_to_proto},
@@ -59,10 +59,12 @@ use super::{
     server_link, signed_out, unknown_enum_value,
 };
 
+mod refusals;
+
 /// `nama.v1.UserService`: managing the Server's Users, their Devices and Plugin Connections. Needs
 /// `PERMISSION_MANAGE_USERS`, which [`require_access`](super::require_access) enforces, but for
 /// the self-service RPCs `access::ACCESS` opens to any session, which check for themselves with
-/// [`devices_owner`] or act only on the caller.
+/// [`user_asked_about`] or act only on the caller.
 pub(super) struct UserServiceHandler {
     pub(super) users: Users,
     pub(super) connections: Connections,
@@ -134,11 +136,18 @@ impl UserService for UserServiceHandler {
     ) -> ServiceResult<ListUsersResponse> {
         let users = self.users.list().await.map_err(database_failed)?;
         let caps = self.users.remote_caps().await.map_err(database_failed)?;
+        let mut chosen = (self.users.chosen_libraries().await).map_err(database_failed)?;
         let cannot_sign_in = (self.users.cannot_sign_in().await).map_err(database_failed)?;
         Response::ok(ListUsersResponse {
             users: (users.into_iter())
                 .map(|user| proto::User {
                     remote_playback_limit: limit_to_proto(caps.get(&user.id).copied()).into(),
+                    library_access: (chosen.remove(&user.id))
+                        .map(|chosen| proto::LibraryAccess {
+                            library_ids: chosen.into_iter().collect(),
+                            ..Default::default()
+                        })
+                        .into(),
                     ..user_to_proto(user)
                 })
                 .collect(),
@@ -161,6 +170,21 @@ impl UserService for UserServiceHandler {
         Response::ok(SetPermissionsResponse::default())
     }
 
+    async fn set_library_access(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, SetLibraryAccessRequest>,
+    ) -> ServiceResult<SetLibraryAccessResponse> {
+        let request = request.to_owned_message();
+        let access = (request.library_access.into_option()).map_or(LibraryAccess::All, |chosen| {
+            LibraryAccess::Only(chosen.library_ids.into_iter().collect())
+        });
+        (self.users)
+            .set_library_access(&caller(&ctx)?.user, request.user_id, access)
+            .await?;
+        Response::ok(SetLibraryAccessResponse::default())
+    }
+
     async fn delete_user(
         &self,
         ctx: RequestContext,
@@ -178,13 +202,13 @@ impl UserService for UserServiceHandler {
         request: ServiceRequest<'_, ListDevicesRequest>,
     ) -> ServiceResult<ListDevicesResponse> {
         let caller = caller(&ctx)?;
-        let owner = devices_owner(caller, request.user_id)?;
+        let owner = user_asked_about(caller, request.user_id)?;
         let devices = self
             .users
             .devices(owner)
             .await
             .map_err(database_failed)?
-            .ok_or_else(no_such_user)?;
+            .ok_or(users::Error::NoSuchUser)?;
         let current = caller.device.id;
         Response::ok(ListDevicesResponse {
             devices: devices
@@ -204,7 +228,7 @@ impl UserService for UserServiceHandler {
         request: ServiceRequest<'_, RevokeDeviceRequest>,
     ) -> ServiceResult<RevokeDeviceResponse> {
         let caller = caller(&ctx)?;
-        let owner = devices_owner(caller, request.user_id)?;
+        let owner = user_asked_about(caller, request.user_id)?;
         self.users
             .revoke(&caller.user, owner, request.device_id)
             .await?;
@@ -637,10 +661,10 @@ fn seen_row_to_proto(row: KernelOrPlugin, shown: bool) -> HomeLayoutRow {
     }
 }
 
-/// The User whose Devices `caller` asks about with `user_id`: their own if it's unset. Only a User
-/// who manages Users may ask about another User's. Anyone else who does gets `not_found`, as for a
-/// User who doesn't exist, so they can't learn which IDs do.
-fn devices_owner(caller: &Caller, user_id: Option<i64>) -> Result<i64, ConnectError> {
+/// The User `caller` asks about with `user_id`, such as whose Devices to list: their own if it's
+/// unset. Only a User who manages Users may ask about another User. Anyone else who does gets
+/// `not_found`, as for a User who doesn't exist, so they can't learn which IDs do.
+pub(super) fn user_asked_about(caller: &Caller, user_id: Option<i64>) -> Result<i64, ConnectError> {
     match user_id {
         None => Ok(caller.user.id),
         Some(id)
@@ -648,13 +672,8 @@ fn devices_owner(caller: &Caller, user_id: Option<i64>) -> Result<i64, ConnectEr
         {
             Ok(id)
         }
-        Some(_) => Err(no_such_user()),
+        Some(_) => Err(users::Error::NoSuchUser.into()),
     }
-}
-
-/// The Connect error for the request's `user_id` naming nobody the caller may see.
-fn no_such_user() -> ConnectError {
-    users::Error::NoSuchUser.into()
 }
 
 fn permissions_from_proto(
@@ -709,84 +728,5 @@ pub(super) fn device_to_proto(device: users::Device, is_current: bool) -> proto:
         last_seen_at: device.last_seen_at,
         is_current,
         ..Default::default()
-    }
-}
-
-/// The Connect error a client gets for a change to the Users that failed. Server-side failures
-/// are logged, not sent.
-impl From<users::Error> for ConnectError {
-    fn from(err: users::Error) -> Self {
-        use RefusalReason as R;
-        let message = err.to_string();
-        let refused = match err {
-            users::Error::NameLength { field, .. } => {
-                refuse(R::REFUSAL_REASON_NAME_LENGTH, message)
-                    .field(field)
-                    .param("minLength", users::NAME_LENGTH.start())
-                    .param("maxLength", users::NAME_LENGTH.end())
-            }
-            users::Error::NameCharacter {
-                field, character, ..
-            } => refuse(R::REFUSAL_REASON_NAME_CHARACTER, message)
-                .field(field)
-                .param("character", &format!("U+{:04X}", u32::from(character))),
-            users::Error::PasswordRejected { field, .. } => {
-                refuse(R::REFUSAL_REASON_PASSWORD_REJECTED, message).field(field)
-            }
-            // Only creating a User or setting up the first one takes a name to check.
-            users::Error::NameTaken => {
-                refuse(R::REFUSAL_REASON_USER_NAME_TAKEN, message).field("name")
-            }
-            // Every call that names a User names them in `user_id`.
-            users::Error::NoSuchUser => {
-                refuse(R::REFUSAL_REASON_USER_NOT_FOUND, message).field("user_id")
-            }
-            users::Error::NoSuchDevice => {
-                refuse(R::REFUSAL_REASON_DEVICE_NOT_FOUND, message).field("device_id")
-            }
-            users::Error::InviteNotFound { field } => {
-                refuse(R::REFUSAL_REASON_INVITE_NOT_FOUND, message).field(field)
-            }
-            // Only making an Invite takes Permissions to grant.
-            users::Error::NotGrantable(permission) => {
-                refuse(R::REFUSAL_REASON_PERMISSION_REQUIRED, message)
-                    .field("permissions")
-                    .param("permission", &permission.proto_name())
-            }
-            // A polled Sign-in Code names no User.
-            users::Error::ApprovingUserDeleted => refuse(R::REFUSAL_REASON_USER_NOT_FOUND, message),
-            users::Error::AlreadySetUp => refuse(R::REFUSAL_REASON_ALREADY_SET_UP, message),
-            users::Error::LastAdmin => refuse(R::REFUSAL_REASON_LAST_ADMIN, message),
-            users::Error::LastSignInMethod => {
-                refuse(R::REFUSAL_REASON_LAST_SIGN_IN_METHOD, message)
-            }
-            users::Error::NoHub => return server_link::no_hub(),
-            users::Error::LinkingFailed => {
-                return Self::unavailable(server_link::LINKING_FAILED);
-            }
-            users::Error::AdminRequired => return permission_required(Permission::Admin),
-            users::Error::WrongNameOrPassword => {
-                refuse(R::REFUSAL_REASON_WRONG_NAME_OR_PASSWORD, message)
-            }
-            users::Error::WrongPassword => {
-                refuse(R::REFUSAL_REASON_WRONG_PASSWORD, message).field("password")
-            }
-            users::Error::SignedOut | users::Error::ApprovingDeviceSignedOut => {
-                refuse(R::REFUSAL_REASON_SIGNED_OUT, message)
-            }
-            users::Error::Database(err) => return database_failed(err),
-            // Only creating a User from an Account runs in a task of its own.
-            users::Error::Panicked(_) => {
-                tracing::error!("{err}");
-                return Self::internal("the Server failed to create the User");
-            }
-            users::Error::NoAuthenticator
-            | users::Error::Authenticator(_)
-            | users::Error::Random(_) => {
-                tracing::error!("a change to the Users failed: {err}");
-                return Self::internal("the Server failed");
-            }
-        };
-        refused.into()
     }
 }

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO switch_pins (user_id, credential) VALUES (?, ?)\n                         ON CONFLICT (user_id) DO UPDATE SET credential = excluded.credential",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "a431c73807a196409cae063017937a83fd5303527860f5f6c2e06f844f6368d6"
+}

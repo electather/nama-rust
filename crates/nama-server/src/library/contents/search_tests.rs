@@ -36,7 +36,10 @@ impl Fixture {
 
     /// The best 20 of what a search of every kind for `query` finds.
     async fn search(&self, query: &str) -> Vec<Found> {
-        self.contents.search(query, None, 20).await.unwrap()
+        self.contents
+            .search(query, None, 20, |_| true)
+            .await
+            .unwrap()
     }
 
     /// The titles of the Movies a search for `query` finds, best first.
@@ -266,8 +269,12 @@ async fn a_search_of_one_kind_finds_only_that_kind() {
         .await;
     fx.match_movie(2, "Office Space", "1999-02-19").await;
 
-    let movies = fx.contents.search("office", Some(TitleKind::Movie), 20);
-    let shows = fx.contents.search("office", Some(TitleKind::Show), 20);
+    let movies = fx
+        .contents
+        .search("office", Some(TitleKind::Movie), 20, |_| true);
+    let shows = fx
+        .contents
+        .search("office", Some(TitleKind::Show), 20, |_| true);
 
     assert_eq!(titles(&movies.await.unwrap()), ["Office Space"]);
     assert_eq!(
@@ -283,7 +290,11 @@ async fn a_search_lists_no_more_than_its_limit() {
         fx.match_movie(tmdb, title, "1979-05-25").await;
     }
 
-    let found = fx.contents.search("alien", None, 2).await.unwrap();
+    let found = fx
+        .contents
+        .search("alien", None, 2, |_| true)
+        .await
+        .unwrap();
 
     assert_eq!(titles(&found)[..1], ["Alien"], "the best first");
     assert_eq!(found.len(), 2);
@@ -423,7 +434,10 @@ async fn upgrading_to_original_titles_finds_a_movie_matched_before_by_its_origin
     conn.close().await.unwrap();
 
     let contents = Contents::new(Arc::new(Database::open(data.path()).await.unwrap()));
-    let found = contents.search("casa de papel", None, 20).await.unwrap();
+    let found = contents
+        .search("casa de papel", None, 20, |_| true)
+        .await
+        .unwrap();
 
     assert_eq!(titles(&found), ["Money Heist"]);
 }
@@ -513,8 +527,8 @@ async fn a_search_finding_five_titles_reads_no_vocab() {
         .await
         .unwrap();
 
-    let five = fx.contents.search("heis", None, 20).await;
-    let two = fx.contents.search("heis f", None, 20).await;
+    let five = fx.contents.search("heis", None, 20, |_| true).await;
+    let two = fx.contents.search("heis f", None, 20, |_| true).await;
 
     assert_eq!(five.unwrap().len(), 5);
     assert!(two.is_err(), "fewer than five found reads the vocab");
@@ -527,7 +541,7 @@ async fn a_search_lists_corrected_titles_within_its_limit() {
         fx.match_movie(tmdb, title, "2001-01-01").await;
     }
 
-    let found = fx.contents.search("mony", None, 2).await.unwrap();
+    let found = fx.contents.search("mony", None, 2, |_| true).await.unwrap();
 
     assert_eq!(titles(&found)[..1], ["Money"], "the best first");
     assert_eq!(found.len(), 2);
