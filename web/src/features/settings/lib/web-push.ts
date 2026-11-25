@@ -37,7 +37,7 @@ export async function browserSubscription() {
  * Asks the User to allow notifications. Call it first thing after their click: some browsers
  * ask only then.
  */
-export async function allowsNotifications() {
+export async function askToNotify() {
   return (await Notification.requestPermission()) === "granted";
 }
 
@@ -51,7 +51,7 @@ export async function subscribeBrowser(key: Uint8Array) {
   return registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
 }
 
-/** The subscription's key `name` as the Server takes it, empty when it has none. */
-export function subscriptionKey(subscription: PushSubscription, name: PushEncryptionKeyName) {
+/** The subscription's encryption key `name` as the Server takes it, empty when it has none. */
+export function encryptionKey(subscription: PushSubscription, name: PushEncryptionKeyName) {
   return new Uint8Array(subscription.getKey(name) ?? new ArrayBuffer(0));
 }

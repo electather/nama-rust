@@ -124,9 +124,7 @@ export default defineConfig({
     ],
   },
   lint: {
-    // `public/` is copied into the build as it is, so it has no types for type-aware rules to
-    // read; `push-worker.test.ts` runs the push worker instead.
-    ignorePatterns: [...generated, "public/**"],
+    ignorePatterns: generated,
     plugins: ["typescript", "react", "jsx-a11y", "import", "unicorn", "promise", "oxc", "vitest"],
     jsPlugins: [
       // Runs inside oxlint, so it doesn't break "Only `vp`" (web/AGENTS.md).
@@ -322,6 +320,18 @@ export default defineConfig({
       {
         files: ["src/**/__tests__/**"],
         rules: { "react/no-multi-comp": "off", "no-empty-function": "off" },
+      },
+      // The push worker is a classic script the browser runs as it is, with no types for
+      // `self`'s service worker members (web/AGENTS.md, "Service worker: push only").
+      {
+        files: ["public/**"],
+        rules: {
+          "import/unambiguous": "off",
+          "no-implicit-globals": "off",
+          "typescript/no-unsafe-assignment": "off",
+          "typescript/no-unsafe-call": "off",
+          "typescript/no-unsafe-member-access": "off",
+        },
       },
       // An ambient module declaration (`declare module "…"`) has to be a script.
       { files: ["src/*.d.ts"], rules: { "import/unambiguous": "off" } },

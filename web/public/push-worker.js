@@ -1,10 +1,8 @@
-// Shows the Server's Web Push notifications and opens their link, and nothing else. It must never
-// handle requests or cache anything, so it can't serve an old app after an upgrade (web/AGENTS.md,
-// "Service worker"; ADR 0107). A test reads this file to hold it to that.
+// Push only: no `fetch` listener and no Cache API, so it can't serve an old app (web/AGENTS.md).
 
-// What happened to the Request, by `NotificationKind`'s name in the JSON mapping of
-// `WebPushMessage` (proto/nama/v1/web_push.proto).
-const happened = {
+// What happened to the Request, the notification's body, by `NotificationKind`'s name in the JSON
+// mapping of `WebPushMessage` (proto/nama/v1/web_push.proto).
+const bodies = {
   NOTIFICATION_KIND_APPROVED: "Your Request is approved",
   NOTIFICATION_KIND_DECLINED: "Your Request is declined",
   NOTIFICATION_KIND_FAILED: "Your Request Failed",
@@ -23,7 +21,7 @@ self.addEventListener("push", (event) => {
       : `${notification.title}, Season ${notification.seasonNumber}`;
   event.waitUntil(
     self.registration.showNotification(title, {
-      body: happened[notification.kind] ?? "Your Request changed",
+      body: bodies[notification.kind] ?? "Your Request changed",
       icon: "/icon-192.png",
       data: { link },
     }),

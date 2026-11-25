@@ -4,10 +4,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { browserPushKey } from "@/features/settings/data/use-browser-push";
 import {
-  allowsNotifications,
+  askToNotify,
   browserSubscription,
   subscribeBrowser,
-  subscriptionKey,
+  encryptionKey,
 } from "@/features/settings/lib/web-push";
 import { WebPushService } from "@/gen/nama/v1/web_push_pb";
 
@@ -29,7 +29,7 @@ export function useSetBrowserPush() {
 }
 
 async function turnOn(transport: Transport) {
-  if (!(await allowsNotifications())) {
+  if (!(await askToNotify())) {
     return;
   }
   const { publicKey } = await callUnaryMethod(transport, WebPushService.method.getWebPushKey, {});
@@ -37,8 +37,8 @@ async function turnOn(transport: Transport) {
   try {
     await callUnaryMethod(transport, WebPushService.method.subscribeWebPush, {
       endpoint: subscription.endpoint,
-      p256dh: subscriptionKey(subscription, "p256dh"),
-      auth: subscriptionKey(subscription, "auth"),
+      p256dh: encryptionKey(subscription, "p256dh"),
+      auth: encryptionKey(subscription, "auth"),
     });
   } catch (error) {
     // Kept, the switch would show on while the Server pushes nothing.

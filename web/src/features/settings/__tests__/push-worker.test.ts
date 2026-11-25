@@ -32,6 +32,7 @@ async function dispatch(listener: ((event: unknown) => void) | undefined, event:
   await done;
 }
 
+// web/AGENTS.md, "Service worker: push only".
 describe("the push-only service worker", () => {
   test("has no fetch listener and no Cache API, so it can't serve an old app", () => {
     expect(source).not.toMatch(/["']fetch["']|onfetch|caches|skipWaiting/u);
