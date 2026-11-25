@@ -8,6 +8,7 @@ import {
   FileQuestionMark,
   Film,
   HardDrive,
+  History,
   House,
   KeyRound,
   Laptop,
@@ -16,6 +17,7 @@ import {
   MonitorPlay,
   Puzzle,
   Rows3,
+  Server,
   Shield,
   SlidersHorizontal,
   Tv,
@@ -46,6 +48,8 @@ const icons: Record<Section, LucideIcon> = {
   account: CircleUser,
   "account-signin": KeyRound,
   "account-sessions": Laptop,
+  "account-servers": Server,
+  "account-history": History,
 };
 
 const LINK =

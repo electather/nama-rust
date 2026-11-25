@@ -25,7 +25,13 @@ test("at the Hub, the Account's page opens Settings on the Account's own Section
 
   fireEvent.click(await screen.findByRole("link", { name: "Settings" }));
 
-  await expect(sections()).resolves.toStrictEqual(["Account", "Sign-in", "Sessions"]);
+  await expect(sections()).resolves.toStrictEqual([
+    "Account",
+    "Sign-in",
+    "Sessions",
+    "Servers",
+    "Viewing History",
+  ]);
   const dialog = await settings();
   await expect(dialog.findByText(ada.email)).resolves.toBeDefined();
 });
