@@ -349,10 +349,12 @@ pub(super) fn entry_from_proto(entry: EntryProto) -> Option<WatchlistEntry> {
 /// `viewed` as the Hub takes it, or `None` if it wouldn't take one of its ids or its duration.
 fn viewing_event_to_proto(viewed: &ViewingEvent) -> Option<ViewingEventProto> {
     let ids = std::iter::once(&viewed.id).chain(&viewed.show_id);
-    if !ids.into_iter().all(|id| hub::takes_external_id(id)) || viewed.duration_ms <= 0 {
+    if !ids.into_iter().all(|id| hub::takes_external_id(id))
+        || !hub::takes_duration(viewed.duration_ms)
+    {
         return None;
     }
-    let stop_position_ms = viewed.stop_position_ms.clamp(0, viewed.duration_ms);
+    let stop_position_ms = hub::stop_position_taken(viewed.stop_position_ms, viewed.duration_ms);
     Some(ViewingEventProto {
         episode: viewed.show_id.is_some(),
         external_id: viewed.id.clone(),

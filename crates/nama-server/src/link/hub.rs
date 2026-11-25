@@ -77,6 +77,17 @@ pub(super) fn takes_changed_at(changed_at_ms: i64) -> bool {
     CHANGED_AT_MS.contains(&changed_at_ms)
 }
 
+/// Whether the Hub takes `duration_ms` as how long a Viewing Event's title is.
+pub(super) fn takes_duration(duration_ms: i64) -> bool {
+    duration_ms > 0
+}
+
+/// Where the Hub takes a Viewing Event that stopped `stop_position_ms` into a title `duration_ms`
+/// long to have stopped: never before its start or past its end.
+pub(super) fn stop_position_taken(stop_position_ms: i64, duration_ms: i64) -> i64 {
+    stop_position_ms.min(duration_ms).max(0)
+}
+
 type Transport = ServiceTransport<Client<HttpsConnector<HttpConnector>, ClientBody>>;
 
 /// The Hub at one address.
