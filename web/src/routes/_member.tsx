@@ -5,16 +5,24 @@ import { HubMemberLayout } from "@/app/hub-member-layout";
 import { MemberLayout } from "@/app/member-layout";
 import { type Section, idParam, sectionParam, userParam } from "@/features/settings/lib/sections";
 import { WhoAmIResponseSchema } from "@/gen/nama/v1/sign_in_pb";
-import { accountOrSignIn, isAtHub, serverInfo, whoIsSignedIn } from "@/shared/hooks/access";
+import {
+  accountOrSignIn,
+  actingUserOrRedirect,
+  isAtHub,
+  serverInfo,
+  whoIsSignedIn,
+} from "@/shared/hooks/access";
 import { recordDiagnosticsIfExported } from "@/shared/lib/diagnostics";
 import { wordsParam } from "@/shared/lib/words-param";
 
 // On any page: the words the action bar opens on (`src/app/top-bar/use-search-from-url.ts`), the
 // section Settings is open on (`src/app/settings-loader.tsx`), the Plugin, User, Job or Library open
-// in its Plugins, Users, Jobs or Libraries section, and the setting a search found in it.
+// in its Plugins, Users, Jobs or Libraries section, the setting a search found in it, and at the Hub,
+// the Linked Server whose Settings show.
 interface MemberSearch {
   search?: string | undefined;
   settings?: Section | undefined;
+  manage?: string | undefined;
   plugin?: string | undefined;
   user?: number | undefined;
   library?: string | undefined;
@@ -27,6 +35,7 @@ export const Route = createFileRoute("/_member")({
   validateSearch: (search): MemberSearch => ({
     search: wordsParam(search["search"]),
     settings: sectionParam(search["settings"]),
+    manage: idParam(search["manage"]),
     plugin: idParam(search["plugin"]),
     user: userParam(search["user"]),
     library: idParam(search["library"]),
@@ -51,10 +60,7 @@ export const Route = createFileRoute("/_member")({
     if (info.setupRequired) {
       throw redirect({ to: "/setup" });
     }
-    const signedIn = await whoAmI;
-    if (!signedIn) {
-      throw redirect({ to: "/sign-in", search: { redirect: location.href } });
-    }
+    const signedIn = actingUserOrRedirect(await whoAmI, location.href);
     // Awaited, so the page's own calls are traced too.
     await recordDiagnosticsIfExported(info.exportsDiagnostics);
     return { signedIn, account: null };

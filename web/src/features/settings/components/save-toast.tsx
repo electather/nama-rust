@@ -26,7 +26,7 @@ export function SaveToast({
   }
   return (
     <div className="sticky bottom-4 z-10 mx-4 mt-auto mb-4 flex items-center gap-2.5 rounded-lg border bg-popover py-1 ps-3.5 pe-1 text-popover-foreground shadow-md md:mx-7.5 md:max-w-lg md:self-end">
-      <StateLabel tone="destructive" label={label} Icon={TriangleAlert} />
+      <StateLabel tone="destructiveOnPopover" label={label} Icon={TriangleAlert} />
       {/* Only the words are announced, not the button's name. */}
       <p role="alert" className="min-w-0 flex-1 py-1.5 text-sm text-pretty">
         {says}

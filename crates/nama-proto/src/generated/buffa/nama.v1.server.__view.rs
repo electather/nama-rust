@@ -3984,6 +3984,12 @@ pub struct GetServerInfoResponseView<'a> {
     ///
     /// Field 10: `title_logo_widths`
     pub title_logo_widths: ::buffa::RepeatedView<'a, u32>,
+    /// The Settings Sections this Server serves, each by the word the web app's `?settings=` opens it
+    /// with, such as `libraries`. The web app at the Hub, which may be newer than the Server, says to
+    /// update the Server for a Section it doesn't list (ADR 0105).
+    ///
+    /// Field 11: `settings_sections`
+    pub settings_sections: ::buffa::RepeatedView<'a, &'a str>,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
@@ -4128,6 +4134,17 @@ impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
                     );
                 }
             }
+            11u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                let __elem = ::buffa::types::borrow_str(&mut cur)?;
+                ctx.register_element_memory(
+                    ::buffa::__private::element_footprint(&__elem),
+                )?;
+                view.settings_sections.push(__elem);
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -4165,6 +4182,11 @@ impl<'a> ::buffa::MessageView<'a> for GetServerInfoResponseView<'a> {
             poster_widths: self.poster_widths.to_vec(),
             backdrop_widths: self.backdrop_widths.to_vec(),
             title_logo_widths: self.title_logo_widths.to_vec(),
+            settings_sections: self
+                .settings_sections
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -4222,6 +4244,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetServerInfoResponseView<'a> {
                 .map(|&v| ::buffa::types::uint32_encoded_len(v) as u64)
                 .sum::<u64>();
             size += 1u64 + ::buffa::encoding::varint_len(payload) as u64 + payload;
+        }
+        for v in &self.settings_sections {
+            size += 1u64 + ::buffa::types::string_encoded_len(v) as u64;
         }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
@@ -4293,6 +4318,9 @@ impl<'a> ::buffa::ViewEncode<'a> for GetServerInfoResponseView<'a> {
                 ::buffa::types::encode_uint32(v, buf);
             }
         }
+        for v in &self.settings_sections {
+            ::buffa::types::put_string_field(11u32, v, buf);
+        }
         self.__buffa_unknown_fields.write_to(buf);
     }
 }
@@ -4356,6 +4384,9 @@ impl<'__a> ::serde::Serialize for GetServerInfoResponseView<'__a> {
                     "titleLogoWidths",
                     &::buffa::json_helpers::RepeatedJson(&self.title_logo_widths),
                 )?;
+        }
+        if !self.settings_sections.is_empty() {
+            __map.serialize_entry("settingsSections", &*self.settings_sections)?;
         }
         __map.end()
     }
@@ -4531,6 +4562,15 @@ impl GetServerInfoResponseOwnedView {
     #[must_use]
     pub fn title_logo_widths(&self) -> &::buffa::RepeatedView<'_, u32> {
         &self.0.reborrow().title_logo_widths
+    }
+    /// The Settings Sections this Server serves, each by the word the web app's `?settings=` opens it
+    /// with, such as `libraries`. The web app at the Hub, which may be newer than the Server, says to
+    /// update the Server for a Section it doesn't list (ADR 0105).
+    ///
+    /// Field 11: `settings_sections`
+    #[must_use]
+    pub fn settings_sections(&self) -> &::buffa::RepeatedView<'_, &'_ str> {
+        &self.0.reborrow().settings_sections
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<GetServerInfoResponseView<'static>>>

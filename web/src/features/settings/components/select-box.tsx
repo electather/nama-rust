@@ -10,7 +10,7 @@ export function SelectBox({
   value,
   onChange,
 }: {
-  control: RowControl;
+  control: Partial<RowControl>;
   options: { value: string; label: string }[];
   value: string | undefined;
   onChange: (value: string) => void;

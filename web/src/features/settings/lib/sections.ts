@@ -50,15 +50,15 @@ export function idParam(value: unknown) {
   return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
 }
 
-/** The address with Settings closed: no section, and no detail open in one. */
-export const closedSearch = { settings: undefined, ...settingsDetailParams };
+/** The address with Settings closed: no section, no detail open in one, and no Server picked. */
+export const closedSearch = { settings: undefined, manage: undefined, ...settingsDetailParams };
 
 /**
  * The address of `section` in Settings, at its `setting` if one is asked for. A detail open in
- * another Section closes.
+ * another Section closes; the Server picked at the Hub stays.
  */
 export function sectionSearch(section: Section, setting?: string) {
-  return { ...closedSearch, settings: section, setting };
+  return { ...settingsDetailParams, settings: section, setting };
 }
 
 /** The User `?user=` asks the Users section to open: none without it. */

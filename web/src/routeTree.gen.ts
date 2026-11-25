@@ -20,6 +20,7 @@ import { Route as MemberSearchRouteImport } from './routes/_member/search'
 import { Route as SignedOutHubRouteImport } from './routes/_signed-out/_hub'
 import { Route as SignedOutSetupRouteImport } from './routes/_signed-out/setup'
 import { Route as SignedOutSignInRouteImport } from './routes/_signed-out/sign-in'
+import { Route as SignedOutSwitchUserRouteImport } from './routes/_signed-out/switch-user'
 import { Route as MemberCodeIndexRouteImport } from './routes/_member/code.index'
 import { Route as MemberCodeApproveRouteImport } from './routes/_member/code.approve'
 import { Route as MemberCodeDoneRouteImport } from './routes/_member/code.done'
@@ -31,6 +32,8 @@ import { Route as SignedOutHubSignInLinkSentRouteImport } from './routes/_signed
 import { Route as SignedOutInviteTokenRouteImport } from './routes/_signed-out/invite.$token'
 import { Route as SignedOutSignInIndexRouteImport } from './routes/_signed-out/sign-in.index'
 import { Route as SignedOutSignInAccountRouteImport } from './routes/_signed-out/sign-in.account'
+import { Route as SignedOutSwitchUserIndexRouteImport } from './routes/_signed-out/switch-user.index'
+import { Route as SignedOutSwitchUserUserIdRouteImport } from './routes/_signed-out/switch-user.$userId'
 import { Route as MemberHubServerSignInIdRouteImport } from './routes/_member/_hub/server-sign-in.$id'
 import { Route as MemberServerBoxSetsBoxSetIdRouteImport } from './routes/_member/_server/box-sets/$boxSetId'
 import { Route as MemberServerLibrariesIndexRouteImport } from './routes/_member/_server/libraries/index'
@@ -96,6 +99,11 @@ const SignedOutSignInRoute = SignedOutSignInRouteImport.update({
   path: '/sign-in',
   getParentRoute: () => SignedOutRoute,
 } as any)
+const SignedOutSwitchUserRoute = SignedOutSwitchUserRouteImport.update({
+  id: '/switch-user',
+  path: '/switch-user',
+  getParentRoute: () => SignedOutRoute,
+} as any)
 const MemberCodeIndexRoute = MemberCodeIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -155,6 +163,18 @@ const SignedOutSignInAccountRoute = SignedOutSignInAccountRouteImport.update({
   path: '/account',
   getParentRoute: () => SignedOutSignInRoute,
 } as any)
+const SignedOutSwitchUserIndexRoute =
+  SignedOutSwitchUserIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => SignedOutSwitchUserRoute,
+  } as any)
+const SignedOutSwitchUserUserIdRoute =
+  SignedOutSwitchUserUserIdRouteImport.update({
+    id: '/$userId',
+    path: '/$userId',
+    getParentRoute: () => SignedOutSwitchUserRoute,
+  } as any)
 const MemberHubServerSignInIdRoute = MemberHubServerSignInIdRouteImport.update({
   id: '/server-sign-in/$id',
   path: '/server-sign-in/$id',
@@ -247,6 +267,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof MemberSearchRoute
   '/setup': typeof SignedOutSetupRoute
   '/sign-in': typeof SignedOutSignInRouteWithChildren
+  '/switch-user': typeof SignedOutSwitchUserRouteWithChildren
   '/code/approve': typeof MemberCodeApproveRoute
   '/code/done': typeof MemberCodeDoneRoute
   '/reauthenticate/account': typeof MemberReauthenticateAccountRoute
@@ -256,8 +277,10 @@ export interface FileRoutesByFullPath {
   '/sign-in-link-sent': typeof SignedOutHubSignInLinkSentRoute
   '/invite/$token': typeof SignedOutInviteTokenRoute
   '/sign-in/account': typeof SignedOutSignInAccountRoute
+  '/switch-user/$userId': typeof SignedOutSwitchUserUserIdRoute
   '/code/': typeof MemberCodeIndexRoute
   '/sign-in/': typeof SignedOutSignInIndexRoute
+  '/switch-user/': typeof SignedOutSwitchUserIndexRoute
   '/server-sign-in/$id': typeof MemberHubServerSignInIdRoute
   '/box-sets/$boxSetId': typeof MemberServerBoxSetsBoxSetIdRoute
   '/movies/$movieId': typeof MemberServerMoviesMovieIdRoute
@@ -287,8 +310,10 @@ export interface FileRoutesByTo {
   '/sign-in-link-sent': typeof SignedOutHubSignInLinkSentRoute
   '/invite/$token': typeof SignedOutInviteTokenRoute
   '/sign-in/account': typeof SignedOutSignInAccountRoute
+  '/switch-user/$userId': typeof SignedOutSwitchUserUserIdRoute
   '/code': typeof MemberCodeIndexRoute
   '/sign-in': typeof SignedOutSignInIndexRoute
+  '/switch-user': typeof SignedOutSwitchUserIndexRoute
   '/server-sign-in/$id': typeof MemberHubServerSignInIdRoute
   '/box-sets/$boxSetId': typeof MemberServerBoxSetsBoxSetIdRoute
   '/movies/$movieId': typeof MemberServerMoviesMovieIdRoute
@@ -316,6 +341,7 @@ export interface FileRoutesById {
   '/_signed-out/_hub': typeof SignedOutHubRouteWithChildren
   '/_signed-out/setup': typeof SignedOutSetupRoute
   '/_signed-out/sign-in': typeof SignedOutSignInRouteWithChildren
+  '/_signed-out/switch-user': typeof SignedOutSwitchUserRouteWithChildren
   '/_member/': typeof MemberIndexRoute
   '/_member/code/approve': typeof MemberCodeApproveRoute
   '/_member/code/done': typeof MemberCodeDoneRoute
@@ -326,8 +352,10 @@ export interface FileRoutesById {
   '/_signed-out/_hub/sign-in-link-sent': typeof SignedOutHubSignInLinkSentRoute
   '/_signed-out/invite/$token': typeof SignedOutInviteTokenRoute
   '/_signed-out/sign-in/account': typeof SignedOutSignInAccountRoute
+  '/_signed-out/switch-user/$userId': typeof SignedOutSwitchUserUserIdRoute
   '/_member/code/': typeof MemberCodeIndexRoute
   '/_signed-out/sign-in/': typeof SignedOutSignInIndexRoute
+  '/_signed-out/switch-user/': typeof SignedOutSwitchUserIndexRoute
   '/_member/_hub/server-sign-in/$id': typeof MemberHubServerSignInIdRoute
   '/_member/_server/box-sets/$boxSetId': typeof MemberServerBoxSetsBoxSetIdRoute
   '/_member/_server/movies/$movieId': typeof MemberServerMoviesMovieIdRoute
@@ -352,6 +380,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/setup'
     | '/sign-in'
+    | '/switch-user'
     | '/code/approve'
     | '/code/done'
     | '/reauthenticate/account'
@@ -361,8 +390,10 @@ export interface FileRouteTypes {
     | '/sign-in-link-sent'
     | '/invite/$token'
     | '/sign-in/account'
+    | '/switch-user/$userId'
     | '/code/'
     | '/sign-in/'
+    | '/switch-user/'
     | '/server-sign-in/$id'
     | '/box-sets/$boxSetId'
     | '/movies/$movieId'
@@ -392,8 +423,10 @@ export interface FileRouteTypes {
     | '/sign-in-link-sent'
     | '/invite/$token'
     | '/sign-in/account'
+    | '/switch-user/$userId'
     | '/code'
     | '/sign-in'
+    | '/switch-user'
     | '/server-sign-in/$id'
     | '/box-sets/$boxSetId'
     | '/movies/$movieId'
@@ -420,6 +453,7 @@ export interface FileRouteTypes {
     | '/_signed-out/_hub'
     | '/_signed-out/setup'
     | '/_signed-out/sign-in'
+    | '/_signed-out/switch-user'
     | '/_member/'
     | '/_member/code/approve'
     | '/_member/code/done'
@@ -430,8 +464,10 @@ export interface FileRouteTypes {
     | '/_signed-out/_hub/sign-in-link-sent'
     | '/_signed-out/invite/$token'
     | '/_signed-out/sign-in/account'
+    | '/_signed-out/switch-user/$userId'
     | '/_member/code/'
     | '/_signed-out/sign-in/'
+    | '/_signed-out/switch-user/'
     | '/_member/_hub/server-sign-in/$id'
     | '/_member/_server/box-sets/$boxSetId'
     | '/_member/_server/movies/$movieId'
@@ -532,6 +568,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignedOutSignInRouteImport
       parentRoute: typeof SignedOutRoute
     }
+    '/_signed-out/switch-user': {
+      id: '/_signed-out/switch-user'
+      path: '/switch-user'
+      fullPath: '/switch-user'
+      preLoaderRoute: typeof SignedOutSwitchUserRouteImport
+      parentRoute: typeof SignedOutRoute
+    }
     '/_member/code/': {
       id: '/_member/code/'
       path: '/'
@@ -608,6 +651,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/sign-in/account'
       preLoaderRoute: typeof SignedOutSignInAccountRouteImport
       parentRoute: typeof SignedOutSignInRoute
+    }
+    '/_signed-out/switch-user/': {
+      id: '/_signed-out/switch-user/'
+      path: '/'
+      fullPath: '/switch-user/'
+      preLoaderRoute: typeof SignedOutSwitchUserIndexRouteImport
+      parentRoute: typeof SignedOutSwitchUserRoute
+    }
+    '/_signed-out/switch-user/$userId': {
+      id: '/_signed-out/switch-user/$userId'
+      path: '/$userId'
+      fullPath: '/switch-user/$userId'
+      preLoaderRoute: typeof SignedOutSwitchUserUserIdRouteImport
+      parentRoute: typeof SignedOutSwitchUserRoute
     }
     '/_member/_hub/server-sign-in/$id': {
       id: '/_member/_hub/server-sign-in/$id'
@@ -835,10 +892,24 @@ const SignedOutSignInRouteWithChildren = SignedOutSignInRoute._addFileChildren(
   SignedOutSignInRouteChildren,
 )
 
+interface SignedOutSwitchUserRouteChildren {
+  SignedOutSwitchUserUserIdRoute: typeof SignedOutSwitchUserUserIdRoute
+  SignedOutSwitchUserIndexRoute: typeof SignedOutSwitchUserIndexRoute
+}
+
+const SignedOutSwitchUserRouteChildren: SignedOutSwitchUserRouteChildren = {
+  SignedOutSwitchUserUserIdRoute: SignedOutSwitchUserUserIdRoute,
+  SignedOutSwitchUserIndexRoute: SignedOutSwitchUserIndexRoute,
+}
+
+const SignedOutSwitchUserRouteWithChildren =
+  SignedOutSwitchUserRoute._addFileChildren(SignedOutSwitchUserRouteChildren)
+
 interface SignedOutRouteChildren {
   SignedOutHubRoute: typeof SignedOutHubRouteWithChildren
   SignedOutSetupRoute: typeof SignedOutSetupRoute
   SignedOutSignInRoute: typeof SignedOutSignInRouteWithChildren
+  SignedOutSwitchUserRoute: typeof SignedOutSwitchUserRouteWithChildren
   SignedOutInviteTokenRoute: typeof SignedOutInviteTokenRoute
 }
 
@@ -846,6 +917,7 @@ const SignedOutRouteChildren: SignedOutRouteChildren = {
   SignedOutHubRoute: SignedOutHubRouteWithChildren,
   SignedOutSetupRoute: SignedOutSetupRoute,
   SignedOutSignInRoute: SignedOutSignInRouteWithChildren,
+  SignedOutSwitchUserRoute: SignedOutSwitchUserRouteWithChildren,
   SignedOutInviteTokenRoute: SignedOutInviteTokenRoute,
 }
 

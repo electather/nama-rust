@@ -3,6 +3,8 @@
 
 use std::{collections::BTreeSet, net::IpAddr, sync::Arc};
 
+use nama_proto::nama::v1::{AudioCodec, Container, VideoCodec};
+
 use super::{
     AskedAudio, Description, DeviceDecoding, Facts, Method, Network, PickedLimit, Plan, Planned,
     PreviewFrames, Probing, RunningPlans, StartError, StartedPlan, SubtitlePreference, Track,
@@ -18,7 +20,7 @@ use crate::{
     db::{Database, detached},
     diagnostics::{self, Usage},
     ffmpeg::{Abilities, RunError},
-    server_settings::PlaybackSettings,
+    server_settings::{PlaybackLimit, PlaybackSettings},
     users::{Caller, remote_cap},
 };
 
@@ -172,6 +174,49 @@ impl Plans {
             diagnostics::record(Usage::PlaybackStarted);
         }
         Ok(planned)
+    }
+
+    /// The plan of a Transcode of the Version `version` into a file `caller`'s Device keeps to
+    /// play offline, asked from `client`, fitting `limit`, or kept to their cap for remote
+    /// playback if lower: H.264 and stereo AAC, which every Device plays, with no subtitle burned
+    /// in. Nothing is started. `None` as [`Self::plan`] says; a plan that can't be played says why
+    /// in its reasons.
+    pub(crate) async fn plan_download(
+        &self,
+        caller: &Caller,
+        version: i64,
+        limit: PlaybackLimit,
+        client: IpAddr,
+    ) -> Result<Option<Plan>, StartError> {
+        let user = caller.user.id;
+        if !sees_version(&self.db, user, version).await? {
+            return Ok(None);
+        }
+        let asked = Asked {
+            version,
+            decoding: DeviceDecoding {
+                containers: vec![Container::CONTAINER_MP4],
+                video_codecs: vec![VideoCodec::VIDEO_CODEC_H264],
+                audio_codecs: vec![AudioCodec::AUDIO_CODEC_AAC],
+                // Though the file is one MP4, not HLS: planning allows a Transcode only to a
+                // Device that plays HLS, which every Transcode streamed is.
+                hls: true,
+                audio_channels: 2,
+                ..DeviceDecoding::default()
+            },
+            // Ruled out as if they'd failed, so only a Transcode, which makes a file, is left.
+            failed: BTreeSet::from([Method::DirectPlay, Method::Remux]),
+            failed_recipes: BTreeSet::new(),
+            audio: None,
+            subtitle: AskedSubtitle::None,
+            limit: PickedLimit::Picked(Some(limit)),
+            start_ms: 0,
+            client,
+        };
+        let Some(mut facts) = self.facts(user, asked).await? else {
+            return Ok(None);
+        };
+        Ok(Some(build(&mut facts)))
     }
 
     /// Stops the plan `plan` if the Device `device` owns it.

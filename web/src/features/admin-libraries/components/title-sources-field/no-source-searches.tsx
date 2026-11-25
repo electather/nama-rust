@@ -1,9 +1,9 @@
-import { Link, useRouteContext } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 
 import { whyNoSourceSearches } from "@/features/admin-libraries/lib/title-sources";
 import type { TitleSource } from "@/gen/nama/v1/library_pb";
 import { Permission } from "@/gen/nama/v1/sign_in_pb";
-import { may } from "@/shared/lib/permissions";
+import { useMay } from "@/shared/hooks/use-may";
 import { settingsDetailParams } from "@/shared/lib/settings-detail-params";
 import { textLink } from "@/shared/lib/text-link-classes";
 
@@ -13,12 +13,12 @@ import { textLink } from "@/shared/lib/text-link-classes";
  * only for a User who may enable one there.
  */
 export function NoSourceSearches({ order, listed }: { order: string[]; listed: TitleSource[] }) {
-  const { signedIn } = useRouteContext({ from: "/_member" });
+  const managesSettings = useMay(Permission.MANAGE_SETTINGS);
   const why = whyNoSourceSearches(order, listed);
   if (why === undefined) {
     return null;
   }
-  const plugins = may(signedIn.user, Permission.MANAGE_SETTINGS) ? (
+  const plugins = managesSettings ? (
     <Link
       to="."
       search={(rest) => ({ ...rest, ...settingsDetailParams, settings: "plugins" })}

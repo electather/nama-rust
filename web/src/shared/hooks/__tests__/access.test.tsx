@@ -228,12 +228,16 @@ test("a rate-limited sign-in says to wait, or sign in with a code", async () => 
 
 test("signing out goes to /sign-in", async () => {
   const state: ServerState = { signedIn: newUser };
-  const transport = fakeServer(state, {
-    signOut: () => {
-      delete state.signedIn;
-      return {};
+  const transport = fakeServer(
+    state,
+    {},
+    {
+      revokeDevice: () => {
+        delete state.signedIn;
+        return {};
+      },
     },
-  });
+  );
   const router = openApp("/", transport);
 
   await signOut();
@@ -243,12 +247,18 @@ test("signing out goes to /sign-in", async () => {
 
 test("a session that has ended sends you to sign in and back again", async () => {
   const state: ServerState = { signedIn: newUser };
-  const transport = fakeServer(state, {
-    // The Server revoked this Device after the page loaded.
-    signOut: () => {
-      throw refused(Code.Unauthenticated, "signed out", { reason: RefusalReason.SIGN_IN_REQUIRED });
+  const transport = fakeServer(
+    state,
+    {},
+    {
+      // The Server revoked this Device after the page loaded.
+      revokeDevice: () => {
+        throw refused(Code.Unauthenticated, "signed out", {
+          reason: RefusalReason.SIGN_IN_REQUIRED,
+        });
+      },
     },
-  });
+  );
   const router = openApp("/code", transport);
   await screen.findByRole("button", { name: /’s menu$/u });
   delete state.signedIn;
@@ -263,8 +273,9 @@ test("an `unauthenticated` refusal while still signed in keeps you on the page",
     "/code",
     fakeServer(
       { signedIn: newUser },
+      {},
       {
-        signOut: () => {
+        revokeDevice: () => {
           throw refused(Code.Unauthenticated, "refused", {
             reason: RefusalReason.SIGN_IN_REQUIRED,
           });

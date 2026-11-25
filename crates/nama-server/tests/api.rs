@@ -13,9 +13,9 @@ use connectrpc::{ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
     FoundHardware, FoundProgram, GetImageSettingsRequest, GetPlaybackSettingsRequest,
     GetPlaybackStatusRequest, GetPlaybackStatusResponse, GetServerInfoRequest,
-    GetServerInfoResponse, GetServerSettingsRequest, Gpu, HardwareAcceleration, ImageSettings,
-    PlaybackLimit, PlaybackSettings, RefusalReason, ServerServiceClient, ServerSettings,
-    ToneMapping, UpdatePlaybackSettingsRequest, UpdateServerSettingsRequest,
+    GetServerSettingsRequest, Gpu, HardwareAcceleration, ImageSettings, PlaybackLimit,
+    PlaybackSettings, RefusalReason, ServerServiceClient, ServerSettings, ToneMapping,
+    UpdatePlaybackSettingsRequest, UpdateServerSettingsRequest,
 };
 #[cfg(unix)]
 use nama_server::ffmpeg::{fake, fake::script, find_gpus};
@@ -28,18 +28,6 @@ fn config_named(name: &str) -> Config {
         name: name.to_owned(),
         ..Config::default()
     }
-}
-
-#[expect(
-    clippy::unwrap_used,
-    reason = "a test helper fails its test by panicking"
-)]
-async fn get_server_info(client: &ServerServiceClient<HttpClient>) -> GetServerInfoResponse {
-    client
-        .get_server_info(GetServerInfoRequest::default())
-        .await
-        .unwrap()
-        .into_owned()
 }
 
 /// Every transport the Server promises: HTTP/1.1 and cleartext HTTP/2, each with JSON and binary
@@ -74,7 +62,11 @@ async fn get_server_info_returns_the_server_name_and_version_over_every_transpor
     ];
 
     for (transport, http, config) in transports {
-        let info = get_server_info(&ServerServiceClient::new(http, config)).await;
+        let info = ServerServiceClient::new(http, config)
+            .get_server_info(GetServerInfoRequest::default())
+            .await
+            .unwrap()
+            .into_owned();
 
         assert_eq!(info.name, "Living Room", "{transport}");
         assert_eq!(info.version, env!("CARGO_PKG_VERSION"), "{transport}");
@@ -103,6 +95,11 @@ async fn a_plain_http1_json_post_gets_a_json_answer() {
             "posterWidths": [320, 480, 640],
             "backdropWidths": [640, 1280, 1920, 2560],
             "titleLogoWidths": [320, 480, 640, 960],
+            "settingsSections": [
+                "signin", "devices", "playback", "home", "requests", "connections", "libraries",
+                "needs-a-match", "now-playing", "jobs", "server", "users", "backups",
+                "default-home", "server-playback", "plugins",
+            ],
             "version": env!("CARGO_PKG_VERSION"),
         })
     );

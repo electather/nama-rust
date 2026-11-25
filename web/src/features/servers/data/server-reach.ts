@@ -13,8 +13,14 @@ import { isCode } from "@/shared/lib/connect-errors";
 import type { ServerAt } from "@/shared/lib/server";
 
 /** What the page at the Hub can do with one of the Account's Servers. */
-type ServerReach =
-  | { kind: "signed-in"; transport: Transport; signedIn: WhoAmIResponse }
+export type ServerReach =
+  | {
+      kind: "signed-in";
+      transport: Transport;
+      signedIn: WhoAmIResponse;
+      /** The Settings Sections the Server serves, by their `?settings=` words. */
+      settingsSections: string[];
+    }
   /** The page can't browse the Server, so it opens in its own web app instead. */
   | { kind: "opens-alone"; why: OpensAloneWhy }
   /** The Account owns the Server but has no User on it, so there's nothing to browse. */
@@ -60,13 +66,14 @@ async function reachServer(reach: ServerToReach): Promise<ServerReach> {
     throw new ConnectError("the Server has no address", Code.Unavailable);
   }
   const open = reach.serverAt(origin, []);
-  const why = await whyItOpensAlone(open, origin);
-  if (why !== undefined) {
-    return { kind: "opens-alone", why };
+  const info = await infoOrWhyAlone(open, origin);
+  if (typeof info === "string") {
+    return { kind: "opens-alone", why: info };
   }
   const storageKey = serverSessionKey(reach.accountId, reach.server.id);
   const signInWith = async (token: string) => {
-    const signedIn = await whoIsSignedInAt(reach.serverAt(origin, [bearer(token)]));
+    const at = reach.serverAt(origin, [bearer(token)]);
+    const signedIn = await whoIsSignedInAt(at, info.settingsSections);
     return signedIn;
   };
   // A Device revoked on the Server, or a session it forgot, is traded for a new one.
@@ -81,29 +88,33 @@ async function reachServer(reach: ServerToReach): Promise<ServerReach> {
   );
 }
 
-/** Why the Server `open` reaches at `origin` opens in its own web app, if it does. */
-async function whyItOpensAlone(open: Transport, origin: string) {
-  // A browser blocks an HTTPS page's calls to plain HTTP, until the Server has a certificate
-  // (ADR 0057, 0105).
-  if (origin.startsWith("http:") && globalThis.location.protocol === "https:") {
+/** What the Server `open` reaches at `origin` says of itself, or why it opens in its own web app. */
+async function infoOrWhyAlone(open: Transport, origin: string) {
+  if (blocksPlainHttp(origin)) {
     return "plain-http";
   }
-  return (await isOutdated(open, origin)) ? "outdated" : undefined;
+  const info = await infoIfItAnswers(open, origin);
+  return info && !isBelowMinimumVersion(info.version) ? info : "outdated";
 }
 
 /**
- * Whether the Server `open` reaches at `origin` is older than the page needs: it reports an older
- * version, or it answers but not to the Hub's origin, as one older than the Hub's CORS (ADR 0105).
+ * Whether the browser blocks the page's calls to `origin`: an HTTPS page's to plain HTTP, until the
+ * Server has a certificate (ADR 0057, 0105).
  */
-async function isOutdated(open: Transport, origin: string) {
+function blocksPlainHttp(origin: string) {
+  return origin.startsWith("http:") && globalThis.location.protocol === "https:";
+}
+
+/** What the Server says of itself, or `null` when it answers but not to the Hub's origin. */
+async function infoIfItAnswers(open: Transport, origin: string) {
   try {
-    const { version } = await callUnaryMethod(open, ServerService.method.getServerInfo, {});
-    return isBelowMinimumVersion(version);
+    return await callUnaryMethod(open, ServerService.method.getServerInfo, {});
   } catch (error) {
     // A refused CORS preflight fails as an unreachable Server does, as a failed `fetch`; only a
-    // request whose answer the page can't read tells them apart.
+    // request whose answer the page can't read tells them apart. One that answers is older than
+    // the Hub's CORS (ADR 0105).
     if (isCode(error, Code.Unknown) && (await answersAt(origin))) {
-      return true;
+      return null;
     }
     throw error;
   }
@@ -167,11 +178,11 @@ async function tokenFromHub(hub: Transport, linkedServerId: string) {
   }
 }
 
-/** Who `transport` is signed in as, or `null` when the Server refuses its session. */
-async function whoIsSignedInAt(transport: Transport) {
+/** Who `transport` is signed in as, on a Server serving `settingsSections`, or `null` if refused. */
+async function whoIsSignedInAt(transport: Transport, settingsSections: string[]) {
   try {
     const signedIn = await callUnaryMethod(transport, SignInService.method.whoAmI, {});
-    return { kind: "signed-in", transport, signedIn } as const;
+    return { kind: "signed-in", transport, signedIn, settingsSections } as const;
   } catch (error) {
     if (isCode(error, Code.Unauthenticated)) {
       return null;

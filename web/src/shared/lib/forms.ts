@@ -19,6 +19,7 @@ export interface FormErrors {
   signInCode?: string;
   linkCode?: string;
   newPassword?: string;
+  switchPin?: string;
   folders?: string;
   titleSources?: string;
   recognisers?: string;
