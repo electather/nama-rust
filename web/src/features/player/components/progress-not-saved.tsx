@@ -12,7 +12,7 @@ import type { ItemToMatch } from "@/shared/lib/unmatched-names";
  * Manage Libraries, Match it opens its Match flow.
  */
 export function ProgressNotSaved({ item, libraryId }: { item: ItemToMatch; libraryId: bigint }) {
-  const { signedIn } = useRouteContext({ from: "/_member" });
+  const { signedIn } = useRouteContext({ from: "/_member/_server" });
   return (
     // Clickable only while the controls show, as the title bar is.
     <div className="pointer-events-auto mt-4 flex flex-wrap items-center gap-2 px-5 group-data-controls-hidden:pointer-events-none">

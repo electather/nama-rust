@@ -7,7 +7,7 @@ import {
   createRouterTransport,
 } from "@connectrpc/connect";
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
-import { afterEach, expect, test } from "vite-plus/test";
+import { afterEach, expect, test, vi } from "vite-plus/test";
 
 import { LinkedServerSchema } from "@/gen/nama/hub/v1/link_pb";
 import { BrowseService } from "@/gen/nama/v1/browse_pb";
@@ -20,6 +20,7 @@ import { accountHub } from "@/test-hub";
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  vi.unstubAllGlobals();
 });
 
 const basement = create(LinkedServerSchema, {
@@ -84,17 +85,37 @@ function fakeServerAt(origin: string, version: string, served: Served) {
     );
 }
 
-/** Opens the Hub's home for an Account on `servers`, each origin's fake Server in `at`. */
-function openHub(at: Record<string, ReturnType<typeof fakeServerAt>>, servers = [basement, cabin]) {
+/**
+ * Opens the Hub's home for an Account on `servers`, each origin's fake Server in `at`. Every other
+ * origin fails as a `fetch` the browser can't make does: one in `refusingTheHub` answers, but not
+ * to the Hub's origin, and the rest can't be reached.
+ */
+function openHub(
+  at: Record<string, ReturnType<typeof fakeServerAt>>,
+  servers = [basement, cabin],
+  refusingTheHub: string[] = [],
+) {
+  vi.stubGlobal("fetch", async (origin: string) => {
+    await Promise.resolve();
+    if (!refusingTheHub.includes(origin)) {
+      throw new TypeError("Failed to fetch");
+    }
+    return new Response();
+  });
   const { transport } = accountHub({ servers });
   openApp("/", transport, undefined, (origin, interceptors) => {
     const server = at[origin];
-    if (!server) {
-      throw new ConnectError("unreachable", Code.Unavailable);
-    }
-    return server(interceptors);
+    return server ? server(interceptors) : failedFetch;
   });
 }
+
+const failedFetch = createRouterTransport(({ service }) => {
+  service(ServerService, {
+    getServerInfo: () => {
+      throw new ConnectError("Failed to fetch", Code.Unknown);
+    },
+  });
+});
 
 /** The part of the Hub's home under `name`'s heading. */
 async function serverNamed(name: string) {
@@ -137,6 +158,27 @@ test("a Server below the minimum version links to its own web app, without signi
   const update = await cabinItem.findByRole("link", { name: "Update this Server" });
   expect(update.getAttribute("href")).toBe("https://cabin.example");
   expect(served.trades).toStrictEqual([]);
+});
+
+test("a Server that answers but not to the Hub's origin, as before 0.2.1, links to its own web app", async () => {
+  openHub({}, [cabin], ["https://cabin.example"]);
+
+  const cabinItem = await serverNamed("Cabin");
+  await expect(cabinItem.findByRole("link", { name: "Update this Server" })).resolves.toBeDefined();
+});
+
+test("another Account signed in later doesn't get the first one's session", async () => {
+  const served: Served = { trades: [] };
+  const at = { "https://cabin.example": fakeServerAt("https://cabin.example", "0.3.0", served) };
+  localStorage.setItem(
+    "nama:server-session:v1:someone-else:cabin",
+    "https://cabin.example-session",
+  );
+  openHub(at, [cabin]);
+
+  const cabinItem = await serverNamed("Cabin");
+  await expect(cabinItem.findByRole("link", { name: "Films" })).resolves.toBeDefined();
+  expect(served.trades).toStrictEqual(["hub-token-cabin"]);
 });
 
 test("coming back to the Hub signs in to a Server with the session it kept, not a new Device", async () => {

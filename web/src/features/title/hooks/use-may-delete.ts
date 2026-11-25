@@ -5,6 +5,6 @@ import { may } from "@/shared/lib/permissions";
 
 /** Whether the signed-in User may delete media. */
 export function useMayDelete() {
-  const { signedIn } = useRouteContext({ from: "/_member" });
+  const { signedIn } = useRouteContext({ from: "/_member/_server" });
   return may(signedIn.user, Permission.DELETE_MEDIA);
 }

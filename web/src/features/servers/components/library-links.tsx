@@ -2,11 +2,11 @@ import type { Transport } from "@connectrpc/connect";
 import { Link } from "@tanstack/react-router";
 import { buttonVariants } from "nama-ui/components/button";
 
-import { useServerLibraries } from "@/features/servers/data/use-server-libraries";
+import { useLibraries } from "@/shared/hooks/use-libraries";
 
 /** The Libraries on the Linked Server `serverId`, which `transport` reaches, each opening it. */
 export function LibraryLinks({ serverId, transport }: { serverId: string; transport: Transport }) {
-  const libraries = useServerLibraries(transport);
+  const libraries = useLibraries(transport);
   if (libraries.length === 0) {
     return <p className="text-sm text-muted-foreground">No Library is shared with you here.</p>;
   }

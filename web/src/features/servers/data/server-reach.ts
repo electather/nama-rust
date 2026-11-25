@@ -11,17 +11,18 @@ import { serverKey } from "@/shared/hooks/server-key";
 import { isCode } from "@/shared/lib/connect-errors";
 import type { ServerAt } from "@/shared/lib/server";
 
-/** How the page at the Hub reaches one of the Account's Servers. */
-type ServerConnection =
+/** What the page at the Hub can do with one of the Account's Servers. */
+type ServerReach =
   | { kind: "signed-in"; transport: Transport; signedIn: WhoAmIResponse }
   /** The Server is older than the page needs, so it opens in its own web app. */
   | { kind: "outdated" }
   /** The Account owns the Server but has no User on it, so there's nothing to browse. */
   | { kind: "no-user" };
 
-/** What the Hub at `hub` needs to reach one of the Account's Servers. */
+/** What the page at the Hub `hub` needs to reach one of the signed-in Account's Servers. */
 export interface ServerToReach {
   hub: Transport;
+  accountId: string;
   server: LinkedServer;
   serverAt: ServerAt;
 }
@@ -30,12 +31,12 @@ export interface ServerToReach {
  * Reaches `server`, signed in as the Account's User there, as a Device of its own whose session
  * this browser keeps (ADR 0105). Fails while the Server or the Hub can't be reached.
  */
-export function serverConnectionQuery(reach: ServerToReach) {
+export function serverReachQuery(reach: ServerToReach) {
   return queryOptions({
-    queryKey: ["server-connection", serverKey(reach.hub), reach.server.id],
+    queryKey: ["server-reach", serverKey(reach.hub), reach.accountId, reach.server.id],
     queryFn: async () => {
-      const connection = await connect(reach);
-      return connection;
+      const reached = await reachServer(reach);
+      return reached;
     },
     staleTime: "static",
     // The Server's queries are keyed by its transport, so a new one would lose them all.
@@ -45,35 +46,80 @@ export function serverConnectionQuery(reach: ServerToReach) {
   });
 }
 
-async function connect({ hub, server, serverAt }: ServerToReach): Promise<ServerConnection> {
-  // shortcut: only the best Server Address is tried; try the next when one can't be reached.
-  const [origin] = server.addresses;
+async function reachServer(reach: ServerToReach): Promise<ServerReach> {
+  // ponytail: only the best Server Address is tried; try the next when one can't be reached.
+  const [origin] = reach.server.addresses;
   if (origin === undefined) {
     throw new ConnectError("the Server has no address", Code.Unavailable);
   }
-  const open = serverAt(origin, []);
-  const { version } = await callUnaryMethod(open, ServerService.method.getServerInfo, {});
-  if (isBelowMinimumVersion(version)) {
+  const open = reach.serverAt(origin, []);
+  if (await isOutdated(open, origin)) {
     return { kind: "outdated" };
   }
-  const session = new KeptSession(server.id, (token) => serverAt(origin, [bearer(token)]));
+  // The Account is in the key, so another Account signed in here later never gets its session.
+  const storageKey = `nama:server-session:v1:${reach.accountId}:${reach.server.id}`;
+  const signInWith = async (token: string) => {
+    const signedIn = await signedInWith(reach.serverAt(origin, [bearer(token)]));
+    return signedIn;
+  };
   // A Device revoked on the Server, or a session it forgot, is traded for a new one.
-  const kept = await session.signIn();
-  return kept ?? (await signInAnew({ hub, server, open, session }));
+  const kept = await signInKept(storageKey, signInWith);
+  return (
+    kept ??
+    (await signInAnew(reach, open, async (token) => {
+      localStorage.setItem(storageKey, token);
+      const signedIn = await signInWith(token);
+      return signedIn;
+    }))
+  );
 }
 
-/** Trades the Hub's token for a new Device on the Server `open` reaches, keeping its session. */
-async function signInAnew({
-  hub,
-  server,
-  open,
-  session,
-}: {
-  hub: Transport;
-  server: LinkedServer;
-  open: Transport;
-  session: KeptSession;
-}): Promise<ServerConnection> {
+/**
+ * Whether the Server `open` reaches at `origin` is older than the page needs: it reports an older
+ * version, or it answers but not to the Hub's origin, as one older than the Hub's CORS (ADR 0105).
+ */
+async function isOutdated(open: Transport, origin: string) {
+  try {
+    const { version } = await callUnaryMethod(open, ServerService.method.getServerInfo, {});
+    return isBelowMinimumVersion(version);
+  } catch (error) {
+    // A refused CORS preflight fails as an unreachable Server does, as a failed `fetch`; only a
+    // request whose answer the page can't read tells them apart.
+    if (isCode(error, Code.Unknown) && (await answersAt(origin))) {
+      return true;
+    }
+    throw error;
+  }
+}
+
+async function answersAt(origin: string) {
+  try {
+    await fetch(origin, { mode: "no-cors" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Signs in with the session kept at `storageKey`, or `null` with none or one the Server refuses. */
+async function signInKept(
+  storageKey: string,
+  signInWith: (token: string) => Promise<ServerReach | null>,
+) {
+  const token = localStorage.getItem(storageKey);
+  if (token === null) {
+    return null;
+  }
+  const signedIn = await signInWith(token);
+  return signedIn;
+}
+
+/** Trades the Hub's token for a new Device on the Server `open` reaches, then signs in with it. */
+async function signInAnew(
+  { hub, server }: ServerToReach,
+  open: Transport,
+  signInWith: (token: string) => Promise<ServerReach | null>,
+): Promise<ServerReach> {
   const hubToken = await tokenFromHub(hub, server.id);
   if (hubToken === null) {
     return { kind: "no-user" };
@@ -81,37 +127,11 @@ async function signInAnew({
   const { token } = await callUnaryMethod(open, SignInService.method.signInWithHubToken, {
     hubToken,
   });
-  session.keep(token);
-  const signedIn = await session.signIn();
+  const signedIn = await signInWith(token);
   if (!signedIn) {
     throw new ConnectError("the Server refused its own session", Code.Unauthenticated);
   }
   return signedIn;
-}
-
-/** The session this browser keeps for one Linked Server's Device, across page loads. */
-class KeptSession {
-  private readonly storageKey: string;
-  private readonly withToken: (token: string) => Transport;
-
-  public constructor(linkedServerId: string, withToken: (token: string) => Transport) {
-    this.storageKey = `nama:server-session:v1:${linkedServerId}`;
-    this.withToken = withToken;
-  }
-
-  public keep(token: string) {
-    localStorage.setItem(this.storageKey, token);
-  }
-
-  /** Who the kept session is signed in as, or `null` with none or one the Server refuses. */
-  public async signIn() {
-    const token = localStorage.getItem(this.storageKey);
-    if (token === null) {
-      return null;
-    }
-    const signedIn = await signedInWith(this.withToken(token));
-    return signedIn;
-  }
 }
 
 /** The Hub's token for its Account's User on the Linked Server `linkedServerId`, or `null` for none. */

@@ -25,8 +25,11 @@ export async function prefetchLibraries({ queryClient, transport }: RouterContex
   }
 }
 
-/** The Server's Libraries. */
-export function useLibraries() {
-  return useSuspenseQuery(LibraryService.method.listLibraries, {}, { staleTime: loaderStaleTime })
-    .data.libraries;
+/** The Libraries of the Server `transport` reaches, by default the page's own. */
+export function useLibraries(transport?: Transport) {
+  return useSuspenseQuery(
+    LibraryService.method.listLibraries,
+    {},
+    { staleTime: loaderStaleTime, ...(transport && { transport }) },
+  ).data.libraries;
 }
