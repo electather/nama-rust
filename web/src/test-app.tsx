@@ -132,8 +132,7 @@ export function fakeServer(
     router.service(PluginService, { listPlugins: () => ({}) });
     // A test's own `PlaybackService` in `more` replaces this.
     router.service(PlaybackService, { ...defaultPlayback, ...state.playbackService });
-    // Every signed-in page's bell counts the inbox, empty here. A test's own `InboxService` in
-    // `more` replaces this.
+    // Every signed-in page's bell counts the inbox, empty here. A test's `more` replaces this.
     router.service(InboxService, {
       countUnreadInboxNotifications: () => ({}),
       listInboxNotifications: () => ({}),
