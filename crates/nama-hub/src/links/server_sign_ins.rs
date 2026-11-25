@@ -202,14 +202,7 @@ impl Links {
         if collected.rows_affected() == 0 || !right_code {
             return Err(Error::Expired);
         }
-        let iat = issued_at();
-        Ok(Some(self.keys.sign(&SignInClaims {
-            sub: user_id.to_string(),
-            aud: server.id.to_string(),
-            jti: None,
-            iat,
-            exp: iat + TOKEN_LIFETIME_SECS,
-        })))
+        Ok(Some(self.sign_in_token(user_id, server.id, None)))
     }
 
     /// A token naming `account`'s User on `server`, which the web app at the Hub trades there for
@@ -228,14 +221,20 @@ impl Links {
         .fetch_optional(&self.db)
         .await?
         .ok_or(Error::NoUserOnServer)?;
+        Ok(self.sign_in_token(user_id, server, Some(random_token()?)))
+    }
+
+    /// A token signing in as the User `user_id` on `server` only, with `jti` if it is to be taken
+    /// once.
+    fn sign_in_token(&self, user_id: i64, server: LinkedServerId, jti: Option<String>) -> String {
         let iat = issued_at();
-        Ok(self.keys.sign(&SignInClaims {
+        self.keys.sign(&SignInClaims {
             sub: user_id.to_string(),
             aud: server.to_string(),
-            jti: Some(random_token()?),
+            jti,
             iat,
             exp: iat + TOKEN_LIFETIME_SECS,
-        }))
+        })
     }
 }
 

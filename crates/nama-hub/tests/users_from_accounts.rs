@@ -332,7 +332,10 @@ async fn an_account_gets_a_server_token_only_for_its_user_on_that_server(db: PgP
     assert_eq!(claims["sub"], "7");
     assert_eq!(claims["aud"], with_bea.as_str());
     let again = verified_claims(&hub, &server_token(&hub, &bea, with_bea).await.unwrap()).await;
-    assert_ne!(claims["jti"], again["jti"], "each token is used once");
+    assert_ne!(
+        claims["jti"], again["jti"],
+        "each token has its own id, so a Server takes it once"
+    );
     for (account, linked_server_id) in [
         (&ada, with_bea.as_str()),
         (&bea, other),

@@ -618,6 +618,7 @@ fn credential(nth: usize) -> String {
     format!("credential-{nth}")
 }
 
+/// Five minutes from now, in seconds since the Unix epoch, as a token's `exp`.
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
