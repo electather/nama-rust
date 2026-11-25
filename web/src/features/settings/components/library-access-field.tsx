@@ -19,6 +19,8 @@ export function LibraryAccessField({
   libraryAccess: LibraryAccess | undefined;
   onChange: (changes: { libraryAccess: LibraryAccess | undefined }) => void;
 }) {
+  // shortcut: lists only the Libraries the editor sees, which is every one for an Admin or a
+  // User with Manage Libraries; upgrade when the Server lists them all for Manage Users (#2323).
   const libraries = useLibraries();
   const choose = (libraryIds: bigint[]) => {
     onChange({ libraryAccess: create(LibraryAccessSchema, { libraryIds }) });
@@ -28,7 +30,7 @@ export function LibraryAccessField({
       <FormSelect
         row
         label="Libraries"
-        hint="All Libraries takes in those added later. A User who can manage Libraries sees every one."
+        hint="All Libraries takes in those added later. A User with Manage Libraries sees every one."
         name="libraryAccess"
         value={libraryAccess ? CHOSEN : ALL}
         onValueChange={(value) => {

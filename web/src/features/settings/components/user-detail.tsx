@@ -4,7 +4,7 @@ import { UserActions } from "@/features/admin-users/components/user-actions";
 import { SaveToast } from "@/features/settings/components/save-toast";
 import { UserCrumbs } from "@/features/settings/components/user-crumbs";
 import { UserGroups } from "@/features/settings/components/user-groups";
-import { useUserPermissions } from "@/features/settings/hooks/use-user-permissions";
+import { useUserSettings } from "@/features/settings/hooks/use-user-settings";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { labelsOf } from "@/shared/lib/permissions";
 
@@ -16,7 +16,7 @@ import { labelsOf } from "@/shared/lib/permissions";
 export function UserDetail({ user, you }: { user: User; you: User | undefined }) {
   const titleId = useId();
   const title = useRef<HTMLHeadingElement>(null);
-  const { values, edit, dismiss, says } = useUserPermissions(user, you);
+  const { values, edit, dismiss, says } = useUserSettings(user, you);
   useEffect(() => {
     // The list this replaced held focus, so it moves to what took its place.
     title.current?.focus();

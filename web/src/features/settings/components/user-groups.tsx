@@ -3,7 +3,7 @@ import { MaximumAgeField } from "@/features/settings/components/maximum-age-fiel
 import { PermissionsFieldset } from "@/features/settings/components/permissions-fieldset";
 import { RemoteCapField } from "@/features/settings/components/remote-cap-field";
 import { SettingGroup } from "@/features/settings/components/setting-group";
-import type { useUserPermissions } from "@/features/settings/hooks/use-user-permissions";
+import type { useUserSettings } from "@/features/settings/hooks/use-user-settings";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 import { DeviceList } from "@/shared/components/device-list/device-list";
 import { mayChangePermissions } from "@/shared/lib/permissions";
@@ -20,8 +20,8 @@ export function UserGroups({
 }: {
   user: User;
   you: User | undefined;
-  values: ReturnType<typeof useUserPermissions>["values"];
-  onChange: ReturnType<typeof useUserPermissions>["edit"];
+  values: ReturnType<typeof useUserSettings>["values"];
+  onChange: ReturnType<typeof useUserSettings>["edit"];
 }) {
   const mayChange = mayChangePermissions(you, user);
   return (

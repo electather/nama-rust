@@ -14,7 +14,7 @@ const ATTEMPTS: Record<string, string> = {
  * `user`'s Permissions, cap for remote playback, Maximum Age and Libraries, each change `you` make
  * saved as it's made, and what the toast says of one the Server refused.
  */
-export function useUserPermissions(user: User, you: User | undefined) {
+export function useUserSettings(user: User, you: User | undefined) {
   const setPermissions = useSetPermissions(user, you);
   const { setMaximumAge, setLibraryAccess } = useSetUserAccess();
   const { values, refused, edit, dismiss } = useAutoSave(
