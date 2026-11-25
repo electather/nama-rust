@@ -24,12 +24,13 @@ export interface LinksHub {
 }
 
 /**
- * Serves `hub`'s Servers, Users, Invites and plays. Accepting an Invite Links its User on its
+ * Serves `hub`'s Servers, Users, Invites and plays, and a token for each Server naming it. Accepting an Invite Links its User on its
  * Server, and any code Links Ada's User on Basement.
  */
 export function serveLinks(service: ConnectRouter["service"], hub: LinksHub) {
   service(LinkService, {
     listLinkedServers: () => ({ servers: hub.servers }),
+    createServerToken: ({ linkedServerId }) => ({ token: `hub-token-${linkedServerId}` }),
     listLinkedUsers: () => ({ users: hub.users }),
     approveUserLink: () => {
       const user = create(LinkedUserSchema, {

@@ -6,6 +6,6 @@ import { may } from "@/shared/lib/permissions";
 
 /** Whether the User may search for subtitles: they have Download subtitles, and a source is on. */
 export function useMaySearchSubtitles(plan: PlaybackPlan) {
-  const { signedIn } = useRouteContext({ from: "/_member" });
+  const { signedIn } = useRouteContext({ from: "/_member/_server" });
   return plan.canSearchSubtitles && may(signedIn.user, Permission.DOWNLOAD_SUBTITLES);
 }

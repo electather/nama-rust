@@ -23,6 +23,7 @@ import { Permission, SignInService, WhoAmIResponseSchema } from "@/gen/nama/v1/s
 // oxlint-disable-next-line import/max-dependencies -- the fake Server answers each service a signed-in page calls as it loads, through the app's own interceptors
 import { UserService } from "@/gen/nama/v1/user_pb";
 import { traceCalls } from "@/shared/lib/diagnostics";
+import type { ServerAt } from "@/shared/lib/server";
 import { tickWorker } from "@/test-worker";
 
 import { getRouter } from "./router";
@@ -150,15 +151,17 @@ export function requestTitles() {
 
 /**
  * Opens the app at `path`, talking to the fake Server behind `transport`, rendered inside `wrap`,
- * such as the `StrictMode` TanStack Start's client entry renders it in.
+ * such as the `StrictMode` TanStack Start's client entry renders it in. At the Hub, `serverAt`
+ * gives the fake Server at each origin.
  */
 export function openApp(
   path: string,
   transport: ReturnType<typeof createRouterTransport>,
   wrap: (app: Parameters<typeof render>[0]) => Parameters<typeof render>[0] = (app) => app,
+  serverAt?: ServerAt,
 ) {
   window.history.replaceState(null, "", path);
-  const router = getRouter(transport);
+  const router = getRouter(transport, serverAt);
   // A route's error page shows what it caught. React's own log of it would inspect the error's
   // `Headers`, which happy-dom can't. The shell renders `<html>` and `<body>`, so the app takes the
   // whole document, as in a browser: inside a `<div>` in the body React adopts, the first `focus()`
