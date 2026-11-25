@@ -34,6 +34,7 @@ mod status;
 mod sync;
 mod tls;
 pub mod users;
+mod watch_sync;
 mod watchlist;
 #[cfg(feature = "web")]
 mod web;
@@ -86,8 +87,8 @@ use crate::{
 /// The Hub [`Config::hub_url`] names, if any, is told the Server's Server Addresses every minute
 /// and as soon as the Server URL is saved, and while the Server is Linked with it, it keeps its
 /// port open on the router with UPnP or NAT-PMP, unless [`Config::forwarded_port`] names the one
-/// the Admin forwarded. The enabled Plugin that links its Users, if any, is asked for each User's
-/// Watch State on their other Servers after each scan.
+/// the Admin forwarded. The enabled Plugin that syncs its Linked Users, if any, is asked for each
+/// User's Watch State on their other Servers after each scan.
 ///
 /// While the Server is Linked and the Hub names it, the Server gets a certificate for its names
 /// from [`Config::acme_directory`] and keeps it renewed, and its public name is its Server URL
@@ -215,6 +216,8 @@ pub fn serve(
     // `listen` differs from the bound address only when it asks for port 0.
     let listening = listener.local_addr().unwrap_or(config.listen);
     let syncing = sync::Syncing::new(Arc::clone(&db), plugins.extension_points(), users.clone());
+    let watch_sync_imports =
+        watch_sync::WatchSyncImports::new(Arc::clone(&db), plugins.extension_points());
     let linking = users.linking().clone();
     let (forwarded_port, relay) = (config.forwarded_port, config.relay);
     let certificate = certificate::Certificate::default();
@@ -258,6 +261,7 @@ pub fn serve(
         let scan_follower = syncing.follow_scans(&events);
         // Before serving, so it hears the first look at each Link.
         let link_follower = syncing.follow_links();
+        let importing_watch_states = watch_sync_imports.start();
         scanner.start_all().await;
         preview_frames.start();
         text_passes.start();
@@ -330,6 +334,8 @@ pub fn serve(
         // The next start's scans pull and sync again, and its first looks push each Link again.
         scan_follower.abort();
         link_follower.abort();
+        // Each import runs in its Plugin's scope, which shutting the Plugins down joins.
+        importing_watch_states.abort();
         plugins.shutdown().await;
         // Last, once no Plugin can call the Kernel: the Plugins hold it only weakly.
         drop(automation);

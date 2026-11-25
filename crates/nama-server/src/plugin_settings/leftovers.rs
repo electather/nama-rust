@@ -12,7 +12,7 @@ use super::PluginSettings;
 use crate::{
     automation::delete_plugins_store_entries,
     connections,
-    library::Contents,
+    library::{Contents, delete_plugins_import_cursors},
     plugins::forget_undeclared_jobs,
     requests::delete_plugins_qualities,
     server_settings::Settings,
@@ -60,6 +60,7 @@ pub(super) const LEFTOVERS: &[(&str, Goes)] = &[
     ("plugin_settings", Goes::GoneForDays),
     ("plugin_store", Goes::GoneForDays),
     ("personal_settings", Goes::GoneForDays),
+    ("watch_sync_cursors", Goes::GoneForDays),
     ("plugin_connections", Goes::GoneForDays),
     ("title_details", Goes::GoneForDays),
     ("box_sets", Goes::GoneForDays),
@@ -148,6 +149,7 @@ impl PluginSettings {
         for plugin in &gone {
             delete_plugins_store_entries(conn, plugin).await?;
             users::delete_plugins_personal_settings(conn, plugin).await?;
+            delete_plugins_import_cursors(conn, plugin).await?;
             connections::delete_plugin(conn, plugin).await?;
             Contents::forget_plugin(conn, plugin).await?;
             delete_plugins_qualities(conn, plugin).await?;

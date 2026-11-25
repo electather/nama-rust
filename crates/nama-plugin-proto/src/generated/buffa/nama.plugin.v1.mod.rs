@@ -16,6 +16,7 @@ include!("nama.plugin.v1.search_source.rs");
 include!("nama.plugin.v1.segment_source.rs");
 include!("nama.plugin.v1.similar_source.rs");
 include!("nama.plugin.v1.subtitle_source.rs");
+include!("nama.plugin.v1.watch_sync.rs");
 #[allow(
     non_camel_case_types,
     dead_code,
@@ -49,6 +50,7 @@ pub mod __buffa {
         include!("nama.plugin.v1.segment_source.__view.rs");
         include!("nama.plugin.v1.similar_source.__view.rs");
         include!("nama.plugin.v1.subtitle_source.__view.rs");
+        include!("nama.plugin.v1.watch_sync.__view.rs");
         pub mod oneof {
             #[allow(unused_imports)]
             use super::*;
@@ -242,6 +244,11 @@ pub mod __buffa {
         reg.register_json_any(super::__SUBTITLE_RESULT_JSON_ANY);
         reg.register_json_any(super::__SUBTITLE_DOWNLOAD_JSON_ANY);
         reg.register_json_any(super::__SUBTITLE_FILE_JSON_ANY);
+        reg.register_json_any(super::__SCROBBLE_ASKED_JSON_ANY);
+        reg.register_json_any(super::__SCROBBLED_JSON_ANY);
+        reg.register_json_any(super::__IMPORT_ASKED_JSON_ANY);
+        reg.register_json_any(super::__IMPORTED_JSON_ANY);
+        reg.register_json_any(super::__SYNCED_WATCH_STATE_JSON_ANY);
     }
 }
 #[doc(inline)]
@@ -916,5 +923,25 @@ pub use self::__buffa::view::SubtitleDownloadOwnedView;
 pub use self::__buffa::view::SubtitleFileView;
 #[doc(inline)]
 pub use self::__buffa::view::SubtitleFileOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ScrobbleAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::ScrobbleAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ScrobbledView;
+#[doc(inline)]
+pub use self::__buffa::view::ScrobbledOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ImportAskedView;
+#[doc(inline)]
+pub use self::__buffa::view::ImportAskedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::ImportedView;
+#[doc(inline)]
+pub use self::__buffa::view::ImportedOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SyncedWatchStateView;
+#[doc(inline)]
+pub use self::__buffa::view::SyncedWatchStateOwnedView;
 #[doc(inline)]
 pub use self::__buffa::register_types;

@@ -183,11 +183,11 @@ async fn at_the_cap_a_new_key_is_refused_and_a_replacement_allowed() {
     assert_eq!(get(&db, &cleanup, None, "other").await.unwrap(), None);
 }
 
-/// The version of the migration that moves the Hub Plugin's Link into the Kernel.
+/// The version of the first migration that moves the Hub Plugin's Links into the Kernel.
 const HUB_LINK: i64 = 20_261_124_195_716;
 
 #[tokio::test]
-async fn upgrading_hands_the_kernel_the_link_the_hub_plugin_kept_and_leaves_its_users_links() {
+async fn upgrading_hands_the_kernel_the_links_the_hub_plugin_kept_but_those_it_ignored() {
     let data_dir = tempfile::tempdir().unwrap();
     let options = SqliteConnectOptions::new()
         .filename(data_dir.path().join(db::FILE_NAME))
@@ -198,12 +198,22 @@ async fn upgrading_hands_the_kernel_the_link_the_hub_plugin_kept_and_leaves_its_
         .filter(|&version| version < HUB_LINK)
         .max();
     migrations.run_to(before.unwrap(), &mut conn).await.unwrap();
+    // Grace Linked under the Server's Link, which the SHA-256 of its credential names, Hedy under
+    // an earlier one, and a User since deleted.
     sqlx::raw_sql(
-        r#"INSERT INTO plugin_store (plugin_id, user_id, key, value)
+        r#"INSERT INTO users (id, username, display_username, permissions, created_at, updated_at)
+           VALUES (1, 'grace', 'Grace', 0, 0, 0), (2, 'hedy', 'Hedy', 0, 0, 0);
+           INSERT INTO plugin_store (plugin_id, user_id, key, value)
            VALUES ('hub', NULL, 'link',
                    CAST('{"credential":"credential-1","account":"ada@example.com"}' AS BLOB)),
                   ('hub', NULL, 'key-set', CAST('{"keys":[]}' AS BLOB)),
-                  ('hub', NULL, 'user-link/7', CAST('{"account":"grace@example.com"}' AS BLOB));"#,
+                  ('hub', NULL, 'user-link/1',
+                   CAST('{"server_link":"JcTPDqMYbHP4z7nvSOvqBu_FBOr4UZ_MB7tyZOu3xJE",
+                          "account":"grace@example.com"}' AS BLOB)),
+                  ('hub', NULL, 'user-link/2',
+                   CAST('{"server_link":"earlier","account":"hedy@example.com"}' AS BLOB)),
+                  ('hub', NULL, 'user-link/9',
+                   CAST('{"server_link":"earlier","account":"gone@example.com"}' AS BLOB));"#,
     )
     .execute(&mut conn)
     .await
@@ -214,6 +224,8 @@ async fn upgrading_hands_the_kernel_the_link_the_hub_plugin_kept_and_leaves_its_
     // Nothing listens there: the kept Link is read without asking the Hub.
     let server = Arc::new(ServerLink::new("http://127.0.0.1:1", Arc::clone(&db)).unwrap());
     let credential = KernelLink::credential(server.as_ref()).await.unwrap();
+    let grace = KernelLink::user_linked(server.as_ref(), 1).await.unwrap();
+    let hedy = KernelLink::user_linked(server.as_ref(), 2).await.unwrap();
     let link = Linking::new(ExtensionPoints::default(), Some(server))
         .server_link()
         .await
@@ -231,5 +243,7 @@ async fn upgrading_hands_the_kernel_the_link_the_hub_plugin_kept_and_leaves_its_
             reachability: None,
         }
     );
-    assert_eq!(left, ["user-link/7"]);
+    assert!(grace, "Grace's Link was lost");
+    assert!(!hedy, "Hedy's Link under an earlier Server Link shows");
+    assert_eq!(left, Vec::<String>::new());
 }

@@ -3,7 +3,7 @@
 //! titles on the Server they name and, for a reader who may Request them, those missing from it.
 
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex, MutexGuard, PoisonError},
     time::Duration,
 };
@@ -40,7 +40,7 @@ use crate::{
     plugins::{Answer, ExtensionPoints, Failure, without_secrets},
     requests::{Listed, Requests},
     server_settings::HomeRowId,
-    users::{User, personal_settings_of},
+    users::{User, personal_settings_of, split_personal_settings},
 };
 
 /// The most rows of one answer home shows: a Plugin's shared rows, or its rows for one User.
@@ -287,7 +287,7 @@ impl HomeRows {
                 return None;
             }
         };
-        let (settings, secrets) = personal(settings);
+        let (settings, secrets) = split_personal_settings(settings);
         (self.points)
             .ask(plugin, |source| {
                 let (answer, secrets) = (export(source, settings.clone()), &secrets);
@@ -405,19 +405,6 @@ fn shown(
         })
         .filter(|(_, shown)| seen.insert(shown.shown_once_as()))
         .collect()
-}
-
-/// A User's Personal `settings`, each value by key with whether it is secret, as the values by
-/// key a Plugin is asked with, and the secret values to blank from its failure.
-fn personal(settings: BTreeMap<String, (String, bool)>) -> (Vec<(String, String)>, Vec<String>) {
-    let secrets = (settings.values())
-        .filter(|(_, secret)| *secret)
-        .map(|(value, _)| value.clone())
-        .collect();
-    let values = (settings.into_iter())
-        .map(|(key, (value, _))| (key, value))
-        .collect();
-    (values, secrets)
 }
 
 /// Whether `reader` may Request a title of each kind.

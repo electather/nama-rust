@@ -63,7 +63,8 @@ pub(crate) use permissions::Permissions;
 pub(crate) use personal_settings::{
     delete as delete_personal_settings, delete_plugin as delete_plugins_personal_settings,
     get as personal_settings_of, recipients as personal_settings_recipients,
-    replace as replace_personal_settings, text as personal_text, value as personal_value,
+    replace as replace_personal_settings, split as split_personal_settings, text as personal_text,
+    value as personal_value,
 };
 pub(crate) use proved::Proved;
 pub(crate) use rate_limits::Blocked;
@@ -311,11 +312,11 @@ pub enum Error {
          Admin to give you a password first"
     )]
     LastSignInMethod,
-    /// No enabled Plugin links the Server.
-    #[error("no enabled Plugin links the Server")]
-    NoLinkingPlugin,
-    /// The Plugin that links the Server couldn't tell, as with its service unreachable.
-    #[error("the Plugin that links the Server failed; its page says why")]
+    /// The Server's config names no Hub, so its Users can't Link.
+    #[error("the Server's config names no Hub")]
+    NoHub,
+    /// Linking couldn't tell, as with the Hub unreachable.
+    #[error("Linking failed; the Server's log says why")]
     LinkingFailed,
     /// Creating a User from an Account panicked.
     #[error("creating a User from an Account panicked: {0}")]

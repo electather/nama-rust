@@ -235,7 +235,7 @@ impl KernelLink for Uncalled {
         Box::pin(async { Ok(()) })
     }
 
-    fn token_subject<'a>(&'a self, _: &'a str) -> BoxFuture<'a, Result<String, PluginError>> {
+    fn user_linked(&self, _: i64) -> BoxFuture<'_, Result<bool, PluginError>> {
         Box::pin(async { Err("not called".into()) })
     }
 }
