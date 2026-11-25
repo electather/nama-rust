@@ -52,10 +52,6 @@ const DELETE_MEDIA: Access = Access::Needs(Permission::DeleteMedia);
 const DOWNLOAD_SUBTITLES: Access = Access::Needs(Permission::DownloadSubtitles);
 
 /// Downloading a Version's file, or one re-encoded as for a Transcode, for offline playback.
-#[expect(
-    dead_code,
-    reason = "no download endpoint (#2195, #2198) checks it yet"
-)]
 const DOWNLOAD: Access = Access::Needs(Permission::Download);
 
 /// Who may call each RPC, by path; one missing here is refused to everyone (see AGENTS.md, "New
@@ -217,10 +213,12 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::JOB_SERVICE_RUN_JOB_SPEC.procedure,                   ADMIN),
 ];
 
-/// Who may request paths under each prefix, which aren't RPCs: fetching media, which the media
-/// routes share, uploading or removing a title's or a Library's Custom Image, and
-/// posting the web app's Diagnostics. The first prefix a path starts with decides.
-const PREFIXES: [(&str, Access); 3] = [
+/// Who may request paths under each prefix, which aren't RPCs: downloading a Version's file,
+/// fetching other media, which the media routes share, uploading or removing a title's or a
+/// Library's Custom Image, and posting the web app's Diagnostics. The first prefix a path starts
+/// with decides.
+const PREFIXES: [(&str, Access); 4] = [
+    ("/media/downloads/", DOWNLOAD),
     ("/media/", Access::SignedIn),
     ("/diagnostics/", Access::SignedIn),
     ("/custom-images/", MANAGE_LIBRARIES),
