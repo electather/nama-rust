@@ -218,7 +218,7 @@ fn rfc3339(ms: i64) -> Option<String> {
 }
 
 /// A User's linked Simkl account, by the access token its requests go with. Simkl hands out no
-/// refresh token: its access tokens last years, and one it refuses was revoked.
+/// refresh token: its access tokens don't expire, so one it refuses was revoked.
 struct Account {
     access_token: String,
 }

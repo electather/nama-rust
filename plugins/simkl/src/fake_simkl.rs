@@ -92,7 +92,7 @@ impl FakeSimkl {
             return self.polled(user_code);
         }
         match (method, path) {
-            ("GET", "/oauth/pin") => Self::code(),
+            ("GET", "/oauth/pin") => Self::new_pin(),
             _ if self.revoked
                 || request.headers.get("Authorization").map(String::as_str) != Some(&bearer) =>
             {
@@ -110,7 +110,7 @@ impl FakeSimkl {
         }
     }
 
-    fn code() -> Response {
+    fn new_pin() -> Response {
         ok(&json!({
             "result": "OK",
             "device_code": "DEVICE_CODE",
@@ -129,7 +129,7 @@ impl FakeSimkl {
                 ok(&json!({ "result": "KO", "message": "Authorization pending" }))
             }
             (Pin::Entered, true) => ok(&json!({ "result": "OK", "access_token": ACCESS_TOKEN })),
-            (Pin::Expired, _) | (_, false) => Self::code(),
+            (Pin::Expired, _) | (_, false) => Self::new_pin(),
         }
     }
 
