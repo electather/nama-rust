@@ -124,7 +124,10 @@ fn probed_video(path: &Path) -> String {
         .output()
         .unwrap();
     assert!(probed.status.success(), "{probed:?}");
-    String::from_utf8(probed.stdout).unwrap()
+    // ffprobe ends its lines with `\r\n` on Windows.
+    String::from_utf8(probed.stdout)
+        .unwrap()
+        .replace("\r\n", "\n")
 }
 
 #[tokio::test]
