@@ -447,6 +447,8 @@ pub mod __buffa {
         reg.register_json_any(super::__START_ACCOUNT_SIGN_IN_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__SIGN_IN_WITH_ACCOUNT_REQUEST_JSON_ANY);
         reg.register_json_any(super::__SIGN_IN_WITH_ACCOUNT_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__SIGN_IN_WITH_HUB_TOKEN_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__SIGN_IN_WITH_HUB_TOKEN_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__GET_USER_LINK_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_USER_LINK_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__USER_LINK_JSON_ANY);
@@ -2005,6 +2007,14 @@ pub use self::__buffa::view::SignInWithAccountRequestOwnedView;
 pub use self::__buffa::view::SignInWithAccountResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::SignInWithAccountResponseOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithHubTokenRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithHubTokenRequestOwnedView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithHubTokenResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::SignInWithHubTokenResponseOwnedView;
 #[doc(inline)]
 pub use self::__buffa::view::GetUserLinkRequestView;
 #[doc(inline)]

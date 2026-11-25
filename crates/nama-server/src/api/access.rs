@@ -92,6 +92,7 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::SIGN_IN_SERVICE_ACCEPT_INVITE_SPEC.procedure,         Access::Anyone),
     (proto::SIGN_IN_SERVICE_START_ACCOUNT_SIGN_IN_SPEC.procedure, Access::Anyone),
     (proto::SIGN_IN_SERVICE_SIGN_IN_WITH_ACCOUNT_SPEC.procedure,  Access::Anyone),
+    (proto::SIGN_IN_SERVICE_SIGN_IN_WITH_HUB_TOKEN_SPEC.procedure, Access::Anyone),
     (proto::LIBRARY_SERVICE_CREATE_LIBRARY_SPEC.procedure,        MANAGE_LIBRARIES),
     (proto::LIBRARY_SERVICE_LIST_LIBRARIES_SPEC.procedure,        Access::SignedIn),
     (proto::LIBRARY_SERVICE_GET_LIBRARY_SPEC.procedure,           MANAGE_LIBRARIES),
