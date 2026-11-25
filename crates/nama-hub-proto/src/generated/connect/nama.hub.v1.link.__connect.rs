@@ -1486,7 +1486,9 @@ pub const SERVER_LINK_SERVICE_POLL_SERVER_LINK_SPEC: ::connectrpc::Spec = ::conn
 #[allow(clippy::type_complexity)]
 pub trait ServerLinkService: Send + Sync + 'static {
     /// Starts registering the calling Server: the code a person enters on the Hub, and the device code
-    /// the Server polls with. Both stop working after `expires_in_seconds`.
+    /// the Server polls with. Both stop working after `expires_in_seconds`. Fails with
+    /// `invalid_argument` and `REFUSAL_REASON_URL_INVALID` for a `return_url` that isn't an `http` or
+    /// `https` URL.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///
@@ -2087,7 +2089,7 @@ pub trait LinkService: Send + Sync + 'static {
     /// 10 minutes, with `REFUSAL_REASON_EMAIL_NOT_PROVEN` until a Sign-in Link proved the Account's
     /// email (ADR 0100), or with `REFUSAL_REASON_SIGN_IN_LINKS_OFF` instead on a Hub without mail,
     /// where nothing can prove it, and with `REFUSAL_REASON_LINK_CODE_NOT_FOUND` for a code no Server
-    /// is waiting on.
+    /// is waiting on. The Hub's page for approving a code is `/link-server/<code>`.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

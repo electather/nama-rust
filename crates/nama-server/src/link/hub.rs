@@ -165,12 +165,18 @@ impl Hub {
         Ok(ClientConfig::new(self.url.parse()?).with_default_timeout(TIMEOUT))
     }
 
-    /// Starts registering this Server as `name`.
-    pub(super) async fn start(&self, name: &str) -> Result<StartServerLinkResponse, Failure> {
+    /// Starts registering this Server as `name`, whom the Hub's page sends back to `return_url`
+    /// once approved, when it isn't empty.
+    pub(super) async fn start(
+        &self,
+        name: &str,
+        return_url: &str,
+    ) -> Result<StartServerLinkResponse, Failure> {
         let client = ServerLinkServiceClient::new(self.transport.clone(), self.config()?);
         let started = client
             .start_server_link(StartServerLinkRequest {
                 name: name.to_owned(),
+                return_url: return_url.to_owned(),
                 ..Default::default()
             })
             .await?;

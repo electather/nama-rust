@@ -1327,9 +1327,12 @@ pub trait ServerService: Send + Sync + 'static {
         >,
     > + Send;
     /// Starts Linking the Server, replacing a code it was showing, and returns the new one. Needs
-    /// `PERMISSION_MANAGE_SETTINGS` and Recent Authentication. Fails with
-    /// `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled Plugin that links the Server, and with
-    /// `unavailable` if the Plugin couldn't start, such as with the Hub unreachable.
+    /// `PERMISSION_MANAGE_SETTINGS` and Recent Authentication. With a `return_url`, the client sends
+    /// the Admin to `url`, where they approve on the Hub, which sends them back to `return_url`.
+    /// Fails with `invalid_argument` and `REFUSAL_REASON_NOT_A_URL` or
+    /// `REFUSAL_REASON_NOT_A_SERVER_ADDRESS` for a `return_url` `StartAccountSignIn` would refuse so,
+    /// with `REFUSAL_REASON_NO_SERVER_LINKER` without an enabled Plugin that links the Server, and
+    /// with `unavailable` if the Plugin couldn't start, such as with the Hub unreachable.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

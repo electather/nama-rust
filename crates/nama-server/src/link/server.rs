@@ -51,9 +51,20 @@ pub(super) const NOT_LINKED: &str = "the Server isn't Linked to the Hub";
 struct Waiting {
     device_code: String,
     code: String,
+    /// Where to enter it: the Hub's page approving it when Linking by redirect.
+    url: String,
     poll_every: Duration,
     next_poll: Instant,
     expires: Instant,
+}
+
+impl Waiting {
+    fn shown(&self) -> Link {
+        Link::Waiting {
+            code: self.code.clone(),
+            url: self.url.clone(),
+        }
+    }
 }
 
 /// The Link as `hub_link` keeps it.
@@ -192,7 +203,7 @@ impl ServerLink {
             return Ok(None);
         }
         if now < code.next_poll {
-            return Ok(Some(self.showing(code)));
+            return Ok(Some(code.shown()));
         }
         code.next_poll = now + code.poll_every;
         let polled = match self.hub.poll(&code.device_code).await {
@@ -200,10 +211,10 @@ impl ServerLink {
             Err(Polling::Expired) => return Ok(None),
             // The code still works on the Hub, and the next poll asks again: a Hub that is down
             // for a moment shouldn't fail the Settings that show the code.
-            Err(Polling::Failed) => return Ok(Some(self.showing(code))),
+            Err(Polling::Failed) => return Ok(Some(code.shown())),
         };
         if !polled.linked {
-            return Ok(Some(self.showing(code)));
+            return Ok(Some(code.shown()));
         }
         // Kept before the token is checked: the Hub has handed it out for good, and a Link whose
         // credential was lost could never be Unlinked.
@@ -213,24 +224,31 @@ impl ServerLink {
         Ok(None)
     }
 
-    /// Starts Linking the Server, which the Hub lists as `server_name`, and answers the code.
-    pub(super) async fn start(&self, server_name: &str) -> Result<Link, Failure> {
+    /// Starts Linking the Server, which the Hub lists as `server_name`, and answers the code: by
+    /// redirect, back to `return_url`, when it isn't empty.
+    pub(super) async fn start(&self, server_name: &str, return_url: &str) -> Result<Link, Failure> {
         // Held from the check on: a poll keeping a credential meanwhile would otherwise see its
         // Link overwritten by the next, leaving one on the Hub that nothing could Unlink.
         let mut waiting = self.waiting.lock().await;
         if self.kept().await?.is_some() {
             return Err("the Server is Linked already: Unlink it first".into());
         }
-        let started = self.hub.start(server_name).await?;
+        let started = self.hub.start(server_name, return_url).await?;
+        let url = if return_url.is_empty() {
+            self.pages_url().to_owned()
+        } else {
+            format!("{}/link-server/{}", self.pages_url(), started.user_code)
+        };
         let now = db::instant_now();
         let code = Waiting {
             device_code: started.device_code,
+            url,
             code: started.user_code,
             poll_every: Duration::from_secs(started.interval_seconds.try_into().unwrap_or(5)),
             next_poll: now,
             expires: now + Duration::from_secs(started.expires_in_seconds.try_into().unwrap_or(0)),
         };
-        let link = self.showing(&code);
+        let link = code.shown();
         *waiting = Some(code);
         Ok(link)
     }
@@ -450,10 +468,6 @@ impl ServerLink {
             .as_ref()
             .filter(|(link, _)| link == credential)
             .map(|(_, reachability)| reachability.clone())
-    }
-
-    fn showing(&self, code: &Waiting) -> Link {
-        self.waiting_on(code.code.clone())
     }
 
     /// The Link that waits for someone to enter `code` on the Hub.

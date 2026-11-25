@@ -76,6 +76,7 @@ pub(super) struct ServerServiceHandler {
     /// Says whether the web app's Diagnostics go anywhere, so it records its own.
     pub(super) browser_spans: BrowserSpans,
     pub(super) running: RunningPlans,
+    pub(super) listening: std::net::SocketAddr,
 }
 
 #[expect(
@@ -95,9 +96,10 @@ impl ServerService for ServerServiceHandler {
     async fn start_server_link(
         &self,
         _ctx: RequestContext,
-        _request: ServiceRequest<'_, StartServerLinkRequest>,
+        request: ServiceRequest<'_, StartServerLinkRequest>,
     ) -> ServiceResult<StartServerLinkResponse> {
-        server_link::start(&self.linking, &self.name).await
+        let (return_url, url) = (request.return_url, self.settings.server_url());
+        server_link::start(&self.linking, &self.name, return_url, &url, self.listening).await
     }
 
     async fn unlink_server(

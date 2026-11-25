@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO server_link_codes\n             (device_code_hash, user_code, server_name, return_url, expires_at)\n             VALUES ($1, $2, $3, $4, now() + make_interval(mins => $5))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Text",
+        "Text",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "08a5faef56a603ed5cee33c3c9fe62360ac8a9737dfb9f66743857cc075bc4ae"
+}

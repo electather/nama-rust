@@ -168,6 +168,7 @@ pub(crate) fn router(
             backups: Backups::new(&config.data_dir, &config.file, settings.clone()),
             browser_spans: browser_spans.clone(),
             running: running.clone(),
+            listening,
         }))
         .add_service(Arc::new(sign_in::SignInServiceHandler {
             sign_in: SignIn::new(users.clone(), setup_code),

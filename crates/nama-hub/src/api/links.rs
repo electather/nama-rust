@@ -65,7 +65,8 @@ impl ServerLinkService for ServerLinkServiceHandler {
         _ctx: RequestContext,
         request: ServiceRequest<'_, StartServerLinkRequest>,
     ) -> ServiceResult<StartServerLinkResponse> {
-        let started = self.links.start(request.name).await.map_err(refused)?;
+        let started = self.links.start(request.name, request.return_url);
+        let started = started.await.map_err(refused)?;
         Response::ok(StartServerLinkResponse {
             device_code: started.device_code,
             user_code: started.user_code,
@@ -113,13 +114,14 @@ impl LinkService for LinkServiceHandler {
         ctx: RequestContext,
         request: ServiceRequest<'_, ApproveServerLinkRequest>,
     ) -> ServiceResult<ApproveServerLinkResponse> {
-        let server = self
+        let (server, return_url) = self
             .links
             .approve(session(&ctx)?, request.code)
             .await
             .map_err(refused)?;
         Response::ok(ApproveServerLinkResponse {
             server: server_to_proto(server).into(),
+            return_url,
             ..Default::default()
         })
     }

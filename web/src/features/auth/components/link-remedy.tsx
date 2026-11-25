@@ -5,9 +5,12 @@ import { useSignOutAccount } from "@/features/auth/data/use-sign-out-account";
 import { hubRefusalReason } from "@/features/auth/lib/hub-errors";
 import { RefusalReason } from "@/gen/nama/hub/v1/refusal_pb";
 
-/** What would let a refused code through, if anything: a Sign-in Link, or signing in again. */
-export function LinkRemedy({ error }: { error: unknown }) {
-  const signOut = useSignOutAccount();
+/**
+ * What would let a refused code through, if anything: a Sign-in Link, or signing in again, which
+ * goes on to `redirect`.
+ */
+export function LinkRemedy({ error, redirect }: { error: unknown; redirect?: string }) {
+  const signOut = useSignOutAccount(redirect);
   const reason = hubRefusalReason(error);
   if (reason === RefusalReason.EMAIL_NOT_PROVEN) {
     return (

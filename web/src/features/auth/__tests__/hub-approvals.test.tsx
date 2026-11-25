@@ -51,7 +51,7 @@ function fakeHub({
         if (code !== "SRVR-CODE") {
           throw hubRefused(Code.NotFound, RefusalReason.LINK_CODE_NOT_FOUND);
         }
-        return { server: basement };
+        return { server: basement, returnUrl: "https://basement.example/settings" };
       },
       approveUserLink: ({ code }) => {
         if (code !== "USER-CODE") {
@@ -123,6 +123,43 @@ test("a Link that needs the email proven offers a Sign-in Link", async () => {
 
   await form.findByText(/Linking needs your email proven first/u);
   expect(form.getByRole("link", { name: "Email me a Sign-in Link" })).toBeDefined();
+});
+
+test("approving a Server Linking by redirect goes back to that Server", async () => {
+  // Going to another site would end the test's page, so where it went is only noted.
+  const went: string[] = [];
+  vi.spyOn(globalThis.location, "replace").mockImplementation((url) => {
+    went.push(String(url));
+  });
+  openApp("/link-server/SRVR-CODE", fakeHub());
+
+  fireEvent.click(await screen.findByRole("button", { name: "Link Server" }));
+
+  await screen.findByRole("button", { name: "Going back to Basement…" });
+  expect(went).toStrictEqual(["https://basement.example/settings"]);
+});
+
+test("a signed-out Account signs in first, then comes back to approve the Link", async () => {
+  openApp("/link-server/SRVR-CODE", fakeHub({ signedIn: false }));
+
+  await screen.findByRole("heading", { name: "Sign in to the Hub" });
+  fill("Email", ada.email);
+  fill("Password", "correct horse");
+  fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+  await expect(screen.findByRole("button", { name: "Link Server" })).resolves.toBeDefined();
+});
+
+test("a Linking by redirect that expired says to start again in the Server's Settings", async () => {
+  openApp("/link-server/XXXX-XXXX", fakeHub());
+
+  fireEvent.click(await screen.findByRole("button", { name: "Link Server" }));
+
+  await expect(
+    screen.findByText(
+      "This request to Link the Server expired or was used. Start Linking again in its Settings.",
+    ),
+  ).resolves.toBeDefined();
 });
 
 test("approving a sign-in to a Server goes back to that Server", async () => {

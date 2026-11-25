@@ -382,6 +382,12 @@ pub struct StartServerLinkRequestView<'a> {
     ///
     /// Field 1: `name`
     pub name: &'a str,
+    /// Where the Hub's page sends the person once they approve, for Linking by redirect (ADR 0105):
+    /// an `http` or `https` URL, which the Server checks is one of its own addresses, as the Hub
+    /// can't before it is Linked. Empty when the person enters the code instead.
+    ///
+    /// Field 2: `return_url`
+    pub return_url: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for StartServerLinkRequestView<'a> {
@@ -421,6 +427,13 @@ impl<'a> ::buffa::MessageView<'a> for StartServerLinkRequestView<'a> {
                 )?;
                 view.name = ::buffa::types::borrow_str(&mut cur)?;
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.return_url = ::buffa::types::borrow_str(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -450,6 +463,7 @@ impl<'a> ::buffa::MessageView<'a> for StartServerLinkRequestView<'a> {
         let _ = __buffa_src;
         ::core::result::Result::Ok(super::super::StartServerLinkRequest {
             name: self.name.to_string(),
+            return_url: self.return_url.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -464,6 +478,9 @@ impl<'a> ::buffa::ViewEncode<'a> for StartServerLinkRequestView<'a> {
         if !self.name.is_empty() {
             size += 1u64 + ::buffa::types::string_encoded_len(&self.name) as u64;
         }
+        if !self.return_url.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.return_url) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -477,6 +494,9 @@ impl<'a> ::buffa::ViewEncode<'a> for StartServerLinkRequestView<'a> {
         use ::buffa::Enumeration as _;
         if !self.name.is_empty() {
             ::buffa::types::put_string_field(1u32, &self.name, buf);
+        }
+        if !self.return_url.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.return_url, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -501,6 +521,9 @@ impl<'__a> ::serde::Serialize for StartServerLinkRequestView<'__a> {
         let mut __map = __s.serialize_map(::core::option::Option::None)?;
         if !::buffa::json_helpers::skip_if::is_empty_str(self.name) {
             __map.serialize_entry("name", self.name)?;
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.return_url) {
+            __map.serialize_entry("returnUrl", self.return_url)?;
         }
         __map.end()
     }
@@ -604,6 +627,15 @@ impl StartServerLinkRequestOwnedView {
     #[must_use]
     pub fn name(&self) -> &'_ str {
         self.0.reborrow().name
+    }
+    /// Where the Hub's page sends the person once they approve, for Linking by redirect (ADR 0105):
+    /// an `http` or `https` URL, which the Server checks is one of its own addresses, as the Hub
+    /// can't before it is Linked. Empty when the person enters the code instead.
+    ///
+    /// Field 2: `return_url`
+    #[must_use]
+    pub fn return_url(&self) -> &'_ str {
+        self.0.reborrow().return_url
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<StartServerLinkRequestView<'static>>>
@@ -1834,6 +1866,10 @@ pub struct ApproveServerLinkResponseView<'a> {
     pub server: ::buffa::MessageFieldView<
         super::super::__buffa::view::LinkedServerView<'a>,
     >,
+    /// Where to send the person back to: the `return_url` the Server started with, empty for none.
+    ///
+    /// Field 2: `return_url`
+    pub return_url: &'a str,
     pub __buffa_unknown_fields: ::buffa::UnknownFieldsView<'a>,
 }
 impl<'a> ::buffa::MessageView<'a> for ApproveServerLinkResponseView<'a> {
@@ -1887,6 +1923,13 @@ impl<'a> ::buffa::MessageView<'a> for ApproveServerLinkResponseView<'a> {
                     }
                 }
             }
+            2u32 => {
+                ::buffa::encoding::check_wire_type(
+                    tag,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )?;
+                view.return_url = ::buffa::types::borrow_str(&mut cur)?;
+            }
             _ => {
                 ::buffa::encoding::skip_field_depth(tag, &mut cur, ctx.depth())?;
                 let span_len = before_tag.len() - cur.len();
@@ -1924,6 +1967,7 @@ impl<'a> ::buffa::MessageView<'a> for ApproveServerLinkResponseView<'a> {
                 }
                 None => ::buffa::MessageField::none(),
             },
+            return_url: self.return_url.to_string(),
             __buffa_unknown_fields: self.__buffa_unknown_fields.to_owned()?.into(),
             ..::core::default::Default::default()
         })
@@ -1943,6 +1987,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ApproveServerLinkResponseView<'a> {
                 += 1u64 + ::buffa::encoding::varint_len(inner_size as u64) as u64
                     + inner_size as u64;
         }
+        if !self.return_url.is_empty() {
+            size += 1u64 + ::buffa::types::string_encoded_len(&self.return_url) as u64;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u64;
         ::buffa::saturate_size(size)
     }
@@ -1961,6 +2008,9 @@ impl<'a> ::buffa::ViewEncode<'a> for ApproveServerLinkResponseView<'a> {
                 buf,
             );
             self.server.write_to(__cache, buf);
+        }
+        if !self.return_url.is_empty() {
+            ::buffa::types::put_string_field(2u32, &self.return_url, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -1987,6 +2037,9 @@ impl<'__a> ::serde::Serialize for ApproveServerLinkResponseView<'__a> {
             if let ::core::option::Option::Some(__v) = self.server.as_option() {
                 __map.serialize_entry("server", __v)?;
             }
+        }
+        if !::buffa::json_helpers::skip_if::is_empty_str(self.return_url) {
+            __map.serialize_entry("returnUrl", self.return_url)?;
         }
         __map.end()
     }
@@ -2091,6 +2144,13 @@ impl ApproveServerLinkResponseOwnedView {
         &self,
     ) -> &::buffa::MessageFieldView<super::super::__buffa::view::LinkedServerView<'_>> {
         &self.0.reborrow().server
+    }
+    /// Where to send the person back to: the `return_url` the Server started with, empty for none.
+    ///
+    /// Field 2: `return_url`
+    #[must_use]
+    pub fn return_url(&self) -> &'_ str {
+        self.0.reborrow().return_url
     }
 }
 impl ::core::convert::From<::buffa::OwnedView<ApproveServerLinkResponseView<'static>>>
