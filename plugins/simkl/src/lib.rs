@@ -131,14 +131,16 @@ impl WatchSync for Simkl {
     fn import(asked: ImportAsked) -> Result<Imported, Error> {
         let account = Account::of(&asked.personal_settings)?;
         let activities: Activities = account.send("GET", "/sync/activities", None)?.json()?;
-        let changes = if activities.all == asked.since {
+        // Simkl's docs don't promise `all` for an account with no activity yet.
+        let cursor = activities.all.unwrap_or_default();
+        let changes = if cursor == asked.since {
             Vec::new()
         } else {
             account.watched_since(&asked.since)?
         };
         Ok(Imported {
             changes,
-            cursor: activities.all,
+            cursor,
             ..Imported::default()
         })
     }
@@ -172,6 +174,7 @@ impl WatchSync for Simkl {
             &api_request("GET", &format!("/oauth/pin/{pin}"))?,
             None::<&str>,
         )?;
+        // Polled too fast: the User's client asks again at the next interval.
         if answer.status_code() == 429 {
             return Ok(LinkPolled::default());
         }
@@ -233,7 +236,7 @@ impl Account {
         })
     }
 
-    /// Simkl's 2xx answer to `method` `path` with `body`.
+    /// Simkl's 2xx answer to `method` `path` with `body`. A 401 asks the User to link again.
     fn send(&self, method: &str, path: &str, body: Option<&str>) -> Result<Response, Error> {
         let bearer = format!("Bearer {}", self.access_token);
         let request = api_request(method, path)?.with_header("Authorization", bearer);
@@ -390,7 +393,7 @@ struct SimklIds {
 #[derive(Deserialize)]
 struct Activities {
     /// When anything in the account last changed.
-    all: String,
+    all: Option<String>,
 }
 
 /// What `/sync/all-items` answers, of what the Plugin reads.
@@ -409,7 +412,10 @@ impl AllItems {
             .filter(|listed| listed.status == "completed")
             .filter_map(|listed| {
                 let ids = &listed.movie.ids;
-                let ids = [("tmdb", id(ids, "tmdb")), ("tvdb", id(ids, "tvdb"))];
+                let ids = [
+                    ("tmdb", numeric_id(ids, "tmdb")),
+                    ("tvdb", numeric_id(ids, "tvdb")),
+                ];
                 played(
                     TitleRefKind::TITLE_REF_KIND_MOVIE,
                     &ids,
@@ -420,7 +426,7 @@ impl AllItems {
             .flat_map(|show| &show.seasons)
             .flat_map(|season| &season.episodes)
             .filter_map(|episode| {
-                let ids = [("tvdb", id(&episode.ids, "tvdb_id"))];
+                let ids = [("tvdb", numeric_id(&episode.ids, "tvdb_id"))];
                 played(
                     TitleRefKind::TITLE_REF_KIND_EPISODE,
                     &ids,
@@ -457,7 +463,7 @@ fn played(
 }
 
 /// The id `key` of `ids` when it is a number, which Simkl writes as a string or a number.
-fn id(ids: &HashMap<String, Value>, key: &str) -> Option<String> {
+fn numeric_id(ids: &HashMap<String, Value>, key: &str) -> Option<String> {
     let value = ids.get(key)?;
     let number: u64 = value.as_u64().or_else(|| value.as_str()?.parse().ok())?;
     Some(number.to_string())
