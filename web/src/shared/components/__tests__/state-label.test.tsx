@@ -1,5 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react";
-import { Clock } from "lucide-react";
+import { Clock, CircleX } from "lucide-react";
 import { afterEach, expect, test } from "vite-plus/test";
 
 import { StateLabel } from "@/shared/components/state-label";
@@ -19,3 +19,8 @@ test.each([false, true])(
     }).toStrictEqual({ "bg-secondary": true, "text-foreground": true, border: false });
   },
 );
+
+test("a destructive pill keeps the 15% red tint off Popover", () => {
+  render(<StateLabel tone="destructive" label="Failed" Icon={CircleX} />);
+  expect(screen.getByText("Failed").classList.contains("bg-destructive/15")).toBe(true);
+});

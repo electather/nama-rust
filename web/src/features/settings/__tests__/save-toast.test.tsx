@@ -5,7 +5,7 @@ import { SaveToast } from "@/features/settings/components/save-toast";
 
 afterEach(cleanup);
 
-test("the toast's Not saved label sits on a 10% red tint, which holds 4.5:1 on Popover", () => {
+test("the toast's Not saved label uses the 10% red tint, not 15%", () => {
   render(<SaveToast says="The Server refused it." onDismiss={() => {}} />);
   const pill = screen.getByText("Not saved");
   expect({
