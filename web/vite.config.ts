@@ -324,7 +324,7 @@ export default defineConfig({
       // The push worker is a classic script the browser runs as it is, with no types for
       // `self`'s service worker members (web/AGENTS.md, "Service worker: push only").
       {
-        files: ["public/**"],
+        files: ["public/push-worker.js"],
         rules: {
           "import/unambiguous": "off",
           "no-implicit-globals": "off",

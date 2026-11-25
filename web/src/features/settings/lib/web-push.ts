@@ -11,17 +11,22 @@ function hasWebPush() {
   );
 }
 
-/** Why this browser can't turn on Web Push here, in words for the User, or `undefined` if it can. */
-export function webPushUnavailable() {
+/**
+ * Why this page can't have Web Push at all, in words for the User, or `undefined` if it can. A
+ * browser that only blocks notifications can, once the User allows them: see `notificationsBlocked`.
+ */
+export function webPushMissing() {
   if (!globalThis.isSecureContext) {
-    return "This browser shows notifications only from a page opened over HTTPS.";
+    return "This browser shows notifications only when Nama is opened at an https:// address.";
   }
-  if (!hasWebPush()) {
-    return "This browser can’t show notifications from Nama. On an iPhone or iPad, add Nama to your Home Screen first.";
-  }
-  return Notification.permission === "denied"
-    ? "Your browser blocks notifications from Nama. Allow them in its settings for this site, then turn this on."
-    : undefined;
+  return hasWebPush()
+    ? undefined
+    : "This browser can’t show notifications from Nama. On an iPhone or iPad, add Nama to your Home Screen first.";
+}
+
+/** Whether the User has blocked notifications from Nama in this browser. */
+export function notificationsBlocked() {
+  return Notification.permission === "denied";
 }
 
 /** This browser's Web Push subscription, or `null` while it has none or can't have one. */

@@ -69,7 +69,7 @@ Tests never need a Server or a Hub. They fake RPCs with Connect's `createRouterT
 
 ## Installing as an app
 
-`public/` holds the web app manifest and icons, which the build copies as they are and the Server serves. Chrome installs the app in a window of its own only from a secure origin, HTTPS or `localhost`: from a Server on plain `http://` on the LAN it adds a shortcut that opens in a browser tab. iOS "Add to Home Screen" works either way. Per-Server certificates, which fix that, come through the Hub (ADR 0010, ADR 0057).
+`public/` holds the web app manifest, icons and the push-only service worker `push-worker.js` (`AGENTS.md`), which the build copies as they are and the Server serves. Chrome installs the app in a window of its own only from a secure origin, HTTPS or `localhost`: from a Server on plain `http://` on the LAN it adds a shortcut that opens in a browser tab. iOS "Add to Home Screen" works either way. Per-Server certificates, which fix that, come through the Hub (ADR 0010, ADR 0057).
 
 The icon is `public/icon.svg`, a Geist SemiBold "N" as a path, which is also the favicon. After changing it, render the PNGs again from `web/`:
 
