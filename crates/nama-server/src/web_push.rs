@@ -129,7 +129,7 @@ impl Subscription {
         if !is_https {
             return Err(Invalid::Endpoint);
         }
-        if p256dh.len() != usize::from(PUBLIC_KEY_LEN) || p256dh.first() != Some(&4) {
+        if !is_p256_point(&p256dh) {
             return Err(Invalid::P256dh);
         }
         if auth.len() != AUTH_LEN {
@@ -141,6 +141,15 @@ impl Subscription {
             auth,
         })
     }
+}
+
+/// Whether `key` is an uncompressed point on P-256, found by agreeing a secret with it, as ring
+/// checks a peer's key only then; a failing random source counts it as not.
+fn is_p256_point(key: &[u8]) -> bool {
+    let theirs = UnparsedPublicKey::new(&ECDH_P256, key);
+    EphemeralPrivateKey::generate(&ECDH_P256, &SystemRandom::new())
+        .and_then(|ours| agreement::agree_ephemeral(ours, &theirs, |_shared| ()))
+        .is_ok()
 }
 
 /// What a push service did with a push.
@@ -179,7 +188,12 @@ impl Pusher {
     /// If the HTTP client can't be built.
     pub(crate) fn new(key: VapidKey) -> Result<Self, reqwest::Error> {
         diagnostics::use_ring_for_tls();
-        let client = reqwest::Client::builder().timeout(PUSH_TIMEOUT).build()?;
+        // A push service never redirects, and following one would let a client's https endpoint
+        // send the Server's POST wherever it pointed.
+        let client = reqwest::Client::builder()
+            .timeout(PUSH_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::none())
+            .build()?;
         Ok(Self {
             client,
             key: Arc::new(key),
@@ -191,8 +205,8 @@ impl Pusher {
     /// # Errors
     ///
     /// If it can't be encrypted or signed, the push service can't be reached in
-    /// [`PUSH_TIMEOUT`], or it answers anything but success, 404 or 410. Its URL isn't in the
-    /// error, as an endpoint is the subscription's secret.
+    /// [`PUSH_TIMEOUT`], or it answers anything but success, 404 or 410, a redirect included. Its
+    /// URL isn't in the error, as an endpoint is the subscription's secret.
     pub(crate) async fn push(
         &self,
         to: &Subscription,

@@ -1,4 +1,8 @@
-use axum::http::StatusCode;
+use axum::{
+    Router,
+    http::{StatusCode, header},
+    routing::post,
+};
 use url::Url;
 
 use super::{
@@ -54,6 +58,12 @@ fn a_subscription_needs_an_https_endpoint_and_a_browsers_keys() {
     );
     assert_eq!(
         new(&valid.endpoint, &[7; 65], &valid.auth),
+        Some(Invalid::P256dh)
+    );
+    let mut off_the_curve = valid.p256dh.clone();
+    off_the_curve[64] ^= 1;
+    assert_eq!(
+        new(&valid.endpoint, &off_the_curve, &valid.auth),
         Some(Invalid::P256dh)
     );
     assert_eq!(
@@ -114,6 +124,10 @@ async fn a_push_service_answering_404_or_410_says_the_subscription_is_gone() {
 
         assert_eq!(pushed.unwrap(), Pushed::Gone);
     }
+}
+
+#[tokio::test]
+async fn a_push_service_answering_another_error_refuses_the_push() {
     let (endpoint, _) = push_service(StatusCode::TOO_MANY_REQUESTS).await;
     let pushed = Pusher::new(new_key())
         .unwrap()
@@ -123,4 +137,32 @@ async fn a_push_service_answering_404_or_410_says_the_subscription_is_gone() {
         pushed,
         Err(PushError::Refused(StatusCode::TOO_MANY_REQUESTS))
     ));
+}
+
+#[tokio::test]
+async fn a_push_follows_no_redirect() {
+    let (elsewhere, elsewhere_got) = push_service(StatusCode::CREATED).await;
+    let redirecting = Router::new().route(
+        "/push/1",
+        post(move || async move {
+            (
+                StatusCode::PERMANENT_REDIRECT,
+                [(header::LOCATION, elsewhere)],
+            )
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let endpoint = format!("http://{}/push/1", listener.local_addr().unwrap());
+    tokio::spawn(axum::serve(listener, redirecting).into_future());
+
+    let pushed = Pusher::new(new_key())
+        .unwrap()
+        .push(&browser(&endpoint), b"hi")
+        .await;
+
+    assert!(matches!(
+        pushed,
+        Err(PushError::Refused(StatusCode::PERMANENT_REDIRECT))
+    ));
+    assert!(elsewhere_got.lock().unwrap().is_empty());
 }

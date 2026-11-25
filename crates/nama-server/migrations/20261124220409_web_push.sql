@@ -1,5 +1,5 @@
--- The Server's VAPID key for Web Push (RFC 8292): a P-256 key in PKCS#8, made the first time it's
--- needed and kept for good, since every browser subscribed with its public key. Never logged or
+-- The Server's VAPID key for Web Push (RFC 8292): a P-256 key in PKCS#8, made on the Server's first
+-- start and kept for good, since every browser subscribed with its public key. Never logged or
 -- sent to a client.
 ALTER TABLE server_settings ADD COLUMN web_push_key BLOB;
 

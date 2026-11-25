@@ -7,6 +7,7 @@ mod refused;
 #[expect(dead_code, reason = "this binary uses only some of the fixture")]
 mod server;
 
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use connectrpc::{ErrorCode, client::HttpClient};
 use nama_proto::nama::v1::{
     GetWebPushKeyRequest, RefusalReason, SubscribeWebPushRequest, UnsubscribeWebPushRequest,
@@ -30,10 +31,17 @@ async fn public_key(client: &WebPushServiceClient<HttpClient>) -> Vec<u8> {
     got.unwrap().into_owned().public_key
 }
 
-/// A subscription as a browser makes one.
+/// A subscription as a browser makes one, with RFC 8291's example browser key.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
 fn browsers(endpoint: &str) -> SubscribeWebPushRequest {
-    let mut p256dh = vec![4];
-    p256dh.extend([7; 64]);
+    let p256dh = URL_SAFE_NO_PAD
+        .decode(
+            "BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4",
+        )
+        .unwrap();
     SubscribeWebPushRequest {
         endpoint: endpoint.to_owned(),
         p256dh,
