@@ -318,6 +318,9 @@ pub enum RefusalReason {
     /// `invalid_argument`: a Switch PIN must be 4 to 6 digits. `field` is `switch_pin`. Params:
     /// `minLength`, `maxLength`, in digits.
     REFUSAL_REASON_SWITCH_PIN_INVALID = 105i32,
+    /// `invalid_argument`: a push subscription's `endpoint` isn't an https URL, `p256dh` isn't a
+    /// P-256 public key or `auth` isn't 16 bytes. `field` names which.
+    REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID = 106i32,
 }
 impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_UNSPECIFIED`]; `Debug` prints the variant name.
@@ -629,6 +632,9 @@ impl RefusalReason {
     ///Idiomatic alias for [`Self::REFUSAL_REASON_SWITCH_PIN_INVALID`]; `Debug` prints the variant name.
     #[allow(non_upper_case_globals)]
     pub const SwitchPinInvalid: Self = Self::REFUSAL_REASON_SWITCH_PIN_INVALID;
+    ///Idiomatic alias for [`Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID`]; `Debug` prints the variant name.
+    #[allow(non_upper_case_globals)]
+    pub const WebPushSubscriptionInvalid: Self = Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID;
 }
 impl ::core::default::Default for RefusalReason {
     fn default() -> Self {
@@ -953,6 +959,11 @@ impl ::buffa::Enumeration for RefusalReason {
             105i32 => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SWITCH_PIN_INVALID)
             }
+            106i32 => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1159,6 +1170,9 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_WRONG_SWITCH_PIN => "REFUSAL_REASON_WRONG_SWITCH_PIN",
             Self::REFUSAL_REASON_SWITCH_PIN_INVALID => {
                 "REFUSAL_REASON_SWITCH_PIN_INVALID"
+            }
+            Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID => {
+                "REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID"
             }
         }
     }
@@ -1503,6 +1517,11 @@ impl ::buffa::Enumeration for RefusalReason {
             "REFUSAL_REASON_SWITCH_PIN_INVALID" => {
                 ::core::option::Option::Some(Self::REFUSAL_REASON_SWITCH_PIN_INVALID)
             }
+            "REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID" => {
+                ::core::option::Option::Some(
+                    Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID,
+                )
+            }
             _ => ::core::option::Option::None,
         }
     }
@@ -1611,6 +1630,7 @@ impl ::buffa::Enumeration for RefusalReason {
             Self::REFUSAL_REASON_INBOX_NOTIFICATION_NOT_FOUND,
             Self::REFUSAL_REASON_WRONG_SWITCH_PIN,
             Self::REFUSAL_REASON_SWITCH_PIN_INVALID,
+            Self::REFUSAL_REASON_WEB_PUSH_SUBSCRIPTION_INVALID,
         ]
     }
 }

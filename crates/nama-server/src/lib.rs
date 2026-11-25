@@ -39,6 +39,7 @@ mod watch_sync;
 mod watchlist;
 #[cfg(feature = "web")]
 mod web;
+mod web_push;
 
 use std::{future::Future, io, sync::Arc, time::Duration};
 
@@ -228,6 +229,7 @@ pub fn serve(
     let certificate = certificate::Certificate::default();
     let (data_dir, acme_directory) = (config.data_dir.clone(), config.acme_directory.clone());
     let load_settings = load_settings(settings.clone(), images.clone(), plugins.clone());
+    let make_web_push_key = make_web_push_key(Arc::clone(&db));
     let app = api::router(
         config,
         listening,
@@ -262,6 +264,7 @@ pub fn serve(
         // Before anything can publish an event, so that no notification misses its link, and
         // before serving, so the sweeps delete no plan's files or upload but an earlier run's.
         load_settings.await;
+        make_web_push_key.await;
         fill_sort_titles(&contents).await;
         // Before the scans start, so it sees their Matching finish.
         let scan_follower = syncing.follow_scans(&events);
@@ -363,6 +366,14 @@ pub fn serve(
 async fn fill_sort_titles(contents: &Contents) {
     if let Err(err) = contents.fill_sort_titles().await {
         tracing::error!("storing sort titles failed, so older titles sort first: {err}");
+    }
+}
+
+/// Makes the Server's VAPID key on its first start, logging a failure, after which the first push
+/// or `GetWebPushKey` tries again.
+async fn make_web_push_key(db: Arc<Database>) {
+    if let Err(err) = server_settings::web_push_key(&db).await {
+        tracing::error!("could not make the Server's Web Push key: {err}");
     }
 }
 

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO server_settings (id, url, web_push_key) VALUES (1, '', ?)\n                   ON CONFLICT (id) DO UPDATE\n                       SET web_push_key = coalesce(web_push_key, excluded.web_push_key)\n                   RETURNING web_push_key AS \"web_push_key!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "web_push_key!",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "server_settings",
+            "name": "web_push_key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "3ac34e76c1c14ce424cc66b26d25453e0deed50a26f99f3e213dd614e919acd6"
+}

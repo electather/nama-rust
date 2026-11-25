@@ -4,7 +4,7 @@
 //! keeps them, the most Transcodes it runs at once, what they run on, and the default Playback
 //! Limit for remote playback; and whether Posters and Backdrops are resized, how much disk the
 //! resized copies take, and which store keeps the images; the default Home layout; and where
-//! Backups go and how many are kept.
+//! Backups go and how many are kept; and the VAPID key the Server signs its Web Push with.
 //!
 //! [`Settings`] owns the table (see the crate's `AGENTS.md`).
 
@@ -28,6 +28,7 @@ use crate::{
     db::{BoxFuture, Database},
     diagnostics::{self, Sharing},
     ffmpeg::{Accel, Hardware},
+    web_push::VapidKey,
 };
 
 mod home_layout;
@@ -679,6 +680,39 @@ pub(crate) async fn stored_image_store(
         .fetch_optional(conn)
         .await?;
     Ok(stored.and_then(plugin_named))
+}
+
+/// The Server's VAPID key, which signs its Web Push (RFC 8292): made on first start, then kept, as
+/// browsers subscribed with its public key. If two make one at once, the first stored stays.
+///
+/// # Errors
+///
+/// If reading, making or storing it fails, or the stored key isn't one.
+pub(crate) async fn web_push_key(db: &Database) -> sqlx::Result<VapidKey> {
+    let stored = sqlx::query_scalar!("SELECT web_push_key FROM server_settings")
+        .fetch_optional(db.reader())
+        .await?
+        .flatten();
+    let pkcs8 = if let Some(pkcs8) = stored {
+        pkcs8
+    } else {
+        let made = VapidKey::new_pkcs8().map_err(|err| sqlx::Error::Encode(Box::new(err)))?;
+        db.write(move |tx| {
+            Box::pin(async move {
+                sqlx::query_scalar!(
+                    r#"INSERT INTO server_settings (id, url, web_push_key) VALUES (1, '', ?)
+                   ON CONFLICT (id) DO UPDATE
+                       SET web_push_key = coalesce(web_push_key, excluded.web_push_key)
+                   RETURNING web_push_key AS "web_push_key!""#,
+                    made
+                )
+                .fetch_one(&mut **tx)
+                .await
+            })
+        })
+        .await?
+    };
+    VapidKey::from_pkcs8(&pkcs8).map_err(|rejected| sqlx::Error::Decode(Box::new(rejected)))
 }
 
 /// The Plugin `stored` names, or `None` for an empty one.
