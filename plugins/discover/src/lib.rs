@@ -35,6 +35,9 @@ const TMDB: OutsideService = OutsideService::new("TMDB").credential("API key");
 /// The namespace of TMDB's ids, by which Discover's rows name titles.
 const TMDB_NAMESPACE: &str = "tmdb";
 
+/// The namespace of TVDB's ids, whose genres it names by slug.
+const TVDB_NAMESPACE: &str = "tvdb";
+
 /// Where TMDB's v3 API is.
 const API_URL: &str = "https://api.themoviedb.org/3/";
 
@@ -114,6 +117,36 @@ const BECAUSE_ROWS: usize = 3;
 
 /// How many More genre rows a User gets, one for each genre they played most.
 const GENRE_ROWS: usize = 2;
+
+/// The TMDB genres, Movie or Show, most like each of TVDB's Show genres, by its slug, as its
+/// genre pages at <https://thetvdb.com/genres> name it. One TMDB has nothing like is left out.
+const TVDB_GENRES: [(&str, &[u64]); 25] = [
+    ("action", &[28, 10759]),
+    ("adventure", &[12, 10759]),
+    ("animation", &[16]),
+    ("anime", &[16]),
+    ("children", &[10762]),
+    ("comedy", &[35]),
+    ("crime", &[80]),
+    ("documentary", &[99]),
+    ("drama", &[18]),
+    ("family", &[10751]),
+    ("fantasy", &[14, 10765]),
+    ("history", &[36]),
+    ("horror", &[27]),
+    ("musical", &[10402]),
+    ("mystery", &[9648]),
+    ("news", &[10763]),
+    ("reality", &[10764]),
+    ("romance", &[10749]),
+    ("science-fiction", &[878, 10765]),
+    ("soap", &[10766]),
+    ("suspense", &[53]),
+    ("talk-show", &[10767]),
+    ("thriller", &[53]),
+    ("war", &[10752, 10768]),
+    ("western", &[37]),
+];
 
 /// The fewest votes a title needs on TMDB to be among a genre's top titles, so one a handful
 /// rated highly doesn't top the row.
@@ -432,6 +465,8 @@ struct Watched {
     /// The Movie's title, or the Show's.
     name: String,
     genres: Vec<String>,
+    /// Each of `genres`' id in the title source that named it, in the same order.
+    genre_ids: Vec<TitleId>,
     /// The Movie's 1, or the Show's Episodes the Server has.
     episodes: usize,
     played_episodes: usize,
@@ -598,29 +633,29 @@ impl History {
     }
 
     /// A row of TMDB's top Movies and Shows in each of the [`GENRE_ROWS`] genres the User played
-    /// most, keyed by its place as [`Self::because_you_watched`]'s are. A genre TMDB has no
-    /// genre of that name for, Movie or Show, is passed over for the next.
+    /// most, keyed by its place as [`Self::because_you_watched`]'s are. A genre is found on TMDB
+    /// by the id its title source gave it, whatever language names it; one TMDB has no Movie or
+    /// Show genre for is passed over for the next.
     ///
-    /// ponytail: genres match by name, and the Kernel names them in the title source's language
-    /// while TMDB's lists are in its default one, so a Server whose titles aren't in English gets
-    /// no More rows; ask TMDB's lists in that language once the Kernel tells a Plugin which
-    /// (#1718).
+    /// ponytail: a genre its source gave no id for gets no row; match it by TMDB's English name
+    /// too if a title source without genre ids is ever used.
     ///
     /// # Errors
     /// If TMDB can't answer.
     fn more_genre(&self, api: &Api) -> Result<Vec<HomeRow>, Error> {
-        let movie_genres = api.genres(TitleKind::TITLE_KIND_MOVIE)?;
-        let show_genres = api.genres(TitleKind::TITLE_KIND_SHOW)?;
+        let on_tmdb = self.tmdb_genres(
+            &api.genres(TitleKind::TITLE_KIND_MOVIE)?,
+            &api.genres(TitleKind::TITLE_KIND_SHOW)?,
+        );
         let mut plays: Vec<_> = self.genre_plays().into_iter().collect();
         plays.sort_by_key(|&(genre, plays)| (Reverse(plays), genre));
         (plays.into_iter())
-            .map(|(genre, _)| (genre, movie_genres.get(genre), show_genres.get(genre)))
-            .filter(|(_, movie_genre, show_genre)| movie_genre.is_some() || show_genre.is_some())
+            .filter_map(|(genre, _)| Some((genre, *on_tmdb.get(genre)?)))
             .take(GENRE_ROWS)
             .enumerate()
-            .map(|(place, (genre, movie_genre, show_genre))| {
-                let movies = api.top_in(TitleKind::TITLE_KIND_MOVIE, movie_genre)?;
-                let shows = api.top_in(TitleKind::TITLE_KIND_SHOW, show_genre)?;
+            .map(|(place, (genre, tmdb))| {
+                let movies = api.top_in(TitleKind::TITLE_KIND_MOVIE, tmdb.movie)?;
+                let shows = api.top_in(TitleKind::TITLE_KIND_SHOW, tmdb.show)?;
                 row(
                     &format!("{MORE_GENRE}-{}", place + 1),
                     &format!("More {genre}"),
@@ -629,6 +664,58 @@ impl History {
                 )
             })
             .collect()
+    }
+
+    /// The TMDB genres each genre of the titles is, by name, among `movie_genres` and
+    /// `show_genres`; a name no title gives an id TMDB has a genre for is left out. A name two
+    /// sources give, such as TMDB's and TVDB's Drama, takes the genres either finds.
+    fn tmdb_genres(
+        &self,
+        movie_genres: &HashSet<u64>,
+        show_genres: &HashSet<u64>,
+    ) -> HashMap<&str, TmdbGenre> {
+        let mut found: HashMap<&str, TmdbGenre> = HashMap::new();
+        let named =
+            (self.titles.iter()).flat_map(|title| title.genres.iter().zip(&title.genre_ids));
+        for (name, id) in named {
+            let tmdb = TmdbGenre::of(id, movie_genres, show_genres);
+            let entry = found.entry(name).or_default();
+            entry.movie = entry.movie.or(tmdb.movie);
+            entry.show = entry.show.or(tmdb.show);
+        }
+        found.retain(|_, tmdb| tmdb.movie.is_some() || tmdb.show.is_some());
+        found
+    }
+}
+
+/// The TMDB genre of Movies and of Shows one of the Server's genres is, unset where TMDB has none.
+#[derive(Clone, Copy, Default)]
+struct TmdbGenre {
+    movie: Option<u64>,
+    show: Option<u64>,
+}
+
+impl TmdbGenre {
+    /// The genre a title source gave the id `id`: itself if TMDB's, the [`TVDB_GENRES`] like it if
+    /// TVDB's, each kind's the first among `movie_genres` and `show_genres`.
+    fn of(id: &TitleId, movie_genres: &HashSet<u64>, show_genres: &HashSet<u64>) -> Self {
+        let tmdb_id;
+        let like: &[u64] = match id.namespace.as_str() {
+            TMDB_NAMESPACE => {
+                tmdb_id = id.value.parse().ok();
+                tmdb_id.as_slice()
+            }
+            TVDB_NAMESPACE => (TVDB_GENRES.iter())
+                .find(|(slug, _)| *slug == id.value)
+                .map_or(&[], |(_, like)| like),
+            _ => &[],
+        };
+        let first_in =
+            |genres: &HashSet<u64>| like.iter().find(|tmdb| genres.contains(tmdb)).copied();
+        Self {
+            movie: first_in(movie_genres),
+            show: first_in(show_genres),
+        }
     }
 }
 
@@ -651,6 +738,7 @@ impl Watched {
             key,
             name: (title.show_title.clone()).unwrap_or_else(|| title.title.clone()),
             genres: title.genres.clone(),
+            genre_ids: title.genre_ids.clone(),
             episodes: 0,
             played_episodes: 0,
             started: false,
@@ -949,7 +1037,6 @@ struct GenreList {
 #[derive(Deserialize)]
 struct Genre {
     id: u64,
-    name: String,
 }
 
 /// One title in a page, or a person in a trending one.
@@ -1035,16 +1122,14 @@ impl Api {
         Ok(movies.into_iter().chain(shows).collect())
     }
 
-    /// TMDB's genres of `kind`, by name.
-    fn genres(&self, kind: TitleKind) -> Result<HashMap<String, u64>, Error> {
+    /// TMDB's genres of `kind`, by id.
+    fn genres(&self, kind: TitleKind) -> Result<HashSet<u64>, Error> {
         let list: GenreList = self.get(&["genre", media(kind).unwrap_or_default(), "list"], &[])?;
-        Ok((list.genres.into_iter())
-            .map(|genre| (genre.name, genre.id))
-            .collect())
+        Ok(list.genres.into_iter().map(|genre| genre.id).collect())
     }
 
     /// TMDB's top rated titles of `kind` in its genre `genre`; none for no genre.
-    fn top_in(&self, kind: TitleKind, genre: Option<&u64>) -> Result<Vec<Key>, Error> {
+    fn top_in(&self, kind: TitleKind, genre: Option<u64>) -> Result<Vec<Key>, Error> {
         let Some(genre) = genre else {
             return Ok(Vec::new());
         };

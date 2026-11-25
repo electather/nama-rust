@@ -11,9 +11,24 @@ use super::{
         match_images::TitlePoster,
         testing::{ALIEN, Fixture, movie},
     },
-    TitlesIn, show_poster,
+    TitlesIn, genre_ids, show_poster,
 };
 use crate::library::{Role, TitleImage, versions::METADATA_VERSION};
+
+#[test]
+fn genre_ids_read_back_or_are_none_when_stored_without_them_or_one_does_not_parse() {
+    assert_eq!(
+        genre_ids(Some(r#"["tmdb-35","tvdb-science-fiction"]"#)),
+        [
+            ExternalId::tmdb(35),
+            "tvdb-science-fiction".parse().unwrap()
+        ]
+    );
+    assert_eq!(
+        [genre_ids(None), genre_ids(Some(r#"["tmdb-35","35"]"#))],
+        [Vec::new(), Vec::new()]
+    );
+}
 
 #[test]
 fn an_unrefreshed_shows_poster_is_its_first_seasons_after_the_specials_that_has_one() {

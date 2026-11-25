@@ -117,7 +117,7 @@ fn search_results_carry_the_ids_tvdb_reports_and_the_english_name() {
 }
 
 #[test]
-fn a_show_has_its_ids_official_seasons_and_best_backdrop() {
+fn a_show_has_its_ids_official_seasons_best_backdrop_and_genres() {
     let series: Series = data(include_bytes!("../fixtures/series-extended.json")).unwrap();
     let show = series.show();
 
@@ -125,6 +125,11 @@ fn a_show_has_its_ids_official_seasons_and_best_backdrop() {
     assert_eq!(show.title, "Severance");
     assert_eq!(show.first_air_date.as_deref(), Some("2022-02-18"));
     assert_eq!(show.seasons, [0, 1, 2]);
+    assert_eq!(show.genres, ["Drama", "Science Fiction"]);
+    let genre_ids: Vec<_> = (show.genre_ids.iter())
+        .map(|id| (id.namespace.as_str(), id.value.as_str()))
+        .collect();
+    assert_eq!(genre_ids, [("tvdb", "drama"), ("tvdb", "science-fiction")]);
     assert_eq!(
         show.poster.as_deref(),
         Some("/banners/v4/series/371980/posters/61f1b0b1a7a0c.jpg")

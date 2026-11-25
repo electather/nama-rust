@@ -66,6 +66,11 @@ pub(super) fn ids_from_json(json: Option<&str>) -> ExternalIds {
         .collect()
 }
 
+/// `ids` as a JSON array of their text forms, in order.
+pub(super) fn ids_json(ids: &[ExternalId]) -> String {
+    serde_json::Value::from_iter(ids.iter().map(ToString::to_string)).to_string()
+}
+
 /// `id` and every id a Matched title of `kind`, in any Library, shares with it, through any
 /// chain of Matches each sharing an id with the last, since each Library's Match of a title may
 /// hold a different set of its ids. Read on `conn` so a write can act on it; a stored pair that

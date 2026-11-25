@@ -6,7 +6,9 @@ use std::{borrow::Cow, collections::HashMap};
 use nama_plugin_api::metadata::ExternalId;
 use sqlx::SqliteConnection;
 
-use super::{Contents, Item, ItemKind, ItemRow, parse_hint, searched_ids, searched_ids_changed};
+use super::{
+    Contents, Item, ItemKind, ItemRow, ids_json, parse_hint, searched_ids, searched_ids_changed,
+};
 
 /// An `.nfo` file as a scan found it, with the ID Hints it names, strongest first.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -239,11 +241,6 @@ async fn set_hints(conn: &mut SqliteConnection, changed: Vec<(i64, NfoHints)>) -
         .await?;
     }
     Ok(())
-}
-
-/// `ids` as a JSON array of how each displays, in order.
-fn ids_json(ids: &[ExternalId]) -> String {
-    serde_json::Value::from_iter(ids.iter().map(ToString::to_string)).to_string()
 }
 
 /// The ids in [`ids_json`]'s `json`, skipping any that doesn't parse; none for NULL.

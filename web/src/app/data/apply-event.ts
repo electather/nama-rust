@@ -1,6 +1,7 @@
 import { createConnectQueryKey } from "@connectrpc/connect-query";
 import type { InfiniteData } from "@tanstack/react-query";
 
+import { inboxKey } from "@/features/inbox/data/inbox-key";
 import type { Event, SubscribeResponse } from "@/gen/nama/v1/event_pb";
 import { LibraryService } from "@/gen/nama/v1/library_pb";
 import type { ListUnmatchedItemsResponse } from "@/gen/nama/v1/match_pb";
@@ -23,6 +24,7 @@ export function applyEvent({ message }: SubscribeResponse, context: RouterContex
     refreshBrowsing(message.value, context);
     refreshLibrary(message.value, context);
     refreshRequests(message.value, context);
+    refreshInbox(message.value, context);
     refreshPlays(message.value, context);
     recordAdminStop(message.value, context);
   } else if (message.case === "lagged") {
@@ -150,6 +152,22 @@ function refreshRequests({ event }: Event, { queryClient, transport }: RouterCon
   if (requestEvents.has(event.case)) {
     void queryClient.invalidateQueries({ queryKey: requestsKey(transport) });
     void queryClient.invalidateQueries({ queryKey: searchKey(transport) });
+  }
+}
+
+/**
+ * Recounts the inbox on the Request events a notification comes with: a new Pending Request, a
+ * change of state and a cancelling. Not on download progress, which ticks about once a minute.
+ * The Server may store the notification just after sending its event, so this can miss it until
+ * the next event or focus (#2309).
+ */
+function refreshInbox({ event }: Event, { queryClient, transport }: RouterContext) {
+  if (
+    event.case === "requestCreated" ||
+    event.case === "requestStateChanged" ||
+    event.case === "requestCancelled"
+  ) {
+    void queryClient.invalidateQueries({ queryKey: inboxKey(transport) });
   }
 }
 

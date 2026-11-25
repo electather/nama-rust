@@ -200,6 +200,7 @@ impl MovieDetails {
             runtime_minutes: self.runtime.filter(|&minutes| minutes > 0),
             poster: present(self.poster_path),
             backdrop: present(self.backdrop_path),
+            genre_ids: genre_ids(&self.genres),
             genres: genre_names(self.genres),
             content_rating: releases.and_then(|releases| {
                 (releases.release_dates.into_iter())
@@ -272,6 +273,7 @@ impl ShowDetails {
             poster: present(self.poster_path),
             backdrop: present(self.backdrop_path),
             seasons: self.seasons.iter().map(|s| s.season_number).collect(),
+            genre_ids: genre_ids(&self.genres),
             genres: genre_names(self.genres),
             content_rating: rated.and_then(|rated| present(rated.rating)),
             score: self.votes.score(),
@@ -499,7 +501,14 @@ impl Videos {
 
 #[derive(Debug, Deserialize)]
 struct Genre {
+    id: i64,
     name: String,
+}
+
+fn genre_ids(genres: &[Genre]) -> Vec<TitleId> {
+    (genres.iter())
+        .map(|genre| title_id(&ExternalId::tmdb(genre.id)))
+        .collect()
 }
 
 fn genre_names(genres: Vec<Genre>) -> Vec<String> {

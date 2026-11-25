@@ -321,6 +321,18 @@ export default defineConfig({
         files: ["src/**/__tests__/**"],
         rules: { "react/no-multi-comp": "off", "no-empty-function": "off" },
       },
+      // The push worker is a classic script the browser runs as it is, with no types for
+      // `self`'s service worker members (web/AGENTS.md, "Service worker: push only").
+      {
+        files: ["public/push-worker.js"],
+        rules: {
+          "import/unambiguous": "off",
+          "no-implicit-globals": "off",
+          "typescript/no-unsafe-assignment": "off",
+          "typescript/no-unsafe-call": "off",
+          "typescript/no-unsafe-member-access": "off",
+        },
+      },
       // An ambient module declaration (`declare module "…"`) has to be a script.
       { files: ["src/*.d.ts"], rules: { "import/unambiguous": "off" } },
       // Vite reads its config's default export, in Node.

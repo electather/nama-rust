@@ -1,6 +1,6 @@
 import { backupLabels } from "@/features/admin-backups/lib/backup-settings";
 import { serverPlaybackLabels } from "@/features/admin-playback/lib/playback-labels";
-import { notificationLabels } from "@/features/settings/lib/notification-labels";
+import { browserPushText, notificationLabels } from "@/features/settings/lib/notification-labels";
 import {
   accountHistoryLabels,
   accountLabels,
@@ -43,7 +43,7 @@ const builtIn: Record<Section, Record<string, SettingText>> = {
   playback: playbackLabels,
   home: homeLabels,
   requests: {},
-  connections: notificationLabels,
+  connections: { ...notificationLabels, "browser-push": browserPushText },
   libraries: {},
   "needs-a-match": {},
   "now-playing": {},

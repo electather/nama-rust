@@ -447,7 +447,19 @@ struct Series {
     artworks: Vec<Artwork>,
     #[serde(default)]
     seasons: Vec<SeriesSeason>,
+    #[serde(default)]
+    genres: Vec<Genre>,
     translations: Option<Translations>,
+}
+
+/// One of a Show's genres, as TVDB names it.
+#[derive(Deserialize)]
+struct Genre {
+    name: String,
+    /// Its id as TVDB's own genre pages name it, such as `science-fiction`. Missing, it fails no
+    /// Show: the Kernel then keeps none of the Show's genre ids.
+    #[serde(default)]
+    slug: String,
 }
 
 #[derive(Deserialize)]
@@ -529,6 +541,10 @@ impl Series {
             poster: artwork_path(self.image),
             backdrop: artwork_path(backdrop),
             seasons,
+            genre_ids: (self.genres.iter())
+                .map(|genre| title_id(NAMESPACE, genre.slug.clone()))
+                .collect(),
+            genres: self.genres.into_iter().map(|genre| genre.name).collect(),
             ..Show::default()
         }
     }

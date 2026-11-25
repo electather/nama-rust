@@ -10,6 +10,10 @@
     "overview": "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives.",
     "originalCountry": "usa",
     "originalLanguage": "eng",
+    "genres": [
+      { "id": 12, "name": "Drama", "slug": "drama" },
+      { "id": 2, "name": "Science Fiction", "slug": "science-fiction" }
+    ],
     "remoteIds": [
       { "id": "tt11280740", "type": 2, "sourceName": "IMDB" },
       { "id": "95396", "type": 12, "sourceName": "TheMovieDB.com" },
