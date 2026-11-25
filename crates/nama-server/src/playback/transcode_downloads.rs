@@ -4,10 +4,12 @@
 //! the limit being one below Original as the API names it, such as `PLAYBACK_LIMIT_720P`. The 202
 //! names in `Location` where its Device polls it, `/media/downloads/transcodes/<id>`, whose JSON
 //! says how far it has got and, once it's made, where to fetch the file, Range-capable. Only that
-//! Device is answered about it.
+//! Device, acting as the User who asked, is answered about it.
 //!
 //! The file is in the segment folder until a response has sent its last byte, for
 //! [`KEEP_UNFETCHED_FOR`] once made if none does, and until its Version is gone ([`super::Leftovers`]).
+//! One still being made [`KEEP_UNFETCHED_FOR`] after it was asked for is stopped, as its ffmpeg has
+//! hung.
 //! What they may take, made or being made, is the budget `nama.toml` sets, and a request that would
 //! go past it is refused with 507. They're kept in memory: a restart forgets them, and its sweep
 //! deletes their folder.
@@ -96,8 +98,9 @@ struct Inner {
 /// One file, being made or made.
 struct Download {
     version: i64,
-    /// The Device that asked, which alone is answered about it.
-    device: i64,
+    /// Who asked, which alone is answered about it: a Device may act as several Users (ADR 0106),
+    /// and another of them may not see the Version.
+    asker: Asker,
     file: PathBuf,
     /// What it counts against the budget: the most it can take while it's made, then its size.
     bytes: u64,
@@ -111,7 +114,7 @@ struct Download {
 
 #[derive(Debug, Clone, Copy)]
 enum Stage {
-    Making,
+    Making { since: Instant },
     Made { at: Instant },
     Failed { at: Instant },
 }
@@ -159,12 +162,12 @@ impl TranscodeDownloads {
         Self { inner }
     }
 
-    /// Starts making a file of the Version `version` for the Device `device` with `transcode`,
+    /// Starts making a file of the Version `version` for `asker` with `transcode`,
     /// `duration_ms` long, going on with `fallback` if it runs on hardware that fails, and returns
     /// its id.
     async fn start(
         &self,
-        device: i64,
+        asker: Asker,
         version: i64,
         (transcode, duration_ms, fallback): (Transcode, i64, Option<Fallback>),
     ) -> Result<u64, StartError> {
@@ -178,12 +181,14 @@ impl TranscodeDownloads {
         let file = folder.join(format!("{id}.mp4"));
         let download = Download {
             version,
-            device,
+            asker,
             file: file.clone(),
             bytes: most_bytes(&transcode, duration_ms),
             duration_ms,
             made_ms: Arc::default(),
-            stage: Stage::Making,
+            stage: Stage::Making {
+                since: db::instant_now(),
+            },
             stop: CancellationToken::new(),
         };
         let (made_ms, stop) = (Arc::clone(&download.made_ms), download.stop.clone());
@@ -254,12 +259,11 @@ impl TranscodeDownloads {
         }
     }
 
-    /// The file `id` as the Device `device` may know of it, and where it is, if it's theirs and
-    /// kept.
-    async fn find(&self, id: u64, device: Option<i64>) -> Option<(Stage, Progress, PathBuf)> {
+    /// The file `id` as `asker` may know of it, and where it is, if it's theirs and kept.
+    async fn find(&self, id: u64, asker: Option<Asker>) -> Option<(Stage, Progress, PathBuf)> {
         self.delete_expired().await;
         let downloads = lock(&self.inner.downloads);
-        let download = (downloads.get(&id)).filter(|download| Some(download.device) == device)?;
+        let download = (downloads.get(&id)).filter(|download| Some(download.asker) == asker)?;
         let progress = Progress {
             made_ms: download.made_ms.load(Ordering::Relaxed),
             duration_ms: download.duration_ms,
@@ -278,39 +282,42 @@ impl TranscodeDownloads {
 
     /// Stops making and deletes the files of every Version but `versions`.
     pub(crate) async fn keep_only(&self, versions: &HashSet<i64>) {
-        let gone: Vec<Download> = lock(&self.inner.downloads)
-            .extract_if(|_, download| !versions.contains(&download.version))
-            .map(|(_, download)| download)
-            .collect();
-        stop_and_delete(gone).await;
+        (self.stop_and_delete(|download| !versions.contains(&download.version))).await;
     }
 
     /// Stops making every file and deletes them all, as a restart forgets them, waiting for ffmpeg
     /// to exit.
     pub(crate) async fn shutdown(&self) {
-        let all: Vec<Download> = lock(&self.inner.downloads)
-            .drain()
-            .map(|(_, download)| download)
-            .collect();
-        stop_and_delete(all).await;
+        self.stop_and_delete(|_| true).await;
         self.inner.cancel.cancel();
         self.inner.tasks.close();
         self.inner.tasks.wait().await;
     }
 
-    /// Deletes the files made or failed more than [`KEEP_UNFETCHED_FOR`] ago.
+    /// Stops and deletes the files asked for, made or failed more than [`KEEP_UNFETCHED_FOR`] ago.
     async fn delete_expired(&self) {
         let now = db::instant_now();
-        let expired: Vec<Download> = lock(&self.inner.downloads)
-            .extract_if(|_, download| match download.stage {
-                Stage::Making => false,
-                Stage::Made { at } | Stage::Failed { at } => {
-                    now.duration_since(at) >= KEEP_UNFETCHED_FOR
-                }
-            })
+        (self.stop_and_delete(|download| match download.stage {
+            Stage::Making { since: at } | Stage::Made { at } | Stage::Failed { at } => {
+                now.duration_since(at) >= KEEP_UNFETCHED_FOR
+            }
+        }))
+        .await;
+    }
+
+    /// Forgets the files `picked` picks, stops making each, whose run then deletes its file, and
+    /// deletes those made.
+    async fn stop_and_delete(&self, picked: impl Fn(&Download) -> bool) {
+        let gone: Vec<Download> = lock(&self.inner.downloads)
+            .extract_if(|_, download| picked(download))
             .map(|(_, download)| download)
             .collect();
-        stop_and_delete(expired).await;
+        for download in gone {
+            download.stop.cancel();
+            if !matches!(download.stage, Stage::Making { .. }) {
+                delete(&download.file).await;
+            }
+        }
     }
 }
 
@@ -326,21 +333,27 @@ impl TranscodeDownloads {
     }
 }
 
+/// The User and Device that asked for a file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Asker {
+    user: i64,
+    device: i64,
+}
+
+impl From<&Caller> for Asker {
+    fn from(caller: &Caller) -> Self {
+        Self {
+            user: caller.user.id,
+            device: caller.device.id,
+        }
+    }
+}
+
 /// How far a file has got, as its Device is told.
 struct Progress {
     made_ms: i64,
     duration_ms: i64,
     bytes: u64,
-}
-
-/// Stops making each of `downloads`, whose run then deletes its file, and deletes those made.
-async fn stop_and_delete(downloads: Vec<Download>) {
-    for download in downloads {
-        download.stop.cancel();
-        if !matches!(download.stage, Stage::Making) {
-            delete(&download.file).await;
-        }
-    }
 }
 
 /// Every [`TIDY_EVERY`], deletes the files of `inner` expired, until it's dropped or `cancel` is
@@ -428,8 +441,13 @@ async fn ask(
             .collect();
         return (StatusCode::CONFLICT, why.join(". ")).into_response();
     };
-    let device = caller.device.id;
-    match (downloads.start(device, version, (transcode, duration_ms, fallback))).await {
+    match (downloads.start(
+        Asker::from(caller),
+        version,
+        (transcode, duration_ms, fallback),
+    ))
+    .await
+    {
         Ok(id) => (StatusCode::ACCEPTED, [(LOCATION, poll_url(id))]).into_response(),
         Err(StartError::NoSuchVersion) => StatusCode::NOT_FOUND.into_response(),
         Err(err @ StartError::OverBudget { .. }) => {
@@ -449,11 +467,11 @@ async fn poll(
     Path(id): Path<u64>,
     request: Request,
 ) -> Response {
-    let Some((stage, progress, _)) = downloads.find(id, device_of(&request)).await else {
+    let Some((stage, progress, _)) = downloads.find(id, asker_of(&request)).await else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let body = match stage {
-        Stage::Making => {
+        Stage::Making { .. } => {
             let percent = progress.made_ms * 100 / progress.duration_ms.max(1);
             json!({ "state": "MAKING", "progressPercent": percent.clamp(0, 99) })
         }
@@ -473,8 +491,8 @@ async fn fetch(
     Path(id): Path<u64>,
     request: Request,
 ) -> Response {
-    let device = device_of(&request);
-    let Some((stage, _, file)) = downloads.find(id, device).await else {
+    let asker = asker_of(&request);
+    let Some((stage, _, file)) = downloads.find(id, asker).await else {
         return StatusCode::NOT_FOUND.into_response();
     };
     if !matches!(stage, Stage::Made { .. }) {
@@ -508,9 +526,9 @@ async fn fetch(
     Response::from_parts(parts, Body::from_stream(sent))
 }
 
-/// The Device `request` is from, as its session says.
-fn device_of(request: &Request) -> Option<i64> {
-    Some(request.extensions().get::<Caller>()?.device.id)
+/// Who `request` is from, as its session says.
+fn asker_of(request: &Request) -> Option<Asker> {
+    request.extensions().get::<Caller>().map(Asker::from)
 }
 
 /// How many bytes a response with `parts` sends if they end with a file's last byte: a whole

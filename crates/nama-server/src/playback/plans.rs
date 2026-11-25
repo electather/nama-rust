@@ -198,6 +198,8 @@ impl Plans {
                 containers: vec![Container::CONTAINER_MP4],
                 video_codecs: vec![VideoCodec::VIDEO_CODEC_H264],
                 audio_codecs: vec![AudioCodec::AUDIO_CODEC_AAC],
+                // Though the file is one MP4, not HLS: planning allows a Transcode only to a
+                // Device that plays HLS, which every Transcode streamed is.
                 hls: true,
                 audio_channels: 2,
                 ..DeviceDecoding::default()

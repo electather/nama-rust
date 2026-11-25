@@ -6,10 +6,12 @@ use std::process::Command;
 
 use http_body_util::Empty;
 use hyper::body::Bytes;
+use nama_proto::nama::v1::{SessionDelivery, SignInRequest, SignInServiceClient};
 use serde_json::Value;
 
 use super::{
     http::{Reply, send},
+    server::PASSWORD,
     *,
 };
 
@@ -55,7 +57,7 @@ async fn made(fx: &Fixture, ada: &SignedIn, version: i64, limit: &str) -> (Strin
     let poll_url = asked.header("location").to_owned();
     let made = tokio::time::timeout(WAIT, async {
         loop {
-            let polled = poll(fx, ada, &poll_url).await.unwrap();
+            let polled = poll(fx, &ada.token, &poll_url).await.unwrap();
             if polled["state"] != "MAKING" {
                 return polled;
             }
@@ -67,18 +69,39 @@ async fn made(fx: &Fixture, ada: &SignedIn, version: i64, limit: &str) -> (Strin
     (poll_url, polled)
 }
 
-/// What polling `poll_url` as `user` says, or `None` once it's gone (404).
+/// What polling `poll_url` with the session `token` says, or `None` once it's gone (404).
 #[expect(
     clippy::unwrap_used,
     reason = "a test helper fails its test by panicking"
 )]
-async fn poll(fx: &Fixture, user: &SignedIn, poll_url: &str) -> Option<Value> {
-    let reply = fetch(&fx.server, poll_url, Some(&user.token)).await;
+async fn poll(fx: &Fixture, token: &str, poll_url: &str) -> Option<Value> {
+    let reply = fetch(&fx.server, poll_url, Some(token)).await;
     if reply.status == 404 {
         return None;
     }
     assert_eq!(reply.status, 200);
     Some(serde_json::from_slice(&reply.body).unwrap())
+}
+
+/// Signs `name` in on the Device holding the session `token`, which then acts as them, and
+/// returns the session it hands out.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn sign_in_on(server: &TestServer, token: &str, name: &str) -> String {
+    SignInServiceClient::new(HttpClient::plaintext(), server.client_config_as(token))
+        .sign_in(SignInRequest {
+            name: name.to_owned(),
+            password: PASSWORD.to_owned(),
+            device_name: "Phone".to_owned(),
+            delivery: SessionDelivery::SESSION_DELIVERY_TOKEN.into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .into_owned()
+        .token
 }
 
 /// The files made for Devices to download that are in the segment folder.
@@ -117,7 +140,7 @@ async fn a_user_with_download_gets_a_transcode_that_plays_within_the_limit_then_
         &[("range", "bytes=0-9")],
     )
     .await;
-    let kept_after_a_range = poll(&fx, &ada, &poll_url).await.is_some();
+    let kept_after_a_range = poll(&fx, &ada.token, &poll_url).await.is_some();
     let whole = fetch(&fx.server, file_url, Some(&ada.token)).await;
 
     assert_eq!(start.status, 206);
@@ -147,7 +170,7 @@ async fn a_user_with_download_gets_a_transcode_that_plays_within_the_limit_then_
         .status()
         .unwrap();
     assert!(decoded.success(), "the file doesn't play");
-    assert_eq!(poll(&fx, &ada, &poll_url).await, None);
+    assert_eq!(poll(&fx, &ada.token, &poll_url).await, None);
     // Deleted in the background once the file is sent.
     let deleted = async {
         while kept_files(&fx) > 0 {
@@ -182,7 +205,7 @@ async fn an_unfetched_file_is_deleted_once_it_expires() {
 
     fx.server.advance_clock(Duration::from_hours(24));
 
-    assert_eq!(poll(&fx, &ada, &poll_url).await, None);
+    assert_eq!(poll(&fx, &ada.token, &poll_url).await, None);
     assert_eq!(kept_files(&fx), 0);
 }
 
@@ -195,18 +218,65 @@ async fn a_file_is_deleted_once_its_version_is_gone() {
     fx.scan_and_match().await;
 
     assert_eq!(kept_files(&fx), 0);
-    assert_eq!(poll(&fx, &ada, &poll_url).await, None);
+    assert_eq!(poll(&fx, &ada.token, &poll_url).await, None);
 }
 
 #[tokio::test]
-async fn only_the_device_that_asked_is_answered_about_its_file() {
+async fn only_the_user_and_device_that_asked_are_answered_about_its_file() {
     let (fx, version, ada) = alien_and_ada(TestServer::builder()).await;
-    let (poll_url, _) = made(&fx, &ada, version, "PLAYBACK_LIMIT_480P").await;
+    let (poll_url, polled) = made(&fx, &ada, version, "PLAYBACK_LIMIT_480P").await;
+    let file_url = polled["url"].as_str().unwrap();
     let bishop = (fx.server)
         .user("bishop", &[Permission::PERMISSION_DOWNLOAD])
         .await;
 
-    assert_eq!(poll(&fx, &bishop, &poll_url).await, None);
+    let on_another_device = poll(&fx, &bishop.token, &poll_url).await;
+    let fetched_on_another_device = fetch(&fx.server, file_url, Some(&bishop.token)).await;
+    // Ada's Device now acts as Bishop (ADR 0106).
+    let on_her_device = sign_in_on(&fx.server, &ada.token, "bishop").await;
+    let as_bishop_on_her_device = poll(&fx, &on_her_device, &poll_url).await;
+    let fetched_as_bishop = fetch(&fx.server, file_url, Some(&on_her_device)).await;
+
+    assert_eq!(on_another_device, None);
+    assert_eq!(fetched_on_another_device.status, 404);
+    assert_eq!(as_bishop_on_her_device, None);
+    assert_eq!(fetched_as_bishop.status, 404);
+}
+
+#[tokio::test]
+async fn a_user_without_download_is_refused_a_transcode_to_download() {
+    let (fx, version, _) = alien_and_ada(TestServer::builder()).await;
+    let bishop = fx.server.user_with_default_permissions("bishop").await;
+
+    let asked = ask(&fx, &bishop, version, "PLAYBACK_LIMIT_480P").await;
+
+    assert_eq!(asked.status, 403);
+    assert_eq!(kept_files(&fx), 0);
+}
+
+// The fake ffmpeg and ffprobe are shell scripts.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_file_still_being_made_once_it_would_have_expired_is_stopped() {
+    let bin = tempfile::tempdir().unwrap();
+    let hanging = ffmpeg_writing_nothing(bin.path(), "libx264");
+    let builder = TestServer::builder().moves_clock().ffmpeg(hanging);
+    let fx = Fixture::start_on(LibraryKind::LIBRARY_KIND_MOVIES, builder).await;
+    fx.write(ALIEN_1080P, b"video");
+    fx.scan_and_match().await;
+    let version = fx.version_ids(ALIEN).await[0];
+    let ada = (fx.server)
+        .user("ada", &[Permission::PERMISSION_DOWNLOAD])
+        .await;
+    let asked = ask(&fx, &ada, version, "PLAYBACK_LIMIT_480P").await;
+    assert_eq!(asked.status, 202);
+    let poll_url = asked.header("location").to_owned();
+    let making = poll(&fx, &ada.token, &poll_url).await.unwrap();
+
+    fx.server.advance_clock(Duration::from_hours(24));
+
+    assert_eq!(making["state"], "MAKING");
+    assert_eq!(poll(&fx, &ada.token, &poll_url).await, None);
 }
 
 #[tokio::test]
