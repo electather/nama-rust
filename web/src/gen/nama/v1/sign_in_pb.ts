@@ -940,7 +940,7 @@ export type SignInWithHubTokenRequest = Message<"nama.v1.SignInWithHubTokenReque
  * Use `create(SignInWithHubTokenRequestSchema)` to create a new message.
  */
 export const SignInWithHubTokenRequestSchema: GenMessage<SignInWithHubTokenRequest> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 28);
+  messageDesc(file_nama_v1_sign_in, 33);
 
 /**
  * @generated from message nama.v1.SignInWithHubTokenResponse
@@ -973,7 +973,7 @@ export type SignInWithHubTokenResponse = Message<"nama.v1.SignInWithHubTokenResp
  * Use `create(SignInWithHubTokenResponseSchema)` to create a new message.
  */
 export const SignInWithHubTokenResponseSchema: GenMessage<SignInWithHubTokenResponse> = /*@__PURE__*/
-  messageDesc(file_nama_v1_sign_in, 29);
+  messageDesc(file_nama_v1_sign_in, 34);
 
 /**
  * How a signed-in Device is given its session.
