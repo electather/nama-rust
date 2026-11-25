@@ -76,9 +76,10 @@ service SignInService {
   // `REFUSAL_REASON_SWITCH_PIN_INVALID` unless it is 4 to 6 digits.
   rpc SetSwitchPin(SetSwitchPinRequest) returns (SetSwitchPinResponse);
   // Clears a User's Switch PIN, so switching to them needs none. Clearing another User's needs
-  // `PERMISSION_MANAGE_USERS`, and an Admin's needs `PERMISSION_ADMIN`, as `UserService`'s
-  // `ResetPassword` does; without them it fails like that call. Clearing one that isn't set
-  // succeeds.
+  // `PERMISSION_MANAGE_USERS`, without which it fails with `not_found` and
+  // `REFUSAL_REASON_USER_NOT_FOUND` as for a User who doesn't exist, and an Admin's needs
+  // `PERMISSION_ADMIN`, without which it fails with `permission_denied` and
+  // `REFUSAL_REASON_PERMISSION_REQUIRED`. Clearing one that isn't set succeeds.
   rpc ClearSwitchPin(ClearSwitchPinRequest) returns (ClearSwitchPinResponse);
   // Gives the calling Device Recent Authentication, once its User proves who they are again: with
   // their password, or with their Account approving a sign-in started with `StartAccountSignIn`,

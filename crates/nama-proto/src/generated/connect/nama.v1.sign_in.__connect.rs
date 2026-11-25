@@ -965,9 +965,10 @@ pub trait SignInService: Send + Sync + 'static {
         >,
     > + Send;
     /// Clears a User's Switch PIN, so switching to them needs none. Clearing another User's needs
-    /// `PERMISSION_MANAGE_USERS`, and an Admin's needs `PERMISSION_ADMIN`, as `UserService`'s
-    /// `ResetPassword` does; without them it fails like that call. Clearing one that isn't set
-    /// succeeds.
+    /// `PERMISSION_MANAGE_USERS`, without which it fails with `not_found` and
+    /// `REFUSAL_REASON_USER_NOT_FOUND` as for a User who doesn't exist, and an Admin's needs
+    /// `PERMISSION_ADMIN`, without which it fails with `permission_denied` and
+    /// `REFUSAL_REASON_PERMISSION_REQUIRED`. Clearing one that isn't set succeeds.
     ///
     /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
     ///

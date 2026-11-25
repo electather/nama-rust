@@ -104,8 +104,7 @@ pub(crate) enum Error {
     /// The Switch PIN isn't the User's. After [`WRONG_SWITCH_PINS`] in a row, that User was
     /// signed out of the Device.
     #[error(
-        "the Switch PIN is wrong; after {WRONG_SWITCH_PINS} wrong ones in a row, that User is \
-         signed out of this Device"
+        "the Switch PIN is wrong; too many wrong ones in a row sign that User out of this Device"
     )]
     WrongSwitchPin {
         /// How many more wrong ones would sign the User out, 0 once they were.
@@ -402,9 +401,17 @@ impl SignIn {
         }
         let tried = (self.switch_pin_tries.admit(device, user))
             .ok_or(Error::WrongSwitchPin { tries_left: 0 })?;
-        if is_switch_pin(&tried, switch_pin, stored).await? {
-            self.switch_pin_tries.forget(device, user);
-            return Ok(());
+        match is_switch_pin(&tried, switch_pin, stored).await {
+            Ok(true) => {
+                self.switch_pin_tries.forget(device, user);
+                return Ok(());
+            }
+            Ok(false) => {}
+            // A Server failure is no guess, and left counted, five of them would lock switching.
+            Err(err) => {
+                self.switch_pin_tries.uncount(device, user);
+                return Err(err.into());
+            }
         }
         let tries_left = WRONG_SWITCH_PINS - tried.in_a_row;
         if tries_left == 0 {

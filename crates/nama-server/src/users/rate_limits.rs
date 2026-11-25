@@ -209,6 +209,14 @@ impl SwitchPinTries {
         })
     }
 
+    /// Takes back one try [`SwitchPinTries::admit`] counted for the User `user` on the Device
+    /// `device`, which failed before it could be checked.
+    pub(super) fn uncount(&self, device: i64, user: i64) {
+        if let Some(in_a_row) = self.lock().get_mut(&(device, user)) {
+            *in_a_row = in_a_row.saturating_sub(1);
+        }
+    }
+
     /// Starts the count for the User `user` on the Device `device` again: a right Switch PIN, or
     /// the sign-out the last wrong one caused.
     pub(super) fn forget(&self, device: i64, user: i64) {

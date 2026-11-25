@@ -510,6 +510,44 @@ async fn a_right_switch_pin_starts_the_count_of_wrong_ones_again() {
     assert_eq!(tries_left(wrong), "4");
 }
 
+/// Replaces every stored Switch PIN hash with `credential`.
+#[expect(
+    clippy::unwrap_used,
+    reason = "a test helper fails its test by panicking"
+)]
+async fn store_switch_pin_hash(server: &TestServer, credential: String) {
+    (server.db())
+        .write(|tx| {
+            Box::pin(async move {
+                sqlx::query("UPDATE switch_pins SET credential = ?")
+                    .bind(credential)
+                    .execute(&mut **tx)
+                    .await
+            })
+        })
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn a_switch_pin_the_server_fails_to_check_isnt_counted_as_wrong() {
+    let (server, ada, grace) = grace_with_a_switch_pin().await;
+    let stored: String = sqlx::query_scalar("SELECT credential FROM switch_pins")
+        .fetch_one(server.db().reader())
+        .await
+        .unwrap();
+    store_switch_pin_hash(&server, "not a hash".to_owned()).await;
+    for _ in 0..5 {
+        let failed = switch_with_pin(&server, &ada.token, grace.id, "0000").await;
+        assert_eq!(failed.unwrap_err().code, ErrorCode::Internal);
+    }
+    store_switch_pin_hash(&server, stored).await;
+
+    let wrong = switch_with_pin(&server, &ada.token, grace.id, "0000").await;
+
+    assert_eq!(tries_left(wrong), "4");
+}
+
 #[tokio::test]
 async fn a_switch_pin_neither_signs_a_device_in_nor_reauthenticates() {
     let (server, ada, grace) = grace_with_a_switch_pin().await;
