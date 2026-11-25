@@ -1,9 +1,8 @@
 //! The Hub Plugin (ADR 0094): the Built-in Plugin through which a Linked Server does what is
 //! Hub-facing but the Link itself, which the Kernel keeps (ADR 0105, [`KernelLink`]). It sends the
-//! Hub the Diagnostics and Usage Analytics the Admin shares (ADR 0054). The Server's Users Link to
-//! their own Accounts through a code each enters on the Hub (ADR 0011), their Watch State, Subtitle
-//! and Audio Preferences and Watchlists sync with the Hub (ADR 0092), and each play of theirs goes
-//! to the Hub as a Viewing Event (ADR 0093).
+//! Hub the Diagnostics and Usage Analytics the Admin shares (ADR 0054). The Watch State, Subtitle
+//! and Audio Preferences and Watchlists of the Users the Kernel Linked to Accounts sync with the
+//! Hub (ADR 0092), and each play of theirs goes to the Hub as a Viewing Event (ADR 0093).
 //! Once Linked, it is also a Similar source answering the titles the Hub finds alike (ADR 0084,
 //! 0095), a Home row source giving each Linked User the titles the Hub recommends from what
 //! their Account finished, as a row and as Featured suggestions (ADR 0072), and sharing Home rows
@@ -62,12 +61,15 @@ pub trait KernelLink: fmt::Debug + Send + Sync + 'static {
     /// When the Kernel couldn't forget it.
     fn forget<'a>(&'a self, credential: &'a str) -> BoxFuture<'a, Result<(), PluginError>>;
 
-    /// Whom `token`, which the Hub signed, names: its subject.
+    /// Whether the User `user_id` is Linked to an Account, as Settings shows it: the one answer
+    /// that decides whether their Watch State, Subtitle and Audio Preferences, Watchlist and plays
+    /// go to the Hub. It asks the Hub as Settings would, so a User who never opened Settings, such
+    /// as one who only signs in with their Account, counts once Linked there.
     ///
     /// # Errors
     ///
-    /// When it doesn't check out against the Hub's key set.
-    fn token_subject<'a>(&'a self, token: &'a str) -> BoxFuture<'a, Result<String, PluginError>>;
+    /// When the Kernel can't answer even from what it last heard.
+    fn user_linked(&self, user_id: i64) -> BoxFuture<'_, Result<bool, PluginError>>;
 }
 
 /// The Plugin.
@@ -92,20 +94,18 @@ impl Plugin for Hub {
     fn manifest(&self) -> Manifest {
         Manifest {
             name: "Hub".to_owned(),
-            description: "Links the Server's Users to Accounts on Nama's Hub, syncs \
-                          Linked Users' Watch State, Subtitle and Audio Preferences and \
-                          Watchlists there and sends it what they play, sends it the Diagnostics \
+            description: "Syncs Linked Users' Watch State, Subtitle and Audio Preferences and \
+                          Watchlists with Nama's Hub and sends it what they play, sends it the Diagnostics \
                           and Usage Analytics you share in Settings, adds the titles the Hub \
                           finds alike to Similar titles, gives each Linked User a Recommended \
                           for you row and Featured suggestions from what they finished, and \
                           shows Trending on Nama and Most watchlisted on Nama rows on home."
                 .to_owned(),
             version: env!("CARGO_PKG_VERSION").to_owned(),
-            setup_markdown: "Link the Server under Settings, Server, and enable it. Each User can \
-                             then Link to their own Account from their own Settings: the Server \
-                             shows a code to enter on the Hub while signed in to that Account. \
-                             Each play of a Matched title by a Linked User goes to the Hub as a \
-                             Viewing Event, which their Account can see, delete and export there. \
+            setup_markdown: "Link the Server under Settings, Server, and enable it. Each User \
+                             Linked to their own Account from their own Settings has what they \
+                             do synced with it. Each play of a Matched title by a Linked User \
+                             goes to the Hub as a Viewing Event, which their Account can see, delete and export there. \
                              Read Libraries, Read Watch State and Read Users tell it what was \
                              played, how far, and on what kind of Device. \
                              Home's Trending on Nama row shows the Movies on the Server most \

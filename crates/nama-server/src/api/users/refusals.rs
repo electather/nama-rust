@@ -57,7 +57,7 @@ impl From<users::Error> for ConnectError {
             users::Error::LastSignInMethod => {
                 refuse(R::REFUSAL_REASON_LAST_SIGN_IN_METHOD, message)
             }
-            users::Error::NoLinkingPlugin => return server_link::no_linking_plugin(),
+            users::Error::NoHub => return server_link::no_hub(),
             users::Error::LinkingFailed => {
                 return Self::unavailable(server_link::LINKING_FAILED);
             }

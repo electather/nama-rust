@@ -1,6 +1,6 @@
 //! A User's Account as a way in: GLOSSARY counts an Account among the Sign-in Methods, but the
-//! Kernel stores only the others (ADR 0014), so a way in is a stored Sign-in Method or a Link the
-//! Plugin that links the Server says is Linked. Creating a User from an Account (ADR 0092) too.
+//! Kernel stores only the others (ADR 0014), so a way in is a stored Sign-in Method or a Link to an
+//! Account. Creating a User from an Account (ADR 0092) too.
 
 use futures_util::future::join_all;
 
@@ -15,14 +15,14 @@ enum WayIn {
     Account,
     /// Not at all.
     Nothing,
-    /// Not with a stored Sign-in Method, and the Plugin couldn't tell whether they are Linked.
+    /// Not with a stored Sign-in Method, and the Hub couldn't be asked whether they are Linked.
     Unknown,
 }
 
 impl Users {
     /// Which Users can't sign in: with no stored Sign-in Method and no Link. One whose Link the
-    /// Plugin couldn't tell is left out, as they may be Linked.
-    // ponytail: one call per User with no Sign-in Method, all at once, though the Plugin asks the
+    /// Hub couldn't be asked about is left out, as they may be Linked.
+    // ponytail: one call per User with no Sign-in Method, all at once, though the Kernel asks the
     // Hub about each at most once a minute; cap them if Servers come to have many such Users.
     pub(crate) async fn cannot_sign_in(&self) -> Result<Vec<i64>, sqlx::Error> {
         let asked = (self.without_sign_in_method().await?.into_iter())
@@ -35,8 +35,8 @@ impl Users {
 
     /// Unlinks the User `user_id` from their Account, or stops showing their code, unless their
     /// Account is their only way in ([`Error::LastSignInMethod`]), which ADR 0014 says a User
-    /// always keeps, or the Plugin couldn't tell it isn't ([`Error::LinkingFailed`]). The
-    /// service may still Unlink them (ADR 0099), and an Admin's `ResetPassword` gets them back in.
+    /// always keeps, or the Hub couldn't tell it isn't ([`Error::LinkingFailed`]). The
+    /// Hub may still Unlink them (ADR 0099), and an Admin's `ResetPassword` gets them back in.
     pub(crate) async fn unlink(&self, user_id: i64) -> Result<(), Error> {
         match self.way_in(user_id).await? {
             WayIn::Account => return Err(Error::LastSignInMethod),
@@ -50,7 +50,7 @@ impl Users {
 
     /// Creates a User named `name` with the default Permissions and no Sign-in Method, as `by`
     /// asks, and has the Account with `email` asked to accept them, which Links them to it: they
-    /// sign in once it does (ADR 0092). Refused as [`Users::create`] refuses. A User the Plugin
+    /// sign in once it does (ADR 0092). Refused as [`Users::create`] refuses. A User the Hub
     /// couldn't be asked about is deleted again.
     pub(crate) async fn create_from_account(
         &self,
@@ -97,7 +97,7 @@ impl Users {
     async fn account_way_in(&self, user_id: i64) -> WayIn {
         match self.linking.user_link(user_id).await {
             Ok(Some(Link::Linked { .. })) => WayIn::Account,
-            Ok(_) | Err(link::Error::NoLinkingPlugin | link::Error::NoHub) => WayIn::Nothing,
+            Ok(_) | Err(link::Error::NoHub) => WayIn::Nothing,
             Err(link::Error::Failed) => WayIn::Unknown,
         }
     }
@@ -128,7 +128,7 @@ impl Users {
 impl From<link::Error> for Error {
     fn from(err: link::Error) -> Self {
         match err {
-            link::Error::NoLinkingPlugin | link::Error::NoHub => Self::NoLinkingPlugin,
+            link::Error::NoHub => Self::NoHub,
             link::Error::Failed => Self::LinkingFailed,
         }
     }

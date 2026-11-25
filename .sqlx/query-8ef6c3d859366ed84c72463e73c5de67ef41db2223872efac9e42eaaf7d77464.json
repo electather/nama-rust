@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO hub_user_links (user_id, server_link, account)\n                         VALUES (?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "8ef6c3d859366ed84c72463e73c5de67ef41db2223872efac9e42eaaf7d77464"
+}
