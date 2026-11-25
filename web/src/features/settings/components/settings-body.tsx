@@ -36,11 +36,12 @@ export function SettingsBody({
   picked?: AdminServer | undefined;
 }) {
   const shown = openSection(groups, section);
+  const served = serves(picked, shown);
   const pane = <SettingsPane key={shown} section={shown} user={user} />;
   // Keyed by the Server, so what one Server's pane holds never shows on another's.
   const pickedPane =
     picked &&
-    (picked.settingsSections.includes(shown) ? (
+    (served ? (
       <ConfirmItsYou key={picked.server.id}>{pane}</ConfirmItsYou>
     ) : (
       <UpdateServer server={picked.server} />
@@ -55,9 +56,14 @@ export function SettingsBody({
       {/* Wider, the sections run the full height beside the title and the pane. A phone drops
           this box so its title can sit over the strip of sections. */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col max-md:contents">
-        <SettingsHeader section={shown} {...header} />
+        <SettingsHeader section={shown} served={served} {...header} />
         {pickedPane ?? pane}
       </div>
     </>
   );
+}
+
+/** Whether a `picked` Server reports serving `section`, as the Account's Settings always do. */
+function serves(picked: AdminServer | undefined, section: Section) {
+  return picked?.settingsSections.includes(section) !== false;
 }

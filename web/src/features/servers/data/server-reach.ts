@@ -178,7 +178,7 @@ async function tokenFromHub(hub: Transport, linkedServerId: string) {
   }
 }
 
-/** Who `transport` is signed in as, or `null` when the Server refuses its session. */
+/** Who `transport` is signed in as, on a Server serving `settingsSections`, or `null` if refused. */
 async function whoIsSignedInAt(transport: Transport, settingsSections: string[]) {
   try {
     const signedIn = await callUnaryMethod(transport, SignInService.method.whoAmI, {});

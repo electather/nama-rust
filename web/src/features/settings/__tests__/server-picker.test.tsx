@@ -92,14 +92,14 @@ test("picking a Server shows its Settings, and a change applies to it", async ()
     .toMatchObject([{ settings: { url: "https://nama.example.com" } }]);
 });
 
-test("a Section the picked Server doesn't report says to update it", async () => {
+test("a Section the picked Server doesn't report says to update it, and offers nothing to do", async () => {
   openHubSettings({ "https://basement.example": fakeServerOf([Permission.ADMIN], []) });
 
   await screen.findByRole("combobox", { name: "Settings for" });
   pick("Settings for", "Basement");
-  fireEvent.click(await findSettingsLink("Server"));
+  fireEvent.click(await findSettingsLink("Home"));
 
   const update = await screen.findByRole("link", { name: "Update this Server" });
   expect(update.getAttribute("href")).toBe("https://basement.example");
-  expect(screen.queryByLabelText("Server URL")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Reset to default" })).toBeNull();
 });

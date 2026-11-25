@@ -21,7 +21,7 @@ export function HubSettings({
   const hub = useTransport();
   const servers = useAdminServers();
   const manage = useSearch({ strict: false, select: (search) => search.manage });
-  // shortcut: a picked Server not reached yet, as on reload, shows the Account's until it is;
+  // ponytail: a picked Server not reached yet, as on reload, shows the Account's until it is;
   // wait for it if that flash bothers anyone.
   const picked = servers.find(({ server }) => server.id === manage);
   const user = picked?.signedIn.user;
