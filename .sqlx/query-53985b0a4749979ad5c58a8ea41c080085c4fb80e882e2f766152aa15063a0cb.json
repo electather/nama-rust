@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE hub_link SET server_id = ? WHERE credential = ? AND server_id IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "53985b0a4749979ad5c58a8ea41c080085c4fb80e882e2f766152aa15063a0cb"
+}

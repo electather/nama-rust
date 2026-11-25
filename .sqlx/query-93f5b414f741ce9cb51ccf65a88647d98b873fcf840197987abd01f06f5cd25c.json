@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT account FROM hub_user_links WHERE user_id = ? AND server_link = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "account",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "hub_user_links",
+            "name": "account"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "93f5b414f741ce9cb51ccf65a88647d98b873fcf840197987abd01f06f5cd25c"
+}

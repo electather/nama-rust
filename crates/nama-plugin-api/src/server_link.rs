@@ -1,8 +1,8 @@
-//! Provide: Linking the Server's Users to an outside service through a code each enters there, once
-//! the Kernel has Linked the Server itself with the Hub (ADR 0011, ADR 0105). Its Users then sign in
-//! with their accounts there, and an Admin creates Users from such accounts (ADR 0092). Their Watch
-//! State and Subtitle and Audio Preferences on their other Servers come back through it too (ADR
-//! 0008, ADR 0092), and their Watchlist syncs with them (ADR 0056). Only a Built-in Plugin provides it, by registering it:
+//! Provide: syncing the Users the Kernel Linked to Accounts with an outside service, once the
+//! Kernel has Linked the Server and them with the Hub (ADR 0011, ADR 0105): their Watch State and
+//! Subtitle and Audio Preferences on their other Servers come back through it (ADR 0008, ADR 0092),
+//! and their Watchlist syncs with them (ADR 0056). The Link types the Kernel answers in live here too.
+//! Only a Built-in Plugin provides it, by registering it:
 //!
 //! ```ignore
 //! registrar.provide::<dyn ServerLinker>(Priority::DEFAULT, Arc::new(my_linker));
@@ -95,77 +95,8 @@ pub struct WatchlistEntry {
     pub changed_at_ms: i64,
 }
 
-/// A Provider that Links the Server's Users to an outside service.
+/// A Provider that syncs the Server's Linked Users with an outside service.
 pub trait ServerLinker: Send + Sync + 'static {
-    /// Where Linking the User `user_id` stands, or `None` while the Server isn't Linked, when its
-    /// Users can't Link. While a code waits, this is also when the Plugin asks the service whether
-    /// it was entered, so the Kernel asks only while someone is looking.
-    ///
-    /// # Errors
-    ///
-    /// When the Plugin can't answer even from what it last heard.
-    fn user_link(&self, user_id: i64) -> BoxFuture<'_, Result<Option<Link>, PluginError>>;
-
-    /// Starts Linking the User `user_id`, whom the service lists as `user_name`, replacing any
-    /// code they wait on, and answers the new code, or their Link if they are Linked already.
-    ///
-    /// # Errors
-    ///
-    /// When the Server isn't Linked, or the service couldn't be asked.
-    fn start_user_link<'a>(
-        &'a self,
-        user_id: i64,
-        user_name: &'a str,
-    ) -> BoxFuture<'a, Result<Link, PluginError>>;
-
-    /// Unlinks the User `user_id`, telling the service, or forgets the code they wait on.
-    /// Unlinking a User who isn't Linked does nothing.
-    ///
-    /// # Errors
-    ///
-    /// When the service couldn't be told: the User stays Linked.
-    fn unlink_user(&self, user_id: i64) -> BoxFuture<'_, Result<(), PluginError>>;
-
-    /// Asks the account at the service with `email`, if there is one, to accept the User
-    /// `user_id`, whom the service lists as `user_name`; once it does, they are Linked to it. It
-    /// says nothing of whether there is one.
-    ///
-    /// # Errors
-    ///
-    /// When the Server isn't Linked, or the service couldn't be asked.
-    fn invite_user<'a>(
-        &'a self,
-        user_id: i64,
-        user_name: &'a str,
-        email: &'a str,
-    ) -> BoxFuture<'a, Result<(), PluginError>>;
-
-    /// Starts someone signing in to the Server with their account at the service, which sends
-    /// them back to `return_url` once they approve.
-    ///
-    /// # Errors
-    ///
-    /// When the Server isn't Linked, or the service couldn't be asked.
-    fn start_account_sign_in<'a>(
-        &'a self,
-        return_url: &'a str,
-    ) -> BoxFuture<'a, Result<AccountSignIn, PluginError>>;
-
-    /// The id of the User the sign-in `handle` stands for, as the service vouches, once their
-    /// account approved it there: the User Linked to it. `code` is the one-time code the service
-    /// sent the person back with, which the service checks. `None` while it isn't approved, once
-    /// it expired or was used, or with a wrong code, which ends it.
-    ///
-    /// # Errors
-    ///
-    /// When the Server isn't Linked, the service couldn't be asked, or what it answered doesn't
-    /// check out.
-    fn finish_account_sign_in<'a>(
-        &'a self,
-        handle: &'a str,
-        code: &'a str,
-    ) -> BoxFuture<'a, Result<Option<i64>, PluginError>>;
-
     /// The Watch State the service keeps of the User `user_id` from every Server they use, such as
     /// their Account's on the Hub (ADR 0008), each title's by any of its ids, with when it last
     /// changed; empty while they aren't Linked. The Kernel takes what is newer than its own.

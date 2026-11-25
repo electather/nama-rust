@@ -305,11 +305,11 @@ pub enum Error {
          Admin to give you a password first"
     )]
     LastSignInMethod,
-    /// No enabled Plugin links the Server.
-    #[error("no enabled Plugin links the Server")]
-    NoLinkingPlugin,
-    /// The Plugin that links the Server couldn't tell, as with its service unreachable.
-    #[error("the Plugin that links the Server failed; its page says why")]
+    /// The Server's config names no Hub, so its Users can't Link.
+    #[error("the Server's config names no Hub")]
+    NoHub,
+    /// Linking couldn't tell, as with the Hub unreachable.
+    #[error("Linking failed; the Server's log says why")]
     LinkingFailed,
     /// Creating a User from an Account panicked.
     #[error("creating a User from an Account panicked: {0}")]
