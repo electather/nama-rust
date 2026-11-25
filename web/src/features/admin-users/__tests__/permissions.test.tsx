@@ -263,7 +263,7 @@ test.each([
   { name: "Alex", changeable: true },
   { name: "Pat", changeable: false },
 ])(
-  "without the Admin Permission, whether $name's Permissions can be changed is $changeable, never to Admin",
+  "without the Admin Permission, whether $name's Permissions, Maximum Age and Libraries can be changed is $changeable, never to Admin",
   async ({ name, changeable }) => {
     openApp(
       usersSection,
@@ -286,6 +286,8 @@ test.each([
 
     await screen.findByRole("button", { name: /^Delete /u });
     expect(screen.queryByRole("checkbox", { name: "Request" }) !== null).toBe(changeable);
+    expect(screen.queryByRole("combobox", { name: "Maximum Age" }) !== null).toBe(changeable);
+    expect(screen.queryByRole("combobox", { name: "Libraries" }) !== null).toBe(changeable);
     expect(screen.queryByRole("checkbox", { name: "Admin" })).toBeNull();
   },
 );

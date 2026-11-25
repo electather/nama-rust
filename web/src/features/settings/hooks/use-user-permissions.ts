@@ -1,25 +1,46 @@
 import { useSetPermissions } from "@/features/admin-users/data/use-set-permissions";
+import { useSetUserAccess } from "@/features/admin-users/data/use-set-user-access";
 import { onlyAdminRefusal } from "@/features/admin-users/lib/user-refusals";
 import { useAutoSave } from "@/features/settings/hooks/use-auto-save";
 import type { User } from "@/gen/nama/v1/sign_in_pb";
 
+/** What a refused save of each setting tried to do, as its toast says. */
+const ATTEMPTS: Record<string, string> = {
+  maximumAge: "save the Maximum Age",
+  libraryAccess: "save the Libraries",
+};
+
 /**
- * `user`'s Permissions and cap for remote playback, each change `you` make saved as it's made, and what the toast says of one
- * the Server refused.
+ * `user`'s Permissions, cap for remote playback, Maximum Age and Libraries, each change `you` make
+ * saved as it's made, and what the toast says of one the Server refused.
  */
 export function useUserPermissions(user: User, you: User | undefined) {
   const setPermissions = useSetPermissions(user, you);
+  const { setMaximumAge, setLibraryAccess } = useSetUserAccess();
   const { values, refused, edit, dismiss } = useAutoSave(
-    { permissions: user.permissions, cap: user.remotePlaybackLimit },
-    async ({ permissions, cap }) => {
-      await setPermissions.mutateAsync({ userId: user.id, permissions, remotePlaybackLimit: cap });
+    {
+      permissions: user.permissions,
+      cap: user.remotePlaybackLimit,
+      maximumAge: user.maximumAge,
+      libraryAccess: user.libraryAccess,
+    },
+    async ({ permissions, cap, maximumAge, libraryAccess }, changed) => {
+      const userId = user.id;
+      // Each control changes one setting, and each setting has an RPC of its own.
+      if (changed.includes("maximumAge")) {
+        await setMaximumAge.mutateAsync({ userId, maximumAge });
+      } else if (changed.includes("libraryAccess")) {
+        await setLibraryAccess.mutateAsync({ userId, libraryAccess });
+      } else {
+        await setPermissions.mutateAsync({ userId, permissions, remotePlaybackLimit: cap });
+      }
     },
   );
+  const attempt = ATTEMPTS[refused?.keys[0] ?? ""] ?? "save the Permissions";
   return {
-    held: values.permissions,
-    cap: values.cap,
+    values,
     edit,
     dismiss,
-    says: refused && onlyAdminRefusal(refused.failure, user.name, "save the Permissions"),
+    says: refused && onlyAdminRefusal(refused.failure, user.name, attempt),
   };
 }
