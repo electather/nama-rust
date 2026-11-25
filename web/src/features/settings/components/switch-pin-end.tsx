@@ -31,7 +31,7 @@ export function SwitchPinEnd({
       >
         Clear Switch PIN
       </Button>
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" variant="secondary" disabled={pending}>
         Set Switch PIN
       </Button>
     </div>
