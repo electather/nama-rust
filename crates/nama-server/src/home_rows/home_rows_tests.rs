@@ -70,6 +70,7 @@ fn a_title_a_row_names_by_two_of_its_ids_shows_once_at_its_first_place() {
         title: "The Matrix".to_owned(),
         release_date: None,
         poster: None,
+        content_rating: None,
     };
     let titles = vec![
         Title(Kind::Movie, "imdb-tt0133093".to_owned()),

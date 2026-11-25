@@ -71,7 +71,7 @@ impl Requests {
     ///
     /// Refuses a `chosen` Quality from an `asker` who may not choose one, or that the Movie
     /// Fulfiller doesn't offer, even when joining, and with [`Error::NoSuchMovie`] a Movie only
-    /// a Library `asker` doesn't see has.
+    /// a Library `asker` doesn't see has, or their Maximum Age keeps from them.
     pub(crate) async fn create(
         &self,
         asker: &User,
@@ -91,6 +91,12 @@ impl Requests {
         // ponytail: looked up even to join an open Request, so the write has it if that Request
         // closes meanwhile. Look up only when opening one if TMDB's rate limit starts to bite.
         let movie = self.fetch(id).await?;
+        if self
+            .kept_from(asker, movie.content_rating.as_deref())
+            .await?
+        {
+            return Err(Error::NoSuchMovie(id.clone()));
+        }
         let wanted = Wanted::movie(id, movie, quality);
         let state = opening_state(asker, Permission::AutoApproveMovie);
         let user = asker.id;
@@ -104,7 +110,7 @@ impl Requests {
     /// `AUTO_APPROVE_TV` and the Fulfiller for Shows. Asks for none if a Library has any of them:
     /// every aired Episode Matched. New Requests take the Show's Quality if it has one, refusing
     /// another `chosen` one, else as [`Self::create`] picks one. [`Error::NoSuchShow`] for a Show
-    /// only a Library `asker` doesn't see has.
+    /// only a Library `asker` doesn't see has, or their Maximum Age keeps from them.
     pub(crate) async fn create_seasons(
         &self,
         asker: &User,
@@ -118,6 +124,12 @@ impl Requests {
         }
         let quality = self.quality::<Shows>(asker, chosen).await?;
         let (source, show) = self.show(show_id).await?;
+        if self
+            .kept_from(asker, show.content_rating.as_deref())
+            .await?
+        {
+            return Err(Error::NoSuchShow(show_id.clone()));
+        }
         let id = kept_under(show_id, &show.ids);
         let mut seasons = Vec::with_capacity(numbers.len());
         // ponytail: one metadata lookup per Season, one after another.

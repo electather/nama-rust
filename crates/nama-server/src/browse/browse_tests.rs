@@ -6,6 +6,7 @@ use tempfile::TempDir;
 
 use super::{Browse, Error, Started, Target};
 use crate::{
+    content_ratings::MaximumAge,
     db::{self, Database},
     library::{
         Change, Contents, Decided, Item, Libraries, LibraryKind, Listing, Metadata, MovieOrEpisode,
@@ -362,6 +363,7 @@ async fn continue_watching_reads_no_library_for_a_user_who_started_nothing() {
         watch_states: WatchStates::new(db, ExtensionPoints::default()),
         db: unreadable,
         seen: LibraryAccess::All,
+        max_age: MaximumAge::default(),
     };
 
     let (started, _) = (browse.continue_watching(1, &PageRequest::default()).await).unwrap();

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT max_age, allow_unrated AS \"allow_unrated: bool\" FROM users WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "max_age",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "max_age"
+          }
+        }
+      },
+      {
+        "name": "allow_unrated: bool",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "allow_unrated"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "686bb614672b9ee4d77c901a84cbe9d70d0a81d15a8cebf3346d8551f8025d43"
+}

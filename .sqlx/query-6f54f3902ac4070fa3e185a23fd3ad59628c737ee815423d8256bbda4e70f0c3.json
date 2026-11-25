@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE users SET max_age = ?, allow_unrated = ?, updated_at = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "6f54f3902ac4070fa3e185a23fd3ad59628c737ee815423d8256bbda4e70f0c3"
+}
