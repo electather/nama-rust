@@ -185,7 +185,7 @@ A Provider that says where a Version's Segments are, such as from an outside ser
 _Avoid_: segment provider, intro detector, skipper
 
 **Watch sync**:
-A Provider that follows each User's Watch State to an outside tracker, such as Trakt, and brings the changes made there back, for each User who linked their account in its Personal settings. It is told each change as it is made (scrobble), and asked every 15 minutes what changed on the tracker since its last answer (import), which the Server takes where newer than its own and never tells back. Watch State only; ratings don't sync.
+A Provider that follows each User's Watch State to an outside tracker, such as Trakt, and brings the changes made there back, for each User who linked their account in its Personal settings, by a code they enter at the tracker, whose tokens the Server keeps as their secret Personal settings. It is told each change as it is made (scrobble), and asked every 15 minutes what changed on the tracker since its last answer (import), which the Server takes where newer than its own and never tells back. Watch State only; ratings don't sync.
 _Avoid_: tracker sync, Trakt sync, history sync
 
 **Similar source**:

@@ -3,13 +3,16 @@
 
 use nama_plugin_api::{
     BoxFuture, PluginError,
-    contract::{ImportAsked, Imported, ScrobbleAsked, Scrobbled},
+    contract::{
+        ImportAsked, Imported, LinkPolled, LinkStarted, PollLinkAsked, ScrobbleAsked, Scrobbled,
+        StartLinkAsked,
+    },
     watch_sync::WatchSync,
 };
 
 use super::{
     Running,
-    services::{IMPORT, SCROBBLE},
+    services::{IMPORT, POLL_LINK, SCROBBLE, START_LINK},
 };
 
 impl WatchSync for Running {
@@ -25,5 +28,19 @@ impl WatchSync for Running {
         asked: &'a ImportAsked,
     ) -> BoxFuture<'a, Result<Imported, PluginError>> {
         Box::pin(self.call_method(&IMPORT, asked))
+    }
+
+    fn start_link<'a>(
+        &'a self,
+        asked: &'a StartLinkAsked,
+    ) -> BoxFuture<'a, Result<LinkStarted, PluginError>> {
+        Box::pin(self.call_method(&START_LINK, asked))
+    }
+
+    fn poll_link<'a>(
+        &'a self,
+        asked: &'a PollLinkAsked,
+    ) -> BoxFuture<'a, Result<LinkPolled, PluginError>> {
+        Box::pin(self.call_method(&POLL_LINK, asked))
     }
 }

@@ -18,14 +18,16 @@ use nama_proto::nama::v1::{
     ListNotificationPreferencesResponse, ListPersonalSettingsRequest, ListPersonalSettingsResponse,
     ListPluginConnectionsRequest, ListPluginConnectionsResponse, ListUsersRequest,
     ListUsersResponse, NotificationKind, NotificationPreference, Permission, PluginConnection,
-    PluginConnectionState, RefusalReason, ReorderHomeRowsRequest, ReorderHomeRowsResponse,
-    ResetHomeLayoutRequest, ResetHomeLayoutResponse, ResetPasswordRequest, ResetPasswordResponse,
-    RevokeDeviceRequest, RevokeDeviceResponse, RevokeInviteRequest, RevokeInviteResponse,
-    SetDefaultPermissionsRequest, SetDefaultPermissionsResponse, SetHomeLayoutRequest,
-    SetHomeLayoutResponse, SetNotificationPreferenceRequest, SetNotificationPreferenceResponse,
-    SetPermissionsRequest, SetPermissionsResponse, StartPluginConnectionRequest,
-    StartPluginConnectionResponse, StartUserLinkRequest, StartUserLinkResponse, UnlinkUserRequest,
-    UnlinkUserResponse, UpdatePersonalSettingsRequest, UpdatePersonalSettingsResponse, UserService,
+    PluginConnectionState, PollWatchSyncLinkRequest, PollWatchSyncLinkResponse, RefusalReason,
+    ReorderHomeRowsRequest, ReorderHomeRowsResponse, ResetHomeLayoutRequest,
+    ResetHomeLayoutResponse, ResetPasswordRequest, ResetPasswordResponse, RevokeDeviceRequest,
+    RevokeDeviceResponse, RevokeInviteRequest, RevokeInviteResponse, SetDefaultPermissionsRequest,
+    SetDefaultPermissionsResponse, SetHomeLayoutRequest, SetHomeLayoutResponse,
+    SetNotificationPreferenceRequest, SetNotificationPreferenceResponse, SetPermissionsRequest,
+    SetPermissionsResponse, StartPluginConnectionRequest, StartPluginConnectionResponse,
+    StartUserLinkRequest, StartUserLinkResponse, StartWatchSyncLinkRequest,
+    StartWatchSyncLinkResponse, UnlinkUserRequest, UnlinkUserResponse,
+    UpdatePersonalSettingsRequest, UpdatePersonalSettingsResponse, UserService,
     home_layout_row::Row as LayoutRow, home_row::KernelOrPlugin,
 };
 
@@ -438,6 +440,26 @@ impl UserService for UserServiceHandler {
             .await
             .map_err(database_failed)?;
         Response::ok(DeletePersonalSettingsResponse::default())
+    }
+
+    async fn start_watch_sync_link(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, StartWatchSyncLinkRequest>,
+    ) -> ServiceResult<StartWatchSyncLinkResponse> {
+        caller(&ctx)?;
+        personal_settings::start_watch_sync_link(&self.plugin_settings, request.plugin_id).await
+    }
+
+    async fn poll_watch_sync_link(
+        &self,
+        ctx: RequestContext,
+        request: ServiceRequest<'_, PollWatchSyncLinkRequest>,
+    ) -> ServiceResult<PollWatchSyncLinkResponse> {
+        let user = caller(&ctx)?.user.id;
+        let (plugin, device_code) = (request.plugin_id, request.device_code);
+        personal_settings::poll_watch_sync_link(&self.plugin_settings, user, plugin, device_code)
+            .await
     }
 
     async fn list_notification_preferences(

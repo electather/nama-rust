@@ -166,6 +166,8 @@ const ACCESS: &[(&str, Access)] = &[
     (proto::USER_SERVICE_LIST_PERSONAL_SETTINGS_SPEC.procedure,   Access::SignedIn),
     (proto::USER_SERVICE_UPDATE_PERSONAL_SETTINGS_SPEC.procedure, Access::SignedIn),
     (proto::USER_SERVICE_DELETE_PERSONAL_SETTINGS_SPEC.procedure, Access::SignedIn),
+    (proto::USER_SERVICE_START_WATCH_SYNC_LINK_SPEC.procedure,    Access::SignedIn),
+    (proto::USER_SERVICE_POLL_WATCH_SYNC_LINK_SPEC.procedure,     Access::SignedIn),
     (proto::USER_SERVICE_LIST_NOTIFICATION_PREFERENCES_SPEC.procedure, Access::SignedIn),
     (proto::USER_SERVICE_SET_NOTIFICATION_PREFERENCE_SPEC.procedure, Access::SignedIn),
     (proto::USER_SERVICE_GET_HOME_LAYOUT_SPEC.procedure,          Access::SignedIn),

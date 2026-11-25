@@ -180,6 +180,8 @@ pub(super) const SIMILAR_TITLES: Method =
     required(services::SIMILAR_SOURCE, "Similar", "similar_titles");
 pub(super) const SCROBBLE: Method = required(services::WATCH_SYNC, "Scrobble", "scrobble");
 pub(super) const IMPORT: Method = required(services::WATCH_SYNC, "Import", "import");
+pub(super) const START_LINK: Method = required(services::WATCH_SYNC, "StartLink", "start_link");
+pub(super) const POLL_LINK: Method = required(services::WATCH_SYNC, "PollLink", "poll_link");
 
 /// The Extension Points an Installed Plugin can serve, one per service of the Plugin contract.
 pub(super) const POINTS: &[Point] = &[
@@ -324,7 +326,7 @@ pub(super) const POINTS: &[Point] = &[
     Point {
         service: services::WATCH_SYNC,
         crash_group: services::WATCH_SYNC,
-        methods: &[SCROBBLE, IMPORT],
+        methods: &[SCROBBLE, IMPORT, START_LINK, POLL_LINK],
         key: PointKey::provide::<dyn WatchSync>,
         register: |registrar, running| {
             registrar.provide::<dyn WatchSync>(Priority::DEFAULT, Arc::new(running));

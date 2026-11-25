@@ -147,7 +147,7 @@ impl PluginSettings {
 }
 
 /// `plugin`'s Manifest if it is enabled and declares Personal settings.
-fn declaring(plugin: &Listed) -> Option<Manifest> {
+pub(super) fn declaring(plugin: &Listed) -> Option<Manifest> {
     let manifest = plugin.manifest.as_ref().ok()?;
     (plugin.enabled && !manifest.personal_settings.fields.is_empty()).then(|| manifest.clone())
 }

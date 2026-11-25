@@ -47,6 +47,7 @@ mod running;
 mod sent;
 mod stored;
 mod title_sources;
+mod watch_sync_link;
 
 pub(crate) use personal::Personal;
 use sent::{check_fits, with_stored_secrets};
@@ -55,6 +56,7 @@ use stored::{
     set_enabled_granting, with_stored,
 };
 pub use stored::{grants, stored};
+pub(crate) use watch_sync_link::{LinkError, LinkState};
 
 /// The Plugin Permissions granted each stored Plugin, by Plugin id.
 type Grants = BTreeMap<String, HashSet<Permission>>;

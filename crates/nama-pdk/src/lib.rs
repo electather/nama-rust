@@ -63,7 +63,8 @@ pub use subtitle_source::{
     SubtitleDownload, SubtitleFile, SubtitleResult, SubtitleResults, SubtitleSearch, SubtitleSource,
 };
 pub use watch_sync::{
-    ImportAsked, Imported, ScrobbleAsked, Scrobbled, SyncedWatchState, WatchSync,
+    ImportAsked, Imported, LinkPolled, LinkStarted, PollLinkAsked, ScrobbleAsked, Scrobbled,
+    StartLinkAsked, SyncedWatchState, WatchSync,
 };
 
 #[doc(hidden)]
