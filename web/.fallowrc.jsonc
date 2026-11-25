@@ -70,6 +70,7 @@
       { "name": "library", "patterns": ["src/features/library/**"] },
       { "name": "title", "patterns": ["src/features/title/**"] },
       { "name": "player", "patterns": ["src/features/player/**"] },
+      { "name": "servers", "patterns": ["src/features/servers/**"] },
       { "name": "app", "patterns": ["src/app/**"] },
       { "name": "routes", "patterns": ["src/routes/**"] },
       // The only files that import route files.
@@ -96,7 +97,8 @@
       },
       {
         "from": "auth",
-        "allow": ["auth", "shared-components", "shared-hooks", "shared-lib"],
+        // The Account's home at the Hub lists its Servers' Libraries.
+        "allow": ["auth", "servers", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
         "from": "admin-libraries",
@@ -187,6 +189,10 @@
         "allow": ["player", "shared-components", "shared-hooks", "shared-lib"],
       },
       {
+        "from": "servers",
+        "allow": ["servers", "shared-components", "shared-hooks", "shared-lib"],
+      },
+      {
         "from": "app",
         "allow": [
           "app",
@@ -212,6 +218,7 @@
           "library",
           "title",
           "player",
+          "servers",
           "shared-components",
           "shared-hooks",
           "shared-lib",

@@ -23,7 +23,7 @@ export function EpisodeCard({
 }) {
   // Without its own ID there's nothing to mark or delete.
   const episodeId = episode.id;
-  const show = useParams({ from: "/_member/libraries/$libraryId/shows/$showId/" });
+  const show = useParams({ from: "/_member/_server/libraries/$libraryId/shows/$showId/" });
   return (
     <li
       // The row's scroll reads its Season.

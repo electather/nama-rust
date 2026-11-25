@@ -1,5 +1,5 @@
 import { LinkedServerItem } from "@/features/settings/components/linked-server-item";
-import { useLinkedServers } from "@/features/settings/data/use-linked-servers";
+import { useLinkedServers } from "@/shared/hooks/use-linked-servers";
 
 /** The Servers the signed-in Account owns or has a User on, or that it has none yet. */
 export function LinkedServerItems() {

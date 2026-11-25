@@ -8,7 +8,7 @@ import { RouteError } from "@/app/route-error/route-error";
 import { isAtHub, signedInQuery, whoIsSignedIn } from "@/shared/hooks/access";
 import { isCode, retryIfUnreachable } from "@/shared/lib/connect-errors";
 import { traceCalls, traceRouteChanges } from "@/shared/lib/diagnostics";
-import { serverTransport } from "@/shared/lib/server";
+import { type ServerAt, serverTransport } from "@/shared/lib/server";
 
 // oxlint-disable-next-line import/max-dependencies -- the router puts together the transport, the query cache, the routes and their Diagnostics
 import { routeTree } from "./routeTree.gen";
@@ -16,8 +16,11 @@ import { routeTree } from "./routeTree.gen";
 // The Server serves the app, so RPCs go to the page's own origin (ADR 0015).
 const sameOrigin = serverTransport("", [traceCalls]);
 
-/** The app's router. Tests pass a fake `transport`. */
-export function getRouter(transport: Transport = sameOrigin) {
+/**
+ * The app's router. Tests pass a fake `transport`, and at the Hub a fake `serverAt`, which reaches
+ * each of the Account's Servers.
+ */
+export function getRouter(transport: Transport = sameOrigin, serverAt: ServerAt = serverTransport) {
   const queryClient = new QueryClient({
     queryCache: new QueryCache({ onError: recheckSession }),
     mutationCache: new MutationCache({ onError: recheckSession }),
@@ -25,7 +28,7 @@ export function getRouter(transport: Transport = sameOrigin) {
   });
   const router = createRouter({
     routeTree,
-    context: { queryClient, transport },
+    context: { queryClient, transport, serverAt },
     scrollRestoration: true,
     defaultPreload: "intent",
     // TanStack Query caches the data, so the router shouldn't cache preloads on top of it.
